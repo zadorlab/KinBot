@@ -1,0 +1,167 @@
+###################################################
+##                                               ##
+## This file is part of the KinBot code v2.0     ##
+##                                               ##
+## The contents are covered by the terms of the  ##
+## BSD 3-clause license included in the LICENSE  ##
+## file, found at the root.                      ##
+##                                               ##
+## Copyright 2018 National Technology &          ##
+## Engineering Solutions of Sandia, LLC (NTESS). ##
+## Under the terms of Contract DE-NA0003525 with ##
+## NTESS, the U.S. Government retains certain    ##
+## rights to this software.                      ##
+##                                               ##
+## Authors:                                      ##
+##   Judit Zador                                 ##
+##   Ruben Van de Vijver                         ##
+##                                               ##
+###################################################
+
+method = 'b3lyp'
+basis = '6-31g'
+qc = 'gauss'
+conformer_search = 0
+reaction_search = 1
+barrier_threshold = 200.
+ga = 0
+ngen = 0
+ppn = 8
+
+#the keys of the jobs are their name
+#the values contain the smiles, a list of
+#reaction families to be considered,
+#and a list of barrier heigths to be expected
+#at the b3lyp/6-31g level of theory 
+
+
+#TODO: run the tests and fill in the appropriate barrier heigths
+
+jobs = {
+# intra H migration
+'propaneperoxyradical':
+['[O]OCCC',['intra_H_migration'],[0.,0.]],
+
+# intra R migration
+'butyl':
+['[CH2]CCC',['intra_R_migration'],[0.,0.]],
+
+# intra OH migration
+'butylperoxide':
+['[CH2]CCCOO',['intra_OH_migration'],[0.]],
+
+# intra cpd migration
+'methylcyclopentadiene':
+['C1(C)=CC=CC1',['cpd_H_migration'],[0.,0.]],
+
+# intramolecular endocyclic RH addition
+'pentenol':
+['OCCCC=C',['Intra_RH_Add_Endocyclic_F'],[0.,0.]],
+
+# endocyclic RH ring opening reaction
+'tetrahydropyran':
+['C1CCCCO1',['Intra_RH_Add_Endocyclic_R'],[0.]],
+
+# cyclic ether formation
+'propylperoxide':
+['[CH2]CCOO',['Cyclic_Ether_Formation'],[0.]],
+
+# intramolecular exocyclic RH addition
+'hexene':
+['CCCCC=C',['Intra_RH_Add_Exocyclic_F'],[0.,0.]],
+
+# exocyclic RH ring opening reaction
+'cyclohexane':
+['C1CCCCC1',['Intra_RH_Add_Exocyclic_R'],[0.]],
+
+# Retro ene reaction
+'butenol':
+['C=CCCO',['Retro_Ene'],[0.]],
+
+# intramolecular endocyclic radical addition
+'pentonyl':
+['[CH2]CCCC=O',['Intra_R_Add_Endocyclic_F'],[0.]],
+
+# cyclization-elimination reaction
+'pentyl':
+['[CH2]CCCC',['Intra_R_Add_ExoTetCyclic_F'],[0.,0.,0.,0.,0.]],
+
+# intramolecular exocyclic radical addition
+'hexenyl':
+['[CH2]CCCC=C',['Intra_R_Add_Exocyclic_F'],[0.]],
+
+# Korcek reaction step 2
+'cyclopentane':
+['C1CCCC1',['Korcek_step2'],[0.]],
+
+# reverse 2-2 cycloaddition
+'cyclobutane':
+['C1CCC1',['r22_cycloaddition'],[0.]],
+
+# reverse 1-2 cycloaddition
+'cyclopropane':
+['C1CC1',['r12_cycloaddition'],[0.]],
+
+# reverse 1-2 R insertion 
+'propane':
+['CCC',['r12_insertion_R'],[0.]],
+
+# reverse 1-3 CO2 insertion
+'aceticacid':
+['CC(=O)O',['r13_insertion_CO2'],[0.]],
+
+# reverse 1-3 ROR insertion
+'propanol':
+['CCCO',['r13_insertion_ROR'],[0.]],
+
+# reverse Diels Alder addition
+'cyclohexene':
+['C1=CCCCC1',['Diels_alder_addition'],[0.]],
+
+# intramolecular Diels Alder addition
+'heptatriene':
+['C=CC=CCC=C',['Intra_Diels_alder_R'],[0.]],
+
+# keto-enol tautomerization
+'acetaldehyde':
+['CC=O',['ketoenol'],[0.]],
+
+# HO2 elimination from peroxy radical
+'2propaneperoxyrad':
+['CC(O[O])C',['HO2_Elimination_from_PeroxyRadical'],[0.]],
+
+# alpha CO scission
+'alphapropanonradical':
+['CC[C]=O',['R_Addition_COm3_R'],[0.]],
+
+# radical beta scission
+'ethyl':
+['C[CH2]',['R_Addition_MultipleBond'],[0.]],
+
+# forward S shift
+'cscj':
+['CS[CH2]',['12_shift_S_F'],[0.]],
+
+# reverse S shift
+'sjcc':
+['[S]CC',['12_shift_S_R'],[0.]],
+
+# CS alpha scission
+'cccjs':
+['CC[C]=S',['R_Addition_CSm_R'],[0.]],
+
+# reverse 1-3 RSR insertion
+'cccs':
+['CCCS',['r13_insertion_RSR'],[0.]],
+}
+
+#in case the structure is written here, this is used instead of the smiles
+#for the initial optimization of the reactant because in some cases,
+#either OpenBabel is unreliable or a isomer or conformer is needed
+structures = {
+'cyclohexane':['C', 0.45853, -1.344726, -0.267825, 'C', 1.406311, -0.256061, 0.216778, 'C', 0.96557, 1.132825, -0.250265, 'C', -0.547168, 1.264022, -0.43946, 'C', -1.317674, 0.336765, 0.490506, 'C', -0.96557, -1.132824, 0.250267, 'H', 0.448594, -1.34917, -1.365178, 'H', 0.820291, -2.331005, 0.044104, 'H', 2.425585, -0.455268, -0.132957, 'H', 1.443778, -0.275249, 1.313377, 'H', 1.460144, 1.380459, -1.197404, 'H', 1.314488, 1.874794, 0.478253, 'H', -0.849305, 2.304589, -0.275604, 'H', -0.80502, 1.024643, -1.478937, 'H', -1.08735, 0.599774, 1.530736, 'H', -2.396574, 0.481682, 0.364451, 'H', -1.10571, -1.684701, 1.187706, 'H', -1.668922, -1.570549, -0.468546],
+'hexenyl':['C', 2.282557, 0.22878, 0.469857, 'C', 1.097717, 0.99865, -0.009031, 'C', 0.282464, 0.250905, -1.068254, 'C', -0.402822, -1.029382, -0.568809, 'C', -1.55122, -0.894217, 0.396653, 'C', -2.211987, 0.21968, 0.737009, 'H', 2.221509, -0.353177, 1.382231, 'H', 3.182376, 0.177632, -0.131816, 'H', 1.456461, 1.940745, -0.439979, 'H', 0.476068, 1.26881, 0.850118, 'H', -0.465825, 0.931088, -1.493104, 'H', 0.948236, -0.019836, -1.898655, 'H', -0.783078, -1.572855, -1.443378, 'H', 0.347264, -1.685644, -0.111257, 'H', -1.875247, -1.830678, 0.850387, 'H', -1.971737, 1.193074, 0.324336, 'H', -3.032737, 0.176425, 1.447273],
+'heptatriene':['C', 1.036742, -0.051179, 0.040991, 'C', 0.344952, 0.504224, -0.961298, 'C', -1.096534, 0.525894, -0.987715, 'C', -1.808928, 1.080286, -1.980863, 'C', -1.180858, 1.739286, -3.174348, 'C', -1.61729, 1.087276, -4.453552, 'C', -2.254147, 1.736784, -5.436843, 'H', 0.546979, -0.518487, 0.889424, 'H', 2.121758, -0.047319, 0.032525, 'H', 0.881946, 0.961386, -1.789471, 'H', -1.616214, 0.064835, -0.150175, 'H', -2.896469, 1.068703, -1.95044, 'H', -1.454062, 2.801179, -3.167954, 'H', -0.08664, 1.694934, -3.117899, 'H', -1.38406, 0.031153, -4.577323, 'H', -2.546643, 1.225395, -6.348216, 'H', -2.495391, 2.792049, -5.35277],
+'pentyl':['C', -2.511604, -0.413304, 0.062879, 'C', -1.039092, -0.618826, 0.192486, 'C', -0.285579, 0.710505, 0.257033, 'C', 1.215203, 0.54314, 0.506845, 'C', 1.94621, -0.152252, -0.631187, 'H', -3.194106, -1.173643, 0.425579, 'H', -2.906927, 0.381002, -0.560368, 'H', -0.699166, -1.213559, -0.661386, 'H', -0.843111, -1.200651, 1.100132, 'H', -0.700754, 1.323631, 1.067487, 'H', -0.440623, 1.27403, -0.671876, 'H', 1.379054, -0.011018, 1.438366, 'H', 1.656406, 1.537091, 0.647953, 'H', 1.774775, 0.362932, -1.581568, 'H', 3.023793, -0.156487, -0.437904, 'H', 1.625519, -1.192589, -0.737882],
+}
+

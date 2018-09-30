@@ -1,0 +1,88 @@
+###################################################
+##                                               ##
+## This file is part of the KinBot code v2.0     ##
+##                                               ##
+## The contents are covered by the terms of the  ##
+## BSD 3-clause license included in the LICENSE  ##
+## file, found at the root.                      ##
+##                                               ##
+## Copyright 2018 National Technology &          ##
+## Engineering Solutions of Sandia, LLC (NTESS). ##
+## Under the terms of Contract DE-NA0003525 with ##
+## NTESS, the U.S. Government retains certain    ##
+## rights to this software.                      ##
+##                                               ##
+## Authors:                                      ##
+##   Judit Zador                                 ##
+##   Ruben Van de Vijver                         ##
+##                                               ##
+###################################################
+import os 
+
+title = ''
+tpldir = os.path.expanduser('~/KinBot/tpl/')
+gaussian_command = 'g09'    
+nwchem_command = 'nwchem'    
+method = 'b3lyp' 
+basis = '6-31G'      
+conformer_search = 1 
+reaction_search = 1
+families = ['all']
+pes = 0
+rotor_scan = 0
+nrotation = 12
+charge = 0
+mult = 0 
+barrier_threshold = 0.
+nbondscan = 20        
+freq_ratio = 2.    
+nsinglept = 0
+qc = 'gauss' # or nwchem
+# nwchem-specific parameters and defaults
+methodclass = 'dft' # or scf or mp2    
+scratch = '/scratch/jzador'
+
+# computational environment
+queuing = 'pbs' # or slurm
+username = 'jzador'
+queue_name = 'medium'
+slurm_feature = 'knl' #e.g. the type of node or anything that comes with -C in SLURM
+
+convergence = 'default'
+maxiter = 100
+ppn = 1
+
+high_level = 0 # perform high level optimization and freq calculation
+high_level_method = 'M062X'
+high_level_basis = '6-311++G(d,p)'
+
+ga = 0
+ga_mx_file = 'ga_mx.dat'
+ngen = 0
+print_all_grad = 0 # print all gradients during genetic algorithm runs
+nmode_factor = 100. # scaling of normal modes during generic algorithm
+too_close = 0.5 # Angstrom, atoms are too close to each other
+
+scan_step = 30 # number of 0.1 Angstrom steps in bond scans
+
+zf = 4 # this many spaces can be used for numbering files, e.g., in ga
+
+#MESS specific keywords
+me = 0
+mess_command = 'mess'
+TemperatureList = [500+100*i for i in range(16)]
+PressureList = [760]
+EnergyStepOverTemperature = .2
+ExcessEnergyOverTemperature = 30
+ModelEnergyLimit = 400
+CalculationMethod = 'direct' # or low-eigenvalue
+ChemicalEigenvalueMax = 0.2
+EnergyRelaxationFactor = 200
+EnergyRelaxationPower = .85
+EnergyRelaxationExponentCutoff = 15
+Epsilons = [7.08,310.387]
+Sigmas = [2.576,6.000]
+Masses = [4.0,87.0]
+
+#MESMER specific keywords
+mesmer_command = 'mesmer'

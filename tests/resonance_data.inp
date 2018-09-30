@@ -1,0 +1,44 @@
+###################################################
+##                                               ##
+## This file is part of the KinBot code v2.0     ##
+##                                               ##
+## The contents are covered by the terms of the  ##
+## BSD 3-clause license included in the LICENSE  ##
+## file, found at the root.                      ##
+##                                               ##
+## Copyright 2018 National Technology &          ##
+## Engineering Solutions of Sandia, LLC (NTESS). ##
+## Under the terms of Contract DE-NA0003525 with ##
+## NTESS, the U.S. Government retains certain    ##
+## rights to this software.                      ##
+##                                               ##
+## Authors:                                      ##
+##   Judit Zador                                 ##
+##   Ruben Van de Vijver                         ##
+##                                               ##
+###################################################
+title='resonance test data file'
+
+charge = 0
+mult = 1
+method = 'b3lyp'
+basis = '6-31g'
+qc = 'gauss'
+conformer_search = 0
+reaction_search = 1
+barrier_threshold = 200.
+ga = 0
+ngen = 0
+ppn = 8
+
+data = {
+'C1=CC=CC=C1':2,
+'C1=CC=C(C)C=C1':2,
+'C=C[CH2]':2,
+'C=C=C':1,
+'C#C[CH2]':2,
+'S=S':1,
+'O=S=C':1,
+'O=S(C)[CH2]':3,
+'C1CC=CC=C1':1,
+}

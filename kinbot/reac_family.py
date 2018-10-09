@@ -25,17 +25,9 @@ import numpy as np
 import copy
 import time
 
-from vector import *
-from qc import *
-from constants import *
-from kinbot import *
-from stationary_pt import *
-from geom import *
-from qc import *
-from modify_geom import *
-import par
+import modify_geom
 
-def initialize_reaction(species, instance, step, instance_name,max_step,skip = 0,scan = 0):
+def carry_out_reaction(rxn,step):
     """
     Verify what has been done and what needs to be done
     
@@ -43,27 +35,31 @@ def initialize_reaction(species, instance, step, instance_name,max_step,skip = 0
     
     scan: boolean which tells if this is part of an energy scan along a bond length coordinate
     """
-    kwargs = get_qc_arguments(instance_name,par.mult,ts = 1,step = step,max_step=max_step,scan = scan)
+    if step > 0:
+        status = rxn.qc.check_qc(rxn.instance_name)
+        if status != 'normal' and status != 'error': return step
+
+    kwargs = rxn.qc.get_qc_arguments(   rxn.instance_name, rxn.species.mult ,ts = 1,
+                                        step = step, max_step=rxn.max_step, scan = rxn.scan)
     
     if step == 0:
-        if is_in_database(instance_name):
-            if check_qc(instance_name) == 'normal': 
-                err, freq = get_qc_freq(instance_name, par.natom)
+        if rxn.qc.is_in_database(rxn.instance_name):
+            if rxn.qc.check_qc(rxn.instance_name) == 'normal': 
+                err, freq = rxn.qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
                 if err == 0 and len(freq) > 0.:
-                    err, geom = get_qc_geom(instance_name, par.natom)
-                    step = max_step + 1
-                    return step, geom, kwargs
-        if skip and len(instance) < 4: 
+                    err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
+                    step = rxn.max_step + 1
+                    return step
+        if rxn.skip and len(rxn.instance) < 4: 
             step = 12
-        geom = species.geom
+        geom = rxn.species.geom
     else:
-        err, geom = get_qc_geom(instance_name, par.natom, allow_error = 1)
-        
+        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error = 1)
     
-    return step, geom, kwargs
+    #the the constraints for this step
+    step, fix, change, release = rxn.get_constraints(step, geom)
 
-def carry_out_reaction(species, instance, step, instance_name, max_step, geom, kwargs, fix, change, release):
-    if step > max_step:
+    if step > rxn.max_step:
         return step
     
     
@@ -74,7 +70,7 @@ def carry_out_reaction(species, instance, step, instance_name, max_step, geom, k
         c_new.append(c[-1])
         change_starting_zero.append(c_new)
     if len(change_starting_zero) >0 :
-        geom = modify_coordinates(species,instance_name,geom,change_starting_zero,species.bond,par.natom,par.atom)
+        success, geom = modify_geom.modify_coordinates(rxn.species, rxn.instance_name, geom, change_starting_zero, rxn.species.bond)
         for c in change:
             fix.append(c[:-1])
         change = []
@@ -84,19 +80,19 @@ def carry_out_reaction(species, instance, step, instance_name, max_step, geom, k
     kwargs['change'] = change
     kwargs['release'] = release
 
-    if step < max_step:
-        template = open(par.tpldir + 'ase_{qc}_ts_search.py.tpl'.format(qc = par.qc),'r').read()
+    if step < rxn.max_step:
+        template = open(rxn.par.par['tpldir'] + 'ase_{qc}_ts_search.py.tpl'.format(qc = rxn.qc.qc),'r').read()
     else:
-        template = open(par.tpldir + 'ase_{qc}_ts_end.py.tpl'.format(qc = par.qc),'r').read()
+        template = open(rxn.par.par['tpldir'] + 'ase_{qc}_ts_end.py.tpl'.format(qc = rxn.qc.qc),'r').read()
     
-    template = template.format(label = instance_name, kwargs = kwargs, atom = list(par.atom), 
-                               geom = list([list(gi) for gi in geom]), ppn = par.ppn)
+    template = template.format(label = rxn.instance_name, kwargs = kwargs, atom = list(rxn.species.atom), 
+                               geom = list([list(gi) for gi in geom]), ppn = rxn.qc.ppn)
     
-    f_out = open('{}.py'.format(instance_name),'w')
+    f_out = open('{}.py'.format(rxn.instance_name),'w')
     f_out.write(template)
     f_out.close()
     
-    step += submit_qc(instance_name, 0)
+    step += rxn.qc.submit_qc(rxn.instance_name, 0)
     
     return step
     

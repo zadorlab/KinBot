@@ -48,12 +48,36 @@ try:
     mol.positions = geom
     
     """
+    #read the frequencies
+    with open('{label}.log') as f:
+        lines = f.readlines()
+
+    natom = len([at for at in atom if at !='X']) #filter out the dummy atoms
+    if natom == 1:
+        freq = []
+    else:
+        freq = []
+        for line in lines:
+            if re.search('Frequencies', line) != None:
+                if natom == 2:
+                    freq.append(np.array(line.split()[2]).astype(float))
+                    break
+                else:
+                    f = np.array(line.split()[2:5]).astype(float)
+                    freq.extend(f)
+
+    #read the zpe
+    zpe = -1
+    for line in reversed(lines):  
+        if re.search('Zero-point correction=', line) != None:
+            zpe = float(line.split()[2])
+            break 
     dummy = {dummy}
     for d in dummy:
         #remove the dummy atom to write to the database
         mol.pop()
     db = connect('kinbot.db')
-    db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
+    db.write(mol, name = label, data = {{'energy': e,'frequencies': np.asarray(freq), 'zpe':zpe, 'status' : 'normal'}})
 except RuntimeError, e: 
     # in case of fail, try again with final geometry
     try:
@@ -84,11 +108,35 @@ except RuntimeError, e:
             geom[-(i+1)][0:3] = d[0:3]
         mol.positions = geom
         
+        #read the frequencies
+        with open('{label}.log') as f:
+            lines = f.readlines()
+
+        natom = len([at for at in atom if at !='X']) #filter out the dummy atoms
+        if natom == 1:
+            freq = []
+        else:
+            freq = []
+            for line in lines:
+                if re.search('Frequencies', line) != None:
+                    if natom == 2:
+                        freq.append(np.array(line.split()[2]).astype(float))
+                        break
+                    else:
+                        f = np.array(line.split()[2:5]).astype(float)
+                        freq.extend(f)
+
+        #read the zpe
+        zpe = -1
+        for line in reversed(lines):  
+            if re.search('Zero-point correction=', line) != None:
+                zpe = float(line.split()[2])
+                break 
         for d in dummy:
             #remove the dummy atom to write to the database
             mol.pop()
         db = connect('kinbot.db')
-        db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
+        db.write(mol, name = label, data = {{'energy': e,'frequencies': np.asarray(freq), 'zpe':zpe, 'status' : 'normal'}})
     except:
         db = connect('kinbot.db')
         db.write(mol, name = label, data = {{'status' : 'error'}})

@@ -42,8 +42,6 @@ import datetime
 import copy
 import time
 
-sys.dont_write_bytecode = True
-
 from vector import *
 from motif import *
 from reaction import *
@@ -73,7 +71,8 @@ def main(workdir):
     logging.basicConfig(filename='kinbot.log',level=logging.INFO)
     
     logging.info(license_message.message)
-    logging.info('Starting KinBot in at %s'%(datetime.datetime.now()))
+    logging.info('Starting KinBot at %s'%(datetime.datetime.now()))
+    
     
     if not os.path.exists('perm'):
         os.makedirs('perm')
@@ -89,7 +88,6 @@ def main(workdir):
     well0.short_name = 'w1'
 
     well0.geom = par.read_input('input.inp')
-    
     if par.rotor_scan == 1:
         if not os.path.exists('hir'):
             os.mkdir('hir')

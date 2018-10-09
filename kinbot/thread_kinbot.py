@@ -20,14 +20,15 @@
 import sys,os
 import subprocess
 import threading, time
-import kinbot
 
 def run_threads(jobs, name, max_running = 10):
     """
     This method runs all the tests, instead of using the python threading
     it submits python runs to the head node
     
-    jobs is a list of paths to the directories where the input files are
+    jobs is a dictionary of paths to the directories where the input files are (keys)
+    and the names of the json input files (values)
+    
     max_running is the maximum threads that are allowed to run simultaneously 
     """
 
@@ -38,12 +39,9 @@ def run_threads(jobs, name, max_running = 10):
         
         while len(running) < max_running and len(running) + len(finished) < len(jobs):
             # start a new job
-            job = jobs[len(running) + len(finished)]
-            pid = submit_job(job)
+            job = sorted(jobs.keys())[len(running) + len(finished)]
+            pid = submit_job(job,jobs[job])
             pids[job] = pid
-            
-            #t = threading.Thread(name=job,target=run_kinbot,args=(job,))
-            #t.start()
             running.append(job)
         
         #check if a thread is done
@@ -61,6 +59,12 @@ def run_threads(jobs, name, max_running = 10):
         f.write('Running\t\t%i\n'%len(running))
         f.write('Finished\t%i\n\n'%len(finished))
         
+        
+        f.write('Running:\n')
+        for job in running:
+            f.write('\t%s\n'%job)
+            
+        f.write('\nFinished:\n')
         for job in finished: 
             f.write('\t%s\n'%job)
         
@@ -80,12 +84,12 @@ def check_status(job,pid):
     return 0
 
 
-def submit_job(job):
+def submit_job(job,inpfile):
     """
     Submit a kinbot run usung subprocess and return the pid
     """
-    command = ["python","kinbot.py","%s"%job[2:],"&"]
-    process = subprocess.Popen(command,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    command = ["python","/home/rvandev/KinBot/kinbot/kb.py",inpfile,"&"]
+    process = subprocess.Popen(command,cwd = os.path.expanduser(job), stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     time.sleep(1)
     pid = process.pid
     return pid 

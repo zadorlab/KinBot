@@ -22,62 +22,65 @@ import copy
 import time
 import sys
 
-from vector import *
-from qc import *
-from constants import *
-from kinbot import *
-from stationary_pt import *
-from geom import *
-from qc import *
-from reac_family import *
-import par
+import reac_family
+import geometry
 
-
-def do_Intra_RH_Add_Endocyclic_R(species, instance, step, instance_name):
-    """
-    Carry out the reaction.
-    """
+class IntraRHAddEndoR:
     
-    if step > 0:
-        if check_qc(instance_name) != 'normal' and check_qc(instance_name) != 'error': return step
-    
-    #maximum number of steps for this reaction family
-    max_step = 12
+    def __init__(self,species,qc,par,instance,instance_name):
+        #st_pt of the reactant
+        self.species = species
+        #st_pt of the ts
+        self.ts = None
+        #st_pt of the product(s)
+        self.products = []
+        #bond matrix of the products
+        self.product_bonds = [] 
+        
+        #optimization objects
+        self.ts_opt = None
+        self.prod_opt = []
+        
+        self.qc = qc
+        self.par = par
+        
+        #indices of the reactive atoms
+        self.instance = instance
+        #name of the reaction
+        self.instance_name = instance_name
+        
+        #maximum number of steps for this reaction family
+        self.max_step = 12
+        #do a scan?
+        self.scan = 0
+        #skip the first 12 steps in case the instance has a length of 3?
+        self.skip = 0
 
-    # have a look at what has been done and what needs to be done
-    step,geom, kwargs = initialize_reaction(species, instance, step, instance_name, max_step)
+    def get_constraints(self,step, geom):
+        """
+        There are three types of constraints:
+        1. fix a coordinate to the current value
+        2. change a coordinate and fix is to the new value
+        3. release a coordinate (only for gaussian)
+        """
+        fix = []
+        change = []
+        release = []
+        if step < self.max_step:
+            #fix all the bond lengths
+            for i in range(self.species.natom - 1):
+                for j in range(i+1, self.species.natom):
+                    if self.species.bond[i][j] > 0:
+                        fix.append([i+1,j+1])
+        if step < 12:
+            final_dist = [2.0, 1.3, 1.35, 1.3]
+            for i in range(len(self.instance)):
+                if i == len(self.instance) - 1:
+                    j = 0
+                else:
+                    j = i+1
+                val = new_bond_length(self.species,self.instance[i],self.instance[j],step,12,final_dist[i],geom)
+                constraint = [self.instance[i] + 1,self.instance[j] + 1,val]
+                change.append(constraint)
 
-    #the the constraints for this step
-    step, fix, change, release = get_constraints_Intra_RH_Add_Endocyclic_R(step, species, instance,geom)
-    
-    #carry out the reaction and return the new step
-    return carry_out_reaction(species, instance, step, instance_name, max_step, geom, kwargs, fix, change, release)
-
-def get_constraints_Intra_RH_Add_Endocyclic_R(step,species,instance,geom):
-    """
-    There are three types of constraints:
-    1. fix a coordinate to the current value
-    2. change a coordinate and fix is to the new value
-    3. release a coordinate (only for gaussian)
-    """
-    fix = []
-    change = []
-    release = []
-    #if step < 12:
-    #    #fix all the bond lengths
-    #    for i in range(par.natom - 1):
-    #        for j in range(i+1, par.natom):
-    #            if species.bond[i][j] > 0:
-    #                fix.append([i+1,j+1])
-    if step < 12:
-        final_dist = [2.0, 1.3, 1.35, 1.3]
-        for i in range(len(instance)):
-            if i == len(instance) - 1:
-                j = 0
-            else:
-                j = i+1
-            val = new_bond_length(species,instance[i],instance[j],step,12,final_dist[i],geom)
-            constraint = [instance[i] + 1,instance[j] + 1,val]
-            change.append(constraint)
-
-    return step, fix, change, release
+        return step, fix, change, release

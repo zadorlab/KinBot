@@ -21,108 +21,109 @@ import numpy as np
 import copy
 import time
 
-from vector import *
-from qc import *
-from constants import *
-from kinbot import *
-from stationary_pt import *
-from geom import *
-from qc import *
-from reac_family import *
-import par
+import reac_family
+import geometry
 
-
-
-def do_Cyclic_Ether_Formation(species, instance, step, instance_name):
-    """
-    Carry out the reaction.
-    """
+class CyclicEtherFormation:
     
-    if step > 0:
-        if check_qc(instance_name) != 'normal' and check_qc(instance_name) != 'error': return step
-    
-    #maximum number of steps for this reaction family
-    max_step = 14
+    def __init__(self,species,qc,par,instance,instance_name):
+        #st_pt of the reactant
+        self.species = species
+        #st_pt of the ts
+        self.ts = None
+        #st_pt of the product(s)
+        self.products = []
+        #bond matrix of the products
+        self.product_bonds = [] 
+        
+        #optimization objects
+        self.ts_opt = None
+        self.prod_opt = []
+        
+        self.qc = qc
+        self.par = par
+        
+        #indices of the reactive atoms
+        self.instance = instance
+        #name of the reaction
+        self.instance_name = instance_name
+        
+        #maximum number of steps for this reaction family
+        self.max_step = 14
+        #do a scan?
+        self.scan = 0
+        #skip the first 12 steps in case the instance has a length of 3?
+        self.skip = 1
 
-    # have a look at what has been done and what needs to be done
-    skip = 1
-    step,geom, kwargs = initialize_reaction(species, instance, step, instance_name, max_step, skip)
-
-    #the the constraints for this step
-    step, fix, change, release = get_constraints_Cyclic_Ether_Formation(step, species, instance,geom)
-    
-    #carry out the reaction and return the new step
-    return carry_out_reaction(species, instance, step, instance_name, max_step, geom, kwargs, fix, change, release)
-
-def get_constraints_Cyclic_Ether_Formation(step,species,instance,geom):
-    """
-    There are three types of constraints:
-    1. fix a coordinate to the current value
-    2. change a coordinate and fix is to the new value
-    3. release a coordinate (only for gaussian)
-    """
-    fix = []
-    change = []
-    release = []
-    #if step < 12:
-    #    #fix all the bond lengths
-    #    for i in range(par.natom - 1):
-    #        for j in range(i+1, par.natom):
-    #            if species.bond[i][j] > 0:
-    #                fix.append([i+1,j+1])
-    if step < 12:
-        new_dihs = new_ring_dihedrals(species, instance, step, 12)
-        for dih in range(len(instance)-3):
-            constraint = []
-            for i in range(4):
-                constraint.append(instance[dih+i] + 1)
-            constraint.append(new_dihs[dih])
-            change.append(constraint)
-    elif step == 12:
-        if len(instance) > 3:
-            for dih in range(len(instance)-3):
-                f = []
+    def get_constraints(self,step, geom):
+        """
+        There are three types of constraints:
+        1. fix a coordinate to the current value
+        2. change a coordinate and fix is to the new value
+        3. release a coordinate (only for gaussian)
+        """
+        fix = []
+        change = []
+        release = []
+        if step < self.max_step:
+            #fix all the bond lengths
+            for i in range(self.species.natom - 1):
+                for j in range(i+1, self.species.natom):
+                    if self.species.bond[i][j] > 0:
+                        fix.append([i+1,j+1])
+        if step < 12:
+            new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, 12)
+            for dih in range(len(self.instance)-3):
+                constraint = []
                 for i in range(4):
-                    f.append(instance[dih+i] + 1)
-                fix.append(f)
-            for angle in range(len(instance)-2):
+                    constraint.append(self.instance[dih+i] + 1)
+                constraint.append(new_dihs[dih])
+                change.append(constraint)
+        elif step == 12:
+            if len(self.instance) > 3:
+                for dih in range(len(self.instance)-3):
+                    f = []
+                    for i in range(4):
+                        f.append(self.instance[dih+i] + 1)
+                    fix.append(f)
+                for angle in range(len(self.instance)-2):
+                    constraint = []
+                    for i in range(3):
+                        constraint.append(self.instance[angle+i] + 1)
+                    constraint.append(180. * (len(self.instance)-2.) / len(self.instance))
+                    change.append(constraint)
+        elif step == 13:
+            for angle in range(len(self.instance)-2):
                 constraint = []
                 for i in range(3):
-                    constraint.append(instance[angle+i] + 1)
-                constraint.append(180. * (len(instance)-2.) / len(instance))
-                change.append(constraint)
-    elif step == 13:
-        for angle in range(len(instance)-2):
-            constraint = []
-            for i in range(3):
-                constraint.append(instance[angle+i] + 1)
-            release.append(constraint)
-        for dih in range(len(instance)-3):  
-            constraint = []
-            for i in range(4):
-                constraint.append(instance[dih+i] + 1)
-            release.append(constraint)
-        
-        
-        if len(instance) > 3:
-            fval = 1.8
-        else:
-            fval = 1.5
+                    constraint.append(self.instance[angle+i] + 1)
+                release.append(constraint)
+            for dih in range(len(self.instance)-3):  
+                constraint = []
+                for i in range(4):
+                    constraint.append(self.instance[dih+i] + 1)
+                release.append(constraint)
+            
+            
+            if len(self.instance) > 3:
+                fval = 1.8
+            else:
+                fval = 1.5
 
-        constraint = [instance[0] + 1,instance[-1] + 1,fval]
-        change.append(constraint)
+            constraint = [self.instance[0] + 1,self.instance[-1] + 1,fval]
+            change.append(constraint)
 
-    
-    #remove the bonds from the fix if they are in another constaint
-    for c in change:
-        if len(c) == 3:
-            index = -1
-            for i,fi in enumerate(fix):
-                if len(fi) == 2:
-                    if sorted(fi) == sorted(c[:2]):
-                        index = i
-            if index > -1:
-                del fix[index]
-    
-    return step, fix, change, release
+        
+        #remove the bonds from the fix if they are in another constaint
+        for c in change:
+            if len(c) == 3:
+                index = -1
+                for i,fi in enumerate(fix):
+                    if len(fi) == 2:
+                        if sorted(fi) == sorted(c[:2]):
+                            index = i
+                if index > -1:
+                    del fix[index]
+        
+        return step, fix, change, release
     

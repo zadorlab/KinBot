@@ -17,22 +17,34 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-import os, sys
 
-from qc import *
+"""
+This file is used to install KinBot.
 
+Type 
+python setup.py build
+python setup.py install
+"""
 
+from setuptools import setup, find_packages
 
-def high_level(sp, ts = 0):
-    """
-    Reoptimize the stationary point and recalculate all the frequencies at a high level of theory
+setup(
+    name = "KinBot",
+    version = "2.0",
+    packages = find_packages(),
+    entry_points={'console_scripts':[
+        'kinbot = kinbot.kb:main',
+        'pes = kinbot.pes:main',
+        ]},
+    install_requires=['ase','numpy'],
     
-    sp: stationary point
+    package_data = {
+        '': ['*.tpl','*.dat']
+    },
     
-    ts: boolean that tells if stationary point is a transition state
-    """
-    
-    #reoptimize the stationary point
-    qc_opt(well0, well0.geom, 0, par.natom, par.atom, par.mult, par.charge, high_level = 1)
-
-    
+    author="Judit Zador and Ruben Van de Vijver",
+    author_email = "jzador@sandia.gov",
+    description = "Automatic Potential Energy Surface searches to identify chemical reactions.",
+    license = "BSD 3-clause",
+    url = "https://github.com/zadorlab/KinBot",
+)

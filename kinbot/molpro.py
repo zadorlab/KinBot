@@ -19,62 +19,68 @@
 ###################################################
 import os, sys
 
-from constants import *
-import par
+import constants
 
-def create_molpro_input(species, natom, atom, mult, charge, wellorts):
+class Molpro:
     """
-    Create the input for molden
-    
-    species: stationary point object
-    natom: number of atoms in the stationary point
-    atom: elements of all the atoms in the stationary point
-    mult: multiplicity of the stationary point
-    charge: charge of the stationary point
-    wellorts: 1 for transition states, 0 for molecules
+    Class to write and read molpro file and to run molpro
     """
+    def __init__(self,species,par,qc):
+        self.species = species
+        self.par = par
+        self.qc = qc
     
-    with open(par.tpldir + 'molpro.tpl') as f:
-        file = f.read()
-    
-    fname = str(species.chemid)
-    if wellorts: fname = species.name
-    
-    geom = ''
-    nelectron = 0
-    for i,at in enumerate(atom):
-        x,y,z = species.geom[i]
-        geom += '{} {:.8f} {:.8f} {:.8f}\n'.format(at,x,y,z)
-        nelectron += znumber[at]
-    
-    nelectron -= charge
-    
-    outf = open('molpro/' + fname + '.inp','w')
-    outf.write(file.format( name = fname,
-                            natom = natom,
-                            atom = atom,
-                            geom = geom,
-                            nelectron = nelectron,
-                            spin = mult - 1,
-                            charge = charge
-                            ))
-    outf.close()
-
-def get_molpro_energy(species,wellorts):
-    """
-    Verify if there is a molpro output file and if yes, read the energy
-    """
-    fname = str(species.chemid)
-    if wellorts: fname = species.name
-    
-    status = os.path.exists('molpro/' + fname + '.out')
-    
-    if status:
-        with open('molpro/' + fname + '.out') as f:
-            lines = f.readlines()
+    def create_molpro_input(self):
+        """
+        Create the input for molden
+        """
         
-        for index, line in enumerate(reversed(lines)):
-            if 'SETTING MYENA' in line:
-                return 1, float(line.split()[2])
-    else:
-        return 0, -1
+        with open(self.par.par['tpldir'] + 'molpro.tpl') as f:
+            file = f.read()
+        
+        fname = str(self.species.chemid)
+        if self.species.wellorts: fname = self.species.name
+        
+        geom = ''
+        nelectron = 0
+        for i,at in enumerate(self.species.atom):
+            x,y,z = self.species.geom[i]
+            geom += '{} {:.8f} {:.8f} {:.8f}\n'.format(at,x,y,z)
+            nelectron += constants.znumber[at]
+        
+        nelectron -= self.species.charge
+        
+        outf = open('molpro/' + fname + '.inp','w')
+        outf.write(file.format( name = fname,
+                                natom = self.species.natom,
+                                geom = geom,
+                                nelectron = nelectron,
+                                spin = self.species.mult - 1,
+                                charge = self.species.charge
+                                ))
+        outf.close()
+
+    def get_molpro_energy(self):
+        """
+        Verify if there is a molpro output file and if yes, read the energy
+        """
+        fname = str(self.species.chemid)
+        if self.species.wellorts: fname = self.species.name
+        
+        status = os.path.exists('molpro/' + fname + '.out')
+        
+        if status:
+            with open('molpro/' + fname + '.out') as f:
+                lines = f.readlines()
+            
+            for index, line in enumerate(reversed(lines)):
+                if 'SETTING MYENA' in line:
+                    return 1, float(line.split()[2])
+        else:
+            return 0, -1
+    
+    def run(self):
+        """
+        TODO
+        """
+        pass

@@ -23,7 +23,7 @@ import logging
 import numpy as np
 
 
-class bfgs:
+class BFGS:
     """
     Class to execute a BFGS optimization to a local minimum
     """
@@ -87,6 +87,7 @@ class bfgs:
             H = self.inhess
 
         g = f.gradient(x)
+        g_i = [g] #intermediate forces
         p = np.dot(np.linalg.inv(H),-g)
         
         it = 0
@@ -97,15 +98,19 @@ class bfgs:
             gk = f.gradient(xk)
             yk = gk - g
             
-            t1 = np.outer(yk, yk) / np.dot(sk,yk)
+            if np.dot(sk,yk):
+                t1 = np.outer(yk, yk) / np.dot(sk,yk)
+            else:
+                t1 = np.outer(yk, yk)
             t2 = np.dot(H,sk)
             t3 = np.outer(t2,t2) / np.dot(sk,t2)
             Hk = H + t1 - t3
             
             x_i.append(xk)
+            g_i.append(gk)
             
             if self.converged(xk - x, gk):
-                return xk, x_i
+                return xk, x_i, g_i
             g = gk
             x = xk
             p = np.dot(np.linalg.inv(Hk),-gk)
@@ -113,7 +118,7 @@ class bfgs:
             
             it += 1
         
-        return xk, x_i
+        return xk, x_i, g_i
     
     def line_search(self,f,x,p):
         """

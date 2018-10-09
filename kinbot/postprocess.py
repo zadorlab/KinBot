@@ -17,13 +17,21 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-from constants import *
-from qc import *
-from stationary_pt import *
-from par import *
-import license_message
+"""
+This file contains the postprocessing of the KinBot run
+It includes 
+1. Writing a summary file with all successful and failed
+reactions, including their barrier heights and which products are formed
 
-def createSummaryFile(species,barriers,products):
+2. Writing an input file for the PES viewer. 
+"""
+import os
+import sys
+
+import license_message
+import constants
+
+def createSummaryFile(species,qc,par):
     fname = 'summary_%s.out'%species.chemid
     f = open(fname,'w+')
     
@@ -34,14 +42,14 @@ def createSummaryFile(species,barriers,products):
     f.write('Status\tEnergy\tName\n')
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
-            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par.high_level:
-                mp2_energy = get_qc_energy(str(species.chemid) + '_well_mp2')[1]
-                energy = (barriers[index].energy - mp2_energy) * AUtoKCAL
+            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par.par['high_level']:
+                mp2_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
+                energy = (species.reac_obj[index].ts.energy - mp2_energy) * constants.AUtoKCAL
             else:
-                energy = (barriers[index].energy - species.energy) * AUtoKCAL
+                energy = (species.reac_obj[index].ts.energy - species.energy) * constants.AUtoKCAL
             prod_name = ''
             name = []
-            for prod in products[index]:
+            for prod in species.reac_obj[index].products:
                 name.append(str(prod.chemid))
             prod_name = ' '.join(sorted(name))
             
@@ -50,7 +58,7 @@ def createSummaryFile(species,barriers,products):
             f.write('FAILED\t\t%s\n'%species.reac_name[index])
             
 
-def createPESViewerInput(species,barriers,products):
+def createPESViewerInput(species,qc,par):
     fname = 'pesviewer.inp'
     dir_xyz = 'xyz/'
     if not os.path.exists(dir_xyz):
@@ -86,18 +94,19 @@ rdkit4depict       1         # boolean that specifies which code was used for th
     f.write('\n\n')
     
     f.write('> <wells> \n')
-    make_xyz(par.atom,species.geom,str(species.chemid),dir_xyz)
+    make_xyz(species.atom,species.geom,str(species.chemid),dir_xyz)
     f.write('%s 0.0\n'%(species.chemid)) #use the well as point zero for the energy
     well_energy = species.energy
     wells = [str(species.chemid)]
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
-            if len(products[index]) == 1:
-                name = str(products[index][0].chemid)
+            if len(species.reac_obj[index].products) == 1:
+                st_pt = species.reac_obj[index].products[0]
+                name = str(st_pt.chemid)
                 if not name in wells:
-                    make_xyz(par.atom,products[index][0].geom,str(products[index][0].chemid),dir_xyz)
-                    energy = (products[index][0].energy - well_energy) * AUtoKCAL
-                    f.write('%s %.2f\n'%(products[index][0].chemid,energy))
+                    make_xyz(species.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
+                    energy = (st_pt.energy - well_energy) * constants.AUtoKCAL
+                    f.write('%s %.2f\n'%(st_pt.chemid,energy))
                     wells.append(name)
     
     f.write('\n')
@@ -106,22 +115,20 @@ rdkit4depict       1         # boolean that specifies which code was used for th
     bimolecs = []
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
-            if len(products[index]) > 1:
+            if len(species.reac_obj[index].products) > 1:
                 energy = 0. - well_energy
                 names = []
-                for i in range(len(products[index])):
-                    prod = products[index][i]
-                    energy += prod.energy
-                    names.append(str(prod.chemid))
+                for st_pt in species.reac_obj[index].products:
+                    energy += st_pt.energy
+                    names.append(str(st_pt.chemid))
                     
                 name = '_'.join(sorted(names))
 
-                for i in range(len(products[index])):
-                    prod = products[index][i]
+                for i,st_pt in enumerate(species.reac_obj[index].products):
                     # make twice the same file but with adifferent name ( TODO: is there no better way?)
-                    make_xyz(prod.atom,prod.geom,name + str(i+1),dir_xyz) #this is for the pes viewer
-                    make_xyz(prod.atom,prod.geom,str(prod.chemid),dir_xyz) #this is for the rmg postprocessing
-                energy = energy * AUtoKCAL
+                    make_xyz(st_pt.atom,st_pt.geom,name + str(i+1),dir_xyz) #this is for the pes viewer
+                    make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz) #this is for the rmg postprocessing
+                energy = energy * constants.AUtoKCAL
                 if not name in bimolecs:
                     f.write('%s %.2f\n'%(name,energy))
                     bimolecs.append(name)
@@ -130,15 +137,15 @@ rdkit4depict       1         # boolean that specifies which code was used for th
     f.write('> <ts> \n')
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
-            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par.high_level:
-                we_energy = get_qc_energy(str(species.chemid) + '_well_mp2')[1]
-                energy = (barriers[index].energy - we_energy) * AUtoKCAL
+            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par.par['high_level']:
+                we_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
+                energy = (species.reac_obj[index].ts.energy - we_energy) * constants.AUtoKCAL
             else:
-                energy = (barriers[index].energy - well_energy) * AUtoKCAL
+                energy = (species.reac_obj[index].ts.energy - well_energy) * constants.AUtoKCAL
             prod_name = ''
             name = []
-            for prod in products[index]:
-                name.append(str(prod.chemid))
+            for st_pt in species.reac_obj[index].products:
+                name.append(str(st_pt.chemid))
             prod_name = '_'.join(sorted(name))
             f.write('%s %.2f %s %s\n'%(species.reac_name[index],energy,species.chemid,prod_name))
     f.write('\n')

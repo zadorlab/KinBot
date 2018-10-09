@@ -23,11 +23,13 @@ import numpy as np
 import random
 import copy
 
-from motif import *
-from vector import *
-from qc import *
+import vector
 
-def make_zmat_from_cart(species, rotor, natom, atom, cart, mode):
+#from motif import *
+#from vector import *
+#from qc import *
+
+def make_zmat_from_cart(species, rotor, cart, mode):
     """
     Rearrange geometry defined in Cartesian into a Z-matrix,
     with references suitable for a 1-D shindered rotor scan.
@@ -35,7 +37,8 @@ def make_zmat_from_cart(species, rotor, natom, atom, cart, mode):
     If mode = 1: only those bonds, which generate conformers
     If mode = 2: suply your one rotor in rotor as a list of atom indices
     """
-    
+    natom = species.natom
+    atom = species.atom
     
     if mode == 0:
         a = species.dihed[rotor][0]
@@ -119,16 +122,16 @@ def make_zmat_from_cart(species, rotor, natom, atom, cart, mode):
     zmat_ref[2][0] = 2
     zmat[2][0] = np.linalg.norm(cart[c] - cart[b])
     zmat_ref[2][1] = 1
-    zmat[2][1] = angle(cart[c], cart[b], cart[a])
+    zmat[2][1] = vector.angle(cart[c], cart[b], cart[a])
 
     zmat_atom[3] = atom[d]
     zmatorder[3] = d
     zmat_ref[3][0] = 3
     zmat[3][0] = np.linalg.norm(cart[d] - cart[c])
     zmat_ref[3][1] = 2
-    zmat[3][1] = angle(cart[d], cart[c], cart[b])
+    zmat[3][1] = vector.angle(cart[d], cart[c], cart[b])
     zmat_ref[3][2] = 1
-    zmat[3][2], collin = dihedral(cart[d], cart[c], cart[b], cart[a])
+    zmat[3][2], collin = vector.dihedral(cart[d], cart[c], cart[b], cart[a])
 
     j = 4
     for i in range(natom):
@@ -140,30 +143,30 @@ def make_zmat_from_cart(species, rotor, natom, atom, cart, mode):
             zmat_ref[j][0] = 1
             zmat[j][0] = np.linalg.norm(cart[i] - cart[a])
             zmat_ref[j][1] = 2
-            zmat[j][1] = angle(cart[i], cart[a], cart[b])
+            zmat[j][1] = vector.angle(cart[i], cart[a], cart[b])
             zmat_ref[j][2] = 3
-            zmat[j][2], collin = dihedral(cart[i], cart[a], cart[b], cart[c])
+            zmat[j][2], collin = vector.dihedral(cart[i], cart[a], cart[b], cart[c])
         elif groupB[i] == 1:
             zmat_ref[j][0] = 2
             zmat[j][0] = np.linalg.norm(cart[i] - cart[b])
             zmat_ref[j][1] = 3
-            zmat[j][1] = angle(cart[i], cart[b], cart[c])
+            zmat[j][1] = vector.angle(cart[i], cart[b], cart[c])
             zmat_ref[j][2] = 4
-            zmat[j][2], collin = dihedral(cart[i], cart[b], cart[c], cart[d])
+            zmat[j][2], collin = vector.dihedral(cart[i], cart[b], cart[c], cart[d])
         elif groupC[i] == 1:
             zmat_ref[j][0] = 3
             zmat[j][0] = np.linalg.norm(cart[i] - cart[c])
             zmat_ref[j][1] = 2
-            zmat[j][1] = angle(cart[i], cart[c], cart[b])
+            zmat[j][1] = vector.angle(cart[i], cart[c], cart[b])
             zmat_ref[j][2] = 1
-            zmat[j][2], collin = dihedral(cart[i], cart[c], cart[b], cart[a])
+            zmat[j][2], collin = vector.dihedral(cart[i], cart[c], cart[b], cart[a])
         elif groupD[i] == 1:
             zmat_ref[j][0] = 4
             zmat[j][0] = np.linalg.norm(cart[i] - cart[d])
             zmat_ref[j][1] = 3
-            zmat[j][1] = angle(cart[i], cart[d], cart[c])
+            zmat[j][1] = vector.angle(cart[i], cart[d], cart[c])
             zmat_ref[j][2] = 2
-            zmat[j][2], collin = dihedral(cart[i], cart[d], cart[c], cart[b])
+            zmat[j][2], collin = vector.dihedral(cart[i], cart[d], cart[c], cart[b])
         j += 1
 
     return zmat_atom, zmat_ref, zmat, zmatorder
@@ -771,13 +774,16 @@ def get_minimum_pathway(bond,r1,r2, natom, atom):
                 ins.reverse()
                 return i, ins
 
-def estoktp_zmat(species,fname,natom,atom):
-    """f
+def estoktp_zmat(species,fname):
+    """
     Write a zmat to a file as such that all the rotors are independently defined
     This can be used by EStoKTp to get to a rate coefficient
     
     Also, visualizations of the rotors are created to verify their correctness
     """
+    natom = species.natom
+    atom = species.atom
+    
     if not os.path.exists('rotors'): os.mkdir('rotors')
         
     zmat_atom, zmat_ref, zmat, zmatorder = make_zmat_from_cart_all_dihedrals(species.bond,species.cycle,species.dihed,species.conf_dihed,natom,atom,species.geom,0)
@@ -942,11 +948,11 @@ def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder):
 
                 # rotation around the normal to ABC by the angle
                 th = zm[i][1] - np.pi
-                cart[i] = rotate_atom(cart[i], n, th)
+                cart[i] = vector.rotate_atom(cart[i], n, th)
 
                 # rotation around the BC axis by the dihedral angle
                 th = zm[i][2] - np.pi
-                cart[i] = rotate_atom(cart[i], bc, th)
+                cart[i] = vector.rotate_atom(cart[i], bc, th)
 
                 # shift the vector to C
                 cart[i] = [cart[i][j] + cart[c][j] for j in range(3)]

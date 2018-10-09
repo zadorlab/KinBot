@@ -20,11 +20,10 @@
 import os,sys
 import numpy as np
 
-from geom import *
-from constants import *
-from ase import Atoms
+import constants
+import geometry
 
-def get_frequencies(species, hess, natom, atom, geom):
+def get_frequencies(species, hess, geom):
     """"
     Calculates three sets of frequencies: 
     
@@ -35,14 +34,16 @@ def get_frequencies(species, hess, natom, atom, geom):
     
     The units of the hessian should be: Hartree/Bohr^2
     """
+    atom = species.atom
+    natom = species.natom
     
     masses = []
     for at in atom:
-        masses += [exact_mass[at]] * 3
+        masses += [constants.exact_mass[at]] * 3
     masses = np.array(masses)
     
     # Translate molecule's center of mass to (0, 0, 0)
-    geom = geom - get_center_of_mass(geom,atom)
+    geom = geom - geometry.get_center_of_mass(geom,atom)
     
     # Mass-weight the hessian
     hess /= np.sqrt(np.outer(masses, masses))
@@ -67,12 +68,12 @@ def get_frequencies(species, hess, natom, atom, geom):
         tvecs[i] /= np.linalg.norm(tvecs[i])
 
     # Start to build rotation vectors
-    I = get_moments_of_inertia(geom,atom)[1]
+    I = geometry.get_moments_of_inertia(geom,atom)[1]
     X = I.T
     P = np.dot(geom, X)
     D = np.zeros((natom, 3, 3))
     for i, Pi in enumerate(P):
-        D[i] = np.cross(Pi, I.T) * np.sqrt(exact_mass[atom[i]])
+        D[i] = np.cross(Pi, I.T) * np.sqrt(constants.exact_mass[atom[i]])
     D4 = D[:, :, 0].ravel()
     D5 = D[:, :, 1].ravel()
     D6 = D[:, :, 2].ravel()
@@ -135,7 +136,7 @@ def get_frequencies(species, hess, natom, atom, geom):
         #mass weight the cartesian coordinates
         mgeom = np.zeros((natom,3))
         for i in range(natom):
-            mgeom[i][0:3] += geom[i] * np.sqrt(exact_mass[atom[i]])
+            mgeom[i][0:3] += geom[i] * np.sqrt(constants.exact_mass[atom[i]])
         #partition the molecule in two parts divided by the rotor bond
         Ri = np.zeros(3*natom)
         l1,l2 = partition(species,rot,natom)
@@ -210,9 +211,9 @@ def convert_to_wavenumbers(val):
     to a frequency in wavenumbers
     """
     if val < 0.:
-        fr = -np.sqrt(-val/MEtoAMU) /(2.*np.pi*SPEEDofLIGHT*BOHRtoCM)
+        fr = -np.sqrt(-val/constants.MEtoAMU) /(2.*np.pi*constants.SPEEDofLIGHT*constants.BOHRtoCM)
     else:
-        fr = np.sqrt(val/MEtoAMU) /(2.*np.pi*SPEEDofLIGHT*BOHRtoCM)
+        fr = np.sqrt(val/constants.MEtoAMU) /(2.*np.pi*constants.SPEEDofLIGHT*constants.BOHRtoCM)
     
     return fr
     

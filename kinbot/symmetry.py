@@ -21,10 +21,7 @@ import os,sys
 import logging
 import numpy as np
 
-from geom import *
-from stationary_pt import *
-import par
-
+import geometry
 
 """
 
@@ -41,7 +38,7 @@ special cases:
 
 """
 
-def calculate_symmetry(species, natom, atom):
+def calculate_symmetry(species):
     """
     Calculate the symmetry numbers (external and internal) and 
     the number of optical isomers of a molecule based on some
@@ -50,8 +47,9 @@ def calculate_symmetry(species, natom, atom):
     
     TODO: 
     * Symmetry along consecutive double bonds is not well perceived
-    
     """
+    natom = species.natom
+    
     sigma_ext = 1
     nopt = 1
     sigma_int = [[1 for i in range(natom)] for i in range(natom)]
@@ -213,7 +211,7 @@ def start_linear(species,natom):
             if species.bond[i][j] > 0:
                 if len(get_neighbors(species,j)) == 2:
                     k = [ni for ni in get_neighbors(species,j) if ni != i][0]
-                    if calc_angle(species.geom[i],species.geom[j],species.geom[k]) > np.pi * 175. / 180.:
+                    if geometry.calc_angle(species.geom[i],species.geom[j],species.geom[k]) > np.pi * 175. / 180.:
                         new_lin = get_linear(species,[i,j,k],natom)
                         new = 1
                         for li in lin:
@@ -237,7 +235,7 @@ def get_linear(species,visited,natom):
     for j in range(natom):
         if j not in visited:
             if species.bond[visited[-1]][j] > 0:
-                if calc_angle(species.geom[visited[-2]],species.geom[visited[-1]],species.geom[j]) > np.pi * 175. / 180.:
+                if geometry.calc_angle(species.geom[visited[-2]],species.geom[visited[-1]],species.geom[j]) > np.pi * 175. / 180.:
                     visited.append(j)
                     return get_linear(species,visited,natom)
                 else:

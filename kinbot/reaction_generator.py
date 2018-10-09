@@ -1,0 +1,283 @@
+###################################################
+##                                               ##
+## This file is part of the KinBot code v2.0     ##
+##                                               ##
+## The contents are covered by the terms of the  ##
+## BSD 3-clause license included in the LICENSE  ##
+## file, found at the root.                      ##
+##                                               ##
+## Copyright 2018 National Technology &          ##
+## Engineering Solutions of Sandia, LLC (NTESS). ##
+## Under the terms of Contract DE-NA0003525 with ##
+## NTESS, the U.S. Government retains certain    ##
+## rights to this software.                      ##
+##                                               ##
+## Authors:                                      ##
+##   Judit Zador                                 ##
+##   Ruben Van de Vijver                         ##
+##                                               ##
+###################################################
+from __future__ import print_function
+import numpy as np
+import sys
+import copy
+import time
+import logging
+
+import constants
+import postprocess
+import reac_family
+from irc import IRC
+from optimize import Optimize
+from stationary_pt import StationaryPoint
+
+
+class ReactionGenerator:
+    """
+    This class generates the reactions using the qc codes
+    It builds an initial guess for the ts, runs that ts towards a saddle point
+    and does IRC calculations 
+    """
+    
+    def __init__(self,species,par,qc):
+        self.species = species
+        self.par = par
+        self.qc = qc
+    
+    def generate(self):
+        """ 
+        Creates the input for each reaction, runs them, and tests for success.
+        If successful, it creates the barrier and product objects.
+        It also then does the conformational search, and finally, the hindered rotor scans.
+        To make the code the most efficient, all of these happen in parallel, in a sense that
+        the jobs are not waiting for each other. E.g., one reaction can still be in the stage
+        of TS search, while the other can be already at the hindered rotor scan. This way, 
+        all cores are occupied efficiently.
+
+        The switching between the various stages are done via the reac_ts_done variable.
+        0: initiates the TS search
+        1: checks barrier height and errors in TS, and initiates normal mode displacement test, start the irc calculations 
+        2: submits product optimization
+        3: submit the frequency calculation 
+        4: do the optimization of the ts and the products
+        5: follow up on the optimizations
+        6: finalize calculations, check for wrong number of negative frequencies
+        """
+        if len(self.species.reac_inst) > 0:
+            alldone = 1
+        else: 
+            alldone = 0
+
+        while alldone:
+            for index, instance in enumerate(self.species.reac_inst):
+                obj = self.species.reac_obj[index]
+                instance_name = obj.instance_name
+
+                # START REATION SEARCH
+                if self.species.reac_ts_done[index] == 0 and self.species.reac_step[index] == 0:
+                    #verify after restart if search has failed in previous kinbot run
+                    status = self.qc.check_qc(instance_name)
+                    if status == 'error' or status == 'killed':
+                        logging.info('\tRxn search failed (error or killed) for {}'.format(instance_name))
+                        self.species.reac_ts_done[index] = -999
+                
+                if self.species.reac_ts_done[index] == 0: # ts search is ongoing
+                    
+                    if obj.scan == 0: #don't do a scan of a bond
+                        if self.species.reac_step[index] == obj.max_step + 1:
+                            status = self.qc.get_qc_freq(instance_name, self.species.natom)[0]
+                            if status == 0:
+                                self.species.reac_ts_done[index] = 1
+                            elif status == -1:
+                                logging.info('\tRxn search failed for {}'.format(instance_name))
+                                self.species.reac_ts_done[index] = -999
+                        else: 
+                            self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+                    
+                    else: # do a bond scan
+                        if self.species.reac_step[index] == self.par.par['scan_step'] + 1:
+                            status = self.qc.get_qc_freq(instance_name, self.species.natom)[0]
+                            if status == 0:
+                                self.species.reac_ts_done[index] = 1
+                            elif status == -1:
+                                logging.info('\tRxn search failed for {}'.format(instance_name))
+                                self.species.reac_ts_done[index] = -999
+                        else:        
+                            if self.species.reac_step[index] == 0:
+                                self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+                            elif self.species.reac_step[index] > 0:
+                                err, energy = self.qc.get_qc_energy(instance_name)
+                                if err == 0:
+                                    self.species.reac_scan_energy[index].append(energy)
+                                    if len(self.species.reac_scan_energy[index]) > 1:
+                                        if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:
+                                            self.species.reac_step[index] = self.par.par['scan_step'] 
+                                    self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+
+                elif self.species.reac_ts_done[index] == 1:
+                    status = self.qc.check_qc(instance_name)
+                    if status == 'running': continue
+                    elif status == 'error': 
+                        logging.info('\tRxn search failed (gaussian error) for {}'.format(instance_name))
+                        self.species.reac_ts_done[index] = -999
+                    else: 
+                        #check the barrier height:
+                        if self.species.reac_type[index] == 'R_Addition_MultipleBond':
+                            sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
+                            barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
+                        else:
+                            barrier = (self.qc.get_qc_energy(instance_name)[1] - self.species.energy) * constants.AUtoKCAL
+                        if barrier > self.par.par['barrier_threshold']:
+                            logging.info('\tRxn barrier too high for {}'.format(instance_name))
+                            self.species.reac_ts_done[index] = -999
+                        else:
+                            obj.irc = IRC(obj) #TODO: this doesn't seem like a good design
+                            irc_status = obj.irc.check_irc()
+                            if 0 in irc_status:
+                                # No IRC started yet, start the IRC now
+                                logging.info('\tStarting IRC calculations for {}'.format(instance_name))
+                                obj.irc.do_irc_calculations()
+                            elif irc_status[0] == 'running' or irc_status[1] == 'running':
+                                continue
+                            else: 
+                                #IRC's have succesfully finished, have an error or were killed, in any case
+                                #read the geometries and try to make products out of them
+                                #verify which of the ircs leads back to the reactant, if any
+                                prod = obj.irc.irc2stationary_pt()
+                                if prod == 0:
+                                    logging.info('\t\tNo product found for {}'.format(instance_name))
+                                    self.species.reac_ts_done[index] = -999
+                                else:
+                                    #IRC's are done
+                                    obj.products = prod
+                                    obj.product_bonds = prod.bond
+                                    self.species.reac_ts_done[index] = 2
+                elif self.species.reac_ts_done[index] == 2:
+                    #identify bimolecular products and wells
+                    fragments = obj.products.start_multi_molecular()
+                    obj.products = []
+                    for i,frag in enumerate(fragments):
+                        obj.products.append(frag)
+                        self.qc.qc_opt(frag, frag.geom)
+                    if self.par.par['pes']:
+                        #verify if product is monomolecular, and if it is new
+                        if len(fragments) ==1:
+                            chemid = obj.products[0].chemid
+                            dir = os.path.dirname(os.getcwd()) 
+                            jobs = open(dir+'/chemids','r').read().split('\n')
+                            
+                            if not str(chemid) in jobs:
+                                write_input(par,obj.products[0],dir)
+                                f = open(dir+'/chemids','a')
+                                f.write(str(chemid)+'\n')
+                                f.close()
+                    self.species.reac_ts_done[index] = 3
+                elif self.species.reac_ts_done[index] == 3:
+                    #wait for the optimization to finish 
+                    err = 0
+                    for st_pt in obj.products:
+                        chemid = st_pt.chemid
+                        orig_geom = copy.deepcopy(st_pt.geom)
+                        e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
+                        if e < 0:
+                            logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name,st_pt.chemid))
+                            self.species.reac_ts_done[index] = -999
+                            err = -1
+                        elif e != 0:
+                            err = -1
+                        else:
+                            e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
+                            st_pt.bond_mx()
+                            st_pt.characterize()
+                            st_pt.calc_chemid()
+                            if chemid != st_pt.chemid:
+                                #product was optimized to another structure, give warning and remove this reaction
+                                logging.info('\tProduct optimizatied to other structure for {}, product {} to {}'.format(instance_name,chemid,st_pt.chemid))
+                                self.species.reac_ts_done[index] = -999
+                                err = -1
+                    if err == 0:
+                        self.species.reac_ts_done[index] = 4
+                elif self.species.reac_ts_done[index] == 4:
+                    # Do the TS and product optimization
+                    
+                    #make a stationary point object of the ts
+                    bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)
+                    for i in range(self.species.natom):
+                        for j in range(self.species.natom):
+                            bond_mx[i][j] = max(self.species.bond[i][j],obj.product_bonds[i][j])
+                    err, geom = self.qc.get_qc_geom(instance_name, self.species.natom)
+                    ts = StationaryPoint(   instance_name, self.species.charge, self.species.mult,
+                                            atom = self.species.atom, geom = geom, wellorts = 1)
+                    err, ts.energy = self.qc.get_qc_energy(instance_name)
+                    ts.bond = bond_mx
+                    ts.find_cycle()
+                    ts.find_conf_dihedral()
+                    obj.ts = ts
+                    #do the ts optimization
+                    obj.ts_opt = Optimize(obj.ts,self.par,self.qc)
+                    obj.ts_opt.do_optimization()
+                    #do the products optimizations
+                    for st_pt in obj.products:
+                        prod_opt = Optimize(st_pt,self.par,self.qc)
+                        prod_opt.do_optimization()
+                        obj.prod_opt.append(prod_opt)
+                    self.species.reac_ts_done[index] = 5
+                elif self.species.reac_ts_done[index] == 5:
+                    #check up on the TS and product optimizations 
+                    opts_done = 1
+                    fails = 0
+                    #check if ts is done
+                    if not obj.ts_opt.shir == 1:
+                        opts_done = 0
+                        obj.ts_opt.do_optimization()
+                    if obj.ts_opt.shigh == -999:
+                        fails = 1
+                    for pr_opt in obj.prod_opt:
+                        if not pr_opt.shir == 1:
+                            opts_done = 0
+                            pr_opt.do_optimization()
+                        if pr_opt.shigh == -999:
+                            fails = 1
+                    if fails:
+                        self.species.reac_ts_done[index] = -999
+                    elif opts_done:
+                        self.species.reac_ts_done[index] = 6
+                elif self.species.reac_ts_done[index] == 6:
+                    #Finilize the calculations
+                    
+                    #check for wrong number of negative frequencies
+                    neg_freq = 0
+                    for st_pt in obj.products:
+                        if any([fi < 0. for fi in st_pt.reduced_freqs]):
+                            neg_freq = 1
+                    if any([fi < 0. for fi in obj.ts.reduced_freqs[1:]]): 
+                        neg_freq = 1
+                    
+                    if neg_freq:
+                        logging.info('\tFound negative frequency for ' + instance_name)
+                        self.species.reac_ts_done[index] = -999
+                    else:
+                        #the reaction search is finished
+                        self.species.reac_ts_done[index] = -1 # this is the success code
+
+            alldone = 1
+            for index, instance in enumerate(self.species.reac_inst):
+                if any(self.species.reac_ts_done[i] >= 0 for i in range(len(self.species.reac_inst))):
+                    alldone = 1
+                    break 
+                else: 
+                    alldone = 0
+            
+            # write a small summary while running
+            wr = 1
+            if wr:
+                f_out = open('kinbot_monitor.out','w')
+                for index, instance in enumerate(self.species.reac_inst):
+                    f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index],self.species.reac_step[index],self.species.reac_obj[index].instance_name))
+                f_out.close()
+            time.sleep(1)
+
+        postprocess.createSummaryFile(self.species,self.qc,self.par)
+        postprocess.createPESViewerInput(self.species,self.qc,self.par)
+        logging.info("Reaction generation done!")
+

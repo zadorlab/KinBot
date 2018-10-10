@@ -82,7 +82,7 @@ class IntraRHAddExoR:
                 constraint = [self.instance[i] + 1,self.instance[j] + 1,val]
                 change.append(constraint)
             f_dist = 1.3
-            val = new_bond_length(self.species,self.instance[1],self.instance[3],step + 1,12,f_dist,geom)
+            val = geometry.new_bond_length(self.species,self.instance[1],self.instance[3],step + 1,12,f_dist,geom)
             constraint = [self.instance[1] + 1,self.instance[3] + 1,val]
             change.append(constraint)
 

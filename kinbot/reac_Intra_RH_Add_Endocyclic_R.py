@@ -79,7 +79,7 @@ class IntraRHAddEndoR:
                     j = 0
                 else:
                     j = i+1
-                val = new_bond_length(self.species,self.instance[i],self.instance[j],step,12,final_dist[i],geom)
+                val = geometry.new_bond_length(self.species,self.instance[i],self.instance[j],step,12,final_dist[i],geom)
                 constraint = [self.instance[i] + 1,self.instance[j] + 1,val]
                 change.append(constraint)
 

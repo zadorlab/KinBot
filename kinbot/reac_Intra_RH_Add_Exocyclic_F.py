@@ -72,7 +72,7 @@ class IntraRHAddExoF:
                     if self.species.bond[i][j] > 0:
                         fix.append([i+1,j+1])
         if step < 12:
-            new_dihs = new_ring_dihedrals(self.species, self.instance, step, 12)
+            new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, 12)
             for dih in range(len(self.instance)-3):
                 constraint = []
                 for i in range(4):
@@ -86,23 +86,23 @@ class IntraRHAddExoF:
                     constraint.append(self.instance[dih+i] + 1)
                 release.append(constraint)
             final_dist = [2.0,1.9,1.4,1.45,1.3]
-            val = new_bond_length(self.species,self.instance[1],self.instance[-2],step - 11,10,final_dist[0],geom)
+            val = geometry.new_bond_length(self.species,self.instance[1],self.instance[-2],step - 11,10,final_dist[0],geom)
             constraint = [self.instance[1] + 1,self.instance[-2] + 1,val]
             change.append(constraint)
             
-            val = new_bond_length(self.species,self.instance[-1],self.instance[-2],step - 11,10,final_dist[1],geom)
+            val = geometry.new_bond_length(self.species,self.instance[-1],self.instance[-2],step - 11,10,final_dist[1],geom)
             constraint = [self.instance[-1] + 1,self.instance[-2] + 1,val]
             change.append(constraint)
             
-            val = new_bond_length(self.species,self.instance[0],self.instance[-1],step - 11,10,final_dist[2],geom)
+            val = geometry.new_bond_length(self.species,self.instance[0],self.instance[-1],step - 11,10,final_dist[2],geom)
             constraint = [self.instance[0] + 1,self.instance[-1] + 1,val]
             change.append(constraint)
             
-            val = new_bond_length(self.species,self.instance[0],self.instance[1],step - 11,10,final_dist[3],geom)
+            val = geometry.new_bond_length(self.species,self.instance[0],self.instance[1],step - 11,10,final_dist[3],geom)
             constraint = [self.instance[0] + 1,self.instance[1] + 1,val]
             change.append(constraint)
             
-            val = new_bond_length(self.species,self.instance[-1],self.instance[1],step - 11,10,final_dist[4],geom)
+            val = geometry.new_bond_length(self.species,self.instance[-1],self.instance[1],step - 11,10,final_dist[4],geom)
             constraint = [self.instance[-1] + 1,self.instance[1] + 1,val]
             change.append(constraint)
 

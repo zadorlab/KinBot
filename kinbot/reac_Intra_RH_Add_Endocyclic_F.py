@@ -55,22 +55,22 @@ class IntraRHAddEndoF:
         #skip the first 12 steps in case the instance has a length of 3?
         self.skip = 0
 
-        def get_constraints(self,step, geom):
-            """
-            There are three types of constraints:
-            1. fix a coordinate to the current value
-            2. change a coordinate and fix is to the new value
-            3. release a coordinate (only for gaussian)
-            """
-            fix = []
-            change = []
-            release = []
-            if step < self.max_step:
-                #fix all the bond lengths
-                for i in range(self.species.natom - 1):
-                    for j in range(i+1, self.species.natom):
-                        if self.species.bond[i][j] > 0:
-                            fix.append([i+1,j+1])
+    def get_constraints(self,step, geom):
+        """
+        There are three types of constraints:
+        1. fix a coordinate to the current value
+        2. change a coordinate and fix is to the new value
+        3. release a coordinate (only for gaussian)
+        """
+        fix = []
+        change = []
+        release = []
+        if step < self.max_step:
+            #fix all the bond lengths
+            for i in range(self.species.natom - 1):
+                for j in range(i+1, self.species.natom):
+                    if self.species.bond[i][j] > 0:
+                        fix.append([i+1,j+1])
         if step < 12:
             new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, 12)
             for dih in range(len(self.instance)-4): #do not include hydrogen atom

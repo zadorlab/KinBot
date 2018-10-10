@@ -21,7 +21,7 @@ import math
 import copy
 import numpy as np
 
-from constants import *
+import constants
 
 def calc_angle(a, b, c):
     """ Calculate the A - B - C angle in radians"""
@@ -237,6 +237,56 @@ def get_center_of_mass(geom,atom, list = []):
     
     return com / tot_mass
 
+def rotate_atom(v, n, th):
+    """ 
+    Rotate vector v around unit vector n by angle th in 3D.
+    """
+    
+    w = np.zeros(3)
+    w[0] = v[0] * ms(n[0], th ) + v[1] * mm(n[0], n[1], n[2], th) + v[2] * mp(n[0], n[2], n[1], th)
+    w[1] = v[0] * mp(n[1], n[0], n[2], th) + v[1] * ms(n[1], th) + v[2] * mm(n[1], n[2], n[0], th)
+    w[2] = v[0] * mm(n[2], n[0], n[1], th) + v[1] * mp(n[2], n[1], n[0], th) + v[2] * ms(n[2], th)
+    
+    v = w
+    
+    return v
+
+
+
+def ms(x, a):
+    """
+    Diagonal element of the rotation matrix. 
+    x: selected coordinate of the unit vector around which rotation is done.
+    a: angle
+    """
+    
+    
+    return x * x * (1. - np.cos(a)) + np.cos(a)
+
+
+
+def mm(x, y, z, a):
+    """
+    Off-diagonal element of the rotation matrix with minus sign.
+    x, y, x: coordinates of the unit vector around which rotation is done. Order matters!
+    a: angle
+    """
+    
+    
+    return x * y * (1. - np.cos(a)) - z * np.sin(a)
+
+
+
+def mp(x, y, z, a):
+    """
+    Off-diagonal element of the rotation matrix with plus sign.
+    x, y, x: coordinates of te unit vector around which rotation is done. Order matters!
+    a: angle
+    """
+    
+    
+    return x * y * (1. - np.cos(a)) + z * np.sin(a)
+
 def get_moments_of_inertia(geom,atom):
     #translate the molecule to the center of mass
     geom = geom - get_center_of_mass(geom,atom)
@@ -246,7 +296,7 @@ def get_moments_of_inertia(geom,atom):
     
     #add a contribution per atom
     for i,at in enumerate(atom):
-        m = exact_mass[at]
+        m = constants.exact_mass[at]
         x = geom[i][0]
         y = geom[i][1]
         z = geom[i][2]

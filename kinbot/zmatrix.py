@@ -23,11 +23,7 @@ import numpy as np
 import random
 import copy
 
-import vector
-
-#from motif import *
-#from vector import *
-#from qc import *
+import geometry
 
 def make_zmat_from_cart(species, rotor, cart, mode):
     """
@@ -122,16 +118,16 @@ def make_zmat_from_cart(species, rotor, cart, mode):
     zmat_ref[2][0] = 2
     zmat[2][0] = np.linalg.norm(cart[c] - cart[b])
     zmat_ref[2][1] = 1
-    zmat[2][1] = vector.angle(cart[c], cart[b], cart[a])
+    zmat[2][1] = np.degrees(geometry.calc_angle(cart[c], cart[b], cart[a]))
 
     zmat_atom[3] = atom[d]
     zmatorder[3] = d
     zmat_ref[3][0] = 3
     zmat[3][0] = np.linalg.norm(cart[d] - cart[c])
     zmat_ref[3][1] = 2
-    zmat[3][1] = vector.angle(cart[d], cart[c], cart[b])
+    zmat[3][1] = np.degrees(geometry.calc_angle(cart[d], cart[c], cart[b]))
     zmat_ref[3][2] = 1
-    zmat[3][2], collin = vector.dihedral(cart[d], cart[c], cart[b], cart[a])
+    zmat[3][2], collin = geometry.calc_dihedral(cart[d], cart[c], cart[b], cart[a])
 
     j = 4
     for i in range(natom):
@@ -143,30 +139,30 @@ def make_zmat_from_cart(species, rotor, cart, mode):
             zmat_ref[j][0] = 1
             zmat[j][0] = np.linalg.norm(cart[i] - cart[a])
             zmat_ref[j][1] = 2
-            zmat[j][1] = vector.angle(cart[i], cart[a], cart[b])
+            zmat[j][1] = np.degrees(geometry.calc_angle(cart[i], cart[a], cart[b]))
             zmat_ref[j][2] = 3
-            zmat[j][2], collin = vector.dihedral(cart[i], cart[a], cart[b], cart[c])
+            zmat[j][2], collin = geometry.calc_dihedral(cart[i], cart[a], cart[b], cart[c])
         elif groupB[i] == 1:
             zmat_ref[j][0] = 2
             zmat[j][0] = np.linalg.norm(cart[i] - cart[b])
             zmat_ref[j][1] = 3
-            zmat[j][1] = vector.angle(cart[i], cart[b], cart[c])
+            zmat[j][1] = np.degrees(geometry.calc_angle(cart[i], cart[b], cart[c]))
             zmat_ref[j][2] = 4
-            zmat[j][2], collin = vector.dihedral(cart[i], cart[b], cart[c], cart[d])
+            zmat[j][2], collin = geometry.calc_dihedral(cart[i], cart[b], cart[c], cart[d])
         elif groupC[i] == 1:
             zmat_ref[j][0] = 3
             zmat[j][0] = np.linalg.norm(cart[i] - cart[c])
             zmat_ref[j][1] = 2
-            zmat[j][1] = vector.angle(cart[i], cart[c], cart[b])
+            zmat[j][1] = np.degrees(geometry.calc_angle(cart[i], cart[c], cart[b]))
             zmat_ref[j][2] = 1
-            zmat[j][2], collin = vector.dihedral(cart[i], cart[c], cart[b], cart[a])
+            zmat[j][2], collin = geometry.calc_dihedral(cart[i], cart[c], cart[b], cart[a])
         elif groupD[i] == 1:
             zmat_ref[j][0] = 4
             zmat[j][0] = np.linalg.norm(cart[i] - cart[d])
             zmat_ref[j][1] = 3
-            zmat[j][1] = vector.angle(cart[i], cart[d], cart[c])
+            zmat[j][1] = np.degrees(geometry.calc_angle(cart[i], cart[d], cart[c]))
             zmat_ref[j][2] = 2
-            zmat[j][2], collin = vector.dihedral(cart[i], cart[d], cart[c], cart[b])
+            zmat[j][2], collin = geometry.calc_dihedral(cart[i], cart[d], cart[c], cart[b])
         j += 1
 
     return zmat_atom, zmat_ref, zmat, zmatorder
@@ -230,16 +226,16 @@ def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, ato
         zmat_ref[2][0] = 2
         zmat[2][0] = np.linalg.norm(cart[rotors[0][2]] - cart[rotors[0][1]])
         zmat_ref[2][1] = 1
-        zmat[2][1] = angle(cart[rotors[0][2]], cart[rotors[0][1]], cart[rotors[0][0]])
+        zmat[2][1] = np.degrees(geometry.calc_angle(cart[rotors[0][2]], cart[rotors[0][1]], cart[rotors[0][0]]))
 
         zmat_atom[3] = atom[rotors[0][3]]
         zmatorder[3] = rotors[0][3]
         zmat_ref[3][0] = 3
         zmat[3][0] = np.linalg.norm(cart[rotors[0][3]] - cart[rotors[0][2]])
         zmat_ref[3][1] = 2
-        zmat[3][1] = angle(cart[rotors[0][3]], cart[rotors[0][2]], cart[rotors[0][1]])
+        zmat[3][1] = np.degrees(geometry.calc_angle(cart[rotors[0][3]], cart[rotors[0][2]], cart[rotors[0][1]]))
         zmat_ref[3][2] = 1
-        zmat[3][2], collin = dihedral(cart[rotors[0][3]], cart[rotors[0][2]], cart[rotors[0][1]], cart[rotors[0][0]])
+        zmat[3][2], collin = geometry.calc_dihedral(cart[rotors[0][3]], cart[rotors[0][2]], cart[rotors[0][1]], cart[rotors[0][0]])
 
 
         #Add subsequent rotors: 
@@ -568,7 +564,7 @@ def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, ato
             zmat_ref[2][0] = 2
             zmat[2][0] = np.linalg.norm(cart[ins[2]] - cart[ins[1]])
             zmat_ref[2][1] = 1
-            zmat[2][1] = angle(cart[ins[2]], cart[ins[1]], cart[ins[0]])
+            zmat[2][1] = np.degrees(geometry.calc_angle(cart[ins[2]], cart[ins[1]], cart[ins[0]]))
             
             j = 3
 
@@ -696,9 +692,9 @@ def add(j,list,zmat,zmat_atom,zmatorder,zmat_ref,atom,cart):
     zmat_ref[j][0] = zmatorder.index(list[1])+1
     zmat[j][0] = np.linalg.norm(cart[list[0]] - cart[list[1]])
     zmat_ref[j][1] = zmatorder.index(list[2])+1
-    zmat[j][1] = angle(cart[list[0]], cart[list[1]], cart[list[2]])
+    zmat[j][1] = np.degrees(geometry.calc_angle(cart[list[0]], cart[list[1]], cart[list[2]]))
     zmat_ref[j][2] = zmatorder.index(list[3])+1
-    zmat[j][2], collin = dihedral(cart[list[0]], cart[list[1]], cart[list[2]], cart[list[3]])
+    zmat[j][2], collin = geometry.calc_dihedral(cart[list[0]], cart[list[1]], cart[list[2]], cart[list[3]])
     
 def order_rotors(rotors,bond, natom, atom):
     """
@@ -948,11 +944,11 @@ def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder):
 
                 # rotation around the normal to ABC by the angle
                 th = zm[i][1] - np.pi
-                cart[i] = vector.rotate_atom(cart[i], n, th)
+                cart[i] = geometry.rotate_atom(cart[i], n, th)
 
                 # rotation around the BC axis by the dihedral angle
                 th = zm[i][2] - np.pi
-                cart[i] = vector.rotate_atom(cart[i], bc, th)
+                cart[i] = geometry.rotate_atom(cart[i], bc, th)
 
                 # shift the vector to C
                 cart[i] = [cart[i][j] + cart[c][j] for j in range(3)]

@@ -30,7 +30,7 @@ import math
 import cheminfo
 import constants
 import find_motif
-import vector
+import geometry
 
 class StationaryPoint(object):
     """
@@ -519,7 +519,7 @@ class StationaryPoint(object):
                             for d in range(self.natom):
                                 if hit == 1: break
                                 if self.bond[c][d] == 1 and d != b:
-                                    dihedral_angle, warning = vector.dihedral(self.geom[a], self.geom[b], self.geom[c], self.geom[d])
+                                    dihedral_angle, warning = geometry.calc_dihedral(self.geom[a], self.geom[b], self.geom[c], self.geom[d])
                                     if warning == 0:
                                         self.dihed.append([a, b, c, d])
                                         hit = 1 

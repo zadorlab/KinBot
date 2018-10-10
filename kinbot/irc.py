@@ -25,16 +25,6 @@ import logging
 from shutil import copyfile
 
 from stationary_pt import StationaryPoint 
-"""
-from vector import *
-from qc import *
-from constants import *
-from kinbot import *
-from stationary_pt import *
-from geom import *
-from qc import *
-import par
-"""
 
 class IRC:
     """

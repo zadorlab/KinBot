@@ -27,12 +27,6 @@ import constants
 import geometry
 import zmatrix
 
-"""from constants import *
-from stationary_pt import *
-from zmat import *
-from qc import *
-import par"""
-
 class HIR:
     """
     Class that does all the steps for the HIR calculations of one species

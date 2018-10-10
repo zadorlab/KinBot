@@ -22,9 +22,6 @@ import itertools
 
 sys.dont_write_bytecode = True
 
-from stationary_pt import *
-from cheminfo import *
-
 smi_list = []
 
 def equivalent_bond(bonds,b1,well):

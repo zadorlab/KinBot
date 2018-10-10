@@ -26,13 +26,6 @@ import copy
 
 import constants
 import frequencies
-"""
-from constants import *
-from frequencies import *
-from qc import *
-from rate_tables import *
-import par
-"""
 
 class MESS:
     """

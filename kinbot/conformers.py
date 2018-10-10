@@ -26,15 +26,6 @@ import numpy as np
 
 import geometry
 import zmatrix
-"""
-from modify_geom import *
-from cheminfo import *
-from stationary_pt import *
-from zmat import *
-from qc import *
-from geom import *
-import par
-"""
 
 class Conformers:
     """

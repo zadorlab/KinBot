@@ -31,13 +31,6 @@ from ase.db import connect
 import constants
 import geometry
 
-"""
-from constants import *
-from geom import *
-from jobs import *
-import par
-"""
-
 class QuantumChemistry:
     """
     This class provides the link between KinBot and the qc code

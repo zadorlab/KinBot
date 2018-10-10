@@ -25,6 +25,7 @@ import re
 import time
 import time
 import copy
+import pkg_resources
 
 from ase.db import connect
 
@@ -46,7 +47,6 @@ class QuantumChemistry:
         self.high_level_method = par.par['high_level_method']
         self.high_level_basis = par.par['high_level_basis']
         self.ppn = par.par['ppn']
-        self.tpldir = par.par['tpldir']
         self.queuing = par.par['queuing']
         self.queue_name = par.par['queue_name']
         self.zf = par.par['zf']
@@ -190,7 +190,8 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         
-        template = open(self.tpldir + 'ase_{qc}_hir.py.tpl'.format(qc = self.qc),'r').read()
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.py.tpl'.format(qc = self.qc))
+        template = open(template_file,'r').read()
         template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
 
         f_out = open('{}.py'.format(job),'w')
@@ -233,8 +234,9 @@ class QuantumChemistry:
                 atom = np.append(atom,['X'])
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
-        
-        template = open(self.tpldir + 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc),'r').read()
+    
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
+        template = open(template_file,'r').read()
         template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
 
         f_out = open('{}.py'.format(job),'w')
@@ -280,7 +282,8 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         
-        template = open(self.tpldir + 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc),'r').read()
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
+        template = open(template_file,'r').read()
         template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
 
         f_out = open('{}.py'.format(job),'w')
@@ -317,7 +320,8 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         
-        template = open(self.tpldir + 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc),'r').read()
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
+        template = open(template_file,'r').read()
         template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
 
         f_out = open('{}.py'.format(job),'w')
@@ -356,7 +360,8 @@ class QuantumChemistry:
                 del kwargs['NoSymm']
         dummy = [d.tolist() for d in dummy]
         
-        template = open(self.tpldir + 'ase_{qc}_freq_well.py.tpl'.format(qc = self.qc),'r').read()
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.py.tpl'.format(qc = self.qc))
+        template = open(template_file,'r').read()
         template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), 
                                    ppn = self.ppn, dummy = dummy)
 
@@ -378,8 +383,9 @@ class QuantumChemistry:
             job += '_high'
 
         kwargs = self.get_qc_arguments(job,species.mult,ts = 1,step = 1,max_step=1,high_level = 1)
-            
-        template = open(self.tpldir + 'ase_{qc}_ts_end.py.tpl'.format(qc = self.qc),'r').read()
+        
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = self.qc))
+        template = open(template_file,'r').read()
         template = template.format(label = job, kwargs = kwargs, atom = list(species.atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn)
 
         f_out = open('{}.py'.format(job),'w')
@@ -411,7 +417,8 @@ class QuantumChemistry:
         if self.queuing == 'pbs':
             pbs_file = '{}.pbs'.format(job)
             python_file = '{}.py'.format(job)
-            python_template = open(self.tpldir + 'pbs_python.tpl','r').read()
+            template_file = pkg_resources.resource_filename('tpl', 'pbs_python.tpl')
+            python_template = open(template_file,'r').read()
             python_template = python_template.format(   name = job, ppn = self.ppn, queue_name = self.queue_name, 
                                                         dir = 'perm', python_file = python_file, arguments = '' )
             f_out_pbs = open(pbs_file,'w')
@@ -426,7 +433,8 @@ class QuantumChemistry:
         elif self.queuing == 'slurm':
             slurm_file = '{}.sbatch'.format(job)
             python_file = '{}.py'.format(job)
-            python_template = open(self.tpldir + 'slurm_python.tpl','r').read()
+            template_file = pkg_resources.resource_filename('tpl', 'slurm_python.tpl')
+            python_template = open(template_file,'r').read()
             python_template = python_template.format(   name = job, ppn = self.ppn, queue_name = self.queue_name, dir = 'perm', 
                                                         slurm_feature = slurm_feature, python_file = python_file, arguments = '' )
             f_out_slurm = open(slurm_file,'w')

@@ -23,6 +23,7 @@ import re
 import subprocess
 import time
 import copy
+import pkg_resources
 
 import constants
 import frequencies
@@ -38,7 +39,9 @@ class MESS:
         """
         Create the header block for MESS
         """
-        with open(self.par.par['tpldir'] + 'mess_header.tpl') as f:
+        #Read the header template
+        header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
+        with open(header_file) as f:
             tpl = f.read()
         
         header = tpl.format(TemperatureList = ' '.join([str(ti) for ti in self.par.par['TemperatureList']]),
@@ -160,7 +163,9 @@ class MESS:
             tss += open(ts + '.mess', 'r').read()
             tss += '\n!****************************************\n'
 
-        dummy = open(self.par.par['tpldir'] + 'mess_dummy.tpl','r').read()
+        dummy_template = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
+        with open(dummy_template) as f:
+            dummy = open(f).read()
         dum = dummy.format(barrier = 'tsd', reactant = reactant, dummy = 'd1')
         
         if not os.path.exists('mess/'):
@@ -180,14 +185,19 @@ class MESS:
         Create the block for MESS for a bimolecular product.
         well0: reactant on this PES (zero-energy reference)
         """ 
-
-        with open(self.par.par['tpldir'] + 'mess_bimol.tpl') as f:
-            tpl = f.read()   
-        with open(self.par.par['tpldir'] + 'mess_fragment.tpl') as f:
+        
+        #open the templates
+        bimol_file = pkg_resources.resource_filename('tpl', 'mess_bimol.tpl')
+        with open(bimol_file) as f:
+            tpl = f.read()
+        fragment_file = pkg_resources.resource_filename('tpl', 'mess_fragment.tpl')
+        with open(fragment_file) as f:
             fragment_tpl = f.read()
-        with open(self.par.par['tpldir'] + 'mess_hinderedrotor.tpl') as f:
+        hir_file = pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')
+        with open(hir_file) as f:
             rotor_tpl = f.read()
-        with open(self.par.par['tpldir'] + 'mess_atom.tpl') as f:
+        atom_file = pkg_resources.resource_filename('tpl', 'mess_atom.tpl')
+        with open(atom_file) as f:
             atom_tpl = f.read()
         
         fragments = ''
@@ -275,9 +285,12 @@ class MESS:
         well0: reactant on this PES (zero-energy reference)
         
         """ 
-        with open(self.par.par['tpldir'] + 'mess_well.tpl') as f:
+        #open the templates
+        well_file = pkg_resources.resource_filename('tpl', 'mess_well.tpl')
+        with open(well_file) as f:
             tpl = f.read()   
-        with open(self.par.par['tpldir'] + 'mess_hinderedrotor.tpl') as f:
+        hir_file = pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')
+        with open(hir_file) as f:
             rotor_tpl = f.read()   
         
         rotors = []
@@ -351,13 +364,15 @@ class MESS:
         charge: charge of the ts
         """ 
         
-        
-
-        with open(self.par.par['tpldir'] + 'mess_ts.tpl') as f:
-            tpl = f.read()   
-        with open(self.par.par['tpldir'] + 'mess_hinderedrotor.tpl') as f:
-            rotor_tpl = f.read()   
-        with open(self.par.par['tpldir'] + 'mess_tunneling.tpl') as f:
+        #open the templates
+        ts_file = pkg_resources.resource_filename('tpl', 'mess_ts.tpl')
+        with open(ts_file) as f:
+            tpl = f.read()
+        hir_file = pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')
+        with open(hir_file) as f:
+            rotor_tpl = f.read() 
+        tunn_file = pkg_resources.resource_filename('tpl', 'mess_tunneling.tpl')
+        with open(tunn_file) as f:
             tun_tpl = f.read()   
         
         rotors = []
@@ -541,7 +556,9 @@ class MESS:
         submit the pbs file to the queue
         wait for the mess run to finish
         """
-        with open(self.par.par['tpldir'] + 'pbs_mess.tpl') as f:
+        #open the template
+        pbs_file = pkg_resources.resource_filename('tpl', 'pbs_mess.tpl')
+        with open(pbs_file) as f:
             tpl = f.read()
         pbs = open('run_mess.pbs','w')
         pbs.write(tpl.format(name = 'mess', ppn = par.ppn, queue_name = par.queue_name, dir = 'mess'))

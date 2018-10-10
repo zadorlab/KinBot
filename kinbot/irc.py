@@ -23,6 +23,7 @@ import copy
 import time
 import logging
 from shutil import copyfile
+import pkg_resources
 
 from stationary_pt import StationaryPoint 
 
@@ -129,7 +130,8 @@ class IRC:
             if self.rxn.qc.qc == 'gauss':
                 prod_kwargs['opt'] = 'CalcFC, Tight, MaxCycle=10'
             
-            template = open('{dir}/ase_{qc}_irc.py.tpl'.format(dir = self.rxn.par.par['tpldir'],qc = self.rxn.qc.qc),'r').read()
+            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_irc.py.tpl'.format(qc = self.rxn.qc.qc))
+            template = open(template_file,'r').read()
             template = template.format(label = irc_name, kwargs = kwargs, prod_kwargs = prod_kwargs, atom = list(self.rxn.species.atom), 
                                    geom = list([list(gi) for gi in geom]), ppn = self.rxn.qc.ppn)
             

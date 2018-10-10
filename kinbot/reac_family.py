@@ -24,6 +24,7 @@ Generic methods for the reaction families
 import numpy as np
 import copy
 import time
+import pkg_resources
 
 import modify_geom
 
@@ -81,9 +82,11 @@ def carry_out_reaction(rxn,step):
     kwargs['release'] = release
 
     if step < rxn.max_step:
-        template = open(rxn.par.par['tpldir'] + 'ase_{qc}_ts_search.py.tpl'.format(qc = rxn.qc.qc),'r').read()
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.py.tpl'.format(qc = rxn.qc.qc))
+        template = open(template_file,'r').read()
     else:
-        template = open(rxn.par.par['tpldir'] + 'ase_{qc}_ts_end.py.tpl'.format(qc = rxn.qc.qc),'r').read()
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = rxn.qc.qc))
+        template = open(template_file,'r').read()
     
     template = template.format(label = rxn.instance_name, kwargs = kwargs, atom = list(rxn.species.atom), 
                                geom = list([list(gi) for gi in geom]), ppn = rxn.qc.ppn)

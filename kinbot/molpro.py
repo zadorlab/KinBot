@@ -18,6 +18,7 @@
 ##                                               ##
 ###################################################
 import os, sys
+import pkg_resources
 
 import constants
 
@@ -34,8 +35,8 @@ class Molpro:
         """
         Create the input for molden
         """
-        
-        with open(self.par.par['tpldir'] + 'molpro.tpl') as f:
+        tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
+        with open(tpl_file) as f:
             file = f.read()
         
         fname = str(self.species.chemid)

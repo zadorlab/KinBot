@@ -9,10 +9,11 @@ a tool for automatically searching for reactions on the potential energy surface
 Clone the project in your home directory, which will create the ~/KinBot directory.
 
 ## Documentation
+(under construction)
 See the manual in the docs/ directory. 
 
 ## Registration
-If you want to stay updated about the project (new version coming soon), regiter here.
+If you want to stay updated about the project (new version coming soon), register here: (under construction)
 
 ## Authors
 * Judit Zador (jzador@sandia.gov)

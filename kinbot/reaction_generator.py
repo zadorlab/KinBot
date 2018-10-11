@@ -20,11 +20,13 @@
 from __future__ import print_function
 import numpy as np
 import sys
+import os
 import copy
 import time
 import logging
 
 import constants
+import pes
 import postprocess
 import reac_family
 from irc import IRC
@@ -159,18 +161,7 @@ class ReactionGenerator:
                     for i,frag in enumerate(fragments):
                         obj.products.append(frag)
                         self.qc.qc_opt(frag, frag.geom)
-                    if self.par.par['pes']:
-                        #verify if product is monomolecular, and if it is new
-                        if len(fragments) ==1:
-                            chemid = obj.products[0].chemid
-                            dir = os.path.dirname(os.getcwd()) 
-                            jobs = open(dir+'/chemids','r').read().split('\n')
-                            
-                            if not str(chemid) in jobs:
-                                write_input(par,obj.products[0],dir)
-                                f = open(dir+'/chemids','a')
-                                f.write(str(chemid)+'\n')
-                                f.close()
+                    
                     self.species.reac_ts_done[index] = 3
                 elif self.species.reac_ts_done[index] == 3:
                     #wait for the optimization to finish 
@@ -244,7 +235,33 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = 6
                 elif self.species.reac_ts_done[index] == 6:
                     #Finilize the calculations
-                    
+
+                    #continue to PES search in case a new well was found
+                    if self.par.par['pes']:
+                        #verify if product is monomolecular, and if it is new
+                        if len(obj.products) ==1:
+                            chemid = obj.products[0].chemid
+                            energy = st_pt.energy
+                            well_energy = self.species.energy
+                            new_barrier_threshold = self.par.par['barrier_threshold'] - (energy-well_energy)*constants.AUtoKCAL
+                            dir = os.path.dirname(os.getcwd()) 
+                            jobs = open(dir+'/chemids','r').read().split('\n')
+                            jobs = [ji for ji in jobs]
+                            if not str(chemid) in jobs:
+                                #this well is new, add it to the jobs
+                                while 1:
+                                    try:
+                                        #try to open the file and write to it
+                                        pes.write_input(self.par,obj.products[0],new_barrier_threshold,dir)
+                                        f = open(dir+'/chemids','a')
+                                        f.write('{}\n'.format(chemid))
+                                        f.close()
+                                        break
+                                    except IOError:
+                                        #wait a second and try again
+                                        time.sleep(1)
+                                        pass
+                                        
                     #check for wrong number of negative frequencies
                     neg_freq = 0
                     for st_pt in obj.products:

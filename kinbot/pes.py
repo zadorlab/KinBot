@@ -17,44 +17,47 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
+
+"""
+This is the main class to run KinBot to explore
+a full PES instead of only the reactions of one well
+"""
+from __future__ import print_function
 import sys
 import os
 import logging
 import datetime
 import time
 import subprocess
-
+import json
 from distutils.dir_util import copy_tree
 
 from ase.db import connect
 
-sys.dont_write_bytecode = True
-
-import kinbot
+import constants
 import license_message
-from stationary_pt import *
-from constants import *
+from parameters import Parameters
+from stationary_pt import StationaryPoint
 
-def main(workdir):
-    print license_message.message
 
-    sys.path.append(os.path.expanduser('~/KinBot/code'))
-    
-    
-    #os.chdir(os.path.expanduser(workdir))
+def main(input_file):
+    #print the license message to the console
+    print(license_message.message)
+
+    #initialize the parameters
+    par = Parameters(input_file)
     
     # set up the logging environment 
-    logging.basicConfig(filename=os.path.expanduser(workdir)+'/pes.log',level=logging.INFO)
+    logging.basicConfig(filename='pes.log',level=logging.INFO)
     
     logging.info(license_message.message)
-    logging.info('Starting KinBot in %s at %s'%(workdir,datetime.datetime.now()))
+    logging.info('Starting the PES search at %s'%(datetime.datetime.now()))
  
-    well0 = stationary_pt('well0')
-    well0.geom = par.read_input(os.path.expanduser(workdir)+'/input.inp')
-    well0.characterize(par.natom, par.atom, par.mult, par.charge)
-    write_input(par,well0,workdir)
+    well0 = StationaryPoint('well0', par.par['charge'], par.par['mult'], smiles = par.par['smiles'], structure = par.par['structure'])
+    well0.characterize()
+    write_input(par,well0,par.par['barrier_threshold'],os.getcwd())
     
-    f = open(os.path.expanduser(workdir)+'/chemids','w')
+    f = open('chemids','w')
     f.write(str(well0.chemid) + '\n')
     f.close()
    
@@ -65,7 +68,7 @@ def main(workdir):
     pids = {}
     while 1:
         j = len(jobs)
-        f = open(os.path.expanduser(workdir)+'/chemids','r')
+        f = open('chemids','r')
         jobs = f.read().split('\n')
         jobs = [ji for ji in jobs if ji != '']
         f.close()
@@ -79,7 +82,7 @@ def main(workdir):
         while len(running) < max_running and len(running) + len(finished) < len(jobs):
             #start a new job
             job = jobs[len(running) + len(finished)]
-            pid = submit_job(job, workdir)
+            pid = submit_job(job)
             pids[job] = pid
             running.append(job)
         #check if a thread is done
@@ -90,7 +93,7 @@ def main(workdir):
         for job in finished: 
             if job in running:
                 running.remove(job)
-        f = open(os.path.expanduser(workdir)+'/pes_summary.txt','w+')
+        f = open('pes_summary.txt','w+')
         f.write('Total\t\t%i\n'%len(jobs))
         f.write('Running\t\t%i\n'%len(running))
         f.write('Finished\t%i\n\n'%len(finished))
@@ -99,9 +102,9 @@ def main(workdir):
         
         f.close()
         time.sleep(1)
-    postprocess(workdir, jobs)
+    postprocess(par,jobs)
 
-def postprocess(workdir,jobs):
+def postprocess(par,jobs):
     #list of lists with four elements
     # reactant chemid
     # reaction name
@@ -112,7 +115,7 @@ def postprocess(workdir,jobs):
     products = []
     #read all the jobs
     for ji in jobs:
-        summary = open(os.path.expanduser(workdir) + '/' + ji + '/summary_' + ji + '.out','r').readlines()
+        summary = open(ji + '/summary_' + ji + '.out','r').readlines()
         for line in summary:
             if line.startswith('SUCCESS'):
                 pieces = line.split()
@@ -146,24 +149,24 @@ def postprocess(workdir,jobs):
                         reactions.pop(temp)
                         reactions.append([reactant,ts,prod,barrier])
     
-    zero_energy = get_energy(workdir,jobs[0], jobs[0],0,par.high_level)
-    zero_zpe = get_zpe(workdir,jobs[0], jobs[0],0,par.high_level)
+    zero_energy = get_energy(jobs[0], jobs[0],0,par.par['high_level'])
+    zero_zpe = get_zpe(jobs[0], jobs[0],0,par.par['high_level'])
     #copy xyz files
-    copy_xyz(workdir,wells)
+    copy_xyz(wells)
     
     #write pes input
-    create_pesviewer_input(workdir, jobs[0], wells, products, reactions, zero_energy,par.high_level)
+    create_pesviewer_input(par, jobs[0], wells, products, reactions, zero_energy,par.par['high_level'])
     
     #write_mess
-    create_mess_input(workdir, jobs[0], wells, products, reactions, zero_energy, zero_zpe, par.high_level)
+    create_mess_input(par, jobs[0], wells, products, reactions, zero_energy, zero_zpe, par.par['high_level'])
 
-def copy_xyz(workdir,wells):
-    dir_xyz = os.path.expanduser(workdir) + '/xyz/'
+def copy_xyz(wells):
+    dir_xyz = 'xyz/'
     if not os.path.exists(dir_xyz):
         os.mkdir(dir_xyz)
     
     for well in wells:
-        copy_tree(  os.path.expanduser(workdir) + '/' + well + '/xyz/', dir_xyz)
+        copy_tree(well + '/xyz/', dir_xyz)
 
     
 def get_rxn(prods,rxns):
@@ -171,8 +174,8 @@ def get_rxn(prods,rxns):
         if prods == '_'.join(sorted(rxn[2])):
             return rxn
 
-def create_mess_input(workdir, well0, wells, products, reactions, zero_energy, zero_zpe, high_level):
-    fname = os.path.expanduser(workdir) + '/input.mess'
+def create_mess_input(par, well0, wells, products, reactions, zero_energy, zero_zpe, high_level):
+    fname = 'input.mess'
     f = open(fname, 'w+')
     #todo: add header
     
@@ -181,28 +184,28 @@ def create_mess_input(workdir, well0, wells, products, reactions, zero_energy, z
     s += '##############\n'
     
     for well in wells:
-        energy = get_energy(workdir,well,well,0,par.high_level)
-        zpe = get_zpe(workdir,well,well,0,par.high_level)
+        energy = get_energy(well,well,0,par.par['high_level'])
+        zpe = get_zpe(well,well,0,par.par['high_level'])
         zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * AUtoKCAL
-        s += open(os.path.expanduser(workdir) + '/' + well + '/' + well + '.mess').read().format(zeroenergy = zeroenergy) 
+        s += open(well + '/' + well + '.mess').read().format(zeroenergy = zeroenergy) 
         
     for prods in products:
         energy = 0.
         zpe = 0.
         rxn = get_rxn(prods,reactions)
         for pr in prods.split('_'):
-            energy += get_energy(workdir,rxn[0],pr,0,par.high_level)
-            zpe += get_zpe(workdir,rxn[0],pr,0,par.high_level)
+            energy += get_energy(rxn[0],pr,0,par.par['high_level'])
+            zpe += get_zpe(rxn[0],pr,0,par.par['high_level'])
         zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * AUtoKCAL
-        s += open(os.path.expanduser(workdir) + '/' + rxn[0] + '/' + prods + '.mess').read().format(ground_energy = zeroenergy) 
+        s += open(rxn[0] + '/' + prods + '.mess').read().format(ground_energy = zeroenergy) 
     f.write('\n')
     
     f.write(s)
     f.close()
     
 
-def create_pesviewer_input(workdir, well0, wells, products, reactions, zero_energy, high_level):
-    fname = os.path.expanduser(workdir) + '/pesviewer.inp'
+def create_pesviewer_input(par, well0, wells, products, reactions, zero_energy, high_level):
+    fname = 'pesviewer.inp'
     
     f = open(fname,'w+')
     f.write("> <comments>")
@@ -236,7 +239,7 @@ rdkit4depict       1         # boolean that specifies which code was used for th
     
     f.write('> <wells> \n')
     for well in wells:
-        energy = (get_energy(workdir,well,well,0,par.high_level) - zero_energy) * AUtoKCAL
+        energy = (get_energy(well,well,0,par.par['high_level']) - zero_energy) * AUtoKCAL
         f.write('%s %.2f\n'%(well,energy))
     f.write('\n')
     
@@ -245,14 +248,14 @@ rdkit4depict       1         # boolean that specifies which code was used for th
         energy = 0. - zero_energy
         rxn = get_rxn(prods,reactions)
         for pr in prods.split('_'):
-            energy += get_energy(workdir,rxn[0],pr,0,par.high_level)
+            energy += get_energy(rxn[0],pr,0,par.par['high_level'])
         energy = energy * AUtoKCAL
         f.write('%s %.2f\n'%(prods,energy))
     f.write('\n')
     
     f.write('> <ts> \n')
     for rxn in reactions:
-        energy = (get_energy(workdir,rxn[0],rxn[1],1,par.high_level) - zero_energy) * AUtoKCAL
+        energy = (get_energy(rxn[0],rxn[1],1,par.par['high_level']) - zero_energy) * AUtoKCAL
         prod_name = '_'.join(sorted(rxn[2]))
         f.write('%s %.2f %s %s\n'%(rxn[1],energy,rxn[0],prod_name))
     f.write('\n')
@@ -282,8 +285,8 @@ barrierless: all the barrierless reactions of the PES, separated by lines
 each line contains the name and the names of the reactant and product""")
     f.close()
 
-def get_energy(workdir,dir,job,ts,high_level):
-    db = connect(os.path.expanduser(workdir) + '/' + dir + '/kinbot.db')
+def get_energy(dir,job,ts,high_level):
+    db = connect(dir + '/kinbot.db')
     if ts:
         j = job
     else:
@@ -299,12 +302,12 @@ def get_energy(workdir,dir,job,ts,high_level):
     energy *= EVtoHARTREE
     return energy
 
-def get_zpe(workdir,dir,job,ts,high_level):
-    db = connect(os.path.expanduser(workdir) + '/' + dir + '/kinbot.db')
+def get_zpe(dir,job,ts,high_level):
+    db = connect(dir + '/kinbot.db')
     if ts:
         j = job
     else:
-        j = job + '_fr'
+        j = job + '_well'
     if high_level:
         j += '_high'
     
@@ -327,62 +330,45 @@ def check_status(job,pid):
     return 0
 
 
-def submit_job(chemid, workdir):
+def submit_job(chemid):
     """
     Submit a kinbot run usung subprocess and return the pid
     """
-    if '~' in workdir:
-        workdir = workdir.replace('~/','')
-    job = workdir + '/' + chemid
-    command = ["python","kinbot.py",job,"&"]
-    process = subprocess.Popen(command,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    command = ["python","/home/rvandev/KinBot/kinbot/kb.py",chemid + ".json","&"]
+    process = subprocess.Popen(command,cwd = chemid, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    out,err = process.communicate()
     time.sleep(1)
     pid = process.pid
     return pid 
 
-def write_input(par,species,workdir):
-    if '~' in workdir:
-        dir = os.path.expanduser(workdir) + '/' + str(species.chemid) + '/'
-    else:
-        dir = workdir + '/' + str(species.chemid) + '/'
-    if not os.path.exists(dir):
-        os.mkdir(dir)
-        
-    file_name = dir + 'input.inp'
-    f = open(file_name,'w')
-    f.write('title = \'%s\'\n\n'%str(species.chemid))
-    f.write('method = \'%s\'\n'%par.method)
-    f.write('basis = \'%s\'\n'%par.basis)
-    f.write('high_level = %i\n'%par.high_level)
-    f.write('high_level_method = \'%s\'\n'%par.high_level_method)
-    f.write('high_level_basis = \'%s\'\n'%par.high_level_basis)
-    
-    f.write('qc = \'%s\'\n'%par.qc)
-    f.write('queuing = \'%s\'\n'%par.queuing)
-    f.write('username = \'%s\'\n'%par.username)
-    f.write('queue_name = \'%s\'\n'%par.queue_name)
-    f.write('conformer_search = %i\n'%par.conformer_search)
-    f.write('reaction_search = %i\n'%par.reaction_search)
-    f.write('rotor_scan = %i\n'%par.rotor_scan)
-    f.write('barrier_threshold = %.1f\n'%par.barrier_threshold)
-    f.write('pes = %i\n'%par.pes)
-    f.write('ga = %i\n'%par.ga)
-    f.write('ngen = %i\n'%par.ngen)
-    f.write('ppn = %i\n\n'%par.ppn)
-    
-    f.write('charge = %i\n'%par.charge)
-    f.write('mult = %i\n'%par.mult)
-    f.write('natom = %i\n'%par.natom)
-    
-    structure = []
-    for at in range(par.natom):
-        pos = species.geom[at]
-        sym = par.atom[at]
-        structure += [sym,pos[0],pos[1],pos[2]]
 
-    f.write('structure = %s\n\n'%structure)
-    f.close()
+def write_input(par,species,threshold,root):
+    #directory for this particular species
+    dir = root + '/' + str(species.chemid) + '/'
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    
+    #make a new parameters instance and overwrite some keys
+    par2 = Parameters(par.input_file)
+    #overwrite the title
+    par2.par['title'] = str(species.chemid)
+    #make a structure vector and overwrite the par structure
+    structure = []
+    for at in range(species.natom):
+        pos = species.geom[at]
+        sym = species.atom[at]
+        structure += [sym,pos[0],pos[1],pos[2]]
+    par2.par['structure'] = structure
+    #delete the par smiles
+    par2.par['smiles'] = ''
+    #overwrite the barrier treshold
+    par2.par['barrier_threshold'] = threshold
+    
+    file_name = dir + str(species.chemid) + '.json'
+    with open(file_name,'w') as outfile:
+        json.dump(par2.par,outfile,indent = 4, sort_keys = True)
     
 if __name__ == "__main__":
-    workdir = '~/' + sys.argv[1]
-    main(workdir)
+    input_file = sys.argv[1]
+    main(input_file)
+

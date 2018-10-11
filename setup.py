@@ -38,10 +38,6 @@ setup(
         ]},
     install_requires=['ase','numpy'],
     
-    package_data = {
-        '': ['*.tpl','*.dat']
-    },
-    
     author="Judit Zador and Ruben Van de Vijver",
     author_email = "jzador@sandia.gov",
     description = "Automatic Potential Energy Surface searches to identify chemical reactions.",

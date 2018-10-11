@@ -59,7 +59,7 @@ def main(input_file):
     print(license_message.message)
     
     #initialize the parameters for this run
-    par = Parameters('input.json')
+    par = Parameters(input_file)
     
     # set up the logging environment 
     if par.par['verbose']:
@@ -71,9 +71,6 @@ def main(input_file):
     logging.info(license_message.message)
     #time stamp of the KinBot start
     logging.info('Starting KinBot at %s'%(datetime.datetime.now()))
-    
-    #initialize the parameters for this run
-    par = Parameters('input.json')
 
     #Make the necessary directories
     if not os.path.exists('perm'):

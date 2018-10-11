@@ -122,12 +122,12 @@ def calc_dihedral(a, b, c, d):
     return np.degrees(np.arctan2(y, x)), collinear
 
 
-def new_ring_dihedrals(species,instance, step_nr, total_nr_of_steps,geom = []):
+def new_ring_dihedrals(species,instance, step_nr, total_nr_of_steps,geom = None):
     """
     Calculates the required new dihedrals to create a cyclic TS
     """
     
-    if len(geom) == 0:
+    if geom is None:
         geom = species.geom
         frac = (1.+step_nr) / (total_nr_of_steps + 0.)
     else:
@@ -152,12 +152,12 @@ def new_ring_dihedrals(species,instance, step_nr, total_nr_of_steps,geom = []):
         return new_dihedrals
 
 
-def new_bond_length(species,ati, atj, step_nr, total_nr_of_steps, final_val,geom = []):
+def new_bond_length(species,ati, atj, step_nr, total_nr_of_steps, final_val,geom = None):
     """
     Calculates the required new bond lengths to create a TS
     """
     
-    if len(geom) == 0:
+    if geom is None:
         geom = species.geom
         frac =  (0.+step_nr) / (total_nr_of_steps + 0.)
     else:
@@ -170,12 +170,12 @@ def new_bond_length(species,ati, atj, step_nr, total_nr_of_steps, final_val,geom
     return new_val
 
 
-def init_ring_dihedral(species,instance,geom = []):
+def init_ring_dihedral(species,instance,geom = None):
     """
     Calculates the required modifications to a structures dihedral to create a cyclic TS
     """
     
-    if len(geom) == 0:
+    if geom is None:
         geom = species.geom
     
     if len(instance) > 3:
@@ -222,18 +222,16 @@ def translate_and_rotate(cart,atom,i,j):
 
     return cart
 
-def get_center_of_mass(geom,atom, list = []):
-    
-    if len(list) == 0:
-        list = range(len(atom))
+def get_center_of_mass(geom,atom):
+    list = range(len(atom))
 
     com = [0.,0.,0.]
     tot_mass = 0.
     
     for i in list:
         at = atom[i]
-        tot_mass += exact_mass[at]
-        com += exact_mass[at] * geom[i]
+        tot_mass += constants.exact_mass[at]
+        com += constants.exact_mass[at] * geom[i]
     
     return com / tot_mass
 

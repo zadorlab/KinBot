@@ -37,18 +37,27 @@ class StationaryPoint(object):
     This object contains the properties of wells.
     """
 
-    def __init__(self, name, charge, mult, smiles = '', structure = [], natom = 0, atom = [],geom = [], wellorts = 0):
+    def __init__(self, name, charge, mult, smiles = '', structure = None, natom = 0, atom = None,geom = None, wellorts = 0):
         self.name = name
         self.mult = mult
         self.charge = charge
         self.short_name = '' #name for the MESS calculations needs to be shorter
-        self.geom = geom
-        self.structure = structure
+        if geom is None:
+            self.geom = []
+        else:
+            self.geom = geom
+        if structure is None:
+            self.structure = []
+        else:
+            self.structure = structure
         self.smiles = smiles
         self.obmol = None
         self.inchi = ''
         self.natom = natom
-        self.atom = atom
+        if atom is None:
+            self.atom = []
+        else:
+            self.atom = atom
         self.wellorts = wellorts
 
         self.energy = 0.

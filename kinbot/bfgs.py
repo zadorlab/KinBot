@@ -19,7 +19,6 @@
 ###################################################
 import os,sys
 import math
-import logging
 import numpy as np
 
 
@@ -27,7 +26,7 @@ class BFGS:
     """
     Class to execute a BFGS optimization to a local minimum
     """
-    def __init__(self,step_tol = 1E-7, grad_tol = 1E-7, line_tol = 1E-10, inhess = [],
+    def __init__(self,step_tol = 1E-7, grad_tol = 1E-7, line_tol = 1E-10, inhess = None,
                  max_step = 100, max_lin_step = 1000, use_grad_tol = 1, use_step_tol = 1):
         """
         Initialize the BFGS algorithm
@@ -51,7 +50,10 @@ class BFGS:
         self.step_tol = step_tol
         self.grad_tol = grad_tol
         self.line_tol = line_tol
-        self.inhess = inhess
+        if inhess is None:
+            self.inhess = []
+        else:
+            self.inhess = inhess
         self.max_step = max_step
         self.max_lin_step = max_lin_step
         self.use_grad_tol = use_grad_tol
@@ -86,6 +88,8 @@ class BFGS:
         else:
             H = self.inhess
 
+        Hinv = np.linalg.inv(H)
+        
         g = f.gradient(x)
         g_i = [g] #intermediate forces
         p = np.dot(np.linalg.inv(H),-g)
@@ -97,27 +101,28 @@ class BFGS:
             xk = x + sk
             gk = f.gradient(xk)
             yk = gk - g
-            
+
             if np.dot(sk,yk):
-                t1 = np.outer(yk, yk) / np.dot(sk,yk)
+                t1 = (np.dot(sk,yk) + np.dot(yk,np.dot(Hinv,yk))) * np.outer(sk,sk)
+                t1 = t1 / np.power(np.dot(sk,yk),2)
+                t2 = np.dot(Hinv,np.outer(yk,sk)) + np.dot(np.outer(sk,yk),Hinv)
+                t2 = t2 / np.dot(sk,yk)
+                Hinvk = Hinv + t1 - t2
             else:
-                t1 = np.outer(yk, yk)
-            t2 = np.dot(H,sk)
-            t3 = np.outer(t2,t2) / np.dot(sk,t2)
-            Hk = H + t1 - t3
+                Hinvk = Hinv 
             
             x_i.append(xk)
             g_i.append(gk)
             
-            if self.converged(xk - x, gk):
+            converged = self.converged(sk, gk)
+            if converged:
                 return xk, x_i, g_i
             g = gk
             x = xk
-            p = np.dot(np.linalg.inv(Hk),-gk)
-            H = Hk
+            p = np.dot(Hinvk,-gk)
+            Hinv = Hinvk
             
             it += 1
-        
         return xk, x_i, g_i
     
     def line_search(self,f,x,p):

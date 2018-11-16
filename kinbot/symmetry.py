@@ -23,21 +23,6 @@ import numpy as np
 
 import geometry
 
-"""
-
-PROBLEMS with external symmetry; 
-
-** Consecutive double bonds
-** C-C#C-C
-** R1-C(-R1) = C(-R2)-R2
-
-special cases:
-** ethane: external vs internal
-** ethylene
-
-
-"""
-
 def calculate_symmetry(species):
     """
     Calculate the symmetry numbers (external and internal) and 
@@ -53,6 +38,8 @@ def calculate_symmetry(species):
     sigma_ext = 1
     nopt = 1
     sigma_int = [[1 for i in range(natom)] for i in range(natom)]
+    sigma_int_contrib = [1 for i in range(natom)]
+    sigma_ext_contrib = [1 for i in range(natom)]
     
     #get the number of optical isomers
     for at in range(natom):
@@ -77,34 +64,25 @@ def calculate_symmetry(species):
                         if at in li[1:-1]:
                             linear = 1
                     if not linear:
-                        sigma_ext *= 2
+                        sigma_ext_contrib[at] = 2
             elif len(nei) == 3:
                 if (species.atomid[nei[0]] == species.atomid[nei[1]] and 
                 species.atomid[nei[1]] == species.atomid[nei[2]]):
-                    sigma_ext *= 6
-                """elif species.atomid[nei[0]] == species.atomid[nei[1]]:
-                    if species.bond[at][nei[2]] == 1:
-                        sigma_int[at] *= 2
-                elif species.atomid[nei[1]] == species.atomid[nei[2]]:
-                    if species.bond[at][nei[0]] == 1:
-                        sigma_int[at] *= 2
-                elif species.atomid[nei[0]] == species.atomid[nei[2]]:
-                    if species.bond[at][nei[1]] == 1:
-                        sigma_int[at] *= 2"""
+                    sigma_ext_contrib[at] = 6
             elif len(nei) == 4:
                 nei_atomid = sorted([species.atomid[ni] for ni in nei])
                 if all([ati == nei_atomid[0] for ati in nei_atomid]):
-                    sigma_ext *= 12
+                    sigma_ext_contrib[at] = 12
                 elif any([nei_atomid.count(ati) == 3 for ati in nei_atomid]):
-                    #sigma_int[at] *= 3
                     continue
                 elif all([nei_atomid.count(ati) == 2 for ati in nei_atomid]):
-                    sigma_ext *= 2
+                    sigma_ext_contrib[at] = 2
                 elif any([nei_atomid.count(ati) == 2 for ati in nei_atomid]):
                     #not symmetric nor optically active
                     continue
                 else:
                     continue
+        sigma_ext *= sigma_ext_contrib[at]
     
     #internal rotational symmetry
     #both atoms can be in a cycle, but not in the same cycle
@@ -116,28 +94,41 @@ def calculate_symmetry(species):
                 cycle.extend(cyc)
         j = li[-1]
         if not j in cycle:
-            if any([species.bond[li[ai]][li[ai+1]] == 1 for ai in range(len(li)-1)]):
-                nei1 = get_neighbors(species,i)
-                nei1 = [species.atomid[ni] for ni in nei1 if ni != li[1]]
-                nei2 = get_neighbors(species,j)
-                nei2 = [species.atomid[ni] for ni in nei2 if ni != li[-2]]
-                if len(nei1) > 0 and len(nei2) > 0:
-                    s1 = 1
-                    if all([ati == nei1[0] for ati in nei1]):
-                        s1 = len(nei1)
-                    s2 = 1
-                    if all([ati == nei2[0] for ati in nei2]):
-                        s2 = len(nei2)
-                    sigma_int[i][j] = lcm(s1,s2)
+            nei1 = get_neighbors(species,i)
+            nei1 = [species.atomid[ni] for ni in nei1 if ni != li[1]]
+            nei2 = get_neighbors(species,j)
+            nei2 = [species.atomid[ni] for ni in nei2 if ni != li[-2]]
+            if len(nei1) > 0 and len(nei2) > 0:
+                s1 = 1
+                if all([ati == nei1[0] for ati in nei1]):
+                    s1 = len(nei1)
+                s2 = 1
+                if all([ati == nei2[0] for ati in nei2]):
+                    s2 = len(nei2)
+                if any([all([bi[li[ai]][li[ai+1]] == 1 for bi in species.bonds]) for ai in range(len(li)-1)]): # single bond in all resonance isomers
+                    if sigma_ext_contrib[i] > 1:
+                        sigma_int[i][j]  = s2
+                    elif sigma_ext_contrib[j] > 1:
+                        sigma_int[i][j] = s1
+                    else:
+                        sigma_int[i][j] = lcm(s1,s2)
+                if any([any([bi[li[ai]][li[ai+1]] == 1 for bi in species.bonds]) for ai in range(len(li)-1)]): # single bond in all resonance isomers
+                    #this info is used to decide whether a ring has external symmetry, see below
+                    sigma_int_contrib[i] *= s1
+                    sigma_int_contrib[j] *= s2
 
     #get all bond-centered symmetries
     for li in lin:
         i = li[0]
         j = li[-1]
-        if species.atomid[i] == species.atomid[j] and species.cycle[i] == 0:
+        cycle = []
+        for cyc in species.cycle_chain:
+            if i in cyc:
+                cycle.extend(cyc)
+        if species.atomid[i] == species.atomid[j] and not j in cycle:
             sigma_ext *= 2
 
-        if species.cycle[i] == 0 and species.cycle[j] == 0:
+        if species.cycle[i] == 0 and species.cycle[j] == 0 and sigma_ext_contrib[i] == 1 and sigma_ext_contrib[j] == 1:
             nei1 = get_neighbors(species,i)
             nei1 = [species.atomid[ni] for ni in nei1 if ni != li[1]]
             nei2 = get_neighbors(species,j)
@@ -158,39 +149,74 @@ def calculate_symmetry(species):
             elif all([ati == nei1[0] for ati in nei1]) and all([ati == nei2[0] for ati in nei2]):
                 if len(nei1) == len(nei2) and len(nei1) > 0:
                     sigma_ext *= len(nei1)
-
+    
     #get all ring-centered symmetries
-    for cyc in species.cycle_chain:
-        cyc_atomid = [species.atomid[ci] for ci in cyc]
-        symm = 0
-        for i in range(len(cyc)):
-            new_order = np.roll(np.array(cyc_atomid),-i)
-            if all([cyc_atomid[at] == new_order[at] for at in range(len(cyc))]):
-                symm += 1
-            new_order_reversed = np.roll(np.array(cyc_atomid[::-1]),-i)
-            if all([cyc_atomid[at] == new_order_reversed[at] for at in range(len(cyc))]):
-                symm += 1
-        #additional patch: if an atom has two identical neighbors 
-        #along the ring, but two distinct neighbors outside the ring
-        #the symmetry number needs to be divided by 2
-        if symm > 1:
-            divide = 1
-            for at in cyc:
-                nei = get_neighbors(species,at)
-                cyc_nei = [ni for ni in nei if ni in cyc]
-                other_nei = [ni for ni in nei if ni not in cyc]
-                if len(other_nei) > 1:
-                    if species.atomid[cyc_nei[0]] == species.atomid[cyc_nei[1]]:
-                        if not all([species.atomid[other_nei[0]] == species.atomid[oi] for oi in other_nei]):
-                            divide = 2
-            symm /= divide
-        if symm > 0:
-            sigma_ext *= symm
+    cyc_syms = [1 for cyc in species.cycle_chain]
+    for index,cyc in enumerate(species.cycle_chain):
+        #if any atom on the ring has a contribution to internal symmetry, do not take the current ring
+        #into account for external symmetry
+        if not sum([sigma_int_contrib[ci] > 1 for ci in cyc]) == 1:
+            cyc_atomid = [species.atomid[ci] for ci in cyc]
+            symm = 0
+            for i in range(len(cyc)):
+                new_order = np.roll(np.array(cyc_atomid),-i)
+                if all([cyc_atomid[at] == new_order[at] for at in range(len(cyc))]):
+                    symm += 1
+                new_order_reversed = np.roll(np.array(cyc_atomid[::-1]),-i)
+                if all([cyc_atomid[at] == new_order_reversed[at] for at in range(len(cyc))]):
+                    symm += 1
+            #additional patch: if an atom has two identical neighbors 
+            #along the ring, but two distinct neighbors outside the ring
+            #the symmetry number needs to be divided by 2
+            if symm > 1:
+                divide = 1
+                for at in cyc:
+                    nei = get_neighbors(species,at)
+                    cyc_nei = [ni for ni in nei if ni in cyc]
+                    other_nei = [ni for ni in nei if ni not in cyc]
+                    if len(other_nei) > 1:
+                        if species.atomid[cyc_nei[0]] == species.atomid[cyc_nei[1]]:
+                            if not all([species.atomid[other_nei[0]] == species.atomid[oi] for oi in other_nei]):
+                                divide = 2
+                symm /= divide
+            if symm > 0:
+                cyc_syms[index] = symm
+    #in the case of fused rings, only keep the largest component of all fused rings
+    sigma_ext *= cycle_contribs(species.cycle_chain,cyc_syms)
 
     species.sigma_ext = sigma_ext
     species.sigma_int = sigma_int
     species.nopt = nopt
 
+def cycle_contribs(cycs,cyc_syms):
+    """
+    In the cae of isolated cycles, use this factor directly
+    In the case of fused rings, only take the maximum contribution
+    of all fused rings
+    """
+    contrib = 1
+    visited = [-1 for cyc in cycs]
+    for index,cyc in enumerate(cycs):
+        ats = cyc[:]
+        if visited[index] ==-1:
+            visited[index] = 1
+            max = cyc_syms[index]
+            for i2,cyc2 in enumerate(cycs):
+                if not index == i2:
+                    if visited[i2] ==-1:
+                        if fused(ats,cyc2):
+                            visited[i2] = 1
+                            if cyc_syms[i2] > max:
+                                max = cyc_syms[i2]
+                            for at in cyc2:
+                                if at not in ats:
+                                    ats.append(at)
+            contrib *= max
+    return contrib
+
+def fused(cyc1,cyc2):
+    return len(list(set(cyc1) & set(cyc2))) > 1
+    
 def start_linear(species,natom):
     """
     Get all the 'neighbors' of i which are connected to i via
@@ -238,8 +264,10 @@ def get_linear(species,visited,natom):
                 if geometry.calc_angle(species.geom[visited[-2]],species.geom[visited[-1]],species.geom[j]) > np.pi * 175. / 180.:
                     visited.append(j)
                     return get_linear(species,visited,natom)
-                else:
-                    return visited
+            if species.bond[visited[0]][j] > 0:
+                if geometry.calc_angle(species.geom[visited[1]],species.geom[visited[0]],species.geom[j]) > np.pi * 175. / 180.:
+                    visited.insert(0,j)
+                    return get_linear(species,visited,natom)
     return visited
     
 def lcm(x, y):

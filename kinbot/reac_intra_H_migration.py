@@ -79,7 +79,7 @@ class IntraHMigration:
                     constraint.append(self.instance[dih+i] + 1)
                 constraint.append(new_dihs[dih])
                 change.append(constraint)
-            if step == 0 :
+            if step == 0 and len(self.instance) > 6:
                 for angle in range(len(self.instance)-2):
                     constraint = []
                     for i in range(3):

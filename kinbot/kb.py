@@ -37,15 +37,16 @@ import sys
 import os
 import numpy as np
 import re
-import subprocess
 import logging 
 import datetime
 import copy
 import time
 
 import license_message
+import postprocess
 from conformers import Conformers
 from hindered_rotors import HIR
+from homolytic_scissions import HomolyticScissions
 from parameters import Parameters
 from mess import MESS
 from optimize import Optimize
@@ -247,6 +248,15 @@ def main(input_file):
         rg = ReactionGenerator(well0,par,qc)
         rg.generate()
         me.write(well0)
+    #do the homolytic scission products search
+    if par.par['homolytic_scissions'] == 1:
+        logging.info('Starting the search for homolytic scission products')
+        well0.homolytic_scissions = HomolyticScissions(well0,par,qc)
+        well0.homolytic_scissions.find_homolytic_scissions()
+    
+    #postprocess the calculations
+    postprocess.createSummaryFile(well0,qc,par)
+    postprocess.createPESViewerInput(well0,qc,par)
 
 
     logging.info('Finished KinBot at %s'%datetime.datetime.now())

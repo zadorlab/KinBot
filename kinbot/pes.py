@@ -61,7 +61,7 @@ def main(input_file):
     f.write(str(well0.chemid) + '\n')
     f.close()
    
-    max_running = 10 
+    max_running = 1
     running = []
     finished = []
     jobs = []

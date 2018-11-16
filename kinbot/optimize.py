@@ -72,7 +72,7 @@ class Optimize:
         #has been restarted in case a lower energy structure has been found
         self.restart = 0
         #maximum restart count
-        self.max_restart = 3
+        self.max_restart = par.par['rotation_restart']
 
     def do_optimization(self):
         while 1:
@@ -191,26 +191,31 @@ class Optimize:
                                                     min_rotor = rotor
                                                     min_ai = ai
                                         if min_rotor > -1:
-                                            #lower energy structure found
-                                            logging.info('\t\tLower energy found during hindered rotor scan for {}'.format(self.species.name))
-                                            logging.info('\t\tRotor: "' + str(min_rotor))
-                                            logging.info('\t\tScan point: ' + str(min_ai))
-                                            job = self.job_hir + str(min_rotor) + '_' + str(min_ai).zfill(2)
-                                            
-                                            err,self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
-                                            #delete the high_level log file and the hir log files
-                                            if os.path.exists(self.job_high + '.log'):
-                                                logging.info("\t\t\tRemoving file " + self.job_high + '.log')
-                                                os.remove(self.job_high + '.log')
-                                            for rotor in range(len(self.species.dihed)):
-                                                for ai in range(self.species.hir.nrotation):
-                                                    if os.path.exists(self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log'):
-                                                        logging.info("\t\t\tRemoving file " + self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log')
-                                                        os.remove(self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log')
-                                            #set the status of high and hir back to not started
-                                            self.shigh = -1
-                                            self.shir = -1
                                             self.restart += 1
+                                            if self.restart < self.max_restart:
+                                                #lower energy structure found
+                                                logging.info('\t\tLower energy found during hindered rotor scan for {}'.format(self.species.name))
+                                                logging.info('\t\tRestart number: ' + str(self.restart))
+                                                logging.info('\t\tRotor: ' + str(min_rotor))
+                                                logging.info('\t\tScan point: ' + str(min_ai))
+                                                job = self.job_hir + str(min_rotor) + '_' + str(min_ai).zfill(2)
+                                                
+                                                err,self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
+                                                #delete the high_level log file and the hir log files
+                                                if os.path.exists(self.job_high + '.log'):
+                                                    #logging.info("\t\t\tRemoving file " + self.job_high + '.log')
+                                                    os.remove(self.job_high + '.log')
+                                                for rotor in range(len(self.species.dihed)):
+                                                    for ai in range(self.species.hir.nrotation):
+                                                        if os.path.exists(self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log'):
+                                                            #logging.info("\t\t\tRemoving file " + self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log')
+                                                            os.remove(self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log')
+                                                #set the status of high and hir back to not started
+                                                self.shigh = -1
+                                                self.shir = -1
+                                            else:
+                                                logging.info('\t\tLower energy found, but readched max restart for {}'.format(self.species.name))
+                                                self.shir = 1
                                         else:
                                             self.shir = 1
                                     else:

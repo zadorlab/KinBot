@@ -67,6 +67,11 @@ class Conformers:
         # -1 (not finished), 0 (successful) or 1 (failed) for each open chain conformer
         self.conf_status = []
         self.zf = par.par['zf']
+        
+        #Maximum number of diherals for which exhaustive conformation searches are done
+        self.max_dihed = par.par['max_dihed']
+        #Number of random conformers in case no exhaustive search is done
+        self.nconfs = par.par['random_conf']
 
     def generate_ring_conformers(self, cart):
         """
@@ -208,7 +213,7 @@ class Conformers:
         rotor: the rotor number in the order it was discovered
         """
         
-        if len(self.species.conf_dihed) > 4:
+        if len(self.species.conf_dihed) > self.max_dihed:
             self.generate_conformers_random_sampling(cart)
             return 0
         
@@ -244,11 +249,11 @@ class Conformers:
         
         return 0
 
-    def generate_conformers_random_sampling(self, ini_cart, nconfs = 100):
+    def generate_conformers_random_sampling(self, ini_cart):
         """
         Generate a random sampling of each dihedral for a number nconfs of conformers
         """
-        for ni in range(nconfs):
+        for ni in range(self.nconfs):
             cart = copy.deepcopy(ini_cart)
             if ni == 0:
                 sample = [0. for di in self.species.conf_dihed]

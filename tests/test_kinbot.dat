@@ -71,8 +71,8 @@ jobs = {
 ['CCCCC=C',['Intra_RH_Add_Exocyclic_F'],[0.,0.]],
 
 # exocyclic RH ring opening reaction
-'cyclohexane':
-['C1CCCCC1',['Intra_RH_Add_Exocyclic_R'],[0.]],
+'methylcyclopentane':
+['C1C(C)CCC1',['Intra_RH_Add_Exocyclic_R'],[0.]],
 
 # Retro ene reaction
 'butenol':

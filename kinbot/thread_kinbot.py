@@ -21,7 +21,7 @@ import sys,os
 import subprocess
 import threading, time
 
-def run_threads(jobs, name, max_running = 10):
+def run_threads(jobs, name, max_running = 10,pes = 0):
     """
     This method runs all the tests, instead of using the python threading
     it submits python runs to the head node
@@ -40,7 +40,7 @@ def run_threads(jobs, name, max_running = 10):
         while len(running) < max_running and len(running) + len(finished) < len(jobs):
             # start a new job
             job = sorted(jobs.keys())[len(running) + len(finished)]
-            pid = submit_job(job,jobs[job])
+            pid = submit_job(job,jobs[job],pes)
             pids[job] = pid
             running.append(job)
         
@@ -84,11 +84,14 @@ def check_status(job,pid):
     return 0
 
 
-def submit_job(job,inpfile):
+def submit_job(job,inpfile,pes):
     """
     Submit a kinbot run usung subprocess and return the pid
     """
-    command = ["python","/home/rvandev/KinBot/kinbot/kb.py",inpfile,"&"]
+    if pes:
+        command = ["python","/home/rvandev/KinBot/kinbot/pes.py",inpfile,"&"]
+    else:
+        command = ["python","/home/rvandev/KinBot/kinbot/kb.py",inpfile,"&"]
     process = subprocess.Popen(command,cwd = os.path.expanduser(job), stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     time.sleep(1)
     pid = process.pid

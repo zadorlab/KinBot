@@ -207,6 +207,13 @@ def modify_coordinates(species,name,geom,changes,bond, write_files = 0):
     #optimize the geometry to meet the coords list
     x0 = np.reshape(new_geom,3*species.natom)
     cost_fct = cost_function(coords)
+    logging.debug('Starting BFGS')
+    gs = '' #initial geomtry string
+    for i,at in enumerate(species.atom):
+        x,y,z = new_geom[i]
+        gs += '{},{:.8f},{:.8f},{:.8f},\n'.format(at,x,y,z)
+    logging.debug("For the following initial geometry:\n" + gs)
+    
     opt = bfgs.BFGS()
     x_opt, x_i, g_i = opt.optimize(cost_fct,x0)
     
@@ -375,7 +382,7 @@ def get_coords(species,bond,geom,changes,mode):
 
     return coords
 
-def divide_atoms(ati,atj,bond,natom,atom,forbidden = []):
+def divide_atoms(ati,atj,bond,natom,atom):
     """
     This method divides the atoms in a molecule in two sets, 
     which are separated by a bond
@@ -390,9 +397,9 @@ def divide_atoms(ati,atj,bond,natom,atom,forbidden = []):
     
     #Get all the atoms on the side of ati
     visited = [ati]
-    forbidden.append(atj)
+    forbidden = [atj]
     division = [ati]
-    
+
     # check for cycles and cut them in half
     for ring_size in range(3,natom+1):
         motif = ['X' for at in range(ring_size)]

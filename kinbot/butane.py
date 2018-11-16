@@ -19,16 +19,16 @@
 ###################################################
 import sys,os
 import json
+import shutil
+import time
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
-sys.dont_write_bytecode = True
-
-from thread_kinbot import *
-from cheminfo import *
-from stationary_pt import *
-import par
+import thread_kinbot 
+import cheminfo
+from stationary_pt import StationaryPoint
 
 def postprocess(dir,jobs,job_names):
     # dictionary with the inchis of the reactants and products (for comparison to rmg)
@@ -247,108 +247,30 @@ def equal_species(list1,list2):
     else:
         return 0
 
-def generate_name(smi,names):
+def generate_name(smi,mult,names):
     """
-    Method to generate a name based on the molecular formula of the molecule, 
-    which is unique, i.e. not in the names values
+    Name is the KinBot chemid
     """
-    molform = get_molecular_formula(smi)
-    
-    name = molform
-    it = 1
-    while name in names.values():
-        name = '{}_{}'.format(molform, it)
-        it += 1
-    return name
-
-def preprocess(dir):
-    """
-    Read the reaction queue file and extract the number of reactions per family. 
-    For the h-migration reactions, search for the ones that include a peroxide
-    """
-    species = []
-    names = []
-    count = 0
-    with open('%s/rxnqueue.json'%dir) as json_file:
-        json_data = json.load(json_file)
-        for rxn in json_data:
-            if rxn['Family'] == 'intra_H_migration':
-                names.append(rxn['name'])
-                species.append(rxn['Reactants'][0]['InChi'])
-            """
-            if len(rxn['Reactants']) == 1 and len(rxn['Products']) == 1:
-                mult = rxn['Reactants'][0]['multiplicity']
-                if mult == 2:
-                    if is_H_migration(rxn['Reactants'][0]['SMILES'][0], rxn['Products'][0]['SMILES'][0],mult):
-                        if rxn['Family'] in families:
-                            families[rxn['Family']] += 1
-                        else:
-                            families[rxn['Family']] = 1
-            """
-    return species
-
-
-
-def is_H_migration(reactant,product,mult):
-    # make the parent chemids of all the resonance isomers of the reacant
-    react_ids = saturate(reactant,mult)
-    
-    # make the parent chemids of all the resonance isomers of the product
-    prod_ids = saturate(product,mult)
-    
-    for rid in react_ids:
-        if rid in prod_ids:
-            return 1
-
-    return 0
-
-def saturate(smi,mult):
-    par.mult = mult
-    par.charge = 0
-    obmol, structure = generate_3d_structure(smi)
-    par.natom = len(obmol.atoms)
-    
-    structure = np.reshape(structure, (par.natom,4))
-    par.atom = structure[:,0]
-    geom = structure[:,1:4].astype(float)
-    
-    st_pt = stationary_pt('temp')
-    st_pt.geom = geom
-    st_pt.bond_mx(par.natom, par.atom)
-    st_pt.characterize(par.natom, par.atom, par.mult, par.charge)
-    
-    par.natom += 1
-    par.atom = np.append(par.atom,np.array(['H']))
-
-    chemids = []
-    for i, res in enumerate(st_pt.rads):
-        if not 1 in res:
-            return []
-        b = np.zeros((par.natom,par.natom), dtype=int)
-        for j in range(len(st_pt.bonds[i])):
-            for k in range(len(st_pt.bonds[i])):
-                b[j][k] = st_pt.bonds[i][j][k]
-        r = np.where(res == 1)[0][0]
-        b[par.natom-1][r] = 1
-        b[r][par.natom-1] = 1
-        st_pt.bond = b
-        st_pt.calc_chemid(par.natom, par.atom, par.mult)
-        chemids.append(st_pt.chemid)
-    return chemids
-
+    mol = StationaryPoint(smi,0,mult,smiles = smi)
+    mol.characterize()
+    name = str(mol.chemid)
+    if name in names.values():
+        print 'Error, chemid {} found twice: '.format(name)
+        print smi
+        sys.exit(-1)
+    else:
+        return name
 
 def main(rmg_dir):
     dir = os.path.expanduser(rmg_dir)
-    sp = preprocess(dir)
     inchis = []
-    species = {}
+    smiles = {}
     names = {}
     multi = {}
     syms = {1:'H',6:'C',8:'O'}
-    jobs = []
-    sys.path.append(os.path.expanduser('~/KinBot/code'))
-    dir = os.path.expanduser(rmg_dir)
-    with open('%s/queue.json'%dir) as json_file:
+    jobs = {}
+
+    with open('{}/queue.json'.format(dir)) as json_file:
         json_data = json.load(json_file)
         for molecule in json_data:
             smi = ''
@@ -358,80 +280,81 @@ def main(rmg_dir):
             for mol_attrib in molecule: 
                 if mol_attrib == 'SMILES':
                     smi = molecule[mol_attrib][0] # take the first one of the resonance isomers
-                """
-                do NOT use the rmg names: 
-                KinBot uses the names as directory names for the calculations, but they
-                contain brackets and other symbols which are not well handled by Linux
-                when used in file and directory names
-                if mol_attrib == 'name':
-                    name = molecule[mol_attrib]
-                """
                 if mol_attrib == 'multiplicity':
                     mult = molecule[mol_attrib]
                 if mol_attrib == 'InChi':
                     inchi = molecule[mol_attrib]
-            if inchi in sp:
+            m = cheminfo.create_ob_mol(str(smi))
+            elem = 1 # checks if all the elements are either C, O or H
+            for at in m.atoms:
+                if not at.atomicnum in syms:
+                    elem = 0
+            if elem:
                 inchis.append(inchi)
-                species[inchi] = smi
-                names[inchi] = generate_name(smi,names)
+                smiles[inchi] = smi
+                names[inchi] = generate_name(smi,mult,names)
                 multi[inchi] = mult
                 
     job_names = {} #dictionary coupling the names to the jobs and the inchis
     
     for inchi in inchis:
-        sp_dir = '%s/%s/'%(dir,names[inchi])
+        formula = cheminfo.get_molecular_formula(smiles[inchi])
+        sp_dir = '%s/%s/'%(dir,formula)
         if not os.path.exists(sp_dir):
             os.makedirs(sp_dir)
-        
-        syms = {1:'H',6:'C',8:'O'}
-        
-        m = create_ob_mol(str(species[inchi]))
-        elem = 1 # checks if all the elements are either C, O or H
-        for at in m.atoms:
-            if not at.atomicnum in syms:
-                elem = 0
-        if elem:
-            # create a kinbot input file
-            header = 'title=\'%s\'\n\n'%names[inchi]
-            header += "charge = 0\nmult = %i\nmethod = 'b3lyp'\nbasis = '6-31g'\n"%multi[inchi]
-            header += "qc = 'gauss'\nconformer_search = 1\nreaction_search = 1\nbarrier_threshold = 200.\n"
-            header += "families = ['intra_H_migration']\nme = 1\n"
-            header += "rotor_scan = 1\nhigh_level = 1\nhigh_level_method = 'WB97XD'\nhigh_level_basis = '6-31+G*'\n"
-            header += "ga = 0\nngen = 0\nppn = 8\nscratch = '/scratch/rvandev'\n\n"
-            s = header
-            s += 'natom = %i\n\n'%len(m.atoms)
-            s += "smiles = '%s'"%str(species[inchi])
 
-            open('%sinput.inp'%(sp_dir),'w+').write(s)
+        # create a pes input file
+        par = {}
+        par['title'] = names[inchi]
+        par['charge'] = 0
+        par['mult'] = multi[inchi]
+        par['method'] = 'b3lyp'
+        par['basis'] = '6-31g'
+        par['qc'] = 'gauss'
+        par['conformer_search'] = 1
+        par['barrier_threshold'] = 100.
+        par['families'] = ['all']
+        par['me'] = 1
+        par['pes'] = 1
+        par['rotor_scan'] = 1
+        par['high_level'] = 1
+        par['high_level_method'] = 'WB97XD'
+        par['high_level_basis'] = '6-31+G*'
+        par['ppn'] = 8
+        par['smiles'] = smiles[inchi]
 
-            job = '%s%s/'%(rmg_dir,names[inchi])
-            
-            #if names[inchi] == 'C4H9O2':
-            jobs.append(job)
-            job_names[names[inchi]] = [job,inchi]
-            
-            #depict the rmg rxn for this species 
-            create_rmg_depics = 0
-            if create_rmg_depics:
-                rxn_names = []
-                with open('%s/rxnqueue.json'%dir) as json_file:
-                    json_data = json.load(json_file)
-                    for rxn in json_data:
-                        if rxn['Family'] == 'intra_H_migration':
-                            if rxn['Reactants'][0]['InChi'] == inchi:
-                                re_smi = rxn['Reactants'][0]['SMILES'][0]
-                                pr_smi = rxn['Products'][0]['SMILES'][0]
-                                rxn_name = 'rmg_' + names[inchi]
-                                i = 1
-                                while rxn_name in rxn_names:
-                                    rxn_name = 'rmg_' + names[inchi] + '_' + str(i)
-                                    i += 1
-                                rxn_names.append(rxn_name)
-                                create_rxn_depiction(re_smi,pr_smi,dir + names[inchi], rxn_name)
+        job = '%s/%s/'%(dir,formula)
+        inpfile = '{}.json'.format(names[inchi])
+
+        with open(job+inpfile,'w') as outfile:
+            json.dump(par,outfile,indent = 4, sort_keys = True)
+        
+        jobs[job] = inpfile
+        job_names[names[inchi]] = [job,inchi]
+        
+        
+        #depict the rmg rxn for this species 
+        create_rmg_depics = 0
+        if create_rmg_depics:
+            rxn_names = []
+            with open('%s/rxnqueue.json'%dir) as json_file:
+                json_data = json.load(json_file)
+                for rxn in json_data:
+                    if rxn['Family'] == 'intra_H_migration':
+                        if rxn['Reactants'][0]['InChi'] == inchi:
+                            re_smi = rxn['Reactants'][0]['SMILES'][0]
+                            pr_smi = rxn['Products'][0]['SMILES'][0]
+                            rxn_name = 'rmg_' + names[inchi]
+                            i = 1
+                            while rxn_name in rxn_names:
+                                rxn_name = 'rmg_' + names[inchi] + '_' + str(i)
+                                i += 1
+                            rxn_names.append(rxn_name)
+                            create_rxn_depiction(re_smi,pr_smi,dir + names[inchi], rxn_name)
     
-    #run_threads(jobs, 'butane', max_running = 5)
+    thread_kinbot.run_threads(jobs, 'butane', max_running = 1,pes = 1)
 
-    postprocess(dir,jobs,job_names)
+    #postprocess(dir,jobs,job_names)
     
     print 'Done!'
 

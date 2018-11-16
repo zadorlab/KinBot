@@ -40,6 +40,8 @@ def createSummaryFile(species,qc,par):
     f.write('The success thus means that a ts has been found,\n')
     f.write('but does not imply this ts is the correct one!!\n\n')
     f.write('Status\tEnergy\tName\n')
+    
+    products = []
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             if species.reac_type[index] == 'R_Addition_MultipleBond' and not par.par['high_level']:
@@ -52,10 +54,21 @@ def createSummaryFile(species,qc,par):
             for prod in species.reac_obj[index].products:
                 name.append(str(prod.chemid))
             prod_name = ' '.join(sorted(name))
+            products.append(prod_name)
             
             f.write('SUCCESS\t%.2f\t%s\t%s\n'%(energy,species.reac_name[index],prod_name))
         else:
             f.write('FAILED\t\t%s\n'%species.reac_name[index])
+    if not species.homolytic_scissions is None:
+        for index,hs in enumerate(species.homolytic_scissions.hss):
+            prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
+            if not prod_name in products:
+                energy = 0
+                for prod in hs.products:
+                    energy += prod.energy
+                energy = (energy - species.energy) * constants.AUtoKCAL
+                f.write('HOMOLYTIC_SCISSION\t%.2f\tNO_TS\t%s\n'%(energy,prod_name))
+            
             
 
 def createPESViewerInput(species,qc,par):
@@ -132,6 +145,20 @@ rdkit4depict       1         # boolean that specifies which code was used for th
                 if not name in bimolecs:
                     f.write('%s %.2f\n'%(name,energy))
                     bimolecs.append(name)
+    if not species.homolytic_scissions is None:
+        for index,hs in enumerate(species.homolytic_scissions.hss):
+            name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
+            if not name in bimolecs:
+                energy = 0. - well_energy
+                for st_pt in hs.products:
+                    energy += st_pt.energy
+                energy = energy * constants.AUtoKCAL
+                for i,st_pt in enumerate(hs.products):
+                    # make twice the same file but with adifferent name ( TODO: is there no better way?)
+                    make_xyz(st_pt.atom,st_pt.geom,name + str(i+1),dir_xyz) #this is for the pes viewer
+                    make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz) #this is for the rmg postprocessing
+                f.write('%s %.2f\n'%(name,energy))
+
     f.write('\n')
     
     f.write('> <ts> \n')
@@ -150,7 +177,13 @@ rdkit4depict       1         # boolean that specifies which code was used for th
             f.write('%s %.2f %s %s\n'%(species.reac_name[index],energy,species.chemid,prod_name))
     f.write('\n')
     
-    f.write('> <barrierless> \n\n')
+    f.write('> <barrierless> \n')
+    if not species.homolytic_scissions is None:
+        for index,hs in enumerate(species.homolytic_scissions.hss):
+            prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
+            if not prod_name in bimolecs:
+                f.write('%s %s %s\n'%('b_' + str(index),species.chemid,prod_name))
+    f.write('\n')
     
     f.write("""> <help>
 File follows the rules of SD file format for keywords. Keywords are case

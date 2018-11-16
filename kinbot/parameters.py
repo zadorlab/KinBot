@@ -48,7 +48,7 @@ class Parameters:
             #title of the current calculations
             'title' : '',
             #verbose log file
-            'verbose' : 1,
+            'verbose' : 0,
             
             # INPUT SPECIES INFOR
             #SMILES of the species
@@ -65,6 +65,8 @@ class Parameters:
             'reaction_search' : 1,
             #Which reaction families to include in the search
             'families' : ['all'],
+            #break all single bonds to find the barriers of potential homolytic scissions
+            'homolytic_scissions' : 0,
             #Threshold above which barriers are deemed unimportant
             'barrier_threshold' : 0.,
             #Number of 0.1 Angstrom steps in bond scans
@@ -81,6 +83,12 @@ class Parameters:
             'nrotation' : 12,
             #Do master equation calculations
             'me' : 0,
+            #Number of HIR restarts in case a lower energy point gets found
+            'rotation_restart' : 3,
+            #Maximum number of diherals for which exhaustive comformation searches are done
+            'max_dihed' : 5,
+            #Number of random conformers in case no exhaustive search is done
+            'random_conf' : 500,
             
             # QUANTUM CHEMISTRY INFO
             #Which quantum chemistry code to use
@@ -103,8 +111,6 @@ class Parameters:
             'high_level_basis' : '6-311++G(d,p)',
             
             # COMPUTATIONAL ENVIRONEMNT
-            #Directory with the templates
-            'tpldir' : os.path.expanduser('~/KinBot/tpl/'),
             #Which queuing system to use
             'queuing' : 'pbs', # or slurm
             #Scratch directory

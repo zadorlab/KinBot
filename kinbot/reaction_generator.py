@@ -27,7 +27,6 @@ import logging
 
 import constants
 import pes
-import postprocess
 import reac_family
 from irc import IRC
 from optimize import Optimize
@@ -115,6 +114,9 @@ class ReactionGenerator:
                                         if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:
                                             self.species.reac_step[index] = self.par.par['scan_step'] 
                                     self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+                                else:
+                                    logging.info('\tRxn search failed for {}'.format(instance_name))
+                                    self.species.reac_ts_done[index] = -999
 
                 elif self.species.reac_ts_done[index] == 1:
                     status = self.qc.check_qc(instance_name)
@@ -209,8 +211,22 @@ class ReactionGenerator:
                     obj.ts_opt.do_optimization()
                     #do the products optimizations
                     for st_pt in obj.products:
-                        prod_opt = Optimize(st_pt,self.par,self.qc)
-                        prod_opt.do_optimization()
+                        #check for products of other reactions that are the same as this product
+                        #in the case such products are found, use the same Optimize object for both
+                        new = 1
+                        for i, inst_i in enumerate(self.species.reac_inst):
+                            if not i == index:
+                                obj_i = self.species.reac_obj[i]
+                                if self.species.reac_ts_done[i] > 3:
+                                    for j,st_pt_i in enumerate(obj_i.products):
+                                        if st_pt_i.chemid == st_pt.chemid:
+                                            if len(obj_i.prod_opt) > j:
+                                                prod_opt = obj_i.prod_opt[j]
+                                                new = 0
+                                                break
+                        if new:
+                            prod_opt = Optimize(st_pt,self.par,self.qc)
+                            prod_opt.do_optimization()
                         obj.prod_opt.append(prod_opt)
                     self.species.reac_ts_done[index] = 5
                 elif self.species.reac_ts_done[index] == 5:
@@ -240,7 +256,8 @@ class ReactionGenerator:
                     if self.par.par['pes']:
                         #verify if product is monomolecular, and if it is new
                         if len(obj.products) ==1:
-                            chemid = obj.products[0].chemid
+                            st_pt = obj.prod_opt[0].species
+                            chemid = st_pt.chemid
                             energy = st_pt.energy
                             well_energy = self.species.energy
                             new_barrier_threshold = self.par.par['barrier_threshold'] - (energy-well_energy)*constants.AUtoKCAL
@@ -294,7 +311,5 @@ class ReactionGenerator:
                 f_out.close()
             time.sleep(1)
 
-        postprocess.createSummaryFile(self.species,self.qc,self.par)
-        postprocess.createPESViewerInput(self.species,self.qc,self.par)
         logging.info("Reaction generation done!")
 

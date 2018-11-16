@@ -22,7 +22,6 @@ import sys
 import os
 import numpy as np
 import re
-import subprocess
 import logging
 import copy
 import math
@@ -32,7 +31,7 @@ import constants
 import find_motif
 import geometry
 
-class StationaryPoint(object):
+class StationaryPoint:
     """
     This object contains the properties of wells.
     """
@@ -79,7 +78,10 @@ class StationaryPoint(object):
         self.reac_ts_geom = []
         self.reac_ts_freq = []
         self.reac_scan_energy = []
-
+        
+        #Instance of HomolyticScissions class
+        self.homolytic_scissions = None
+        
         #Instance of HIR class
         self.hir = None
         
@@ -106,7 +108,7 @@ class StationaryPoint(object):
         or converts the smiles to a geometry using open babel
         """
         if len(self.structure) == 0:
-            self.obmol,self.structure = cheminfo.generate_3d_structure(self.smiles)
+            self.obmol,self.structure,self.bond = cheminfo.generate_3d_structure(self.smiles)
         self.natom = len(self.structure) // 4
         self.structure = np.reshape(self.structure, (self.natom,4))
         self.atom = self.structure[:,0]
@@ -116,6 +118,7 @@ class StationaryPoint(object):
         """
         With one call undertake a typical set of structural characterizations.
         """
+        self.bond_mx()
         self.find_conf_dihedral()
         self.find_atom_eqv()
 
@@ -129,18 +132,26 @@ class StationaryPoint(object):
                 self.dist[i][j] = np.linalg.norm(self.geom[i] - self.geom[j])
         return 0 
 
+        
     def bond_mx(self):
         """ 
         Create bond matrix 
         """
-        self.distance_mx()
-        self.bond = np.zeros((self.natom, self.natom), dtype=int)
-    
-        for i in range(self.natom):
-            for j in range(self.natom):
-                if i == j: continue
-                if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
-                    self.bond[i][j] = 1
+        if not hasattr(self,'bond'): 
+            self.distance_mx()
+            self.bond = np.zeros((self.natom, self.natom), dtype=int)
+        
+            for i in range(self.natom):
+                for j in range(self.natom):
+                    if i == j: continue
+                    if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
+                        self.bond[i][j] = 1
+        else:
+            for i in range(self.natom):
+                for j in range(self.natom):
+                    if i == j: continue
+                    if self.bond[i][j] > 0:
+                        self.bond[i][j] = 1
         
         max_bond = [constants.st_bond[self.atom[i]] for i in range(self.natom)]
 
@@ -414,7 +425,7 @@ class StationaryPoint(object):
         self.cycle_chain = [] #list of the cycles
         self.cycle = [0 for i in range(self.natom)] # 0 if atom is not in cycle, 1 otherwise
         
-        for cycle_size in range(3,self.natom):
+        for cycle_size in range(3,self.natom+1):
             motif = ['X' for i in range(cycle_size)]
             instances = find_motif.start_motif(motif, self.natom, self.bond, self.atom, -1, [[k] for k in range(self.natom)])
             if len(instances) == 0:

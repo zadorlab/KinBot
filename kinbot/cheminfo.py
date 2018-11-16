@@ -18,6 +18,7 @@
 ##                                               ##
 ###################################################
 import os, sys
+import numpy as np
 
 from PIL import Image
 
@@ -80,26 +81,37 @@ def generate_3d_structure(smi,obabel = 1):
     Method to generate the 3D coordinates of a molecule from its smiles
     The default code is OpenBabel, RDKit can also be used. 
     """
+    structure = []
     if obabel: # use OpenBabel
         obmol = pybel.readstring('smi',smi)
         obmol.OBMol.AddHydrogens()
         obmol.make3D()
-        structure = []
+        bond = np.zeros((len(obmol.atoms), len(obmol.atoms)), dtype=int)
+        for i in range(len(obmol.atoms)):
+            for j in range(len(obmol.atoms)):
+                if not obmol.OBMol.GetBond(i+1,j+1) is None:
+                    order = obmol.OBMol.GetBond(i+1,j+1).GetBO()
+                    bond[i][j] = order
         for at in obmol.atoms:
             pos = at.coords
             sym = num_to_syms[at.atomicnum]
             structure += [sym,pos[0],pos[1],pos[2]]
-        return obmol,structure
+        return obmol,structure, bond
     else: # use RDKit
         rdmol = Chem.AddHs(Chem.MolFromSmiles(smi))
         AllChem.EmbedMolecule(rdmol,AllChem.ETKDG())
         AllChem.MMFFOptimizeMolecule(rdmol)
-        structure = []
+        bond = np.zeros((len(rdmol.GetAtoms()), len(rdmol.GetAtoms())), dtype=int)
+        for i in range(len(rdmol.GetAtoms())):
+            for j in range(len(rdmol.GetAtoms())):
+                if not rdmol.GetBondBetweenAtoms(i,j) is None:
+                    order = int(rdmol.GetBondBetweenAtoms(i,j).GetBondTypeAsDouble())
+                    bond[i][j] = order
         for i,atom in enumerate(rdmol.GetAtoms()):
             pos = rdmol.GetConformer(0).GetAtomPosition(i)
             sym = atom.GetSymbol()
             structure += [sym,pos.x,pos.y,pos.z]
-        return rdmol,structure
+        return rdmol,structure,bond
 
 def create_ob_mol(smi):
     """ 

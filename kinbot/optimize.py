@@ -22,6 +22,7 @@ import sys
 import os
 import copy
 import logging
+import time
 
 import frequencies
 import geometry
@@ -155,8 +156,8 @@ class Optimize:
                                     #geometry is as expected
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)
-                                    err, self.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
-                                    err, self.zpe = self.qc.get_qc_zpe(self.job_high)
+                                    err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
+                                    err, self.species.zpe = self.qc.get_qc_zpe(self.job_high)
                                     self.shigh = 1
                                 else:
                                     #geometry diverged to other structure
@@ -226,25 +227,29 @@ class Optimize:
                     if not self.wait or self.shir == 1:
                         #break the loop if no waiting is required or if the hir calcs are done
                         break
-            if not self.wait or self.shir == 1:
+            if self.shir == 1:
+                #finilize if no waiting is required or if the hir calcs are done
+                #calculate the symmetry numbers
+                symmetry.calculate_symmetry(self.species)
+                
+                #calculate the new frequencies with the internal rotations projected out
+                fr_file = self.species.name
+                if not self.species.wellorts:
+                    fr_file += '_well'
+                if self.par.par['high_level'] == 1:
+                        fr_file += '_high'
+                hess = self.qc.read_qc_hess(fr_file,self.species.natom)
+                self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
+                
+                #write the molpro input and read the molpro energy, if available
+                molp = Molpro(self.species,self.par,self.qc)
+                molp.create_molpro_input()
+                status, molpro_energy = molp.get_molpro_energy()
+                if status:
+                    self.species.energy = molpro_energy
+            if self.wait:
                 if self.shir == 1:
-                    #finilize if no waiting is required or if the hir calcs are done
-                    #calculate the symmetry numbers
-                    symmetry.calculate_symmetry(self.species)
-                    
-                    #calculate the new frequencies with the internal rotations projected out
-                    fr_file = self.species.name
-                    if not self.species.wellorts:
-                        fr_file += '_well'
-                    if self.par.par['high_level'] == 1:
-                            fr_file += '_high'
-                    hess = self.qc.read_qc_hess(fr_file,self.species.natom)
-                    self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
-                    
-                    #write the molpro input and read the molpro energy, if available
-                    molp = Molpro(self.species,self.par,self.qc)
-                    molp.create_molpro_input()
-                    status, molpro_energy = molp.get_molpro_energy()
-                    if status:
-                        self.species.energy = molpro_energy
+                    return 0
+                time.sleep(1)
+            else:
                 return 0

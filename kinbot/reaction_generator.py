@@ -256,8 +256,7 @@ class ReactionGenerator:
                     if self.par.par['pes']:
                         #verify if product is monomolecular, and if it is new
                         if len(obj.products) ==1:
-                            st_pt = obj.prod_opt[0].species
-                            chemid = st_pt.chemid
+                            chemid = obj.products[0].chemid
                             energy = st_pt.energy
                             well_energy = self.species.energy
                             new_barrier_threshold = self.par.par['barrier_threshold'] - (energy-well_energy)*constants.AUtoKCAL

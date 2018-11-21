@@ -56,7 +56,9 @@ from reaction_generator import ReactionGenerator
 from stationary_pt import StationaryPoint
 from qc import QuantumChemistry
 
-def main(input_file):
+def main():
+    input_file = sys.argv[1]
+    
     #print the license message to the console
     print(license_message.message)
     
@@ -142,6 +144,9 @@ def main(input_file):
     
     well_opt = Optimize(well0, par, qc, wait = 1)
     well_opt.do_optimization()
+    if well_opt.shigh == -999:
+        logging.error('Error with high level optimization of initial structure.')
+        return
     
     #do the reaction search using heuristics
     if par.par['reaction_search'] == 1:
@@ -178,5 +183,4 @@ def main(input_file):
 
 
 if __name__ == "__main__":
-    input_file = sys.argv[1]
-    main(input_file)
+    main()

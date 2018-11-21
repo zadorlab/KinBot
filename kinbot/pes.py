@@ -40,7 +40,9 @@ from parameters import Parameters
 from stationary_pt import StationaryPoint
 
 
-def main(input_file):
+def main():
+    input_file = sys.argv[1]
+    
     #print the license message to the console
     print(license_message.message)
 
@@ -336,7 +338,6 @@ def submit_job(chemid):
     """
     command = ["python","/home/rvandev/KinBot/kinbot/kb.py",chemid + ".json","&"]
     process = subprocess.Popen(command,cwd = chemid, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    out,err = process.communicate()
     time.sleep(1)
     pid = process.pid
     return pid 
@@ -369,6 +370,5 @@ def write_input(par,species,threshold,root):
         json.dump(par2.par,outfile,indent = 4, sort_keys = True)
     
 if __name__ == "__main__":
-    input_file = sys.argv[1]
-    main(input_file)
+    main()
 

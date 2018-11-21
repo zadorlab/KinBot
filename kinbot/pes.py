@@ -301,7 +301,7 @@ def get_energy(dir,job,ts,high_level):
         if hasattr(row, 'data'):
             energy = row.data.get('energy')
     #ase energies are always in ev, convert to hartree
-    energy *= EVtoHARTREE
+    energy *= constants.EVtoHARTREE
     return energy
 
 def get_zpe(dir,job,ts,high_level):

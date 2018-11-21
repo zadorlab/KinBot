@@ -336,7 +336,7 @@ def submit_job(chemid):
     """
     Submit a kinbot run usung subprocess and return the pid
     """
-    command = ["python","/home/rvandev/KinBot/kinbot/kb.py",chemid + ".json","&"]
+    command = ["kinbot",chemid + ".json","&"]
     process = subprocess.Popen(command,cwd = chemid, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     time.sleep(1)
     pid = process.pid

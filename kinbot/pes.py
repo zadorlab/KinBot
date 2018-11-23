@@ -188,7 +188,7 @@ def create_mess_input(par, well0, wells, products, reactions, zero_energy, zero_
     for well in wells:
         energy = get_energy(well,well,0,par.par['high_level'])
         zpe = get_zpe(well,well,0,par.par['high_level'])
-        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * AUtoKCAL
+        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * constants.AUtoKCAL
         s += open(well + '/' + well + '.mess').read().format(zeroenergy = zeroenergy) 
         
     for prods in products:
@@ -198,7 +198,7 @@ def create_mess_input(par, well0, wells, products, reactions, zero_energy, zero_
         for pr in prods.split('_'):
             energy += get_energy(rxn[0],pr,0,par.par['high_level'])
             zpe += get_zpe(rxn[0],pr,0,par.par['high_level'])
-        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * AUtoKCAL
+        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * constants.AUtoKCAL
         s += open(rxn[0] + '/' + prods + '.mess').read().format(ground_energy = zeroenergy) 
     f.write('\n')
     
@@ -241,7 +241,7 @@ rdkit4depict       1         # boolean that specifies which code was used for th
     
     f.write('> <wells> \n')
     for well in wells:
-        energy = (get_energy(well,well,0,par.par['high_level']) - zero_energy) * AUtoKCAL
+        energy = (get_energy(well,well,0,par.par['high_level']) - zero_energy) * constants.AUtoKCAL
         f.write('%s %.2f\n'%(well,energy))
     f.write('\n')
     
@@ -251,13 +251,13 @@ rdkit4depict       1         # boolean that specifies which code was used for th
         rxn = get_rxn(prods,reactions)
         for pr in prods.split('_'):
             energy += get_energy(rxn[0],pr,0,par.par['high_level'])
-        energy = energy * AUtoKCAL
+        energy = energy * constants.AUtoKCAL
         f.write('%s %.2f\n'%(prods,energy))
     f.write('\n')
     
     f.write('> <ts> \n')
     for rxn in reactions:
-        energy = (get_energy(rxn[0],rxn[1],1,par.par['high_level']) - zero_energy) * AUtoKCAL
+        energy = (get_energy(rxn[0],rxn[1],1,par.par['high_level']) - zero_energy) * constants.AUtoKCAL
         prod_name = '_'.join(sorted(rxn[2]))
         f.write('%s %.2f %s %s\n'%(rxn[1],energy,rxn[0],prod_name))
     f.write('\n')

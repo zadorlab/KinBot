@@ -23,12 +23,7 @@ This class tests the conformational an hindered rotor dihedral search
 The data is a dictionary of which the keys are the smiles
 and the values are the expected number of resonance isomers
 """
-
-import sys
-import os
 import unittest
-import imp
-import numpy as np
 
 from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
@@ -39,9 +34,18 @@ class TestDihedrals(unittest.TestCase):
         pass
     
     def testAll(self):
-        f = open('dihedral_data.inp')
-        par = imp.load_source('par', '', f)
-        data = par.data
+        data = {
+            'CC':[1,0],
+            'CCC':[2,0],
+            'CCCC':[3,1],
+            'C=C':[0,0],
+            'C=CC':[1,0],
+            'C=C[CH2]':[0,0],
+            'CC=C[CH2]':[1,0],
+            'C1CCCC1':[0,0],
+            'CO':[1,0],
+            'C=CO':[1,1],
+            }
         
         for name in data:
             par = Parameters()

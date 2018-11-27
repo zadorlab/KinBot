@@ -22,42 +22,30 @@ This class tests the multimolecular search functionality of KinBot.
 The input is a geometry from either a molecule or a set of molecules.
 The return value is True if it found the expected number of molecules per geometry. 
 """
-
-import os, sys, imp
+import json
 import unittest
+import numpy as np
 
-sys.dont_write_bytecode = True
-sys.path.insert(0,os.path.expanduser('~/ml-kinbot/code/kinbot'))
-
-from stationary_pt import *
-from par import *
+from kinbot.parameters import Parameters
+from kinbot.qc import QuantumChemistry
+from kinbot.stationary_pt import StationaryPoint
 
 class TestMultimolecular(unittest.TestCase):
     def setUp(self):
         pass
         
     def testAll(self):
-        f = open('multimolecular_data.inp')
-        par = imp.load_source('par', '', f)
-        data = par.data
+        with open('multimolecular_data.json') as f:
+            data = json.load(f)
         for name in data:
-            mol = stationary_pt(name)
-            natom = len(data[name]['structure'])/4
-            structure = np.reshape(data[name]['structure'], ( natom,4))
-            atom = structure[:,0]
-            
-            mol.geom = structure[:,1:4].astype(float)
-            mol.natom = natom
-            mol.atom = atom
-            mol.charge = 0
-            mol.mult = mol.calc_multiplicity(atom)
-            
-            par.mult = mol.mult
-            par.charge = mol.charge
-            par.natom = natom
-            par.atom = atom
+            print name
+            par = Parameters()
+            qc = QuantumChemistry(par)
+            structure = data[name]['structure']
+            mol = StationaryPoint(name,0,1,structure = structure)
+            mol.characterize()
 
-            mols = mol.start_multi_molecular(natom,atom)
+            mols = mol.start_multi_molecular()
             calculated = len(mols)
             expected = data[name]['expected_value']
             self.assertEqual(calculated,expected, name + ': expected: {}, calculated: {}'.format(expected,calculated))

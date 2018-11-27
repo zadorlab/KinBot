@@ -30,14 +30,13 @@ number of optical isomers.
 import sys
 import os
 import unittest
+import json
 import numpy as np
 
-sys.dont_write_bytecode = True
-sys.path.insert(0,os.path.expanduser('~/ml-kinbot/code/kinbot'))
-
-from stationary_pt import *
-from par import *
-from symmetry import *
+from kinbot.parameters import Parameters
+from kinbot.qc import QuantumChemistry
+from kinbot.stationary_pt import StationaryPoint
+import kinbot.symmetry
 
 
 class TestSymmetry(unittest.TestCase):
@@ -45,27 +44,18 @@ class TestSymmetry(unittest.TestCase):
         pass
     
     def testAll(self):
-        f = open('symmetry_data.inp')
-        par = imp.load_source('par', '', f)
-        data = par.data
+        with open('symmetry_data.json') as f:
+            data = json.load(f)
         messages = [
         'Expected external symmetry: {}, calculated: {}',
         'Expected internal symmetry: {}, calculated: {}',
         'Expected number of single events symmetry: {}, calculated: {}',]
         for name in data:
-            mol = stationary_pt(name)
-            natom = len(data[name]['structure'])/4
-            structure = np.reshape(data[name]['structure'], ( natom,4))
-            atom = structure[:,0]
-            
-            mol.geom = structure[:,1:4].astype(float)
-            mol.natom = natom
-            mol.atom = atom
-            mol.charge = 0
-            mol.mult = mol.calc_multiplicity(atom)
-
-            mol.characterize(mol.natom,mol.atom,mol.mult,mol.charge)
-            calculate_symmetry(mol, natom, atom)
+            par = Parameters()
+            qc = QuantumChemistry(par)
+            mol = StationaryPoint(name,0,1,smiles = name)
+            mol.characterize()
+            kinbot.symmetry.calculate_symmetry(mol)
 
             sigma_int = 1
             for row in mol.sigma_int:
@@ -74,8 +64,8 @@ class TestSymmetry(unittest.TestCase):
             calc = [mol.sigma_ext, sigma_int, mol.nopt]
             
             for i in range(3):
-                exp = data[name]['expected_values'][i]
                 cal = calc[i]
+                exp = data[name]['expected_values'][i]
                 self.assertEqual(exp ,cal ,name + ': ' + messages[i].format(exp,cal))
 
 if __name__ == "__main__":

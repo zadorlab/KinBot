@@ -29,13 +29,9 @@ import os
 import unittest
 import numpy as np
 
-sys.dont_write_bytecode = True
-sys.path.insert(0,os.path.expanduser('~/ml-kinbot/code/kinbot'))
-
-from stationary_pt import *
-from cheminfo import *
-from par import *
-from symmetry import *
+from kinbot.parameters import Parameters
+from kinbot.qc import QuantumChemistry
+from kinbot.stationary_pt import StationaryPoint
 
 
 class TestResonance(unittest.TestCase):
@@ -43,25 +39,23 @@ class TestResonance(unittest.TestCase):
         pass
     
     def testAll(self):
-        f = open('resonance_data.inp')
-        par = imp.load_source('par', '', f)
-        data = par.data
-        
-        for name in data:
-            mol = stationary_pt(name)
-            obmol, structure = generate_3d_structure(name)
-            
-            natom = len(structure)/4
-            structure = np.reshape(structure, ( natom,4))
-            atom = structure[:,0]
-            mol.geom = structure[:,1:4].astype(float)
-            
-            mol.natom = natom
-            mol.atom = atom
-            mol.charge = 0
-            mol.mult = mol.calc_multiplicity(atom)
+        data = {"C1=CC=CC=C1":2,
+            "C1=CC=C(C)C=C1":2,
+            "C=C[CH2]":2,
+            "C=C=C":1,
+            "C#C[CH2]":2,
+            "S=S":1,
+            "O=S=C":1,
+            "O=S(C)[CH2]":3,
+            "C1CC=CC=C1":1
+            }
 
-            mol.bond_mx(mol.natom,mol.atom)
+        for name in data:
+            par = Parameters()
+            qc = QuantumChemistry(par)
+            mol = StationaryPoint(name,0,1,smiles = name)
+            mol.characterize()
+
             cal = len(mol.bonds)
             exp = data[name]
             self.assertEqual(exp ,cal ,name + ': expected: {}, calculated: {}'.format(exp,cal))

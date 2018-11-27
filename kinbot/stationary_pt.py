@@ -448,9 +448,9 @@ class StationaryPoint:
         The total id for a species.
         It is the sum of the atomids, plus a number for the multiplicity, Gaussian style.
         """
-        self.chemid = long(0)
+        self.chemid = int(0)
         #self.atomid = np.zeros(natom, dtype=long)
-        self.atomid = [long(0) for i in range(self.natom)]
+        self.atomid = [int(0) for i in range(self.natom)]
                       
         for i in range(self.natom):
             self.start_id(i) 
@@ -473,7 +473,7 @@ class StationaryPoint:
         
         visit = [0 for k in range(self.natom)]
         depth = 0
-        atomid = long(0)
+        atomid = int(0)
         
         self.atomid[i], visit = self.calc_atomid(visit, depth, i, atomid)
         #a, visit = self.calc_atomid(visit, depth, i, atomid, natom, atom)
@@ -496,7 +496,7 @@ class StationaryPoint:
         digit = 3
         if depth == maxdepth: return atomid, visit
 
-        atomid += constants.mass[self.atom[i]] * long(math.pow(10, digit * (maxdepth - 1 -depth)))
+        atomid += constants.mass[self.atom[i]] * int(math.pow(10, digit * (maxdepth - 1 -depth)))
         
         visit[i] = 1
         
@@ -521,6 +521,8 @@ class StationaryPoint:
             self.calc_chemid()
         if not hasattr(self,'cycle_chain'):
             self.find_cycle()
+        if len(self.bonds) == 0:
+            self.bonds = [self.bond]
         
         self.dihed = []
         hit = 0
@@ -532,7 +534,7 @@ class StationaryPoint:
             if hit == 1: hit = 0
             for c in range(b, self.natom):
                 if hit == 1: hit = 0
-                if self.bond[b][c] == 1 and self.cycle[b] * self.cycle[c] == 0:
+                if all([bi[b][c]==1 for bi in self.bonds]) and self.cycle[b] * self.cycle[c] == 0:
                     for a in range(self.natom):
                         if hit == 1: break
                         if self.bond[a][b] == 1 and a != c:
@@ -543,7 +545,7 @@ class StationaryPoint:
                                     if warning == 0:
                                         self.dihed.append([a, b, c, d])
                                         hit = 1 
-                                    
+
         return 0
 
     def find_conf_dihedral(self):

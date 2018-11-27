@@ -6,6 +6,6 @@
 #PBS -e {dir}/$PBS_JOBNAME.err
 #PBS -m n
 
-cd ${{PBS_O_WORKDIR}}/mess
+cd ${{PBS_O_WORKDIR}}/me
 mesmer all.inp
 

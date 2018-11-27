@@ -75,7 +75,7 @@ try:
 
     db = connect('kinbot.db')
     db.write(mol,name = label,data={{'energy': e,'frequencies': np.asarray(freq), 'zpe':zpe, 'status' : 'normal'}})
-except RuntimeError, e: 
+except RuntimeError: 
     # in case of fail, try again with final geometry
     try:
         #read the geometry from the output file

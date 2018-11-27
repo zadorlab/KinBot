@@ -17,60 +17,56 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-import math
 import copy
 import numpy as np
 
 import constants
 
+
 def calc_angle(a, b, c):
     """ Calculate the A - B - C angle in radians"""
-
-
     v1 = (b-a) / np.linalg.norm(b-a)
-    v2 = (b-c) / np.linalg.norm(b-c) 
-    
+    v2 = (b-c) / np.linalg.norm(b-c)
     return np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
 
-def is_linear(geom,bond):
-    """ 
+
+def is_linear(geom, bond):
+    """
     Check if all the atoms are linear and if so, add a dummy atom
     """
-    dummy = [] #positions of the dummy atoms
-    for i,pos in enumerate(geom):
-        #get the number of neighbors:
+    dummy = []  # positions of the dummy atoms
+    for i, pos in enumerate(geom):
+        # get the number of neighbors:
         neigh = len(np.where(np.asarray(bond[i]) > 0)[0])
         if neigh == 2:
-            j = np.where(np.asarray(bond[i])>0)[0][0]
-            k = np.where(np.asarray(bond[i])>0)[0][1]
-            
-            alpha = calc_angle(geom[j],pos,geom[k])
+            j = np.where(np.asarray(bond[i]) > 0)[0][0]
+            k = np.where(np.asarray(bond[i]) > 0)[0][1]
+
+            alpha = calc_angle(geom[j], pos, geom[k])
             if alpha > 175. * np.pi / 180.:
-                #consider an angle as being linear if it is larger than 175 degrees
+                # consider an angle as being linear if it is larger than 175 degrees
                 v1 = geom[j] - pos
                 if v1[0] != 0 or v1[1] != 0:
-                    p = [v1[1],-v1[0],0.]
+                    p = [v1[1], -v1[0], 0.]
                 elif v1[0] != 0 or v1[2] != 0:
-                    p = [v1[2],0.,-v1[0]]
-                else: 
-                    p = [1.,0.,0.]
+                    p = [v1[2], 0., -v1[0]]
+                else:
+                    p = [1., 0., 0.]
                 dummy.append(pos + p / np.linalg.norm(p))
     return dummy
-    
+
+
 def calc_out_of_plane_angle(a, b, c, d):
     """
     Calculate the out of plane angle of the A-D vector
     to the A-B-C plane
-    
+
     Returns the value in radians and a boolean telling if b-a-c are near-collinear
     """
-    
     collinear_cutoff = 175./180.
     collinear = 0
-
     if abs(calc_angle(b, a, c)) > np.pi * collinear_cutoff:
         collinear = 1
-    
     rab = b - a
     rac = c - a
     rad = d - a
@@ -78,30 +74,29 @@ def calc_out_of_plane_angle(a, b, c, d):
     rac /= np.linalg.norm(rac)
     rad /= np.linalg.norm(rad)
 
-    n = np.cross(rab,rac)
+    n = np.cross(rab, rac)
     n /= np.linalg.norm(n)
 
-    sin = np.dot(n,rad)
+    sin = np.dot(n, rad)
     ang = np.arcsin(sin)
-    
+
     return ang, collinear
-    
+
+
 def calc_dihedral(a, b, c, d):
-    """ 
+    """
     Calculate the A - B - C - D dihedral angle in radians.
     For collinear or close to collinear structures return a warning.
-    
+
     Returns the value in degrees
     """
-
-
     collinear_cutoff = 175./180.
     collinear = 0
 
     if abs(calc_angle(a, b, c)) > np.pi * collinear_cutoff or abs(calc_angle(b, c, d)) > np.pi * collinear_cutoff:
-        collinear = 1        
+        collinear = 1
 
-    b0 = a - b # reversed on purpose
+    b0 = a - b  # reversed on purpose
     b1 = c - b
     b2 = d - c
 
@@ -122,145 +117,128 @@ def calc_dihedral(a, b, c, d):
     return np.degrees(np.arctan2(y, x)), collinear
 
 
-def new_ring_dihedrals(species,instance, step_nr, total_nr_of_steps,geom = None):
+def new_ring_dihedrals(species, instance, step_nr, total_nr_of_steps, geom = None):
     """
     Calculates the required new dihedrals to create a cyclic TS
     """
-    
     if geom is None:
         geom = species.geom
         frac = (1.+step_nr) / (total_nr_of_steps + 0.)
     else:
         frac = 1. / (total_nr_of_steps - step_nr + 0.) #step starts at zero, not consistent with bond lenghts
-    
     if len(instance) > 3:
-        
         if len(instance) < 6:
             final_dihedral = 15.
         else:
             final_dihedral = 1.
-        
-        dihedrals = []   
-        
-        
-        
+        dihedrals = []
         for i in range(len(instance)-3):
-            dihedrals.append(calc_dihedral(geom[instance[i]], geom[instance[i+1]], geom[instance[i+2]], geom[instance[i+3]])[0]) 
-        
+            dihedrals.append(calc_dihedral(geom[instance[i]], geom[instance[i+1]], geom[instance[i+2]], geom[instance[i+3]])[0])
+
         new_dihedrals = [dihedrals[i] + frac * (final_dihedral - dihedrals[i]) for i in range(len(dihedrals))]
 
         return new_dihedrals
 
 
-def new_bond_length(species,ati, atj, step_nr, total_nr_of_steps, final_val,geom = None):
+def new_bond_length(species, ati, atj, step_nr, total_nr_of_steps, final_val, geom = None):
     """
     Calculates the required new bond lengths to create a TS
     """
-    
     if geom is None:
         geom = species.geom
         frac =  (0.+step_nr) / (total_nr_of_steps + 0.)
     else:
         frac = 1. / (total_nr_of_steps - step_nr + 1.) #step starts at 1, not consistent with dihedrals
-    
-    
+
     current_val = np.linalg.norm(geom[ati] - geom[atj])
     new_val = current_val + frac * (final_val - current_val)
-    
+
     return new_val
 
 
-def init_ring_dihedral(species,instance,geom = None):
+def init_ring_dihedral(species, instance, geom = None):
     """
     Calculates the required modifications to a structures dihedral to create a cyclic TS
     """
-    
     if geom is None:
         geom = species.geom
-    
     if len(instance) > 3:
-        
         if len(instance) < 6:
             final_dihedral = 15.
         else:
             final_dihedral = 1.
-        
-        dihedrals = []   
-
+        dihedrals = []
         for i in range(len(instance)-3):
-            dihedrals.append(calc_dihedral(geom[instance[i]], geom[instance[i+1]], geom[instance[i+2]], geom[instance[i+3]])[0]) 
+            dihedrals.append(calc_dihedral(geom[instance[i]], geom[instance[i+1]], geom[instance[i+2]], geom[instance[i+3]])[0])
         dihedral_diff = [final_dihedral - dihedrals[i] for i in range(len(dihedrals))]
-        
+
         return dihedral_diff
 
-def translate_and_rotate(cart,atom,i,j):
+
+def translate_and_rotate(cart, atom, i, j):
     """
     translate the molecule as such that the first rotor atom i is the center of mass
-    and the ij vector is along the x axis 
+    and the ij vector is along the x axis
     """
-    
-    #translate the molecule:
+    # translate the molecule:
     trans = copy.deepcopy(cart[i])
     for ci in cart:
         ci -= trans
-        
+
     #rotate the molecule
-    end_vec = [0.,0.,1.]
+    end_vec = [0., 0., 1.]
     angle = calc_angle(cart[j], cart[i], end_vec)
     if angle != 0:
-        axis = np.cross(cart[j],end_vec)
+        axis = np.cross(cart[j], end_vec)
         axis = axis/np.linalg.norm(axis)
-        a = math.cos(angle/2)
-        b,c,d = -axis*math.sin(angle/2)
-        aa,bb,cc,dd = a*a,b*b,c*c,d*d
-        bc,ad,ac,ab,bd,cd = b*c,a*d,a*c,a*b,b*d,c*d
+        a = np.cos(angle/2)
+        b, c, d = -axis*np.sin(angle/2)
+        aa, bb, cc, dd = a*a, b*b, c*c, d*d
+        bc, ad, ac, ab, bd, cd = b*c, a*d, a*c, a*b, b*d, c*d
         rot_matrix = ([[aa+bb-cc-dd, 2*(bc+ad),   2*(bd-ac)],
                        [2*(bc-ad),   aa+cc-bb-dd, 2*(cd+ab)],
                        [2*(bd+ac),   2*(cd-ab),   aa+dd-bb-cc]])
         for i in range(len(cart)):
-            cart[i] = np.dot(rot_matrix,cart[i])
+            cart[i] = np.dot(rot_matrix, cart[i])
 
     return cart
 
-def get_center_of_mass(geom,atom):
+
+def get_center_of_mass(geom, atom):
     list = range(len(atom))
 
-    com = [0.,0.,0.]
+    com = [0., 0., 0.]
     tot_mass = 0.
-    
+
     for i in list:
         at = atom[i]
         tot_mass += constants.exact_mass[at]
         com += constants.exact_mass[at] * geom[i]
-    
+
     return com / tot_mass
 
+
 def rotate_atom(v, n, th):
-    """ 
+    """
     Rotate vector v around unit vector n by angle th in 3D.
     """
-    
     w = np.zeros(3)
     w[0] = v[0] * ms(n[0], th ) + v[1] * mm(n[0], n[1], n[2], th) + v[2] * mp(n[0], n[2], n[1], th)
     w[1] = v[0] * mp(n[1], n[0], n[2], th) + v[1] * ms(n[1], th) + v[2] * mm(n[1], n[2], n[0], th)
     w[2] = v[0] * mm(n[2], n[0], n[1], th) + v[1] * mp(n[2], n[1], n[0], th) + v[2] * ms(n[2], th)
-    
-    v = w
-    
-    return v
 
+    v = w
+
+    return v
 
 
 def ms(x, a):
     """
-    Diagonal element of the rotation matrix. 
+    Diagonal element of the rotation matrix.
     x: selected coordinate of the unit vector around which rotation is done.
     a: angle
     """
-    
-    
     return x * x * (1. - np.cos(a)) + np.cos(a)
-
 
 
 def mm(x, y, z, a):
@@ -269,10 +247,7 @@ def mm(x, y, z, a):
     x, y, x: coordinates of the unit vector around which rotation is done. Order matters!
     a: angle
     """
-    
-    
     return x * y * (1. - np.cos(a)) - z * np.sin(a)
-
 
 
 def mp(x, y, z, a):
@@ -281,52 +256,45 @@ def mp(x, y, z, a):
     x, y, x: coordinates of te unit vector around which rotation is done. Order matters!
     a: angle
     """
-    
-    
     return x * y * (1. - np.cos(a)) + z * np.sin(a)
 
-def get_moments_of_inertia(geom,atom):
-    #translate the molecule to the center of mass
-    geom = geom - get_center_of_mass(geom,atom)
-    
-    #initialize the inertia tensor
-    I = np.zeros((3,3))
-    
+
+def get_moments_of_inertia(geom, atom):
+    # translate the molecule to the center of mass
+    geom = geom - get_center_of_mass(geom, atom)
+    # initialize the inertia tensor
+    I = np.zeros((3, 3))
     #add a contribution per atom
-    for i,at in enumerate(atom):
+    for i, at in enumerate(atom):
         m = constants.exact_mass[at]
         x = geom[i][0]
         y = geom[i][1]
         z = geom[i][2]
-        
-        
+
         I[0][0] += m * (y**2 + z**2)
         I[1][1] += m * (x**2 + z**2)
         I[2][2] += m * (x**2 + y**2)
-        
+
         I[0][1] += -m * x * y
         I[1][0] += -m * x * y
-        
+
         I[1][2] += -m * y * z
         I[2][1] += -m * y * z
-        
+
         I[0][2] += -m * x * z
         I[2][0] += -m * x * z
-    
-    
-    eigvals, eigvecs = np.linalg.eigh(I)
-    
-    return eigvals, eigvecs.transpose() 
 
-def equal_geom(bond,orig_geom,new_geom,cutoff):
+    eigvals, eigvecs = np.linalg.eigh(I)
+
+    return eigvals, eigvecs.transpose()
+
+
+def equal_geom(bond, orig_geom, new_geom, cutoff):
     for i in range(len(bond)-1):
-        for j in range(i+1,len(bond)):
+        for j in range(i+1, len(bond)):
             if bond[i][j] > 0:
                 orig_dist = np.linalg.norm(orig_geom[i]-orig_geom[j])
                 new_dist = np.linalg.norm(new_geom[i]-new_geom[j])
                 if np.abs(new_dist - orig_dist) / orig_dist > cutoff:
                     return 0
     return 1
-
-if __name__ == "__main__":
-    main()

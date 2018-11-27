@@ -17,23 +17,27 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-import os, sys
+import os
 import numpy as np
 
 from PIL import Image
 
-#try to import pybel 
+# try to import pybel
 try:
     import pybel
 except ImportError:
     pass
 
-from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import rdMolDescriptors
+try:
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+    from rdkit.Chem import rdMolDescriptors
+except ImportError:
+    pass
 
-num_to_syms = {1:'H', 6:'C', 8:'O', 16:'S'}
-syms_to_num = {'H':1, 'C':6, 'O':8, 'S':16}
+num_to_syms = {1: 'H', 6: 'C', 8: 'O', 16: 'S'}
+syms_to_num = {'H': 1, 'C': 6, 'O': 8, 'S': 16}
+
 
 def get_molecular_formula(smi):
     """
@@ -42,10 +46,10 @@ def get_molecular_formula(smi):
     mol = Chem.AddHs(Chem.MolFromSmiles(smi))
     return rdMolDescriptors.CalcMolFormula(mol)
 
-    
-def create_rxn_depiction(react_smiles,prod_smiles,dir,name):
+
+def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
     """
-    Create a 2D depiction of a chemical reaction, 
+    Create a 2D depiction of a chemical reaction,
     react smiles: smiles of the reactants
     prod_smiles: smiles of the products
     dir: directory where to save the reaction depiction
@@ -53,137 +57,143 @@ def create_rxn_depiction(react_smiles,prod_smiles,dir,name):
     """
     react_png = '{dir}/react.png'.format(dir=dir)
     prod_png = '{dir}/prod.png'.format(dir=dir)
-    
-    obmol = pybel.readstring("smi",react_smiles)
-    obmol.draw(show=False,filename=react_png)
-    
-    obmol = pybel.readstring("smi",prod_smiles)
-    obmol.draw(show=False,filename=prod_png)
-    
-    images = map(Image.open,[react_png,'arrow.png',prod_png])
+
+    obmol = pybel.readstring("smi", react_smiles)
+    obmol.draw(show=False, filename=react_png)
+
+    obmol = pybel.readstring("smi", prod_smiles)
+    obmol.draw(show=False, filename=prod_png)
+
+    images = map(Image.open, [react_png, 'arrow.png', prod_png])
     widths, heights = zip(*(i.size for i in images))
-    
+
     total_width = sum(widths)
     total_height = max(heights)
-    
+
     new_im = Image.new('RGB', (total_width, total_height), (255, 255, 255))
-    
+
     x = 0
     for im in images:
         y = total_height / 2 - im.size[1] / 2
-        new_im.paste(im,(x,y))
+        new_im.paste(im, (x, y))
         x += im.size[0]
-    
-    new_im.save('{dir}/{name}.png'.format(dir = dir, name = name))
-    
-def generate_3d_structure(smi,obabel = 1):
+
+    new_im.save('{dir}/{name}.png'.format(dir=dir, name=name))
+
+
+def generate_3d_structure(smi, obabel=1):
     """
     Method to generate the 3D coordinates of a molecule from its smiles
-    The default code is OpenBabel, RDKit can also be used. 
+    The default code is OpenBabel, RDKit can also be used.
     """
     structure = []
-    if obabel: # use OpenBabel
-        obmol = pybel.readstring('smi',smi)
+    if obabel:  # use OpenBabel
+        obmol = pybel.readstring('smi', smi)
         obmol.OBMol.AddHydrogens()
         obmol.make3D()
         bond = np.zeros((len(obmol.atoms), len(obmol.atoms)), dtype=int)
         for i in range(len(obmol.atoms)):
             for j in range(len(obmol.atoms)):
-                if not obmol.OBMol.GetBond(i+1,j+1) is None:
-                    order = obmol.OBMol.GetBond(i+1,j+1).GetBO()
+                if not obmol.OBMol.GetBond(i+1, j+1) is None:
+                    order = obmol.OBMol.GetBond(i+1, j+1).GetBO()
                     bond[i][j] = order
         for at in obmol.atoms:
             pos = at.coords
             sym = num_to_syms[at.atomicnum]
-            structure += [sym,pos[0],pos[1],pos[2]]
-        return obmol,structure, bond
-    else: # use RDKit
+            structure += [sym, pos[0], pos[1], pos[2]]
+        return obmol, structure, bond
+    else:  # use RDKit
         rdmol = Chem.AddHs(Chem.MolFromSmiles(smi))
-        AllChem.EmbedMolecule(rdmol,AllChem.ETKDG())
+        AllChem.EmbedMolecule(rdmol, AllChem.ETKDG())
         AllChem.MMFFOptimizeMolecule(rdmol)
-        bond = np.zeros((len(rdmol.GetAtoms()), len(rdmol.GetAtoms())), dtype=int)
+        atoms = rdmol.GetAtoms()
+        bond = np.zeros((len(atoms), len(rdmol.GetAtoms(atoms))), dtype=int)
         for i in range(len(rdmol.GetAtoms())):
             for j in range(len(rdmol.GetAtoms())):
-                if not rdmol.GetBondBetweenAtoms(i,j) is None:
-                    order = int(rdmol.GetBondBetweenAtoms(i,j).GetBondTypeAsDouble())
+                if not rdmol.GetBondBetweenAtoms(i, j) is None:
+                    b = rdmol.GetBondBetweenAtoms(i, j)
+                    order = int(b.GetBondTypeAsDouble())
                     bond[i][j] = order
-        for i,atom in enumerate(rdmol.GetAtoms()):
+        for i, atom in enumerate(rdmol.GetAtoms()):
             pos = rdmol.GetConformer(0).GetAtomPosition(i)
             sym = atom.GetSymbol()
-            structure += [sym,pos.x,pos.y,pos.z]
-        return rdmol,structure,bond
+            structure += [sym, pos.x, pos.y, pos.z]
+        return rdmol, structure, bond
+
 
 def create_ob_mol(smi):
-    """ 
+    """
     Method to create a Molecule Object from ObenBabel
     """
-    obmol = pybel.readstring('smi',smi)
+    obmol = pybel.readstring('smi', smi)
     obmol.OBMol.AddHydrogens()
     return obmol
-    
-def create_rdkit_mol(bond,atom):
+
+
+def create_rdkit_mol(bond, atom):
     """
     Method to create a RDKit Molecule object from a KinBot stationary_pt object
     """
     m = Chem.MolFromSmiles('[' + atom[0] + ']')
     mw = Chem.RWMol(m)
-    for i in range(1,len(atom)):
+    for i in range(1, len(atom)):
         mw.AddAtom(Chem.Atom(syms_to_num[atom[i]]))
     for i in range(len(atom)-1):
-        for j in range(i,len(atom)):
+        for j in range(i, len(atom)):
             if bond[i][j] == 1:
-                mw.AddBond(i,j,Chem.BondType.SINGLE)
+                mw.AddBond(i, j, Chem.BondType.SINGLE)
             if bond[i][j] == 2:
-                mw.AddBond(i,j,Chem.BondType.DOUBLE)
+                mw.AddBond(i, j, Chem.BondType.DOUBLE)
             if bond[i][j] == 3:
-                mw.AddBond(i,j,Chem.BondType.TRIPLE)
+                mw.AddBond(i, j, Chem.BondType.TRIPLE)
     smi = Chem.MolToSmiles(mw)
 
-    AllChem.EmbedMolecule(mw,AllChem.ETKDG())
-    #AllChem.MMFFOptimizeMolecule(mw)
+    AllChem.EmbedMolecule(mw, AllChem.ETKDG())
     structure = []
-    
-    for i,atom in enumerate(mw.GetAtoms()):
+
+    for i, atom in enumerate(mw.GetAtoms()):
         pos = mw.GetConformer(0).GetAtomPosition(i)
         sym = num_to_syms[atom.GetAtomicNum()]
-        structure += [sym,pos.x,pos.y,pos.z]
+        structure += [sym, pos.x, pos.y, pos.z]
 
     return mw, smi, structure
 
-def create_inchi_from_geom(atom,geom):
+
+def create_inchi_from_geom(atom, geom):
     xyz_file = 'temp.xyz'
-    f = open(xyz_file ,'w')
+    f = open(xyz_file, 'w')
     f.write(str(len(atom)) + '\n\n')
-    for i,at in enumerate(atom):
-        f.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at,geom[i][0],geom[i][1],geom[i][2]))
+    for i, at in enumerate(atom):
+        x, y, z = geom[i]
+        f.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
     f.write('\n\n')
     f.close()
-    inchi = create_inchi('','',xyz_file = xyz_file)
-    #remove temp file
+    inchi = create_inchi('', '', xyz_file=xyz_file)
+    # remove temp file
     os.remove(xyz_file)
     return inchi
-    
 
-def create_inchi(job,chemid, xyz_file = ''):
+
+def create_inchi(job, chemid, xyz_file=''):
     if xyz_file == '':
         xyz_file = os.path.expanduser(job) + 'xyz/' + chemid + '.xyz'
-    
-    obmol = pybel.readfile('xyz',xyz_file).next()
-    return obmol.write("inchi",opt={'T':'nostereo'}).split()[0]
+    obmol = pybel.readfile('xyz', xyz_file).next()
+    return obmol.write("inchi", opt={'T': 'nostereo'}).split()[0]
 
-def create_inchi_from_smi(smi): 
+
+def create_inchi_from_smi(smi):
     """
     Method to create the InChI of a structure given its smiles.
     OpenBabel is used for this.
     """
-    obmol = pybel.readstring('smi',smi)
+    obmol = pybel.readstring('smi', smi)
     return obmol.write("inchi").split()[0]
 
-def create_smiles(inchi): 
+
+def create_smiles(inchi):
     """
     Method to create the smiles of a structure given its InChI.
     OpenBabel is used for this.
     """
-    obmol = pybel.readstring('inchi',inchi)
+    obmol = pybel.readstring('inchi', inchi)
     return obmol.write("smi").split()[0]
-    

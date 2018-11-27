@@ -132,7 +132,7 @@ class ReactionGenerator:
                         else:
                             barrier = (self.qc.get_qc_energy(instance_name)[1] - self.species.energy) * constants.AUtoKCAL
                         if barrier > self.par.par['barrier_threshold']:
-                            logging.info('\tRxn barrier too high for {}'.format(instance_name))
+                            logging.info('\tRxn barrier too high ({val}) for {name}'.format(val=barrier,name=instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
                             obj.irc = IRC(obj) #TODO: this doesn't seem like a good design

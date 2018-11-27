@@ -428,6 +428,7 @@ class QuantumChemistry:
             command = ['qsub',job + '.pbs']
             process = subprocess.Popen(command,shell=False,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
             out,err = process.communicate()
+            out = out.decode()
             pid = out.split('\n')[0].split('.')[0]
             self.job_ids[job] = pid
         elif self.queuing == 'slurm':
@@ -444,6 +445,7 @@ class QuantumChemistry:
             command = ['sbatch',job + '.sbatch']
             process = subprocess.Popen(command,shell=False,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
             out,err = process.communicate()
+            out = out.decode()
             pid = out.split('\n')[0].split()[-1]
             self.job_ids[job] = pid
         else:

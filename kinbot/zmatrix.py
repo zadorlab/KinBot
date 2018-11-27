@@ -902,12 +902,12 @@ def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder):
     cart[0] = [0., 0., 0.]
     if natom == 1: return 1
     
-    if zmat_atom > 1:
+    if len(zmat_atom) > 1:
         # B
         cart[1] = [zm[1][0], 0., 0.]
         if natom == 2: return 2
         
-        if zmat_atom > 2:
+        if len(zmat_atom) > 2:
             # C
             cart[2][0] = np.sign(np.pi / 2 - zm[2][1]) * zm[2][0] * np.cos(zm[2][1]) + cart[1][0]
             cart[2][1] = zm[2][0] * np.sin(zm[2][1])

@@ -397,9 +397,9 @@ class StationaryPoint:
             k = k + 1
         
         if any([status[i] == 0 for i in range(len(status))]):
-            return 1, map(abs, status)
+            return 1, [abs(si) for si in status]
         else:
-            return 0, map(abs, status)
+            return 0, [abs(si) for si in status]
 
     def find_cycle(self):
         """

@@ -224,9 +224,13 @@ class Optimize:
                         else:
                             # no hir calculations necessary, set status to finished
                             self.shir = 1
-                    if not self.wait or self.shir == 1:
-                        #break the loop if no waiting is required or if the hir calcs are done
+                    if not self.wait or self.shir == 1 or self.shigh == -999:
+                        # break the loop if no waiting is required or 
+                        # if the hir calcs are done or
+                        # if the high level calc failed
                         break
+                    else:
+                        time.sleep(1)
             if self.shir == 1:
                 #finilize if no waiting is required or if the hir calcs are done
                 #calculate the symmetry numbers
@@ -248,7 +252,7 @@ class Optimize:
                 if status:
                     self.species.energy = molpro_energy
             if self.wait:
-                if self.shir == 1:
+                if self.shir == 1 or self.shigh == -999:
                     return 0
                 time.sleep(1)
             else:

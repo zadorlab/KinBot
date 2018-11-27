@@ -52,11 +52,6 @@ class HomolyticScission:
         temp.bond[self.bond[0]][self.bond[1]] = 0
         temp.bond[self.bond[1]][self.bond[0]] = 0
         self.products = temp.start_multi_molecular()
-        
-        print 'reaction'
-        for prod in self.products:
-            print len(prod.atom)
-            print prod.chemid
 
 class HomolyticScissions:
     """
@@ -78,18 +73,24 @@ class HomolyticScissions:
         bonds = []
         for i in range(len(self.species.atom)-1):
             for j in range(i+1,len(self.species.atom)):
-                #only consider single bonds for homolytic scissions
-                if self.species.bond[i][j] == 1:
-                    #check if a bond with identical atomids has been added to the bonds list yet
-                    new = 1
-                    for bi in bonds:
-                        if sorted([self.species.atomid[at] for at in bi]) == sorted([self.species.atomid[i],self.species.atomid[j]]):
-                            new = 0
-                    if new:
-                        bonds.append([i,j])
-                        hs = HomolyticScission(self.species,self.par,self.qc,[i,j])
-                        hs.create_geometries()
-                        self.hss.append(hs)
+                #only consider a bond of which both atoms are not in the same cycle
+                cycle = []
+                for cyc in self.species.cycle_chain:
+                    if i in cyc:
+                        cycle.extend(cyc)
+                if not j in cycle:
+                    #only consider single bonds for homolytic scissions
+                    if self.species.bond[i][j] == 1:
+                        #check if a bond with identical atomids has been added to the bonds list yet
+                        new = 1
+                        for bi in bonds:
+                            if sorted([self.species.atomid[at] for at in bi]) == sorted([self.species.atomid[i],self.species.atomid[j]]):
+                                new = 0
+                        if new:
+                            bonds.append([i,j])
+                            hs = HomolyticScission(self.species,self.par,self.qc,[i,j])
+                            hs.create_geometries()
+                            self.hss.append(hs)
         
         #optimize the products of the hss
         while 1:

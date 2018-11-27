@@ -106,14 +106,30 @@ class MESMER:
         
         #write the mess input for the different blocks
         wells = [self.species.chemid]
-        self.write_well(self.species,mollist)
+        self.write_well(self.species,mollist,0.0)
+        well0_energy = self.species.energy - self.species.zpe
         
         for index,reaction in enumerate(self.species.reac_obj):
             if reaction.instance_name in ts_unique:
+                # get the energy of the products compared to the well0
+                prod_energy = 0.0 - well0_energy
+                # get the produt with the most atoms and assign the energy to that species
+                # the other get an energy of 0
+                max_natom = 0
+                max_natom_chemid
+                for st_pt_opt in reaction.prod_opt:
+                    prod_energy += st_pt_opt.species.energy
+                    prod_energy += st_pt_opt.species.zpe
+                    if st_pt_opt.species.natom > max_natom:
+                        max_natom = st_pt_opt.species.natom
+                        max_natom_chemid = st_pt_opt.species.chemid
                 for st_pt_opt in reaction.prod_opt:
                     st_pt = st_pt_opt.species
                     if not st_pt.chemid in wells:
-                        self.write_well(st_pt,mollist)
+                        energy = 0.
+                        if st_pt.chemid == max_natimo_chemid:
+                            energy = prod_energy
+                        self.write_well(st_pt,mollist,energy)
                 self.write_barrier(reaction,mollist,reaclist)
         
         #add a bath gas molecule
@@ -156,12 +172,9 @@ class MESMER:
 
         return 0
 
-    def write_well(self,species,mollist):
+    def write_well(self,species,mollist,energy):
         """ 
         Create the block for MESS for a well.
-        
-        well0: reactant on this PES (zero-energy reference)
-        
         """ 
         molecule = ET.SubElement(mollist, 'molecule', {'id':str(species.chemid)})
         atomarray = ET.SubElement(molecule, 'atomArray')
@@ -189,10 +202,6 @@ class MESMER:
         propertylist = ET.SubElement(molecule, 'propertyList')
         
         #add the zpe
-        if self.par.par['pes']:
-            energy = '{zeroenergy}'
-        else:
-            energy = (  ( species.energy + species.zpe )- ( self.species.energy + self.species.zpe) ) * constants.AUtoKCAL
         zpe = ET.SubElement(propertylist, 'property', {'dictRef':'me:ZPE'})
         ET.SubElement(zpe, 'scalar', {'units':'kcal/mol'}).text = str(energy)
         

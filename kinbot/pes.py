@@ -137,7 +137,7 @@ def postprocess(par,jobs):
                 new = 1
                 temp = None
                 for i,rxn in enumerate(reactions):
-                    if reactant == rxn[0] and '_'.join(sorted(prod)) == ' '.join(sorted(rxn[2])):
+                    if reactant == rxn[0] and '_'.join(sorted(prod)) == '_'.join(sorted(rxn[2])):
                         new = 0
                         temp = i
                     if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
@@ -150,14 +150,13 @@ def postprocess(par,jobs):
                     if reactions[i][3] > barrier:
                         reactions.pop(temp)
                         reactions.append([reactant,ts,prod,barrier])
-    
     zero_energy = get_energy(jobs[0], jobs[0],0,par.par['high_level'])
     zero_zpe = get_zpe(jobs[0], jobs[0],0,par.par['high_level'])
     #copy xyz files
     copy_xyz(wells)
     
     #write pes input
-    create_pesviewer_input(par, jobs[0], wells, products, reactions, zero_energy,par.par['high_level'])
+    create_pesviewer_input(par, jobs[0], wells, products, reactions, zero_energy, zero_zpe, par.par['high_level'])
     
     #write_mess
     create_mess_input(par, jobs[0], wells, products, reactions, zero_energy, zero_zpe, par.par['high_level'])
@@ -206,7 +205,7 @@ def create_mess_input(par, well0, wells, products, reactions, zero_energy, zero_
     f.close()
     
 
-def create_pesviewer_input(par, well0, wells, products, reactions, zero_energy, high_level):
+def create_pesviewer_input(par, well0, wells, products, reactions, zero_energy, zero_zpe, high_level):
     fname = 'pesviewer.inp'
     
     f = open(fname,'w+')
@@ -241,23 +240,28 @@ rdkit4depict       1         # boolean that specifies which code was used for th
     
     f.write('> <wells> \n')
     for well in wells:
-        energy = (get_energy(well,well,0,par.par['high_level']) - zero_energy) * constants.AUtoKCAL
+        well_energy = get_energy(well,well,0,par.par['high_level'])
+        well_zpe = get_zpe(well,well,0,par.par['high_level'])
+        energy = (well_energy + well_zpe - zero_energy - zero_zpe) * constants.AUtoKCAL
         f.write('%s %.2f\n'%(well,energy))
     f.write('\n')
     
     f.write('> <bimolec> \n')
     for prods in products:
-        energy = 0. - zero_energy
+        energy = 0. - zero_energy - zero_zpe
         rxn = get_rxn(prods,reactions)
         for pr in prods.split('_'):
             energy += get_energy(rxn[0],pr,0,par.par['high_level'])
+            energy += get_zpe(rxn[0],pr,0,par.par['high_level'])
         energy = energy * constants.AUtoKCAL
         f.write('%s %.2f\n'%(prods,energy))
     f.write('\n')
     
     f.write('> <ts> \n')
     for rxn in reactions:
-        energy = (get_energy(rxn[0],rxn[1],1,par.par['high_level']) - zero_energy) * constants.AUtoKCAL
+        ts_energy = get_energy(rxn[0],rxn[1],1,par.par['high_level'])
+        ts_zpe = get_zpe(rxn[0],rxn[1],1,par.par['high_level'])
+        energy = ( ts_energy + ts_zpe - zero_energy - zero_zpe) * constants.AUtoKCAL
         prod_name = '_'.join(sorted(rxn[2]))
         f.write('%s %.2f %s %s\n'%(rxn[1],energy,rxn[0],prod_name))
     f.write('\n')
@@ -321,10 +325,10 @@ def get_zpe(dir,job,ts,high_level):
     return zpe
 
 def check_status(job,pid):
-    command = ['ps','-u','root','-N','-o','pid,s,user,%cpu,%mem,etime,args']
+    command = ['ps', '-u', 'root', '-N', '-o', 'pid,s,user,%cpu,%mem,etime,args']
     process = subprocess.Popen(command,shell=False,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     out,err = process.communicate()
-    out = out.decote()
+    out = out.decode()
     lines = out.split('\n')
     for line in lines:
         if len(line)> 0:
@@ -337,11 +341,14 @@ def submit_job(chemid):
     """
     Submit a kinbot run usung subprocess and return the pid
     """
-    command = ["kinbot",chemid + ".json","&"]
-    process = subprocess.Popen(command,cwd = chemid, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    command = ["kinbot", chemid + ".json", "&"]
+    outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
+    errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
+    process = subprocess.Popen(command,cwd = chemid, stdout=outfile, stdin=subprocess.PIPE, stderr=errfile)
     time.sleep(1)
     pid = process.pid
     return pid 
+    #return 0
 
 
 def write_input(par,species,threshold,root):
@@ -365,6 +372,8 @@ def write_input(par,species,threshold,root):
     par2.par['smiles'] = ''
     #overwrite the barrier treshold
     par2.par['barrier_threshold'] = threshold
+    #set the pes option to 1
+    par2.par['pes'] = 1
     
     file_name = dir + str(species.chemid) + '.json'
     with open(file_name,'w') as outfile:

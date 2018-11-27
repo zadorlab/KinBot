@@ -160,18 +160,19 @@ def main():
         logging.info('Starting the search for homolytic scission products')
         well0.homolytic_scissions = HomolyticScissions(well0,par,qc)
         well0.homolytic_scissions.find_homolytic_scissions()
+    #initialize the master equation instance
+    mess = MESS(par,well0)
+    mess.write_input()
+    mesmer = MESMER(par,well0)
+    mesmer.write_input()
     if par.par['me'] == 1:
         logging.info('Starting Master Equation calculations')
-        #initialize the master equation instance
         if par.par['me_code'] == 'mess':
-            me = MESS(par,well0)
+            mess.run()
         elif par.par['me_code'] == 'mesmer':
-            me = MESMER(par,well0)
+            mesmer.run()
         else:
             logging.error('Cannot recognize me code {}'.format(par.par['me_code']))
-        me.write_input()
-        me.run()
-        
     
     #postprocess the calculations
     postprocess.createSummaryFile(well0,qc,par)

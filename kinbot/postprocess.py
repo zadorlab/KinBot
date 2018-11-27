@@ -44,11 +44,13 @@ def createSummaryFile(species,qc,par):
     products = []
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
+            ts = species.reac_obj[index].ts
             if species.reac_type[index] == 'R_Addition_MultipleBond' and not par.par['high_level']:
                 mp2_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
-                energy = (species.reac_obj[index].ts.energy - mp2_energy) * constants.AUtoKCAL
+                mp2_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
+                energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
             else:
-                energy = (species.reac_obj[index].ts.energy - species.energy) * constants.AUtoKCAL
+                energy = (ts.energy + ts.zpe - species.energy - species.zpe) * constants.AUtoKCAL
             prod_name = ''
             name = []
             for prod in species.reac_obj[index].products:
@@ -109,7 +111,7 @@ rdkit4depict       1         # boolean that specifies which code was used for th
     f.write('> <wells> \n')
     make_xyz(species.atom,species.geom,str(species.chemid),dir_xyz)
     f.write('%s 0.0\n'%(species.chemid)) #use the well as point zero for the energy
-    well_energy = species.energy
+    well_energy = species.energy + species.zpe
     wells = [str(species.chemid)]
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
@@ -118,7 +120,7 @@ rdkit4depict       1         # boolean that specifies which code was used for th
                 name = str(st_pt.chemid)
                 if not name in wells:
                     make_xyz(species.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
-                    energy = (st_pt.energy - well_energy) * constants.AUtoKCAL
+                    energy = (st_pt.energy + st_pt.zpe - well_energy) * constants.AUtoKCAL
                     f.write('%s %.2f\n'%(st_pt.chemid,energy))
                     wells.append(name)
     
@@ -132,7 +134,7 @@ rdkit4depict       1         # boolean that specifies which code was used for th
                 energy = 0. - well_energy
                 names = []
                 for st_pt in species.reac_obj[index].products:
-                    energy += st_pt.energy
+                    energy += st_pt.energy + st_pt.zpe
                     names.append(str(st_pt.chemid))
                     
                 name = '_'.join(sorted(names))
@@ -151,7 +153,7 @@ rdkit4depict       1         # boolean that specifies which code was used for th
             if not name in bimolecs:
                 energy = 0. - well_energy
                 for st_pt in hs.products:
-                    energy += st_pt.energy
+                    energy += st_pt.energy + st_pt.zpe
                 energy = energy * constants.AUtoKCAL
                 for i,st_pt in enumerate(hs.products):
                     # make twice the same file but with adifferent name ( TODO: is there no better way?)
@@ -164,11 +166,13 @@ rdkit4depict       1         # boolean that specifies which code was used for th
     f.write('> <ts> \n')
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
+            ts = species.reac_obj[index].ts
             if species.reac_type[index] == 'R_Addition_MultipleBond' and not par.par['high_level']:
                 we_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
-                energy = (species.reac_obj[index].ts.energy - we_energy) * constants.AUtoKCAL
+                we_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
+                energy = (ts.energy + ts.zpe - we_energy - we_zpe) * constants.AUtoKCAL
             else:
-                energy = (species.reac_obj[index].ts.energy - well_energy) * constants.AUtoKCAL
+                energy = (ts.energy + ts.zpe - well_energy) * constants.AUtoKCAL
             prod_name = ''
             name = []
             for st_pt in species.reac_obj[index].products:

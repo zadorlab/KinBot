@@ -33,6 +33,7 @@ setup(
     version = "2.0",
     packages = find_packages(),
     package_data={'tpl':[
+        'arrow.png',
         'ase_gauss_freq_well.py.tpl',
         'ase_gauss_hir.py.tpl',
         'ase_gauss_irc.py.tpl',

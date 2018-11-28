@@ -7,5 +7,5 @@
 #PBS -m n
 
 cd ${{PBS_O_WORKDIR}}/me
-mess all.inp
+mess mess.inp
 

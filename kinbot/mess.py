@@ -151,7 +151,7 @@ class MESS:
             dummy = f.read()
         dum = dummy.format(barrier = 'tsd', reactant = self.well_names[self.species.chemid], dummy = 'd1')
 
-        f_out = open('me/all.inp','w')
+        f_out = open('me/mess.inp','w')
         f_out.write(header + '\n!****************************************\n')
         f_out.write(wells)
         f_out.write(bimols)

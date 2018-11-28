@@ -7,5 +7,5 @@
 #PBS -m n
 
 cd ${{PBS_O_WORKDIR}}/me
-mesmer all.inp
+mesmer mesmer.inp
 

@@ -166,7 +166,7 @@ class MESMER:
         
         st = ET.tostring(root,'utf-8')
         st = minidom.parseString(st)
-        fout = open('test.xml','w')
+        fout = open('me/mesmer.xml','w')
         fout.write(st.toprettyxml(indent = ' '))
         fout.close()
 

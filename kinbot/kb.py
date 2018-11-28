@@ -95,9 +95,8 @@ def main():
             os.mkdir('conf')
         if not os.path.exists('perm/conf'):
             os.makedirs('perm/conf')
-    if par.par['me'] == 1:
-        if not os.path.exists('me'):
-            os.mkdir('me')
+    if not os.path.exists('me'):
+        os.mkdir('me')
 
     #initialize the reactant
     well0 = StationaryPoint('well0', par.par['charge'], par.par['mult'], smiles = par.par['smiles'], structure = par.par['structure'])

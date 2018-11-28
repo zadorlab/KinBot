@@ -116,7 +116,7 @@ class MESMER:
                 # get the produt with the most atoms and assign the energy to that species
                 # the other get an energy of 0
                 max_natom = 0
-                max_natom_chemid
+                max_natom_chemid = 0
                 for st_pt_opt in reaction.prod_opt:
                     prod_energy += st_pt_opt.species.energy
                     prod_energy += st_pt_opt.species.zpe
@@ -127,7 +127,7 @@ class MESMER:
                     st_pt = st_pt_opt.species
                     if not st_pt.chemid in wells:
                         energy = 0.
-                        if st_pt.chemid == max_natimo_chemid:
+                        if st_pt.chemid == max_natom_chemid:
                             energy = prod_energy
                         self.write_well(st_pt,mollist,energy)
                 self.write_barrier(reaction,mollist,reaclist)

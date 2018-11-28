@@ -244,27 +244,26 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         if np.sum(rad) == 0: 
-            #find H-migrations over double bonds
+            #find H-migrations over double bonds and to unpaired electrons
             
-            if 0:
-                #special case of H migrations similar to keto-enol
-                motif = ['X' for i in range(4)]
+            for ringsize in range(3, 9):
+                # double bonds 
+                motif = ['X' for i in range(ringsize)]
                 motif[-1] = 'H'
-                instances = find_motif.start_motif(motif, natom, bond, atom, -1, [[i] for i in range(natom)])
+                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
            
                 for instance in instances:
-                    if bond[instance[0]][instance[1]] > 1:
-                        rxns += [instance] 
-            else:
-                for ringsize in range(3, 9):
-                    motif = ['X' for i in range(ringsize)]
-                    motif[-1] = 'H'
-                    instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-               
-                    for instance in instances:
-                        if any([bi > 1 for bi in bond[instance[0]]]):
-                            rxns += [instance] 
-            
+                    if any([bi > 1 for bi in bond[instance[0]]]):
+                        rxns += [instance]
+                # unpaired electrons
+                motif = ['X' for i in range(ringsize)]
+                motif[-1] = 'H'
+                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+           
+                for instance in instances:
+                    if self.species.atom[instance[0]] == 'O' or self.species.atom[instance[0]] == 'S':
+                        rxns += [instance]
+
         else:
             instances = []
             for ringsize in range(3, 9):
@@ -1393,7 +1392,8 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         motif = ['X', 'X', 'X']
-        rxns += find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+        for rad_site in np.nonzero(rad)[0]:
+            rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
         
         #filter for the same reactions
         for inst in rxns:

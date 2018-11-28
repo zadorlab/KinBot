@@ -268,8 +268,6 @@ rdkit4depict       1         # boolean that specifies which code was used for th
         ts_energy = get_energy(rxn[0],rxn[1],1,par.par['high_level'])
         ts_zpe = get_zpe(rxn[0],rxn[1],1,par.par['high_level'])
         energy = (ts_energy + ts_zpe - well_energy - well_zpe) * constants.AUtoKCAL
-        print(rxn[1])
-        print(energy)
         prod_name = '_'.join(sorted(rxn[2]))
         f.write('%s %.2f %s %s\n'%(rxn[1],energy,rxn[0],prod_name))
     f.write('\n')

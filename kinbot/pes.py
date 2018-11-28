@@ -161,11 +161,11 @@ def postprocess(par,jobs):
     #write_mess
     create_mess_input(par, jobs[0], wells, products, reactions, zero_energy, zero_zpe, par.par['high_level'])
 
+
 def copy_xyz(wells):
     dir_xyz = 'xyz/'
     if not os.path.exists(dir_xyz):
         os.mkdir(dir_xyz)
-    
     for well in wells:
         copy_tree(well + '/xyz/', dir_xyz)
 
@@ -174,6 +174,7 @@ def get_rxn(prods,rxns):
     for rxn in rxns:
         if prods == '_'.join(sorted(rxn[2])):
             return rxn
+
 
 def create_mess_input(par, well0, wells, products, reactions, zero_energy, zero_zpe, high_level):
     fname = 'input.mess'
@@ -259,9 +260,16 @@ rdkit4depict       1         # boolean that specifies which code was used for th
     
     f.write('> <ts> \n')
     for rxn in reactions:
+        mp2 = 0
+        if 'R_Addition_MultipleBond' in rxn[1] and not par.par['high_level']:
+            mp2 = 1
+        well_energy = get_energy(rxn[0],rxn[0],0,par.par['high_level'], mp2)
+        well_zpe = get_zpe(rxn[0],rxn[0],0,par.par['high_level'], mp2)
         ts_energy = get_energy(rxn[0],rxn[1],1,par.par['high_level'])
         ts_zpe = get_zpe(rxn[0],rxn[1],1,par.par['high_level'])
-        energy = ( ts_energy + ts_zpe - zero_energy - zero_zpe) * constants.AUtoKCAL
+        energy = (ts_energy + ts_zpe - well_energy - well_zpe) * constants.AUtoKCAL
+        print(rxn[1])
+        print(energy)
         prod_name = '_'.join(sorted(rxn[2]))
         f.write('%s %.2f %s %s\n'%(rxn[1],energy,rxn[0],prod_name))
     f.write('\n')
@@ -291,12 +299,15 @@ barrierless: all the barrierless reactions of the PES, separated by lines
 each line contains the name and the names of the reactant and product""")
     f.close()
 
-def get_energy(dir,job,ts,high_level):
+
+def get_energy(dir,job,ts,high_level,mp2=0):
     db = connect(dir + '/kinbot.db')
     if ts:
         j = job
     else:
         j = job + '_well'
+    if mp2:
+        j += '_mp2'
     if high_level:
         j += '_high'
     
@@ -308,12 +319,15 @@ def get_energy(dir,job,ts,high_level):
     energy *= constants.EVtoHARTREE
     return energy
 
-def get_zpe(dir,job,ts,high_level):
+
+def get_zpe(dir,job,ts,high_level,mp2=0):
     db = connect(dir + '/kinbot.db')
     if ts:
         j = job
     else:
         j = job + '_well'
+    if mp2:
+        j += '_mp2'
     if high_level:
         j += '_high'
     
@@ -323,6 +337,7 @@ def get_zpe(dir,job,ts,high_level):
             zpe = row.data.get('zpe')
 
     return zpe
+
 
 def check_status(job,pid):
     command = ['ps', '-u', 'root', '-N', '-o', 'pid,s,user,%cpu,%mem,etime,args']
@@ -348,7 +363,6 @@ def submit_job(chemid):
     time.sleep(1)
     pid = process.pid
     return pid 
-    #return 0
 
 
 def write_input(par,species,threshold,root):

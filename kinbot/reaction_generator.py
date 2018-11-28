@@ -180,6 +180,7 @@ class ReactionGenerator:
                             err = -1
                         else:
                             e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
+                            e2, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
                             st_pt.bond_mx()
                             st_pt.characterize()
                             st_pt.calc_chemid()
@@ -202,6 +203,7 @@ class ReactionGenerator:
                     ts = StationaryPoint(   instance_name, self.species.charge, self.species.mult,
                                             atom = self.species.atom, geom = geom, wellorts = 1)
                     err, ts.energy = self.qc.get_qc_energy(instance_name)
+                    err, ts.zpe = self.qc.get_qc_zpe(instance_name)
                     ts.bond = bond_mx
                     ts.find_cycle()
                     ts.find_conf_dihedral()

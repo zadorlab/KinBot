@@ -113,7 +113,6 @@ class CyclicEtherFormation:
             constraint = [self.instance[0] + 1,self.instance[-1] + 1,fval]
             change.append(constraint)
 
-        
         #remove the bonds from the fix if they are in another constaint
         for c in change:
             if len(c) == 3:

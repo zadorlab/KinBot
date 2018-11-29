@@ -86,6 +86,5 @@ class RAdditionCO:
                             index = i
                 if index > -1:
                     del fix[index]
-        
         return step, fix, change, release
 

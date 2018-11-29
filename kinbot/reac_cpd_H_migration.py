@@ -84,5 +84,16 @@ class CpdHMigration:
             constraint2 = [self.instance[0] + 1,self.instance[-1] + 1,fval]
             change.append(constraint2)
 
+        #remove the bonds from the fix if they are in another constaint
+        for c in change:
+            if len(c) == 3:
+                index = -1
+                for i,fi in enumerate(fix):
+                    if len(fi) == 2:
+                        if sorted(fi) == sorted(c[:2]):
+                            index = i
+                if index > -1:
+                    del fix[index]
+
         return step, fix, change, release
 

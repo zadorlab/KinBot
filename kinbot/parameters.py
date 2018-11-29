@@ -73,6 +73,8 @@ class Parameters:
             'scan_step' : 30,
             #Do a full PES scan instead of one well
             'pes' : 0,
+            #Maximum number of simultaneous kinbot runs in a pes search
+            'simultaneous_kinbot' : 5,
             #Perform high level optimization and freq calculation
             'high_level' : 0,
             #Do a conformational search

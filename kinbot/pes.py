@@ -63,7 +63,7 @@ def main():
     f.write(str(well0.chemid) + '\n')
     f.close()
    
-    max_running = 1
+    max_running = par.par['simultaneous_kinbot']
     running = []
     finished = []
     jobs = []

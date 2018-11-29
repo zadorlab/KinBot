@@ -27,20 +27,28 @@ reactions, including their barrier heights and which products are formed
 """
 import os
 import sys
+import pkg_resources
+import numpy as np
 
 import license_message
 import constants
 
 def createSummaryFile(species,qc,par):
-    fname = 'summary_%s.out'%species.chemid
-    f = open(fname,'w+')
-    
-    f.write(license_message.message)
-    f.write('These calculations are done without IRCs,\n')
-    f.write('The success thus means that a ts has been found,\n')
-    f.write('but does not imply this ts is the correct one!!\n\n')
-    f.write('Status\tEnergy\tName\n')
-    
+    """
+    Create a summary file listing for each reaction
+    1. whether its search was successful
+    2. the barrier height
+    3. the reaction name
+    4. the product identifiers
+    And for each homolytic scission
+    1. the energy height of the products
+    2. the product identifiers
+    """
+    # list of strings which will be put together for the output
+    s = []
+    # add the license message to the file
+    s.append(license_message.message)
+    # list of the products
     products = []
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
@@ -57,77 +65,68 @@ def createSummaryFile(species,qc,par):
                 name.append(str(prod.chemid))
             prod_name = ' '.join(sorted(name))
             products.append(prod_name)
-            
-            f.write('SUCCESS\t%.2f\t%s\t%s\n'%(energy,species.reac_name[index],prod_name))
+            s.append('SUCCESS\t{energy:.2f}\t{name}\t{prod}'.format(energy=energy,
+                                                                       name=species.reac_name[index],
+                                                                       prod=prod_name))
         else:
-            f.write('FAILED\t\t%s\n'%species.reac_name[index])
+            s.append('FAILED\t\t{name}'.format(name=species.reac_name[index]))
     if not species.homolytic_scissions is None:
         for index,hs in enumerate(species.homolytic_scissions.hss):
-            prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
-            if not prod_name in products:
-                energy = 0
-                for prod in hs.products:
-                    energy += prod.energy
-                energy = (energy - species.energy) * constants.AUtoKCAL
-                f.write('HOMOLYTIC_SCISSION\t%.2f\tNO_TS\t%s\n'%(energy,prod_name))
-            
-            
+            if hs.status == -1:
+                prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
+                if not prod_name in products:
+                    energy = 0
+                    for prod in hs.products:
+                        energy += prod.energy
+                    energy = (energy - species.energy) * constants.AUtoKCAL
+                    s.append('HOMOLYTIC_SCISSION\t{energy:.2f}\t{prod}'.format(energy=energy, prod=prod_name))
+
+    # make a string out of all the lines
+    s = '\n'.join(s)
+    # write the string to a file
+    fname = 'summary_{chemid}.out'.format(chemid=species.chemid)
+    with open(fname,'w') as f:
+        f.write(s)
+
 
 def createPESViewerInput(species,qc,par):
-    fname = 'pesviewer.inp'
+    """
+    Write an input file for the PESViewer code
+    """
+    # make the directory for the well and bimolecular xyz files
     dir_xyz = 'xyz/'
     if not os.path.exists(dir_xyz):
         os.mkdir(dir_xyz)
-    f = open(fname,'w+')
-    f.write("> <comments>")
-    f.write(license_message.message)
-    
-    f.write("""This comment is not interpreted, so store any extra info here.
-Keywords are case insensitive. Look at the help below.
-IMPORTANT: avoid the use of '2d' and '3d' in the names of species, transition states and reactions
-(these strings are employed when generating the 2d and 3d files of the molecules)
-If you want to use 3D coordinates, store them in a xyz/ directory in the same directory as the python script""")
-    f.write('\n\n')
-    
-    f.write('> <id> %s\n\n'%species.chemid)
-    f.write("""> <options> 
-units              kcal/mol  #energy units
-use_xyz            1         # use xyz, put 0  to switch off
-rescale            0         # no rescale , put the well or bimolecular name here to rescale to that value
-fh                 9.        # figure height
-fw                 18.       # figure width
-margin             0.2       # margin fraction on the x and y axis
-dpi                120       # dpi of the molecule figures
-save               0         # does the plot need to be saved (1) or displayed (0)
-write_ts_values    1         # booleans tell if the ts energy values should be written
-write_well_values  1         # booleans tell if the well and bimolecular energy values should be written
-bimol_color        red       # color of the energy values for the bimolecular products
-well_color         blue      # color of the energy values of the wells
-ts_color           green     # color or the energy values of the ts, put to 'none' to use same color as line
-show_images        1         # boolean tells whether the molecule images should be shown on the graph
-rdkit4depict       1         # boolean that specifies which code was used for the 2D depiction""")
-    f.write('\n\n')
-    
-    f.write('> <wells> \n')
+
+    # list of the lines for the pesviewer input file
+    wells = []
+    # list of the names of the wells
+    well_names = [str(species.chemid)]
+    # make an xyz file for the initial well
     make_xyz(species.atom,species.geom,str(species.chemid),dir_xyz)
-    f.write('%s 0.0\n'%(species.chemid)) #use the well as point zero for the energy
+    # add the initial well to the wells list
+    # use this well as point zero for the energy
+    wells.append('{} 0.0'.format(species.chemid)) 
     well_energy = species.energy + species.zpe
-    wells = [str(species.chemid)]
+
+    # iterate the reactions and search for single products
+    # i.e. other wells on the pes
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             if len(species.reac_obj[index].products) == 1:
                 st_pt = species.reac_obj[index].products[0]
                 name = str(st_pt.chemid)
-                if not name in wells:
+                if not name in well_names:
                     make_xyz(species.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
                     energy = (st_pt.energy + st_pt.zpe - well_energy) * constants.AUtoKCAL
-                    f.write('%s %.2f\n'%(st_pt.chemid,energy))
-                    wells.append(name)
-    
-    f.write('\n')
-    
-    f.write('> <bimolec> \n')
+                    wells.append('{name} {energy:.2f}'.format(name=st_pt.chemid, energy=energy))
+                    well_names.append(name)
+
+    # list of the lines for the pesviewer input file
     bimolecs = []
+    # list of the names of the bimolecular products
+    bimolec_names = []
+    # add the bimolecular products from the regular reactions
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             if len(species.reac_obj[index].products) > 1:
@@ -144,26 +143,34 @@ rdkit4depict       1         # boolean that specifies which code was used for th
                     make_xyz(st_pt.atom,st_pt.geom,name + str(i+1),dir_xyz) #this is for the pes viewer
                     make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz) #this is for the rmg postprocessing
                 energy = energy * constants.AUtoKCAL
-                if not name in bimolecs:
-                    f.write('%s %.2f\n'%(name,energy))
-                    bimolecs.append(name)
+                if not name in bimolec_names:
+                    bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
+                    bimolec_names.append(name)
+    # add the bimolecular products form the homolytic scissions
     if not species.homolytic_scissions is None:
         for index,hs in enumerate(species.homolytic_scissions.hss):
-            name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-            if not name in bimolecs:
-                energy = 0. - well_energy
-                for st_pt in hs.products:
-                    energy += st_pt.energy + st_pt.zpe
-                energy = energy * constants.AUtoKCAL
-                for i,st_pt in enumerate(hs.products):
-                    # make twice the same file but with adifferent name ( TODO: is there no better way?)
-                    make_xyz(st_pt.atom,st_pt.geom,name + str(i+1),dir_xyz) #this is for the pes viewer
-                    make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz) #this is for the rmg postprocessing
-                f.write('%s %.2f\n'%(name,energy))
+            if hs.status == -1:
+                name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
+                if not name in bimolec_names:
+                    energy = 0. - well_energy
+                    for st_pt in hs.products:
+                        energy += st_pt.energy + st_pt.zpe
+                    energy = energy * constants.AUtoKCAL
+                    for i,st_pt in enumerate(hs.products):
+                        # make twice the same file but with adifferent name
+                        # ( TODO: is there no better way?)
+                        # first for the pes viewer
+                        make_xyz(st_pt.atom,st_pt.geom,name + str(i+1),dir_xyz)
+                        # second for the rmg postprocessing
+                        make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
+                    bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
 
-    f.write('\n')
-    
-    f.write('> <ts> \n')
+    # list of the lines of the ts's
+    tss = []
+    # dict keeping track of the ts's
+    # key: ts name
+    # value: [energy,prod_names]
+    ts_list = {}
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             ts = species.reac_obj[index].ts
@@ -173,44 +180,47 @@ rdkit4depict       1         # boolean that specifies which code was used for th
                 energy = (ts.energy + ts.zpe - we_energy - we_zpe) * constants.AUtoKCAL
             else:
                 energy = (ts.energy + ts.zpe - well_energy) * constants.AUtoKCAL
-            prod_name = ''
             name = []
             for st_pt in species.reac_obj[index].products:
                 name.append(str(st_pt.chemid))
             prod_name = '_'.join(sorted(name))
-            f.write('%s %.2f %s %s\n'%(species.reac_name[index],energy,species.chemid,prod_name))
-    f.write('\n')
-    
-    f.write('> <barrierless> \n')
-    if not species.homolytic_scissions is None:
+            add = 1
+            for t in ts_list:
+                if ts_list[t][1] == prod_name and np.abs(ts_list[t][0] - energy) < 1.0:
+                    add = 0
+            if add:
+                ts_list[species.reac_name[index]] = [energy, prod_name]
+                tss.append('{ts} {energy:.2f} {react} {prod}'.format(ts=species.reac_name[index],
+                                                                     energy=energy,
+                                                                     react=species.chemid,
+                                                                     prod=prod_name))
+
+    # list of the lines of the homolytic scissions
+    barrierless = []
+    if species.homolytic_scissions is not None:
         for index,hs in enumerate(species.homolytic_scissions.hss):
-            prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-            if not prod_name in bimolecs:
-                f.write('%s %s %s\n'%('b_' + str(index),species.chemid,prod_name))
-    f.write('\n')
-    
-    f.write("""> <help>
-File follows the rules of SD file format for keywords. Keywords are case
-insensitive when parsed.
-Keywords:
-units: units of the energies supplied above
+            if hs.status == -1:
+                prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
+                if not prod_name in bimolec_names:
+                    barrierless.append('{name} {react} {prod}'.format(name='b_' + str(index),
+                                                                      react=species.chemid,
+                                                                      prod=prod_name))
 
-usexyz: use the xyz coordinates of all the species and render a 2D/3D depiction
+    # make strings from the different lists
+    wells = '\n'.join(wells)
+    bimolecs = '\n'.join(bimolecs)
+    tss = '\n'.join(tss)
+    barrierless = '\n'.join(barrierless)
 
-rescale: energies are rescaled relative to the energy of the species given here 
+    # write everything to a file
+    fname = 'pesviewer.inp'
+    template_file_path = pkg_resources.resource_filename('tpl', fname + '.tpl')
+    with open(template_file_path) as template_file:
+        template = template_file.read()
+    template = template.format(wells=wells,bimolecs=bimolecs,ts=tss,barrierless=barrierless)
+    with open(fname,'w') as f:
+        f.write(template)
 
-wells: all the wells of the PES, separated by lines
-each line contains the name, the energy, and optionally the smiles
-
-bimolec: all the bimolecular products of the PES, separated by lines
-each line contains the name, the energy, and optionally the smiles of both bimolecular products
-
-ts: all the transition states of the PES, separated by lines
-each line contains the name, the energy, and the names of the reactant and product
-
-barrierless: all the barrierless reactions of the PES, separated by lines
-each line contains the name and the names of the reactant and product""")
-    f.close()
 
 def make_xyz(atoms,geom,name,dir):
     f = open(dir + name + '.xyz', 'w+')

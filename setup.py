@@ -77,6 +77,7 @@ setup(
         'pbs_mesmer.tpl',
         'pbs_mess.tpl',
         'pbs_python.tpl',
+        'pesviewer.inp.tpl',
         'slurm_python.tpl']},
     include_package_data=True,
     entry_points={'console_scripts':[

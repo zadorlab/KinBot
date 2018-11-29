@@ -22,6 +22,7 @@ import numpy as np
 import sys
 import copy
 
+import constants
 from optimize import Optimize
 from stationary_pt import StationaryPoint
 
@@ -113,6 +114,7 @@ class HomolyticScissions:
                             err = -1
                         else:
                             e2, prod.energy = hs.qc.get_qc_energy(str(prod.chemid) + '_well', prod.natom)
+                            e2, prod.zpe = hs.qc.get_qc_zpe(str(prod.chemid) + '_well', prod.natom)
                     if err == 0:
                         hs.status = 2
                 if hs.status == 2:
@@ -135,6 +137,15 @@ class HomolyticScissions:
                     if fails:
                         hs.status = -999
                     elif opts_done:
-                        hs.status = -1
+                        #check if the energy is higher than the barrier threshold
+                        species_energy = self.species.energy
+                        prod_energy = 0.
+                        for pr_opt in hs.prod_opt:
+                            prod_energy += pr_opt.species.energy
+                        barrier = (prod_energy - species_energy)*constants.AUtoKCAL
+                        if barrier > self.par.par['barrier_threshold']:
+                            hs.status = -999
+                        else:
+                            hs.status = -1
             if all([hs.status < 0 for hs in self.hss]):
                 break

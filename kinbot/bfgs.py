@@ -123,6 +123,8 @@ class BFGS:
             Hinv = Hinvk
 
             it += 1
+        # return final x values, list of geometric steps
+        # and list of gradients
         return xk, x_i, g_i
 
     def line_search(self, f, x, p):

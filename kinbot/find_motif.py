@@ -118,17 +118,6 @@ def find_motif(motif, visit, chain, nsteps, current,
     return 0
 
 
-def ringfilter(motif, bond, pivot1, pivot2):
-    """
-    For a given linear sequence of atoms it tests whether they for a ring,
-    i.e., whether atoms pivot1 and pivot 2 are connected.
-    """
-    if bond[motif[pivot1]][motif[pivot2]] > 0:
-        return 1
-    else:
-        return 0
-
-
 def bondfilter(motif, bond, bondpattern):
     """
     For a given linear sequence of atoms it tests whether

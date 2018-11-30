@@ -19,7 +19,7 @@
 ###################################################
 import os
 import numpy as np
-
+import pkg_resources
 from PIL import Image
 
 # try to import pybel
@@ -64,7 +64,8 @@ def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
     obmol = pybel.readstring("smi", prod_smiles)
     obmol.draw(show=False, filename=prod_png)
 
-    images = map(Image.open, [react_png, 'arrow.png', prod_png])
+    arrow = pkg_resources.resource_filename('tpl', 'arrow.png')
+    images = map(Image.open, [react_png, arrow, prod_png])
     widths, heights = zip(*(i.size for i in images))
 
     total_width = sum(widths)
@@ -107,7 +108,7 @@ def generate_3d_structure(smi, obabel=1):
         AllChem.EmbedMolecule(rdmol, AllChem.ETKDG())
         AllChem.MMFFOptimizeMolecule(rdmol)
         atoms = rdmol.GetAtoms()
-        bond = np.zeros((len(atoms), len(rdmol.GetAtoms(atoms))), dtype=int)
+        bond = np.zeros((len(atoms), len(atoms)), dtype=int)
         for i in range(len(rdmol.GetAtoms())):
             for j in range(len(rdmol.GetAtoms())):
                 if not rdmol.GetBondBetweenAtoms(i, j) is None:

@@ -217,14 +217,6 @@ def convert_to_wavenumbers(val):
     return fr
 
 
-def write_geometry(g, natom, atom):
-    s = str(natom) + '\n\n'
-    for i, at in enumerate(atom):
-        x, y, z = g[i]
-        s += '{}\t{:.8f}\t{:.8f}\t{:.8f}\n'.format(at, x, y, z)
-    return s
-
-
 def partition(species, rotor, natom):
     l1 = [rotor[1]]
     forbidden = [rotor[2]]

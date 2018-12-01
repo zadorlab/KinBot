@@ -133,16 +133,16 @@ def new_ring_dihedrals(species, instance, step_nr,
         frac = 1. / (total_nr_of_steps - step_nr + 0.)
     if len(instance) > 3:
         if len(instance) < 6:
-            final_dihedral = 15.
+            fin_dih = 15.
         else:
-            final_dihedral = 1.
+            fin_dih = 1.
         dihedrals = []
         for i in range(len(instance)-3):
             dihedrals.append(calc_dihedral(geom[instance[i]],
                                            geom[instance[i+1]],
                                            geom[instance[i+2]],
                                            geom[instance[i+3]])[0])
-        new_dihedrals = [dij + frac * (final_dihedral - dij) for dij in dihedrals]
+        new_dihedrals = [dij + frac * (fin_dih - dij) for dij in dihedrals]
         return new_dihedrals
 
 

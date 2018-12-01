@@ -17,27 +17,22 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-import sys
 import os
-import numpy as np
-import re
 import subprocess
 import time
-import copy
 import pkg_resources
 
 import constants
 import frequencies
-import cheminfo
+
 
 class MESS:
     """
     Class that reads and write all MESS files and runs MESS
     """
-    def __init__(self,par,species):
+    def __init__(self, par, species):
         self.par = par
         self.species = species
-        
         self.well_names = {}
         self.bimolec_names = {}
         self.fragment_names = {}
@@ -47,47 +42,46 @@ class MESS:
         """
         Create the header block for MESS
         """
-        #Read the header template
+        # Read the header template
         header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
         with open(header_file) as f:
             tpl = f.read()
-        
-        header = tpl.format(TemperatureList = ' '.join([str(ti) for ti in self.par.par['TemperatureList']]),
-                            PressureList = ' '.join([str(pi) for pi in self.par.par['PressureList']]),
-                            EnergyStepOverTemperature = self.par.par['EnergyStepOverTemperature'],
-                            ExcessEnergyOverTemperature = self.par.par['ExcessEnergyOverTemperature'],
-                            ModelEnergyLimit = self.par.par['ModelEnergyLimit'],
-                            CalculationMethod = self.par.par['CalculationMethod'],
-                            ChemicalEigenvalueMax = self.par.par['ChemicalEigenvalueMax'],
-                            Reactant = self.well_names[self.species.chemid],
-                            EnergyRelaxationFactor = self.par.par['EnergyRelaxationFactor'],
-                            EnergyRelaxationPower = self.par.par['EnergyRelaxationPower'],
-                            EnergyRelaxationExponentCutoff = self.par.par['EnergyRelaxationExponentCutoff'],
-                            Epsilons = ' '.join([str(ei) for ei in self.par.par['Epsilons']]),
-                            Sigmas = ' '.join([str(si) for si in self.par.par['Sigmas']]),
-                            Masses = ' '.join([str(mi) for mi in self.par.par['Masses']]))
+        header = tpl.format(TemperatureList=' '.join([str(ti) for ti in self.par.par['TemperatureList']]),
+                            PressureList=' '.join([str(pi) for pi in self.par.par['PressureList']]),
+                            EnergyStepOverTemperature=self.par.par['EnergyStepOverTemperature'],
+                            ExcessEnergyOverTemperature=self.par.par['ExcessEnergyOverTemperature'],
+                            ModelEnergyLimit=self.par.par['ModelEnergyLimit'],
+                            CalculationMethod=self.par.par['CalculationMethod'],
+                            ChemicalEigenvalueMax=self.par.par['ChemicalEigenvalueMax'],
+                            Reactant=self.well_names[self.species.chemid],
+                            EnergyRelaxationFactor=self.par.par['EnergyRelaxationFactor'],
+                            EnergyRelaxationPower=self.par.par['EnergyRelaxationPower'],
+                            EnergyRelaxationExponentCutoff=self.par.par['EnergyRelaxationExponentCutoff'],
+                            Epsilons=' '.join([str(ei) for ei in self.par.par['Epsilons']]),
+                            Sigmas=' '.join([str(si) for si in self.par.par['Sigmas']]),
+                            Masses=' '.join([str(mi) for mi in self.par.par['Masses']]))
         return header
-    
+
     def create_short_names(self):
         """
         Create a short name for all the wells, all the bimolecular products and all the transition states
         """
-        #add the initial well to the well names:
+        # add the initial well to the well names:
         self.well_names[self.species.chemid] = 'w_1'
-        
-        for index,reaction in enumerate(self.species.reac_obj):
+
+        for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
                 self.ts_names[reaction.instance_name] = 'ts_' + str(len(self.ts_names)+1)
                 if len(reaction.products) == 1:
                     st_pt = reaction.products[0]
-                    if not st_pt.chemid in self.well_names:
+                    if st_pt.chemid not in self.well_names:
                         self.well_names[st_pt.chemid] = 'w_' + str(len(self.well_names)+1)
                 else:
                     for st_pt in reaction.products:
-                        if not st_pt.chemid in self.fragment_names:
+                        if st_pt.chemid not in self.fragment_names:
                             self.fragment_names[st_pt.chemid] = 'fr_' + str(len(self.fragment_names)+1)
                     bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                    if not bimol_name in self.bimolec_names:
+                    if bimol_name not in self.bimolec_names:
                         self.bimolec_names[bimol_name] = 'b_' + str(len(self.bimolec_names)+1)
 
     def write_input(self):
@@ -95,12 +89,12 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
-        #create short names for all the species, bimolecular products and barriers
+        # create short names for all the species, bimolecular products and barriers
         self.create_short_names()
         header = self.write_header()
 
-        #filter ts's with the same reactants and products:
-        ts_unique = {} #key: ts name, value: [prod_name,energy]
+        # filter ts's with the same reactants and products:
+        ts_unique = {}  # key: ts name, value: [prod_name, energy]
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
                 prod_name = '_'.join([str(pi.chemid) for pi in reaction.products])
@@ -109,23 +103,23 @@ class MESS:
                 remove = []
                 for ts in ts_unique:
                     if ts_unique[ts][0] == prod_name:
-                        #check for the barrier with the lowest energy
+                        # check for the barrier with the lowest energy
                         if ts_unique[ts][1] > energy:
-                            #remove the current barrier
+                            # remove the current barrier
                             remove.append(ts)
                         else:
                             new = 0
                 for ts in remove:
-                    ts_unique.pop(ts,None)
+                    ts_unique.pop(ts, None)
                 if new:
-                    ts_unique[reaction.instance_name] = [prod_name,energy]
+                    ts_unique[reaction.instance_name] = [prod_name, energy]
 
-        #write the mess input for the different blocks
+        # write the mess input for the different blocks
         well_blocks = {}
         ts_blocks = {}
         bimolec_blocks = {}
         well_blocks[self.species.chemid] = self.write_well(self.species)
-        for index,reaction in enumerate(self.species.reac_obj):
+        for index, reaction in enumerate(self.species.reac_obj):
             if reaction.instance_name in ts_unique:
                 ts_blocks[reaction.instance_name] = self.write_barrier(reaction)
                 if len(reaction.products) == 1:
@@ -134,8 +128,8 @@ class MESS:
                 else:
                     bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                     bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt])
-        
-        #write the mess input file
+
+        # write the mess input file
         wells = ''
         for well in well_blocks:
             wells += well_blocks[well] + '\n!****************************************\n'
@@ -149,9 +143,9 @@ class MESS:
         dummy_template = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
         with open(dummy_template) as f:
             dummy = f.read()
-        dum = dummy.format(barrier = 'tsd', reactant = self.well_names[self.species.chemid], dummy = 'd1')
+        dum = dummy.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
-        f_out = open('me/mess.inp','w')
+        f_out = open('me/mess.inp', 'w')
         f_out.write(header + '\n!****************************************\n')
         f_out.write(wells)
         f_out.write(bimols)
@@ -162,13 +156,12 @@ class MESS:
 
         return 0
 
-    def write_bimol(self,species_list):
-        """ 
+    def write_bimol(self, species_list):
+        """
         Create the block for MESS for a bimolecular product.
         well0: reactant on this PES (zero-energy reference)
-        """ 
-        
-        #open the templates
+        """
+        # open the templates
         bimol_file = pkg_resources.resource_filename('tpl', 'mess_bimol.tpl')
         with open(bimol_file) as f:
             tpl = f.read()
@@ -181,262 +174,244 @@ class MESS:
         atom_file = pkg_resources.resource_filename('tpl', 'mess_atom.tpl')
         with open(atom_file) as f:
             atom_tpl = f.read()
-        
+
         fragments = ''
         for species in species_list:
             if species.natom > 1:
                 rotors = []
                 if self.par.par['rotor_scan']:
-                    for i,rot in enumerate(species.dihed):
-                        group = ' '.join([str(pi+1) for pi in frequencies.partition(species,rot,species.natom)[0][1:]])
-                        axis = '{} {}'.format(str(rot[1]+1),str(rot[2]+1))
+                    for i, rot in enumerate(species.dihed):
+                        group = ' '.join([str(pi+1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]])
+                        axis = '{} {}'.format(str(rot[1]+1), str(rot[2]+1))
                         rotorsymm = species.sigma_int[rot[1]][rot[2]]
                         nrotorpot = species.hir.nrotation / rotorsymm
                         ens = species.hir.hir_energies[i]
                         rotorpot = [(ei - ens[0])*constants.AUtoKCAL for ei in ens]
                         rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation / rotorsymm]])
-                        rotors.append(rotor_tpl.format( group = group,
-                                                        axis = axis,
-                                                        rotorsymm = rotorsymm,
-                                                        nrotorpot = nrotorpot,
-                                                        rotorpot = rotorpot
-                                                        ))
+                        rotors.append(rotor_tpl.format(group=group,
+                                                       axis=axis,
+                                                       rotorsymm=rotorsymm,
+                                                       nrotorpot=nrotorpot,
+                                                       rotorpot=rotorpot))
                 rotors = '\n'.join(rotors)
-                
                 freq = ''
-                for i,fr in enumerate(species.reduced_freqs):
+                for i, fr in enumerate(species.reduced_freqs):
                     if i == 0:
                         freq += '{:.4f}'.format(fr)
-                    elif i > 0 and i%3 == 0:
+                    elif i > 0 and i % 3 == 0:
                         freq += '\n            {:.4f}'.format(fr)
                     else:
                         freq += '    {:.4f}'.format(fr)
-                    
                 geom = ''
-                for i,at in enumerate(species.atom):
+                for i, at in enumerate(species.atom):
                     if i > 0:
                         geom += '            '
-                    x,y,z = species.geom[i]
-                    geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at,x,y,z)
-                
-                energy = (  ( species.energy + species.zpe )- ( self.species.energy + self.species.zpe) ) * constants.AUtoKCAL
-                
-                fragments += fragment_tpl.format(   chemid = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid),
-                                                    natom = species.natom,
-                                                    geom = geom,
-                                                    symm = float(species.sigma_ext) / float(species.nopt),
-                                                    nfreq = len(species.reduced_freqs),
-                                                    freq = freq,
-                                                    hinderedrotor = rotors,
-                                                    nelec = 1,
-                                                    charge = species.charge,
-                                                    mult = species.mult,
-                                                    )
+                    x, y, z = species.geom[i]
+                    geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+
+                energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+
+                fragments += fragment_tpl.format(chemid=self.fragment_names[species.chemid] + ' ! ' + str(species.chemid),
+                                                 natom=species.natom,
+                                                 geom=geom,
+                                                 symm=float(species.sigma_ext) / float(species.nopt),
+                                                 nfreq=len(species.reduced_freqs),
+                                                 freq=freq,
+                                                 hinderedrotor=rotors,
+                                                 nelec=1,
+                                                 charge=species.charge,
+                                                 mult=species.mult)
                 fragments += '\n'
             else:
                 # atom template
-                fragments += atom_tpl.format(   chemid = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid),
-                                                element = species.atom[0],
-                                                nelec = 1,
-                                                charge = species.charge,
-                                                mult = species.mult
-                                                )
+                fragments += atom_tpl.format(chemid=self.fragment_names[species.chemid] + ' ! ' + str(species.chemid),
+                                             element=species.atom[0],
+                                             nelec=1,
+                                             charge=species.charge,
+                                             mult=species.mult)
                 fragments += '\n'
-        
+
         if self.par.par['pes']:
             energy = '{ground_energy}'
         else:
-            energy = ( sum([sp.energy for sp in species_list]) + sum([sp.zpe for sp in species_list]) -
-                     ( self.species.energy + self.species.zpe ) ) * constants.AUtoKCAL
+            energy = (sum([sp.energy for sp in species_list]) + sum([sp.zpe for sp in species_list]) -
+                      (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
         name = '_'.join(sorted([str(species.chemid) for species in species_list]))
-        bimol = tpl.format( chemids = self.bimolec_names[name] + ' ! ' + name,
-                            fragments = fragments,
-                            ground_energy = energy
-                            )
+        bimol = tpl.format(chemids=self.bimolec_names[name] + ' ! ' + name,
+                           fragments=fragments,
+                           ground_energy=energy)
 
         f = open(name + '.mess', 'w')
         f.write(bimol)
         f.close()
-        
+
         return bimol
 
-
-    def write_well(self,species):
-        """ 
+    def write_well(self, species):
+        """
         Create the block for MESS for a well.
-        
         well0: reactant on this PES (zero-energy reference)
-        
-        """ 
-        #open the templates
+        """
+        # open the templates
         well_file = pkg_resources.resource_filename('tpl', 'mess_well.tpl')
         with open(well_file) as f:
-            tpl = f.read()   
+            tpl = f.read()
         hir_file = pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')
         with open(hir_file) as f:
-            rotor_tpl = f.read()   
-        
+            rotor_tpl = f.read()
+
         rotors = []
         if self.par.par['rotor_scan']:
-            for i,rot in enumerate(species.dihed):
-                group = ' '.join([str(pi+1) for pi in frequencies.partition(species,rot,species.natom)[0][1:]])
-                axis = '{} {}'.format(str(rot[1]+1),str(rot[2]+1))
+            for i, rot in enumerate(species.dihed):
+                group = ' '.join([str(pi+1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]])
+                axis = '{} {}'.format(str(rot[1]+1), str(rot[2]+1))
                 rotorsymm = species.sigma_int[rot[1]][rot[2]]
                 nrotorpot = species.hir.nrotation / rotorsymm
                 ens = species.hir.hir_energies[i]
                 rotorpot = [(ei - ens[0])*constants.AUtoKCAL for ei in ens]
                 rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation / rotorsymm]])
-                rotors.append(rotor_tpl.format( group = group,
-                                                axis = axis,
-                                                rotorsymm = rotorsymm,
-                                                nrotorpot = nrotorpot,
-                                                rotorpot = rotorpot
-                                                ))
+                rotors.append(rotor_tpl.format(group=group,
+                                               axis=axis,
+                                               rotorsymm=rotorsymm,
+                                               nrotorpot=nrotorpot,
+                                               rotorpot=rotorpot))
         rotors = '\n'.join(rotors)
-        
+
         freq = ''
-        for i,fr in enumerate(species.reduced_freqs):
+        for i, fr in enumerate(species.reduced_freqs):
             if i == 0:
                 freq += '{:.4f}'.format(fr)
-            elif i > 0 and i%3 == 0:
+            elif i > 0 and i % 3 == 0:
                 freq += '\n            {:.4f}'.format(fr)
             else:
                 freq += '    {:.4f}'.format(fr)
-            
+
         geom = ''
-        for i,at in enumerate(species.atom):
+        for i, at in enumerate(species.atom):
             if i > 0:
                 geom += '            '
-            x,y,z = species.geom[i]
-            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at,x,y,z)
-        
+            x, y, z = species.geom[i]
+            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+
         if self.par.par['pes']:
             energy = '{zeroenergy}'
         else:
-            energy = (  ( species.energy + species.zpe )- ( self.species.energy + self.species.zpe) ) * constants.AUtoKCAL
-        
-        mess_well = tpl.format( chemid = self.well_names[species.chemid] + ' ! ' + str(species.chemid),
-                                natom = species.natom,
-                                geom = geom,
-                                symm = float(species.sigma_ext) / float(species.nopt),
-                                nfreq = len(species.reduced_freqs),
-                                freq = freq,
-                                hinderedrotor = rotors,
-                                nelec = 1,
-                                charge = species.charge,
-                                mult = species.mult,
-                                zeroenergy = energy
-                                )
-        
+            energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+
+        mess_well = tpl.format(chemid=self.well_names[species.chemid] + ' ! ' + str(species.chemid),
+                               natom=species.natom,
+                               geom=geom,
+                               symm=float(species.sigma_ext) / float(species.nopt),
+                               nfreq=len(species.reduced_freqs),
+                               freq=freq,
+                               hinderedrotor=rotors,
+                               nelec=1,
+                               charge=species.charge,
+                               mult=species.mult,
+                               zeroenergy=energy)
+
         f = open(str(species.chemid) + '.mess', 'w')
         f.write(mess_well)
         f.close()
-        
+
         return mess_well
 
-
     def write_barrier(self, reaction):
-        """ 
+        """
         Create the block for a MESS barrier.
-        """ 
-        
-        #open the templates
+        """
+        # open the templates
         ts_file = pkg_resources.resource_filename('tpl', 'mess_ts.tpl')
         with open(ts_file) as f:
             tpl = f.read()
         hir_file = pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')
         with open(hir_file) as f:
-            rotor_tpl = f.read() 
+            rotor_tpl = f.read()
         tunn_file = pkg_resources.resource_filename('tpl', 'mess_tunneling.tpl')
         with open(tunn_file) as f:
-            tun_tpl = f.read()   
-        
+            tun_tpl = f.read()
+
         rotors = []
         if self.par.par['rotor_scan']:
-            for i,rot in enumerate(reaction.ts.dihed):
-                group = ' '.join([str(pi+1) for pi in frequencies.partition(reaction.ts,rot,reaction.ts.natom)[0][1:]])
-                axis = '{} {}'.format(str(rot[1]+1),str(rot[2]+1))
+            for i, rot in enumerate(reaction.ts.dihed):
+                group = ' '.join([str(pi+1) for pi in frequencies.partition(reaction.ts, rot, reaction.ts.natom)[0][1:]])
+                axis = '{} {}'.format(str(rot[1]+1), str(rot[2]+1))
                 rotorsymm = reaction.ts.sigma_int[rot[1]][rot[2]]
                 nrotorpot = reaction.ts.hir.nrotation / rotorsymm
                 ens = reaction.ts.hir.hir_energies[i]
                 rotorpot = [(ei - ens[0])*constants.AUtoKCAL for ei in ens]
                 rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:reaction.ts.hir.nrotation / rotorsymm]])
-                rotors.append(rotor_tpl.format( group = group,
-                                                axis = axis,
-                                                rotorsymm = rotorsymm,
-                                                nrotorpot = nrotorpot,
-                                                rotorpot = rotorpot
-                                                ))
+                rotors.append(rotor_tpl.format(group=group,
+                                               axis=axis,
+                                               rotorsymm=rotorsymm,
+                                               nrotorpot=nrotorpot,
+                                               rotorpot=rotorpot))
         rotors = '\n'.join(rotors)
-        
+
         freq = ''
-        for i,fr in enumerate(reaction.ts.reduced_freqs[1:]):
+        for i, fr in enumerate(reaction.ts.reduced_freqs[1:]):
             if i == 0:
                 freq += '{:.4f}'.format(fr)
-            elif i > 0 and i%3 == 0:
+            elif i > 0 and i % 3 == 0:
                 freq += '\n            {:.4f}'.format(fr)
             else:
                 freq += '    {:.4f}'.format(fr)
-            
+
         geom = ''
-        for i,at in enumerate(reaction.ts.atom):
+        for i, at in enumerate(reaction.ts.atom):
             if i > 0:
                 geom += '            '
-            x,y,z = reaction.ts.geom[i]
-            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at,x,y,z)
-            
-        
+            x, y, z = reaction.ts.geom[i]
+            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+
         barriers = [
             ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL,
-            ((reaction.ts.energy +reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt]))*constants.AUtoKCAL,
+            ((reaction.ts.energy + reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt])) * constants.AUtoKCAL,
         ]
         if any([bi < 0 for bi in barriers]):
             tun = ''
         else:
-            tun = tun_tpl.format(   cutoff = min(barriers),
-                                    imfreq = -reaction.ts.reduced_freqs[0],
-                                    welldepth1 = barriers[0],
-                                    welldepth2 = barriers[1])
-        
+            tun = tun_tpl.format(cutoff=min(barriers),
+                                 imfreq=-reaction.ts.reduced_freqs[0],
+                                 welldepth1=barriers[0],
+                                 welldepth2=barriers[1])
+
         if self.par.par['pes']:
             energy = '{zeroenergy}'
         else:
-            energy = (  ( reaction.ts.energy + reaction.ts.zpe )- ( self.species.energy + self.species.zpe) ) * constants.AUtoKCAL
-        
+            energy = ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+
         if len(reaction.products) == 1:
             prod_name = self.well_names[reaction.products[0].chemid]
         else:
             long_name = '_'.join(sorted([str(pi.chemid) for pi in reaction.products]))
             prod_name = self.bimolec_names[long_name]
-        
-        
-        mess_ts = tpl.format(   rxn_name = self.ts_names[reaction.instance_name],
-                                chemid_reac = self.well_names[self.species.chemid],
-                                chemid_prod = prod_name,
-                                long_rxn_name = reaction.instance_name,
-                                natom = reaction.ts.natom,
-                                geom = geom,
-                                symm = float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
-                                nfreq = len(reaction.ts.reduced_freqs) - 1,
-                                freq = freq,
-                                hinderedrotor = rotors,
-                                tunneling = tun,
-                                
-                                nelec = 1,
-                                charge = reaction.ts.charge,
-                                mult = reaction.ts.mult,
-                                zeroenergy = energy
-                                )
-        
+
+        mess_ts = tpl.format(rxn_name=self.ts_names[reaction.instance_name],
+                             chemid_reac=self.well_names[self.species.chemid],
+                             chemid_prod=prod_name,
+                             long_rxn_name=reaction.instance_name,
+                             natom=reaction.ts.natom,
+                             geom=geom,
+                             symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
+                             nfreq=len(reaction.ts.reduced_freqs) - 1,
+                             freq=freq,
+                             hinderedrotor=rotors,
+                             tunneling=tun,
+                             nelec=1,
+                             charge=reaction.ts.charge,
+                             mult=reaction.ts.mult,
+                             zeroenergy=energy)
+
         f = open(reaction.instance_name + '.mess', 'w')
         f.write(mess_ts)
         f.close()
-        
+
         return mess_ts
 
-    def write_high_p_rates(all_rates,well_short_names, bimol_short_names):
-        f_out = open('rates.out','w')
+    def write_high_p_rates(all_rates, well_short_names, bimol_short_names):
+        f_out = open('rates.out', 'w')
         if len(all_rates) > 0:
             f_out.write('temperatures\t\t')
             f_out.write('\t'.join([str(ti) for ti in all_rates[0].temperatures]))
@@ -444,7 +419,6 @@ class MESS:
 
             for rates in all_rates:
                 true_rxn = 1
-                
                 if rates.reactant in well_short_names.values():
                     for name in well_short_names:
                         if well_short_names[name] == rates.reactant:
@@ -455,7 +429,6 @@ class MESS:
                             reac_name = name
                 else:
                     true_rxn = 0
-                
                 if rates.product in well_short_names.values():
                     for name in well_short_names:
                         if well_short_names[name] == rates.product:
@@ -474,87 +447,33 @@ class MESS:
                     s += '\n'
                     f_out.write(s)
 
-        
         f_out.close()
 
-    def read(self):
-        lines = open('mess/all.out','r').read().split('\n')
-        index = 0
-        all_rates = []
-        while index < len(lines):
-            line = lines[index]
-            if line.startswith('Temperature-Pressure Rate Tables'):
-                #start reading this section
-                while index < len(lines):
-                    line = lines[index]
-                    if '->' in line:
-                        if len(line.split('->')) > 1:
-                            reactant = line.split('->')[0]
-                            product = line.split('->')[1]
-                            rates = Rates(reactant,product)
-                            rates.temperatures = [float(ti) for ti in lines[index+2].split()[1:]]
-                            #read_temperatures()
-                            rates.pressures = []
-                            #rates.temperatures = par.TemperatureList
-                            #rates.pressures = copy.deepcopy(par.PressureList)
-                            #rates.temperatures = [300+100*j for j in range(18)]
-                            #rates.pressures = [76, 760, 7600]
-                            #rates.pressures.append(float('inf'))
-                            index += 3 #go to the start of the rates
-                            while len(lines[index]) > 0:
-                                line = lines[index]
-                                if line.split()[0] == 'O-O':
-                                    rates.pressures.append(float('inf'))
-                                else:
-                                    rates.pressures.append(float(line.split()[0]))
-                                
-                                r = []
-                                for j in range(len(rates.temperatures)):
-                                    rj = line[7+13*j:7+13*(j+1)]
-                                    if '***' in rj:
-                                        r.append(0.)
-                                    else:
-                                        r.append(float(rj))
-                                rates.rates.append(r)
-                                
-                                #r = line.split()[1:]
-                                #for j in range(len(r)):
-                                #    if r[j] == '***': r[j] = 0.
-                                #rates.rates.append([float(ri) for ri in r])
-                                index += 1
-                            #i -= 1
-                            all_rates.append(rates)
-                    index += 1
-            index += 1
-        return all_rates
-
-        
     def run(self):
         """
         write a pbs file for the me/all.inp mess input file
         submit the pbs file to the queue
         wait for the mess run to finish
         """
-        #open the template
+        # open the template
         pbs_file = pkg_resources.resource_filename('tpl', 'pbs_mess.tpl')
         with open(pbs_file) as f:
             tpl = f.read()
-        pbs = open('run_mess.pbs','w')
-        pbs.write(tpl.format(name = 'mess', ppn = self.par.par['ppn'], queue_name = self.par.par['queue_name'], dir = 'me'))
+        pbs = open('run_mess.pbs', 'w')
+        pbs.write(tpl.format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
         pbs.close()
-        
-        command = ['qsub','run_mess.pbs']
-        process = subprocess.Popen(command,shell=False,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        out,err = process.communicate()
+
+        command = ['qsub', 'run_mess.pbs']
+        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = process.communicate()
         out = out.decode()
         pid = out.split('\n')[0].split('.')[0]
-        
+
         while 1:
             devnull = open(os.devnull, 'w')
             command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
-            if int(subprocess.call(command, shell = True, stdout=devnull, stderr=devnull)) == 0: 
+            if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
                 time.sleep(1)
             else:
                 break
-        
         return 0

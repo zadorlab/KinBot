@@ -57,7 +57,7 @@ class Molpro:
             outf.write(file.format(name=fname,
                                    natom=self.species.natom,
                                    geom=geom,
-                                   electron=nelectron,
+                                   nelectron=nelectron,
                                    spin=self.species.mult - 1,
                                    charge=self.species.charge
                                    ))

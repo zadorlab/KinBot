@@ -32,6 +32,7 @@ from reac_12_shift_S_F import S12ShiftF
 from reac_12_shift_S_R import S12ShiftR
 from reac_cpd_H_migration import CpdHMigration
 from reac_intra_H_migration import IntraHMigration
+from reac_intra_H_migration_suprafacial import IntraHMigrationSuprafacial
 from reac_intra_OH_migration import IntraOHMigration
 from reac_Intra_R_Add_Endocyclic_F import IntraRAddEndocyclicF
 from reac_Intra_R_Add_Exocyclic_F import IntraRAddExocyclicF
@@ -92,6 +93,9 @@ class ReactionFinder:
             
             if 'intra_H_migration' in self.families or 'all' in self.families:
                 self.search_intra_H_migration(natom,atom,bond,rad)
+                
+            if 'intra_H_migration_suprafacial' in self.families or 'all' in self.families:
+                self.search_intra_H_migration_suprafacial(natom,atom,bond,rad)
                 
             if 'intra_R_migration' in self.families or 'all' in self.families:
                 self.search_intra_R_migration(natom,atom,bond,rad)
@@ -283,7 +287,41 @@ class ReactionFinder:
                 self.reactions[name].append(inst)
         
         return 0
+
+    def search_intra_H_migration_suprafacial(self, natom, atom, bond, rad):
+        """ 
+        This is a special case of H migration reactions over a double bond 
+        (keto-enol type) that proceeds through a suprafacial instead of the
+        common antrafacial TS
+        """
         
+        name = 'intra_H_migration_suprafacial'
+        
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = [] #reactions found with the current resonance isomer
+        
+        # search for keto-enol type reactions
+        motif = ['X', 'X', 'X', 'H']
+        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        
+        # filter for the double bond
+        for instance in instances:
+            if bond[instance[0]][instance[1]] == 2:
+                rxns += [instance]
+
+        #filter for the same reactions
+        for inst in rxns:
+            new = 1
+            for instance in self.reactions[name]:
+                if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            if new:
+                self.reactions[name].append(inst)
+        
+        return 0
+
     
     def search_intra_R_migration(self, natom, atom, bond, rad):
         """ 
@@ -1781,6 +1819,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraHMigration(self.species,self.qc,self.par,reac_list[i],name))
+            elif reac_id == 'intra_H_migration_suprafacial':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(IntraHMigrationSuprafacial(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'intra_R_migration':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)

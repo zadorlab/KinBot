@@ -24,7 +24,7 @@ import time
 import reac_family
 import geometry
 
-class IntraHMigration:
+class IntraHMigrationSuprafacial:
     
     def __init__(self,species,qc,par,instance,instance_name):
         #st_pt of the reactant
@@ -106,6 +106,10 @@ class IntraHMigration:
                     constraint.append(180. * (len(self.instance)-2.) / len(self.instance))
                     change.append(constraint)
             else:
+                #val = 60.0
+                #constraint = [self.instance[-2] + 1,self.instance[-1] + 1,self.instance[0] + 1,val]
+                #change.append(constraint)
+                
                 fval = 1.35
                 if self.species.atom[self.instance[0]] == 'O': fval = 1.2
                 constraint = [self.instance[0] + 1,self.instance[-1] + 1,fval]
@@ -132,7 +136,16 @@ class IntraHMigration:
             if self.species.atom[self.instance[0]] == 'O': fval = 1.2
             constraint = [self.instance[0] + 1,self.instance[-1] + 1,fval]
             change.append(constraint)
-
+            
+            #if len(self.instance) > 3 and np.sum(species.rad) == 0:
+            #    fval = 1.35
+            #    constraint = [self.instance[1] + 1,self.instance[-1] + 1,fval]
+            #    change.append(constraint)
+            
+            fval = 1.0
+            constraint = [self.instance[1] + 1,self.instance[-1] + 1,fval]
+            change.append(constraint)
+            
             fval = 1.35
             if self.species.atom[self.instance[-2]] == 'O': fval = 1.2
             constraint = [self.instance[-2] + 1,self.instance[-1] + 1,fval]

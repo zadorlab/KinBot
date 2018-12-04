@@ -274,11 +274,9 @@ def create_pesviewer_input(par, well0, wells, products, reactions, parent, zero_
         mp2 = 0
         if 'R_Addition_MultipleBond' in rxn[1] and not par.par['high_level']:
             mp2 = 1
-        well_energy = get_energy(rxn[0], rxn[0], 0, par.par['high_level'], mp2)
-        well_zpe = get_zpe(rxn[0], rxn[0], 0, par.par['high_level'], mp2)
         ts_energy = get_energy(rxn[0], rxn[1], 1, par.par['high_level'])
         ts_zpe = get_zpe(rxn[0], rxn[1], 1, par.par['high_level'])
-        energy = (ts_energy + ts_zpe - well_energy - well_zpe) * constants.AUtoKCAL
+        energy = (ts_energy + ts_zpe - zero_energy - zero_zpe) * constants.AUtoKCAL
         prod_name = '_'.join(sorted(rxn[2]))
         ts_lines.append('{} {:.2f} {} {}'.format(rxn[1], energy, rxn[0], prod_name))
     

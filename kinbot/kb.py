@@ -112,6 +112,8 @@ def main():
 
     # characterize the initial reactant
     well0.characterize()
+    well0.name = str(well0.chemid)
+    start_name = well0.name
 
     # initialize the qc instance
     qc = QuantumChemistry(par)
@@ -128,6 +130,13 @@ def main():
         return
     if any(well0.freq[i] <= 0 for i in range(len(well0.freq))):
         logging.error('Found imaginary frequency for initial structure.')
+        return
+
+    # characterize again and look for differences
+    well0.characterize()
+    well0.name = str(well0.chemid)
+    if well0.name != start_name:
+        logging.error('The first well optimized to a structure different from the input.')
         return
 
     # do an MP2 optimization of the reactant,

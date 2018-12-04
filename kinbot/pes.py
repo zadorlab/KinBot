@@ -44,6 +44,11 @@ from stationary_pt import StationaryPoint
 def main():
     input_file = sys.argv[1]
     
+    no_kinbot = 0
+    if len(sys.argv) > 2:
+        if sys.argv[2] == 'no-kinbot':
+            no_kinbot = 1
+    
     #print the license message to the console
     print(license_message.message)
 
@@ -85,8 +90,9 @@ def main():
         while len(running) < max_running and len(running) + len(finished) < len(jobs):
             #start a new job
             job = jobs[len(running) + len(finished)]
-            #pid = 0
-            pid = submit_job(job)
+            pid = 0
+            if not no_kinbot:
+                pid = submit_job(job)
             pids[job] = pid
             logging.info('\tStarted job {} at {}'.format(job, datetime.datetime.now()))
             running.append(job)
@@ -274,10 +280,9 @@ def create_pesviewer_input(par, well0, wells, products, reactions, parent, zero_
         energy = 0. - zero_energy - zero_zpe
         # overwrite energies with mp2 energy if needed
         if 'R_Addition_MultipleBond' in rxn[1] and not par.par['high_level']:
-            zero_energy_mp2 = get_energy(jobs[0], jobs[0], 0, par.par['high_level'], mp2=1)
-            zero_zpe_mp2 = get_energy(jobs[0], jobs[0], 0, par.par['high_level'], mp2=1)
+            zero_energy_mp2 = get_energy(well0, well0, 0, par.par['high_level'], mp2=1)
+            zero_zpe_mp2 = get_zpe(well0, well0, 0, par.par['high_level'], mp2=1)
             energy = 0. - zero_energy_mp2 - zero_zpe_mp2
-        
         ts_energy = get_energy(rxn[0], rxn[1], 1, par.par['high_level'])
         ts_zpe = get_zpe(rxn[0], rxn[1], 1, par.par['high_level'])
         energy += ts_energy + ts_zpe

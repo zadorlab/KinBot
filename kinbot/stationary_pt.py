@@ -137,21 +137,14 @@ class StationaryPoint:
         """ 
         Create bond matrix 
         """
-        if not hasattr(self,'bond'): 
-            self.distance_mx()
-            self.bond = np.zeros((self.natom, self.natom), dtype=int)
-        
-            for i in range(self.natom):
-                for j in range(self.natom):
-                    if i == j: continue
-                    if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
-                        self.bond[i][j] = 1
-        else:
-            for i in range(self.natom):
-                for j in range(self.natom):
-                    if i == j: continue
-                    if self.bond[i][j] > 0:
-                        self.bond[i][j] = 1
+        self.distance_mx()
+        self.bond = np.zeros((self.natom, self.natom), dtype=int)
+
+        for i in range(self.natom):
+            for j in range(self.natom):
+                if i == j: continue
+                if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
+                    self.bond[i][j] = 1
         
         max_bond = [constants.st_bond[self.atom[i]] for i in range(self.natom)]
 
@@ -284,8 +277,6 @@ class StationaryPoint:
         """
         Iterative method to find all the separate products from a bond matrix
         """
-        self.bond_mx()
-        
         bond = copy.deepcopy(self.bond)
         
         max_step = 1000
@@ -515,10 +506,7 @@ class StationaryPoint:
         Identify unique rotatable bonds in the structure 
         No rotation around ring bonds and double and triple bonds.
         """
-        
-        if not hasattr(self,'chemid'):
-            #only calculate this if it has not been calculated before
-            self.calc_chemid()
+        self.calc_chemid()
         if not hasattr(self,'cycle_chain'):
             self.find_cycle()
         if len(self.bonds) == 0:

@@ -54,7 +54,7 @@ def main():
     logging.basicConfig(filename='pes.log', level=logging.INFO)
     
     logging.info(license_message.message)
-    logging.info('Starting the PES search at %s'%(datetime.datetime.now()))
+    logging.info('Starting the PES search at {}'.format(datetime.datetime.now()))
  
     well0 = StationaryPoint('well0', par.par['charge'], par.par['mult'], smiles = par.par['smiles'], structure = par.par['structure'])
     well0.characterize()
@@ -77,7 +77,7 @@ def main():
         f.close()
         
         if len(jobs) > j:
-            logging.info('Picked up new jobs: ' + ' '.join([ji for ji in jobs[j:]]))
+            logging.info('\tPicked up new jobs: ' + ' '.join([ji for ji in jobs[j:]]))
 
         if len(finished) == len(jobs):
             break
@@ -88,10 +88,12 @@ def main():
             #pid = 0
             pid = submit_job(job)
             pids[job] = pid
+            logging.info('\tStarted job {} at {}'.format(job, datetime.datetime.now()))
             running.append(job)
         #check if a thread is done
         for job in running:
             if not check_status(job, pids[job]):
+                logging.info('\tFinished job {} at {}'.format(job, datetime.datetime.now()))
                 finished.append(job)
                 # write a temporary pes file
                 # remove old xval and im_extent files
@@ -104,14 +106,22 @@ def main():
         for job in finished: 
             if job in running:
                 running.remove(job)
-        f = open('pes_summary.txt', 'w+')
-        f.write('Total\t\t%i\n'%len(jobs))
-        f.write('Running\t\t%i\n'%len(running))
-        f.write('Finished\t%i\n\n'%len(finished))
+        # write a summary of what is running and finished
+        summary_lines = []
+        summary_lines.append('Total\t\t{}'.format(len(jobs)))
+        summary_lines.append('Running\t\t{}'.format(len(running)))
+        summary_lines.append('Finished\t{}'.format(len(finished)))
+        summary_lines.append('')
+        summary_lines.append('Running:')
+        for job in running: 
+            summary_lines.append('\t{}'.format(job))
+        summary_lines.append('')
+        summary_lines.append('Finished:')
         for job in finished: 
-            f.write('\t%s\n'%job)
-        
-        f.close()
+            summary_lines.append('\t{}'.format(job))
+        with open('pes_summary.txt', 'w') as f:
+            f.write('\n'.join(summary_lines))
+
         time.sleep(1)
     postprocess(par, jobs, temp=0)
 

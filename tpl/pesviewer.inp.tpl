@@ -9,7 +9,7 @@ IMPORTANT: avoid the use of '2d' and '3d' in the names of species, transition st
 (these strings are employed when generating the 2d and 3d files of the molecules)
 If you want to use 3D coordinates, store them in a xyz/ directory in the same directory as the python script
 
-> <id> 702262792321520790121
+> <id> {id}
 
 > <options> 
 units              kcal/mol  #energy units

@@ -217,7 +217,7 @@ def createPESViewerInput(species,qc,par):
     template_file_path = pkg_resources.resource_filename('tpl', fname + '.tpl')
     with open(template_file_path) as template_file:
         template = template_file.read()
-    template = template.format(wells=wells,bimolecs=bimolecs,ts=tss,barrierless=barrierless)
+    template = template.format(id=species.chemid,wells=wells,bimolecs=bimolecs,ts=tss,barrierless=barrierless)
     with open(fname,'w') as f:
         f.write(template)
 

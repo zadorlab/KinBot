@@ -27,6 +27,7 @@ import logging
 
 import constants
 import pes
+import postprocess
 import reac_family
 from irc import IRC
 from optimize import Optimize
@@ -295,6 +296,14 @@ class ReactionGenerator:
                     else:
                         #the reaction search is finished
                         self.species.reac_ts_done[index] = -1 # this is the success code
+                        
+                        # write a temporary pes input file
+                        # remove old xval and im_extent files
+                        if os.path.exists('{}_xval.txt'.format(self.species.chemid)):
+                            os.remove('{}_xval.txt'.format(self.species.chemid))
+                        if os.path.exists('{}_im_extent.txt'.format(self.species.chemid)):
+                            os.remove('{}_im_extent.txt'.format(self.species.chemid))
+                        postprocess.createPESViewerInput(self.species, self.qc, self.par)
 
             alldone = 1
             for index, instance in enumerate(self.species.reac_inst):

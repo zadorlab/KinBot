@@ -273,7 +273,8 @@ class ReactionFinder:
             for ringsize in range(3, 9):
                 motif = ['X' for i in range(ringsize)]
                 motif[-1] = 'H'
-                instances += find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+                for rad_site in np.nonzero(rad)[0]:
+                    instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
             for instance in instances: 
                 rxns.append(instance)
         
@@ -344,7 +345,8 @@ class ReactionFinder:
         instances = []
         for ringsize in range(3, 9):
             motif = ['X' for i in range(ringsize)]
-            instances += find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+            for rad_site in np.nonzero(rad)[0]:
+                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
 
         for instance in instances: 
             if not atom[instance[-1]] == 'H':
@@ -445,18 +447,21 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         for ringsize in range(3, 9):
+            instances = []
             # forward direction
             motif = ['X' for i in range(ringsize+1)]
             motif[-1] = 'H'
             motif[-2] = 'O'
             motif[-3] = 'O'
-            instances = find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+            for rad_site in np.nonzero(rad)[0]:
+                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
             # reverse direction
             motif = ['X' for i in range(ringsize+1)]
             motif[-1] = 'H'
             motif[-2] = 'O'
             motif[0] = 'O'
-            instances += find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+            for rad_site in np.nonzero(rad)[0]:
+                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
             for ins in instances:
                 rxns.append(ins)
 
@@ -599,7 +604,8 @@ class ReactionFinder:
             motif[-2] = 'O'
             motif[-3] = 'O'
             motif[0] = 'C'
-            rxns += find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+            for rad_site in np.nonzero(rad)[0]:
+                rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
 
         for instance in range(len(rxns)):
             rxns[instance] = rxns[instance][:-2] #cut off OR
@@ -632,8 +638,9 @@ class ReactionFinder:
 
         for ringsize in range(3, 9):
             motif = ['X' for i in range(ringsize)]
-
-            instances = find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+            instances = []
+            for rad_site in np.nonzero(rad)[0]:
+                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
             bondpattern = ['X' for i in range(ringsize-1)]
             bondpattern[-1] = 2
             for instance in instances:
@@ -675,7 +682,8 @@ class ReactionFinder:
         
         for ringsize in range(3, 9):
             motif = ['X' for i in range(ringsize + 1)]
-            rxns += find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+            for rad_site in np.nonzero(rad)[0]:
+                rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
 
         #filter for the same reactions
         for inst in rxns:
@@ -705,8 +713,9 @@ class ReactionFinder:
         
         for ringsize in range(3, 9):
             motif = ['X' for i in range(ringsize + 1)]
-
-            instances = find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+            instances = []
+            for rad_site in np.nonzero(rad)[0]:
+                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
             bondpattern = ['X' for i in range(ringsize)]
             bondpattern[-1] = 2
             for instance in instances:
@@ -1458,7 +1467,9 @@ class ReactionFinder:
             self.reactions[name] = []
         
         motif = ['X','S','X']
-        rxns = find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+        rxns = []
+        for rad_site in np.nonzero(rad)[0]:
+            rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
 
         #filter for identical reactions
         for inst in rxns:
@@ -1484,7 +1495,9 @@ class ReactionFinder:
             self.reactions[name] = []
         
         motif = ['S','X','X']
-        rxns = find_motif.start_motif(motif, natom, bond, atom, np.nonzero(rad)[0][0], self.species.atom_eqv)
+        rxns = []
+        for rad_site in np.nonzero(rad)[0]:
+            rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
         
         #filter for identical reactions
         for inst in rxns:

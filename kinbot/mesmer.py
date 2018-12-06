@@ -80,8 +80,10 @@ class MESMER:
 
         # write the mess input for the different blocks
         wells = [self.species.chemid]
-        self.write_well(self.species, mollist, 0.0)
+
+        # write the initial reactant
         well0_energy = self.species.energy - self.species.zpe
+        self.write_well(self.species, mollist, well0_energy)
 
         for index, reaction in enumerate(self.species.reac_obj):
             if reaction.instance_name in ts_unique:
@@ -91,19 +93,24 @@ class MESMER:
                 # the other get an energy of 0
                 max_natom = 0
                 max_natom_chemid = 0
+                """
                 for st_pt_opt in reaction.prod_opt:
                     prod_energy += st_pt_opt.species.energy
                     prod_energy += st_pt_opt.species.zpe
                     if st_pt_opt.species.natom > max_natom:
                         max_natom = st_pt_opt.species.natom
                         max_natom_chemid = st_pt_opt.species.chemid
+                """
                 for st_pt_opt in reaction.prod_opt:
                     st_pt = st_pt_opt.species
+                    prod_energy = st_pt_opt.species.energy
+                    prod_energy += st_pt_opt.species.zpe
                     if st_pt.chemid not in wells:
                         energy = 0.
                         if st_pt.chemid == max_natom_chemid:
                             energy = prod_energy
-                        self.write_well(st_pt, mollist, energy)
+                        self.write_well(st_pt, mollist, prod_energy)
+                        wells.append(st_pt.chemid)
                 self.write_barrier(reaction, mollist, reaclist)
 
         # add a bath gas molecule
@@ -145,9 +152,8 @@ class MESMER:
 
         st = ET.tostring(root, 'utf-8')
         st = minidom.parseString(st)
-        fout = open('me/mesmer.xml', 'w')
-        fout.write(st.toprettyxml(indent=' '))
-        fout.close()
+        with open('me/mesmer.xml', 'w') as fout:
+            fout.write(st.toprettyxml(indent=' '))
 
         return 0
 
@@ -182,7 +188,7 @@ class MESMER:
 
         # add the zpe
         zpe = ET.SubElement(propertylist, 'property', {'dictRef': 'me:ZPE'})
-        ET.SubElement(zpe, 'scalar', {'units': 'kcal/mol'}).text = str(energy)
+        ET.SubElement(zpe, 'scalar', {'units': 'Hartree'}).text = str(energy)
 
         # add the multiplicity
         mult = ET.SubElement(propertylist, 'property', {'dictRef': 'me:spinMultiplicity'})
@@ -191,37 +197,38 @@ class MESMER:
         # add the external symmetry number
         sigma = ET.SubElement(propertylist, 'property', {'dictRef': 'me:symmetryNumber'})
         ET.SubElement(sigma, 'scalar').text = str(species.sigma_ext / species.nopt)
-
+        
         # add the vibrational frequencies
-        vibs = ET.SubElement(propertylist, 'property', {'dictRef': 'me:vibFreqs'})
-        ET.SubElement(vibs, 'array', {'units': 'cm-1'}).text = ' '.join([str(fi) for fi in species.kinbot_freqs])
+        if len(species.reduced_freqs) > 0:
+            vibs = ET.SubElement(propertylist, 'property', {'dictRef': 'me:vibFreqs'})
+            ET.SubElement(vibs, 'array', {'units': 'cm-1'}).text = ' '.join([str(fi) for fi in species.reduced_freqs])
 
-        # add the rotor potentials
-        if self.par.par['rotor_scan'] and len(species.dihed) > 0:
-            qmrotors = ET.SubElement(molecule, 'me:DOSCMethod', {'xsi:type': 'me:QMRotors'})
-            for i, rot in enumerate(species.dihed):
-                hinderedrotor = ET.SubElement(qmrotors, 'me:ExtraDOSCMethod', {'xsi:type': 'me:HinderedRotorQM1D'})
-                ET.SubElement(hinderedrotor, 'me:bondRef').text = bond_ref['_'.join(sorted([str(rot[1]), str(rot[2])]))]
-                pot = ET.SubElement(hinderedrotor,
-                                    'me:HinderedRotorPotential',
-                                    {'format': 'numerical',
-                                     'units': 'kcal/mol',
-                                     'expansionSize': '7',
-                                     'useSineTerms': 'yes'})
-                ens = species.hir.hir_energies[i]
-                rotorpot = [(ei - ens[0])*constants.AUtoKCAL for ei in ens]
-                for j, ri in enumerate(rotorpot):
+            # add the rotor potentials
+            if self.par.par['rotor_scan'] and len(species.dihed) > 0:
+                qmrotors = ET.SubElement(molecule, 'me:DOSCMethod', {'xsi:type': 'me:QMRotors'})
+                for i, rot in enumerate(species.dihed):
+                    hinderedrotor = ET.SubElement(molecule, 'me:ExtraDOSCMethod', {'xsi:type': 'me:HinderedRotorQM1D'})
+                    ET.SubElement(hinderedrotor, 'me:bondRef').text = bond_ref['_'.join(sorted([str(rot[1]), str(rot[2])]))]
+                    pot = ET.SubElement(hinderedrotor,
+                                        'me:HinderedRotorPotential',
+                                        {'format': 'numerical',
+                                         'units': 'kcal/mol',
+                                         'expansionSize': '7',
+                                         'useSineTerms': 'yes'})
+                    ens = species.hir.hir_energies[i]
+                    rotorpot = [(ei - ens[0])*constants.AUtoKCAL for ei in ens]
+                    for j, ri in enumerate(rotorpot):
+                        ET.SubElement(pot,
+                                      'me:PotentialPoint',
+                                      {'angle': str(360/species.hir.nrotation*j),
+                                       'potential': str(ri)})
                     ET.SubElement(pot,
                                   'me:PotentialPoint',
-                                  {'angle': str(360/species.hir.nrotation*j),
-                                   'potential': str(ri)})
-                ET.SubElement(pot,
-                              'me:PotentialPoint',
-                              {'angle': str(360.0),
-                               'potential': str(rotorpot[0])})
-                ET.SubElement(hinderedrotor, 'me:periodicity').text = str(species.sigma_int[rot[1]][rot[2]])
-        else:
-            qmrotors = ET.SubElement(molecule, 'me:DOSCMethod', {'name': 'QMRotors'})
+                                  {'angle': str(360.0),
+                                   'potential': str(rotorpot[0])})
+                    ET.SubElement(hinderedrotor, 'me:periodicity').text = str(species.sigma_int[rot[1]][rot[2]])
+            else:
+                qmrotors = ET.SubElement(molecule, 'me:DOSCMethod', {'name': 'QMRotors'})
 
         # add the energy transfer model
         etransfer = ET.SubElement(molecule, 'me:energyTransferModel', {'xsi:type': 'me:ExponentialDown'})
@@ -291,9 +298,9 @@ class MESMER:
         if self.par.par['pes']:
             energy = '{zeroenergy}'
         else:
-            energy = ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+            energy = reaction.ts.energy + reaction.ts.zpe
         zpe = ET.SubElement(propertylist, 'property', {'dictRef': 'me:ZPE'})
-        ET.SubElement(zpe, 'scalar', {'units': 'kcal/mol'}).text = str(energy)
+        ET.SubElement(zpe, 'scalar', {'units': 'Hartree'}).text = str(energy)
 
         # add the multiplicity
         mult = ET.SubElement(propertylist, 'property', {'dictRef': 'me:spinMultiplicity'})
@@ -305,17 +312,17 @@ class MESMER:
 
         # add the vibrational frequencies
         vibs = ET.SubElement(propertylist, 'property', {'dictRef': 'me:vibFreqs'})
-        ET.SubElement(vibs, 'array', {'units': 'cm-1'}).text = ' '.join([str(fi) for fi in reaction.ts.kinbot_freqs[1:]])
+        ET.SubElement(vibs, 'array', {'units': 'cm-1'}).text = ' '.join([str(fi) for fi in reaction.ts.reduced_freqs[1:]])
 
         # add the imaginary frequencies
         imfreq = ET.SubElement(propertylist, 'property', {'dictRef': 'me:imFreqs'})
-        ET.SubElement(imfreq, 'scalar', {'units': 'cm-1'}).text = str(-reaction.ts.kinbot_freqs[0])
+        ET.SubElement(imfreq, 'scalar', {'units': 'cm-1'}).text = str(-reaction.ts.reduced_freqs[0])
 
         # add the rotor potentials
         if self.par.par['rotor_scan'] and len(reaction.ts.dihed) > 0:
             qmrotors = ET.SubElement(molecule, 'me:DOSCMethod', {'xsi:type': 'me:QMRotors'})
             for i, rot in enumerate(reaction.ts.dihed):
-                hinderedrotor = ET.SubElement(qmrotors, 'me:ExtraDOSCMethod', {'xsi:type': 'me:HinderedRotorQM1D'})
+                hinderedrotor = ET.SubElement(molecule, 'me:ExtraDOSCMethod', {'xsi:type': 'me:HinderedRotorQM1D'})
                 ET.SubElement(hinderedrotor, 'me:bondRef').text = bond_ref['_'.join(sorted([str(rot[1]), str(rot[2])]))]
                 pot = ET.SubElement(hinderedrotor, 'me:HinderedRotorPotential', {'format': 'numerical', 'units': 'kcal/mol', 'expansionSize': '7', 'useSineTerms': 'yes'})
                 ens = reaction.ts.hir.hir_energies[i]

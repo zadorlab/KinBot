@@ -32,6 +32,8 @@ import subprocess
 import json
 from distutils.dir_util import copy_tree
 import pkg_resources
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 
 from ase.db import connect
@@ -84,16 +86,9 @@ def main():
     well0.characterize()
     write_input(par, well0, par.par['barrier_threshold'], os.getcwd())
     
-    # add the initial well to the chemids, if it's not there yet
-    try:
-        with open('chemids', 'r') as f:
-            old_jobs = f.read().split('\n')
-        old_jobs = [ji for ji in old_jobs if ji != '']
-    except IOError:
-        old_jobs = []
-    if str(well0.chemid) not in old_jobs:
-        with open('chemids','a') as f:
-            f.write(str(well0.chemid) + '\n')
+    # add the initial well to the chemids
+    with open('chemids','w') as f:
+        f.write(str(well0.chemid) + '\n')
 
     # maximum number of kinbot jobs that run simultaneously
     max_running = par.par['simultaneous_kinbot']
@@ -219,8 +214,6 @@ def postprocess(par, jobs, task, names):
     # i.e. the well kinbot started from to find
     # this calculation
     parent = {}
-    # list of reactions to highlight
-    highlight = []
     wells = []
     failedwells = []
     products = []
@@ -285,64 +278,60 @@ def postprocess(par, jobs, task, names):
         copy_xyz(ji)
 
     # create a connectivity matrix for all wells and products
-    conn = np.zeros((len(wells) + len(products), len(wells) + len(products)))
-    # connectivity with the barriers
-    bars = np.zeros((len(wells) + len(products), len(wells) + len(products)))
-    for rxn in reactions:
-        reac_name = rxn[0]
-        prod_name = '_'.join(sorted(rxn[2]))
-        try:
-            i = wells.index(reac_name)
-        except ValueError:
-            try:
-                i = products.index(reac_name) + len(wells)
-            except ValueError:
-                logging.error('Could not find reactant ' + reac_name)
-                sys.exit(-1)
-        try:
-            j = wells.index(prod_name)
-        except ValueError:
-            try:
-                j = products.index(prod_name) + len(wells)
-            except ValueError:
-                logging.error('Could not find product ' + prod_name)
-                sys.exit(-1)
-        conn[i][j] = 1
-        conn[j][i] = 1
-        barrier = rxn[3]
-        bars[i][j] = barrier
-        bars[j][i] = barrier
+    conn, bars = get_connectivity(wells, products, reactions)
     
-    well_energies = []
+    well_energies = {}
     for well in wells:
         energy = get_energy(parent[well], well, 0, par.par['high_level'])
         zpe = get_zpe(parent[well], well, 0, par.par['high_level'])
         zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * constants.AUtoKCAL
-        well_energies.append(zeroenergy)
-    prod_energies = []
+        well_energies[well] = zeroenergy
+    prod_energies = {}
     for prods in products:
         energy = 0. - zero_energy - zero_zpe
         for pr in prods.split('_'):
             energy += get_energy(parent[prods], pr, 0, par.par['high_level'])
             energy += get_zpe(parent[prods], pr, 0, par.par['high_level'])
         energy = energy * constants.AUtoKCAL
-        prod_energies.append(energy)
+        prod_energies[prods] = energy
 
-    with open('vectors.txt','w') as f:
-        
-        f.write(', '.join('{:.2f}'.format(ei) for ei in well_energies))
-        f.write('\n')
-        f.write(', '.join('{:.2f}'.format(ei) for ei in prod_energies))
-        f.write('\n')
-        for ci in conn:
-            f.write(', '.join('{}'.format(int(cij)) for cij in ci))
-            f.write('\n')
-        f.write('\n')
-        for bi in bars:
-            f.write(', '.join('{:.2f}'.format(bij) for bij in bi))
-            f.write('\n')
-        f.write('\n')
-    
+    # filter according to tasks
+    wells, products, reactions, highlight = filter(wells,
+                                                   products,
+                                                   reactions,
+                                                   conn,
+                                                   bars,
+                                                   task,
+                                                   names)
+
+    #write full pes input
+    create_pesviewer_input(par,
+                           wells,
+                           products,
+                           reactions,
+                           well_energies,
+                           prod_energies,
+                           highlight)
+
+    # draw a graph of the network
+    create_graph(wells,
+                 products,
+                 reactions,
+                 well_energies,
+                 prod_energies,
+                 highlight)
+    #write_mess
+    #create_mess_input(par, jobs[0], wells, products, reactions, parent, zero_energy, zero_zpe, par.par['high_level'])
+
+
+def filter(wells, products, reactions, conn, bars, task, names):
+    """
+    Filter the wells, products and reactions according to the task
+    and the names
+    """
+    # list of reactions to highlight
+    highlight = []
+
     # 1. all: This is the default showing all pathways
     # 2. lowestpath: show the lowest path between the species 
     # corresponding to the names
@@ -353,6 +342,7 @@ def postprocess(par, jobs, task, names):
 
     # filter the reactions according to the task
     if task == 'all':
+        filtered_reactions = reactions
         pass
     elif task == 'lowestpath':
         all_rxns = get_all_pathways(wells, products, reactions, names, conn)
@@ -368,18 +358,18 @@ def postprocess(par, jobs, task, names):
                 if max(barriers) < min_energy:
                     min_energy = max(barriers)
                     min_rxn = rxn_list
-        reactions = min_rxn
+        filtered_reactions = min_rxn
     elif task == 'allpaths':
         all_rxns = get_all_pathways(wells, products, reactions, names, conn)
-        reactions = []
+        filtered_reactions = []
         for list in all_rxns:
             for rxn in list:
                 new = 1
-                for r in reactions:
+                for r in filtered_reactions:
                     if r[1] == rxn[1]:
                         new = 0
                 if new:
-                    reactions.append(rxn)
+                    filtered_reactions.append(rxn)
         # this is the maximum energy along the minimun energy pathway
         min_energy = None
         min_rxn = None
@@ -396,24 +386,23 @@ def postprocess(par, jobs, task, names):
             highlight.append(rxn[1])
     elif task == 'well':
         if len(names) == 1:
-            rxns = []
+            filtered_reactions = []
             for rxn in reactions:
                 prod_name = '_'.join(sorted(rxn[2]))
                 if names[0] == rxn[0] or names[0] == prod_name:
-                    rxns.append(rxn)
-            reactions = rxns
+                    filtered_reactions.append(rxn)
         else:
             logging.error('Only one name should be given for a well filter')
             logging.error('Received: ' + ' '.join(names))
             sys.exit(-1)
     else:
-        logging.error('Could not recognize task ' + taks)
+        logging.error('Could not recognize task ' + task)
         sys.exit(-1)
 
     # filter the wells
     filtered_wells = []
     for well in wells:
-        for rxn in reactions:
+        for rxn in filtered_reactions:
             prod_name = '_'.join(sorted(rxn[2]))
             if well == rxn[0] or well == prod_name:
                 if well not in filtered_wells:
@@ -422,25 +411,35 @@ def postprocess(par, jobs, task, names):
     # filter the products
     filtered_products = []
     for prod in products:
-        for rxn in reactions:
+        for rxn in filtered_reactions:
             prod_name = '_'.join(sorted(rxn[2]))
             if prod == prod_name:
                 if prod not in filtered_products:
                     filtered_products.append(prod)
 
-    #write full pes input
-    create_pesviewer_input(par,
-                           jobs[0],
-                           filtered_wells,
-                           filtered_products,
-                           reactions, parent,
-                           zero_energy,
-                           zero_zpe,
-                           par.par['high_level'],
-                           highlight=highlight)
-    
-    #write_mess
-    #create_mess_input(par, jobs[0], wells, products, reactions, parent, zero_energy, zero_zpe, par.par['high_level'])
+    return filtered_wells, filtered_products, filtered_reactions, highlight
+
+
+def get_connectivity(wells, products, reactions):
+    """
+    Create two matrices:
+    conn: connectivity (1 or 0) between each pair of stationary points
+    bars: barrier height between each pair of stationary points
+          0 if not connected
+    """
+    conn = np.zeros((len(wells) + len(products), len(wells) + len(products)), dtype=int)
+    bars = np.zeros((len(wells) + len(products), len(wells) + len(products)))
+    for rxn in reactions:
+        reac_name = rxn[0]
+        prod_name = '_'.join(sorted(rxn[2]))
+        i = get_index(wells, products, reac_name)
+        j = get_index(wells, products, prod_name)
+        conn[i][j] = 1
+        conn[j][i] = 1
+        barrier = rxn[3]
+        bars[i][j] = barrier
+        bars[j][i] = barrier
+    return conn, bars
 
 
 def get_all_pathways(wells, products, reactions, names, conn):
@@ -455,11 +454,12 @@ def get_all_pathways(wells, products, reactions, names, conn):
         st_pt_nr = len(wells) + len(products)
         syms = ['X' for i in range(st_pt_nr)]
         eqv = [[i] for i in range(st_pt_nr)]
+        start = get_index(wells, products, names[0])
         # list of reaction lists for each pathway
         rxns = []
         for length in range(1, max_length + 1):
             motif = ['X' for i in range(length)]
-            all_inst = find_motif.start_motif(motif, st_pt_nr, conn, syms, -1, eqv)
+            all_inst = find_motif.start_motif(motif, st_pt_nr, conn, syms, start, eqv)
             for ins in all_inst:
                 if is_pathway(wells, products, ins, names):
                     rxns.append(get_pathway(wells, products, reactions, ins, names))
@@ -467,6 +467,26 @@ def get_all_pathways(wells, products, reactions, names, conn):
     else:
         logging.error('Cannot find a lowest path if the number of species is not 2')
         logging.error('Found species: ' + ' '.join(names))
+
+
+def get_index(wells, products, name):
+    try:
+        i = wells.index(name)
+    except ValueError:
+        try:
+            i = products.index(name) + len(wells)
+        except ValueError:
+            logging.error('Could not find reactant ' + reac_name)
+            sys.exit(-1)
+    return i
+
+
+def get_name(wells, products, i):
+    if i < len(wells):
+        name = wells[i]
+    else:
+        name = products[i - len(wells)]
+    return name
 
 
 def get_pathway(wells, products, reactions, ins, names):
@@ -488,14 +508,8 @@ def get_reaction(wells, products, reactions, i, j):
     according to the indices i and j which correspond 
     to the index in wells or products
     """
-    if i < len(wells):
-        name_1 = wells[i]
-    else:
-        name_1 = products[i - len(wells)]
-    if j < len(wells):
-        name_2 = wells[j]
-    else:
-        name_2 = products[j - len(wells)]
+    name_1 = get_name(wells, products, i)
+    name_2 = get_name(wells, products, j)
     for rxn in reactions:
         reac_name = rxn[0]
         prod_name = '_'.join(sorted(rxn[2]))
@@ -513,15 +527,8 @@ def is_pathway(wells, products, ins, names):
     """
     # check of all intermediate species are wells
     if all([insi < len(wells) for insi in ins[1:-1]]):
-        if ins[0] < len(wells):
-            name_1 = wells[ins[0]]
-        else:
-            name_1 = products[ins[0] - len(wells)]
-        if ins[-1] < len(wells):
-            name_2 = wells[ins[-1]]
-        else:
-            name_2 = products[ins[-1] - len(wells)]
-
+        name_1 = get_name(wells, products, ins[0])
+        name_2 = get_name(wells, products, ins[-1])
         # check if the names correspond
         if ((name_1 == names[0] and name_2 == names[1]) or
                 (name_2 == names[0] and name_1 == names[1])):
@@ -572,7 +579,7 @@ def create_mess_input(par, well0, wells, products, reactions, parent, zero_energ
     f.close()
     
 
-def create_pesviewer_input(par, well0, wells, products, reactions, parent, zero_energy, zero_zpe, high_level, highlight=None):
+def create_pesviewer_input(par, wells, products, reactions, well_energies, prod_energies, highlight):
     """
     highlight: list of reaction names that need a red highlight
     """
@@ -581,18 +588,12 @@ def create_pesviewer_input(par, well0, wells, products, reactions, parent, zero_
 
     well_lines = []
     for well in wells:
-        well_energy = get_energy(parent[well], well, 0, par.par['high_level'])
-        well_zpe = get_zpe(parent[well], well, 0, par.par['high_level'])
-        energy = (well_energy + well_zpe - zero_energy - zero_zpe) * constants.AUtoKCAL
+        energy = well_energies[well]
         well_lines.append('{} {:.2f}'.format(well, energy))
     
     bimol_lines = []
     for prods in products:
-        energy = 0. - zero_energy - zero_zpe
-        for pr in prods.split('_'):
-            energy += get_energy(parent[prods], pr, 0, par.par['high_level'])
-            energy += get_zpe(parent[prods], pr, 0, par.par['high_level'])
-        energy = energy * constants.AUtoKCAL
+        energy = prod_energies[prods]
         bimol_lines.append('{} {:.2f}'.format(prods, energy))
 
     ts_lines = []
@@ -615,6 +616,78 @@ def create_pesviewer_input(par, well0, wells, products, reactions, parent, zero_
     template = template.format(id=par.par['title'], wells=well_lines, bimolecs=bimol_lines, ts=ts_lines, barrierless='')
     with open(fname, 'w') as f:
         f.write(template)
+
+def create_graph(wells, products, reactions, well_energies, prod_energies, highlight):
+    """
+    highlight: list of reaction names that need a red highlight
+    """
+    if highlight is None:
+        highlight = []
+    # update the connectivity with the filtered wells, products and reactions
+    conn, bars = get_connectivity(wells, products, reactions)
+
+    # get the minimum and maximum well and product energy
+    try:
+        minimum = min(min(well_energies.values()), min(prod_energies.values()))
+        maximum = max(max(well_energies.values()), max(prod_energies.values()))
+    except ValueError:
+        # list of products can be empty, but list of wells not
+        minimum = min(min(well_energies.values()))
+        maximum = max(max(well_energies.values()))
+    # define the inveresly proportial weights function
+    max_size = 400
+    min_size = 100
+    slope = (min_size - max_size) / (maximum - minimum)
+    offset = max_size - minimum * slope
+    # define the graph nodes
+    nodes = [i for i, wi in enumerate(wells)]
+    nodes += [len(wells) + i for i, pi in enumerate(products)]
+    # size of the nodes from the weights
+    node_size = [slope * well_energies[wi] + offset for wi in wells]
+    node_size += [slope * prod_energies[pi] + offset for pi in products]
+    # color nodes and wells differently
+    node_color = ['lightskyblue' for wi in wells]
+    node_color += ['lightcoral' for pi in products]
+    # labels of the wells and products
+    labels = {}
+    name_dict = {}
+    for i, wi in enumerate(wells):
+        labels[i] = 'w{}'.format(i+1)
+        name_dict[labels[i]] = wi
+    for i, pi in enumerate(products):
+        labels[i + len(wells)] = 'b{}'.format(i+1)
+        name_dict[labels[i + len(wells)]] = pi
+    # write the labels to a file
+    with open('species_dict.txt','w') as f:
+        f.write('\n'.join('{}  {}'.format(name, name_dict[name]) for name in sorted(name_dict.keys())))
+    # make a graph object
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    # add the nodes
+    for i, ci in enumerate(conn):
+        for j, cij in enumerate(ci):
+            if cij > 0:
+                G.add_edge(i, j, weight=bars[i][j])
+    edges = G.edges()
+    # define the inversely proportional weights for the lines
+    minimum = min(rxn[3] for rxn in reactions)
+    maximum = max(rxn[3] for rxn in reactions)
+    max_size = 10
+    min_size = 1
+    slope = (min_size - max_size) / (maximum - minimum)
+    offset = max_size - minimum * slope
+    weights = [slope * G[u][v]['weight'] + offset for u, v in edges]
+
+    # position the nodes
+    pos = nx.spring_layout(G)
+
+    # make the matplotlib figure
+    plt.figure(figsize=(10, 10))
+    nx.draw_networkx_edges(G, pos, edgelist=edges, width=weights)
+    nx.draw_networkx_nodes(G, pos, nodelist=G.nodes(), node_size=node_size, node_color=node_color)
+    nx.draw_networkx_labels(G,pos,labels,font_size=10)
+    plt.axis('off')
+    plt.savefig('graph.png')
 
 
 def get_energy(dir, job, ts, high_level, mp2=0):

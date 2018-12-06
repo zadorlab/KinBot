@@ -134,34 +134,35 @@ def main():
             if not check_status(job, pids[job]):
                 logging.info('\tFinished job {} at {}'.format(job, datetime.datetime.now()))
                 finished.append(job)
-                # write a temporary pes file
-                # remove old xval and im_extent files
-                if os.path.exists('{}_xval.txt'.format(par.par['title'])):
-                    os.remove('{}_xval.txt'.format(par.par['title']))
-                if os.path.exists('{}_im_extent.txt'.format(par.par['title'])):
-                    os.remove('{}_im_extent.txt'.format(par.par['title']))
-                postprocess(par, jobs, task, names)
+                if not no_kinbot:
+                    # write a temporary pes file
+                    # remove old xval and im_extent files
+                    if os.path.exists('{}_xval.txt'.format(par.par['title'])):
+                        os.remove('{}_xval.txt'.format(par.par['title']))
+                    if os.path.exists('{}_im_extent.txt'.format(par.par['title'])):
+                        os.remove('{}_im_extent.txt'.format(par.par['title']))
+                    postprocess(par, jobs, task, names)
         #remove the finished threads
         for job in finished:
             if job in running:
                 running.remove(job)
-        # write a summary of what is running and finished
-        summary_lines = []
-        summary_lines.append('Total\t\t{}'.format(len(jobs)))
-        summary_lines.append('Running\t\t{}'.format(len(running)))
-        summary_lines.append('Finished\t{}'.format(len(finished)))
-        summary_lines.append('')
-        summary_lines.append('Running:')
-        for job in running: 
-            summary_lines.append('\t{}'.format(job))
-        summary_lines.append('')
-        summary_lines.append('Finished:')
-        for job in finished: 
-            summary_lines.append('\t{}'.format(job))
-        with open('pes_summary.txt', 'w') as f:
-            f.write('\n'.join(summary_lines))
-
-        time.sleep(1)
+        if not no_kinbot:
+            # write a summary of what is running and finished
+            summary_lines = []
+            summary_lines.append('Total\t\t{}'.format(len(jobs)))
+            summary_lines.append('Running\t\t{}'.format(len(running)))
+            summary_lines.append('Finished\t{}'.format(len(finished)))
+            summary_lines.append('')
+            summary_lines.append('Running:')
+            for job in running: 
+                summary_lines.append('\t{}'.format(job))
+            summary_lines.append('')
+            summary_lines.append('Finished:')
+            for job in finished: 
+                summary_lines.append('\t{}'.format(job))
+            with open('pes_summary.txt', 'w') as f:
+                f.write('\n'.join(summary_lines))
+            time.sleep(1)
     postprocess(par, jobs, task, names)
 
     # Notify user the search is done
@@ -311,6 +312,36 @@ def postprocess(par, jobs, task, names):
         barrier = rxn[3]
         bars[i][j] = barrier
         bars[j][i] = barrier
+    
+    well_energies = []
+    for well in wells:
+        energy = get_energy(parent[well], well, 0, par.par['high_level'])
+        zpe = get_zpe(parent[well], well, 0, par.par['high_level'])
+        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * constants.AUtoKCAL
+        well_energies.append(zeroenergy)
+    prod_energies = []
+    for prods in products:
+        energy = 0. - zero_energy - zero_zpe
+        for pr in prods.split('_'):
+            energy += get_energy(parent[prods], pr, 0, par.par['high_level'])
+            energy += get_zpe(parent[prods], pr, 0, par.par['high_level'])
+        energy = energy * constants.AUtoKCAL
+        prod_energies.append(energy)
+
+    with open('vectors.txt','w') as f:
+        
+        f.write(', '.join('{:.2f}'.format(ei) for ei in well_energies))
+        f.write('\n')
+        f.write(', '.join('{:.2f}'.format(ei) for ei in prod_energies))
+        f.write('\n')
+        for ci in conn:
+            f.write(', '.join('{}'.format(int(cij)) for cij in ci))
+            f.write('\n')
+        f.write('\n')
+        for bi in bars:
+            f.write(', '.join('{:.2f}'.format(bij) for bij in bi))
+            f.write('\n')
+        f.write('\n')
     
     # 1. all: This is the default showing all pathways
     # 2. lowestpath: show the lowest path between the species 

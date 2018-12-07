@@ -450,19 +450,26 @@ def get_all_pathways(wells, products, reactions, names, conn):
     if len(names) == 2:
         # the maximum length between two stationary points
         # is the number of wells+2
-        max_length = len(wells) + 2
-        st_pt_nr = len(wells) + len(products)
-        syms = ['X' for i in range(st_pt_nr)]
-        eqv = [[i] for i in range(st_pt_nr)]
+        max_length = 5
+        n_mol = len(wells) + len(products)
         start = get_index(wells, products, names[0])
+        end = get_index(wells, products, names[1])
+        # make a graph out of the connectivity
+        # nodes of the graph
+        nodes = [i for i in range(n_mol)]
+        G = nx.Graph()
+        G.add_nodes_from(nodes)
+        # add the edges of the graph
+        for i, ci in enumerate(conn):
+            for j, cij in enumerate(ci):
+                if cij > 0:
+                    G.add_edge(i, j)
         # list of reaction lists for each pathway
+        paths = nx.all_simple_paths(G, start, end, cutoff=max_length)
         rxns = []
-        for length in range(1, max_length + 1):
-            motif = ['X' for i in range(length)]
-            all_inst = find_motif.start_motif(motif, st_pt_nr, conn, syms, start, eqv)
-            for ins in all_inst:
-                if is_pathway(wells, products, ins, names):
-                    rxns.append(get_pathway(wells, products, reactions, ins, names))
+        for path in paths:
+            if is_pathway(wells, products, path, names):
+                rxns.append(get_pathway(wells, products, reactions, path, names))
         return rxns
     else:
         logging.error('Cannot find a lowest path if the number of species is not 2')
@@ -476,7 +483,7 @@ def get_index(wells, products, name):
         try:
             i = products.index(name) + len(wells)
         except ValueError:
-            logging.error('Could not find reactant ' + reac_name)
+            logging.error('Could not find reactant ' + name)
             sys.exit(-1)
     return i
 
@@ -662,13 +669,10 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
         f.write('\n'.join('{}  {}'.format(name, name_dict[name]) for name in sorted(name_dict.keys())))
     # make a graph object
     G = nx.Graph()
-    G.add_nodes_from(nodes)
     # add the nodes
-    for i, ci in enumerate(conn):
-        for j, cij in enumerate(ci):
-            if cij > 0:
-                G.add_edge(i, j, weight=bars[i][j])
-    edges = G.edges()
+    for i, node in enumerate(nodes):
+        G.add_node(node, weight=node_size[i])
+    
     # define the inversely proportional weights for the lines
     minimum = min(rxn[3] for rxn in reactions)
     maximum = max(rxn[3] for rxn in reactions)
@@ -676,7 +680,15 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
     min_size = 1
     slope = (min_size - max_size) / (maximum - minimum)
     offset = max_size - minimum * slope
-    weights = [slope * G[u][v]['weight'] + offset for u, v in edges]
+    
+    # add the edges
+    for i, ci in enumerate(conn):
+        for j, cij in enumerate(ci):
+            if cij > 0:
+                weight = slope * bars[i][j] + offset
+                G.add_edge(i, j, weight=weight)
+    edges = G.edges()
+    weights = [G[u][v]['weight'] for u, v in edges]
 
     # position the nodes
     pos = nx.spring_layout(G)
@@ -685,7 +697,7 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
     plt.figure(figsize=(10, 10))
     nx.draw_networkx_edges(G, pos, edgelist=edges, width=weights)
     nx.draw_networkx_nodes(G, pos, nodelist=G.nodes(), node_size=node_size, node_color=node_color)
-    nx.draw_networkx_labels(G,pos,labels,font_size=10)
+    nx.draw_networkx_labels(G,pos,labels,font_size=12)
     plt.axis('off')
     plt.savefig('graph.png')
 

@@ -717,8 +717,14 @@ def get_energy(dir, job, ts, high_level, mp2=0):
     for row in rows:
         if hasattr(row, 'data'):
             energy = row.data.get('energy')
-    #ase energies are always in ev, convert to hartree
-    energy *= constants.EVtoHARTREE
+    try:
+        #ase energies are always in ev, convert to hartree
+        energy *= constants.EVtoHARTREE
+    except UnboundLocalError:
+        #this happens when the job is not found in the database
+        logging.error('Could not find {} in directory {}'.format(job, dir))
+        logging.error('Exiting...')
+        sys.exit(-1)
     return energy
 
 

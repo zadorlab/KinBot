@@ -276,7 +276,6 @@ def postprocess(par, jobs, task, names):
                         reactions.append([reactant, ts, prod, barrier])
         # copy the xyz files
         copy_xyz(ji)
-
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, products, reactions)
     
@@ -301,9 +300,9 @@ def postprocess(par, jobs, task, names):
                                                    reactions,
                                                    conn,
                                                    bars,
+                                                   well_energies,
                                                    task,
                                                    names)
-
     #write full pes input
     create_pesviewer_input(par,
                            wells,
@@ -324,7 +323,7 @@ def postprocess(par, jobs, task, names):
     #create_mess_input(par, jobs[0], wells, products, reactions, parent, zero_energy, zero_zpe, par.par['high_level'])
 
 
-def filter(wells, products, reactions, conn, bars, task, names):
+def filter(wells, products, reactions, conn, bars, well_energies, task, names):
     """
     Filter the wells, products and reactions according to the task
     and the names
@@ -395,6 +394,27 @@ def filter(wells, products, reactions, conn, bars, task, names):
             logging.error('Only one name should be given for a well filter')
             logging.error('Received: ' + ' '.join(names))
             sys.exit(-1)
+    elif task == 'temperature':
+        if len(names) == 1:
+            try:
+                # read the temperature
+                temperature = float(names[0])
+            except ValueError:
+                logging.error('A float is needed for a temperature filter')
+                logging.error('Received: ' + ' '.join(names))
+                sys.exit(-1)
+            filtered_reactions = []
+            # iterate the wells
+            wells, filtered_reactions = filter_boltzmann(wells[0],
+                                                         [wells[0]],
+                                                         reactions,
+                                                         filtered_reactions,
+                                                         well_energies,
+                                                         temperature)
+        else:
+            logging.error('Only one argument should be given for a temperature filter')
+            logging.error('Received: ' + ' '.join(names))
+            sys.exit(-1)
     else:
         logging.error('Could not recognize task ' + task)
         sys.exit(-1)
@@ -418,6 +438,57 @@ def filter(wells, products, reactions, conn, bars, task, names):
                     filtered_products.append(prod)
 
     return filtered_wells, filtered_products, filtered_reactions, highlight
+
+
+def filter_boltzmann(well, wells, reactions, filtered_reactions,
+                     well_energies, temperature):
+    """
+    Filter the reactions based on branching fractions at a given temperature
+    """
+    well_energy = well_energies[well]
+    # all the reactions that include this well
+    one_well_rxns = []
+    # iterate all reactions
+    for rxn in reactions:
+        # check if this reactions belongs to the current well
+        if rxn[0] == well or rxn[2][0] == well:
+            one_well_rxns.append(rxn)
+    # list containing the branching fractions for this well
+    branching = []
+    for rxn in one_well_rxns:
+        # calculate the boltzmann factor
+        value = np.exp(-(rxn[3] - well_energy) * 1000 / 1.9872036 / temperature)
+        branching.append(value)
+    # calculate the actual branching fractions
+    br_sum = sum(branching)
+    branching = np.array(branching) / br_sum
+    for i, rxn in enumerate(one_well_rxns):
+        # only add a reaction if the branching fraction is below 1%
+        if branching[i] > 0.01:
+            new = 1
+            for r in filtered_reactions:
+                if r[1] == rxn[1]:
+                    new = 0
+            if new:
+                filtered_reactions.append(rxn)
+                if not rxn[0] in wells:
+                    wells.append(rxn[0])
+                    wells, filtered_reactions = filter_boltzmann(rxn[0],
+                                                                 wells,
+                                                                 reactions,
+                                                                 filtered_reactions,
+                                                                 well_energies,
+                                                                 temperature)
+                if len(rxn[2]) == 1:
+                    if not rxn[2][0] in wells:
+                        wells.append(rxn[2][0])
+                        wells, filtered_reactions = filter_boltzmann(rxn[2][0],
+                                                                     wells,
+                                                                     reactions,
+                                                                     filtered_reactions,
+                                                                     well_energies,
+                                                                     temperature)
+    return wells, filtered_reactions
 
 
 def get_connectivity(wells, products, reactions):
@@ -590,6 +661,16 @@ def create_pesviewer_input(par, wells, products, reactions, well_energies, prod_
     """
     highlight: list of reaction names that need a red highlight
     """
+    # delete the im_extent and xval files
+    try:
+        os.remove('{}_xval.txt'.format(par.par['title']))
+    except OSError:
+        pass
+    try:
+        os.remove('{}_im_extent.txt'.format(par.par['title']))
+    except OSError:
+        pass
+
     if highlight is None:
         highlight = []
 
@@ -676,8 +757,8 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
     # define the inversely proportional weights for the lines
     minimum = min(rxn[3] for rxn in reactions)
     maximum = max(rxn[3] for rxn in reactions)
-    max_size = 10
-    min_size = 1
+    max_size = 5
+    min_size = 0.5
     slope = (min_size - max_size) / (maximum - minimum)
     offset = max_size - minimum * slope
     
@@ -691,13 +772,13 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
     weights = [G[u][v]['weight'] for u, v in edges]
 
     # position the nodes
-    pos = nx.spring_layout(G)
+    pos = nx.spring_layout(G, scale=1)
 
     # make the matplotlib figure
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(8, 8))
     nx.draw_networkx_edges(G, pos, edgelist=edges, width=weights)
     nx.draw_networkx_nodes(G, pos, nodelist=G.nodes(), node_size=node_size, node_color=node_color)
-    nx.draw_networkx_labels(G,pos,labels,font_size=12)
+    nx.draw_networkx_labels(G,pos,labels,font_size=8)
     plt.axis('off')
     plt.savefig('graph.png')
 

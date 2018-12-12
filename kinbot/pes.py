@@ -321,7 +321,7 @@ def postprocess(par, jobs, task, names):
                  prod_energies,
                  highlight)
     #write_mess
-    #create_mess_input(par, jobs[0], wells, products, reactions, parent, zero_energy, zero_zpe, par.par['high_level'])
+    create_mess_input(par, jobs[0], wells, products, reactions, parent, zero_energy, zero_zpe, par.par['high_level'])
 
 
 def filter(wells, products, reactions, conn, bars, task, names):
@@ -568,7 +568,7 @@ def create_mess_input(par, well0, wells, products, reactions, parent, zero_energ
     for well in wells:
         energy = get_energy(well, well, 0, par.par['high_level'])
         zpe = get_zpe(well, well, 0, par.par['high_level'])
-        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * constants.AUtoKCAL
+        zeroenergy = ((energy + zpe) - (zero_energy + zero_zpe)) * constants.AUtoKCAL
         s += open(well + '/' + well + '.mess').read().format(zeroenergy = zeroenergy) 
         
     for prods in products:
@@ -578,9 +578,19 @@ def create_mess_input(par, well0, wells, products, reactions, parent, zero_energ
         for pr in prods.split('_'):
             energy += get_energy(rxn[0], pr, 0, par.par['high_level'])
             zpe += get_zpe(rxn[0], pr, 0, par.par['high_level'])
-        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * constants.AUtoKCAL
+        zeroenergy = ((energy + zpe) - (zero_energy + zero_zpe)) * constants.AUtoKCAL
         s += open(rxn[0] + '/' + prods + '.mess').read().format(ground_energy = zeroenergy) 
     f.write('\n')
+
+# currently doesn't work because the file with the .mess extension is not the same as the reaction[1] saddle
+# even though they are the same energy
+#    for reaction in reactions:
+#        well = reaction[1].split('_')[0]
+#        energy = get_energy(well, reaction[1], 1, par.par['high_level'])
+#        zpe = get_zpe(well, reaction[1], 1, par.par['high_level'])
+#        zeroenergy = ((energy + zpe) - (zero_energy + zero_zpe)) * constants.AUtoKCAL
+#        print(well + '/' + reaction[1] + '.mess')
+#        s += open(well + '/' + reaction[1] + '.mess').read().format(ground_energy = zeroenergy) 
     
     f.write(s)
     f.close()

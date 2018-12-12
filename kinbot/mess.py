@@ -99,12 +99,13 @@ class MESS:
             if self.species.reac_ts_done[index] == -1:
                 prod_name = '_'.join([str(pi.chemid) for pi in reaction.products])
                 energy = reaction.ts.energy
+                zpe = reaction.ts.zpe
                 new = 1
                 remove = []
                 for ts in ts_unique:
                     if ts_unique[ts][0] == prod_name:
                         # check for the barrier with the lowest energy
-                        if ts_unique[ts][1] > energy:
+                        if ts_unique[ts][1] > energy + zpe:
                             # remove the current barrier
                             remove.append(ts)
                         else:
@@ -112,7 +113,7 @@ class MESS:
                 for ts in remove:
                     ts_unique.pop(ts, None)
                 if new:
-                    ts_unique[reaction.instance_name] = [prod_name, energy]
+                    ts_unique[reaction.instance_name] = [prod_name, energy + zpe]
 
         # write the mess input for the different blocks
         well_blocks = {}
@@ -210,8 +211,12 @@ class MESS:
                     geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
 
                 energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
-
-                fragments += fragment_tpl.format(chemid=self.fragment_names[species.chemid] + ' ! ' + str(species.chemid),
+                if self.par.par['pes']:
+                    name = 'fr_name_{}'.format(species.chemid)
+                    name = '{' + name + '}'
+                else:
+                    name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
+                fragments += fragment_tpl.format(chemid=name,
                                                  natom=species.natom,
                                                  geom=geom,
                                                  symm=float(species.sigma_ext) / float(species.nopt),
@@ -223,26 +228,34 @@ class MESS:
                                                  mult=species.mult)
                 fragments += '\n'
             else:
+                if self.par.par['pes']:
+                    name = 'fr_name_{}'.format(species.chemid)
+                    name = '{' + name + '}'
+                else:
+                    name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
                 # atom template
-                fragments += atom_tpl.format(chemid=self.fragment_names[species.chemid] + ' ! ' + str(species.chemid),
+                fragments += atom_tpl.format(chemid=name,
                                              element=species.atom[0],
                                              nelec=1,
                                              charge=species.charge,
                                              mult=species.mult)
                 fragments += '\n'
 
+        pr_name = '_'.join(sorted([str(species.chemid) for species in species_list]))
         if self.par.par['pes']:
+            name = '{name}'
             energy = '{ground_energy}'
         else:
+            name = self.bimolec_names[pr_name] + ' ! ' + pr_name
             energy = (sum([sp.energy for sp in species_list]) + sum([sp.zpe for sp in species_list]) -
                       (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
-        name = '_'.join(sorted([str(species.chemid) for species in species_list]))
-        bimol = tpl.format(chemids=self.bimolec_names[name] + ' ! ' + name,
+        
+        bimol = tpl.format(chemids=name,
                            fragments=fragments,
                            ground_energy=energy)
 
-        f = open(name + '.mess', 'w')
+        f = open(pr_name + '.mess', 'w')
         f.write(bimol)
         f.close()
 
@@ -295,11 +308,13 @@ class MESS:
             geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
 
         if self.par.par['pes']:
+            name = '{name}'
             energy = '{zeroenergy}'
         else:
+            name = self.well_names[species.chemid] + ' ! ' + str(species.chemid)
             energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
-        mess_well = tpl.format(chemid=self.well_names[species.chemid] + ' ! ' + str(species.chemid),
+        mess_well = tpl.format(chemid=name,
                                natom=species.natom,
                                geom=geom,
                                symm=float(species.sigma_ext) / float(species.nopt),
@@ -377,21 +392,29 @@ class MESS:
                                  welldepth1=barriers[0],
                                  welldepth2=barriers[1])
 
-        if self.par.par['pes']:
-            energy = '{zeroenergy}'
-        else:
-            energy = ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
-
         if len(reaction.products) == 1:
             prod_name = self.well_names[reaction.products[0].chemid]
         else:
             long_name = '_'.join(sorted([str(pi.chemid) for pi in reaction.products]))
             prod_name = self.bimolec_names[long_name]
 
-        mess_ts = tpl.format(rxn_name=self.ts_names[reaction.instance_name],
-                             chemid_reac=self.well_names[self.species.chemid],
-                             chemid_prod=prod_name,
-                             long_rxn_name=reaction.instance_name,
+        if self.par.par['pes']:
+            name = '{name}'
+            chemid_reac = ''
+            chemid_prod = ''
+            long_rxn_name = ''
+            energy = '{zeroenergy}'
+        else:
+            name = self.ts_names[reaction.instance_name]
+            chemid_reac = self.well_names[self.species.chemid]
+            chemid_prod = prod_name
+            long_rxn_name = reaction.instance_name
+            energy = ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+
+        mess_ts = tpl.format(rxn_name=name,
+                             chemid_reac=chemid_reac,
+                             chemid_prod=chemid_prod,
+                             long_rxn_name=long_rxn_name,
                              natom=reaction.ts.natom,
                              geom=geom,
                              symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),

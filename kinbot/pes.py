@@ -271,7 +271,7 @@ def postprocess(par, jobs, task, names):
                     reactions.append([reactant, ts, prod, barrier])
                 else:
                     #check if the previous reaction has a lower energy or not
-                    if reactions[i][3] > barrier:
+                    if reactions[temp][3] > barrier:
                         reactions.pop(temp)
                         reactions.append([reactant, ts, prod, barrier])
         # copy the xyz files
@@ -319,8 +319,15 @@ def postprocess(par, jobs, task, names):
                  well_energies,
                  prod_energies,
                  highlight)
+
     #write_mess
-    #create_mess_input(par, jobs[0], wells, products, reactions, parent, zero_energy, zero_zpe, par.par['high_level'])
+    create_mess_input(par,
+                      wells,
+                      products,
+                      reactions,
+                      well_energies,
+                      prod_energies,
+                      parent)
 
 
 def filter(wells, products, reactions, conn, bars, well_energies, task, names):
@@ -627,34 +634,144 @@ def get_rxn(prods, rxns):
             return rxn
 
 
-def create_mess_input(par, well0, wells, products, reactions, parent, zero_energy, zero_zpe, high_level):
-    fname = 'input.mess'
-    f = open(fname, 'w+')
-    #todo: add header
-    
-    s = '##############\n'
-    s += '# WELLS \n'
-    s += '##############\n'
-    
+def create_short_names(wells, products, reactions):
+    """
+    Create a short name for all the wells, all the
+    bimolecular products and all the transition states
+    """
+    # short names of the wells
+    # key: chemid
+    # value: short name
+    well_short = {}
+    # short names of the products
+    # key: sorted chemids with underscore
+    # value: short name
+    pr_short = {}
+    # short names of the fragments
+    # key: chemid
+    # value: short name
+    fr_short = {}
+    # short name of the ts's
+    # key: reaction name (chemid, type and instance)
+    # value: short name
+    ts_short = {}
+
     for well in wells:
-        energy = get_energy(well, well, 0, par.par['high_level'])
-        zpe = get_zpe(well, well, 0, par.par['high_level'])
-        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * constants.AUtoKCAL
-        s += open(well + '/' + well + '.mess').read().format(zeroenergy = zeroenergy) 
-        
-    for prods in products:
-        energy = 0.
-        zpe = 0.
-        rxn = get_rxn(prods, reactions)
-        for pr in prods.split('_'):
-            energy += get_energy(rxn[0], pr, 0, par.par['high_level'])
-            zpe += get_zpe(rxn[0], pr, 0, par.par['high_level'])
-        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * constants.AUtoKCAL
-        s += open(rxn[0] + '/' + prods + '.mess').read().format(ground_energy = zeroenergy) 
-    f.write('\n')
-    
-    f.write(s)
-    f.close()
+        if well not in well_short:
+            short_name = 'w_' + str(len(well_short) + 1)
+            well_short[well] = short_name
+    for prod in products:
+        if prod not in pr_short:
+            short_name = 'pr_' + str(len(pr_short) + 1)
+            pr_short[prod] = short_name
+        for frag in prod.split('_'):
+            if frag not in fr_short:
+                short_name = 'fr_' + str(len(fr_short) + 1)
+                fr_short[frag] = short_name
+    for rxn in reactions:
+        if rxn[1] not in ts_short:
+            short_name = 'rxn_' + str(len(ts_short) + 1)
+            ts_short[rxn[1]] = short_name
+    return well_short, pr_short, fr_short, ts_short
+
+
+def write_header(par, well0):
+    """
+    Create the header block for MESS
+    """
+    # Read the header template
+    header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
+    with open(header_file) as f:
+        tpl = f.read()
+    header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par.par['TemperatureList']]),
+                        PressureList=' '.join([str(pi) for pi in par.par['PressureList']]),
+                        EnergyStepOverTemperature=par.par['EnergyStepOverTemperature'],
+                        ExcessEnergyOverTemperature=par.par['ExcessEnergyOverTemperature'],
+                        ModelEnergyLimit=par.par['ModelEnergyLimit'],
+                        CalculationMethod=par.par['CalculationMethod'],
+                        ChemicalEigenvalueMax=par.par['ChemicalEigenvalueMax'],
+                        Reactant=well0,
+                        EnergyRelaxationFactor=par.par['EnergyRelaxationFactor'],
+                        EnergyRelaxationPower=par.par['EnergyRelaxationPower'],
+                        EnergyRelaxationExponentCutoff=par.par['EnergyRelaxationExponentCutoff'],
+                        Epsilons=' '.join([str(ei) for ei in par.par['Epsilons']]),
+                        Sigmas=' '.join([str(si) for si in par.par['Sigmas']]),
+                        Masses=' '.join([str(mi) for mi in par.par['Masses']]))
+    return header
+
+
+def create_mess_input(par, wells, products, reactions,
+                      well_energies, prod_energies, parent):
+    """
+    When calculating a full pes, the files from the separate wells 
+    are read and concatenated into one file
+    Two things per file need to be updated
+    1. the names of all the wells, bimolecular products and ts's
+    2. all the zpe corrected energies
+    """
+    # generate short names for all startionary points
+    well_short, pr_short, fr_short, ts_short = create_short_names(wells,
+                                                                  products,
+                                                                  reactions)
+    # list of the strings to write to mess input file
+    s = []
+    # write the header
+    s.append(write_header(par, well_short[wells[0]]))
+
+    # write the wells
+    s.append('######################')
+    s.append('# WELLS')
+    s.append('######################')
+    for well in wells:
+        name = well_short[well] + ' ! ' + well
+        energy = well_energies[well]
+        with open(parent[well] + '/' + well + '.mess') as f:
+            s.append(f.read().format(name=name, zeroenergy=energy))
+        s.append('!****************************************')
+
+    # write the products
+    s.append('######################')
+    s.append('# BIMOLECULAR PRODUCTS')
+    s.append('######################')
+    for prod in products:
+        name = pr_short[prod] + ' ! ' + prod
+        energy = prod_energies[prod]
+        fr_names = {}
+        for fr in prod.split('_'):
+            key = 'fr_name_{}'.format(fr)
+            value = fr_short[fr] + ' ! ' + fr
+            fr_names[key] = value
+        with open(parent[prod] + '/' + prod + '.mess') as f:
+            s.append(f.read().format(name=name,
+                                     ground_energy=energy,
+                                     **fr_names))
+        s.append('!****************************************')
+
+    # write the barrier
+    s.append('######################')
+    s.append('# BARRIERS')
+    s.append('######################')
+    for rxn in reactions:
+        name = [ts_short[rxn[1]]]
+        name.append(well_short[rxn[0]])
+        if len(rxn[2]) == 1:
+            name.append(well_short[rxn[2][0]])
+        else:
+            name.append(pr_short['_'.join(sorted(rxn[2]))])
+        name.append('!')
+        name.append(rxn[1])
+        energy = rxn[3]
+        with open(rxn[0] + '/' + rxn[1] + '.mess') as f:
+            s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
+        s.append('!****************************************')
+
+    # add last end statement
+    s.append('!****************************************')
+    s.append('End ! end kinetics\n')
+
+    # write everything to a file
+    with open('mess.inp', 'w') as f:
+        f.write('\n'.join(s))
     
 
 def create_pesviewer_input(par, wells, products, reactions, well_energies, prod_energies, highlight):

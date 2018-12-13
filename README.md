@@ -28,3 +28,6 @@ See the manual in the docs/ directory.
 * Judit Zador (jzador@sandia.gov)
 * Ruben Van de Vijver (vandevijver.ruben@gmail.com)
 
+## Website
+https://kinbot.sandia.gov
+

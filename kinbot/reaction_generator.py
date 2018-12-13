@@ -133,7 +133,8 @@ class ReactionGenerator:
                             sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
                             barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
                         else:
-                            barrier = (self.qc.get_qc_energy(instance_name)[1] - self.species.energy) * constants.AUtoKCAL
+                            sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well')[1]
+                            barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
                         if barrier > self.par.par['barrier_threshold']:
                             logging.info('\tRxn barrier too high ({val}) for {name}'.format(val=barrier,name=instance_name))
                             self.species.reac_ts_done[index] = -999

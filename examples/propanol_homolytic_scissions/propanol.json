@@ -1,0 +1,18 @@
+{
+"title":"propanol_homolytic_scissions",
+
+"charge" : 0,
+"mult" : 1,
+"method" : "b3lyp",
+"basis" : "6-31+g*",
+"qc" : "gauss",
+"conformer_search" : 0,
+"reaction_search" : 0,
+"rotor_scan" : 0,
+"high_level" : 0,
+"homolytic_scissions" : 1,
+"barrier_threshold" : 200.0,
+"ppn" : 8,
+
+"smiles" : "OCCC"
+}

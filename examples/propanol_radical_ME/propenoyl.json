@@ -1,0 +1,36 @@
+{
+"title" : "propenoyl",
+
+"charge" : 0,
+"mult" : 2,
+"method" : "b3lyp",
+"basis" : "6-31+g*",
+"qc" : "gauss",
+"conformer_search" : 1,
+"reaction_search" : 1,
+"rotor_scan" : 1,
+"high_level" : 1,
+"high_level_method" : "M062X",
+"high_level_basis" : "6-311++G(d,p)",
+"homolytic_scissions" : 0,
+"barrier_threshold" : 200.0,
+"me" : 1,
+"me_code" : "mess",
+"ppn" : 8,
+
+"TemperatureList" : [500, 800, 1000, 1500, 2000],
+"PressureList" : [760],
+"EnergyStepOverTemperature" : 0.2,
+"ExcessEnergyOverTemperature" : 30,
+"ModelEnergyLimit" : 400,
+"CalculationMethod" : "direct",
+"ChemicalEigenvalueMax" : 0.2,
+"EnergyRelaxationFactor" : 200,
+"EnergyRelaxationPower" : 0.85,
+"EnergyRelaxationExponentCutoff" : 15,
+"Epsilons" : [7.08, 576.7],
+"Sigmas" : [2.576, 4.459],
+"Masses" : [4.0, 59.0],
+
+"smiles" : "[CH2]CCO"
+}

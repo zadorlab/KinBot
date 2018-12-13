@@ -43,6 +43,7 @@ import find_motif
 import license_message
 from parameters import Parameters
 from stationary_pt import StationaryPoint
+from mess import MESS
 
 
 def main():
@@ -769,10 +770,22 @@ def create_mess_input(par, wells, products, reactions,
     s.append('!****************************************')
     s.append('End ! end kinetics\n')
 
+
+    if not os.path.exists('me'):
+        os.mkdir('me')
+
     # write everything to a file
-    with open('mess.inp', 'w') as f:
+    with open('me/mess.inp', 'w') as f:
         f.write('\n'.join(s))
-    
+ 
+    dummy = StationaryPoint('dummy',
+                            par.par['charge'],
+                            par.par['mult'],
+                            smiles=par.par['smiles'],
+                            structure=par.par['structure'])
+
+    mess = MESS(par, dummy)
+    mess.run() 
 
 def create_pesviewer_input(par, wells, products, reactions, well_energies, prod_energies, highlight):
     """

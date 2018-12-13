@@ -850,8 +850,8 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
         maximum = max(max(well_energies.values()), max(prod_energies.values()))
     except ValueError:
         # list of products can be empty, but list of wells not
-        minimum = min(min(well_energies.values()))
-        maximum = max(max(well_energies.values()))
+        minimum = min(well_energies.values())
+        maximum = max(well_energies.values())
     # define the inveresly proportial weights function
     max_size = 400
     min_size = 100

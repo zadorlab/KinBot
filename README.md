@@ -5,15 +5,24 @@ This repository contains the KinBot code version 2.0,
 a tool for automatically searching for reactions on the potential energy surface.
 
 ## How to Install
-(under construction)
-Clone the project in your home directory, which will create the ~/KinBot directory.
+Clone the project on your machine and go into the KinBot/ directory. Run the following:
+
+    python setup.py build
+    python setup.py install
+
+## How to Run
+To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:
+
+    kinbot input.json
+
+To run a full PES search, make an input file (e.g. input.json) and run:
+
+    pes input.json
+
+You can find additional command line arguments in the manual. 
 
 ## Documentation
-(under construction)
 See the manual in the docs/ directory. 
-
-## Registration
-If you want to stay updated about the project (new version coming soon), register here: (under construction)
 
 ## Authors
 * Judit Zador (jzador@sandia.gov)

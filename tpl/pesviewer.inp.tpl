@@ -12,7 +12,8 @@ If you want to use 3D coordinates, store them in a xyz/ directory in the same di
 > <id> {id}
 
 > <options> 
-units              kcal/mol  #energy units
+title              0         # print a title (1) or not (0) 
+units              kcal/mol  # energy units
 use_xyz            1         # use xyz, put 0  to switch off
 rescale            0         # no rescale , put the well or bimolecular name here to rescale to that value
 fh                 9.        # figure height
@@ -27,6 +28,8 @@ well_color         blue      # color of the energy values of the wells
 ts_color           green     # color or the energy values of the ts, put to 'none' to use same color as line
 show_images        1         # boolean tells whether the molecule images should be shown on the graph
 rdkit4depict       1         # boolean that specifies which code was used for the 2D depiction
+axes_size          10        # font size of the axes
+text_size          10        # font size of the energy values on the graph
 
 > <wells> 
 {wells}

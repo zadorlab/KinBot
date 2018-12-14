@@ -42,6 +42,8 @@ class HIR:
 
         # number of points along one scan
         self.nrotation = par.par['nrotation']
+        # boolean tells if profiles should be plotted
+        self.plot_hir_profiles = par.par['plot_hir_profiles']
 
         # -1 (not finished), 0 (successful) or
         # 1 (failed) for each HIR scan point
@@ -149,8 +151,7 @@ class HIR:
                     self.write_profile(rotor, job)
                     self.hir_fourier.append(self.fourier_fit(job,
                                                              angles,
-                                                             rotor,
-                                                             plot_fit=0))
+                                                             rotor))
                 return 1
             else:
                 if wait:
@@ -173,12 +174,11 @@ class HIR:
             file.write(s)
         file.close()
 
-    def fourier_fit(self, job, angles, rotor, plot_fit=0):
+    def fourier_fit(self, job, angles, rotor):
         """
         Create a alternative fourier formulation of a hindered rotor
         profile, the angles are in radians and the eneries in
         kcal per mol (Vanspeybroeck et al.)
-        plot_fit: plot the profile and the fit to a png
         """
         energies = self.hir_energies[rotor]
         status = self.hir_status[rotor]
@@ -204,7 +204,7 @@ class HIR:
             if si == 1:
                 energies[i] = energies[0] + self.get_fit_value(A, angles[i])/constants.AUtoKCAL
 
-        if plot_fit:
+        if self.plot_hir_profiles:
             # fit the plot to a png file
             plt.plot(ang, ens, 'ro')
             fit_angles = [i * 2. * np.pi / 360 for i in range(360)]

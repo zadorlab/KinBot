@@ -85,6 +85,8 @@ class Parameters:
             'rotor_scan': 0,
             # Number of points along the rotor scan
             'nrotation': 12,
+            # Make figures of the HIR profiles
+            'plot_hir_profiles': 0,
             # Do master equation calculations
             'me': 0,
             # Number of HIR restarts in case a lower energy point gets found

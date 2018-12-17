@@ -203,9 +203,12 @@ class QuantumChemistry:
         return 0
 
 
-    def qc_ring_conf(self,species, geom, relaxed_scan, fix, conf_nr, scan_nr):
+    def qc_ring_conf(self,species, geom, fix, change, conf_nr, scan_nr):
         """ 
-        Creates a constrained geometry optimization input for the conformational search of cyclic structures and runs it.
+        Creates a constrained geometry optimization input for the
+        conformational search of cyclic structures and runs it.
+        Make use of the ASE optimizer PCOBFGS
+
         qc: 'gauss' or 'nwchem'
         scan: list of dihedrals to be scanned and their values
         wellorts: 0 for wells and 1 for saddle points
@@ -217,14 +220,12 @@ class QuantumChemistry:
         else:
             job = 'conf/' + str(species.chemid) + '_r' + str(conf_nr).zfill(self.zf) + '_' + str(scan_nr).zfill(self.zf)
         
-        kwargs = self.get_qc_arguments(job,species.mult, ts = species.wellorts, step = 1, max_step = 1, hir = 1)
+        kwargs = self.get_qc_arguments(job,species.mult, ts=species.wellorts, step=1, max_step=1, hir=1)
         
-        kwargs['relaxed_scan'] = relaxed_scan
-        kwargs['fix'] = fix
-        kwargs['method'] = 'am1'
-        kwargs['opt'] += ',loose'
-        kwargs['basis'] = ''
+        del kwargs['opt']
         del kwargs['chk']
+        kwargs['method'] = 'am1'
+        kwargs['basis'] = ''
         
         atom = copy.deepcopy(species.atom)
         
@@ -235,16 +236,22 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
     
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
+        template = template.format(label=job,
+                                   kwargs=kwargs,
+                                   atom=list(atom),
+                                   geom=list([list(gi) for gi in geom]),
+                                   fix=fix,
+                                   change=change,
+                                   ppn=self.ppn,
+                                   dummy=dummy)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
         f_out.close()
         
         self.submit_qc(job)
-
         return 0
 
     def qc_conf(self,species, geom, index=-1, ring = 0):

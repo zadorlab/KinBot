@@ -43,6 +43,7 @@ setup(
         'ase_nwchem_freq_well.py.tpl',
         'ase_nwchem_irc.py.tpl',
         'ase_nwchem_opt_well.py.tpl',
+        'ase_gauss_ring_conf.py.tpl',
         'ase_nwchem_ts_end.py.tpl',
         'ase_nwchem_ts_search.py.tpl',
         'ase_nwchem_ts_search_ase_constraints.py.tpl',
@@ -84,7 +85,7 @@ setup(
         'kinbot = kinbot.kb:main',
         'pes = kinbot.pes:main',
         ]},
-    install_requires=['ase','numpy'],
+    install_requires=['ase','numpy','networkx'],
     
     author="Judit Zador and Ruben Van de Vijver",
     author_email = "jzador@sandia.gov",

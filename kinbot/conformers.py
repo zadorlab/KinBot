@@ -133,16 +133,19 @@ class Conformers:
         else:
             self.cyc_conf_index[index] += 1
             fix = []
-            relaxed_scan = []
+            change = []
             for j, da in enumerate(self.cyc_dih_atoms[index]):
                 if j == self.cyc_conf_index[index]:
-                    current_dih = geometry.calc_dihedral(cart[da[0]], cart[da[1]], cart[da[2]], cart[da[3]])[0]
                     new_dih = self.cyc_dih_values[index][j]
-                    relaxed_scan.append([da[0] + 1, da[1] + 1, da[2] + 1, da[3] + 1, 10, (new_dih - current_dih) / 10])
+                    change.append([da[0] + 1, da[1] + 1, da[2] + 1, da[3] + 1, new_dih])
                     break
                 else:
                     fix.append([da[0] + 1, da[1] + 1, da[2] + 1, da[3] + 1])
-            self.qc.qc_ring_conf(self.species, cart, relaxed_scan, fix, index, self.cyc_conf_index[index])
+            for i in range(self.species.natom - 1):
+                for j in range(i+1, self.species.natom):
+                    if self.species.bond[i][j] > 0:
+                        fix.append([i + 1, j + 1])
+            self.qc.qc_ring_conf(self.species, cart, fix, change, index, self.cyc_conf_index[index])
         return 1
 
     def test_ring_conformer(self, index):

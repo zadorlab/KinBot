@@ -50,7 +50,7 @@ class styblinski_tang():
         return grad
 
 
-class TestMultimolecular(unittest.TestCase):
+class TestBFGS(unittest.TestCase):
     def setUp(self):
         pass
 

@@ -34,7 +34,7 @@ from kinbot.qc import QuantumChemistry
 
 class TestGeometryModification(unittest.TestCase):
     def setUp(self):
-        self.write_files = 1
+        self.write_files = 0
 
     def testDihedralChangeHexane(self):
         """

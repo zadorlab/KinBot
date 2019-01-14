@@ -63,33 +63,49 @@ def carry_out_reaction(rxn,step):
     if step > rxn.max_step:
         return step
     
-    
-    #apply the geometry changes here and fix the coordinates that changed
-    change_starting_zero = []
-    for c in change:
-        c_new = [ci - 1 for ci in c[:-1]]
-        c_new.append(c[-1])
-        change_starting_zero.append(c_new)
-    if len(change_starting_zero) >0 :
-        success, geom = modify_geom.modify_coordinates(rxn.species, rxn.instance_name, geom, change_starting_zero, rxn.species.bond)
+    pcobfgs = 0
+    if pcobfgs == 0:
+        #apply the geometry changes here and fix the coordinates that changed
+        change_starting_zero = []
         for c in change:
-            fix.append(c[:-1])
-        change = []
-    
-    
-    kwargs['fix'] = fix
-    kwargs['change'] = change
-    kwargs['release'] = release
+            c_new = [ci - 1 for ci in c[:-1]]
+            c_new.append(c[-1])
+            change_starting_zero.append(c_new)
+        if len(change_starting_zero) >0 :
+            success, geom = modify_geom.modify_coordinates(rxn.species, rxn.instance_name, geom, change_starting_zero, rxn.species.bond)
+            for c in change:
+                fix.append(c[:-1])
+            change = []
+        
+        
+        kwargs['fix'] = fix
+        kwargs['change'] = change
+        kwargs['release'] = release
 
-    if step < rxn.max_step:
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.py.tpl'.format(qc = rxn.qc.qc))
-        template = open(template_file,'r').read()
+        if step < rxn.max_step:
+            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.py.tpl'.format(qc = rxn.qc.qc))
+            template = open(template_file,'r').read()
+        else:
+            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = rxn.qc.qc))
+            template = open(template_file,'r').read()
+        
+        template = template.format(label = rxn.instance_name, kwargs = kwargs, atom = list(rxn.species.atom), 
+                                   geom = list([list(gi) for gi in geom]), ppn = rxn.qc.ppn)
     else:
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = rxn.qc.qc))
-        template = open(template_file,'r').read()
-    
-    template = template.format(label = rxn.instance_name, kwargs = kwargs, atom = list(rxn.species.atom), 
-                               geom = list([list(gi) for gi in geom]), ppn = rxn.qc.ppn)
+        # use the pcobfgs algorithm for the geometry update
+        if step < rxn.max_step:
+            del kwargs['opt']
+            conv_crit = 0.01  # force convergence criterion 
+            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search_pcobfgs.py.tpl'.format(qc = rxn.qc.qc))
+            template = open(template_file,'r').read()
+            template = template.format(label=rxn.instance_name, kwargs=kwargs, atom=list(rxn.species.atom), 
+                                       geom=list([list(gi) for gi in geom]), ppn=rxn.qc.ppn, fix=fix,
+                                       change=change, conv_crit=conv_crit)
+        else:
+            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = rxn.qc.qc))
+            template = open(template_file,'r').read()
+            template = template.format(label = rxn.instance_name, kwargs = kwargs, atom = list(rxn.species.atom), 
+                                       geom = list([list(gi) for gi in geom]), ppn = rxn.qc.ppn)
     
     f_out = open('{}.py'.format(rxn.instance_name),'w')
     f_out.write(template)

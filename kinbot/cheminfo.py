@@ -138,7 +138,11 @@ def create_rdkit_mol(bond, atom):
     m = Chem.MolFromSmiles('[' + atom[0] + ']')
     mw = Chem.RWMol(m)
     for i in range(1, len(atom)):
-        mw.AddAtom(Chem.Atom(syms_to_num[atom[i]]))
+        dummy = Chem.MolFromSmiles('[' + atom[i] + ']')
+        at = dummy.GetAtoms()[0]
+        #at = Chem.Atom(syms_to_num[atom[i]])
+        #at.SetNoImplicit(True)
+        mw.AddAtom(at)
     for i in range(len(atom)-1):
         for j in range(i, len(atom)):
             if bond[i][j] == 1:
@@ -148,16 +152,8 @@ def create_rdkit_mol(bond, atom):
             if bond[i][j] == 3:
                 mw.AddBond(i, j, Chem.BondType.TRIPLE)
     smi = Chem.MolToSmiles(mw)
-
-    AllChem.EmbedMolecule(mw, AllChem.ETKDG())
-    structure = []
-
-    for i, atom in enumerate(mw.GetAtoms()):
-        pos = mw.GetConformer(0).GetAtomPosition(i)
-        sym = num_to_syms[atom.GetAtomicNum()]
-        structure += [sym, pos.x, pos.y, pos.z]
-
-    return mw, smi, structure
+    inchi = Chem.MolToInchi(mw)
+    return mw, smi, inchi
 
 
 def create_inchi_from_geom(atom, geom):

@@ -107,7 +107,7 @@ def calculate_symmetry(species):
                     s2 = len(nei2)
                 if any([all([bi[li[ai]][li[ai+1]] == 1 for bi in species.bonds]) for ai in range(len(li)-1)]): # single bond in all resonance isomers
                     if sigma_ext_contrib[i] > 1:
-                        sigma_int[i][j]  = s2
+                        sigma_int[i][j] = s2
                     elif sigma_ext_contrib[j] > 1:
                         sigma_int[i][j] = s1
                     else:

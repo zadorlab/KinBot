@@ -39,7 +39,6 @@ import numpy as np
 from ase.db import connect
 
 import constants
-import find_motif
 import license_message
 from parameters import Parameters
 from stationary_pt import StationaryPoint
@@ -47,10 +46,14 @@ from mess import MESS
 
 
 def main():
-    input_file = sys.argv[1]
-    
+    try:
+        input_file = sys.argv[1]
+    except IndexError:
+        print('To use the pes script, supply one argument being the input file!')
+        sys.exit(-1)
+
     # TODO: write information about the arguments
-    # change this to nice argument parsers with 
+    # change this to nice argument parsers with
     # dashes etc.
     no_kinbot = 0
     task = 'all'
@@ -61,34 +64,38 @@ def main():
     if len(sys.argv) > 3:
         # possible tasks are:
         # 1. all: This is the default showing all pathways
-        # 2. lowestpath: show the lowest path between the species 
+        # 2. lowestpath: show the lowest path between the species
         # corresponding to the names
         # 3. allpaths: show all paths between the species
         # corresponding to the names
-        # 4. wells: show all reactions of one wells 
+        # 4. wells: show all reactions of one wells
         # corresponding to the names
         task = sys.argv[3]
         names = sys.argv[4:]
-        
-    
-    #print the license message to the console
+
+    # print the license message to the console
     print(license_message.message)
 
-    #initialize the parameters
+    # initialize the parameters
     par = Parameters(input_file)
-    
-    # set up the logging environment 
+
+    # set up the logging environment
     logging.basicConfig(filename='pes.log', level=logging.INFO)
-    
+
     logging.info(license_message.message)
-    logging.info('Starting the PES search at {}'.format(datetime.datetime.now()))
- 
-    well0 = StationaryPoint('well0', par.par['charge'], par.par['mult'], smiles = par.par['smiles'], structure = par.par['structure'])
+    msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
+    logging.info(msg)
+
+    well0 = StationaryPoint('well0',
+                            par.par['charge'],
+                            par.par['mult'],
+                            smiles=par.par['smiles'],
+                            structure=par.par['structure'])
     well0.characterize()
     write_input(par, well0, par.par['barrier_threshold'], os.getcwd())
-    
+
     # add the initial well to the chemids
-    with open('chemids','w') as f:
+    with open('chemids', 'w') as f:
         f.write(str(well0.chemid) + '\n')
 
     # maximum number of kinbot jobs that run simultaneously
@@ -107,15 +114,16 @@ def main():
         jobs = f.read().split('\n')
         jobs = [ji for ji in jobs if ji != '']
         f.close()
-        
+
         if len(jobs) > j:
-            logging.info('\tPicked up new jobs: ' + ' '.join([ji for ji in jobs[j:]]))
+            logging.info('\tPicked up new jobs: ' + ' '.join(jobs[j:]))
 
         if len(finished) == len(jobs):
             break
-        
-        while len(running) < max_running and len(running) + len(finished) < len(jobs):
-            #start a new job
+
+        while (len(running) < max_running and
+               len(running) + len(finished) < len(jobs)):
+            # start a new job
             job = jobs[len(running) + len(finished)]
             pid = 0
             if not no_kinbot:
@@ -123,22 +131,28 @@ def main():
             else:
                 get_wells(job)
             pids[job] = pid
-            logging.info('\tStarted job {} at {}'.format(job, datetime.datetime.now()))
+            t = datetime.datetime.now()
+            logging.info('\tStarted job {} at {}'.format(job, t))
             running.append(job)
-        #check if a thread is done
+        # check if a thread is done
         for job in running:
             if not check_status(job, pids[job]):
-                logging.info('\tFinished job {} at {}'.format(job, datetime.datetime.now()))
+                t = datetime.datetime.now()
+                logging.info('\tFinished job {} at {}'.format(job, t))
                 finished.append(job)
                 if not no_kinbot:
                     # write a temporary pes file
                     # remove old xval and im_extent files
-                    if os.path.exists('{}_xval.txt'.format(par.par['title'])):
+                    try:
                         os.remove('{}_xval.txt'.format(par.par['title']))
-                    if os.path.exists('{}_im_extent.txt'.format(par.par['title'])):
+                    except OSError:
+                        pass
+                    try:
                         os.remove('{}_im_extent.txt'.format(par.par['title']))
+                    except OSError:
+                        pass
                     postprocess(par, jobs, task, names)
-        #remove the finished threads
+        # remove the finished threads
         for job in finished:
             if job in running:
                 running.remove(job)
@@ -150,11 +164,11 @@ def main():
             summary_lines.append('Finished\t{}'.format(len(finished)))
             summary_lines.append('')
             summary_lines.append('Running:')
-            for job in running: 
+            for job in running:
                 summary_lines.append('\t{}'.format(job))
             summary_lines.append('')
             summary_lines.append('Finished:')
-            for job in finished: 
+            for job in finished:
                 summary_lines.append('\t{}'.format(job))
             with open('pes_summary.txt', 'w') as f:
                 f.write('\n'.join(summary_lines))
@@ -183,12 +197,12 @@ def get_wells(job):
         if line.startswith('SUCCESS'):
             pieces = line.split()
             prod = pieces[3:]
-            if (len(prod) == 1 and 
+            if (len(prod) == 1 and
                     prod[0] not in jobs and
                     prod[0] not in new_wells):
                 new_wells.append(prod[0])
     if len(new_wells) > 0:
-        with open('chemids','a') as f:
+        with open('chemids', 'a') as f:
             f.write('\n'.join(new_wells) + '\n')
 
 
@@ -202,7 +216,7 @@ def postprocess(par, jobs, task, names):
     # base of the energy is the first well
     zero_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
     zero_zpe = get_zpe(jobs[0], jobs[0], 0, par.par['high_level'])
-    
+
     # list of lists with four elements
     # reactant chemid
     # reaction name
@@ -211,14 +225,14 @@ def postprocess(par, jobs, task, names):
     reactions = []
     # list of the parents for each calculation
     # the key is the name of the calculation
-    # the value is the parent directory, 
+    # the value is the parent directory,
     # i.e. the well kinbot started from to find
     # this calculation
     parent = {}
     wells = []
     failedwells = []
     products = []
-    #read all the jobs
+    # read all the jobs
     for ji in jobs:
         try:
             summary = open(ji + '/summary_' + ji + '.out', 'r').readlines()
@@ -232,19 +246,28 @@ def postprocess(par, jobs, task, names):
                 reactant = ji
                 ts = pieces[2]
                 prod = pieces[3:]
-                
+
                 # calculate the barrier based on the new energy base
                 barrier = 0. - zero_energy - zero_zpe
                 # overwrite energies with mp2 energy if needed
-                if 'R_Addition_MultipleBond' in ts and not par.par['high_level']:
-                    zero_energy_mp2 = get_energy(jobs[0], jobs[0], 0, par.par['high_level'], mp2=1)
-                    zero_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, par.par['high_level'], mp2=1)
+                if ('R_Addition_MultipleBond' in ts and
+                        not par.par['high_level']):
+                    zero_energy_mp2 = get_energy(jobs[0],
+                                                 jobs[0],
+                                                 0,
+                                                 par.par['high_level'],
+                                                 mp2=1)
+                    zero_zpe_mp2 = get_zpe(jobs[0],
+                                           jobs[0],
+                                           0,
+                                           par.par['high_level'],
+                                           mp2=1)
                     barrier = 0. - zero_energy_mp2 - zero_zpe_mp2
                 ts_energy = get_energy(reactant, ts, 1, par.par['high_level'])
                 ts_zpe = get_zpe(reactant, ts, 1, par.par['high_level'])
                 barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
-                
+
                 if reactant not in wells:
                     wells.append(reactant)
                     parent[reactant] = reactant
@@ -262,7 +285,9 @@ def postprocess(par, jobs, task, names):
                 new = 1
                 temp = None
                 for i, rxn in enumerate(reactions):
-                    if reactant == rxn[0] and '_'.join(sorted(prod)) == '_'.join(sorted(rxn[2])):
+                    rxn_prod_name = '_'.join(sorted(rxn[2]))
+                    if (reactant == rxn[0] and
+                            '_'.join(sorted(prod)) == rxn_prod_name):
                         new = 0
                         temp = i
                     if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
@@ -271,7 +296,7 @@ def postprocess(par, jobs, task, names):
                 if new:
                     reactions.append([reactant, ts, prod, barrier])
                 else:
-                    #check if the previous reaction has a lower energy or not
+                    # check if the previous reaction has a lower energy or not
                     if reactions[temp][3] > barrier:
                         reactions.pop(temp)
                         reactions.append([reactant, ts, prod, barrier])
@@ -279,12 +304,12 @@ def postprocess(par, jobs, task, names):
         copy_xyz(ji)
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, products, reactions)
-    
+
     well_energies = {}
     for well in wells:
         energy = get_energy(parent[well], well, 0, par.par['high_level'])
         zpe = get_zpe(parent[well], well, 0, par.par['high_level'])
-        zeroenergy = (  ( energy + zpe )- ( zero_energy + zero_zpe) ) * constants.AUtoKCAL
+        zeroenergy = ((energy + zpe) - (zero_energy + zero_zpe)) * constants.AUtoKCAL
         well_energies[well] = zeroenergy
     prod_energies = {}
     for prods in products:
@@ -304,7 +329,7 @@ def postprocess(par, jobs, task, names):
                                                    well_energies,
                                                    task,
                                                    names)
-    #write full pes input
+    # write full pes input
     create_pesviewer_input(par,
                            wells,
                            products,
@@ -312,7 +337,6 @@ def postprocess(par, jobs, task, names):
                            well_energies,
                            prod_energies,
                            highlight)
-
     # draw a graph of the network
     create_graph(wells,
                  products,
@@ -320,8 +344,7 @@ def postprocess(par, jobs, task, names):
                  well_energies,
                  prod_energies,
                  highlight)
-
-    #write_mess
+    # write_mess
     create_mess_input(par,
                       wells,
                       products,
@@ -340,11 +363,11 @@ def filter(wells, products, reactions, conn, bars, well_energies, task, names):
     highlight = []
 
     # 1. all: This is the default showing all pathways
-    # 2. lowestpath: show the lowest path between the species 
+    # 2. lowestpath: show the lowest path between the species
     # corresponding to the names
     # 3. allpaths: show all paths between the species
     # corresponding to the names
-    # 4. wells: show all reactions of one wells 
+    # 4. wells: show all reactions of one wells
     # corresponding to the names
 
     # filter the reactions according to the task
@@ -577,7 +600,7 @@ def get_name(wells, products, i):
 
 def get_pathway(wells, products, reactions, ins, names):
     """
-    Return the list of reactions between the species in 
+    Return the list of reactions between the species in
     the names, according to the instance ins
     """
     # list of reactions
@@ -591,7 +614,7 @@ def get_pathway(wells, products, reactions, ins, names):
 def get_reaction(wells, products, reactions, i, j):
     """
     method to get a reaction in the reactions list
-    according to the indices i and j which correspond 
+    according to the indices i and j which correspond
     to the index in wells or products
     """
     name_1 = get_name(wells, products, i)
@@ -628,7 +651,7 @@ def copy_xyz(well):
         os.mkdir(dir_xyz)
     copy_tree(well + '/xyz/', dir_xyz)
 
-    
+
 def get_rxn(prods, rxns):
     for rxn in rxns:
         if prods == '_'.join(sorted(rxn[2])):
@@ -704,7 +727,7 @@ def write_header(par, well0):
 def create_mess_input(par, wells, products, reactions,
                       well_energies, prod_energies, parent):
     """
-    When calculating a full pes, the files from the separate wells 
+    When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
     Two things per file need to be updated
     1. the names of all the wells, bimolecular products and ts's
@@ -770,14 +793,13 @@ def create_mess_input(par, wells, products, reactions,
     s.append('!****************************************')
     s.append('End ! end kinetics\n')
 
-
     if not os.path.exists('me'):
         os.mkdir('me')
 
     # write everything to a file
     with open('me/mess.inp', 'w') as f:
         f.write('\n'.join(s))
- 
+
     dummy = StationaryPoint('dummy',
                             par.par['charge'],
                             par.par['mult'],
@@ -785,9 +807,11 @@ def create_mess_input(par, wells, products, reactions,
                             structure=par.par['structure'])
 
     mess = MESS(par, dummy)
-    mess.run() 
+    mess.run()
 
-def create_pesviewer_input(par, wells, products, reactions, well_energies, prod_energies, highlight):
+
+def create_pesviewer_input(par, wells, products, reactions,
+                           well_energies, prod_energies, highlight):
     """
     highlight: list of reaction names that need a red highlight
     """
@@ -808,7 +832,7 @@ def create_pesviewer_input(par, wells, products, reactions, well_energies, prod_
     for well in wells:
         energy = well_energies[well]
         well_lines.append('{} {:.2f}'.format(well, energy))
-    
+
     bimol_lines = []
     for prods in products:
         energy = prod_energies[prods]
@@ -820,22 +844,32 @@ def create_pesviewer_input(par, wells, products, reactions, well_energies, prod_
         if rxn[1] in highlight:
             high = 'red'
         prod_name = '_'.join(sorted(rxn[2]))
-        ts_lines.append('{} {:.2f} {} {} {}'.format(rxn[1], rxn[3], rxn[0], prod_name, high))
-    
+        ts_lines.append('{} {:.2f} {} {} {}'.format(rxn[1],
+                                                    rxn[3],
+                                                    rxn[0],
+                                                    prod_name,
+                                                    high))
+
     well_lines = '\n'.join(well_lines)
     bimol_lines = '\n'.join(bimol_lines)
     ts_lines = '\n'.join(ts_lines)
-    
+
     # write everything to a file
     fname = 'pesviewer.inp'
     template_file_path = pkg_resources.resource_filename('tpl', fname + '.tpl')
     with open(template_file_path) as template_file:
         template = template_file.read()
-    template = template.format(id=par.par['title'], wells=well_lines, bimolecs=bimol_lines, ts=ts_lines, barrierless='')
+    template = template.format(id=par.par['title'],
+                               wells=well_lines,
+                               bimolecs=bimol_lines,
+                               ts=ts_lines,
+                               barrierless='')
     with open(fname, 'w') as f:
         f.write(template)
 
-def create_graph(wells, products, reactions, well_energies, prod_energies, highlight):
+
+def create_graph(wells, products, reactions,
+                 well_energies, prod_energies, highlight):
     """
     highlight: list of reaction names that need a red highlight
     """
@@ -846,8 +880,10 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
 
     # get the minimum and maximum well and product energy
     try:
-        minimum = min(min(well_energies.values()), min(prod_energies.values()))
-        maximum = max(max(well_energies.values()), max(prod_energies.values()))
+        minimum = min(min(well_energies.values()),
+                      min(prod_energies.values()))
+        maximum = max(max(well_energies.values()),
+                      max(prod_energies.values()))
     except ValueError:
         # list of products can be empty, but list of wells not
         minimum = min(well_energies.values())
@@ -876,14 +912,17 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
         labels[i + len(wells)] = 'b{}'.format(i+1)
         name_dict[labels[i + len(wells)]] = pi
     # write the labels to a file
-    with open('species_dict.txt','w') as f:
-        f.write('\n'.join('{}  {}'.format(name, name_dict[name]) for name in sorted(name_dict.keys())))
+    with open('species_dict.txt', 'w') as f:
+        lines = []
+        for name in sorted(name_dict.keys()):
+            lines.append('{}  {}'.format(name, name_dict[name]))
+        f.write('\n'.join(lines))
     # make a graph object
     G = nx.Graph()
     # add the nodes
     for i, node in enumerate(nodes):
         G.add_node(node, weight=node_size[i])
-    
+
     # define the inversely proportional weights for the lines
     minimum = min(rxn[3] for rxn in reactions)
     maximum = max(rxn[3] for rxn in reactions)
@@ -891,7 +930,7 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
     min_size = 0.5
     slope = (min_size - max_size) / (maximum - minimum)
     offset = max_size - minimum * slope
-    
+
     # add the edges
     for i, ci in enumerate(conn):
         for j, cij in enumerate(ci):
@@ -907,8 +946,12 @@ def create_graph(wells, products, reactions, well_energies, prod_energies, highl
     # make the matplotlib figure
     plt.figure(figsize=(8, 8))
     nx.draw_networkx_edges(G, pos, edgelist=edges, width=weights)
-    nx.draw_networkx_nodes(G, pos, nodelist=G.nodes(), node_size=node_size, node_color=node_color)
-    nx.draw_networkx_labels(G,pos,labels,font_size=8)
+    nx.draw_networkx_nodes(G,
+                           pos,
+                           nodelist=G.nodes(),
+                           node_size=node_size,
+                           node_color=node_color)
+    nx.draw_networkx_labels(G, pos, labels, font_size=8)
     plt.axis('off')
     plt.savefig('graph.png')
 
@@ -923,16 +966,15 @@ def get_energy(dir, job, ts, high_level, mp2=0):
         j += '_mp2'
     if high_level:
         j += '_high'
-    
-    rows = db.select(name = j)
+    rows = db.select(name=j)
     for row in rows:
         if hasattr(row, 'data'):
             energy = row.data.get('energy')
     try:
-        #ase energies are always in ev, convert to hartree
+        # ase energies are always in ev, convert to hartree
         energy *= constants.EVtoHARTREE
     except UnboundLocalError:
-        #this happens when the job is not found in the database
+        # this happens when the job is not found in the database
         logging.error('Could not find {} in directory {}'.format(job, dir))
         logging.error('Exiting...')
         sys.exit(-1)
@@ -949,24 +991,26 @@ def get_zpe(dir, job, ts, high_level, mp2=0):
         j += '_mp2'
     if high_level:
         j += '_high'
-    
-    rows = db.select(name = j)
+    rows = db.select(name=j)
     for row in rows:
         if hasattr(row, 'data'):
             zpe = row.data.get('zpe')
-
     return zpe
 
 
 def check_status(job, pid):
     command = ['ps', '-u', 'root', '-N', '-o', 'pid,s,user,%cpu,%mem,etime,args']
-    process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(command,
+                               shell=False,
+                               stdout=subprocess.PIPE,
+                               stdin=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
     out, err = process.communicate()
     out = out.decode()
     lines = out.split('\n')
     for line in lines:
-        if len(line)> 0:
-            if '%i'%pid == line.split()[0]:
+        if len(line) > 0:
+            if str(pid) == line.split()[0]:
                 return 1
     return 0
 
@@ -978,40 +1022,44 @@ def submit_job(chemid):
     command = ["kinbot", chemid + ".json", "&"]
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
-    process = subprocess.Popen(command, cwd = chemid, stdout=outfile, stdin=subprocess.PIPE, stderr=errfile)
+    process = subprocess.Popen(command,
+                               cwd=chemid,
+                               stdout=outfile,
+                               stdin=subprocess.PIPE,
+                               stderr=errfile)
     time.sleep(1)
     pid = process.pid
-    return pid 
+    return pid
 
 
 def write_input(par, species, threshold, root):
-    #directory for this particular species
+    # directory for this particular species
     dir = root + '/' + str(species.chemid) + '/'
     if not os.path.exists(dir):
         os.makedirs(dir)
-    
-    #make a new parameters instance and overwrite some keys
+
+    # make a new parameters instance and overwrite some keys
     par2 = Parameters(par.input_file)
-    #overwrite the title
+    # overwrite the title
     par2.par['title'] = str(species.chemid)
-    #make a structure vector and overwrite the par structure
+    # make a structure vector and overwrite the par structure
     structure = []
     for at in range(species.natom):
         pos = species.geom[at]
         sym = species.atom[at]
         structure += [sym, pos[0], pos[1], pos[2]]
     par2.par['structure'] = structure
-    #delete the par smiles
+    # delete the par smiles
     par2.par['smiles'] = ''
-    #overwrite the barrier treshold
+    # overwrite the barrier treshold
     par2.par['barrier_threshold'] = threshold
-    #set the pes option to 1
+    # set the pes option to 1
     par2.par['pes'] = 1
-    
+
     file_name = dir + str(species.chemid) + '.json'
     with open(file_name, 'w') as outfile:
-        json.dump(par2.par, outfile, indent = 4, sort_keys = True)
-    
+        json.dump(par2.par, outfile, indent=4, sort_keys=True)
+
+
 if __name__ == "__main__":
     main()
-

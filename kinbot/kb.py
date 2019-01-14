@@ -52,7 +52,11 @@ from qc import QuantumChemistry
 
 
 def main():
-    input_file = sys.argv[1]
+    try:
+        input_file = sys.argv[1]
+    except IndexError:
+        print('To use KinBot, supply one argument being the input file!')
+        sys.exit(-1)
 
     # print the license message to the console
     print(license_message.message)

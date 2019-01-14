@@ -20,10 +20,12 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import sys
+import os
 import copy
 import time
 import logging
 
+import bond_combinations
 import find_motif
 from reac_Cyclic_Ether_Formation import CyclicEtherFormation
 from reac_Diels_alder_addition import DielsAlder
@@ -56,6 +58,8 @@ from reac_Intra_RH_Add_Endocyclic_R import IntraRHAddEndoR
 from reac_Intra_RH_Add_Endocyclic_F import IntraRHAddEndoF
 from reac_HO2_Elimination_from_PeroxyRadical import HO2Elimination
 
+from reac_combinatorial import Combinatorial
+
 from reac_birad_recombination_F import BiradRecombinationF
 from reac_birad_recombination_R import BiradRecombinationR
 from reac_Intra_disproportionation_R import IntraDisproportionationR
@@ -85,6 +89,7 @@ class ReactionFinder:
         List all reaction types available, and find the key atoms for them 
         for the current structure.
         """
+
         atom = self.species.atom
         natom = self.species.natom
         
@@ -180,6 +185,9 @@ class ReactionFinder:
                 
             if 'r13_insertion_RSR' in self.families or 'all' in self.families:
                 self.search_r13_insertion_RSR(natom,atom,bond,rad)
+
+            if 'combinatorial' in self.families:
+                self.search_combinatorial(natom,atom,bond,rad)
             
             
             #if 'birad_recombination_F' in self.families or 'all' in self.families:
@@ -225,9 +233,14 @@ class ReactionFinder:
         if not name in self.reactions:
             self.reactions[name] = []
 
-        instances = generate_product_bond_matrices(self,atom,natom,bond,rad)
+        instances = bond_combinations.generate_all_product_bond_matrices(self.species)
         for inst in instances:
             self.reactions[name].append(inst)
+        #~ self.reactions[name] = []
+        #~ reac = [[0, 5], [1, 2], [3, 4]]
+        #~ prod = [[0, 1], [2, 3], [4, 5]]
+        #~ ts = self.species.bond
+        #~ self.reactions[name].append([reac, prod, ts])
         return 0
 
 
@@ -1972,6 +1985,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R13InsertionRSR(self.species,self.qc,self.par,reac_list[i],name))
+            elif reac_id == 'combinatorial':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(Combinatorial(self.species,self.qc,self.par,reac_list[i],name))
             else:
                 self.species.reac_name.append(0)
         return 0

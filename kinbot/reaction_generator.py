@@ -26,6 +26,7 @@ import time
 import logging
 
 import constants
+import geometry
 import pes
 import postprocess
 import reac_family
@@ -257,7 +258,7 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = 6
                 elif self.species.reac_ts_done[index] == 6:
                     #Finilize the calculations
-
+                    
                     #continue to PES search in case a new well was found
                     if self.par.par['pes']:
                         #verify if product is monomolecular, and if it is new
@@ -324,6 +325,42 @@ class ReactionGenerator:
                     f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index],self.species.reac_step[index],self.species.reac_obj[index].instance_name))
                 f_out.close()
             time.sleep(1)
+        
+        s = []
+        for index, instance in enumerate(self.species.reac_inst):
+            obj = self.species.reac_obj[index]
+            instance_name = obj.instance_name
+            # Write a summary on the combinatorial exploration
+            if 'combinatorial' in instance_name:
+                s.append('NAME\t' + instance_name)
+                
+                # Write the bonds that were broken and formed
+                s.append('BROKEN_BONDS\t' + '\t'.join('[{}, {}]'.format(re[0], re[1]) for re in obj.reac))
+                s.append('FORMED_BONDS\t' + '\t'.join('[{}, {}]'.format(pr[0], pr[1]) for pr in obj.prod))
+                
+                # Populate the ts_bond_lengths dict with the values
+                # of this reaction
+                if self.species.reac_ts_done[index] == -1:
+                    for i in range(self.species.natom - 1):
+                        for j in range(i + 1, self.species.natom):
+                            if self.species.bond[i][j] != obj.product_bonds[i][j]:
+                                if (self.species.bond[i][j] == 0 or
+                                        obj.product_bonds[i][j] == 0):
+                                    syms = []
+                                    syms.append(self.species.atom[i])
+                                    syms.append(self.species.atom[j])
+                                    syms = ''.join(sorted(syms))
+                                    dist = np.linalg.norm(obj.ts.geom[i] - obj.ts.geom[j])
+                                    s.append('TS_BOND_LENGTHS\t{}\t{}'.format(syms, dist))
+                # write the expected inchis
+                s.append('EXPECTED_INCHIS\t' + '\t'.join(inchi for inchi in obj.prod_inchi))
+                # get the inchis the reaction found
+                if self.species.reac_ts_done[index] == -1:
+                    inchis = obj.get_final_inchis()
+                    s.append('FOUND_INCHIS\t' + '\t'.join(inchis))
+                s.append('\n')
+            with open('combinatorial.txt', 'w') as f:
+                f.write('\n'.join(s) + '\n')
 
         logging.info("Reaction generation done!")
 

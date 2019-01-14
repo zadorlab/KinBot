@@ -24,7 +24,9 @@ The defaults are listed in this file and the user defined parameters
 are defined in a json file that needs to be given as an argument to the
 initializer.
 """
+from __future__ import with_statement
 import os
+import sys
 import json
 import logging
 
@@ -116,6 +118,8 @@ class Parameters:
             'high_level_method': 'M062X',
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
+            # Integral grid for Gaussian, only for the high-level calculations
+            'integral': '',
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -163,14 +167,22 @@ class Parameters:
         """
         Read the user input file and overwrite the default values
         """
-        with open(self.input_file) as json_file:
-            user_data = json.load(json_file)
-            for key in user_data:
-                if key in self.par:
-                    self.par[key] = user_data[key]
-                else:
-                    err = 'KinBot does not recognize option {} with value {}'
-                    logging.error(err.format(key, user_data[key]))
+        try:
+            with open(self.input_file) as json_file:
+                try:
+                    user_data = json.load(json_file)
+                except ValueError:
+                    msg = 'There is an error in the json input file'
+                    raise ValueError(msg)
+        except IOError:
+            msg = 'Input file {} does not exist'.format(self.input_file)
+            raise IOError(msg)
+        for key in user_data:
+            if key in self.par:
+                self.par[key] = user_data[key]
+            else:
+                err = 'KinBot does not recognize option {} with value {}'
+                logging.error(err.format(key, user_data[key]))
 
     def print_parameters(self):
         """

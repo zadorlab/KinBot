@@ -46,6 +46,7 @@ class QuantumChemistry:
         self.basis = par.par['basis']
         self.high_level_method = par.par['high_level_method']
         self.high_level_basis = par.par['high_level_basis']
+        self.integral = par.par['integral']
         self.ppn = par.par['ppn']
         self.queuing = par.par['queuing']
         self.queue_name = par.par['queue_name']
@@ -118,6 +119,8 @@ class QuantumChemistry:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
                 kwargs['freq'] = 'freq'
+                if len(self.integral) > 0:
+                    kwargs['integral'] = self.integral
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
                 del kwargs['freq']

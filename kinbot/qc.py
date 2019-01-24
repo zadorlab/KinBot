@@ -54,13 +54,14 @@ class QuantumChemistry:
         self.db = connect('kinbot.db')
         self.job_ids = {}
         
-    def get_qc_arguments(self,job,mult,ts = 0, step = 0, max_step = 0, irc = None,scan = 0,high_level=0, hir = 0):
+    def get_qc_arguments(self,job,mult,charge,ts = 0, step = 0, max_step = 0, irc = None,scan = 0,high_level=0, hir = 0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         
         Job: name of the job
         
         mult: multiplicity of the job
+        charge: charge of the job
         
         ts: 1 for transition state searches, 0 for wells and products
         
@@ -84,6 +85,7 @@ class QuantumChemistry:
             'label': job, 
             'NoSymm' : 'NoSymm',
             'multiplicity': mult,
+            'charge': charge,
             'scf' : 'xqc',
             }
             if ts:
@@ -138,6 +140,7 @@ class QuantumChemistry:
             'permanent_dir' : './perm', 
             'label' : job,
             'mult' : mult,
+            'charge' : charge,
             'odft' : odft,
             'task' : 'optimize',
             'driver' : 'tight',
@@ -180,7 +183,7 @@ class QuantumChemistry:
         else:
             job = 'hir/' + str(species.chemid) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
 
-        kwargs = self.get_qc_arguments(job,species.mult, ts = species.wellorts, step = 1, max_step = 1, high_level = 1, hir = 1)
+        kwargs = self.get_qc_arguments(job,species.mult,species.charge, ts = species.wellorts, step = 1, max_step = 1, high_level = 1, hir = 1)
         kwargs['fix'] = fix
         del kwargs['chk']
         
@@ -223,7 +226,7 @@ class QuantumChemistry:
         else:
             job = 'conf/' + str(species.chemid) + '_r' + str(conf_nr).zfill(self.zf) + '_' + str(scan_nr).zfill(self.zf)
         
-        kwargs = self.get_qc_arguments(job,species.mult, ts=species.wellorts, step=1, max_step=1, hir=1)
+        kwargs = self.get_qc_arguments(job,species.mult,species.charge, ts=species.wellorts, step=1, max_step=1, hir=1)
         
         del kwargs['opt']
         del kwargs['chk']
@@ -275,9 +278,9 @@ class QuantumChemistry:
                 job = 'conf/' + str(species.chemid) + '_' + r + str(index).zfill(self.zf)
         
         if species.wellorts:
-            kwargs = self.get_qc_arguments(job,species.mult, ts = 1, step = 1, max_step = 1)
+            kwargs = self.get_qc_arguments(job,species.mult,species.charge, ts = 1, step = 1, max_step = 1)
         else:
-            kwargs = self.get_qc_arguments(job,species.mult)
+            kwargs = self.get_qc_arguments(job,species.mult,species.charge)
             if self.qc == 'gauss':
                 kwargs['opt'] = 'CalcFC, Tight'
         
@@ -315,7 +318,7 @@ class QuantumChemistry:
         if mp2:
             job = str(species.chemid) + '_well_mp2'
         
-        kwargs = self.get_qc_arguments(job,species.mult, high_level = high_level)
+        kwargs = self.get_qc_arguments(job,species.mult,species.charge, high_level = high_level)
         if self.qc == 'gauss':
             kwargs['opt'] = 'CalcFC, Tight'
         if mp2:
@@ -351,7 +354,7 @@ class QuantumChemistry:
         if high_level:
             job = str(species.chemid) + '_fr_high'
 
-        kwargs = self.get_qc_arguments(job,species.mult, high_level = high_level)
+        kwargs = self.get_qc_arguments(job,species.mult,species.charge, high_level = high_level)
         if self.qc == 'gauss':
             kwargs['freq'] = 'freq'
             kwargs['ioplist'] = ['7/33=1']
@@ -392,7 +395,7 @@ class QuantumChemistry:
         if high_level:
             job += '_high'
 
-        kwargs = self.get_qc_arguments(job,species.mult,ts = 1,step = 1,max_step=1,high_level = 1)
+        kwargs = self.get_qc_arguments(job,species.mult,species.charge,ts = 1,step = 1,max_step=1,high_level = 1)
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()

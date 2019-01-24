@@ -31,16 +31,17 @@ import constants
 import find_motif
 import geometry
 
+
 class StationaryPoint:
     """
     This object contains the properties of wells.
     """
 
-    def __init__(self, name, charge, mult, smiles = '', structure = None, natom = 0, atom = None,geom = None, wellorts = 0):
+    def __init__(self, name, charge, mult, smiles='', structure=None, natom=0, atom=None, geom=None, wellorts=0):
         self.name = name
         self.mult = mult
         self.charge = charge
-        self.short_name = '' #name for the MESS calculations needs to be shorter
+        self.short_name = ''  # name for the MESS calculations needs to be shorter
         if geom is None:
             self.geom = []
         else:
@@ -62,36 +63,36 @@ class StationaryPoint:
         self.energy = 0.
         self.zpe = 0.
         self.elec = 1.
-        self.freq = [] # frequencies calculated by the qc program
- 
+        self.freq = []  # frequencies calculated by the qc program
+
         self.symm = 1.
         self.rot = []
-        self.rads = [] # unique list of radical centers in case of resonance
-        self.bonds = [] # unique list of bond matrices in case of resonance
+        self.rads = []  # unique list of radical centers in case of resonance
+        self.bonds = []  # unique list of bond matrices in case of resonance
 
         self.reac_type = []
-        self.reac_inst = [] # holds the key atoms
-        self.reac_obj = [] #instances of the reac_name objects
-        self.reac_name = [] # holds the file name
+        self.reac_inst = []  # holds the key atoms
+        self.reac_obj = []  #instances of the reac_name objects
+        self.reac_name = []  # holds the file name
         self.reac_step = []
         self.reac_ts_done = []
         self.reac_ts_geom = []
         self.reac_ts_freq = []
         self.reac_scan_energy = []
         
-        #Instance of HomolyticScissions class
+        # Instance of HomolyticScissions class
         self.homolytic_scissions = None
         
-        #Instance of HIR class
+        # Instance of HIR class
         self.hir = None
         
-        #Instance of the Conformers class
+        # Instance of the Conformers class
         self.confs = None
         
-        #symmetry numbers
-        self.sigma_ext = -1 #extermal symmetry number
-        self.sigma_int = [] #internal summetry number around each atom
-        self.nopt = -1 #number of optical isomers
+        # symmetry numbers
+        self.sigma_ext = -1  # extermal symmetry number
+        self.sigma_int = []  # internal summetry number around each atom
+        self.nopt = -1  # number of optical isomers
         
         # frequencies calculated by kinbot
         self.kinbot_freqs = []
@@ -114,11 +115,20 @@ class StationaryPoint:
         self.atom = self.structure[:,0]
         self.geom = self.structure[:,1:4].astype(float)
 
-    def characterize(self):
+    def characterize(self, dimer):
         """
         With one call undertake a typical set of structural characterizations.
         """
         self.bond_mx()
+        if dimer:
+            parts, maps = self.start_multi_molecular()
+            if len(parts) > 2:
+                logging.error('The dimer has more than two components.')
+                logging.error('Exiting.')
+                sys.exit()
+            if len(parts) == 2:
+                self.make_extra_bond(parts, maps)
+
         self.find_conf_dihedral()
         self.find_atom_eqv()
 
@@ -156,9 +166,9 @@ class StationaryPoint:
         # create all the permutations of the heavy atoms
         rad_atoms = [i for i in range(self.natom) if self.rad[i] > 0]
         all_permutations = False 
-        if all_permutations: #use all the permutations (slow for more than 6 atoms in conjugated system)
+        if all_permutations:  # use all the permutations (slow for more than 6 atoms in conjugated system)
             perms = list(itertools.permutations(rad_atoms))
-        else: # use the same atom ordering but a different starting atoms and searching directions
+        else:  # use the same atom ordering but a different starting atoms and searching directions
             new_algo = False
             if new_algo:
                 perms = []
@@ -169,8 +179,8 @@ class StationaryPoint:
                 perms = []
                 if len(rad_atoms) > 0:
                     for index in range(len(rad_atoms)):
-                        list1 = np.ndarray.tolist(np.roll(rad_atoms, index)) #forward search
-                        list2 = np.ndarray.tolist(np.roll(list1[::-1], 1)) #reverse search
+                        list1 = np.ndarray.tolist(np.roll(rad_atoms, index))  # forward search
+                        list2 = np.ndarray.tolist(np.roll(list1[::-1], 1))  # reverse search
                         perms.append(list1)
                         perms.append(list2)
                 else:
@@ -180,7 +190,7 @@ class StationaryPoint:
         perm_bond = []
         perm_rad = []
         
-        for index,perm in enumerate(perms): # iterate the permutations
+        for index,perm in enumerate(perms):  # iterate the permutations
             # copy the objects of the molecule into temporary objects for this search
             perm_bond.append(copy.deepcopy(self.bond))
             perm_rad.append(np.copy(self.rad))
@@ -219,12 +229,12 @@ class StationaryPoint:
                 else: 
                     perm_save_n_bond = perm_n_bond
         
-        #get the permutation that leads to the lowest number of radicals
+        # get the permutation that leads to the lowest number of radicals
         if len(perm_rad) > 0:
-            tot_rad_sum = [np.sum(x) for x in perm_rad] # total number of radicals in the molecule
+            tot_rad_sum = [np.sum(x) for x in perm_rad]  # total number of radicals in the molecule
             value,idx = min((val,i) for (i,val) in enumerate(tot_rad_sum)) 
             
-            #take a "random" bond matrix, corresponding to the lowest number of radical centers
+            # take a "random" bond matrix, corresponding to the lowest number of radical centers
             #as the standard bond matrix for this stationary point
             self.bond = perm_bond[idx] 
             self.rad = perm_rad[idx]
@@ -254,7 +264,32 @@ class StationaryPoint:
         return 0
 
 
-    def calc_multiplicity(self,atomlist):
+    def make_extra_bond(self, parts, maps):
+        """
+        Make an extra bond between two fragments.
+        The extra bond is added between the closest atoms of the two parts.
+        parts needs to be a list with two elements, where each element
+        is a stationary_pt object
+        maps is the map between the original and the fragment atom numbers
+        so that maps[n][i] is the original atom number in the full structure, and
+        n is the nth fragment and i is the ith atom in this fragment 
+        """
+
+        mindist = 100.  # large initial value
+        for i, cooi in enumerate(parts[0].geom): 
+            for j, cooj in enumerate(parts[1].geom):
+                dist = np.linalg.norm(cooi - cooj)
+                if mindist > dist:
+                    mindist = dist
+                    pivot1 = maps[0][i] 
+                    pivot2 = maps[1][j]
+        self.bond[pivot1][pivot2] = 1
+        self.bond[pivot2][pivot1] = 1
+        
+        return 0
+        
+
+    def calc_multiplicity(self, atomlist):
         """ 
         Calculate the multiplicity based on atom types.
         Returns the lowest multiplicity possible, i.e., singlet or dublet,
@@ -280,10 +315,11 @@ class StationaryPoint:
         bond = copy.deepcopy(self.bond)
         
         max_step = 1000
-        status = [0 for i in range(self.natom)] # 1: part of a molecule, 0: not part of a molecule
+        status = [0 for i in range(self.natom)]  # 1: part of a molecule, 0: not part of a molecule
         atoms = [i for i in range(self.natom)]
-        mols = [] # list of lists with atom indices of the separate molecules
+        mols = []  # list of stationary_pt objects for the parts 
         atomlist = np.asarray(self.atom)
+        maps = []  # this maps the original atom numbering onto the fragments' numbers
         
         while 1:
             if any([status[i] == 0 for i in range(len(status))]):
@@ -318,19 +354,24 @@ class StationaryPoint:
                 multi = self.calc_multiplicity(atomi)
                 chargei = self.charge # todo
                 moli = StationaryPoint('prod_%i'%(len(mols)+1),chargei,multi,atom=atomi,natom=natomi,geom=geomi)
-                moli.characterize()
+                moli.characterize(0)  # dimer is not allowed
                 moli.calc_chemid()
                 moli.name = str(moli.chemid)
 
                 mols.append(moli)
+
+                numbering = np.asarray(range(self.natom))
+                # the original atom numbers in the correct order in the fragments, it's a map
+                mapi = numbering[np.where(np.asarray(fragi) == 1)]  
+                maps.append(mapi)
  
                 if bool:
                     continue 
                 else:
                     #reached the end, return the molecules
                     break
-        return mols
 
+        return mols, maps
    
 
     def extract_next_mol(self, natom, bond):
@@ -392,6 +433,7 @@ class StationaryPoint:
         else:
             return 0, [abs(si) for si in status]
 
+
     def find_cycle(self):
         """
         Find all the cycles in a molecule, if any
@@ -434,6 +476,7 @@ class StationaryPoint:
                             self.cycle[at] = 1
         return 0
 
+
     def calc_chemid(self):
         """ 
         The total id for a species.
@@ -452,7 +495,6 @@ class StationaryPoint:
         self.chemid += self.mult
 
         return 0
-        
                                                                                                 
                                                                                                                         
     def start_id(self, i):
@@ -467,20 +509,19 @@ class StationaryPoint:
         atomid = int(0)
         
         self.atomid[i], visit = self.calc_atomid(visit, depth, i, atomid)
-        #a, visit = self.calc_atomid(visit, depth, i, atomid, natom, atom)
+        # a, visit = self.calc_atomid(visit, depth, i, atomid, natom, atom)
 
-        #self.atomid[i] = a
+        # self.atomid[i] = a
 
         
         return 0
-                                
                                 
                                 
     def calc_atomid(self, visit, depth, i, atomid):
         """ Caclulate chemical ID for a given atom. """        
         
         if not hasattr(self,'bond'): 
-            #recalculate the bond matrix only if it is not there yet
+            # recalculate the bond matrix only if it is not there yet
             self.bond_mx()
             
         maxdepth = 7
@@ -500,6 +541,7 @@ class StationaryPoint:
                     visit[j] = 0
 
         return atomid, visit
+
     
     def find_dihedral(self): 
         """ 
@@ -535,6 +577,7 @@ class StationaryPoint:
                                         hit = 1 
 
         return 0
+
 
     def find_conf_dihedral(self):
         """
@@ -585,13 +628,12 @@ class StationaryPoint:
         return 0
                 
                 
-                
     def find_atom_eqv(self):
         """
         Determines which atoms are equivalent.
         """
 
-        #this list contains a list of each set of equivalent atoms
+        # this list contains a list of each set of equivalent atoms
         self.atom_eqv = []
         for atomi in range(self.natom):
             new_list = 1
@@ -618,14 +660,14 @@ class StationaryPoint:
         """
         
         if self.bond[atomi][atomj] > 0:
-            if self.bond[atomi][atomj] > 1: #atoms are doubly bonded
+            if self.bond[atomi][atomj] > 1:  # atoms are doubly bonded
                 return 1
-            elif self.cycle[atomi] == 1: #atoms are in a cycle
+            elif self.cycle[atomi] == 1:  # atoms are in a cycle
                 return 1
             else:
                 return 0
         
-        for chain_length in range(3,self.natom):
+        for chain_length in range(3, self.natom):
             motif = ['X' for i in range(chain_length)]
             instances = find_motif.start_motif(motif, self.natom, self.bond, self.atom, -1, [[k] for k in range(self.natom)])
             if len(instances) == 0:
@@ -638,10 +680,11 @@ class StationaryPoint:
                         elif 2 in self.bond[at]:
                             double_neigh = [i for i, x in enumerate(self.bond[at]) if x == 2]
                             for neigh in double_neigh:
-                                if sum(self.bond[neigh]) > 2: # atom has at least on other neighbor
+                                if sum(self.bond[neigh]) > 2:  # atom has at least on other neighbor
                                     return 1
                     return 0
         return 0
+
 
 def main():
     """

@@ -187,10 +187,10 @@ class ReactionGenerator:
                             e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                             e2, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
                             st_pt.bond_mx()
-                            st_pt.characterize()
+                            st_pt.characterize(0)  # not allowed to use the dimer option here
                             st_pt.calc_chemid()
                             if chemid != st_pt.chemid:
-                                #product was optimized to another structure, give warning and remove this reaction
+                                # product was optimized to another structure, give warning and remove this reaction
                                 logging.info('\tProduct optimizatied to other structure for {}, product {} to {}'.format(instance_name,chemid,st_pt.chemid))
                                 self.species.reac_ts_done[index] = -999
                                 err = -1

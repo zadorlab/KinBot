@@ -62,6 +62,8 @@ class Parameters:
             'charge': 0,
             # Multiplicity of the species
             'mult': 0,
+            # Whether it is a dimer
+            'dimer': 0,
 
             # WHICH STEPS TO TAKE
             # Do a reaction search
@@ -124,10 +126,6 @@ class Parameters:
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
             'queuing': 'pbs',  # or slurm
-            # Scratch directory
-            'scratch': '/scratch/jzador',
-            # User name
-            'username': 'jzador',
             # Name of the queue
             'queue_name': 'medium',
             # E.g. the type of node or anything that comes with -C in SLURM
@@ -136,6 +134,9 @@ class Parameters:
             'ppn': 1,
             # This many spaces can be used for numbering files, e.g., in ga
             'zf': 4,
+            # Scratch directory
+            'scratch': '/scratch/jzador',
+
 
             # MASTER EQUATION
             # Which ME code to use:

@@ -466,7 +466,7 @@ class QuantumChemistry:
             logging.error('Exiting')
             sys.exit()
         
-        return 1 # important to keep it 1, this is the natural counter of jobs submitted
+        return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
 
     def get_qc_geom(self,job, natom, wait=0, allow_error = 0):

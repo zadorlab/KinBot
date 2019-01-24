@@ -40,7 +40,7 @@ def carry_out_reaction(rxn,step):
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error': return step
 
-    kwargs = rxn.qc.get_qc_arguments(   rxn.instance_name, rxn.species.mult ,ts = 1,
+    kwargs = rxn.qc.get_qc_arguments(   rxn.instance_name, rxn.species.mult, rxn.species.charge, ts = 1,
                                         step = step, max_step=rxn.max_step, scan = rxn.scan)
     
     if step == 0:

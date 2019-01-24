@@ -91,7 +91,7 @@ def main():
                             par.par['mult'],
                             smiles=par.par['smiles'],
                             structure=par.par['structure'])
-    well0.characterize()
+    well0.characterize(par.par['dimer'])
     write_input(par, well0, par.par['barrier_threshold'], os.getcwd())
 
     # add the initial well to the chemids

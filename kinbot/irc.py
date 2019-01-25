@@ -135,7 +135,7 @@ class IRC:
                                                   self.rxn.species.mult,
                                                   self.rxn.species.charge,
                                                   irc=direction.lower())
-            prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charg)
+            prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge)
             if self.rxn.qc.qc == 'gauss':
                 prod_kwargs['opt'] = 'CalcFC, Tight, MaxCycle=10'
 

@@ -136,6 +136,8 @@ class Parameters:
             'zf': 4,
             # Scratch directory
             'scratch': '/scratch/jzador',
+            # User name
+            'username': 'jzador',
 
 
             # MASTER EQUATION

@@ -52,7 +52,7 @@ class HomolyticScission:
         # set the bond order of the breaking bond to 0
         temp.bond[self.bond[0]][self.bond[1]] = 0
         temp.bond[self.bond[1]][self.bond[0]] = 0
-        self.products = temp.start_multi_molecular()
+        self.products, maps = temp.start_multi_molecular()
 
 
 class HomolyticScissions:

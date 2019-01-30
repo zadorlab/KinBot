@@ -72,32 +72,32 @@ class StationaryPoint:
 
         self.reac_type = []
         self.reac_inst = []  # holds the key atoms
-        self.reac_obj = []  #instances of the reac_name objects
+        self.reac_obj = []  # instances of the reac_name objects
         self.reac_name = []  # holds the file name
         self.reac_step = []
         self.reac_ts_done = []
         self.reac_ts_geom = []
         self.reac_ts_freq = []
         self.reac_scan_energy = []
-        
+
         # Instance of HomolyticScissions class
         self.homolytic_scissions = None
-        
+
         # Instance of HIR class
         self.hir = None
-        
+
         # Instance of the Conformers class
         self.confs = None
-        
+
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number
         self.sigma_int = []  # internal summetry number around each atom
         self.nopt = -1  # number of optical isomers
-        
+
         # frequencies calculated by kinbot
         self.kinbot_freqs = []
         self.reduced_freqs = []
-        
+
         if len(self.geom) == 0:
             self.get_geom()
         if self.natom == 0:
@@ -109,11 +109,11 @@ class StationaryPoint:
         or converts the smiles to a geometry using open babel
         """
         if len(self.structure) == 0:
-            self.obmol,self.structure,self.bond = cheminfo.generate_3d_structure(self.smiles)
+            self.obmol, self.structure, self.bond = cheminfo.generate_3d_structure(self.smiles)
         self.natom = len(self.structure) // 4
-        self.structure = np.reshape(self.structure, (self.natom,4))
-        self.atom = self.structure[:,0]
-        self.geom = self.structure[:,1:4].astype(float)
+        self.structure = np.reshape(self.structure, (self.natom, 4))
+        self.atom = self.structure[:, 0]
+        self.geom = self.structure[:, 1:4].astype(float)
 
     def characterize(self, dimer):
         """
@@ -142,7 +142,7 @@ class StationaryPoint:
                 self.dist[i][j] = np.linalg.norm(self.geom[i] - self.geom[j])
         return 0 
 
-        
+
     def bond_mx(self):
         """ 
         Create bond matrix 
@@ -155,7 +155,7 @@ class StationaryPoint:
                 if i == j: continue
                 if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
                     self.bond[i][j] = 1
-        
+
         max_bond = [constants.st_bond[self.atom[i]] for i in range(self.natom)]
 
         n_bond = np.sum(self.bond, axis=0)
@@ -185,11 +185,11 @@ class StationaryPoint:
                         perms.append(list2)
                 else:
                     perms.append([0])
-        
+
         # create lists to save the results of all the searches
         perm_bond = []
         perm_rad = []
-        
+
         for index,perm in enumerate(perms):  # iterate the permutations
             # copy the objects of the molecule into temporary objects for this search
             perm_bond.append(copy.deepcopy(self.bond))
@@ -228,17 +228,17 @@ class StationaryPoint:
                     break 
                 else: 
                     perm_save_n_bond = perm_n_bond
-        
+
         # get the permutation that leads to the lowest number of radicals
         if len(perm_rad) > 0:
             tot_rad_sum = [np.sum(x) for x in perm_rad]  # total number of radicals in the molecule
             value,idx = min((val,i) for (i,val) in enumerate(tot_rad_sum)) 
-            
+
             # take a "random" bond matrix, corresponding to the lowest number of radical centers
             #as the standard bond matrix for this stationary point
             self.bond = perm_bond[idx] 
             self.rad = perm_rad[idx]
-        
+
         # collect all the resonance isomers 
         for i,perm_b in enumerate(perm_bond):
             #only consider the resonance structure with the minimum number of radical centers
@@ -260,7 +260,7 @@ class StationaryPoint:
                     if is_unique:
                         self.rads.append(perm_rad[i])
                         self.bonds.append(perm_bond[i])
-        
+
         return 0
 
 
@@ -285,9 +285,9 @@ class StationaryPoint:
                     pivot2 = maps[1][j]
         self.bond[pivot1][pivot2] = 1
         self.bond[pivot2][pivot1] = 1
-        
+
         return 0
-        
+
 
     def calc_multiplicity(self, atomlist):
         """ 
@@ -304,23 +304,23 @@ class StationaryPoint:
         mult = 0
         for element in atomlist:
             mult += constants.st_bond[element]
-            
+
         return 1 + mult % 2
-        
+
 
     def start_multi_molecular(self):
         """
         Iterative method to find all the separate products from a bond matrix
         """
         bond = copy.deepcopy(self.bond)
-        
+
         max_step = 1000
         status = [0 for i in range(self.natom)]  # 1: part of a molecule, 0: not part of a molecule
         atoms = [i for i in range(self.natom)]
         mols = []  # list of stationary_pt objects for the parts 
         atomlist = np.asarray(self.atom)
         maps = []  # this maps the original atom numbering onto the fragments' numbers
-        
+
         while 1:
             if any([status[i] == 0 for i in range(len(status))]):
                 # reduce the bond matrix to the atoms that have a 0 as status
@@ -341,7 +341,7 @@ class StationaryPoint:
                         if sta[i] == 1:
                             status[at[i]] = 1
                             fragi[at[i]] = 1
-                    
+
                 if not bool and len(mols) == 0:
                     #the bond matrix corresponds to one molecule only
                     self.calc_chemid()
@@ -364,7 +364,7 @@ class StationaryPoint:
                 # the original atom numbers in the correct order in the fragments, it's a map
                 mapi = numbering[np.where(np.asarray(fragi) == 1)]  
                 maps.append(mapi)
- 
+
                 if bool:
                     continue 
                 else:
@@ -372,7 +372,7 @@ class StationaryPoint:
                     break
 
         return mols, maps
-   
+
 
     def extract_next_mol(self, natom, bond):
         """
@@ -381,7 +381,7 @@ class StationaryPoint:
         bonds available are walked, it is two or more separate fragments.
         It is a similar algorithm to which finds cycles.
         """
-        
+
         max_step = 1000
         status = [0 for i in range(natom)] # 1: parent, -1: child, 0: not yet checked
         edge = [0 for i in range(natom*(natom-1)//2)] # the ordered list of edges in the graph, 0-1, 0-2, ..., 1-2, 1-3, ...
@@ -394,9 +394,9 @@ class StationaryPoint:
         k = 0 # number of steps we made in the tree
         i = 0 # starting atom, arbitrary 
         chain = chain + [i]
-        
+
         status[i] = -1
-        
+
         while 1:
             if visited_all == n_connect or k == max_step: break
             j = 0
@@ -427,7 +427,7 @@ class StationaryPoint:
                 break
             i = chain[-1] # step back on the chain
             k = k + 1
-        
+
         if any([status[i] == 0 for i in range(len(status))]):
             return 1, [abs(si) for si in status]
         else:
@@ -440,24 +440,24 @@ class StationaryPoint:
         This is done by searching from motifs ['X','X', ..., 'X']
         with length 3 to natom, and the cycles are defined by 
         the motif instances of which the first and last atom are bonded
-        
+
         The search is halted before reaching natoms if a certain morif length 
         does not give any hit
-        
-        
+
+
         TODO: leave all the leaves of the graph out for the search, i.e.
         the atoms that only have neighbor, as they never participate in a cycle
-        
+
         The cycles are keps in the cycle_chain list, which is a list of lists
         Its lists contain the atom indices participating in each cycle.
-        
+
         In the case of fused cycles, keep all the possible cycles (e.g. two fused
         rings lead to three cycles, and they are all defined in the cycle_chain
         """
-        
+
         self.cycle_chain = [] #list of the cycles
         self.cycle = [0 for i in range(self.natom)] # 0 if atom is not in cycle, 1 otherwise
-        
+
         for cycle_size in range(3,self.natom+1):
             motif = ['X' for i in range(cycle_size)]
             instances = find_motif.start_motif(motif, self.natom, self.bond, self.atom, -1, [[k] for k in range(self.natom)])

@@ -163,9 +163,9 @@ class ReactionGenerator:
                                     self.species.reac_ts_done[index] = 2
                 elif self.species.reac_ts_done[index] == 2:
                     #identify bimolecular products and wells
-                    fragments = obj.products.start_multi_molecular()
+                    fragments, maps = obj.products.start_multi_molecular()
                     obj.products = []
-                    for i,frag in enumerate(fragments):
+                    for i, frag in enumerate(fragments):
                         obj.products.append(frag)
                         self.qc.qc_opt(frag, frag.geom)
                     

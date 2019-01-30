@@ -307,7 +307,7 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self,species, geom, high_level = 0, mp2 = 0):
+    def qc_opt(self, species, geom, high_level = 0, mp2 = 0):
         """ 
         Creates a geometry optimization input and runs it. 
         """
@@ -318,7 +318,7 @@ class QuantumChemistry:
         if mp2:
             job = str(species.chemid) + '_well_mp2'
         
-        kwargs = self.get_qc_arguments(job,species.mult,species.charge, high_level = high_level)
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level = high_level)
         if self.qc == 'gauss':
             kwargs['opt'] = 'CalcFC, Tight'
         if mp2:
@@ -345,7 +345,7 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_freq(self,species, geom, high_level = 0):
+    def qc_freq(self, species, geom, high_level = 0):
         """ 
         Creates a frequency input and runs it. 
         """
@@ -354,7 +354,7 @@ class QuantumChemistry:
         if high_level:
             job = str(species.chemid) + '_fr_high'
 
-        kwargs = self.get_qc_arguments(job,species.mult,species.charge, high_level = high_level)
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level = high_level)
         if self.qc == 'gauss':
             kwargs['freq'] = 'freq'
             kwargs['ioplist'] = ['7/33=1']

@@ -36,7 +36,10 @@ class Molpro:
         """
         Create the input for molden
         """
-        tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
+        if self.par.par['single_point_template'] == '':
+            tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
+        else:
+            tpl_file = self.par.par['single_point_template']  
         with open(tpl_file) as f:
             file = f.read()
 
@@ -53,7 +56,7 @@ class Molpro:
 
         nelectron -= self.species.charge
 
-        with open('molpro/' + fname + '.inp', 'w') as outf:
+        with open('single_point/' + fname + '.inp', 'w') as outf:
             outf.write(file.format(name=fname,
                                    natom=self.species.natom,
                                    geom=geom,
@@ -70,9 +73,9 @@ class Molpro:
         if self.species.wellorts:
             fname = self.species.name
 
-        status = os.path.exists('molpro/' + fname + '.out')
+        status = os.path.exists('single_point/' + fname + '.out')
         if status:
-            with open('molpro/' + fname + '.out') as f:
+            with open('single_point/' + fname + '.out') as f:
                 lines = f.readlines()
 
             for index, line in enumerate(reversed(lines)):
@@ -81,8 +84,28 @@ class Molpro:
         else:
             return 0, -1
 
-    def run(self):
+    def run_single_point(self):
         """
-        TODO
+        write a pbs file for the molpro input file
+        submit the pbs file to the queue
+        do _not_ wait for the molpro run to finish
+        TODO for SLURM
         """
-        pass
+        # open the template
+        pbs_file = pkg_resources.resource_filename('tpl', 'pbs_molpro.tpl')
+        with open(pbs_file) as f:
+            tpl = f.read()
+        pbs = open('run_molpro.pbs', 'w')
+        pbs.write(tpl.format(name='molpro', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
+        pbs.close()
+
+        command = ['qsub', 'run_molpro.pbs']
+        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = process.communicate()
+        out = out.decode()
+        pid = out.split('\n')[0].split('.')[0]
+
+        return 0
+
+
+

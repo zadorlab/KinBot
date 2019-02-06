@@ -25,6 +25,7 @@ a full PES instead of only the reactions of one well
 from __future__ import print_function
 import sys
 import os
+import shutil
 import logging
 import datetime
 import time
@@ -98,6 +99,10 @@ def main():
     with open('chemids', 'w') as f:
         f.write(str(well0.chemid) + '\n')
 
+    # create a directory for the L3 single point calculations 
+    if not os.path.exists('single_point'):
+        os.mkdir('single_point')
+
     # maximum number of kinbot jobs that run simultaneously
     max_running = par.par['simultaneous_kinbot']
     # jobs that are running
@@ -110,10 +115,9 @@ def main():
     pids = {}
     while 1:
         j = len(jobs)
-        f = open('chemids', 'r')
-        jobs = f.read().split('\n')
-        jobs = [ji for ji in jobs if ji != '']
-        f.close()
+        with open('chemids', 'r') as f:
+            jobs = f.read().split('\n')
+            jobs = [ji for ji in jobs if ji != '']
 
         if len(jobs) > j:
             logging.info('\tPicked up new jobs: ' + ' '.join(jobs[j:]))
@@ -127,7 +131,7 @@ def main():
             job = jobs[len(running) + len(finished)]
             pid = 0
             if not no_kinbot:
-                pid = submit_job(job)
+                pid = submit_job(job)  # kinbot is submitted here
             else:
                 get_wells(job)
             pids[job] = pid
@@ -173,6 +177,12 @@ def main():
             with open('pes_summary.txt', 'w') as f:
                 f.write('\n'.join(summary_lines))
             time.sleep(1)
+
+    # When everything is done, copy all L3 input and job submission scripts to the 
+    # top-level single_point directory
+    if par.par['single_point']:
+        copy_single_point(jobs)
+
     postprocess(par, jobs, task, names)
 
     # Notify user the search is done
@@ -206,11 +216,33 @@ def get_wells(job):
             f.write('\n'.join(new_wells) + '\n')
 
 
+
+
+def copy_single_point(jobs):
+    """
+    Copy all L3 input files and job submission scripts from the 
+    subdirectories into the single_point top-level directory.
+    If a well was found multiple times, this will result in containing
+    just one version, whichever came last in the order of exploration.
+    """
+
+    destination = 'single_point'
+    for ji in jobs:
+        try:
+            spdir = ji + '/single_point'
+            spfile = os.listdir(spdir)
+            for sp in spfile:
+                source = os.path.join(spdir, sp)
+                shutil.copy(source, destination)
+        except:
+            continue
+
+
 def postprocess(par, jobs, task, names):
     """
-    postprocess a  pes search
+    postprocess a pes search
     par: parameters of the search
-    jobs: all  the jobs that were run
+    jobs: all of the jobs that were run
     temp: this is a temporary output file writing
     """
     # base of the energy is the first well
@@ -807,7 +839,8 @@ def create_mess_input(par, wells, products, reactions,
                             structure=par.par['structure'])
 
     mess = MESS(par, dummy)
-    mess.run()
+    if par.par['me']:
+        mess.run()
 
 
 def create_pesviewer_input(par, wells, products, reactions,
@@ -1017,7 +1050,7 @@ def check_status(job, pid):
 
 def submit_job(chemid):
     """
-    Submit a kinbot run usung subprocess and return the pid
+    Submit a kinbot run using subprocess and return the pid
     """
     command = ["kinbot", chemid + ".json", "&"]
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')

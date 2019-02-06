@@ -35,8 +35,8 @@ try:
 except ImportError:
     pass
 
-num_to_syms = {1: 'H', 6: 'C', 8: 'O', 16: 'S'}
-syms_to_num = {'H': 1, 'C': 6, 'O': 8, 'S': 16}
+num_to_syms = {1: 'H', 6: 'C', 7: 'N', 8: 'O', 16: 'S'}
+syms_to_num = {'H': 1, 'C': 6, 'N': 7, 'O': 8, 'S': 16}
 
 
 def get_molecular_formula(smi):

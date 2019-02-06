@@ -242,7 +242,7 @@ class Optimize:
                 fr_file = self.species.name
                 if not self.species.wellorts:
                     fr_file += '_well'
-                if self.par.par['high_level'] == 1:
+                if self.par.par['high_level']:
                         fr_file += '_high'
                 hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
@@ -250,6 +250,10 @@ class Optimize:
                 # write the molpro input and read the molpro energy, if available
                 molp = Molpro(self.species, self.par, self.qc)
                 molp.create_molpro_input()
+
+                # if self.par.par['single_point']:
+                    # molp.run()
+
                 status, molpro_energy = molp.get_molpro_energy()
                 if status:
                     self.species.energy = molpro_energy
@@ -259,3 +263,5 @@ class Optimize:
                 time.sleep(1)
             else:
                 return 0
+
+

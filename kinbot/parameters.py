@@ -81,7 +81,7 @@ class Parameters:
             'pes': 0,
             # Maximum number of simultaneous kinbot runs in a pes search
             'simultaneous_kinbot': 5,
-            # Perform high level optimization and freq calculation
+            # Perform high level optimization and freq calculation (L2)
             'high_level': 0,
             # Do a conformational search
             'conformer_search': 0,
@@ -100,6 +100,8 @@ class Parameters:
             'max_dihed': 5,
             # Number of random conformers in case no exhaustive search is done
             'random_conf': 500,
+            # Perform a single point calculation (L3)
+            'single_point': 0,
 
             # QUANTUM CHEMISTRY INFO
             # Which quantum chemistry code to use
@@ -112,16 +114,19 @@ class Parameters:
             'nwchem_command': 'nwchem',
             # Command for QChem
             'qchem_command': 'qchem',
-            # Quantum chemistry method to use
+            # Quantum chemistry method to use as L1
             'method': 'b3lyp',
             # Basis set to use
             'basis': '6-31G',
-            # Quantum chemistry method to use for high-level
+            # Quantum chemistry method to use for high-level L2
             'high_level_method': 'M062X',
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
+            # Name of the template for the single-point calculation (L3)
+            # If not specified, then the tpl/molpro.inp is used
+            'single_point_template': '',
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -130,8 +135,10 @@ class Parameters:
             'queue_name': 'medium',
             # E.g. the type of node or anything that comes with -C in SLURM
             'slurm_feature': 'knl',
-            # Number of cores to run the qc jobs on
+            # Number of cores to run the L0-L2 qc jobs on
             'ppn': 1,
+            # Number of cores to run the L3 qc jobs on
+            'single_point_ppn': 1,
             # This many spaces can be used for numbering files, e.g., in ga
             'zf': 4,
             # Scratch directory

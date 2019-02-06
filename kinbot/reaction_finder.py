@@ -251,6 +251,10 @@ class ReactionFinder:
         H-R~~~~~~~R* <==> R*~~~~~~~R-H
 
         Find all unique cases for ring sizes between 3 and 9. Works in both directions.
+        H is moved to
+        * radical site
+        * multiple bond
+        * lone pair
         """
         
         name = 'intra_H_migration'
@@ -261,7 +265,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         if np.sum(rad) == 0: 
-            #find H-migrations over double bonds and to unpaired electrons
+            #find H-migrations over double bonds and to lone pairs
             
             for ringsize in range(3, 9):
                 # double bonds 
@@ -272,13 +276,15 @@ class ReactionFinder:
                 for instance in instances:
                     if any([bi > 1 for bi in bond[instance[0]]]):
                         rxns += [instance]
-                # unpaired electrons
+                # lone pairs
                 motif = ['X' for i in range(ringsize)]
                 motif[-1] = 'H'
                 instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
            
                 for instance in instances:
-                    if self.species.atom[instance[0]] == 'O' or self.species.atom[instance[0]] == 'S':
+                    if (self.species.atom[instance[0]] == 'O' or  
+                       self.species.atom[instance[0]] == 'S' or 
+                       self.species.atom[instance[0]] == 'N'):
                         rxns += [instance]
 
         else:
@@ -306,7 +312,7 @@ class ReactionFinder:
         """ 
         This is a special case of H migration reactions over a double bond 
         (keto-enol type) that proceeds through a suprafacial instead of the
-        common antrafacial TS
+        common antrafacial TS.
         """
         
         name = 'intra_H_migration_suprafacial'
@@ -344,6 +350,10 @@ class ReactionFinder:
         R cannot be an H, this is already taken care of in the intra_H_migration
         
         TODO: merge this with intra H migration families?
+        yes, because it is the same rule
+        no, because then it's hard to search for just one of the types
+        TODO: this should also include migration to lone pair electrons?
+        currently it moves atoms to radical sites only
         """
         
         if np.sum(rad) != 1: return 
@@ -498,8 +508,8 @@ class ReactionFinder:
         """ 
         This is an RMG class.
 
-                                   H
-                                   | 
+                                  H
+                                  | 
         H-R~~~~~~~R=R ==> R~~~~~~~R-R
                           |         |
                            ---------
@@ -546,11 +556,11 @@ class ReactionFinder:
         """ 
         This is an RMG class.
 
-                                   H
-                                   | 
-        H-R~~~~~~~R=R ==> R~~~~~~~R-R
-                          |         |
-                           ---------
+                H
+                | 
+        R~~~~~~~R-R ==> H-R~~~~~~~R=R
+        |         |
+         ---------
 
         Find all unique cases for ring sizes between 3 and 9. This is for the reverse direction.
         """
@@ -751,7 +761,6 @@ class ReactionFinder:
                 self.reactions[name].append(inst) 
 
         return 0
-
 
 
     def search_Intra_RH_Add_Exocyclic_F(self, natom, atom, bond, rad):
@@ -1028,6 +1037,7 @@ class ReactionFinder:
                 self.reactions[name].append(inst)
         
         return 0
+
 
     def search_r22_cycloaddition(self, natom, atom, bond, rad):
         """ 

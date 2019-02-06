@@ -80,8 +80,8 @@ def main():
         os.makedirs('perm')
     if not os.path.exists('scratch'):
         os.makedirs('scratch')
-    if not os.path.exists('molpro'):
-        os.mkdir('molpro')
+    if not os.path.exists('single_point'):
+        os.mkdir('single_point')
     if par.par['rotor_scan'] == 1:
         if not os.path.exists('hir'):
             os.mkdir('hir')

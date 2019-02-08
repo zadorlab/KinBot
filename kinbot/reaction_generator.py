@@ -58,14 +58,18 @@ class ReactionGenerator:
         all cores are occupied efficiently.
 
         The switching between the various stages are done via the reac_ts_done variable.
-        0: initiates the TS search
-        1: checks barrier height and errors in TS, and initiates normal mode displacement test, start the irc calculations 
-        2: submits product optimization
+        0: initiate the TS search
+        1: check barrier height and errors in TS, and initiates normal mode displacement test, start the irc calculations 
+        2: submit product optimization
         3: submit the frequency calculation 
         4: do the optimization of the ts and the products
         5: follow up on the optimizations
         6: finalize calculations, check for wrong number of negative frequencies
+        
+        If at any times the calculation fails, reac_ts_done is set to -999.
+        If all steps are successful, reac_ts_done is set to -1.
         """
+
         if len(self.species.reac_inst) > 0:
             alldone = 1
         else: 

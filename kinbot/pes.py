@@ -385,6 +385,7 @@ def postprocess(par, jobs, task, names):
                       prod_energies,
                       parent)
 
+    return 0
 
 def filter(wells, products, reactions, conn, bars, well_energies, task, names):
     """

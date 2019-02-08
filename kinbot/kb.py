@@ -52,6 +52,17 @@ from qc import QuantumChemistry
 
 
 def main():
+    # purge previous summary and monitor files, so that pes doesn't think
+    # everything is done
+    # relevant if jobs are killed
+    try:
+        os.system('rm -f summary_*.out')
+    except OSError:
+        pass
+    try:
+        os.system('rm -f kinbot_monitor.out')
+    except OSError:
+        pass
     try:
         input_file = sys.argv[1]
     except IndexError:

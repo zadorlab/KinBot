@@ -53,8 +53,10 @@ class QuantumChemistry:
         self.zf = par.par['zf']
         self.db = connect('kinbot.db')
         self.job_ids = {}
+        self.irc_maxpoints = par.par['irc_maxpoints']
+        self.irc_stepsize = par.par['irc_stepsize']
         
-    def get_qc_arguments(self,job,mult,charge,ts = 0, step = 0, max_step = 0, irc = None,scan = 0,high_level=0, hir = 0):
+    def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0, high_level=0, hir=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         
@@ -115,7 +117,7 @@ class QuantumChemistry:
                 #arguments for the irc calculations
                 kwargs['geom'] = 'AllCheck,NoKeepConstants'
                 kwargs['guess'] = 'Read'
-                kwargs['irc'] = 'RCFC,{},MaxPoints=30,StepSize=20'.format(irc)
+                kwargs['irc'] = 'RCFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 del kwargs['freq']
             if high_level:
                 kwargs['method'] = self.high_level_method

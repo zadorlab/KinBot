@@ -124,6 +124,10 @@ class Parameters:
             'high_level_basis': '6-311++G(d,p)',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
+            # for Gaussian irc: IRC(MaxPoints=n)
+            'irc_maxpoints': 30,
+            # for Gaussian irc, IRC(StepSize=n)
+            'irc_stepsize': 20,
             # Name of the template for the single-point calculation (L3)
             # If not specified, then the tpl/molpro.inp is used
             'single_point_template': '',

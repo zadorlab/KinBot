@@ -25,6 +25,7 @@ a full PES instead of only the reactions of one well
 from __future__ import print_function
 import sys
 import os
+import stat
 import shutil
 import logging
 import datetime
@@ -100,8 +101,11 @@ def main():
         f.write(str(well0.chemid) + '\n')
 
     # create a directory for the L3 single point calculations 
-    if not os.path.exists('single_point'):
-        os.mkdir('single_point')
+    # direcotry has the name of the code, e.g., molpro
+    try:
+        os.mkdir(par.par['single_point_qc'])
+    except OSError:
+        pass
 
     # maximum number of kinbot jobs that run simultaneously
     max_running = par.par['simultaneous_kinbot']
@@ -178,12 +182,15 @@ def main():
                 f.write('\n'.join(summary_lines))
             time.sleep(1)
 
-    # When everything is done, copy all L3 input and job submission scripts to the 
-    # top-level single_point directory
-    if par.par['single_point']:
-        copy_single_point(jobs)
-
     postprocess(par, jobs, task, names)
+    # make molpro inputs for all keys above
+    # place submission script in the dorectory for offline submission
+    # read in the molpro energies for the keys in the above three dicts
+    # for key in newdict.keys():
+    #      print(key)
+    # if all energies are there
+    # do something like postprocess, but with new energies
+    # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energyi, conn)
 
     # Notify user the search is done
     logging.info('PES search done!')
@@ -216,28 +223,6 @@ def get_wells(job):
             f.write('\n'.join(new_wells) + '\n')
 
 
-
-
-def copy_single_point(jobs):
-    """
-    Copy all L3 input files and job submission scripts from the 
-    subdirectories into the single_point top-level directory.
-    If a well was found multiple times, this will result in containing
-    just one version, whichever came last in the order of exploration.
-    """
-
-    destination = 'single_point'
-    for ji in jobs:
-        try:
-            spdir = ji + '/single_point'
-            spfile = os.listdir(spdir)
-            for sp in spfile:
-                source = os.path.join(spdir, sp)
-                shutil.copy(source, destination)
-        except:
-            continue
-
-
 def postprocess(par, jobs, task, names):
     """
     postprocess a pes search
@@ -245,25 +230,36 @@ def postprocess(par, jobs, task, names):
     jobs: all of the jobs that were run
     temp: this is a temporary output file writing
     """
-    # base of the energy is the first well
-    zero_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
-    zero_zpe = get_zpe(jobs[0], jobs[0], 0, par.par['high_level'])
+
+    l3done = 1  # flag for L3 calculations to be complete
+
+    # base of the energy is the first well, these are L2 energies
+    base_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
+    # L3 energies
+    status, base_l3energy = get_l3energy(jobs[0], par)
+    if not status:
+        l3done = 0
+    # L2 ZPE
+    base_zpe = get_zpe(jobs[0], jobs[0], 0, par.par['high_level'])
 
     # list of lists with four elements
-    # reactant chemid
-    # reaction name
-    # products chemid list
-    # reaction barrier height
+    # 1. reactant chemid
+    # 2. reaction name
+    # 3. products chemid list
+    # 4. reaction barrier height
     reactions = []
+
     # list of the parents for each calculation
     # the key is the name of the calculation
     # the value is the parent directory,
     # i.e. the well kinbot started from to find
     # this calculation
     parent = {}
+
     wells = []
     failedwells = []
     products = []
+
     # read all the jobs
     for ji in jobs:
         try:
@@ -276,25 +272,25 @@ def postprocess(par, jobs, task, names):
             if line.startswith('SUCCESS'):
                 pieces = line.split()
                 reactant = ji
-                ts = pieces[2]
-                prod = pieces[3:]
+                ts = pieces[2]  # this is the long specific name of the reaction
+                prod = pieces[3:]  # this is the chemid of the product
 
                 # calculate the barrier based on the new energy base
-                barrier = 0. - zero_energy - zero_zpe
+                barrier = 0. - base_energy - base_zpe
                 # overwrite energies with mp2 energy if needed
                 if ('R_Addition_MultipleBond' in ts and
                         not par.par['high_level']):
-                    zero_energy_mp2 = get_energy(jobs[0],
+                    base_energy_mp2 = get_energy(jobs[0],
                                                  jobs[0],
                                                  0,
                                                  par.par['high_level'],
                                                  mp2=1)
-                    zero_zpe_mp2 = get_zpe(jobs[0],
+                    base_zpe_mp2 = get_zpe(jobs[0],
                                            jobs[0],
                                            0,
                                            par.par['high_level'],
                                            mp2=1)
-                    barrier = 0. - zero_energy_mp2 - zero_zpe_mp2
+                    barrier = 0. - base_energy_mp2 - base_zpe_mp2
                 ts_energy = get_energy(reactant, ts, 1, par.par['high_level'])
                 ts_zpe = get_zpe(reactant, ts, 1, par.par['high_level'])
                 barrier += ts_energy + ts_zpe
@@ -333,25 +329,72 @@ def postprocess(par, jobs, task, names):
                         reactions.pop(temp)
                         reactions.append([reactant, ts, prod, barrier])
         # copy the xyz files
-        copy_xyz(ji)
+        copy_from_kinbot(ji, 'xyz')
+        # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.
+        copy_from_kinbot(ji, par.par['single_point_qc'])
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, products, reactions)
+    # create a batch submission for all L3 jobs
+    # TODO slurm
+    if par.par['queuing'] == 'pbs':
+        batch = 'batch_L3_pbs.sub'
+        with open(batch, 'w') as f:
+            for well in wells:
+                f.write('qsub molpro/' + well + '.pbs' + '\n')
+            for prod in products:
+                for frag in prod.split('_'):
+                    f.write('qsub molpro/' + frag + '.pbs' + '\n')
+            for reac in reactions:
+                f.write('qsub molpro/' + reac[1] + '.pbs' + '\n')
+        os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
+
 
     well_energies = {}
+    well_l3energies = {}
     for well in wells:
-        energy = get_energy(parent[well], well, 0, par.par['high_level'])
+        energy = get_energy(parent[well], well, 0, par.par['high_level'])  # from the db
         zpe = get_zpe(parent[well], well, 0, par.par['high_level'])
-        zeroenergy = ((energy + zpe) - (zero_energy + zero_zpe)) * constants.AUtoKCAL
-        well_energies[well] = zeroenergy
+        well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
+        status, l3energy = get_l3energy(well, par)
+        if not status:
+            l3done = 0  # not all L3 calculations are done
+        else:
+            well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
+
     prod_energies = {}
+    prod_l3energies = {}
     for prods in products:
-        energy = 0. - zero_energy - zero_zpe
+        energy = 0. - base_energy - base_zpe
+        l3energy = 0. - base_l3energy - base_zpe
         for pr in prods.split('_'):
             energy += get_energy(parent[prods], pr, 0, par.par['high_level'])
-            energy += get_zpe(parent[prods], pr, 0, par.par['high_level'])
-        energy = energy * constants.AUtoKCAL
-        prod_energies[prods] = energy
+            zpe = get_zpe(parent[prods], pr, 0, par.par['high_level'])
+            energy += zpe
+            status, l3energy = get_l3energy(pr, par)
+            if not status:
+                l3done = 0  # not all L3 calculations are done
+            else:
+                l3energy = ((l3energy + zpe) - (base_l3energy + base_zpe)) 
+        prod_energies[prods] = energy * constants.AUtoKCAL
+        prod_l3energies[prods] = l3energy * constants.AUtoKCAL
 
+    ts_l3energies = {}
+    for reac in reactions:
+        zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
+        status, l3energy = get_l3energy(reac[1], par)
+        if not status:
+            l3done = 0
+        else:
+            ts_l3energies[reac[1]] =  ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
+
+
+    if l3done == 1 and len(reactions) > 1:
+        well_energies = well_l3energies
+        prod_energies = prod_l3energies
+        for reac in reactions:  # swap out the barrier
+            reac[3] = ts_l3energies[reac[1]]
+
+    # if L3 was done, everything below is done with that
     # filter according to tasks
     wells, products, reactions, highlight = filter(wells,
                                                    products,
@@ -361,7 +404,7 @@ def postprocess(par, jobs, task, names):
                                                    well_energies,
                                                    task,
                                                    names)
-    # write full pes input
+    # write full pesviewer input
     create_pesviewer_input(par,
                            wells,
                            products,
@@ -385,7 +428,6 @@ def postprocess(par, jobs, task, names):
                       prod_energies,
                       parent)
 
-    return 0
 
 def filter(wells, products, reactions, conn, bars, well_energies, task, names):
     """
@@ -678,11 +720,11 @@ def is_pathway(wells, products, ins, names):
     return 0
 
 
-def copy_xyz(well):
-    dir_xyz = 'xyz/'
-    if not os.path.exists(dir_xyz):
-        os.mkdir(dir_xyz)
-    copy_tree(well + '/xyz/', dir_xyz)
+def copy_from_kinbot(well, dirname):
+    dirname = dirname + '/'
+    if not os.path.exists(dirname):
+        os.mkdir(dirname)
+    copy_tree(well + '/' + dirname, dirname)
 
 
 def get_rxn(prods, rxns):
@@ -1015,6 +1057,25 @@ def get_energy(dir, job, ts, high_level, mp2=0):
     return energy
 
 
+def get_l3energy(job, par):
+    """ 
+    Get the L3, single-point energies. 
+    This is not object oriented.
+    """
+
+    if par.par['single_point_qc'] == 'molpro':
+        if os.path.exists('molpro/' + job + '.out'):
+            with open('molpro/' + job + '.out') as f:
+                lines = f.readlines()
+                for index, line in enumerate(reversed(lines)):
+                    if ('SETTING ' + par.par['single_point_key']) in line:
+                        return 1, float(line.split()[2])  # energy was found
+                    else:
+                        return 0, -1  # the job not yet done
+        else:
+            return 0, -1  # job not yet started to run
+
+    
 def get_zpe(dir, job, ts, high_level, mp2=0):
     db = connect(dir + '/kinbot.db')
     if ts:
@@ -1054,6 +1115,18 @@ def submit_job(chemid):
     Submit a kinbot run using subprocess and return the pid
     """
     command = ["kinbot", chemid + ".json", "&"]
+    # purge previous summary and monitor files, so that pes doesn't think
+    # everything is done
+    # relevant if jobs are killed
+    try:
+        os.system('rm -f {dir}/summary_*.out'.format(dir=chemid))
+    except OSError:
+        pass
+    try:
+        os.system('rm -f {dir}/kinbot_monitor.out'.format(dir=chemid))
+    except OSError:
+        pass
+ 
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
     process = subprocess.Popen(command,

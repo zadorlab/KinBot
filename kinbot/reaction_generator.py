@@ -99,7 +99,7 @@ class ReactionGenerator:
                                 logging.info('\tRxn search failed for {}'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else: 
-                            self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+                            self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                     
                     else: # do a bond scan
                         if self.species.reac_step[index] == self.par.par['scan_step'] + 1:
@@ -111,7 +111,7 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                         else:        
                             if self.species.reac_step[index] == 0:
-                                self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+                                self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                             elif self.species.reac_step[index] > 0:
                                 status = self.qc.check_qc(instance_name)
                                 if status == 'error' or status == 'killed':
@@ -124,7 +124,7 @@ class ReactionGenerator:
                                         if len(self.species.reac_scan_energy[index]) > 1:
                                             if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:
                                                 self.species.reac_step[index] = self.par.par['scan_step'] 
-                                        self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+                                        self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
 
                 elif self.species.reac_ts_done[index] == 1:
                     status = self.qc.check_qc(instance_name)

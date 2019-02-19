@@ -26,6 +26,8 @@ from PIL import Image
 try:
     import pybel
 except ImportError:
+    print("\nWarning: Pybel could not be imported.\n\
+    Certain features or the whole code might not run properly.\n")
     pass
 
 try:
@@ -33,6 +35,8 @@ try:
     from rdkit.Chem import AllChem
     from rdkit.Chem import rdMolDescriptors
 except ImportError:
+    print("\nWarning: RDKit could not be imported.\n\
+    Certain features or the whole code might not run properly.\n")
     pass
 
 num_to_syms = {1: 'H', 6: 'C', 7: 'N', 8: 'O', 16: 'S'}

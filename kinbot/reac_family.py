@@ -28,7 +28,7 @@ import pkg_resources
 
 import modify_geom
 
-def carry_out_reaction(rxn,step):
+def carry_out_reaction(rxn, step, command):
     """
     Verify what has been done and what needs to be done
     
@@ -83,14 +83,18 @@ def carry_out_reaction(rxn,step):
         kwargs['release'] = release
 
         if step < rxn.max_step:
-            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.py.tpl'.format(qc = rxn.qc.qc))
+            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.py.tpl'.format(qc=rxn.qc.qc))
             template = open(template_file,'r').read()
         else:
-            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = rxn.qc.qc))
+            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc=rxn.qc.qc))
             template = open(template_file,'r').read()
         
-        template = template.format(label = rxn.instance_name, kwargs = kwargs, atom = list(rxn.species.atom), 
-                                   geom = list([list(gi) for gi in geom]), ppn = rxn.qc.ppn)
+        template = template.format(label=rxn.instance_name, 
+                                   kwargs=kwargs, 
+                                   atom=list(rxn.species.atom), 
+                                   geom=list([list(gi) for gi in geom]), 
+                                   ppn=rxn.qc.ppn,
+                                   qc_command=command)
     else:
         # use the pcobfgs algorithm for the geometry update
         if step < rxn.max_step:
@@ -105,7 +109,7 @@ def carry_out_reaction(rxn,step):
             template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = rxn.qc.qc))
             template = open(template_file,'r').read()
             template = template.format(label = rxn.instance_name, kwargs = kwargs, atom = list(rxn.species.atom), 
-                                       geom = list([list(gi) for gi in geom]), ppn = rxn.qc.ppn)
+                                       geom = list([list(gi) for gi in geom]), ppn = rxn.qc.ppn, qc_command=command)
     
     f_out = open('{}.py'.format(rxn.instance_name),'w')
     f_out.write(template)

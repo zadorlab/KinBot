@@ -248,15 +248,13 @@ class Optimize:
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
 
                 # write the molpro input and read the molpro energy, if available
-                molp = Molpro(self.species, self.par, self.qc)
-                molp.create_molpro_input()
-
-                # if self.par.par['single_point']:
-                    # molp.run()
-
-                status, molpro_energy = molp.get_molpro_energy()
-                if status:
-                    self.species.energy = molpro_energy
+                if self.par.par['single_point_qc'] == 'molpro':
+                    molp = Molpro(self.species, self.par)
+                    molp.create_molpro_input()
+                    molp.create_molpro_submit()
+                    status, molpro_energy = molp.get_molpro_energy()
+                    if status:
+                        self.species.energy = molpro_energy
             if self.wait:
                 if self.shir == 1 or self.shigh == -999:
                     return 0

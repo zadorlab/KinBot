@@ -146,7 +146,8 @@ class IRC:
                                        prod_kwargs=prod_kwargs,
                                        atom=list(self.rxn.species.atom),
                                        geom=list([list(gi) for gi in geom]),
-                                       ppn=self.rxn.qc.ppn)
+                                       ppn=self.rxn.qc.ppn,
+                                       qc_command=qc_command)
 
             f_out = open('{}.py'.format(irc_name), 'w')
             f_out.write(template)

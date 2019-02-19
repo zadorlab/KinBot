@@ -27,14 +27,16 @@ class Molpro:
     """
     Class to write and read molpro file and to run molpro
     """
-    def __init__(self, species, par, qc):
+    def __init__(self, species, par):
         self.species = species
         self.par = par
-        self.qc = qc
+        # self.qc = qc
 
     def create_molpro_input(self):
         """
-        Create the input for molden
+        Create the input for molpro based on the template,
+        which is either the one in the system, or provided
+        by the user.
         """
         if self.par.par['single_point_template'] == '':
             tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
@@ -56,7 +58,7 @@ class Molpro:
 
         nelectron -= self.species.charge
 
-        with open('single_point/' + fname + '.inp', 'w') as outf:
+        with open('molpro/' + fname + '.inp', 'w') as outf:
             outf.write(file.format(name=fname,
                                    natom=self.species.natom,
                                    geom=geom,
@@ -65,45 +67,52 @@ class Molpro:
                                    charge=self.species.charge
                                    ))
 
-    def get_molpro_energy(self):
+
+    def get_molpro_energy(self, key='MYENERGY'):
         """
         Verify if there is a molpro output file and if yes, read the energy
+        key is the keyword for the energy we want to read
+        returns 1, energy if successful
+        returns 0, -1 if the energy was not there
+        A non-object-oriented version is used in pes.py
         """
         fname = str(self.species.chemid)
         if self.species.wellorts:
             fname = self.species.name
 
-        status = os.path.exists('single_point/' + fname + '.out')
+        status = os.path.exists('molpro/' + fname + '.out')
         if status:
-            with open('single_point/' + fname + '.out') as f:
+            with open('molpro/' + fname + '.out') as f:
                 lines = f.readlines()
 
             for index, line in enumerate(reversed(lines)):
-                if 'SETTING MYENA' in line:
+                if ('SETTING ' + key) in line:
                     return 1, float(line.split()[2])
         else:
             return 0, -1
 
-    def run_single_point(self):
+    def create_molpro_submit(self):
         """
         write a pbs file for the molpro input file
-        submit the pbs file to the queue
-        do _not_ wait for the molpro run to finish
         TODO for SLURM
         """
         # open the template
-        pbs_file = pkg_resources.resource_filename('tpl', 'pbs_molpro.tpl')
-        with open(pbs_file) as f:
+        file_tpl = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_molpro.tpl')
+        with open(file_tpl) as f:
             tpl = f.read()
-        pbs = open('run_molpro.pbs', 'w')
-        pbs.write(tpl.format(name='molpro', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
-        pbs.close()
 
-        command = ['qsub', 'run_molpro.pbs']
-        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = process.communicate()
-        out = out.decode()
-        pid = out.split('\n')[0].split('.')[0]
+        fname = str(self.species.chemid)
+        if self.species.wellorts:
+            fname = self.species.name
+        
+        with open('molpro/' + fname + '.' + self.par.par['queuing'], 'w' ) as f:
+            f.write(tpl.format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
+
+        #command = ['qsub', 'run_molpro.pbs']
+        #process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        #out, err = process.communicate()
+        #out = out.decode()
+        #pid = out.split('\n')[0].split('.')[0]
 
         return 0
 

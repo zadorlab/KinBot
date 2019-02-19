@@ -74,7 +74,7 @@ class Parameters:
             # of potential homolytic scissions
             'homolytic_scissions': 0,
             # Threshold above which barriers are deemed unimportant
-            'barrier_threshold': 0.,
+            'barrier_threshold': 100.,
             # Number of 0.1 Angstrom steps in bond scans
             'scan_step': 30,
             # Do a full PES scan instead of one well
@@ -100,20 +100,14 @@ class Parameters:
             'max_dihed': 5,
             # Number of random conformers in case no exhaustive search is done
             'random_conf': 500,
-            # Perform a single point calculation (L3)
-            'single_point': 0,
 
             # QUANTUM CHEMISTRY INFO
             # Which quantum chemistry code to use
             'qc': 'gauss',  # or nwchem
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
-            # Command for gaussian
-            'gaussian_command': 'g09',
-            # Command for NWChem
-            'nwchem_command': 'nwchem',
-            # Command for QChem
-            'qchem_command': 'qchem',
+            # Command for the quantum chemistry code
+            'qc_command': 'g09',
             # Quantum chemistry method to use as L1
             'method': 'b3lyp',
             # Basis set to use
@@ -128,9 +122,13 @@ class Parameters:
             'irc_maxpoints': 30,
             # for Gaussian irc, IRC(StepSize=n)
             'irc_stepsize': 20,
+            # name of the single point code's name
+            'single_point_qc': 'molpro',
             # Name of the template for the single-point calculation (L3)
-            # If not specified, then the tpl/molpro.inp is used
+            # If not specified, then the tpl/[single_point_qc].inp is used
             'single_point_template': '',
+            # if there is a key (e.g., Molpro), what it is to read L3
+            "single_point_key": "MYENERGY",
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

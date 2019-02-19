@@ -55,6 +55,7 @@ class QuantumChemistry:
         self.job_ids = {}
         self.irc_maxpoints = par.par['irc_maxpoints']
         self.irc_stepsize = par.par['irc_stepsize']
+        self.qc_command = par.par['qc_command']
         
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0, high_level=0, hir=0):
         """
@@ -200,7 +201,13 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
+        template = template.format(label=job, 
+                                   kwargs=kwargs, 
+                                   atom=list(atom), 
+                                   geom=list([list(gi) for gi in geom]), 
+                                   ppn=self.ppn, 
+                                   dummy=dummy, 
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -253,7 +260,8 @@ class QuantumChemistry:
                                    fix=fix,
                                    change=change,
                                    ppn=self.ppn,
-                                   dummy=dummy)
+                                   dummy=dummy,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -299,7 +307,13 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
+        template = template.format(label=job,
+                                   kwargs=kwargs, 
+                                   atom=list(atom), 
+                                   geom=list([list(gi) for gi in geom]),
+                                   ppn = self.ppn,
+                                   dummy = dummy,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -337,7 +351,13 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
+        template = template.format(label=job,
+                                   kwargs=kwargs, 
+                                   atom=list(atom), 
+                                   geom=list([list(gi) for gi in geom]),
+                                   ppn=self.ppn,
+                                   dummy = dummy,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -377,8 +397,13 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), 
-                                   ppn = self.ppn, dummy = dummy)
+        template = template.format(label=job,
+                                   kwargs=kwargs, 
+                                   atom=list(atom), 
+                                   geom=list([list(gi) for gi in geom]), 
+                                   ppn=self.ppn, 
+                                   dummy=dummy,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -401,7 +426,12 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(species.atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn)
+        template = template.format(label=job, 
+                                   kwargs=kwargs, 
+                                   atom=list(species.atom), 
+                                   geom=list([list(gi) for gi in geom]),
+                                   ppn = self.ppn,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)

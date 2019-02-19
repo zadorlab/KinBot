@@ -52,17 +52,6 @@ from qc import QuantumChemistry
 
 
 def main():
-    # purge previous summary and monitor files, so that pes doesn't think
-    # everything is done
-    # relevant if jobs are killed
-    try:
-        os.system('rm -f summary_*.out')
-    except OSError:
-        pass
-    try:
-        os.system('rm -f kinbot_monitor.out')
-    except OSError:
-        pass
     try:
         input_file = sys.argv[1]
     except IndexError:
@@ -91,8 +80,8 @@ def main():
         os.makedirs('perm')
     if not os.path.exists('scratch'):
         os.makedirs('scratch')
-    if not os.path.exists('single_point'):
-        os.mkdir('single_point')
+    if not os.path.exists(par.par['single_point_qc']):
+        os.mkdir(par.par['single_point_qc'])
     if par.par['rotor_scan'] == 1:
         if not os.path.exists('hir'):
             os.mkdir('hir')

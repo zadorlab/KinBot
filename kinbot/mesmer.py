@@ -355,22 +355,31 @@ class MESMER:
         q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_mesmer.tpl')
         with open(q_file) as f:
             tpl = f.read()
-        with open('run_mesmer.' + self.par.par['queuing'], 'w') as qu:
+        submitscript = 'run_mesmer' + qext[self.par.par['queuing']] 
+        with open(submitscript, 'w') as qu:
             qu.write(tpl_head.format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
             qu.write(tpl)
 
-        command = [qsubmit[self.par.par['queuing']], 'run_mesmer.' + self.par.par['queuing']]
+        command = [qsubmit[self.par.par['queuing']], submitscript]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = process.communicate()
         out = out.decode()
-        pid = out.split('\n')[0].split('.')[0]
+        if self.par.par['queuing'] == 'pbs':
+            pid = out.split('\n')[0].split('.')[0]
+        elif self.par.par['queuing'] == 'slurm':
+            pid = out.split('\n')[0].split()[-1]
 
-        while 1:
+        while 1:  
             devnull = open(os.devnull, 'w')
-            command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
+            if self.queuing == 'pbs':
+                command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
+            elif self.queuing == 'slurm':
+                command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
                 time.sleep(1)
             else:
                 break
-
         return 0
+
+
+

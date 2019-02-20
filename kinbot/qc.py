@@ -774,7 +774,7 @@ class QuantumChemistry:
 
     def check_qc(self,job):
         """
-        Checks the status of a Gaussian or NWChem job.
+        Checks the status of the qc job.
         """
         if self.qc == 'gauss':
             log_file = job + '.log'

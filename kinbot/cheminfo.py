@@ -17,17 +17,18 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-import os
+import os, sys
 import numpy as np
 import pkg_resources
 from PIL import Image
+import logging
 
 # try to import pybel
 try:
     import pybel
 except ImportError:
-    print("\nWarning: Pybel could not be imported.\n\
-    Certain features or the whole code might not run properly.\n")
+    logging.info('Warning: Pybel could not be imported.')
+    logging.info('Certain features or the whole code might not run properly.')
     pass
 
 try:
@@ -35,8 +36,8 @@ try:
     from rdkit.Chem import AllChem
     from rdkit.Chem import rdMolDescriptors
 except ImportError:
-    print("\nWarning: RDKit could not be imported.\n\
-    Certain features or the whole code might not run properly.\n")
+    logging.info('Warning: RDKit could not be imported.')
+    logging.info('Certain features or the whole code might not run properly.')
     pass
 
 num_to_syms = {1: 'H', 6: 'C', 7: 'N', 8: 'O', 16: 'S'}
@@ -47,7 +48,11 @@ def get_molecular_formula(smi):
     """
     Return the molecular formula of the molecule corresponding to the smiles
     """
-    mol = Chem.AddHs(Chem.MolFromSmiles(smi))
+    try:
+        mol = Chem.AddHs(Chem.MolFromSmiles(smi))
+    except NameError:
+        logging.error('RDKit is not installed or loaded correctly.')
+        sys.exit()
     return rdMolDescriptors.CalcMolFormula(mol)
 
 
@@ -62,7 +67,12 @@ def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
     react_png = '{dir}/react.png'.format(dir=dir)
     prod_png = '{dir}/prod.png'.format(dir=dir)
 
-    obmol = pybel.readstring("smi", react_smiles)
+    try:
+        obmol = pybel.readstring("smi", react_smiles)
+    except NameError:
+        logging.error('Cannot create 2D structures, Pybel is not loaded or installed properly.')
+        sys.exit()
+
     obmol.draw(show=False, filename=react_png)
 
     obmol = pybel.readstring("smi", prod_smiles)
@@ -93,7 +103,13 @@ def generate_3d_structure(smi, obabel=1):
     """
     structure = []
     if obabel:  # use OpenBabel
-        obmol = pybel.readstring('smi', smi)
+        try:
+            obmol = pybel.readstring('smi', smi)
+        except NameError:
+            logging.error('Cannot generate 3D structures from SMILES, Pybel is not loaded or installed properly.') 
+            logging.error('Try providing the initial geometry directly with the "structure" keyword.')
+            sys.exit()
+
         obmol.OBMol.AddHydrogens()
         obmol.make3D()
         bond = np.zeros((len(obmol.atoms), len(obmol.atoms)), dtype=int)
@@ -108,7 +124,11 @@ def generate_3d_structure(smi, obabel=1):
             structure += [sym, pos[0], pos[1], pos[2]]
         return obmol, structure, bond
     else:  # use RDKit
-        rdmol = Chem.AddHs(Chem.MolFromSmiles(smi))
+        try:
+            rdmol = Chem.AddHs(Chem.MolFromSmiles(smi))
+        except NameError:
+            logging.error('RDKit is not installed or loaded correctly.')
+            sys.exit()
         AllChem.EmbedMolecule(rdmol, AllChem.ETKDG())
         AllChem.MMFFOptimizeMolecule(rdmol)
         atoms = rdmol.GetAtoms()
@@ -130,7 +150,11 @@ def create_ob_mol(smi):
     """
     Method to create a Molecule Object from ObenBabel
     """
-    obmol = pybel.readstring('smi', smi)
+    try:
+        obmol = pybel.readstring('smi', smi)
+    except NameError:
+        logging.error('Pybel is not installed or loaded correctly.')
+        sys.exit()
     obmol.OBMol.AddHydrogens()
     return obmol
 
@@ -139,7 +163,13 @@ def create_rdkit_mol(bond, atom):
     """
     Method to create a RDKit Molecule object from a KinBot stationary_pt object
     """
-    m = Chem.MolFromSmiles('[' + atom[0] + ']')
+    try:
+        m = Chem.MolFromSmiles('[' + atom[0] + ']')
+    except NameError:
+        logging.error('RDKit is not installed or loaded correctly.')
+        sys.exit()
+
+
     mw = Chem.RWMol(m)
     for i in range(1, len(atom)):
         dummy = Chem.MolFromSmiles('[' + atom[i] + ']')
@@ -178,7 +208,12 @@ def create_inchi_from_geom(atom, geom):
 def create_inchi(job, chemid, xyz_file=''):
     if xyz_file == '':
         xyz_file = os.path.expanduser(job) + 'xyz/' + chemid + '.xyz'
-    obmol = pybel.readfile('xyz', xyz_file).next()
+    try:
+        obmol = pybel.readfile('xyz', xyz_file).next()
+    except:
+        logging.error('Pybel is not installed or loaded correctly.')
+        sys.exit()
+
     return obmol.write("inchi", opt={'T': 'nostereo'}).split()[0]
 
 
@@ -187,7 +222,12 @@ def create_inchi_from_smi(smi):
     Method to create the InChI of a structure given its smiles.
     OpenBabel is used for this.
     """
-    obmol = pybel.readstring('smi', smi)
+    try:
+        obmol = pybel.readstring('smi', smi)
+    except NameError:
+        logging.error('Pybel is not installed or loaded correctly.')
+        sys.exit()
+
     return obmol.write("inchi").split()[0]
 
 
@@ -196,5 +236,12 @@ def create_smiles(inchi):
     Method to create the smiles of a structure given its InChI.
     OpenBabel is used for this.
     """
-    obmol = pybel.readstring('inchi', inchi)
+    try:
+        obmol = pybel.readstring('inchi', inchi)
+    except NameError:
+        logging.error('Pybel is not installed or loaded correctly.')
+        sys.exit()
+
     return obmol.write("smi").split()[0]
+
+

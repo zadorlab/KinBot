@@ -71,6 +71,12 @@ znumber['N'] = 7
 znumber['O'] = 8
 znumber['S'] = 16
 
+# submission keywords
+qsubmit = {'pbs': 'qsub'}
+qsubmit['slurm'] = 'sbatch'
+# extensions
+qext = {'pbs': '.pbs'}
+qext['slurm'] = '.sbatch'
 
 def main():
     """

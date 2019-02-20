@@ -133,10 +133,12 @@ class Parameters:
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
             'queuing': 'pbs',  # or slurm
+            # Template for queue:
+            'queue_template': '',
             # Name of the queue
             'queue_name': 'medium',
             # E.g. the type of node or anything that comes with -C in SLURM
-            'slurm_feature': 'knl',
+            'slurm_feature': '',
             # Number of cores to run the L0-L2 qc jobs on
             'ppn': 1,
             # Number of cores to run the L3 qc jobs on

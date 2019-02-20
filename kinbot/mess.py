@@ -474,25 +474,31 @@ class MESS:
 
     def run(self):
         """
-        write a pbs file for the me/all.inp mess input file
-        submit the pbs file to the queue
+        write a pbs or slurm file for the me/all.inp mess input file
+        submit the pbs/slurm file to the queue
         wait for the mess run to finish
         """
-        # open the template
-        pbs_file = pkg_resources.resource_filename('tpl', 'pbs_mess.tpl')
-        with open(pbs_file) as f:
+        # open the the header and the specific templates
+        if self.par.par['queue_template'] == '':
+            q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
+        else:
+            q_file = self.par.par['queue_template']
+        with open(q_file) as f:
+            tpl_head = f.read()
+        q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_mess.tpl')
+        with open(q_file) as f:
             tpl = f.read()
-        pbs = open('run_mess.pbs', 'w')
-        pbs.write(tpl.format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
-        pbs.close()
+        with open('run_mess.' + self.par.par['queuing'], 'w') as qu: 
+            qu.write(tpl_head.format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
+            qu.write(tpl)
 
-        command = ['qsub', 'run_mess.pbs']
+        command = [qsubmit[self.par.par['queuing']], 'run_mess.' + self.par.par['queuing']]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = process.communicate()
         out = out.decode()
         pid = out.split('\n')[0].split('.')[0]
 
-        while 1:
+        while 1:  # TODO for slurm!!!!
             devnull = open(os.devnull, 'w')
             command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:

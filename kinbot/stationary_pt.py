@@ -109,6 +109,7 @@ class StationaryPoint:
         or converts the smiles to a geometry using open babel
         """
         if len(self.structure) == 0:
+            # this will only work if Pybel is installed correctly
             self.obmol, self.structure, self.bond = cheminfo.generate_3d_structure(self.smiles)
         self.natom = len(self.structure) // 4
         self.structure = np.reshape(self.structure, (self.natom, 4))

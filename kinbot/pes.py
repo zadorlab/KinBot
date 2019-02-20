@@ -135,7 +135,7 @@ def main():
             job = jobs[len(running) + len(finished)]
             pid = 0
             if not no_kinbot:
-                pid = submit_job(job)  # kinbot is submitted here
+                pid = submit_job(job, par)  # kinbot is submitted here
             else:
                 get_wells(job)
             pids[job] = pid
@@ -1110,7 +1110,7 @@ def check_status(job, pid):
     return 0
 
 
-def submit_job(chemid):
+def submit_job(chemid, par):
     """
     Submit a kinbot run using subprocess and return the pid
     """
@@ -1127,6 +1127,8 @@ def submit_job(chemid):
     except OSError:
         pass
  
+    if par.par['queue_template'] != '':
+        shutil.copyfile('{}'.format(par.par['queue_template']), '{}/{}'.format(chemid, par.par['queue_template']))
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
     process = subprocess.Popen(command,

@@ -24,15 +24,17 @@ To run a full PES search, make an input file (e.g. input.json) and run:
 You can find additional command line arguments in the manual. 
 
 ## Documentation
-See the manual in the docs/ directory. 
+See [wiki](https://github.com/zadorlab/KinBot/wiki).
 
 ## List of files in this project
-See the manual in the docs/ directory to see the list of files and their role in the KinBot project.
+See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 
 ## Authors
 * Judit Zador (jzador@sandia.gov)
-* Ruben Van de Vijver (vandevijver.ruben@gmail.com)
+* Ruben Van de Vijver (Ruben.VandeVijver@UGent.be)
 
 ## Website
 https://kinbot.sandia.gov
 
+## Acknowledgement
+This research was supported by the Exascale Computing Project (ECP), Project Number: 17-SC-20-SC, a collaborative effort of two DOE organizations, the Office of Science and the National Nuclear Security Administration, responsible for the planning and preparation of a capable exascale ecosystem including software, applications, hardware, advanced system engineering, and early test bed platforms to support the nation's exascale computing imperative. RVdV was also supported by the AITSTME project as part of the Predictive Theory and Modeling component of the Materials Genome Initiative. Sandia National Laboratories is a multimission laboratory managed and operated by National Technology and Engineering Solutions of Sandia, LLC., a wholly owned subsidiary of Honeywell International, Inc., for the U.S. Department of Energy’s National Nuclear Security Administration under contract DE-NA0003525. The views expressed in the article do not necessarily represent the views of the U.S. Department of Energy or the United States Government. 

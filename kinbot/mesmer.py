@@ -355,12 +355,12 @@ class MESMER:
         q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_mesmer.tpl')
         with open(q_file) as f:
             tpl = f.read()
-        submitscript = 'run_mesmer' + qext[self.par.par['queuing']] 
+        submitscript = 'run_mesmer' + constants.qext[self.par.par['queuing']] 
         with open(submitscript, 'w') as qu:
             qu.write(tpl_head.format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
             qu.write(tpl)
 
-        command = [qsubmit[self.par.par['queuing']], submitscript]
+        command = [constants.qsubmit[self.par.par['queuing']], submitscript]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = process.communicate()
         out = out.decode()

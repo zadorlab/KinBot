@@ -144,7 +144,7 @@ class ReactionGenerator:
                             logging.info('\tRxn barrier too high ({val}) for {name}'.format(val=barrier,name=instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
-                            obj.irc = IRC(obj) #TODO: this doesn't seem like a good design
+                            obj.irc = IRC(obj, self.par) #TODO: this doesn't seem like a good design
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
                                 # No IRC started yet, start the IRC now

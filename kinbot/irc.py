@@ -32,10 +32,11 @@ class IRC:
     """
     Class to run the IRC's for one specific reaction
     """
-    def __init__(self, rxn):
+    def __init__(self, rxn, par):
         # instance of the reac_family object
         # the family this reaction belongs to
         self.rxn = rxn
+        self.par = par
 
     def irc2stationary_pt(self):
         """
@@ -147,7 +148,7 @@ class IRC:
                                        atom=list(self.rxn.species.atom),
                                        geom=list([list(gi) for gi in geom]),
                                        ppn=self.rxn.qc.ppn,
-                                       qc_command=qc_command)
+                                       qc_command=self.par.par['qc_command'])
 
             f_out = open('{}.py'.format(irc_name), 'w')
             f_out.write(template)

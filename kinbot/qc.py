@@ -482,11 +482,11 @@ class QuantumChemistry:
         python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 
         if self.queuing == 'pbs':
-            python_template = python_template.format(   name = job, ppn = self.ppn, queue_name = self.queue_name, 
-                                                        dir = 'perm', python_file = python_file, arguments = '' )
+            python_template = python_template.format(   name=job, ppn=self.ppn, queue_name=self.queue_name, 
+                                                        dir='perm', python_file=python_file, arguments='' )
         elif self.queuing == 'slurm':
-            python_template = python_template.format(   name = job, ppn = self.ppn, queue_name = self.queue_name, dir = 'perm', 
-                                                        slurm_feature = self.slurm_feature, python_file = python_file, arguments = '' )
+            python_template = python_template.format(   name=job, ppn=self.ppn, queue_name=self.queue_name, dir='perm', 
+                                                        slurm_feature=self.slurm_feature, python_file=python_file, arguments='' )
         else:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logging.error('Exiting')

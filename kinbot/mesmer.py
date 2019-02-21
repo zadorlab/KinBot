@@ -357,8 +357,7 @@ class MESMER:
             tpl = f.read()
         submitscript = 'run_mesmer' + constants.qext[self.par.par['queuing']] 
         with open(submitscript, 'w') as qu:
-            qu.write(tpl_head.format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
-            qu.write(tpl)
+            qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
 
         command = [constants.qsubmit[self.par.par['queuing']], submitscript]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -371,9 +370,9 @@ class MESMER:
 
         while 1:  
             devnull = open(os.devnull, 'w')
-            if self.queuing == 'pbs':
+            if self.par.par['queuing'] == 'pbs':
                 command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
-            elif self.queuing == 'slurm':
+            elif self.par.par['queuing'] == 'slurm':
                 command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
                 time.sleep(1)

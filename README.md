@@ -31,7 +31,7 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 
 ## Authors
 * Judit Zador (jzador@sandia.gov)
-* Ruben Van de Vijver (vandevijver.ruben@gmail.com)
+* Ruben Van de Vijver (Ruben.VandeVijver@UGent.be)
 
 ## Website
 https://kinbot.sandia.gov

@@ -50,6 +50,7 @@ class QuantumChemistry:
         self.ppn = par.par['ppn']
         self.queuing = par.par['queuing']
         self.queue_name = par.par['queue_name']
+        self.slurm_feature = par.par['slurm_feature']
         self.zf = par.par['zf']
         self.db = connect('kinbot.db')
         self.job_ids = {}
@@ -450,7 +451,7 @@ class QuantumChemistry:
             template_file = pkg_resources.resource_filename('tpl', 'slurm_python.tpl')
             python_template = open(template_file,'r').read()
             python_template = python_template.format(   name = job, ppn = self.ppn, queue_name = self.queue_name, dir = 'perm', 
-                                                        slurm_feature = slurm_feature, python_file = python_file, arguments = '' )
+                                                        slurm_feature = self.slurm_feature, python_file = python_file, arguments = '' )
             f_out_slurm = open(slurm_file,'w')
             f_out_slurm.write(python_template)
             f_out_slurm.close()
@@ -459,7 +460,7 @@ class QuantumChemistry:
             process = subprocess.Popen(command,shell=False,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
             out,err = process.communicate()
             out = out.decode()
-            pid = out.split('\n')[0].split()[-1]
+            pid = out.split('\n')[0].split()[3]
             self.job_ids[job] = pid
         else:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
@@ -745,15 +746,32 @@ class QuantumChemistry:
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
+            if int(subprocess.call(command, shell = True, stdout=devnull, stderr=devnull)) == 0: 
+                return 'running'
         elif self.queuing == 'slurm':
-            command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
+            #command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
+            command = 'squeue'
+            process = subprocess.Popen(command,
+                                       shell=True,
+                                       stdout=subprocess.PIPE,
+                                       stdin=subprocess.PIPE,
+                                       stderr=subprocess.PIPE)
+            out,err = process.communicate()
+            out = out.decode()
+            for line in out.split('\n'):
+                if len(line) > 0:
+                    while line.startswith(' '):
+                        line = line[1:]
+                    pid = line.split()[0]
+                    if pid == self.job_ids.get(job,'-1'):
+                        return 'running'
         else:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logging.error('Exiting')
             sys.exit()
-        if int(subprocess.call(command, shell = True, stdout=devnull, stderr=devnull)) == 0: 
-            return 'running' 
-        elif self.is_in_database(job) and log_file_exists: #by deleting a log file, you allow restarting a job
+        #if int(subprocess.call(command, shell = True, stdout=devnull, stderr=devnull)) == 0: 
+        #    return 'running' 
+        if self.is_in_database(job) and log_file_exists: #by deleting a log file, you allow restarting a job
             #open the database
             rows = self.db.select(name = job)
             data = None

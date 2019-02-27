@@ -17,7 +17,8 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-import os, sys
+import sys
+import os
 import numpy as np
 import pkg_resources
 from PIL import Image
@@ -106,10 +107,10 @@ def generate_3d_structure(smi, obabel=1):
         try:
             obmol = pybel.readstring('smi', smi)
         except NameError:
-            logging.error('Cannot generate 3D structures from SMILES, Pybel is not loaded or installed properly.') 
-            logging.error('Try providing the initial geometry directly with the "structure" keyword.')
-            sys.exit()
-
+            message = '\nPybel is required to use the smiles input format.\n'
+            message += 'If pybel is unavailable, use the geometry as input.\n'
+            message += 'Else install OpenBabel with python bindings.\nExiting...\n'
+            sys.exit(message)
         obmol.OBMol.AddHydrogens()
         obmol.make3D()
         bond = np.zeros((len(obmol.atoms), len(obmol.atoms)), dtype=int)

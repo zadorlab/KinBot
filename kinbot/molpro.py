@@ -96,17 +96,21 @@ class Molpro:
         write a pbs file for the molpro input file
         TODO for SLURM
         """
-        # open the template
-        file_tpl = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_molpro.tpl')
-        with open(file_tpl) as f:
-            tpl = f.read()
 
         fname = str(self.species.chemid)
         if self.species.wellorts:
             fname = self.species.name
         
+        # open the template head and template
+        molpro_head = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
+        with open(molpro_head) as f:
+            tpl_head = f.read()
+        molpro_tpl = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_molpro.tpl')
+        with open(molpro_tpl) as f:
+            tpl = f.read()
+        # substitution
         with open('molpro/' + fname + '.' + self.par.par['queuing'], 'w' ) as f:
-            f.write(tpl.format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
+            f.write((tpl_head + tpl).format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
 
         #command = ['qsub', 'run_molpro.pbs']
         #process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)

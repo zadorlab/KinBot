@@ -10,6 +10,7 @@ KinBot needs to pass to the template:
     a. Fix: The coordinates to fix at their current value
     b. Change: The coordinates to change and fix at the new value
     c. Release: The coordinates to release (only for gaussian)
+6. The Gaussian command
 """
 
 import os, sys, re
@@ -28,7 +29,7 @@ from ase.constraints import FixInternals
 label = '{label}'
 kwargs = {kwargs}
 
-Gaussian.command = 'g09 < PREFIX.com > PREFIX.log'
+Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
 
 atom = {atom}
@@ -80,10 +81,63 @@ except RuntimeError:
         db = connect('kinbot.db')
         db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
     except:
-        db = connect('kinbot.db')
-        db.write(mol, name = label, data = {{'status' : 'error'}})
+        try:
+            #read the geometry from the output file
+            outfile = '{label}.log'
+            with open(outfile) as f:
+                lines = f.readlines()
+            for index, line in enumerate(reversed(lines)):
+                if re.search('Input orientation:', line) != None:
+                    for n in range(len(mol)):
+                        geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
+                    break
+            mol.positions = geom
+            e = mol.get_potential_energy() # use the Gaussian optimizer
+            #read the geometry from the output file
+            outfile = '{label}.log'
+            with open(outfile) as f:
+                lines = f.readlines()
+            for index, line in enumerate(reversed(lines)):
+                if re.search('Input orientation:', line) != None:
+                    for n in range(len(mol)):
+                        geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
+                    break
+            mol.positions = geom
+            db = connect('kinbot.db')
+            db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
+        except:
+            try:
+                #read the geometry from the output file
+                outfile = '{label}.log'
+                with open(outfile) as f:
+                    lines = f.readlines()
+                for index, line in enumerate(reversed(lines)):
+                    if re.search('Input orientation:', line) != None:
+                        for n in range(len(mol)):
+                            geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
+                        break
+                mol.positions = geom
+                del kwargs['opt']  # this is when we give up optimization!!
+                e = mol.get_potential_energy() # use the Gaussian optimizer
+                #read the geometry from the output file
+                outfile = '{label}.log'
+                with open(outfile) as f:
+                    lines = f.readlines()
+                for index, line in enumerate(reversed(lines)):
+                    if re.search('Input orientation:', line) != None:
+                        for n in range(len(mol)):
+                            geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
+                        break
+                mol.positions = geom
+                db = connect('kinbot.db')
+                db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
+            except: 
+                db = connect('kinbot.db')
+                db.write(mol, name = label, data = {{'status' : 'error'}})
 
 
-f = open(label + '.log','a')
+f = open(label + '.log', 'a')
 f.write('done\n')
 f.close()
+
+

@@ -27,16 +27,21 @@ class Molpro:
     """
     Class to write and read molpro file and to run molpro
     """
-    def __init__(self, species, par, qc):
+    def __init__(self, species, par):
         self.species = species
         self.par = par
-        self.qc = qc
+        # self.qc = qc
 
     def create_molpro_input(self):
         """
-        Create the input for molden
+        Create the input for molpro based on the template,
+        which is either the one in the system, or provided
+        by the user.
         """
-        tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
+        if self.par.par['single_point_template'] == '':
+            tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
+        else:
+            tpl_file = self.par.par['single_point_template']  
         with open(tpl_file) as f:
             file = f.read()
 
@@ -62,9 +67,14 @@ class Molpro:
                                    charge=self.species.charge
                                    ))
 
-    def get_molpro_energy(self):
+
+    def get_molpro_energy(self, key='MYENERGY'):
         """
         Verify if there is a molpro output file and if yes, read the energy
+        key is the keyword for the energy we want to read
+        returns 1, energy if successful
+        returns 0, -1 if the energy was not there
+        A non-object-oriented version is used in pes.py
         """
         fname = str(self.species.chemid)
         if self.species.wellorts:
@@ -76,13 +86,35 @@ class Molpro:
                 lines = f.readlines()
 
             for index, line in enumerate(reversed(lines)):
-                if 'SETTING MYENA' in line:
+                if ('SETTING ' + key) in line:
                     return 1, float(line.split()[2])
         else:
             return 0, -1
 
-    def run(self):
+    def create_molpro_submit(self):
         """
-        TODO
+        write a pbs file for the molpro input file
+        TODO for SLURM
         """
-        pass
+        # open the template
+        file_tpl = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_molpro.tpl')
+        with open(file_tpl) as f:
+            tpl = f.read()
+
+        fname = str(self.species.chemid)
+        if self.species.wellorts:
+            fname = self.species.name
+        
+        with open('molpro/' + fname + '.' + self.par.par['queuing'], 'w' ) as f:
+            f.write(tpl.format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
+
+        #command = ['qsub', 'run_molpro.pbs']
+        #process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        #out, err = process.communicate()
+        #out = out.decode()
+        #pid = out.split('\n')[0].split('.')[0]
+
+        return 0
+
+
+

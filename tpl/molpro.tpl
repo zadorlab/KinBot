@@ -19,7 +19,7 @@ basis=cc-pvtz-f12
 rhf
 CCSD(T)-F12
 
-myena(2) = energy(1)
+myenergy(2) = energy(1)
 myenb(2) = energy(2)
 ---
 

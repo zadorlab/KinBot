@@ -37,32 +37,46 @@ st_bond['CH'] = 1.09*1.2
 st_bond['OO'] = 1.48*1.2
 st_bond['HO'] = 0.95*1.2
 st_bond['HH'] = 1.1  # 0.74*1.2
-st_bond['CS'] = 1.82*1.2
 st_bond['OS'] = 1.82*1.2
 st_bond['HS'] = 1.34*1.2
 st_bond['SS'] = 2.07*1.2
+st_bond['HN'] = 0.99*1.2
+st_bond['CN'] = 1.47*1.2
+st_bond['NO'] = 1.49*1.2
+st_bond['NS'] = 1.6*1.2
+st_bond['NN'] = 1.35*1.2
 
 st_bond['ts'] = 1.15
 st_bond['S'] = 6  # maximum valence, can also be 2 or 4
 st_bond['C'] = 4
 st_bond['O'] = 2
 st_bond['H'] = 1
+st_bond['N'] = 5  # maximum valence, can also be 3 
 
 mass = {'H': 1}
 mass['C'] = 12
+mass['N'] = 14
 mass['O'] = 16
 mass['S'] = 32
 
 exact_mass = {'H': 1.00782503207}
 exact_mass['C'] = 12.00000000000
+exact_mass['N'] = 14.003074
 exact_mass['O'] = 15.99491461956
 exact_mass['S'] = 31.97207100
 
 znumber = {'H': 1}
 znumber['C'] = 6
+znumber['N'] = 7
 znumber['O'] = 8
 znumber['S'] = 16
 
+# submission keywords
+qsubmit = {'pbs': 'qsub'}
+qsubmit['slurm'] = 'sbatch'
+# extensions
+qext = {'pbs': '.pbs'}
+qext['slurm'] = '.sbatch'
 
 def main():
     """

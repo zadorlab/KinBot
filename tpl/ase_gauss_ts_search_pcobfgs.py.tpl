@@ -10,6 +10,7 @@ KinBot needs to pass to the template:
     a. Fix: The coordinates to fix at their current value
     b. Change: The coordinates to change and fix at the new value
     c. Release: The coordinates to release (only for gaussian)
+6. The Gaussian command
 """
 
 import os, sys, re
@@ -27,7 +28,7 @@ from ase.db import connect
 label = '{label}'
 kwargs = {kwargs}
 
-Gaussian.command = 'g09 < PREFIX.com > PREFIX.log'
+Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
 
 atom = {atom}

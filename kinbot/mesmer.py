@@ -340,30 +340,45 @@ class MESMER:
 
     def run(self):
         """
-        write a pbs file for the me/all.xml input file
-        submit the pbs file to the queue
+        write a pbs/slurm file for the me/all.xml input file
+        submit the pbs/slurm file to the queue
         wait for the mess run to finish
         """
-        # open the template
-        pbs_file = pkg_resources.resource_filename('tpl', 'pbs_mesmer.tpl')
-        with open(pbs_file) as f:
-            tpl = f.read()
-        pbs = open('run_mesmer.pbs', 'w')
-        pbs.write(tpl.format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
-        pbs.close()
 
-        command = ['qsub', 'run_mesmer.pbs']
+        # open the the header and the specific templates
+        if self.par.par['queue_template'] == '':
+            q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
+        else:
+            q_file = self.par.par['queue_template']
+        with open(q_file) as f:
+            tpl_head = f.read()
+        q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_mesmer.tpl')
+        with open(q_file) as f:
+            tpl = f.read()
+        submitscript = 'run_mesmer' + constants.qext[self.par.par['queuing']] 
+        with open(submitscript, 'w') as qu:
+            qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
+
+        command = [constants.qsubmit[self.par.par['queuing']], submitscript]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = process.communicate()
         out = out.decode()
-        pid = out.split('\n')[0].split('.')[0]
+        if self.par.par['queuing'] == 'pbs':
+            pid = out.split('\n')[0].split('.')[0]
+        elif self.par.par['queuing'] == 'slurm':
+            pid = out.split('\n')[0].split()[-1]
 
-        while 1:
+        while 1:  
             devnull = open(os.devnull, 'w')
-            command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
+            if self.par.par['queuing'] == 'pbs':
+                command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
+            elif self.par.par['queuing'] == 'slurm':
+                command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
                 time.sleep(1)
             else:
                 break
-
         return 0
+
+
+

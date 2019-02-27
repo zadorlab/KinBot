@@ -54,8 +54,16 @@ class QuantumChemistry:
         self.zf = par.par['zf']
         self.db = connect('kinbot.db')
         self.job_ids = {}
+        self.irc_maxpoints = par.par['irc_maxpoints']
+        self.irc_stepsize = par.par['irc_stepsize']
+        self.qc_command = par.par['qc_command']
+        # sometimes there is no slurm feature at all
+        if par.par['slurm_feature'] == '':
+            self.slurm_feature = ''
+        else:
+            self.slurm_feature = '#SBATCH -C ' + par.par['slurm_feature']
         
-    def get_qc_arguments(self,job,mult,charge,ts = 0, step = 0, max_step = 0, irc = None,scan = 0,high_level=0, hir = 0):
+    def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0, high_level=0, hir=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         
@@ -116,7 +124,7 @@ class QuantumChemistry:
                 #arguments for the irc calculations
                 kwargs['geom'] = 'AllCheck,NoKeepConstants'
                 kwargs['guess'] = 'Read'
-                kwargs['irc'] = 'RCFC,{},MaxPoints=30,StepSize=20'.format(irc)
+                kwargs['irc'] = 'RCFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 del kwargs['freq']
             if high_level:
                 kwargs['method'] = self.high_level_method
@@ -199,7 +207,13 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
+        template = template.format(label=job, 
+                                   kwargs=kwargs, 
+                                   atom=list(atom), 
+                                   geom=list([list(gi) for gi in geom]), 
+                                   ppn=self.ppn, 
+                                   dummy=dummy, 
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -252,7 +266,8 @@ class QuantumChemistry:
                                    fix=fix,
                                    change=change,
                                    ppn=self.ppn,
-                                   dummy=dummy)
+                                   dummy=dummy,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -298,7 +313,13 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
+        template = template.format(label=job,
+                                   kwargs=kwargs, 
+                                   atom=list(atom), 
+                                   geom=list([list(gi) for gi in geom]),
+                                   ppn = self.ppn,
+                                   dummy = dummy,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -336,7 +357,13 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn, dummy = dummy)
+        template = template.format(label=job,
+                                   kwargs=kwargs, 
+                                   atom=list(atom), 
+                                   geom=list([list(gi) for gi in geom]),
+                                   ppn=self.ppn,
+                                   dummy = dummy,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -376,8 +403,13 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(atom), geom = list([list(gi) for gi in geom]), 
-                                   ppn = self.ppn, dummy = dummy)
+        template = template.format(label=job,
+                                   kwargs=kwargs, 
+                                   atom=list(atom), 
+                                   geom=list([list(gi) for gi in geom]), 
+                                   ppn=self.ppn, 
+                                   dummy=dummy,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -400,7 +432,12 @@ class QuantumChemistry:
         
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
-        template = template.format(label = job, kwargs = kwargs, atom = list(species.atom), geom = list([list(gi) for gi in geom]), ppn = self.ppn)
+        template = template.format(label=job, 
+                                   kwargs=kwargs, 
+                                   atom=list(species.atom), 
+                                   geom=list([list(gi) for gi in geom]),
+                                   ppn = self.ppn,
+                                   qc_command=self.qc_command)
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -427,45 +464,48 @@ class QuantumChemistry:
         else:
             if check == 'running': return 0
 
+
+        try: 
+            if self.par.par['queue_template'] == '':
+                template_head_file = pkg_resources.resource_filename('tpl', self.queuing + '.tpl')
+            else:
+                template_head_file = self.par.par['queue_template']
+        except OSError:
+            logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
+            logging.error('Or no file is found at {}.'.format(self.par.par['queue_template']))
+            logging.error('Exiting')
+            sys.exit()
+
+        template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
+        python_file = '{}.py'.format(job)
         
+        python_template = open(template_head_file, 'r').read() 
+        python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
+
         if self.queuing == 'pbs':
-            pbs_file = '{}.pbs'.format(job)
-            python_file = '{}.py'.format(job)
-            template_file = pkg_resources.resource_filename('tpl', 'pbs_python.tpl')
-            python_template = open(template_file,'r').read()
-            python_template = python_template.format(   name = job, ppn = self.ppn, queue_name = self.queue_name, 
-                                                        dir = 'perm', python_file = python_file, arguments = '' )
-            f_out_pbs = open(pbs_file,'w')
-            f_out_pbs.write(python_template)
-            f_out_pbs.close()
-
-            command = ['qsub',job + '.pbs']
-            process = subprocess.Popen(command,shell=False,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-            out,err = process.communicate()
-            out = out.decode()
-            pid = out.split('\n')[0].split('.')[0]
-            self.job_ids[job] = pid
+            python_template = python_template.format(   name=job, ppn=self.ppn, queue_name=self.queue_name, 
+                                                        dir='perm', python_file=python_file, arguments='' )
         elif self.queuing == 'slurm':
-            slurm_file = '{}.sbatch'.format(job)
-            python_file = '{}.py'.format(job)
-            template_file = pkg_resources.resource_filename('tpl', 'slurm_python.tpl')
-            python_template = open(template_file,'r').read()
-            python_template = python_template.format(   name = job, ppn = self.ppn, queue_name = self.queue_name, dir = 'perm', 
-                                                        slurm_feature = self.slurm_feature, python_file = python_file, arguments = '' )
-            f_out_slurm = open(slurm_file,'w')
-            f_out_slurm.write(python_template)
-            f_out_slurm.close()
-
-            command = ['sbatch',job + '.sbatch']
-            process = subprocess.Popen(command,shell=False,stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-            out,err = process.communicate()
-            out = out.decode()
-            pid = out.split('\n')[0].split()[3]
-            self.job_ids[job] = pid
+            python_template = python_template.format(   name=job, ppn=self.ppn, queue_name=self.queue_name, dir='perm', 
+                                                        slurm_feature=self.slurm_feature, python_file=python_file, arguments='' )
         else:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logging.error('Exiting')
             sys.exit()
+
+        qu_file = '{}{}'.format(job, constants.qext[self.queuing])
+        with open(qu_file, 'w') as f_out_qu:
+            f_out_qu.write(python_template)
+
+        command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
+        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        out,err = process.communicate()
+        out = out.decode()
+        if self.queuing == 'pbs':
+            pid = out.split('\n')[0].split('.')[0]
+        elif self.queuing == 'slurm':
+            pid = out.split('\n')[0].split()[3]
+        self.job_ids[job] = pid
         
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
@@ -735,7 +775,7 @@ class QuantumChemistry:
 
     def check_qc(self,job):
         """
-        Checks the status of a Gaussian or NWChem job.
+        Checks the status of the qc job.
         """
         if self.qc == 'gauss':
             log_file = job + '.log'

@@ -109,6 +109,7 @@ class StationaryPoint:
         or converts the smiles to a geometry using open babel
         """
         if len(self.structure) == 0:
+            # this will only work if Pybel is installed correctly
             self.obmol, self.structure, self.bond = cheminfo.generate_3d_structure(self.smiles)
         self.natom = len(self.structure) // 4
         self.structure = np.reshape(self.structure, (self.natom, 4))
@@ -202,6 +203,9 @@ class StationaryPoint:
                     if self.atom[i] == 'S':
                         if perm_rad[index][i]%2 == 0:
                             perm_rad[index][i] = 0
+                    if self.atom[i] == 'N':
+                        if perm_rad[index][i] == 2:
+                            perm_rad[index][i] = 0
                     for ind2 in range(ind1, len(perm)):   
                         j = perm[ind2]
                         if perm_rad[index][i] > 0 and perm_rad[index][j] > 0 and perm_bond[index][i][j] > 0:
@@ -218,10 +222,18 @@ class StationaryPoint:
                 if perm_n_bond.all == perm_save_n_bond.all: 
                     # bond orders do not change anymore
                     # check for sulfur atoms, if rad == 2 or 4, bring it back to zero
-                    for i,at in enumerate(self.atom):
+                    for i, at in enumerate(self.atom):
                         if at == 'S':
                             if perm_rad[index][i] > 1:
                                 if perm_rad[index][i]%2 == 0:
+                                    perm_rad[index][i] = 0
+                                else:
+                                    perm_rad[index][i] = 1
+                    # check for nitrogen atoms, if rad == 2, bring it back to zero
+                    for i, at in enumerate(self.atom):
+                        if at == 'N':
+                            if perm_rad[index][i] > 1:
+                                if perm_rad[index][i] == 2:
                                     perm_rad[index][i] = 0
                                 else:
                                     perm_rad[index][i] = 1

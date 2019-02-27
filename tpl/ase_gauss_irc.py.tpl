@@ -6,6 +6,7 @@ KinBot needs to pass to the template:
 3. The kwargs for Gaussian
 4. The atom vector
 5. The geometry
+6. Tha Gaussian command
 """
 
 import os, sys, re
@@ -24,7 +25,7 @@ from ase.constraints import FixInternals
 label = '{label}'
 kwargs = {kwargs}
 
-Gaussian.command = 'g09 < PREFIX.com > PREFIX.log'
+Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
 
 atom = {atom}

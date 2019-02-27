@@ -58,14 +58,18 @@ class ReactionGenerator:
         all cores are occupied efficiently.
 
         The switching between the various stages are done via the reac_ts_done variable.
-        0: initiates the TS search
-        1: checks barrier height and errors in TS, and initiates normal mode displacement test, start the irc calculations 
-        2: submits product optimization
+        0: initiate the TS search
+        1: check barrier height and errors in TS, and initiates normal mode displacement test, start the irc calculations 
+        2: submit product optimization
         3: submit the frequency calculation 
         4: do the optimization of the ts and the products
         5: follow up on the optimizations
         6: finalize calculations, check for wrong number of negative frequencies
+        
+        If at any times the calculation fails, reac_ts_done is set to -999.
+        If all steps are successful, reac_ts_done is set to -1.
         """
+
         if len(self.species.reac_inst) > 0:
             alldone = 1
         else: 
@@ -95,7 +99,7 @@ class ReactionGenerator:
                                 logging.info('\tRxn search failed for {}'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else: 
-                            self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+                            self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                     
                     else: # do a bond scan
                         if self.species.reac_step[index] == self.par.par['scan_step'] + 1:
@@ -107,7 +111,7 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                         else:        
                             if self.species.reac_step[index] == 0:
-                                self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+                                self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                             elif self.species.reac_step[index] > 0:
                                 status = self.qc.check_qc(instance_name)
                                 if status == 'error' or status == 'killed':
@@ -120,7 +124,7 @@ class ReactionGenerator:
                                         if len(self.species.reac_scan_energy[index]) > 1:
                                             if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:
                                                 self.species.reac_step[index] = self.par.par['scan_step'] 
-                                        self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index])
+                                        self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
 
                 elif self.species.reac_ts_done[index] == 1:
                     status = self.qc.check_qc(instance_name)
@@ -140,7 +144,7 @@ class ReactionGenerator:
                             logging.info('\tRxn barrier too high ({val}) for {name}'.format(val=barrier,name=instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
-                            obj.irc = IRC(obj) #TODO: this doesn't seem like a good design
+                            obj.irc = IRC(obj, self.par) #TODO: this doesn't seem like a good design
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
                                 # No IRC started yet, start the IRC now

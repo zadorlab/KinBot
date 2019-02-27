@@ -86,7 +86,7 @@ def check_status(job,pid):
 
 def submit_job(job,inpfile,pes):
     """
-    Submit a kinbot run usung subprocess and return the pid
+    Submit a kinbot run using subprocess and return the pid
     """
     if pes:
         command = ["python","/home/rvandev/KinBot/kinbot/pes.py",inpfile,"&"]

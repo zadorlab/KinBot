@@ -397,9 +397,9 @@ def divide_atoms(ati, atj, bond, natom, atom):
             if bond[ins[0]][ins[-1]] > 0:
                 # cycle found
                 if ins[0] == ati and ins[-1] == atj:
-                    forbidden.append(ins[ring_size / 2])
+                    forbidden.append(ins[ring_size // 2])
                 if ins[0] == atj and ins[-1] == ati:
-                    forbidden.append(ins[- ring_size/2 - 1])
+                    forbidden.append(ins[- ring_size//2 - 1])
         if len(inst) == 0:
             break
 

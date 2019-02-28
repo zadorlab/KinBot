@@ -89,7 +89,7 @@ class QuantumChemistry:
             'method': self.method, 
             'basis': self.basis, 
             'nprocshared' : self.ppn,
-            'mem' : '1000MW',
+            'mem' : '250MW',
             'chk' : job,
             'label': job, 
             'NoSymm' : 'NoSymm',

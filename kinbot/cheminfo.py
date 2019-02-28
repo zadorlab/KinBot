@@ -28,8 +28,8 @@ import logging
 try:
     import pybel
 except ImportError:
-    logging.info('Warning: Pybel could not be imported.')
-    logging.info('Certain features or the whole code might not run properly.')
+    print('Warning: Pybel could not be imported.')
+    print('Certain features or the whole code might not run properly.')
     pass
 
 try:
@@ -37,8 +37,8 @@ try:
     from rdkit.Chem import AllChem
     from rdkit.Chem import rdMolDescriptors
 except ImportError:
-    logging.info('Warning: RDKit could not be imported.')
-    logging.info('Certain features or the whole code might not run properly.')
+    print('Warning: RDKit could not be imported.')
+    print('Certain features or the whole code might not run properly.')
     pass
 
 num_to_syms = {1: 'H', 6: 'C', 7: 'N', 8: 'O', 16: 'S'}

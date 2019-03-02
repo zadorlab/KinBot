@@ -24,12 +24,12 @@ import copy
 import logging
 import time
 
-import frequencies
-import geometry
-import symmetry
-from conformers import Conformers
-from hindered_rotors import HIR
-from molpro import Molpro
+from kinbot import frequencies
+from kinbot import geometry
+from kinbot import symmetry
+from kinbot.conformers import Conformers
+from kinbot.hindered_rotors import HIR
+from kinbot.molpro import Molpro
 
 
 class Optimize:

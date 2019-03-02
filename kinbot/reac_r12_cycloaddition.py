@@ -22,8 +22,8 @@ import copy
 import time
 import math
 
-import reac_family
-import geometry
+from kinbot import reac_family
+from kinbot import geometry
 
 class R12Cycloaddition:
     

@@ -25,7 +25,7 @@ import logging
 from shutil import copyfile
 import pkg_resources
 
-from stationary_pt import StationaryPoint
+from kinbot.stationary_pt import StationaryPoint
 
 
 class IRC:

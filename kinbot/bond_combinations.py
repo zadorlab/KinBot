@@ -23,9 +23,9 @@ import copy
 import itertools
 import numpy as np
 
-import cheminfo
-import find_motif
-from stationary_pt import StationaryPoint
+from kinbot import cheminfo
+from kinbot import find_motif
+from kinbot.stationary_pt import StationaryPoint
 
 
 def equivalent_bond(b1, b2, species):

@@ -30,8 +30,8 @@ import sys
 import pkg_resources
 import numpy as np
 
-import license_message
-import constants
+from kinbot import license_message
+from kinbot import constants
 
 
 def createSummaryFile(species, qc, par):

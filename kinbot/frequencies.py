@@ -19,8 +19,8 @@
 ###################################################
 import numpy as np
 
-import constants
-import geometry
+from kinbot import constants
+from kinbot import geometry
 
 
 def get_frequencies(species, hess, geom):

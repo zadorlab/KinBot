@@ -20,7 +20,7 @@
 import copy
 import numpy as np
 
-import constants
+from kinbot import constants
 
 
 def calc_angle(a, b, c):

@@ -29,8 +29,8 @@ import pkg_resources
 
 from ase.db import connect
 
-import constants
-import geometry
+from kinbot import constants
+from kinbot import geometry
 
 class QuantumChemistry:
     """

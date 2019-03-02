@@ -20,7 +20,7 @@
 import os
 import pkg_resources
 
-import constants
+from kinbot import constants
 
 
 class Molpro:
@@ -94,7 +94,6 @@ class Molpro:
     def create_molpro_submit(self):
         """
         write a pbs file for the molpro input file
-        TODO for SLURM
         """
 
         fname = str(self.species.chemid)

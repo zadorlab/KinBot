@@ -24,8 +24,8 @@ import copy
 import logging
 import numpy as np
 
-import geometry
-import zmatrix
+from kinbot import geometry
+from kinbot import zmatrix
 
 
 class Conformers:

@@ -26,10 +26,10 @@ import logging
 import copy
 import math
 
-import cheminfo
-import constants
-import find_motif
-import geometry
+from kinbot import cheminfo
+from kinbot import constants
+from kinbot import find_motif
+from kinbot import geometry
 
 
 class StationaryPoint:

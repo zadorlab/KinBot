@@ -22,8 +22,8 @@ import subprocess
 import time
 import pkg_resources
 
-import constants
-import frequencies
+from kinbot import constants
+from kinbot import frequencies
 
 
 class MESS:

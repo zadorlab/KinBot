@@ -21,8 +21,8 @@ import numpy as np
 import copy
 import time
 
-import reac_family
-import geometry
+from kinbot import reac_family
+from kinbot import geometry
 
 class IntraDisproportionationF:
     

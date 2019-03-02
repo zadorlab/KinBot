@@ -21,7 +21,7 @@ import os,sys
 import logging
 import numpy as np
 
-import geometry
+from kinbot import geometry
 
 def calculate_symmetry(species):
     """

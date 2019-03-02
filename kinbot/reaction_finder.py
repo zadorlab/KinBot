@@ -25,47 +25,47 @@ import copy
 import time
 import logging
 
-import bond_combinations
-import find_motif
-from reac_Cyclic_Ether_Formation import CyclicEtherFormation
-from reac_Diels_alder_addition import DielsAlder
-from reac_Intra_Diels_alder_R import IntraDielsAlder
-from reac_12_shift_S_F import S12ShiftF
-from reac_12_shift_S_R import S12ShiftR
-from reac_cpd_H_migration import CpdHMigration
-from reac_intra_H_migration import IntraHMigration
-from reac_intra_H_migration_suprafacial import IntraHMigrationSuprafacial
-from reac_intra_OH_migration import IntraOHMigration
-from reac_Intra_R_Add_Endocyclic_F import IntraRAddEndocyclicF
-from reac_Intra_R_Add_Exocyclic_F import IntraRAddExocyclicF
-from reac_Intra_R_Add_ExoTetCyclic_F import IntraRAddExoTetCyclicF
-from reac_intra_R_migration import IntraRMigration
-from reac_Retro_Ene import RetroEne
-from reac_r22_cycloaddition import R22Cycloaddition
-from reac_r12_insertion_R import R12Insertion
-from reac_r13_insertion_RSR import R13InsertionRSR
-from reac_r13_insertion_ROR import R13InsertionROR
-from reac_r13_insertion_CO2 import R13InsertionCO2
-from reac_r12_cycloaddition import R12Cycloaddition
-from reac_R_Addition_MultipleBond import RAdditionMultipleBond
-from reac_R_Addition_CSm_R import RAdditionCS
-from reac_R_Addition_COm3_R import RAdditionCO
-from reac_Korcek_step2 import KorcekStep2
-from reac_ketoenol import KetoEnol
-from reac_Intra_RH_Add_Exocyclic_R import IntraRHAddExoR
-from reac_Intra_RH_Add_Exocyclic_F import IntraRHAddExoF
-from reac_Intra_RH_Add_Endocyclic_R import IntraRHAddEndoR
-from reac_Intra_RH_Add_Endocyclic_F import IntraRHAddEndoF
-from reac_HO2_Elimination_from_PeroxyRadical import HO2Elimination
+from kinbot import bond_combinations
+from kinbot import find_motif
+from kinbot.reac_Cyclic_Ether_Formation import CyclicEtherFormation
+from kinbot.reac_Diels_alder_addition import DielsAlder
+from kinbot.reac_Intra_Diels_alder_R import IntraDielsAlder
+from kinbot.reac_12_shift_S_F import S12ShiftF
+from kinbot.reac_12_shift_S_R import S12ShiftR
+from kinbot.reac_cpd_H_migration import CpdHMigration
+from kinbot.reac_intra_H_migration import IntraHMigration
+from kinbot.reac_intra_H_migration_suprafacial import IntraHMigrationSuprafacial
+from kinbot.reac_intra_OH_migration import IntraOHMigration
+from kinbot.reac_Intra_R_Add_Endocyclic_F import IntraRAddEndocyclicF
+from kinbot.reac_Intra_R_Add_Exocyclic_F import IntraRAddExocyclicF
+from kinbot.reac_Intra_R_Add_ExoTetCyclic_F import IntraRAddExoTetCyclicF
+from kinbot.reac_intra_R_migration import IntraRMigration
+from kinbot.reac_Retro_Ene import RetroEne
+from kinbot.reac_r22_cycloaddition import R22Cycloaddition
+from kinbot.reac_r12_insertion_R import R12Insertion
+from kinbot.reac_r13_insertion_RSR import R13InsertionRSR
+from kinbot.reac_r13_insertion_ROR import R13InsertionROR
+from kinbot.reac_r13_insertion_CO2 import R13InsertionCO2
+from kinbot.reac_r12_cycloaddition import R12Cycloaddition
+from kinbot.reac_R_Addition_MultipleBond import RAdditionMultipleBond
+from kinbot.reac_R_Addition_CSm_R import RAdditionCS
+from kinbot.reac_R_Addition_COm3_R import RAdditionCO
+from kinbot.reac_Korcek_step2 import KorcekStep2
+from kinbot.reac_ketoenol import KetoEnol
+from kinbot.reac_Intra_RH_Add_Exocyclic_R import IntraRHAddExoR
+from kinbot.reac_Intra_RH_Add_Exocyclic_F import IntraRHAddExoF
+from kinbot.reac_Intra_RH_Add_Endocyclic_R import IntraRHAddEndoR
+from kinbot.reac_Intra_RH_Add_Endocyclic_F import IntraRHAddEndoF
+from kinbot.reac_HO2_Elimination_from_PeroxyRadical import HO2Elimination
 
-from reac_combinatorial import Combinatorial
+from kinbot.reac_combinatorial import Combinatorial
 
-from reac_birad_recombination_F import BiradRecombinationF
-from reac_birad_recombination_R import BiradRecombinationR
-from reac_Intra_disproportionation_R import IntraDisproportionationR
-from reac_Intra_disproportionation_F import IntraDisproportionationF
-from reac_r14_birad_scission import R14BiradScission
-from reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
+from kinbot.reac_birad_recombination_F import BiradRecombinationF
+from kinbot.reac_birad_recombination_R import BiradRecombinationR
+from kinbot.reac_Intra_disproportionation_R import IntraDisproportionationR
+from kinbot.reac_Intra_disproportionation_F import IntraDisproportionationF
+from kinbot.reac_r14_birad_scission import R14BiradScission
+from kinbot.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
 
 class ReactionFinder:
     """

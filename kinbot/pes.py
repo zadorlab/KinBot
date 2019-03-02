@@ -23,6 +23,7 @@ This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
 """
 from __future__ import print_function
+from __future__ import absolute_import
 import sys
 import os
 import stat
@@ -40,11 +41,11 @@ import numpy as np
 
 from ase.db import connect
 
-import constants
-import license_message
-from parameters import Parameters
-from stationary_pt import StationaryPoint
-from mess import MESS
+from kinbot import constants
+from kinbot import license_message
+from kinbot.parameters import Parameters
+from kinbot.stationary_pt import StationaryPoint
+from kinbot.mess import MESS
 
 
 def main():

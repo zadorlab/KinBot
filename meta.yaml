@@ -1,0 +1,25 @@
+# cmd: conda build . -c pacchem -c rdkit -c openbabel
+package:
+    name: kinbot
+    version: "2.0"
+
+source:
+    path: .
+
+requirements:
+    build:
+        - python
+        - numpy
+        - matplotlib
+        - networkx
+        - pacchem::ase
+        - rdkit::rdkit
+        - openbabel::openbabel
+    run:
+        - python
+        - numpy
+        - matplotlib
+        - networkx
+        - pacchem::ase
+        - rdkit::rdkit
+        - openbabel::openbabel

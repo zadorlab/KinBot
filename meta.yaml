@@ -23,3 +23,7 @@ requirements:
         - zadorlab::ase
         - rdkit::rdkit
         - openbabel::openbabel
+       
+about:
+    home: https://github.com/zadorlab/KinBot
+    license: BSD 3-clause

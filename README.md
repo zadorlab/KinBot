@@ -11,6 +11,11 @@ Clone the project on your machine and go into the KinBot/ directory. Run the fol
 
     python setup.py build
     python setup.py install
+    
+Alternatively, you can also install the latest stable version (which might be slightly behind compared to what is on GitHub) using conda:
+
+    conda install -c rdkit -c openbabel -c zadorlab kinbot
+
 
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:

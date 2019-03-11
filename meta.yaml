@@ -12,7 +12,7 @@ requirements:
         - numpy
         - matplotlib
         - networkx
-        - pacchem::ase
+        - zadorlab::ase
         - rdkit::rdkit
         - openbabel::openbabel
     run:
@@ -20,6 +20,6 @@ requirements:
         - numpy
         - matplotlib
         - networkx
-        - pacchem::ase
+        - zadorlab::ase
         - rdkit::rdkit
         - openbabel::openbabel

@@ -116,7 +116,7 @@ class StationaryPoint:
         self.atom = self.structure[:, 0]
         self.geom = self.structure[:, 1:4].astype(float)
 
-    def characterize(self, dimer):
+    def characterize(self, dimer=0):
         """
         With one call undertake a typical set of structural characterizations.
         """

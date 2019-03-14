@@ -15,6 +15,7 @@ requirements:
         - zadorlab::ase
         - rdkit::rdkit
         - openbabel::openbabel
+        - pacchem::mess
     run:
         - python
         - numpy
@@ -23,6 +24,7 @@ requirements:
         - zadorlab::ase
         - rdkit::rdkit
         - openbabel::openbabel
+        - pacchem:mess
        
 about:
     home: https://github.com/zadorlab/KinBot

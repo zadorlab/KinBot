@@ -1,5 +1,9 @@
 # KinBot: Automated reaction pathway search for gas-phase molecules with C, H, O, N and S atoms
 
+<p>
+    <img src="graphics/kinbot_logo_V2.png" width="220" height="240" />
+</p>
+
 ## Description
 This repository contains the KinBot code version 2.0,
 a tool for automatically searching for reactions on the potential energy surface.

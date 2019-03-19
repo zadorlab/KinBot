@@ -21,9 +21,9 @@ import numpy as np
 import copy
 import time
 
-import constants
-import reac_family
-import geometry
+from kinbot import constants
+from kinbot import reac_family
+from kinbot import geometry
 
 class IntraRMigration:
     

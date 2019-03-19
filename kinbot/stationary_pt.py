@@ -26,10 +26,10 @@ import logging
 import copy
 import math
 
-import cheminfo
-import constants
-import find_motif
-import geometry
+from kinbot import cheminfo
+from kinbot import constants
+from kinbot import find_motif
+from kinbot import geometry
 
 
 class StationaryPoint:
@@ -116,7 +116,7 @@ class StationaryPoint:
         self.atom = self.structure[:, 0]
         self.geom = self.structure[:, 1:4].astype(float)
 
-    def characterize(self, dimer):
+    def characterize(self, dimer=0):
         """
         With one call undertake a typical set of structural characterizations.
         """

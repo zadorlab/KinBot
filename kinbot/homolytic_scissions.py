@@ -20,9 +20,9 @@
 # -*- coding: utf-8 -*-
 import copy
 
-import constants
-from optimize import Optimize
-from stationary_pt import StationaryPoint
+from kinbot import constants
+from kinbot.optimize import Optimize
+from kinbot.stationary_pt import StationaryPoint
 
 
 class HomolyticScission:

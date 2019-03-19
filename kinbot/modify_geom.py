@@ -35,11 +35,11 @@ from ase import Atoms
 from ase.io import write
 from ase.calculators.singlepoint import SinglePointCalculator
 
-import bfgs
-import constants
-import find_motif
-import geometry
-import zmatrix
+from kinbot import bfgs
+from kinbot import constants
+from kinbot import find_motif
+from kinbot import geometry
+from kinbot import zmatrix
 
 
 class cost_function():

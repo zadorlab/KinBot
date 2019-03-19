@@ -23,7 +23,7 @@ import numpy as np
 import random
 import copy
 
-import geometry
+from kinbot import geometry
 
 def make_zmat_from_cart(species, rotor, cart, mode):
     """

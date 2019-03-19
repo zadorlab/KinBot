@@ -1,0 +1,31 @@
+# cmd: conda build . -c zadorlab -c rdkit -c openbabel
+package:
+    name: kinbot
+    version: "2.0"
+
+source:
+    path: .
+
+requirements:
+    build:
+        - python
+        - numpy
+        - matplotlib
+        - networkx
+        - zadorlab::ase
+        - rdkit::rdkit
+        - openbabel::openbabel
+        - pacchem::mess
+    run:
+        - python
+        - numpy
+        - matplotlib
+        - networkx
+        - zadorlab::ase
+        - rdkit::rdkit
+        - openbabel::openbabel
+        - pacchem:mess
+       
+about:
+    home: https://github.com/zadorlab/KinBot
+    license: BSD 3-clause

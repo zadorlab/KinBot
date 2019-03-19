@@ -30,9 +30,9 @@ import xml.dom.minidom as minidom
 
 import pkg_resources
 
-import constants
-import frequencies
-import cheminfo
+from kinbot import constants
+from kinbot import frequencies
+from kinbot import cheminfo
 
 
 class MESMER:

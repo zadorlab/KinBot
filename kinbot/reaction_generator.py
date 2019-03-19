@@ -25,14 +25,14 @@ import copy
 import time
 import logging
 
-import constants
-import geometry
-import pes
-import postprocess
-import reac_family
-from irc import IRC
-from optimize import Optimize
-from stationary_pt import StationaryPoint
+from kinbot import constants
+from kinbot import geometry
+from kinbot import pes
+from kinbot import postprocess
+from kinbot import reac_family
+from kinbot.irc import IRC
+from kinbot.optimize import Optimize
+from kinbot.stationary_pt import StationaryPoint
 
 
 class ReactionGenerator:

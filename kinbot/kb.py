@@ -38,17 +38,17 @@ import os
 import logging
 import datetime
 
-import license_message
-import postprocess
-from homolytic_scissions import HomolyticScissions
-from parameters import Parameters
-from mesmer import MESMER
-from mess import MESS
-from optimize import Optimize
-from reaction_finder import ReactionFinder
-from reaction_generator import ReactionGenerator
-from stationary_pt import StationaryPoint
-from qc import QuantumChemistry
+from kinbot import license_message
+from kinbot import postprocess
+from kinbot.homolytic_scissions import HomolyticScissions
+from kinbot.parameters import Parameters
+from kinbot.mesmer import MESMER
+from kinbot.mess import MESS
+from kinbot.optimize import Optimize
+from kinbot.reaction_finder import ReactionFinder
+from kinbot.reaction_generator import ReactionGenerator
+from kinbot.stationary_pt import StationaryPoint
+from kinbot.qc import QuantumChemistry
 
 
 def main():

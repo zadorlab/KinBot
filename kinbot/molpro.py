@@ -20,7 +20,7 @@
 import os
 import pkg_resources
 
-import constants
+from kinbot import constants
 
 
 class Molpro:
@@ -94,7 +94,6 @@ class Molpro:
     def create_molpro_submit(self):
         """
         write a pbs file for the molpro input file
-        TODO for SLURM
         """
 
         fname = str(self.species.chemid)
@@ -110,7 +109,10 @@ class Molpro:
             tpl = f.read()
         # substitution
         with open('molpro/' + fname + '.' + self.par.par['queuing'], 'w' ) as f:
-            f.write((tpl_head + tpl).format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
+            if self.par.par['queue_name'] == 'pbs':
+                f.write((tpl_head + tpl).format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
+            elif self.par.par['queue_name'] == 'slurm':
+                f.write((tpl_head + tpl).format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro', slurm_feature=self.par.par['slurm_feature']))
 
         #command = ['qsub', 'run_molpro.pbs']
         #process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)

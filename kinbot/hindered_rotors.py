@@ -22,9 +22,9 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 
-import constants
-import geometry
-import zmatrix
+from kinbot import constants
+from kinbot import geometry
+from kinbot import zmatrix
 
 
 class HIR:

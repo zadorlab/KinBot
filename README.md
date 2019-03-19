@@ -1,5 +1,9 @@
 # KinBot: Automated reaction pathway search for gas-phase molecules with C, H, O, N and S atoms
 
+<p>
+    <img src="graphics/kinbot_logo_V2.png" width="220" height="240" />
+</p>
+
 ## Description
 This repository contains the KinBot code version 2.0,
 a tool for automatically searching for reactions on the potential energy surface.
@@ -11,6 +15,11 @@ Clone the project on your machine and go into the KinBot/ directory. Run the fol
 
     python setup.py build
     python setup.py install
+    
+Alternatively, you can also install the latest stable version (which might be slightly behind compared to what is on GitHub) using conda:
+
+    conda install -c rdkit -c openbabel -c zadorlab kinbot
+
 
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:

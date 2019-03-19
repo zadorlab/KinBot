@@ -23,6 +23,7 @@ This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
 """
 from __future__ import print_function
+from __future__ import absolute_import
 import sys
 import os
 import stat
@@ -40,11 +41,11 @@ import numpy as np
 
 from ase.db import connect
 
-import constants
-import license_message
-from parameters import Parameters
-from stationary_pt import StationaryPoint
-from mess import MESS
+from kinbot import constants
+from kinbot import license_message
+from kinbot.parameters import Parameters
+from kinbot.stationary_pt import StationaryPoint
+from kinbot.mess import MESS
 
 
 def main():
@@ -184,7 +185,7 @@ def main():
 
     postprocess(par, jobs, task, names)
     # make molpro inputs for all keys above
-    # place submission script in the dorectory for offline submission
+    # place submission script in the directory for offline submission
     # read in the molpro energies for the keys in the above three dicts
     # for key in newdict.keys():
     #      print(key)
@@ -444,6 +445,9 @@ def filter(wells, products, reactions, conn, bars, well_energies, task, names):
     # corresponding to the names
     # 4. wells: show all reactions of one wells
     # corresponding to the names
+    # 5. temperature
+    # 6. threshold_reapply: apply the barrier threshold 
+    # cutoff at the highest level that was done
 
     # filter the reactions according to the task
     if task == 'all':
@@ -521,6 +525,11 @@ def filter(wells, products, reactions, conn, bars, well_energies, task, names):
             logging.error('Only one argument should be given for a temperature filter')
             logging.error('Received: ' + ' '.join(names))
             sys.exit(-1)
+    elif task == 'l2threshold':
+        filtered_reactions = []
+        for rxn in reactions:
+            if rxn[3] < par.par['barrier_threshold']: 
+                filtered_reactions.append(rxn)
     else:
         logging.error('Could not recognize task ' + task)
         sys.exit(-1)

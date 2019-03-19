@@ -26,7 +26,7 @@ import copy
 import time
 import pkg_resources
 
-import modify_geom
+from kinbot import modify_geom
 
 def carry_out_reaction(rxn, step, command):
     """

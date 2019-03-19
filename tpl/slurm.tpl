@@ -5,5 +5,5 @@
 #SBATCH -q {queue_name}
 #SBATCH -o {dir}/{name}.stdout
 #SBATCH -e {dir}/{name}.err
-#SBATCH -C {slurm_feature}
+{slurm_feature}
 

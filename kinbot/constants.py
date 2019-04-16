@@ -39,6 +39,7 @@ st_bond['HO'] = 0.95*1.2
 st_bond['HH'] = 1.1  # 0.74*1.2
 st_bond['OS'] = 1.82*1.2
 st_bond['HS'] = 1.34*1.2
+st_bond['CS'] = 1.82*1.2
 st_bond['SS'] = 2.07*1.2
 st_bond['HN'] = 0.99*1.2
 st_bond['CN'] = 1.47*1.2

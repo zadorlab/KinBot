@@ -97,6 +97,15 @@ def main():
     if not os.path.exists('me'):
         os.mkdir('me')
 
+
+    if par.par['pes'] and par.par['specific_reaction']:
+        logging.error('Specific reaction cannot be searched in PES mode.')
+        return
+
+    if !par.par['break_bonds'] and !par.par['form.bonds'] and par.par['specific_reaction']:
+        logging.error('For pecific reaction search you need to define at least one breaking or forming bond.')
+        return
+
     # initialize the reactant
     well0 = StationaryPoint('well0',
                             par.par['charge'],

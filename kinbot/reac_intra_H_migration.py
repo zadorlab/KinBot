@@ -26,7 +26,7 @@ from kinbot import geometry
 
 class IntraHMigration:
     
-    def __init__(self,species,qc,par,instance,instance_name):
+    def __init__(self, species, qc,par, instance, instance_name):
         #st_pt of the reactant
         self.species = species
         #st_pt of the ts
@@ -35,6 +35,9 @@ class IntraHMigration:
         self.products = []
         #bond matrix of the products
         self.product_bonds = [] 
+        #broken and formed bonds
+        self.broken_bonds = []
+        self.formed_bonds = []
         
         #optimization objects
         self.ts_opt = None
@@ -55,7 +58,7 @@ class IntraHMigration:
         #skip the first 12 steps in case the instance has a length of 3?
         self.skip = 1
 
-    def get_constraints(self,step, geom):
+    def get_constraints(self, step, geom):
         """
         There are three types of constraints:
         1. fix a coordinate to the current value
@@ -151,3 +154,11 @@ class IntraHMigration:
                     del fix[index]
         
         return step, fix, change, release
+
+
+    def get_bond_change(self, instance):
+        self.broken_bonds.append({self.instance[-2], self.instance[-1]})
+        self.formed_bonds.append({self.instance[0], self.instance[-1]})
+
+
+

@@ -77,6 +77,9 @@ class ReactionFinder:
         self.qc = qc
         self.par = par
         self.families = par.par['families']
+        self.specific_reaction = par.par['specific_reaction']
+        self.break_bond = par.par['break_bonds']
+        self.form_bond = par.par['form_bonds']
 
         #keys: names of the families
         #values: list of instances
@@ -297,6 +300,7 @@ class ReactionFinder:
             for instance in instances: 
                 rxns.append(instance)
         
+
         #filter for the same reactions
         for inst in rxns:
             new = 1

@@ -76,7 +76,7 @@ try:
     for d in dummy:
         #remove the dummy atom to write to the database
         mol.pop()
-    db = connect('kinbot.db')
+    db = connect('{working_dir}/kinbot.db')
     db.write(mol, name = label, data = {{'energy': e,'frequencies': np.asarray(freq), 'zpe':zpe, 'status' : 'normal'}})
 except RuntimeError: 
     # in case of fail, try again with final geometry
@@ -135,10 +135,10 @@ except RuntimeError:
         for d in dummy:
             #remove the dummy atom to write to the database
             mol.pop()
-        db = connect('kinbot.db')
+        db = connect('{working_dir}/kinbot.db')
         db.write(mol, name = label, data = {{'energy': e,'frequencies': np.asarray(freq), 'zpe':zpe, 'status' : 'normal'}})
     except:
-        db = connect('kinbot.db')
+        db = connect('{working_dir}/kinbot.db')
         db.write(mol, name = label, data = {{'status' : 'error'}})
 
 f = open(label + '.log','a')

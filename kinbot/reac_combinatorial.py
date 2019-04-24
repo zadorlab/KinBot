@@ -163,7 +163,7 @@ class Combinatorial:
                 else:
                     self.product_bond[i][j] = self.species.bond[i][j]
                 self.product_bond[j][i] = self.product_bond[i][j]
-        rdmol, smi, inchis = cheminfo.create_rdkit_mol(self.product_bond, self.species.atom)
+        rdmol, smi = cheminfo.create_rdkit_mol(self.product_bond, self.species.atom)
         self.prod_smi = smi.split('.')
         self.prod_inchi = []
         for smi in self.prod_smi:

@@ -213,7 +213,8 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]), 
                                    ppn=self.ppn, 
                                    dummy=dummy, 
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -267,7 +268,8 @@ class QuantumChemistry:
                                    change=change,
                                    ppn=self.ppn,
                                    dummy=dummy,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -319,7 +321,8 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]),
                                    ppn = self.ppn,
                                    dummy = dummy,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -363,7 +366,8 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
                                    dummy = dummy,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -409,7 +413,8 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]), 
                                    ppn=self.ppn, 
                                    dummy=dummy,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -437,7 +442,8 @@ class QuantumChemistry:
                                    atom=list(species.atom), 
                                    geom=list([list(gi) for gi in geom]),
                                    ppn = self.ppn,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -447,7 +453,7 @@ class QuantumChemistry:
 
         return 0
 
-    def submit_qc(self,job, singlejob=1):
+    def submit_qc(self, job, singlejob=1):
         """
         Submit a job to the queue, unless the job:
             * has finished with Normal termination
@@ -478,8 +484,9 @@ class QuantumChemistry:
 
         template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
         python_file = '{}.py'.format(job)
+        name = job.split('/')[-1]
         
-        python_template = open(template_head_file, 'r').read() 
+        #python_template = open(template_head_file, 'r').read() 
         python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 
         if self.queuing == 'pbs':

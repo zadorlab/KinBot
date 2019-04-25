@@ -116,8 +116,10 @@ class Parameters:
             'comb_pi': 1,
             # For the combinatorial search, allow the breaking of valence
             'break_valence': 1,
-            # Search for one specific reaction instead of through families
-            'one_reaction' : 0,
+            # Search for one specific reaction using combinatorial approach
+            'one_reaction_comb' : 0,
+            # Search for one specific reaction using family approach
+            'one_reaction_fam' : 0,
             # break the following bonds
             'break_bonds' : [],
             # form the following bonds

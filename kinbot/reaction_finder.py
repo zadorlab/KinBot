@@ -82,15 +82,11 @@ class ReactionFinder:
         self.one_reaction_fam = par.par['one_reaction_fam']
         # make a set of frozen sets from the breaking and forming bond lists
         self.reac_bonds = set()
-        print(self.reac_bonds)
         for i, bond in enumerate(par.par['break_bonds']):
-            print(self.reac_bonds)
             self.reac_bonds.add(frozenset(par.par['break_bonds'][i]))
-            print(par.par['break_bonds'][i])
-            print(self.reac_bonds)
         self.prod_bonds = set()
         for i, bond in enumerate(par.par['form_bonds']):
-            self.reac_bonds.add(frozenset(par.par['form_bonds'][i]))
+            self.prod_bonds.add(frozenset(par.par['form_bonds'][i]))
 
         #keys: names of the families
         #values: list of instances
@@ -334,7 +330,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -372,7 +368,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -420,7 +416,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -487,7 +483,7 @@ class ReactionFinder:
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
                 # TODO need to check if this is correct
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]})) or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -545,7 +541,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-3], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-2]})):
+                if self.reac_bonds != {frozenset({inst[-3], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -597,7 +593,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})):
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -648,7 +644,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-3], inst[-4]}), frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[-1], inst[-4]})):
+                if self.reac_bonds != {frozenset({inst[-3], inst[-4]}), frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[-1], inst[-4]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -699,7 +695,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-2], inst[-3]})) or self.prod_bonds != set(frozenset({inst[0], inst[-3]})):
+                if self.reac_bonds != {frozenset({inst[-2], inst[-3]})} or self.prod_bonds != {frozenset({inst[0], inst[-3]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -749,7 +745,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set() or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -788,7 +784,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-2]})):
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -840,7 +836,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set() or self.prod_bonds != set(frozenset({inst[0], inst[-2]})):
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -909,7 +905,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[1], inst[-2]}), frozenset({inst[-1], inst[0]})):
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[1], inst[-2]}), frozenset({inst[-1], inst[0]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -959,7 +955,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]}), frozenset({inst[-3], inst[0]})) or self.prod_bonds != set(frozenset({inst[-1], inst[0]})):
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]}), frozenset({inst[-3], inst[0]})} or self.prod_bonds != {frozenset({inst[-1], inst[0]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1003,7 +999,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[2], inst[3]})) or self.prod_bonds != set():
+                if self.reac_bonds != {frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1091,14 +1087,14 @@ class ReactionFinder:
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
                 if ring_var[n] == 6: 
-                    if self.reac_bonds != set(frozenset({inst[0], inst[1]}), frozenset({inst[-3], inst[-4]})) or self.prod_bonds != set():
+                    if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[-3], inst[-4]})} or self.prod_bonds != {frozenset()}:
                         new = 0
                 if ring_var[n] == 7: 
                     #  TODO, incomplete
-                    if self.reac_bonds != set(frozenset({inst[0], inst[1]}), frozenset({inst[-3], inst[-4]})) or self.prod_bonds != set():
+                    if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[-3], inst[-4]})} or self.prod_bonds != {frozenset()}:
                         new = 0
                 if ring_var[n] == 8: 
-                    if self.reac_bonds != set(frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]}), frozenset({inst[-3], inst[-4]})) or self.prod_bonds != set():
+                    if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]}), frozenset({inst[-3], inst[-4]})} or self.prod_bonds != {frozenset()}:
                         new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1153,11 +1149,11 @@ class ReactionFinder:
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
                 if ring_var[n] == 7: 
-                    if (not set(frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})).issubset(self.reac_bonds)) or self.prod_bonds != set():
+                    if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
                         new = 0
                 if ring_var[n] == 8: 
                     #  TODO this is an incomplete check
-                    if self.reac_bonds != set(frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})):
+                    if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
                         new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1206,7 +1202,7 @@ class ReactionFinder:
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
                 # TODO need to make sure that these are the bonds that are broken, see the reaction details
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})) or self.prod_bonds != set():
+                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1258,7 +1254,7 @@ class ReactionFinder:
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
                 # TODO need to make sure that these are the bonds that are broken, see the reaction details
-                if self.reac_bonds != set(frozenset({inst[0], inst[2]}), frozenset({inst[1], inst[2]})) or self.prod_bonds != set():
+                if self.reac_bonds != {frozenset({inst[0], inst[2]}), frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1301,7 +1297,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[1], inst[2]})}) or self.prod_bonds != set(frozenset({inst[0], inst[2]})):
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[1], inst[2]})}) or self.prod_bonds != {frozenset({inst[0], inst[2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1346,7 +1342,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})) or self.prod_bonds != set(frozenset({inst[0], inst[3]})):
+                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1382,7 +1378,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != set(frozenset({inst[0], inst[3]})):
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1441,7 +1437,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[2], inst[3]}), frozenset({inst[4], inst[5]})}) or self.prod_bonds != set():
+                if self.reac_bonds != set({frozenset({inst[2], inst[3]}), frozenset({inst[4], inst[5]})}) or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1495,7 +1491,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set() or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1539,7 +1535,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[2], inst[3]})) or self.prod_bonds != set(frozenset({inst[0], inst[1]})):
+                if self.reac_bonds != {frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1578,7 +1574,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != set(frozenset({inst[0], inst[4]})):
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != {frozenset({inst[0], inst[4]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1623,7 +1619,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]})) or self.prod_bonds != set():
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1655,7 +1651,6 @@ class ReactionFinder:
         for rad_site in np.nonzero(rad)[0]:
             rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
     
-        print(rxns)
         for inst in rxns:
             new = 1
             # filter for the same reactions
@@ -1664,10 +1659,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                print(self.reac_bonds)
-                print(set(frozenset({inst[1], inst[2]})))
-                print(self.prod_bonds)
-                if self.reac_bonds != set(frozenset({inst[1], inst[2]})) or self.prod_bonds != set():
+                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1700,7 +1692,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[1], inst[2]})) or self.prod_bonds != set():
+                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1737,7 +1729,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]})) or self.prod_bonds != set(frozenset({inst[0], inst[2]})):
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset({inst[0], inst[2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1773,7 +1765,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[0], inst[1]})}) or self.prod_bonds != set(frozenset({inst[0], inst[3]})):
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[0], inst[1]})}) or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1818,7 +1810,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]})) or self.prod_bonds != set():
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1863,7 +1855,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[1], inst[2]})) or self.prod_bonds != set():
+                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1912,7 +1904,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set() or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1954,7 +1946,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set() or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1995,7 +1987,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]})) or self.prod_bonds != set():
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -2037,7 +2029,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -2083,7 +2075,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)

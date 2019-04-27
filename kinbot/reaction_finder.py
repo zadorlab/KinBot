@@ -82,8 +82,12 @@ class ReactionFinder:
         self.one_reaction_fam = par.par['one_reaction_fam']
         # make a set of frozen sets from the breaking and forming bond lists
         self.reac_bonds = set()
+        print(self.reac_bonds)
         for i, bond in enumerate(par.par['break_bonds']):
+            print(self.reac_bonds)
             self.reac_bonds.add(frozenset(par.par['break_bonds'][i]))
+            print(par.par['break_bonds'][i])
+            print(self.reac_bonds)
         self.prod_bonds = set()
         for i, bond in enumerate(par.par['form_bonds']):
             self.reac_bonds.add(frozenset(par.par['form_bonds'][i]))
@@ -1149,7 +1153,7 @@ class ReactionFinder:
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
                 if ring_var[n] == 7: 
-                    if (not set(frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})).issubset(self.reac_bonds) or self.prod_bonds != set():
+                    if (not set(frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})).issubset(self.reac_bonds)) or self.prod_bonds != set():
                         new = 0
                 if ring_var[n] == 8: 
                     #  TODO this is an incomplete check
@@ -1297,7 +1301,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]}), frozenset({inst[1], inst[2]})) or self.prod_bonds != set(frozenset({inst[0], inst[2]})):
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[1], inst[2]})}) or self.prod_bonds != set(frozenset({inst[0], inst[2]})):
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1378,7 +1382,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})) or self.prod_bonds != set(frozenset({inst[0], inst[3]})):
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != set(frozenset({inst[0], inst[3]})):
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1437,7 +1441,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[2], inst[3]}), frozenset({inst[4], inst[5]})) or self.prod_bonds != set():
+                if self.reac_bonds != set({frozenset({inst[2], inst[3]}), frozenset({inst[4], inst[5]})}) or self.prod_bonds != set():
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1574,7 +1578,7 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
-                if self.reac_bonds != set(frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})) or self.prod_bonds != set(frozenset({inst[0], inst[4]})):
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != set(frozenset({inst[0], inst[4]})):
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1650,7 +1654,8 @@ class ReactionFinder:
         motif = ['X', 'X', 'X']
         for rad_site in np.nonzero(rad)[0]:
             rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
-        
+    
+        print(rxns)
         for inst in rxns:
             new = 1
             # filter for the same reactions
@@ -1659,6 +1664,9 @@ class ReactionFinder:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
+                print(self.reac_bonds)
+                print(set(frozenset({inst[1], inst[2]})))
+                print(self.prod_bonds)
                 if self.reac_bonds != set(frozenset({inst[1], inst[2]})) or self.prod_bonds != set():
                     new = 0
             if new:
@@ -1702,6 +1710,11 @@ class ReactionFinder:
     def search_12_shift_S_R(self, natom, atom, bond, rad):
         """
         This is an RMG class.
+
+        C-S-R* <== *S-R-C
+
+        TODO: why not forward??
+
         """
         
         if np.sum(rad) != 1: return
@@ -1716,11 +1729,15 @@ class ReactionFinder:
         for rad_site in np.nonzero(rad)[0]:
             rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
         
-        #filter for identical reactions
         for inst in rxns:
             new = 1
+            # filter for identical reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set(frozenset({inst[0], inst[1]})) or self.prod_bonds != set(frozenset({inst[0], inst[2]})):
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1730,6 +1747,10 @@ class ReactionFinder:
     def search_r13_insertion_RSR(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        R-S-R + R1=R2 <== R-R1-R2-S-R
+
+
         """
         
         #if np.sum(rad) != 0: return
@@ -1744,11 +1765,15 @@ class ReactionFinder:
         rxns = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
         
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[0], inst[1]})}) or self.prod_bonds != set(frozenset({inst[0], inst[3]})):
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1785,11 +1810,15 @@ class ReactionFinder:
                 if rad[instance[1]] == 1:
                     rxns += [instance]
         
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set(frozenset({inst[0], inst[1]})) or self.prod_bonds != set():
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1800,6 +1829,13 @@ class ReactionFinder:
     def search_r14_birad_scission(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        It is now renamed to 1,4_Linear_birad_scission on the RMG website,
+
+        *R-R-R-R* ==> R=R + R=R
+
+        Problematic reaction because of the biradical character.
+
         """
 
         if np.sum(rad) != 2: return
@@ -1819,11 +1855,15 @@ class ReactionFinder:
             if rad[instance[0]] == 1 and rad[instance[-1]] == 1:
                 rxns += [instance]
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set(frozenset({inst[1], inst[2]})) or self.prod_bonds != set():
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1834,6 +1874,13 @@ class ReactionFinder:
     def search_r14_cyclic_birad_scission_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        R1-R*~~~~~~R*-R2   <==  R1=R~~~~~~R=R2
+        |______________|
+        (this one bond)
+
+        TODO forward?
+
         """
 
         if np.sum(rad) != 0: return
@@ -1857,13 +1904,15 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance] 
                     
-
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set() or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1874,6 +1923,10 @@ class ReactionFinder:
     def search_birad_recombination_F(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~~~~R* ==> R~~~~~~~~R
+                         |________|
+
         """
 
         if np.sum(rad) != 2: return
@@ -1893,12 +1946,15 @@ class ReactionFinder:
                 if rad[instance[0]] == 1 and rad[instance[-1]] == 1:
                     rxns += [instance]
 
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set() or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1909,6 +1965,10 @@ class ReactionFinder:
     def search_birad_recombination_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~~~~R* <== R~~~~~~~~R
+                         |________|
+
         """
 
         if np.sum(rad) != 0: return
@@ -1927,12 +1987,15 @@ class ReactionFinder:
             if instance[0] in self.cycle and instance[1] in self.cycle :
                 rxns += [instance]
 
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set(frozenset({inst[0], inst[1]})) or self.prod_bonds != set():
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1943,6 +2006,9 @@ class ReactionFinder:
     def search_Intra_disproportionation_F(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~R*-R-H ==> H-R~~~~~R=R
+
         """
 
         if np.sum(rad) != 2: return
@@ -1963,12 +2029,15 @@ class ReactionFinder:
                 if rad[instance[0]] == 1 and rad[instance[-3]] == 1:
                     rxns += [instance]
 
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1979,6 +2048,9 @@ class ReactionFinder:
     def search_Intra_disproportionation_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~R*-R-H <== H-R~~~~~R=R
+
         """
 
         if np.sum(rad) != 0: return
@@ -2003,12 +2075,15 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance] 
 
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set(frozenset({inst[-1], inst[-2]})) or self.prod_bonds != set(frozenset({inst[0], inst[-1]})):
                     new = 0
             if new:
                 self.reactions[name].append(inst)

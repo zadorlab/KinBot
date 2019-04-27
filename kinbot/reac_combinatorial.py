@@ -89,24 +89,27 @@ class Combinatorial:
         fdists['HS'] = [1.60, 1.60, 1.60]
         fdists['SS'] = [2.48, 2.48, 2.48]
 
-        for pi in self.prod:
-            i = pi[0]
-            j = pi[1]
-            syms = ''.join(sorted(self.species.atom[i]+self.species.atom[j]))
-            if self.species.bond[i][j] == 0:
-                fdist = constants.st_bond[syms]
-                if syms in fdists:
-                    fdist = list(reversed(fdists[syms]))[self.position]
-                self.fvals.append([i, j, fdist])
-        for ri in self.reac:
-            i = ri[0]
-            j = ri[1]
-            syms = ''.join(sorted(self.species.atom[i]+self.species.atom[j]))
-            if self.species.bond[i][j] == 1:
-                fdist = constants.st_bond[syms]
-                if syms in fdists:
-                    fdist = fdists[syms][self.position]
-                self.fvals.append([i, j, fdist])
+        if self.prod[0]:
+            for pi in self.prod:
+                i = pi[0]
+                j = pi[1]
+                syms = ''.join(sorted(self.species.atom[i]+self.species.atom[j]))
+                if self.species.bond[i][j] == 0:
+                    fdist = constants.st_bond[syms]
+                    if syms in fdists:
+                        fdist = list(reversed(fdists[syms]))[self.position]
+                    self.fvals.append([i, j, fdist])
+
+        if self.reac[0]:
+            for ri in self.reac:
+                i = ri[0]
+                j = ri[1]
+                syms = ''.join(sorted(self.species.atom[i]+self.species.atom[j]))
+                if self.species.bond[i][j] == 1:
+                    fdist = constants.st_bond[syms]
+                    if syms in fdists:
+                        fdist = fdists[syms][self.position]
+                    self.fvals.append([i, j, fdist])
 
     def get_constraints(self,step, geom):
         """

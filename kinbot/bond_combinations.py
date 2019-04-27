@@ -216,14 +216,16 @@ def generate_ts(reac, prod, bond):
     of decreasing (increasing) its bond order
     """
     ts_bond = [[float(bij) for bij in bi] for bi in bond]
-    for ri in reac:
-        i = ri[0]
-        j = ri[1]
-        ts_bond[i][j] -= 0.5
-    for pi in prod:
-        i = pi[0]
-        j = pi[1]
-        ts_bond[i][j] += 0.5
+    if reac[0]:
+        for ri in reac:
+            i = ri[0]
+            j = ri[1]
+            ts_bond[i][j] -= 0.5
+    if prod[0]:
+        for pi in prod:
+            i = pi[0]
+            j = pi[1]
+            ts_bond[i][j] += 0.5
     return ts_bond
 
 

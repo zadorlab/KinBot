@@ -115,8 +115,8 @@ class ReactionFinder:
                 name = 'combinatorial'
                 self.reactions[name] = []
                 
-                #reac_bonds = self.par.par['break_bonds']
-                #prod_bonds = self.par.par['form_bonds']
+                self.reac_bonds = self.par.par['break_bonds']
+                self.prod_bonds = self.par.par['form_bonds']
                 ts = bond_combinations.generate_ts(self.reac_bonds, self.prod_bonds, self.species.bond)
                 self.reactions[name].append([self.reac_bonds, self.prod_bonds, ts, 1])
                 

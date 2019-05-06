@@ -17,6 +17,7 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
+from __future__ import division
 import os
 import subprocess
 import time
@@ -185,10 +186,10 @@ class MESS:
                         group = ' '.join([str(pi+1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]])
                         axis = '{} {}'.format(str(rot[1]+1), str(rot[2]+1))
                         rotorsymm = species.sigma_int[rot[1]][rot[2]]
-                        nrotorpot = species.hir.nrotation / rotorsymm
+                        nrotorpot = species.hir.nrotation // rotorsymm
                         ens = species.hir.hir_energies[i]
                         rotorpot = [(ei - ens[0])*constants.AUtoKCAL for ei in ens]
-                        rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation / rotorsymm]])
+                        rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
                         rotors.append(rotor_tpl.format(group=group,
                                                        axis=axis,
                                                        rotorsymm=rotorsymm,
@@ -280,10 +281,10 @@ class MESS:
                 group = ' '.join([str(pi+1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]])
                 axis = '{} {}'.format(str(rot[1]+1), str(rot[2]+1))
                 rotorsymm = species.sigma_int[rot[1]][rot[2]]
-                nrotorpot = species.hir.nrotation / rotorsymm
+                nrotorpot = species.hir.nrotation // rotorsymm
                 ens = species.hir.hir_energies[i]
                 rotorpot = [(ei - ens[0])*constants.AUtoKCAL for ei in ens]
-                rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation / rotorsymm]])
+                rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
                 rotors.append(rotor_tpl.format(group=group,
                                                axis=axis,
                                                rotorsymm=rotorsymm,
@@ -353,10 +354,10 @@ class MESS:
                 group = ' '.join([str(pi+1) for pi in frequencies.partition(reaction.ts, rot, reaction.ts.natom)[0][1:]])
                 axis = '{} {}'.format(str(rot[1]+1), str(rot[2]+1))
                 rotorsymm = reaction.ts.sigma_int[rot[1]][rot[2]]
-                nrotorpot = reaction.ts.hir.nrotation / rotorsymm
+                nrotorpot = reaction.ts.hir.nrotation // rotorsymm
                 ens = reaction.ts.hir.hir_energies[i]
                 rotorpot = [(ei - ens[0])*constants.AUtoKCAL for ei in ens]
-                rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:reaction.ts.hir.nrotation / rotorsymm]])
+                rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:reaction.ts.hir.nrotation // rotorsymm]])
                 rotors.append(rotor_tpl.format(group=group,
                                                axis=axis,
                                                rotorsymm=rotorsymm,

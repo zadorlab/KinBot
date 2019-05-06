@@ -89,6 +89,10 @@ def main():
     msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
     logging.info(msg)
 
+    if par.par['pes'] and par.par['specific_reaction']:
+        logging.error('Specific reaction cannot be searched in PES mode.')
+        return
+
     well0 = StationaryPoint('well0',
                             par.par['charge'],
                             par.par['mult'],

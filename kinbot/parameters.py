@@ -73,6 +73,11 @@ class Parameters:
             # break all single bonds to find the barriers
             # of potential homolytic scissions
             'homolytic_scissions': 0,
+            # if requested with specific_reaction = 1
+            # then only these bonds are broken and formed
+            'specific_reaction': 0,
+            'break_bonds': [],
+            'form_bonds': [],
             # Threshold above which barriers are deemed unimportant
             'barrier_threshold': 100.,
             # Number of 0.1 Angstrom steps in bond scans

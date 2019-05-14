@@ -501,10 +501,18 @@ class QuantumChemistry:
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         out,err = process.communicate()
         out = out.decode()
-        if self.queuing == 'pbs':
-            pid = out.split('\n')[0].split('.')[0]
-        elif self.queuing == 'slurm':
-            pid = out.split('\n')[0].split()[3]
+        err = err.decode()
+        try:
+            if self.queuing == 'pbs':
+                pid = out.split('\n')[0].split('.')[0]
+            elif self.queuing == 'slurm':
+                pid = out.split('\n')[0].split()[3]
+        except:
+            msg = 'Something went wrong when submitting a job'
+            msg += 'This is the standard output:\n' + out
+            msg += '\nThis is the standard error:\n' + err
+            logging.error(msg)
+            sys.exit()
         self.job_ids[job] = pid
         
         return 1  # important to keep it 1, this is the natural counter of jobs submitted

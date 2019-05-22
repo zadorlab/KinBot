@@ -187,8 +187,7 @@ def create_rdkit_mol(bond, atom):
             if bond[i][j] == 3:
                 mw.AddBond(i, j, Chem.BondType.TRIPLE)
     smi = Chem.MolToSmiles(mw)
-    inchi = Chem.MolToInchi(mw)
-    return mw, smi, inchi
+    return mw, smi
 
 
 def create_inchi_from_geom(atom, geom):
@@ -209,9 +208,10 @@ def create_inchi_from_geom(atom, geom):
 def create_inchi(job, chemid, xyz_file=''):
     if xyz_file == '':
         xyz_file = os.path.expanduser(job) + 'xyz/' + chemid + '.xyz'
+    obmol = list(pybel.readfile('xyz', xyz_file))[0]
     try:
-        obmol = pybel.readfile('xyz', xyz_file).next()
-    except:
+        obmol = list(pybel.readfile('xyz', xyz_file))[0]
+    except NameError:
         logging.error('Pybel is not installed or loaded correctly.')
         sys.exit()
 

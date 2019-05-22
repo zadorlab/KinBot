@@ -54,7 +54,7 @@ def equivalent_bond(b1, b2, species):
     return (b1_e1 == b2_e1 and b1_e2 == b2_e2)
 
 
-def generate_all_product_bond_matrices(mol):
+def generate_all_product_bond_matrices(mol, par):
     """
     Generate all product bond matrices with the maximum number of bonds
     being 2 or 3
@@ -62,24 +62,43 @@ def generate_all_product_bond_matrices(mol):
     reactions = []
     # generate the reactions for closed shell species
     # and for the non-radical part of open shell species
-    nbonds_list = [2]
-    for bond in mol.bonds:
-        for nbonds in nbonds_list:
-            rxns = generate_product_bond_matrices(mol, bond, nbonds, rad=-1)
-            reactions.extend(rxns)
+    if par.par['comb_molec']:
+        nbonds_list = range(par.par['min_bond_break'], par.par['max_bond_break'] + 1)
+        for bond in mol.bonds:
+            for nbonds in nbonds_list:
+                rxns = generate_product_bond_matrices(mol, bond, nbonds, par, rad=-1)
+                reactions.extend(rxns)
     # generate the reactions in which radicals participate
-    nbonds_list = [1, 2]
+    nbonds_list = range(par.par['min_bond_break'] - 1, par.par['max_bond_break'])
     for i, bond in enumerate(mol.bonds):
         rads = np.nonzero(mol.rads[i])[0]
         for nbonds in nbonds_list:
-            for rad in rads:
-                rxns = generate_product_bond_matrices(mol, bond,
-                                                      nbonds, rad=rad)
-                reactions.extend(rxns)
+            # reactions involving a radical atom
+            # a bond is formed with that atom, no bond is broken
+            # and another atom only has bond breaking, no forming
+            if par.par['comb_rad']:
+                for rad in rads:
+                    rxns = generate_product_bond_matrices(mol, bond,
+                                                          nbonds, par, rad=rad)
+                    reactions.extend(rxns)
+            # reactions involving a pi electron leading to a new lone pair
+            if par.par['comb_pi']:
+                for i in range(mol.natom):
+                    if any(bij == 2 for bij in mol.bond[i]):
+                        rxns = generate_product_bond_matrices(mol, bond,
+                                                              nbonds, par, rad=i)
+                        reactions.extend(rxns)
+            # TODO: reactions with lone electron pairs
+            if par.par['comb_lone']:
+                for i, ai in enumerate(mol.atom):
+                    if ai == 'O':
+                        rxns = generate_product_bond_matrices(mol, bond,
+                                                              nbonds, par, rad=i)
+                        reactions.extend(rxns)
     return reactions
 
 
-def get_product_bonds(bonds, rad=-1):
+def get_product_bonds(bonds, par, rad=-1):
     """
     This method creates a list of new atom pairs
     which are all different than the atom pairs in
@@ -115,6 +134,12 @@ def get_product_bonds(bonds, rad=-1):
             # the list of reactant atoms
             if sorted(atoms) == sorted(prod_atoms):
                 prods.append(sorted(prod))
+                # also make a list in which one of the bonds is not formed, 
+                # this is needed to break the valence of atoms and form
+                # for example zwitterionic species.
+                if par.par['break_valence']:
+                    for i in range(len(prod)):
+                        prods.append(prod[:i]+prod[i+1:])
         else:
             # to verify if a list of product bonds is meaningful
             # the list of product atoms should be the list of
@@ -191,18 +216,20 @@ def generate_ts(reac, prod, bond):
     of decreasing (increasing) its bond order
     """
     ts_bond = [[float(bij) for bij in bi] for bi in bond]
-    for ri in reac:
-        i = ri[0]
-        j = ri[1]
-        ts_bond[i][j] -= 0.5
-    for pi in prod:
-        i = pi[0]
-        j = pi[1]
-        ts_bond[i][j] += 0.5
+    if reac[0]:
+        for ri in reac:
+            i = ri[0]
+            j = ri[1]
+            ts_bond[i][j] -= 0.5
+    if prod[0]:
+        for pi in prod:
+            i = pi[0]
+            j = pi[1]
+            ts_bond[i][j] += 0.5
     return ts_bond
 
 
-def generate_product_bond_matrices(mol, bond, nbonds, rad=-1):
+def generate_product_bond_matrices(mol, bond, nbonds, par, rad=-1):
     """
     This method does the following:
     1. Generate all possible combinations of three bonds in the molecule
@@ -240,7 +267,7 @@ def generate_product_bond_matrices(mol, bond, nbonds, rad=-1):
         rxns = []
 
         # look for all possibilies in which all of the nbonds break
-        prod_bonds = get_product_bonds(comb, rad=rad)
+        prod_bonds = get_product_bonds(comb, par, rad=rad)
 
         for prod in prod_bonds:
             # verify if this reaction is unique
@@ -253,9 +280,9 @@ def generate_product_bond_matrices(mol, bond, nbonds, rad=-1):
                 ts = generate_ts(comb, prod, bond)
                 # add the reaction three times, with an early, a mid
                 # and a late ts
-                reactions.append([comb, prod, ts, 0])
+                #reactions.append([comb, prod, ts, 0])
                 reactions.append([comb, prod, ts, 1])
-                reactions.append([comb, prod, ts, 2])
+                #reactions.append([comb, prod, ts, 2])
     return reactions
 
 

@@ -21,6 +21,7 @@
 Generic methods for the reaction families
 """
 
+import os
 import numpy as np
 import copy
 import time
@@ -94,7 +95,8 @@ def carry_out_reaction(rxn, step, command):
                                    atom=list(rxn.species.atom), 
                                    geom=list([list(gi) for gi in geom]), 
                                    ppn=rxn.qc.ppn,
-                                   qc_command=command)
+                                   qc_command=command,
+                                   working_dir=os.getcwd())
     else:
         # use the pcobfgs algorithm for the geometry update
         if step < rxn.max_step:

@@ -81,6 +81,16 @@ class ReactionFinder:
         self.break_bond = par.par['break_bonds']
         self.form_bond = par.par['form_bonds']
 
+        self.one_reaction_comb = par.par['one_reaction_comb']
+        self.one_reaction_fam = par.par['one_reaction_fam']
+        # make a set of frozen sets from the breaking and forming bond lists
+        self.reac_bonds = set()
+        for i, bond in enumerate(par.par['break_bonds']):
+            self.reac_bonds.add(frozenset(par.par['break_bonds'][i]))
+        self.prod_bonds = set()
+        for i, bond in enumerate(par.par['form_bonds']):
+            self.prod_bonds.add(frozenset(par.par['form_bonds'][i]))
+
         #keys: names of the families
         #values: list of instances
         #this dict is used to keep track of the unique reactions found,
@@ -99,98 +109,113 @@ class ReactionFinder:
         for i, bond in enumerate(self.species.bonds):
             rad = self.species.rads[i]
             
-            if 'intra_H_migration' in self.families or 'all' in self.families:
-                self.search_intra_H_migration(natom,atom,bond,rad)
+            if self.one_reaction_comb:
+                # search for just one reaction, given by the list of bonds to be 
+                # broken or formed
                 
-            if 'intra_H_migration_suprafacial' in self.families or 'all' in self.families:
-                self.search_intra_H_migration_suprafacial(natom,atom,bond,rad)
+                # based on the combinatorial reaction family, because they are also
+                # defined by the list of bonds to be broken or formed
+                name = 'combinatorial'
+                self.reactions[name] = []
                 
-            if 'intra_R_migration' in self.families or 'all' in self.families:
-                self.search_intra_R_migration(natom,atom,bond,rad)
+                self.reac_bonds = self.par.par['break_bonds']
+                self.prod_bonds = self.par.par['form_bonds']
+                ts = bond_combinations.generate_ts(self.reac_bonds, self.prod_bonds, self.species.bond)
+                self.reactions[name].append([self.reac_bonds, self.prod_bonds, ts, 1])
                 
-            if 'intra_OH_migration' in self.families or 'all' in self.families:
-                self.search_intra_OH_migration(natom,atom,bond,rad)
-                
-            if 'cpd_H_migration' in self.families or 'all' in self.families:
-                self.search_cpd_H_migration(natom,atom,bond,rad)
-                
-            if 'Intra_RH_Add_Endocyclic_F' in self.families or 'all' in self.families:
-                self.search_Intra_RH_Add_Endocyclic_F(natom,atom,bond,rad)
-                
-            if 'Intra_RH_Add_Endocyclic_R' in self.families or 'all' in self.families:
-                self.search_Intra_RH_Add_Endocyclic_R(natom,atom,bond,rad)
-                
-            if 'Cyclic_Ether_Formation' in self.families or 'all' in self.families:
-                self.search_Cyclic_Ether_Formation(natom,atom,bond,rad)
-                
-            if 'Intra_RH_Add_Exocyclic_F' in self.families or 'all' in self.families:
-                self.search_Intra_RH_Add_Exocyclic_F(natom,atom,bond,rad)
-                
-            if 'Intra_RH_Add_Exocyclic_R' in self.families or 'all' in self.families:
-                self.search_Intra_RH_Add_Exocyclic_R(natom,atom,bond,rad)
-                
-            if 'Retro_Ene' in self.families or 'all' in self.families:
-                self.search_Retro_Ene(natom,atom,bond,rad)
-                
-            if 'Intra_R_Add_Endocyclic_F' in self.families or 'all' in self.families:
-                self.search_Intra_R_Add_Endocyclic_F(natom,atom,bond,rad)
-                
-            if 'Intra_R_Add_ExoTetCyclic_F' in self.families or 'all' in self.families:
-                self.search_Intra_R_Add_ExoTetCyclic_F(natom,atom,bond,rad)
-                
-            if 'Intra_R_Add_Exocyclic_F' in self.families or 'all' in self.families:
-                self.search_Intra_R_Add_Exocyclic_F(natom,atom,bond,rad)
-                
-            if 'Korcek_step2' in self.families or 'all' in self.families:
-                self.search_Korcek_step2(natom,atom,bond,rad)
-                
-            if 'r22_cycloaddition' in self.families or 'all' in self.families:
-                self.search_r22_cycloaddition(natom,atom,bond,rad)
-                
-            if 'r12_cycloaddition' in self.families or 'all' in self.families:
-                self.search_r12_cycloaddition(natom,atom,bond,rad)
-                
-            if 'r12_insertion_R' in self.families or 'all' in self.families:
-                self.search_r12_insertion_R(natom,atom,bond,rad)
-                
-            if 'r13_insertion_CO2' in self.families or 'all' in self.families:
-                self.search_r13_insertion_CO2(natom,atom,bond,rad)
-                
-            if 'r13_insertion_ROR' in self.families or 'all' in self.families:
-                self.search_r13_insertion_ROR(natom,atom,bond,rad)
-                
-            if 'Diels_alder_addition' in self.families or 'all' in self.families:
-                self.search_Diels_alder_addition(natom,atom,bond,rad)
-                
-            if 'Intra_Diels_alder_R' in self.families or 'all' in self.families:
-                self.search_Intra_Diels_alder_R(natom,atom,bond,rad)
-                
-            if 'ketoenol' in self.families or 'all' in self.families:
-                self.search_ketoenol(natom,atom,bond,rad)
-                
-            if 'HO2_Elimination_from_PeroxyRadical' in self.families or 'all' in self.families:
-                self.search_HO2_Elimination_from_PeroxyRadical(natom,atom,bond,rad)
-                
-            if 'R_Addition_COm3_R' in self.families or 'all' in self.families:
-                self.search_R_Addition_COm3_R(natom,atom,bond,rad)
-                
-            if 'R_Addition_MultipleBond' in self.families or 'all' in self.families:
-                self.search_R_Addition_MultipleBond(natom,atom,bond,rad)
-                
-            if '12_shift_S_F' in self.families or 'all' in self.families:
-                self.search_12_shift_S_F(natom,atom,bond,rad)
-                
-            if '12_shift_S_R' in self.families or 'all' in self.families:
-                self.search_12_shift_S_R(natom,atom,bond,rad)
-                
-            if 'R_Addition_CSm_R' in self.families or 'all' in self.families:
-                self.search_R_Addition_CSm_R(natom,atom,bond,rad)
-                
-            if 'r13_insertion_RSR' in self.families or 'all' in self.families:
-                self.search_r13_insertion_RSR(natom,atom,bond,rad)
+            else:
+                if 'intra_H_migration' in self.families or 'all' in self.families:
+                    self.search_intra_H_migration(natom,atom,bond,rad)
+                    
+                if 'intra_H_migration_suprafacial' in self.families or 'all' in self.families:
+                    self.search_intra_H_migration_suprafacial(natom,atom,bond,rad)
+                    
+                if 'intra_R_migration' in self.families or 'all' in self.families:
+                    self.search_intra_R_migration(natom,atom,bond,rad)
+                    
+                if 'intra_OH_migration' in self.families or 'all' in self.families:
+                    self.search_intra_OH_migration(natom,atom,bond,rad)
+                    
+                if 'cpd_H_migration' in self.families or 'all' in self.families:
+                    self.search_cpd_H_migration(natom,atom,bond,rad)
+                    
+                if 'Intra_RH_Add_Endocyclic_F' in self.families or 'all' in self.families:
+                    self.search_Intra_RH_Add_Endocyclic_F(natom,atom,bond,rad)
+                    
+                if 'Intra_RH_Add_Endocyclic_R' in self.families or 'all' in self.families:
+                    self.search_Intra_RH_Add_Endocyclic_R(natom,atom,bond,rad)
+                    
+                if 'Cyclic_Ether_Formation' in self.families or 'all' in self.families:
+                    self.search_Cyclic_Ether_Formation(natom,atom,bond,rad)
+                    
+                if 'Intra_RH_Add_Exocyclic_F' in self.families or 'all' in self.families:
+                    self.search_Intra_RH_Add_Exocyclic_F(natom,atom,bond,rad)
+                    
+                if 'Intra_RH_Add_Exocyclic_R' in self.families or 'all' in self.families:
+                    self.search_Intra_RH_Add_Exocyclic_R(natom,atom,bond,rad)
+                    
+                if 'Retro_Ene' in self.families or 'all' in self.families:
+                    self.search_Retro_Ene(natom,atom,bond,rad)
+                    
+                if 'Intra_R_Add_Endocyclic_F' in self.families or 'all' in self.families:
+                    self.search_Intra_R_Add_Endocyclic_F(natom,atom,bond,rad)
+                    
+                if 'Intra_R_Add_ExoTetCyclic_F' in self.families or 'all' in self.families:
+                    self.search_Intra_R_Add_ExoTetCyclic_F(natom,atom,bond,rad)
+                    
+                if 'Intra_R_Add_Exocyclic_F' in self.families or 'all' in self.families:
+                    self.search_Intra_R_Add_Exocyclic_F(natom,atom,bond,rad)
+                    
+                if 'Korcek_step2' in self.families or 'all' in self.families:
+                    self.search_Korcek_step2(natom,atom,bond,rad)
+                    
+                if 'r22_cycloaddition' in self.families or 'all' in self.families:
+                    self.search_r22_cycloaddition(natom,atom,bond,rad)
+                    
+                if 'r12_cycloaddition' in self.families or 'all' in self.families:
+                    self.search_r12_cycloaddition(natom,atom,bond,rad)
+                    
+                if 'r12_insertion_R' in self.families or 'all' in self.families:
+                    self.search_r12_insertion_R(natom,atom,bond,rad)
+                    
+                if 'r13_insertion_CO2' in self.families or 'all' in self.families:
+                    self.search_r13_insertion_CO2(natom,atom,bond,rad)
+                    
+                if 'r13_insertion_ROR' in self.families or 'all' in self.families:
+                    self.search_r13_insertion_ROR(natom,atom,bond,rad)
+                    
+                if 'Diels_alder_addition' in self.families or 'all' in self.families:
+                    self.search_Diels_alder_addition(natom,atom,bond,rad)
+                    
+                if 'Intra_Diels_alder_R' in self.families or 'all' in self.families:
+                    self.search_Intra_Diels_alder_R(natom,atom,bond,rad)
+                    
+                if 'ketoenol' in self.families or 'all' in self.families:
+                    self.search_ketoenol(natom,atom,bond,rad)
+                    
+                if 'HO2_Elimination_from_PeroxyRadical' in self.families or 'all' in self.families:
+                    self.search_HO2_Elimination_from_PeroxyRadical(natom,atom,bond,rad)
+                    
+                if 'R_Addition_COm3_R' in self.families or 'all' in self.families:
+                    self.search_R_Addition_COm3_R(natom,atom,bond,rad)
+                    
+                if 'R_Addition_MultipleBond' in self.families or 'all' in self.families:
+                    self.search_R_Addition_MultipleBond(natom,atom,bond,rad)
+                    
+                if '12_shift_S_F' in self.families or 'all' in self.families:
+                    self.search_12_shift_S_F(natom,atom,bond,rad)
+                    
+                if '12_shift_S_R' in self.families or 'all' in self.families:
+                    self.search_12_shift_S_R(natom,atom,bond,rad)
+                    
+                if 'R_Addition_CSm_R' in self.families or 'all' in self.families:
+                    self.search_R_Addition_CSm_R(natom,atom,bond,rad)
+                    
+                if 'r13_insertion_RSR' in self.families or 'all' in self.families:
+                    self.search_r13_insertion_RSR(natom,atom,bond,rad)
 
-            if 'combinatorial' in self.families:
-                self.search_combinatorial(natom,atom,bond,rad)
+                if 'combinatorial' in self.families:
+                    self.search_combinatorial(natom,atom,bond,rad)
             
             
             #if 'birad_recombination_F' in self.families or 'all' in self.families:
@@ -236,7 +261,7 @@ class ReactionFinder:
         if not name in self.reactions:
             self.reactions[name] = []
 
-        instances = bond_combinations.generate_all_product_bond_matrices(self.species)
+        instances = bond_combinations.generate_all_product_bond_matrices(self.species, self.par)
         for inst in instances:
             self.reactions[name].append(inst)
         #~ self.reactions[name] = []
@@ -300,12 +325,16 @@ class ReactionFinder:
             for instance in instances: 
                 rxns.append(instance)
         
-
         #filter for the same reactions
         for inst in rxns:
             new = 1
+            # first filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -335,11 +364,15 @@ class ReactionFinder:
             if bond[instance[0]][instance[1]] == 2:
                 rxns += [instance]
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # first filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -379,11 +412,15 @@ class ReactionFinder:
             if not atom[instance[-1]] == 'H':
                 rxns.append(instance)
         
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -441,11 +478,16 @@ class ReactionFinder:
                         instance.append(Hatomi)
                         rxns += [instance]
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                # TODO need to check if this is correct
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -495,11 +537,15 @@ class ReactionFinder:
         for case in range(len(rxns)):
             rxns[case] = rxns[case][:-1] #cut off H
             
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-3], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -543,11 +589,15 @@ class ReactionFinder:
                     rxns += [instance] 
             
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-2] == instance[-2] and len(inst) == len(instance):
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -590,11 +640,15 @@ class ReactionFinder:
                 if bond[instance[0]][instance[-2]] > 0:
                     rxns += [instance[-4:]]
         
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-3], inst[-4]}), frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[-1], inst[-4]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -637,11 +691,15 @@ class ReactionFinder:
         for instance in range(len(rxns)):
             rxns[instance] = rxns[instance][:-2] #cut off OR
             
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-2], inst[-3]})} or self.prod_bonds != {frozenset({inst[0], inst[-3]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -652,6 +710,10 @@ class ReactionFinder:
     def search_Intra_R_Add_Endocyclic_F(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~~~~R=R ==> R~~~~~~~~R*-R
+                          |___________|
+
         """
         
         if np.sum(rad) == 0: return
@@ -679,13 +741,15 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance]
 
-
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -696,6 +760,10 @@ class ReactionFinder:
     def search_Intra_R_Add_ExoTetCyclic_F(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~~~~R-R ==> R~~~~~~~~R + R*
+                          |________|
+
         """
 
         if np.sum(rad) == 0: return
@@ -712,11 +780,15 @@ class ReactionFinder:
             for rad_site in np.nonzero(rad)[0]:
                 rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -727,6 +799,10 @@ class ReactionFinder:
     def search_Intra_R_Add_Exocyclic_F(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~~~~R=R ==> R~~~~~~~~R-R*
+                          |________|
+
         """
         
         if np.sum(rad) == 0: return
@@ -758,8 +834,13 @@ class ReactionFinder:
         #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -820,11 +901,15 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance]
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[1], inst[-2]}), frozenset({inst[-1], inst[0]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -836,11 +921,10 @@ class ReactionFinder:
         """ 
         This is an RMG class.
 
-                                   H
-                                   | 
-        H-R~~~~~~~R=R ==> R~~~~~~~R-R
-                          |         |
-                           ---------
+                                    H
+                                    | 
+        H-R~~~~~~~R=R <== R~~~~~~~R-R
+                          |_______|
 
         Find all unique cases for ring sizes between 3 and 9. This is for the reverse direction.
         """
@@ -867,11 +951,15 @@ class ReactionFinder:
                     rxns += [instance[-4:]]
 
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]}), frozenset({inst[-3], inst[0]})} or self.prod_bonds != {frozenset({inst[-1], inst[0]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -882,6 +970,9 @@ class ReactionFinder:
     def search_Retro_Ene(self, natom, atom, bond, rad):
         """ 
         This is not an RMG class.
+
+        R-R-R-R=R ==> R=R + R=R-R
+
         """
         
         
@@ -904,11 +995,15 @@ class ReactionFinder:
             if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                 rxns += [instance] 
         
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -917,7 +1012,7 @@ class ReactionFinder:
 
     def search_Korcek_step2_judit(self, natom, atom, bond, rad):
         """ 
-        This is an RMG class.
+        This is an RMG class, but that only has the 5-mem ring case (?).
               
         Implemented for 4, 5, and 6-membered rings (the R groups are not necessarily identical):
 
@@ -953,6 +1048,8 @@ class ReactionFinder:
 
         FIXME: need to generalize to larger structures
         Only the forward direction is included.
+        
+        This family is not currently used, superseded by the next one
 
         """
         
@@ -962,7 +1059,8 @@ class ReactionFinder:
         if not name in self.reactions:
             self.reactions[name] = []
 
-        rxns = [] #reactions found with the current resonance isomer
+        rxns = [] #  reactions found with the current resonance isomer
+        ring_var = [] #  a helper variable to temporarily mark the ring size within this function
         
         for ringsize in range(6, 8):
             motif = ['C' for i in range(ringsize)]
@@ -982,13 +1080,26 @@ class ReactionFinder:
                                         for ringbond in range(len(korcek_chain[0]) - 2 - 3): # FIXME, assuming just one Korcek hit
                                             marked_chain = korcek_chain[case] + [ringbond + 2] # mark the first atom of the second bond fission
                                             rxns += [marked_chain]
+                                            ring_var.append(ringsize)
 
-        #filter for the same reactions
-        for inst in rxns:
+        for n, inst in enumerate(rxns):
             new = 1
+            #filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
                     new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if ring_var[n] == 6: 
+                    if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[-3], inst[-4]})} or self.prod_bonds != {frozenset()}:
+                        new = 0
+                if ring_var[n] == 7: 
+                    #  TODO, incomplete
+                    if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[-3], inst[-4]})} or self.prod_bonds != {frozenset()}:
+                        new = 0
+                if ring_var[n] == 8: 
+                    if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]}), frozenset({inst[-3], inst[-4]})} or self.prod_bonds != {frozenset()}:
+                        new = 0
             if new:
                 self.reactions[name].append(inst) 
         
@@ -1022,21 +1133,32 @@ class ReactionFinder:
             self.reactions[name] = []
 
         rxns = [] #reactions found with the current resonance isomer
-        
+        ring_var = [] #  a helper variable to temporarily mark the ring size within this function
+
         for ringsize in range(5, 6):
             motif = ['X' for i in range(ringsize + 1)]
-            #motif[-1] = 'H'
+            #motif[-1] = 'H'  #  deleted because atom types are no longer checked
             korcek_chain =  find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
             for ins in korcek_chain:
                 if bond[ins[0]][ins[-2]] == 1:
                     rxns += [ins]
+                    ring_var.append(ringsize)
 
-        #filter for the same reactions
-        for inst in rxns:
+        for n, inst in enumerate(rxns):
             new = 1
+            #filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
                     new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if ring_var[n] == 7: 
+                    if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
+                        new = 0
+                if ring_var[n] == 8: 
+                    #  TODO this is an incomplete check
+                    if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
+                        new = 0
             if new:
                 self.reactions[name].append(inst)
         
@@ -1075,11 +1197,16 @@ class ReactionFinder:
                 rxns += [ring1]
                 rxns += [ring2]
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                # TODO need to make sure that these are the bonds that are broken, see the reaction details
+                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1122,11 +1249,16 @@ class ReactionFinder:
                 rxns += ring2
                 rxns += ring3 
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                # TODO need to make sure that these are the bonds that are broken, see the reaction details
+                if self.reac_bonds != {frozenset({inst[0], inst[2]}), frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1138,6 +1270,11 @@ class ReactionFinder:
     def search_r12_insertion_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+                          X
+                          |
+        X-P + R-R <==   R-P-R
+
         """
         
         #if np.sum(rad) != 0: return
@@ -1156,11 +1293,15 @@ class ReactionFinder:
             #if all([atom[atomi] != 'H' for atomi in instance]):
             rxns += [instance]
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[1], inst[2]})}) or self.prod_bonds != {frozenset({inst[0], inst[2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1171,6 +1312,12 @@ class ReactionFinder:
     def search_r13_insertion_CO2(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+                          O
+                          ||
+        O=C=O + R-R <== R-C-O-R
+
+
         """
         
         #if np.sum(rad) != 0: return
@@ -1190,14 +1337,16 @@ class ReactionFinder:
                     if atom[atomi] == 'O':
                         if bond[atomi][instance[1]] == 2:
                             rxns += [instance]
-                    
 
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1208,6 +1357,10 @@ class ReactionFinder:
     def search_r13_insertion_ROR(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        R1-O-R2 + R=R <== R1-R-R-O-R2
+
+
         """
         
         #if np.sum(rad) != 0: return
@@ -1221,12 +1374,15 @@ class ReactionFinder:
         motif = ['X','X','X','O']
         rxns = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
         
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1277,11 +1433,15 @@ class ReactionFinder:
 
                 rxns += [ring] # FIXME only works for 1 cycle
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set({frozenset({inst[2], inst[3]}), frozenset({inst[4], inst[5]})}) or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1293,6 +1453,16 @@ class ReactionFinder:
     def search_Intra_Diels_alder_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+        TODO it seems like this is the forward reaction, but the naming is confusing.
+
+                             C
+                            / \\
+                           C   C
+        C=C-C=C~~~C=C <==  |   |
+                           C   C
+                            \ //
+                              C
+
         """
         
         name = 'Intra_Diels_alder_R'
@@ -1302,7 +1472,7 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
-        for ringsize in range(3, 9):
+        for ringsize in range(3, 9):  # TODO what is the meaning of these larger rings?
             motif = ['X' for i in range(ringsize + 4)]
             instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
 
@@ -1317,11 +1487,15 @@ class ReactionFinder:
                     rxns += [instance] 
      
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1356,12 +1530,16 @@ class ReactionFinder:
             if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                 rxns += [instance]
             
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if (inst[0] == instance[0] and inst[1] == instance[1]
                     and inst[2] == instance[2] and inst[3] == instance[3]):
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1392,11 +1570,15 @@ class ReactionFinder:
         motif = ['H', 'X', 'X', 'O', 'O']
         rxns += find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
             
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != {frozenset({inst[0], inst[4]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1433,11 +1615,15 @@ class ReactionFinder:
                 if rad[instance[1]] == 1:
                     rxns += [instance]
         
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1468,12 +1654,16 @@ class ReactionFinder:
         motif = ['X', 'X', 'X']
         for rad_site in np.nonzero(rad)[0]:
             rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
-        
-        #filter for the same reactions
+    
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1504,6 +1694,10 @@ class ReactionFinder:
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
                     new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
+                    new = 0
             if new:
                 self.reactions[name].append(inst)
         return 0
@@ -1512,6 +1706,11 @@ class ReactionFinder:
     def search_12_shift_S_R(self, natom, atom, bond, rad):
         """
         This is an RMG class.
+
+        C-S-R* <== *S-R-C
+
+        TODO: why not forward??
+
         """
         
         if np.sum(rad) != 1: return
@@ -1526,11 +1725,15 @@ class ReactionFinder:
         for rad_site in np.nonzero(rad)[0]:
             rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
         
-        #filter for identical reactions
         for inst in rxns:
             new = 1
+            # filter for identical reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset({inst[0], inst[2]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1540,6 +1743,10 @@ class ReactionFinder:
     def search_r13_insertion_RSR(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        R-S-R + R1=R2 <== R-R1-R2-S-R
+
+
         """
         
         #if np.sum(rad) != 0: return
@@ -1554,11 +1761,15 @@ class ReactionFinder:
         rxns = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
         
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[0], inst[1]})}) or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst) 
@@ -1595,11 +1806,15 @@ class ReactionFinder:
                 if rad[instance[1]] == 1:
                     rxns += [instance]
         
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1610,6 +1825,13 @@ class ReactionFinder:
     def search_r14_birad_scission(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        It is now renamed to 1,4_Linear_birad_scission on the RMG website,
+
+        *R-R-R-R* ==> R=R + R=R
+
+        Problematic reaction because of the biradical character.
+
         """
 
         if np.sum(rad) != 2: return
@@ -1629,11 +1851,15 @@ class ReactionFinder:
             if rad[instance[0]] == 1 and rad[instance[-1]] == 1:
                 rxns += [instance]
 
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1644,6 +1870,13 @@ class ReactionFinder:
     def search_r14_cyclic_birad_scission_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        R1-R*~~~~~~R*-R2   <==  R1=R~~~~~~R=R2
+        |______________|
+        (this one bond)
+
+        TODO forward?
+
         """
 
         if np.sum(rad) != 0: return
@@ -1667,13 +1900,15 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance] 
                     
-
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1684,6 +1919,10 @@ class ReactionFinder:
     def search_birad_recombination_F(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~~~~R* ==> R~~~~~~~~R
+                         |________|
+
         """
 
         if np.sum(rad) != 2: return
@@ -1703,12 +1942,15 @@ class ReactionFinder:
                 if rad[instance[0]] == 1 and rad[instance[-1]] == 1:
                     rxns += [instance]
 
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1719,6 +1961,10 @@ class ReactionFinder:
     def search_birad_recombination_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~~~~R* <== R~~~~~~~~R
+                         |________|
+
         """
 
         if np.sum(rad) != 0: return
@@ -1737,12 +1983,15 @@ class ReactionFinder:
             if instance[0] in self.cycle and instance[1] in self.cycle :
                 rxns += [instance]
 
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[1] == instance[1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1753,6 +2002,9 @@ class ReactionFinder:
     def search_Intra_disproportionation_F(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~R*-R-H ==> H-R~~~~~R=R
+
         """
 
         if np.sum(rad) != 2: return
@@ -1773,12 +2025,15 @@ class ReactionFinder:
                 if rad[instance[0]] == 1 and rad[instance[-3]] == 1:
                     rxns += [instance]
 
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)
@@ -1789,6 +2044,9 @@ class ReactionFinder:
     def search_Intra_disproportionation_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
+
+        *R~~~~~R*-R-H <== H-R~~~~~R=R
+
         """
 
         if np.sum(rad) != 0: return
@@ -1813,12 +2071,15 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance] 
 
-
-        #filter for the same reactions
         for inst in rxns:
             new = 1
+            # filter for the same reactions
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
                     new = 0
             if new:
                 self.reactions[name].append(inst)

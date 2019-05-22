@@ -201,6 +201,7 @@ def main():
     # postprocess the calculations
     postprocess.createSummaryFile(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
+    postprocess.creatMLInput(well0, qc, par)
 
     logging.info('Finished KinBot at {}'.format(datetime.datetime.now()))
     print("Done!")

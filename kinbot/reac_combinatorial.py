@@ -89,24 +89,27 @@ class Combinatorial:
         fdists['HS'] = [1.60, 1.60, 1.60]
         fdists['SS'] = [2.48, 2.48, 2.48]
 
-        for pi in self.prod:
-            i = pi[0]
-            j = pi[1]
-            syms = ''.join(sorted(self.species.atom[i]+self.species.atom[j]))
-            if self.species.bond[i][j] == 0:
-                fdist = constants.st_bond[syms]
-                if syms in fdists:
-                    fdist = list(reversed(fdists[syms]))[self.position]
-                self.fvals.append([i, j, fdist])
-        for ri in self.reac:
-            i = ri[0]
-            j = ri[1]
-            syms = ''.join(sorted(self.species.atom[i]+self.species.atom[j]))
-            if self.species.bond[i][j] == 1:
-                fdist = constants.st_bond[syms]
-                if syms in fdists:
-                    fdist = fdists[syms][self.position]
-                self.fvals.append([i, j, fdist])
+        if self.prod[0]:
+            for pi in self.prod:
+                i = pi[0]
+                j = pi[1]
+                syms = ''.join(sorted(self.species.atom[i]+self.species.atom[j]))
+                if self.species.bond[i][j] == 0:
+                    fdist = constants.st_bond[syms]
+                    if syms in fdists:
+                        fdist = list(reversed(fdists[syms]))[self.position]
+                    self.fvals.append([i, j, fdist])
+
+        if self.reac[0]:
+            for ri in self.reac:
+                i = ri[0]
+                j = ri[1]
+                syms = ''.join(sorted(self.species.atom[i]+self.species.atom[j]))
+                if self.species.bond[i][j] == 1:
+                    fdist = constants.st_bond[syms]
+                    if syms in fdists:
+                        fdist = fdists[syms][self.position]
+                    self.fvals.append([i, j, fdist])
 
     def get_constraints(self,step, geom):
         """
@@ -163,7 +166,7 @@ class Combinatorial:
                 else:
                     self.product_bond[i][j] = self.species.bond[i][j]
                 self.product_bond[j][i] = self.product_bond[i][j]
-        rdmol, smi, inchis = cheminfo.create_rdkit_mol(self.product_bond, self.species.atom)
+        rdmol, smi = cheminfo.create_rdkit_mol(self.product_bond, self.species.atom)
         self.prod_smi = smi.split('.')
         self.prod_inchi = []
         for smi in self.prod_smi:

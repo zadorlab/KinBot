@@ -74,7 +74,7 @@ dyn = PCOBFGS(mol,
               dihedrals=dihedrals,
               force_consistent=False)
 
-db = connect('kinbot.db')
+db = connect('{working_dir}/kinbot.db')
 
 try:
     dyn.run(fmax = 0.01, steps = 400)

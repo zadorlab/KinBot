@@ -69,7 +69,7 @@ class ReactionGenerator:
         If at any times the calculation fails, reac_ts_done is set to -999.
         If all steps are successful, reac_ts_done is set to -1.
         """
-
+        deleted = []
         if len(self.species.reac_inst) > 0:
             alldone = 1
         else: 
@@ -312,7 +312,11 @@ class ReactionGenerator:
                         if os.path.exists('{}_im_extent.txt'.format(self.species.chemid)):
                             os.remove('{}_im_extent.txt'.format(self.species.chemid))
                         postprocess.createPESViewerInput(self.species, self.qc, self.par)
-
+                elif self.species.reac_ts_done[index] == -999:
+                    if not self.species.reac_obj[index].instance_name in deleted:
+                        self.delete_files(self.species.reac_obj[index].instance_name)
+                        deleted.append(self.species.reac_obj[index].instance_name)
+                        
             alldone = 1
             for index, instance in enumerate(self.species.reac_inst):
                 if any(self.species.reac_ts_done[i] >= 0 for i in range(len(self.species.reac_inst))):
@@ -368,3 +372,26 @@ class ReactionGenerator:
 
         logging.info("Reaction generation done!")
 
+
+    def delete_files(self, name):
+        # job names
+        names = []
+        zf = self.par.par['zf']
+
+        names.append(name)
+        names.append(name + '_high')
+        names.append(name + '_IRC_F')
+        names.append(name + '_IRC_R')
+        names.append(name + '_IRC_F_prod')
+        names.append(name + '_IRC_R_prod')
+        extensions = ['chk', 'py', 'sbatch']
+        
+        for name in names:
+            for ext in extensions:
+                # delete file
+                file = '.'.join([name, ext])
+                print(file)
+                try:
+                    os.remove(file)
+                except FileNotFoundError:
+                    pass

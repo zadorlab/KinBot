@@ -255,11 +255,63 @@ class Optimize:
                     status, molpro_energy = molp.get_molpro_energy()
                     if status:
                         self.species.energy = molpro_energy
+                
+                # delete unnecessary files
+                delete = 1
+                if delete:
+                    self.delete_files()
             if self.wait:
                 if self.shir == 1 or self.shigh == -999:
                     return 0
                 time.sleep(1)
             else:
                 return 0
+    
+    def delete_files(self):
+        # job names
+        names = []
+        zf = self.par.par['zf']
+        if self.species.wellorts:
+            names.append(self.species.name)
+            names.append(self.species.name + '_high')
+            names.append(self.species.name + '_IRC_F')
+            names.append(self.species.name + '_IRC_R')
+            names.append(self.species.name + '_IRC_F_prod')
+            names.append(self.species.name + '_IRC_R_prod')
+            
+            if self.par.par['high_level'] == 1:
+                for count in range(self.species.hir.nrotation):
+                    for rot_num in range(self.par.par['nrotation']):
+                        names.append('hir/' + self.species.name + '_hir_' + str(count) + '_' + str(rot_num).zfill(2))
+            if self.par.par['conformer_search'] == 1:
+                for count in range(self.species.confs.conf):
+                    names.append('conf/' + self.species.name + '_' + str(count).zfill(zf))
+                for count in range(self.species.confs.cyc_conf):
+                    for num in range(self.species.conf.cyc_conf_index[count]):
+                        names.append('conf/' + self.species.name + '_r' + str(count).zfill(zf) + '_' + str(num).zfill(zf))
+        else:
+            names.append(str(self.species.chemid) + '_well')
+            names.append(str(self.species.chemid) + '_well_high')
+            if self.par.par['high_level'] == 1:
+                for count in range(self.species.hir.nrotation):
+                    for rot_num in range(self.par.par['nrotation']):
+                        names.append('hir/' + str(self.species.chemid) + '_hir_' + str(count) + '_' + str(rot_num).zfill(2))
+            if self.par.par['conformer_search'] == 1:
+                for count in range(self.species.confs.conf):
+                    names.append('conf/' + str(self.species.chemid) + '_' + str(count).zfill(zf))
+                for count in range(self.species.confs.cyc_conf):
+                    for num in range(self.species.conf.cyc_conf_index[count]):
+                        names.append('conf/' + self.species.name + '_r' + str(count).zfill(zf) + '_' + str(num).zfill(zf))
+        extensions = ['chk', 'py', 'sbatch']
+        
+        for name in names:
+            for ext in extensions:
+                # delete file
+                file = '.'.join([name, ext])
+                print(file)
+                try:
+                    os.remove(file)
+                except FileNotFoundError:
+                    pass
 
 

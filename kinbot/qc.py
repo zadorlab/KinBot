@@ -95,8 +95,10 @@ class QuantumChemistry:
             'NoSymm' : 'NoSymm',
             'multiplicity': mult,
             'charge': charge,
-            'scf' : 'xqc',
+            'scf' : 'xqc'
             }
+            if self.par.par['guessmix'] == 1:
+                kwargs['guess'] = '(Mix,Always)'
             if ts:
                 # arguments for transition state searches
                 kwargs['method'] = 'am1'
@@ -113,9 +115,10 @@ class QuantumChemistry:
                     kwargs['basis'] = self.basis
                     if self.par.par['calcall_ts'] == 1:
                         kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'
+                        # not sending the frequency calculation for CalcAll
                     else:
                         kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
-                    kwargs['freq'] = 'freq'
+                        kwargs['freq'] = 'freq'
                     #kwargs['geom'] = 'AllCheck,NoKeepConstants'
                     #kwargs['guess'] = 'Read'
             else:

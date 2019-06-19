@@ -491,7 +491,10 @@ class MESS:
             tpl = f.read()
         submitscript = 'run_mess' + constants.qext[self.par.par['queuing']]
         with open(submitscript, 'w') as qu: 
-            qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
+            if self.par.par['queue_name'] == 'pbs':
+                qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
+            elif self.par.par['queue_name'] == 'slurm':
+                qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature=self.par.par['slurm_feature'])
 
         command = [constants.qsubmit[self.par.par['queuing']], submitscript ]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)

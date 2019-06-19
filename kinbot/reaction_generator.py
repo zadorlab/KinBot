@@ -390,7 +390,7 @@ class ReactionGenerator:
             for ext in extensions:
                 # delete file
                 file = '.'.join([name, ext])
-                print(file)
+                # print(file)
                 try:
                     os.remove(file)
                 except FileNotFoundError:

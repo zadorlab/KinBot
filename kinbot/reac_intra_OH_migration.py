@@ -105,11 +105,18 @@ class IntraOHMigration:
                     constraint.append(self.instance[dih+i] + 1)
                 release.append(constraint)
             
-            fval = 2.0
-            constraint = [self.instance[0] + 1,self.instance[-1] + 1,fval]
+            # forward case
+            if self.species.atom[self.instance[0]] == 'C':
+                fval1 = 2.25
+                fval2 = 1.85 
+            else:
+                fval1 = 1.85 
+                fval2 = 2.25
+
+            constraint = [self.instance[0] + 1,self.instance[-1] + 1, fval1]
             change.append(constraint)
 
-            constraint = [self.instance[-2] + 1,self.instance[-1] + 1,fval]
+            constraint = [self.instance[-2] + 1,self.instance[-1] + 1, fval2]
             change.append(constraint)
             
         #remove the bonds from the fix if they are in another constaint

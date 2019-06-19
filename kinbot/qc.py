@@ -111,7 +111,10 @@ class QuantumChemistry:
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis
-                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
+                    if self.par.par['calcall_ts'] == 1:
+                        kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'
+                    else:
+                        kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
                     kwargs['freq'] = 'freq'
                     #kwargs['geom'] = 'AllCheck,NoKeepConstants'
                     #kwargs['guess'] = 'Read'

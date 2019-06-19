@@ -151,6 +151,8 @@ class Parameters:
             'irc_maxpoints': 30,
             # for Gaussian irc, IRC(StepSize=n)
             'irc_stepsize': 20,
+            # for Gaussian, request CalcAll for TS optimization
+            'calcall_ts': 0,
             # name of the single point code's name
             'single_point_qc': 'molpro',
             # Name of the template for the single-point calculation (L3)

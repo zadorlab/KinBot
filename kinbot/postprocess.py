@@ -34,6 +34,64 @@ from kinbot import license_message
 from kinbot import constants
 
 
+def creatMLInput(species, qc, par):
+    """
+    Create the files for the input of the Machine Learning tool
+    of Ghent University. 
+    This input consists of the atom vectors and bond matrices of 
+    the reactant and all the products, and the transition state
+    bond distances
+    """
+    dir = 'ml_input/'
+    if not os.path.exists(dir):
+        os.mkdir(dir)
+
+    for index in range(len(species.reac_inst)):
+        if species.reac_ts_done[index] == -1:
+            obj = species.reac_obj[index]
+            name = species.reac_name[index]
+            if not os.path.exists(dir + name):
+                os.mkdir(dir + name)
+            # make the reactant file
+            s = ['{}'.format(species.natom)]
+            s.append(' '.join(species.atom))
+            s.append('\n')
+            for bi in species.bond:
+                s.append(' '.join([str(bij) for bij in bi]))
+            s.append('\n')
+            for i in range(species.natom):
+                row = []
+                for j in range(species.natom):
+                    d = np.linalg.norm(species.geom[i] - species.geom[j])
+                    row.append('{:.2f}'.format(d))
+                s.append(' '.join(row))
+            s.append('\n')
+            with open(dir + name + '/reactant.txt', 'w') as f:
+                f.write('\n'.join(s))
+            # make the product file
+            s = ['{}'.format(species.natom)]
+            s.append(' '.join(species.atom))
+            s.append('\n')
+            for bi in obj.product_bonds:
+                s.append(' '.join([str(bij) for bij in bi]))
+            s.append('\n')
+            with open(dir + name + '/product.txt', 'w') as f:
+                f.write('\n'.join(s))
+            # write the ts key distances
+            s = []
+            for i in range(species.natom):
+                row = []
+                for j in range(species.natom):
+                    d = 0.0
+                    if species.bond[i][j] != obj.product_bonds[i][j]:
+                        d = np.linalg.norm(obj.ts.geom[i] - obj.ts.geom[j])
+                    row.append('{:.2f}'.format(d))
+                s.append(' '.join(row))
+            s.append('\n')
+            with open(dir + name + '/ts.txt', 'w') as f:
+                f.write('\n'.join(s))
+
+
 def createSummaryFile(species, qc, par):
     """
     Create a summary file listing for each reaction

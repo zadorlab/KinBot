@@ -202,13 +202,13 @@ class HIR:
 
         for i, si in enumerate(status):
             if si == 1:
-                energies[i] = energies[0] + self.get_fit_value(A, angles[i])/constants.AUtoKCAL
+                energies[i] = energies[0] + self.get_fit_value(A, n_terms, angles[i])/constants.AUtoKCAL
 
         if self.plot_hir_profiles:
             # fit the plot to a png file
             plt.plot(ang, ens, 'ro')
             fit_angles = [i * 2. * np.pi / 360 for i in range(360)]
-            fit_energies = [self.get_fit_value(A, ai) for ai in fit_angles]
+            fit_energies = [self.get_fit_value(A, n_terms, ai) for ai in fit_angles]
             plt.plot(fit_angles, fit_energies)
             plt.xlabel('Dihedral angle [radians]')
             plt.ylabel('Energy [kcal/mol]')
@@ -216,12 +216,11 @@ class HIR:
             plt.clf()
         return A
 
-    def get_fit_value(self, A, ai):
+    def get_fit_value(self, A, n_terms, ai):
         """
         Get the fitted energy
         """
         e = 0.
-        n_terms = (len(A)) / 2
         for j in range(n_terms):
             e += A[j] * (1 - np.cos((j+1) * ai))
             e += A[j+n_terms] * np.sin((j+1) * ai)

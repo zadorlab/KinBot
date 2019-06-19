@@ -1,4 +1,4 @@
-#! /bin/bash -f
+#! /bin/bash
 
 #SBATCH -N 1
 #SBATCH -c {ppn}

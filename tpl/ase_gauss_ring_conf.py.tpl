@@ -74,7 +74,6 @@ dyn = PCOBFGS(mol,
               dihedrals=dihedrals,
               force_consistent=False)
 
-db = connect('kinbot.db')
 
 try:
     dyn.run(fmax = 0.01, steps = 400)
@@ -83,4 +82,5 @@ try:
 except RuntimeError:
     data = {{'status' : 'error'}}
 
+db = connect('{working_dir}/kinbot.db')
 db.write(mol, name=label, data=data)

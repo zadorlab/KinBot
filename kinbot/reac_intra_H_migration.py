@@ -155,10 +155,7 @@ class IntraHMigration:
         
         return step, fix, change, release
 
-
     def get_bond_change(self, instance):
         self.broken_bonds.append({self.instance[-2], self.instance[-1]})
         self.formed_bonds.append({self.instance[0], self.instance[-1]})
-
-
 

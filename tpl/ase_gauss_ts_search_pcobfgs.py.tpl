@@ -77,7 +77,7 @@ dyn = PCOBFGS(mol,
               dihedrals=dihedrals,
               force_consistent=False)
 
-db = connect('kinbot.db')
+db = connect('{working_dir}/kinbot.db')
 
 mol.rattle(0.05)
 

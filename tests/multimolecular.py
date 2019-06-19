@@ -38,7 +38,7 @@ class TestMultimolecular(unittest.TestCase):
         with open('multimolecular_data.json') as f:
             data = json.load(f)
         for name in data:
-            print name
+            print(name)
             par = Parameters()
             qc = QuantumChemistry(par)
             structure = data[name]['structure']

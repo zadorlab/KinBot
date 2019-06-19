@@ -98,6 +98,10 @@ def main():
         os.mkdir('me')
 
 
+    if par.par['pes'] and par.par['specific_reaction']:
+        logging.error('Specific reaction cannot be searched in PES mode.')
+        return
+
     # initialize the reactant
     well0 = StationaryPoint('well0',
                             par.par['charge'],
@@ -193,6 +197,7 @@ def main():
     # postprocess the calculations
     postprocess.createSummaryFile(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
+    postprocess.creatMLInput(well0, qc, par)
 
     logging.info('Finished KinBot at {}'.format(datetime.datetime.now()))
     print("Done!")

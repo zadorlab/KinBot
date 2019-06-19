@@ -66,10 +66,10 @@ try:
         #remove the dummy atom to write to the database
         mol.pop()
         
-    db = connect('kinbot.db')
+    db = connect('{working_dir}/kinbot.db')
     db.write(mol,name = label,data={{'energy': e,'frequencies': np.asarray(freq), 'zpe':zpe, 'status' : 'normal'}})
 except RuntimeError: 
-    db = connect('kinbot.db')
+    db = connect('{working_dir}/kinbot.db')
     db.write(mol, name = label, data = {{'status' : 'error'}})
 
 # add the finished stamp

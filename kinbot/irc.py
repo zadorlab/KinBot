@@ -92,7 +92,7 @@ class IRC:
             return 0
         else:
             # ircs OK: well and product found
-            logging.info('\tIRCs succesful for {}'.format(instance_name))
+            logging.info('\tIRCs successful for {}'.format(instance_name))
             return st_pts[prod_hit]
 
     def problem_in_geom(self, geom):
@@ -138,7 +138,7 @@ class IRC:
                                                   irc=direction.lower())
             prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge)
             if self.rxn.qc.qc == 'gauss':
-                prod_kwargs['opt'] = 'CalcFC, Tight, MaxCycle=10'
+                prod_kwargs['opt'] = 'CalcFC, Tight'
 
             template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_irc.py.tpl'.format(qc=self.rxn.qc.qc))
             template = open(template_file, 'r').read()
@@ -148,7 +148,8 @@ class IRC:
                                        atom=list(self.rxn.species.atom),
                                        geom=list([list(gi) for gi in geom]),
                                        ppn=self.rxn.qc.ppn,
-                                       qc_command=self.par.par['qc_command'])
+                                       qc_command=self.par.par['qc_command'],
+                                       working_dir=os.getcwd())
 
             f_out = open('{}.py'.format(irc_name), 'w')
             f_out.write(template)

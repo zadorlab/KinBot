@@ -95,8 +95,10 @@ class QuantumChemistry:
             'NoSymm' : 'NoSymm',
             'multiplicity': mult,
             'charge': charge,
-            'scf' : 'xqc',
+            'scf' : 'xqc'
             }
+            if self.par.par['guessmix'] == 1:
+                kwargs['guess'] = '(Mix,Always)'
             if ts:
                 # arguments for transition state searches
                 kwargs['method'] = 'am1'
@@ -111,8 +113,12 @@ class QuantumChemistry:
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis
-                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
-                    kwargs['freq'] = 'freq'
+                    if self.par.par['calcall_ts'] == 1:
+                        kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'
+                        # not sending the frequency calculation for CalcAll
+                    else:
+                        kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
+                        kwargs['freq'] = 'freq'
                     #kwargs['geom'] = 'AllCheck,NoKeepConstants'
                     #kwargs['guess'] = 'Read'
             else:
@@ -213,7 +219,8 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]), 
                                    ppn=self.ppn, 
                                    dummy=dummy, 
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -267,7 +274,8 @@ class QuantumChemistry:
                                    change=change,
                                    ppn=self.ppn,
                                    dummy=dummy,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -319,7 +327,8 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]),
                                    ppn = self.ppn,
                                    dummy = dummy,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -363,7 +372,8 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
                                    dummy = dummy,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -409,7 +419,8 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]), 
                                    ppn=self.ppn, 
                                    dummy=dummy,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -437,7 +448,8 @@ class QuantumChemistry:
                                    atom=list(species.atom), 
                                    geom=list([list(gi) for gi in geom]),
                                    ppn = self.ppn,
-                                   qc_command=self.qc_command)
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd())
 
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
@@ -447,7 +459,7 @@ class QuantumChemistry:
 
         return 0
 
-    def submit_qc(self,job, singlejob=1):
+    def submit_qc(self, job, singlejob=1):
         """
         Submit a job to the queue, unless the job:
             * has finished with Normal termination
@@ -478,8 +490,9 @@ class QuantumChemistry:
 
         template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
         python_file = '{}.py'.format(job)
+        name = job.split('/')[-1]
         
-        python_template = open(template_head_file, 'r').read() 
+        #python_template = open(template_head_file, 'r').read() 
         python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 
         if self.queuing == 'pbs':
@@ -501,10 +514,18 @@ class QuantumChemistry:
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         out,err = process.communicate()
         out = out.decode()
-        if self.queuing == 'pbs':
-            pid = out.split('\n')[0].split('.')[0]
-        elif self.queuing == 'slurm':
-            pid = out.split('\n')[0].split()[3]
+        err = err.decode()
+        try:
+            if self.queuing == 'pbs':
+                pid = out.split('\n')[0].split('.')[0]
+            elif self.queuing == 'slurm':
+                pid = out.split('\n')[0].split()[3]
+        except:
+            msg = 'Something went wrong when submitting a job'
+            msg += 'This is the standard output:\n' + out
+            msg += '\nThis is the standard error:\n' + err
+            logging.error(msg)
+            sys.exit()
         self.job_ids[job] = pid
         
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
@@ -760,7 +781,7 @@ class QuantumChemistry:
         Checks if the current job is in the database:
         """
         #open the database
-        rows = self.db.select(name = job)
+        rows = self.db.select(name=job)
         
         mol = None
         

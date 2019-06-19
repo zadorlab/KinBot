@@ -52,7 +52,7 @@ try:
             break
     mol.positions = geom
     """
-    db = connect('kinbot.db')
+    db = connect('{working_dir}/kinbot.db')
     db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
 except RuntimeError: 
     # in case of fail, try again with final geometry
@@ -78,7 +78,7 @@ except RuntimeError:
                     geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
                 break
         mol.positions = geom
-        db = connect('kinbot.db')
+        db = connect('{working_dir}/kinbot.db')
         db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
     except:
         try:
@@ -103,7 +103,7 @@ except RuntimeError:
                         geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
                     break
             mol.positions = geom
-            db = connect('kinbot.db')
+            db = connect('{working_dir}/kinbot.db')
             db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
         except:
             try:
@@ -129,10 +129,10 @@ except RuntimeError:
                             geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
                         break
                 mol.positions = geom
-                db = connect('kinbot.db')
+                db = connect('{working_dir}/kinbot.db')
                 db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
             except: 
-                db = connect('kinbot.db')
+                db = connect('{working_dir}/kinbot.db')
                 db.write(mol, name = label, data = {{'status' : 'error'}})
 
 

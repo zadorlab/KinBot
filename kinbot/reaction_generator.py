@@ -153,7 +153,7 @@ class ReactionGenerator:
                             elif irc_status[0] == 'running' or irc_status[1] == 'running':
                                 continue
                             else: 
-                                #IRC's have succesfully finished, have an error or were killed, in any case
+                                #IRC's have successfully finished, have an error or were killed, in any case
                                 #read the geometries and try to make products out of them
                                 #verify which of the ircs leads back to the reactant, if any
                                 prod = obj.irc.irc2stationary_pt()

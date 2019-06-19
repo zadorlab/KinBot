@@ -92,7 +92,7 @@ class IRC:
             return 0
         else:
             # ircs OK: well and product found
-            logging.info('\tIRCs succesful for {}'.format(instance_name))
+            logging.info('\tIRCs successful for {}'.format(instance_name))
             return st_pts[prod_hit]
 
     def problem_in_geom(self, geom):

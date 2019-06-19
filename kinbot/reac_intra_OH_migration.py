@@ -107,11 +107,11 @@ class IntraOHMigration:
             
             # forward case
             if self.species.atom[self.instance[0]] == 'C':
-                fval1 = 2.25
-                fval2 = 1.85 
+                fval1 = 2.0
+                fval2 = 1.7
             else:
-                fval1 = 1.85 
-                fval2 = 2.25
+                fval1 = 1.7 
+                fval2 = 2.0
 
             constraint = [self.instance[0] + 1,self.instance[-1] + 1, fval1]
             change.append(constraint)

@@ -418,12 +418,12 @@ def postprocess(par, jobs, task, names):
                            prod_energies,
                            highlight)
     # draw a graph of the network
-    create_graph(wells,
-                 products,
-                 reactions,
-                 well_energies,
-                 prod_energies,
-                 highlight)
+#    create_graph(wells,
+#                 products,
+#                 reactions,
+#                 well_energies,
+#                 prod_energies,
+ #                highlight)
     # write_mess
     create_mess_input(par,
                       wells,
@@ -1017,7 +1017,10 @@ def create_graph(wells, products, reactions,
     maximum = max(rxn[3] for rxn in reactions)
     max_size = 5
     min_size = 0.5
-    slope = (min_size - max_size) / (maximum - minimum)
+    try:
+        slope = (min_size - max_size) / (maximum - minimum)
+    except:
+        slope = 1.
     offset = max_size - minimum * slope
 
     # add the edges

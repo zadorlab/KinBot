@@ -140,7 +140,7 @@ class QuantumChemistry:
                     kwargs['integral'] = self.integral
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
-                del kwargs['freq']
+                # del kwargs['freq']  # This is never set, so deleting it causes a key error
                 if ts:
                     kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest,MaxCycle=999'
             return kwargs

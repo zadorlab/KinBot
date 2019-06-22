@@ -287,7 +287,7 @@ class Optimize:
                 for count in range(self.species.confs.conf):
                     names.append('conf/' + self.species.name + '_' + str(count).zfill(zf))
                 for count in range(self.species.confs.cyc_conf):
-                    for num in range(self.species.conf.cyc_conf_index[count]):
+                    for num in range(self.species.confs.cyc_conf_index[count]):
                         names.append('conf/' + self.species.name + '_r' + str(count).zfill(zf) + '_' + str(num).zfill(zf))
         else:
             names.append(str(self.species.chemid) + '_well')
@@ -300,7 +300,7 @@ class Optimize:
                 for count in range(self.species.confs.conf):
                     names.append('conf/' + str(self.species.chemid) + '_' + str(count).zfill(zf))
                 for count in range(self.species.confs.cyc_conf):
-                    for num in range(self.species.conf.cyc_conf_index[count]):
+                    for num in range(self.species.confs.cyc_conf_index[count]):
                         names.append('conf/' + self.species.name + '_r' + str(count).zfill(zf) + '_' + str(num).zfill(zf))
         extensions = ['chk', 'py', 'sbatch']
         

@@ -135,6 +135,7 @@ class QuantumChemistry:
             if high_level:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
+                kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
                 kwargs['freq'] = 'freq'
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral

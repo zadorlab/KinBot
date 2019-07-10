@@ -358,9 +358,9 @@ class MESMER:
         submitscript = 'run_mesmer' + constants.qext[self.par.par['queuing']] 
         with open(submitscript, 'a') as qu:
             if self.par.par['queue_template'] == '':
-                if self.par.par['queue_name'] == 'pbs':
+                if self.par.par['queuing'] == 'pbs':
                     qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
-                elif self.par.par['queue_name'] == 'slurm':
+                elif self.par.par['queuing'] == 'slurm':
                     qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature='')
             else:
                 qu.write(tpl_head)

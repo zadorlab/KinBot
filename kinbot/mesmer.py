@@ -356,11 +356,15 @@ class MESMER:
         with open(q_file) as f:
             tpl = f.read()
         submitscript = 'run_mesmer' + constants.qext[self.par.par['queuing']] 
-        with open(submitscript, 'w') as qu:
-            if self.par.par['queue_name'] == 'pbs':
-                qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
-            elif self.par.par['queue_name'] == 'slurm':
-                qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature=self.par.par['slurm_feature'])
+        with open(submitscript, 'a') as qu:
+            if self.par.par['queue_template'] == '':
+                if self.par.par['queue_name'] == 'pbs':
+                    qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
+                elif self.par.par['queue_name'] == 'slurm':
+                    qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature='')
+            else:
+                qu.write(tpl_head)
+                qu.write(tpl)
 
         command = [constants.qsubmit[self.par.par['queuing']], submitscript]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)

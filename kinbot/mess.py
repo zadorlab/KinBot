@@ -22,7 +22,7 @@ import os
 import subprocess
 import time
 import pkg_resources
-
+import logging
 from kinbot import constants
 from kinbot import frequencies
 
@@ -485,16 +485,24 @@ class MESS:
         else:
             q_file = self.par.par['queue_template']
         with open(q_file) as f:
-            tpl_head = f.read()
+            tpl_head = f.read() #file for main body of submission script
+        
         q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_mess.tpl')
         with open(q_file) as f:
-            tpl = f.read()
+            tpl = f.read() #file for submitting mess.inp 'mess mess.inp'
+        queue_name=self.par.par['queuing']
         submitscript = 'run_mess' + constants.qext[self.par.par['queuing']]
-        with open(submitscript, 'w') as qu: 
-            if self.par.par['queue_name'] == 'pbs':
-                qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
-            elif self.par.par['queue_name'] == 'slurm':
-                qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature=self.par.par['slurm_feature'])
+        with open(submitscript, 'a') as qu:
+            if self.par.par['queue_template'] == '':
+                if self.par.par['queuing'] == 'pbs':
+                    #pbs.tpl has no analogue to slurm_feature in slurm.tpl
+                    qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
+                elif self.par.par['queuing'] == 'slurm':
+                    qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me', slurm_feature=''))
+            else:
+                #run_mess file is generated using queue_template as the tpl file
+                qu.write(tpl_head)
+                qu.write(tpl)
 
         command = [constants.qsubmit[self.par.par['queuing']], submitscript ]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)

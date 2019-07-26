@@ -11,12 +11,28 @@ a tool for automatically searching for reactions on the potential energy surface
 ## How to Install
 Make sure all dependencies are correctly installed (see the manual in the docs/ directory for a list of dependencies). 
 
-Clone the project on your machine and go into the KinBot/ directory. Run the following:
+Clone the project to the place where you want to run it. Make sure you switch to the latest version, e.g., 2.0.1:
+
+    git branch 2.0.1
+
+You can find the latest stable version's tag if you click on the Branch button above on this page.
+
+In your local space go into the KinBot/ directory. Run the following:
 
     python setup.py build
     python setup.py install
     
-Alternatively, you can also install the latest stable version (however, this is behind compared to what is on GitHub, so currently the github installation is preferred) using conda:
+If you do not have admin priveleges, you might have to run
+
+    python setup.py build
+    python setup.py install --user
+    
+Moreover, if you plan to modify the code, you need to install it as:
+
+    python setup.py build
+    python setup.py develop --user
+
+Alternatively, you can also install the latest stable version (however, this is currently way behind compared to what is on GitHub, so currently the github installation is preferred) using conda:
 
     conda install -c rdkit -c openbabel -c zadorlab kinbot
 

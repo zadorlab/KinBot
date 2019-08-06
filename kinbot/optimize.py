@@ -247,6 +247,12 @@ class Optimize:
                 hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
 
+                ff=open("fr_file.txt", 'a')
+                ff.write(fr_file)
+                ff.write(str(hess))
+                ff.close()
+    
+
                 # write the molpro input and read the molpro energy, if available
                 if self.par.par['single_point_qc'] == 'molpro':
                     molp = Molpro(self.species, self.par)
@@ -302,6 +308,7 @@ class Optimize:
                 for count in range(self.species.confs.cyc_conf):
                     for num in range(self.species.confs.cyc_conf_index[count]):
                         names.append('conf/' + self.species.name + '_r' + str(count).zfill(zf) + '_' + str(num).zfill(zf))
+ 
         extensions = ['chk', 'py', 'sbatch']
         
         for name in names:
@@ -313,5 +320,3 @@ class Optimize:
                     os.remove(file)
                 except FileNotFoundError:
                     pass
-
-

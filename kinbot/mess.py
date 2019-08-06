@@ -122,6 +122,9 @@ class MESS:
         bimolec_blocks = {}
         well_blocks[self.species.chemid] = self.write_well(self.species)
         for index, reaction in enumerate(self.species.reac_obj):
+            ts=open("ts.log", 'a')
+            ts.write('{0} {1}'.format(reaction, "\n"))
+            ts.close()
             if reaction.instance_name in ts_unique:
                 ts_blocks[reaction.instance_name] = self.write_barrier(reaction)
                 if len(reaction.products) == 1:
@@ -197,13 +200,22 @@ class MESS:
                                                        rotorpot=rotorpot))
                 rotors = '\n'.join(rotors)
                 freq = ''
-                for i, fr in enumerate(species.reduced_freqs):
-                    if i == 0:
-                        freq += '{:.4f}'.format(fr)
-                    elif i > 0 and i % 3 == 0:
-                        freq += '\n            {:.4f}'.format(fr)
-                    else:
-                        freq += '    {:.4f}'.format(fr)
+                if self.par.par['rotor_scan'] == 0:
+					for i, fr in enumerate(species.freqs):
+							if i == 0:
+								freq += '{:.4f}'.format(fr)
+							elif i > 0 and i % 3 == 0:
+								freq += '\n            {:.4f}'.format(fr)
+							else:
+								freq += '    {:.4f}'.format(fr)
+                elif self.par.par['rotor_scan'] == 1: 
+					for i, fr in enumerate(species.reduced_freqs):
+						if i == 0:
+							freq += '{:.4f}'.format(fr)
+						elif i > 0 and i % 3 == 0:
+							freq += '\n            {:.4f}'.format(fr)
+						else:
+							freq += '    {:.4f}'.format(fr)
                 geom = ''
                 for i, at in enumerate(species.atom):
                     if i > 0:
@@ -217,11 +229,17 @@ class MESS:
                     name = '{' + name + '}'
                 else:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
+
+                if self.par.par['rotor_scan'] == 0:
+                    nfreq=len(species.freq)
+                elif self.par.par['rotor_scan'] == 1:
+                    nfreq=len(species.reduced_freqs) - 1
+
                 fragments += fragment_tpl.format(chemid=name,
                                                  natom=species.natom,
                                                  geom=geom,
                                                  symm=float(species.sigma_ext) / float(species.nopt),
-                                                 nfreq=len(species.reduced_freqs),
+                                                 nfreq,
                                                  freq=freq,
                                                  hinderedrotor=rotors,
                                                  nelec=1,
@@ -293,13 +311,22 @@ class MESS:
         rotors = '\n'.join(rotors)
 
         freq = ''
-        for i, fr in enumerate(species.reduced_freqs):
-            if i == 0:
-                freq += '{:.4f}'.format(fr)
-            elif i > 0 and i % 3 == 0:
-                freq += '\n            {:.4f}'.format(fr)
-            else:
-                freq += '    {:.4f}'.format(fr)
+		if self.par.par['rotor_scan'] == 0:
+			for i, fr in enumerate(species.freqs):
+					if i == 0:
+						freq += '{:.4f}'.format(fr)
+					elif i > 0 and i % 3 == 0:
+						freq += '\n            {:.4f}'.format(fr)
+					else:
+						freq += '    {:.4f}'.format(fr)
+		elif self.par.par['rotor_scan'] == 1: 
+			for i, fr in enumerate(species.reduced_freqs):
+				if i == 0:
+					freq += '{:.4f}'.format(fr)
+				elif i > 0 and i % 3 == 0:
+					freq += '\n            {:.4f}'.format(fr)
+				else:
+					freq += '    {:.4f}'.format(fr)
 
         geom = ''
         for i, at in enumerate(species.atom):
@@ -315,11 +342,16 @@ class MESS:
             name = self.well_names[species.chemid] + ' ! ' + str(species.chemid)
             energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
+		if self.par.par['rotor_scan'] == 0:
+			nfreq=len(species.freqs)
+		elif self.par.par['rotor_scan'] == 1:
+			nfreq=len(species.reduced_freqs)
+
         mess_well = tpl.format(chemid=name,
                                natom=species.natom,
                                geom=geom,
                                symm=float(species.sigma_ext) / float(species.nopt),
-                               nfreq=len(species.reduced_freqs),
+                               nfreq,
                                freq=freq,
                                hinderedrotor=rotors,
                                nelec=1,
@@ -366,13 +398,22 @@ class MESS:
         rotors = '\n'.join(rotors)
 
         freq = ''
-        for i, fr in enumerate(reaction.ts.reduced_freqs[1:]):
-            if i == 0:
-                freq += '{:.4f}'.format(fr)
-            elif i > 0 and i % 3 == 0:
-                freq += '\n            {:.4f}'.format(fr)
-            else:
-                freq += '    {:.4f}'.format(fr)
+		if self.par.par['rotor_scan'] == 0:
+            for i, fr in enumerate(reaction.ts.freqs[1:]):
+		        if i == 0:
+					freq += '{:.4f}'.format(fr)
+				elif i > 0 and i % 3 == 0:
+					freq += '\n            {:.4f}'.format(fr)
+				else:
+					freq += '    {:.4f}'.format(fr)
+		elif self.par.par['rotor_scan'] == 1: 
+			for i, fr in enumerate(reaction.ts.reduced_freqs[1:]):
+				if i == 0:
+					freq += '{:.4f}'.format(fr)
+				elif i > 0 and i % 3 == 0:
+					freq += '\n            {:.4f}'.format(fr)
+				else:
+					freq += '    {:.4f}'.format(fr)
 
         geom = ''
         for i, at in enumerate(reaction.ts.atom):
@@ -388,10 +429,16 @@ class MESS:
         if any([bi < 0 for bi in barriers]):
             tun = ''
         else:
-            tun = tun_tpl.format(cutoff=min(barriers),
-                                 imfreq=-reaction.ts.reduced_freqs[0],
-                                 welldepth1=barriers[0],
-                                 welldepth2=barriers[1])
+			if self.par.par['rotor_scan'] == 0:
+				tun = tun_tpl.format(cutoff=min(barriers),
+									 imfreq=-reaction.ts.freqs[0],
+									 welldepth1=barriers[0],
+									 welldepth2=barriers[1])
+			elif self.par.par['rotor_scan'] == 1:
+				tun = tun_tpl.format(cutoff=min(barriers),
+									 imfreq=-reaction.ts.reduced_freqs[0],
+									 welldepth1=barriers[0],
+									 welldepth2=barriers[1])
 
         if len(reaction.products) == 1:
             prod_name = self.well_names[reaction.products[0].chemid]
@@ -412,6 +459,11 @@ class MESS:
             long_rxn_name = reaction.instance_name
             energy = ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
+		if self.par.par['rotor_scan'] == 0:
+            nfreq=len(reaction.ts.freqs) - 1,
+		elif self.par.par['rotor_scan'] == 1:
+            nfreq=len(reaction.ts.reduced_freqs) - 1,
+        
         mess_ts = tpl.format(rxn_name=name,
                              chemid_reac=chemid_reac,
                              chemid_prod=chemid_prod,
@@ -419,7 +471,7 @@ class MESS:
                              natom=reaction.ts.natom,
                              geom=geom,
                              symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
-                             nfreq=len(reaction.ts.reduced_freqs) - 1,
+                             nfreq,
                              freq=freq,
                              hinderedrotor=rotors,
                              tunneling=tun,

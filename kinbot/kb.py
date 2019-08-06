@@ -21,7 +21,6 @@
 """
 This is the main class to run KinBot.
 It includes
-
 1. Reading the options defined by the user
 2. Optimizing the reactant, including frequency calculations,
 hindered rotor calculations, high-level calculations, according
@@ -30,7 +29,6 @@ to the user input file
 KinBot will search for
 4. call the reac_generator method to search for the reactions
 on the PES
-
 """
 from __future__ import print_function
 import sys
@@ -180,6 +178,7 @@ def main():
         logging.info('Starting the search for homolytic scission products')
         well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
         well0.homolytic_scissions.find_homolytic_scissions()
+  
     # initialize the master equation instance
     mess = MESS(par, well0)
     mess.write_input()

@@ -1,2 +1,2 @@
-mess mess.inp
+mess me/mess.inp
 

@@ -126,7 +126,7 @@ def get_frequencies(species, hess, geom):
 
     # STEP 3: project out internal rotations
 
-    # Build set of internal rotation vectors to project out
+    # Build set of internal rotaton vectors to project out
     R = []
     for rot in species.dihed:
         # mass weight the cartesian coordinates
@@ -199,6 +199,12 @@ def get_frequencies(species, hess, geom):
         mode /= np.linalg.norm(mode)
 
     reduced_freqs = [convert_to_wavenumbers(ei) for ei in sorted(eigvals)]
+
+    fi=open("freq_py_vals.txt", 'a')
+    fi.write('{0} {1}'.format("\nspecies: ", species.name))
+    fi.write('{0} {1}'.format("\nfreqs\n", freqs))
+    fi.write('{0} {1}'.format("\nreduced freqs\n", reduced_freqs))
+    fi.close()
 
     return freqs, reduced_freqs
 

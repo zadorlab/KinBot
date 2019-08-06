@@ -33,11 +33,20 @@ geom = {geom}
 mol = Atoms(symbols = atom, positions = geom)
 mol.set_calculator(calc)
 
+
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
     """
     #read the geometry from the output file
     outfile = '{label}.log'
+    #fc = open("doneCheck.log", 'a')
+    #fc.write("Entering into gDone check\n")
+    #gDone=outfile.closed()
+    #while gDone == False:
+    #    fc.write(gDone)
+    #    time.sleep(1)
+    #    gDone=outfile.closed()
+    #fc.closed()        
     with open(outfile) as f:
         lines = f.readlines()
     for index, line in enumerate(reversed(lines)):

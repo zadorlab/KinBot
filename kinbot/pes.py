@@ -425,13 +425,16 @@ def postprocess(par, jobs, task, names):
 #                 prod_energies,
  #                highlight)
     # write_mess
-    create_mess_input(par,
-                      wells,
-                      products,
-                      reactions,
-                      well_energies,
-                      prod_energies,
-                      parent)
+    w=len(wells)
+    print("wells length (input to create_mess_input)= ", w)
+
+	create_mess_input(par,
+					  wells,
+					  products,
+					  reactions,
+					  well_energies,
+					  prod_energies,
+					  parent)
 
 
 def filter(wells, products, reactions, conn, bars, well_energies, task, names):
@@ -768,6 +771,9 @@ def create_short_names(wells, products, reactions):
     # value: short name
     ts_short = {}
 
+    w=len(wells)
+    print("wells length (in create_short_names)= ", w)
+   
     for well in wells:
         if well not in well_short:
             short_name = 'w_' + str(len(well_short) + 1)
@@ -828,8 +834,13 @@ def create_mess_input(par, wells, products, reactions,
     # list of the strings to write to mess input file
     s = []
     # write the header
-    s.append(write_header(par, well_short[wells[0]]))
-
+    #s.append(write_header(par, well_short[wells[0]]))
+    #s.append(write_header(par, well_short[0]))
+    w=len(wells)
+    ws=len(well_short)
+    print("wells length= ", w)
+    print("well short length= ", ws)
+    
     # write the wells
     s.append('######################')
     s.append('# WELLS')
@@ -923,7 +934,7 @@ def create_pesviewer_input(par, wells, products, reactions,
         well_lines.append('{} {:.2f}'.format(well, energy))
 
     bimol_lines = []
-    for prods in products:
+    for rods in products:
         energy = prod_energies[prods]
         bimol_lines.append('{} {:.2f}'.format(prods, energy))
 

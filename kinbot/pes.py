@@ -428,13 +428,13 @@ def postprocess(par, jobs, task, names):
     w=len(wells)
     print("wells length (input to create_mess_input)= ", w)
 
-	create_mess_input(par,
-					  wells,
-					  products,
-					  reactions,
-					  well_energies,
-					  prod_energies,
-					  parent)
+    create_mess_input(par,
+                      wells,
+                      products,
+                      reactions,
+                      well_energies,
+                      prod_energies,
+                      parent)
 
 
 def filter(wells, products, reactions, conn, bars, well_energies, task, names):

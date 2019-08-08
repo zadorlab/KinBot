@@ -884,10 +884,14 @@ def create_mess_input(par, wells, products, reactions,
         name.append('!')
         name.append(rxn[1])
         energy = rxn[3]
-        with open(rxn[0] + '/' + rxn[1] + '.mess') as f:
-            s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
-        s.append('!****************************************')
-
+        try:
+            with open(rxn[0] + '/' + rxn[1] + '.mess') as f:
+                s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
+            s.append('!****************************************')
+        except:
+            fi=open("pes.log", 'a')
+            fi.write('{0} {1} {2} {3}'.format(rxn[0], "/", rxn[1], ".mess not found"))
+            fi.close()
     # add last end statement
     s.append('!****************************************')
     s.append('End ! end kinetics\n')

@@ -200,14 +200,14 @@ class MESS:
                                                        rotorpot=rotorpot))
                 rotors = '\n'.join(rotors)
                 freq = ''
-				#reduced freqs used always bc HIR creates more accurate mess input
+                #reduced freqs used always bc HIR creates more accurate mess input
                 for i, fr in enumerate(species.reduced_freqs):
-					if i == 0:
-						freq += '{:.4f}'.format(fr)
-					elif i > 0 and i % 3 == 0:
-						freq += '\n            {:.4f}'.format(fr)
-					else:
-						freq += '    {:.4f}'.format(fr)
+                    if i == 0:
+                        freq += '{:.4f}'.format(fr)
+                    elif i > 0 and i % 3 == 0:
+                        freq += '\n            {:.4f}'.format(fr)
+                    else:
+                        freq += '    {:.4f}'.format(fr)
                 geom = ''
                 for i, at in enumerate(species.atom):
                     if i > 0:
@@ -298,14 +298,14 @@ class MESS:
         rotors = '\n'.join(rotors)
 
         freq = ''
-		#reduced freqs used for mess input to make more accurate with HIR corrections
+        #reduced freqs used for mess input to make more accurate with HIR corrections
         for i, fr in enumerate(species.reduced_freqs):
-			if i == 0:
-				freq += '{:.4f}'.format(fr)
-			elif i > 0 and i % 3 == 0:
-				freq += '\n            {:.4f}'.format(fr)
-			else:
-				freq += '    {:.4f}'.format(fr)
+            if i == 0:
+                freq += '{:.4f}'.format(fr)
+            elif i > 0 and i % 3 == 0:
+                freq += '\n            {:.4f}'.format(fr)
+            else:
+                freq += '    {:.4f}'.format(fr)
 
         geom = ''
         for i, at in enumerate(species.atom):
@@ -374,13 +374,13 @@ class MESS:
 
         freq = ''
         #reduced freqs used for better accuracy of mess input files
-		for i, fr in enumerate(reaction.ts.reduced_freqs[1:]):
-			if i == 0:
-				freq += '{:.4f}'.format(fr)
-			elif i > 0 and i % 3 == 0:
-				freq += '\n            {:.4f}'.format(fr)
-			else:
-				freq += '    {:.4f}'.format(fr)
+        for i, fr in enumerate(reaction.ts.reduced_freqs[1:]):
+            if i == 0:
+                freq += '{:.4f}'.format(fr)
+            elif i > 0 and i % 3 == 0:
+                freq += '\n            {:.4f}'.format(fr)
+            else:
+                freq += '    {:.4f}'.format(fr)
 
         geom = ''
         for i, at in enumerate(reaction.ts.atom):
@@ -396,10 +396,10 @@ class MESS:
         if any([bi < 0 for bi in barriers]):
             tun = ''
         else:
-			tun = tun_tpl.format(cutoff=min(barriers),
-								 imfreq=-reaction.ts.reduced_freqs[0],
-								 welldepth1=barriers[0],
-								 welldepth2=barriers[1])
+            tun = tun_tpl.format(cutoff=min(barriers),
+                                 imfreq=-reaction.ts.reduced_freqs[0],
+                                 welldepth1=barriers[0],
+                                 welldepth2=barriers[1])
 
         if len(reaction.products) == 1:
             prod_name = self.well_names[reaction.products[0].chemid]
@@ -508,8 +508,11 @@ class MESS:
                 elif self.par.par['queuing'] == 'slurm':
                     qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me', slurm_feature=''))
             else:
-                #run_mess file is generated using queue_template as the tpl file
-                qu.write(tpl_head)
+                #run_mess file - generate with tpl files
+                q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
+                with open(q_file) as f:
+                    tpl_head=f.read()
+                qu.write(tpl_head.format(name='mess', pn=self.par.par['ppn'], queue_name=par.par['queue_name'], dir='me', slurm_feature=''))
                 qu.write(tpl)
 
         command = [constants.qsubmit[self.par.par['queuing']], submitscript ]

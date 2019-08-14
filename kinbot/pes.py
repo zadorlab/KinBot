@@ -164,7 +164,7 @@ def main():
                         os.remove('{}_im_extent.txt'.format(par.par['title']))
                     except OSError:
                         pass
-                    postprocess(par, jobs, task, names)
+        #            postprocess(par, jobs, task, names)
         # remove the finished threads
         for job in finished:
             if job in running:
@@ -834,13 +834,15 @@ def create_mess_input(par, wells, products, reactions,
     # list of the strings to write to mess input file
     s = []
     # write the header
+    header=write_header(par, wells[0])
     #s.append(write_header(par, well_short[wells[0]]))
     #s.append(write_header(par, well_short[0]))
     w=len(wells)
     ws=len(well_short)
     print("wells length= ", w)
     print("well short length= ", ws)
-    
+
+
     # write the wells
     s.append('######################')
     s.append('# WELLS')
@@ -890,7 +892,7 @@ def create_mess_input(par, wells, products, reactions,
             s.append('!****************************************')
         except:
             fi=open("pes.log", 'a')
-            fi.write('{0} {1} {2} {3}'.format(rxn[0], "/", rxn[1], ".mess not found"))
+            fi.write('{0} {1} {2} {3}'.format(rxn[0], "/", rxn[1], ".mess not found\n"))
             fi.close()
     # add last end statement
     s.append('!****************************************')
@@ -900,7 +902,8 @@ def create_mess_input(par, wells, products, reactions,
         os.mkdir('me')
 
     # write everything to a file
-    with open('me/mess.inp', 'w') as f:
+    with open('me/mess.inp', 'w') as f: 
+        f.write(header)
         f.write('\n'.join(s))
 
     dummy = StationaryPoint('dummy',
@@ -938,7 +941,7 @@ def create_pesviewer_input(par, wells, products, reactions,
         well_lines.append('{} {:.2f}'.format(well, energy))
 
     bimol_lines = []
-    for rods in products:
+    for prods in products:
         energy = prod_energies[prods]
         bimol_lines.append('{} {:.2f}'.format(prods, energy))
 

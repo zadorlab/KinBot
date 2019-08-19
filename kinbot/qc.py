@@ -350,7 +350,28 @@ class QuantumChemistry:
             job = str(species.chemid) + '_well_high'
         if mp2:
             job = str(species.chemid) + '_well_mp2'
-        
+       
+        #TODO: Code exceptions into their own function/py script that opt can call.
+        #TODO: Fix symmetry numbers for calcs as well if needed
+        #O2
+        fi=open('kb.log', 'a') 
+        fi.write("chemid= {0}".format(species.chemid)) 
+        if species.chemid == "320320000000000000001": 
+            mult=3 
+            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level = high_level) 
+            fi.write("mult= {0}".format(mult)) 
+        #CH2 
+        elif species.chemid == "140260020000000000001": 
+            mult=3 
+            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level = high_level) 
+            fi.write("mult= {0}".format(mult)) 
+        #others 
+        else: 
+            mult=species.mult 
+            kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level = high_level) 
+            fi.write("mult= {0}".format(mult)) 
+        fi.close()         
+ 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level = high_level)
         if self.qc == 'gauss':
             kwargs['opt'] = 'CalcFC, Tight'

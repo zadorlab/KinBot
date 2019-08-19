@@ -190,7 +190,7 @@ def main():
             mess.run()
         elif par.par['me_code'] == 'mesmer':
             mesmer.run()
-        else:
+       else:
             logging.error('Cannot recognize me code {}'.format(par.par['me_code']))
 
     # postprocess the calculations

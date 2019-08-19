@@ -58,11 +58,30 @@ class Molpro:
 
         nelectron -= self.species.charge
 
+		symm = 1
+        #TODO: Code exceptions into their own function/py script that opt can call.
+        #TODO: Fix symmetry numbers for calcs as well if needed
+        #O2
+        if species.chemid == "320320000000000000001": 
+            mult=3 
+            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level = high_level) 
+        #CH2 
+        elif species.chemid == "140260020000000000001": 
+            mult=3 
+            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level = high_level) 
+        #others 
+        else: 
+            mult=species.mult 
+            kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level = high_level) 
+#        if chemid is xxx then 
+#			symm = xxx
+#			multiplicity = xxx
         with open('molpro/' + fname + '.inp', 'w') as outf:
             outf.write(file.format(name=fname,
                                    natom=self.species.natom,
                                    geom=geom,
                                    nelectron=nelectron,
+								   symm=symm,
                                    spin=self.species.mult - 1,
                                    charge=self.species.charge
                                    ))

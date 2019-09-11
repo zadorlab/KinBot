@@ -38,6 +38,7 @@ import os
 import logging
 import datetime
 
+from kinbot import filecopying
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.homolytic_scissions import HomolyticScissions
@@ -127,6 +128,40 @@ def main():
     # initialize the qc instance
     qc = QuantumChemistry(par)
 
+    # check if this well was calcualted before in another directory
+    if self.par.par['pes']:
+        # this flag indicates that this kinbot run
+        # should wait for the information from another
+        # kinbot run to become available and copy the necessary information
+        wait_for_well = 1
+        while(wait_for_well):
+            # directory of the pes run
+            dir = os.path.dirname(os.getcwd()) 
+            # dir for this well
+            dir_name = '{}/{}_db/'.format(dir, well0.chemid)
+            # check if the directory is there
+            if os.path.exists(dir_name):
+                # check for the running tag, and if it contains the chemid
+                # of this well, continue from here
+                try:
+                    with open(dir_name + 'running') as f:
+                        chemid = int(f.read().split()[0])
+                    if chemid == well0.chemid:
+                        wait_for_well = 0
+                except IOError:
+                    pass
+                # if there is a done tag, copy everything and continue from there
+                if os.path.exists(dir_name + 'done'):
+                    filecopying.copy_from_database_folder(dir_name, well0, qc)
+                    wait_for_well = 0
+            else:
+                # directory is not yet made, make it now
+                os.mkdirs(dir_name)
+                # make the running tag
+                with open(dir_name + 'running', 'w') as f:
+                    f.write(well0.chemid)
+                wait_for_well = 0
+            time.sleep(1)
     # start the initial optimization of the reactant
     logging.info('Starting optimization of intial well')
     qc.qc_opt(well0, well0.geom)
@@ -167,6 +202,28 @@ def main():
     if well_opt.shigh == -999:
         logging.error('Error with high level optimization of initial structure.')
         return
+    
+    # check if the information on this well has to be copied to a database
+    if self.par.par['pes']:
+         # directory of the pes run
+        dir = os.path.dirname(os.getcwd()) 
+        # dir for this well
+        dir_name = '{}/{}_db/'.format(dir, well0.chemid)
+        # check if the directory is there
+        if os.path.exists(dir_name):
+            # check for the running tag, and if it contains the chemid
+            # of this well, continue from here
+            if not os.path.exists(dir_name + 'done'):
+                if os.path.exists(dir_name + 'running'):
+                    with open(dir_name + 'running') as f:
+                        chemid = int(f.read().split()[0])
+                    if chemid == well0.chemid:
+                        # copy the files
+                        copy_to_database_folder(dir_name, well0, qc)
+                    # make a done tag
+                    with open(dir_name + 'done', 'w') as f:
+                        f.write('')
+    
 
     # do the reaction search using heuristics
     if par.par['reaction_search'] == 1:

@@ -203,10 +203,10 @@ class ReactionGenerator:
                                     filecopying.copy_from_database_folder(dir_name, frag, self.qc)
                             else:
                                 # directory is not yet made, make it now
-                                os.mkdirs(dir_name)
+                                os.makedirs(dir_name)
                                 # make the running tag
                                 with open(dir_name + 'running', 'w') as f:
-                                    f.write(self.species.chemid)
+                                    f.write('{}'.format(self.species.chemid))
                                 # start the calculations
                                 self.qc.qc_opt(frag, frag.geom)
                                 self.species.reac_ts_done[index] = 3
@@ -345,7 +345,7 @@ class ReactionGenerator:
                                             chemid = int(f.read().split()[0])
                                         if chemid == self.species.chemid:
                                             # copy the files
-                                            copy_to_database_folder(dir_name, frag, self.qc)
+                                            filecopying.copy_to_database_folder(dir_name, frag, self.qc)
                                         # make a done tag
                                         with open(dir_name + 'done', 'w') as f:
                                             f.write('')
@@ -450,7 +450,7 @@ class ReactionGenerator:
             for ext in extensions:
                 # delete file
                 file = '.'.join([name, ext])
-                print(file)
+                
                 try:
                     os.remove(file)
                 except FileNotFoundError:

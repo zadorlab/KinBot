@@ -23,7 +23,6 @@ import logging
 import numpy as np
 import re
 import time
-import time
 import copy
 import pkg_resources
 
@@ -62,6 +61,8 @@ class QuantumChemistry:
             self.slurm_feature = ''
         else:
             self.slurm_feature = '#SBATCH -C ' + par.par['slurm_feature']
+        self.queue_job_limit = par.par['queue_job_limit']
+        self.username = par.par['username']
         
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0, high_level=0, hir=0):
         """
@@ -491,7 +492,12 @@ class QuantumChemistry:
         However, if the optional parameter singlejob is set to zero, then 
         the job is run only if it has finished earlier with normal termination.
         This is for continuations, when the continuing jobs overwrite each other.
+        If the number of jobs in the queue is larger than the user-set limit,
+        KinBot will park here until resources are freed up.
         """
+
+        if self.queue_job_limit > 0:
+            self.limit_jobs()
 
         check = self.check_qc(job)
         if singlejob == 1:
@@ -870,3 +876,22 @@ class QuantumChemistry:
         else: 
             return 0
             
+
+    def limit_jobs(self):
+        """
+        Check how many jobs are in the queue from the user, and if larger than the limit, 
+        then wait for resources to free up.
+        """
+
+        while 1:
+            if self.queuing == 'slurm':
+                command = ['squeue', '-h', '-u', '{}'.format(self.username)]
+            elif self.queuing == 'pbs':
+                command = ['qselect', '-u', '{}'.format(self.username)]
+            jobs = subprocess.check_output(command)
+
+            if len(jobs.split(b'\n')) < self.queue_job_limit:
+                return 0
+            time.sleep(30)
+
+

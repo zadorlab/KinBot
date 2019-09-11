@@ -182,7 +182,8 @@ class Parameters:
             'scratch': '/scratch/jzador',
             # User name
             'username': 'jzador',
-
+            # Max. number of job from user in queue, if negative, ignored
+            'queue_job_limit' : -1,
 
             # MASTER EQUATION
             # Which ME code to use:

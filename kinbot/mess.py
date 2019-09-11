@@ -150,11 +150,11 @@ class MESS:
                 #elif len(reaction.products) == 2:
                     #bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                     #bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt])
-                '''
-                else: #termolec
-                    termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                    termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt]) 
-                ''' 
+               
+                #else: #termolec
+                #    termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in [reaction.products]))
+                #    termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt]) 
+                # 
                 else:
                     bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                     bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt])

@@ -38,6 +38,7 @@ class MESS:
         self.bimolec_names = {}
         self.fragment_names = {}
         self.ts_names = {}
+        #self.termolec_names = {}
 
     def write_header(self):
         """
@@ -77,6 +78,18 @@ class MESS:
                     st_pt = reaction.products[0]
                     if st_pt.chemid not in self.well_names:
                         self.well_names[st_pt.chemid] = 'w_' + str(len(self.well_names)+1)
+                #elif len(reaction.products) == 2:
+                    #do what is below
+                #else:
+                    #TER MOLECULAR
+                    """
+                        for st_pt in reaction.products:
+                            if st_pt.chemid not in self.fragment_names:
+                                self.fragment_names[st_pt.chemid] = 'fr_' + str(len(self.fragment_names)+1)
+                        termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                        if termol_name not in self.termolec_names:
+                            self.termolc_names[termolec_name= = 't_' + str(len(self.termolec_names)+1)
+                    """
                 else:
                     for st_pt in reaction.products:
                         if st_pt.chemid not in self.fragment_names:
@@ -123,6 +136,7 @@ class MESS:
         well_blocks = {}
         ts_blocks = {}
         bimolec_blocks = {}
+        #termolec_blocks = {}
         allTS = {}
         well_blocks[self.species.chemid] = self.write_well(self.species)
         for index, reaction in enumerate(self.species.reac_obj):
@@ -133,6 +147,14 @@ class MESS:
                 if len(reaction.products) == 1:
                     st_pt = reaction.prod_opt[0].species
                     well_blocks[st_pt.chemid] = self.write_well(st_pt)
+                #elif len(reaction.products) == 2:
+                    #bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                    #bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt])
+                '''
+                else: #termolec
+                    termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                    termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt]) 
+                ''' 
                 else:
                     bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                     bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt])
@@ -144,6 +166,9 @@ class MESS:
         bimols = ''
         for bimol in bimolec_blocks:
             bimols += bimolec_blocks[bimol] + '\n!****************************************\n'
+        #termols = ''
+        #for termol in termolec_blocks:
+            #termols += termol_blocks[termol] + '\n!****************************************\n'
         tss = ''
         for ts in ts_blocks:
             tss += ts_blocks[ts] + '\n!****************************************\n'
@@ -157,6 +182,7 @@ class MESS:
         f_out.write(header + '\n!****************************************\n')
         f_out.write(wells)
         f_out.write(bimols)
+        f_out.write(termols)
         f_out.write(tss)
         f_out.write(dum)
         f_out.write('\n!****************************************\nEnd ! end kinetics\n')
@@ -164,6 +190,22 @@ class MESS:
 
         return 0
 
+    #def write_termol(self, species_list):
+        """
+        Create the dummy MESS block for ter-molecular products.
+
+        #open the dummy template
+        dummy_file = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
+        with open(dummy_file) as f:
+            tpl = f.read()
+
+        fragments = ''
+        for species in species_list:
+            append to dummy file etc
+
+        *TALK TO JUDIT ABOUT SPECIFIC FORMAT*
+        """
+         
     def write_bimol(self, species_list):
         """
         Create the block for MESS for a bimolecular product.

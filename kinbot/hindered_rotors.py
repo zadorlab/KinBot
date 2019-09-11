@@ -149,11 +149,9 @@ class HIR:
                     angles = [i * 2 * np.pi / float(self.nrotation) for i in range(self.nrotation)]
                     # write profile to file
                     self.write_profile(rotor, job)
-                                                             angles,
-                                                             rotor))
                     #Check to see if HIR failed, job will continue if failed, but warning will be generated
-                    A,a=self.fourier_fit(jon,angles,rotor)
-                    if(a===0):
+                    A,a=self.fourier_fit(job,angles,rotor)
+                    if(a==0):
                         logging.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
                     else:
                         self.hir_fourier.append(self.fourier_fit(job,angles,rotor))
@@ -206,22 +204,22 @@ class HIR:
 
         if(len(ens) > 0):
             a=1
-			A = np.linalg.lstsq(X, np.array(ens))[0]
+            A = np.linalg.lstsq(X, np.array(ens))[0]
 
-			for i, si in enumerate(status):
-				if si == 1:
-					energies[i] = energies[0] + self.get_fit_value(A, n_terms, angles[i])/constants.AUtoKCAL
+            for i, si in enumerate(status):
+                if si == 1:
+                    energies[i] = energies[0] + self.get_fit_value(A, n_terms, angles[i])/constants.AUtoKCAL
 
-			if self.plot_hir_profiles:
-				# fit the plot to a png file
-				plt.plot(ang, ens, 'ro')
-				fit_angles = [i * 2. * np.pi / 360 for i in range(360)]
-				fit_energies = [self.get_fit_value(A, n_terms, ai) for ai in fit_angles]
-				plt.plot(fit_angles, fit_energies)
-				plt.xlabel('Dihedral angle [radians]')
-				plt.ylabel('Energy [kcal/mol]')
-				plt.savefig('hir_profiles/{}.png'.format(job))
-				plt.clf()
+            if self.plot_hir_profiles:
+                # fit the plot to a png file
+                plt.plot(ang, ens, 'ro')
+                fit_angles = [i * 2. * np.pi / 360 for i in range(360)]
+                fit_energies = [self.get_fit_value(A, n_terms, ai) for ai in fit_angles]
+                plt.plot(fit_angles, fit_energies)
+                plt.xlabel('Dihedral angle [radians]')
+                plt.ylabel('Energy [kcal/mol]')
+                plt.savefig('hir_profiles/{}.png'.format(job))
+                plt.clf()
         else:
             A=0
             a=0

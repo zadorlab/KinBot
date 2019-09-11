@@ -96,6 +96,7 @@ class MESS:
 
         # filter ts's with the same reactants and products:
         ts_unique = {}  # key: ts name, value: [prod_name, energy]
+        ts_all = {} # key: ts name, value: [prod_name, energy]
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
                 prod_name = '_'.join([str(pi.chemid) for pi in reaction.products])
@@ -103,6 +104,8 @@ class MESS:
                 zpe = reaction.ts.zpe
                 new = 1
                 remove = []
+
+                ts_all[reaction.instance_name] = [prod_name, energy+zpe]
                 for ts in ts_unique:
                     if ts_unique[ts][0] == prod_name:
                         # check for the barrier with the lowest energy
@@ -120,13 +123,13 @@ class MESS:
         well_blocks = {}
         ts_blocks = {}
         bimolec_blocks = {}
+        allTS = {}
         well_blocks[self.species.chemid] = self.write_well(self.species)
         for index, reaction in enumerate(self.species.reac_obj):
-            ts=open("ts.log", 'a')
-            ts.write('{0} {1}'.format(reaction, "\n"))
-            ts.close()
+            if reaction.instance_name in ts_all:
+                allTS[reaction.instance_name] = self.write_barrier(reaction)
             if reaction.instance_name in ts_unique:
-                ts_blocks[reaction.instance_name] = self.write_barrier(reaction)
+                ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                 if len(reaction.products) == 1:
                     st_pt = reaction.prod_opt[0].species
                     well_blocks[st_pt.chemid] = self.write_well(st_pt)

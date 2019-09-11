@@ -26,6 +26,7 @@ import time
 import logging
 
 from kinbot import constants
+from kinbot import filecopying
 from kinbot import geometry
 from kinbot import pes
 from kinbot import postprocess
@@ -171,9 +172,47 @@ class ReactionGenerator:
                     obj.products = []
                     for i, frag in enumerate(fragments):
                         obj.products.append(frag)
-                        self.qc.qc_opt(frag, frag.geom)
-                    
-                    self.species.reac_ts_done[index] = 3
+                        
+                        # check if this is a kinbot run or a pes run
+                        # for the latter, check if this species has been calculated already, and copy the 
+                        # files if they are there. If no file exists, make them and copy them over
+                        if self.par.par['pes']:
+                            # directory of the pes run
+                            dir = os.path.dirname(os.getcwd()) 
+                            # dir for this well
+                            dir_name = '{}/{}_db/'.format(dir, frag.chemid)
+                            # check if the directory is there
+                            if os.path.exists(dir_name):
+                                # check for the running tag, and if it contains the chemid
+                                # of this well, continue from here
+                                try:
+                                    with open(dir_name + 'running') as f:
+                                        chemid = int(f.read().split()[0])
+                                    if chemid == self.species.chemid:
+                                        # start the calculations
+                                        self.qc.qc_opt(frag, frag.geom)
+                                        self.species.reac_ts_done[index] = 3
+                                    else:
+                                        # this well just has to wait for 
+                                        # the product optimization to finish in another well
+                                        pass
+                                except IOError:
+                                    pass
+                                # if there is a done tag, copy everything and continue from there
+                                if os.path.exists(dir_name + 'done'):
+                                    filecopying.copy_from_database_folder(dir_name, frag, self.qc)
+                            else:
+                                # directory is not yet made, make it now
+                                os.mkdirs(dir_name)
+                                # make the running tag
+                                with open(dir_name + 'running', 'w') as f:
+                                    f.write(self.species.chemid)
+                                # start the calculations
+                                self.qc.qc_opt(frag, frag.geom)
+                                self.species.reac_ts_done[index] = 3
+                        else:
+                            self.qc.qc_opt(frag, frag.geom)
+                            self.species.reac_ts_done[index] = 3
                 elif self.species.reac_ts_done[index] == 3:
                     #wait for the optimization to finish 
                     err = 0
@@ -289,7 +328,28 @@ class ReactionGenerator:
                                         #wait a second and try again
                                         time.sleep(1)
                                         pass
-                                        
+                        # copy the files of the species to an upper directory
+                        frags = obj.products
+                        for frag in frags:
+                            # directory of the pes run
+                            dir = os.path.dirname(os.getcwd()) 
+                            # dir for this well
+                            dir_name = '{}/{}_db/'.format(dir, frag.chemid)
+                            # check if the directory is there
+                            if os.path.exists(dir_name):
+                                # check for the running tag, and if it contains the chemid
+                                # of this well, continue from here
+                                if not os.path.exists(dir_name + 'done'):
+                                    if os.path.exists(dir_name + 'running'):
+                                        with open(dir_name + 'running') as f:
+                                            chemid = int(f.read().split()[0])
+                                        if chemid == self.species.chemid:
+                                            # copy the files
+                                            copy_to_database_folder(dir_name, frag, self.qc)
+                                        # make a done tag
+                                        with open(dir_name + 'done', 'w') as f:
+                                            f.write('')
+
                     #check for wrong number of negative frequencies
                     neg_freq = 0
                     for st_pt in obj.products:

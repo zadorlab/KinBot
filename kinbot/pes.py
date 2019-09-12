@@ -425,8 +425,6 @@ def postprocess(par, jobs, task, names):
 #                 prod_energies,
  #                highlight)
     # write_mess
-    w=len(wells)
-    print("wells length (input to create_mess_input)= ", w)
 
     create_mess_input(par,
                       wells,
@@ -782,9 +780,6 @@ def create_short_names(wells, products, reactions):
     # key: reaction name (chemid, type and instance)
     # value: short name
     ts_short = {}
-
-    w=len(wells)
-    print("wells length (in create_short_names)= ", w)
    
     for well in wells:
         if well not in well_short:

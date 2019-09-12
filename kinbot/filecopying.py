@@ -46,17 +46,22 @@ def copy_from_database_folder(well0_chemid, chemid, qc):
             for file in file_list:
                 if '.com' in file or '.log' in file or '.fchk' in file:
                     copyfile(dir_name + file, os.getcwd() + '/' + file)
-
-            hir_file_list = os.listdir(dir_name + 'hir/')
-            for file in hir_file_list:
-                if '.com' in file or '.log' in file:
-                    copyfile(dir_name + 'hir/' + file, os.getcwd() + '/hir/' + file)
-
-            conf_file_list = os.listdir(dir_name + 'conf/')
-            for file in conf_file_list:
-                if '.com' in file or '.log' in file:
-                    copyfile(dir_name + 'conf/' + file, os.getcwd() + '/conf/' + file)
-
+            try:
+				hir_file_list = os.listdir(dir_name + 'hir/')
+				for file in hir_file_list:
+					if '.com' in file or '.log' in file:
+						copyfile(dir_name + 'hir/' + file, os.getcwd() + '/hir/' + file)
+            except IOError:
+                logging.warning("hir dir/file not found for " + dir_name)
+ 
+            try:
+				conf_file_list = os.listdir(dir_name + 'conf/')
+				for file in conf_file_list:
+					if '.com' in file or '.log' in file:
+						copyfile(dir_name + 'conf/' + file, os.getcwd() + '/conf/' + file)
+            except IOError:
+                logging.warning("conf_file dir/file not found for " + dir_name)
+ 
             # read the database and populate the current database
             data = connect(dir_name + '{}.db'.format(chemid))
             for row in data.select():

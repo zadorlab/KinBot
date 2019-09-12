@@ -135,8 +135,6 @@ def main():
         wait_for_well = 1
         while wait_for_well:
             wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
-            print('waiting?')
-            print(wait_for_well)
             if wait_for_well:
                 time.sleep(1)
     # start the initial optimization of the reactant

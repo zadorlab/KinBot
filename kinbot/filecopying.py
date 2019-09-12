@@ -42,7 +42,6 @@ def copy_from_database_folder(well0_chemid, chemid, qc):
         if temp_chemid == well0_chemid:
             wait = 0
         elif os.path.exists(dir_name + 'done'):
-            print('Copying the files from other directory')
             file_list = os.listdir(dir_name)
             for file in file_list:
                 if '.com' in file or '.log' in file or '.fchk' in file:
@@ -65,9 +64,7 @@ def copy_from_database_folder(well0_chemid, chemid, qc):
                 ase_name = row.name
                 ase_data = row.data
                 qc.db.write(ase_atoms, name=ase_name, data=ase_data)
-            print('setting waiting to 0')
             wait = 0
-            print(wait)
     else:
         # directory is not yet made, make it now
         os.makedirs(dir_name)

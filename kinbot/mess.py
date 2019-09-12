@@ -25,7 +25,7 @@ import pkg_resources
 import logging
 from kinbot import constants
 from kinbot import frequencies
-
+from kinbot import cheminfo
 
 class MESS:
     """
@@ -72,15 +72,6 @@ class MESS:
         # add the initial well to the well names:
         self.well_names[self.species.chemid] = 'w_1'
 
-        # list of the lines of the homolytic scissions
-        #barrierless = []
-        #if species.homolytic_scissions is not None:
-            #for index,hs in enumerate(species.homolytic_scissions.hss):
-                #if hs.status == -1:
-                    #prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-                #if not prod_name in bimolec_names:
-                    #barrierless.append('{name} {react} {prod}'.format(name='b_' + str(index),
-
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
                 self.ts_names[reaction.instance_name] = 'ts_' + str(len(self.ts_names)+1)
@@ -92,14 +83,13 @@ class MESS:
                     #do what is below
                 #else:
                     #TER MOLECULAR
-                    """
-                        for st_pt in reaction.products:
-                            if st_pt.chemid not in self.fragment_names:
-                                self.fragment_names[st_pt.chemid] = 'fr_' + str(len(self.fragment_names)+1)
-                        termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        if termol_name not in self.termolec_names:
-                            self.termolc_names[termolec_name= = 't_' + str(len(self.termolec_names)+1)
-                    """
+                    
+                    #    for st_pt in reaction.products:
+                    #        if st_pt.chemid not in self.fragment_names:
+                    #            self.fragment_names[st_pt.chemid] = 'fr_' + str(len(self.fragment_names)+1)
+                    #    termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                    #    if termol_name not in self.termolec_names:
+                    #        self.termolc_names[termolec_name= = 't_' + str(len(self.termolec_names)+1)
                 else:
                     for st_pt in reaction.products:
                         if st_pt.chemid not in self.fragment_names:
@@ -170,6 +160,16 @@ class MESS:
                     bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                     bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt])
 
+        #list of the lines of the homolytic scissions
+        #barrierless = []
+        #if self.species.homolytic_scissions is not None:
+            #for index,hs in enumerate(self.species.homolytic_scissions.hss):
+                #if hs.status == -1:
+                    #prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
+                #if not prod_name in bimolec_names:
+                    #barrierless.append('{name} {react} {prod}'.format(name='b_' + str(index)
+                    #barrierless_blocks[prod_name] = self.write_barrierless([opt.species for opt in reaction.prod_opt])
+              
         # write the mess input file
         wells = ''
         for well in well_blocks:
@@ -185,8 +185,8 @@ class MESS:
             tss += ts_blocks[ts] + '\n!****************************************\n'
 
         #barrierless = ''
-        #for noBarrier in barrierless_blocks:
-            #barrierless += barrierless_blocks[noBarrier] + '\n!****************************************\n'
+        #for rxn in barrierless_blocks:
+            #barrierless += barrierless_blocks[rxn] + '\n!****************************************\n'
  
         dummy_template = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
         with open(dummy_template) as f:
@@ -206,7 +206,20 @@ class MESS:
 
         return 0
 
-#def write_barrierless
+#def write_barrierless(self, species_list)
+    #Create the MESS block for barrierless products.
+
+    #for species in species_list:
+    #fragments = ''
+    #for species in species_list:
+	#if self.par.par['pes']:
+	#name = 'barrierless_fr_name_{}'.format(species.chemid)
+    #else:
+    #name = 'barrierless_' + self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
+    #energy =
+    #reaction
+    #frequency?, rotor?, etc? 
+
 
 #def write_termol(self, species_list):
     #Create the dummy MESS block for ter-molecular products.
@@ -557,26 +570,21 @@ class MESS:
         else:
             q_file = self.par.par['queue_template']
         with open(q_file) as f:
-            tpl_head = f.read() #file for main body of submission script
-        
+            tpl_head = f.read()
+
         q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_mess.tpl')
         with open(q_file) as f:
-            tpl = f.read() #file for submitting mess.inp 'mess mess.inp'
+            tpl = f.read()
         queue_name=self.par.par['queuing']
         submitscript = 'run_mess' + constants.qext[self.par.par['queuing']]
         with open(submitscript, 'a') as qu:
             if self.par.par['queue_template'] == '':
                 if self.par.par['queuing'] == 'pbs':
-                    #pbs.tpl has no analogue to slurm_feature in slurm.tpl
                     qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
                 elif self.par.par['queuing'] == 'slurm':
-                    qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me', slurm_feature=''))
+                    qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature='')
             else:
-                #run_mess file - generate with tpl files
-                q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
-                with open(q_file) as f:
-                    tpl_head=f.read()
-                qu.write(tpl_head.format(name='mess', pn=self.par.par['ppn'], queue_name=par.par['queue_name'], dir='me', slurm_feature=''))
+                qu.write(tpl_head)
                 qu.write(tpl)
 
         command = [constants.qsubmit[self.par.par['queuing']], submitscript ]

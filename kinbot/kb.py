@@ -35,7 +35,9 @@ import sys
 import os
 import logging
 import datetime
+import time
 
+from kinbot import filecopying
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.homolytic_scissions import HomolyticScissions
@@ -125,6 +127,16 @@ def main():
     # initialize the qc instance
     qc = QuantumChemistry(par)
 
+    # check if this well was calcualted before in another directory
+    if par.par['pes']:
+        # this flag indicates that this kinbot run
+        # should wait for the information from another
+        # kinbot run to become available and copy the necessary information
+        wait_for_well = 1
+        while wait_for_well:
+            wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
+            if wait_for_well:
+                time.sleep(1)
     # start the initial optimization of the reactant
     logging.info('Starting optimization of intial well')
     qc.qc_opt(well0, well0.geom)
@@ -165,6 +177,10 @@ def main():
     if well_opt.shigh == -999:
         logging.error('Error with high level optimization of initial structure.')
         return
+    
+    # check if the information on this well has to be copied to a database
+    if par.par['pes']:
+        filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
     # do the reaction search using heuristics
     if par.par['reaction_search'] == 1:

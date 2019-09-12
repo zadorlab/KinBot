@@ -28,7 +28,7 @@ from __future__ import with_statement
 import os
 import sys
 import json
-import logging;
+import logging
 
 import numpy as np
 

@@ -39,6 +39,7 @@ class MESS:
         self.fragment_names = {}
         self.ts_names = {}
         #self.termolec_names = {}
+        #self.barrierless_names = {}
 
     def write_header(self):
         """
@@ -70,6 +71,15 @@ class MESS:
         """
         # add the initial well to the well names:
         self.well_names[self.species.chemid] = 'w_1'
+
+        # list of the lines of the homolytic scissions
+        #barrierless = []
+        #if species.homolytic_scissions is not None:
+            #for index,hs in enumerate(species.homolytic_scissions.hss):
+                #if hs.status == -1:
+                    #prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
+                #if not prod_name in bimolec_names:
+                    #barrierless.append('{name} {react} {prod}'.format(name='b_' + str(index),
 
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
@@ -137,6 +147,7 @@ class MESS:
         ts_blocks = {}
         bimolec_blocks = {}
         #termolec_blocks = {}
+        #barrierless_blocks = {}
         allTS = {}
         well_blocks[self.species.chemid] = self.write_well(self.species)
         for index, reaction in enumerate(self.species.reac_obj):
@@ -173,6 +184,10 @@ class MESS:
         for ts in ts_blocks:
             tss += ts_blocks[ts] + '\n!****************************************\n'
 
+        #barrierless = ''
+        #for noBarrier in barrierless_blocks:
+            #barrierless += barrierless_blocks[noBarrier] + '\n!****************************************\n'
+ 
         dummy_template = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
         with open(dummy_template) as f:
             dummy = f.read()
@@ -182,29 +197,33 @@ class MESS:
         f_out.write(header + '\n!****************************************\n')
         f_out.write(wells)
         f_out.write(bimols)
-        f_out.write(termols)
+        #f_out.write(termols)
         f_out.write(tss)
+        #f_out.write(barrierless)
         f_out.write(dum)
         f_out.write('\n!****************************************\nEnd ! end kinetics\n')
         f_out.close()
 
         return 0
 
-    #def write_termol(self, species_list):
-        """
-        Create the dummy MESS block for ter-molecular products.
+#def write_barrierless
 
-        #open the dummy template
-        dummy_file = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
-        with open(dummy_file) as f:
-            tpl = f.read()
+#def write_termol(self, species_list):
+    #Create the dummy MESS block for ter-molecular products.
 
-        fragments = ''
-        for species in species_list:
-            append to dummy file etc
+    #open the dummy template
+    #dummy_file = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
+    #with open(dummy_file) as f:
+    #    tpl = f.read()
 
-        *TALK TO JUDIT ABOUT SPECIFIC FORMAT*
-        """
+    #fragments = ''
+    #for species in species_list:
+	#if self.par.par['pes']:
+	#name = 'fr_name_{}'.format(species.chemid)
+    #name = 'dummy_' + name
+    #else:
+    #name = 'dummy_' + self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
+    #fragments += tpl.format(barrier='tsd', reactant=species, dummy=name)
          
     def write_bimol(self, species_list):
         """

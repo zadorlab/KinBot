@@ -792,7 +792,7 @@ def create_short_names(wells, products, reactions):
             ts_short[rxn[1]] = short_name
     return well_short, pr_short, fr_short, ts_short
 
-
+#duplicate code, may delete function
 def write_header(par, well0):
     """
     Create the header block for MESS
@@ -833,15 +833,36 @@ def create_mess_input(par, wells, products, reactions,
                                                                   reactions)
     # list of the strings to write to mess input file
     s = []
-    # write the header
-    header=write_header(par, wells[0])
-    #s.append(write_header(par, well_short[wells[0]]))
-    #s.append(write_header(par, well_short[0]))
-    w=len(wells)
-    ws=len(well_short)
-    print("wells length= ", w)
-    print("well short length= ", ws)
 
+    #create mess0 label for mess header
+    well0 = StationaryPoint('well0',
+                            par.par['charge'],
+                            par.par['mult'],
+                            smiles=par.par['smiles'],
+                            structure=par.par['structure'])
+    well0.characterize(par.par['dimer'])
+
+    """
+    Create the header block for MESS
+    """
+    # Read the header template
+    header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
+    with open(header_file) as f:
+        tpl = f.read()
+    header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par.par['TemperatureList']]),
+                        PressureList=' '.join([str(pi) for pi in par.par['PressureList']]),
+                        EnergyStepOverTemperature=par.par['EnergyStepOverTemperature'],
+                        ExcessEnergyOverTemperature=par.par['ExcessEnergyOverTemperature'],
+                        ModelEnergyLimit=par.par['ModelEnergyLimit'],
+                        CalculationMethod=par.par['CalculationMethod'],
+                        ChemicalEigenvalueMax=par.par['ChemicalEigenvalueMax'],
+                        Reactant=well0,
+                        EnergyRelaxationFactor=par.par['EnergyRelaxationFactor'],
+                        EnergyRelaxationPower=par.par['EnergyRelaxationPower'],
+                        EnergyRelaxationExponentCutoff=par.par['EnergyRelaxationExponentCutoff'],
+                        Epsilons=' '.join([str(ei) for ei in par.par['Epsilons']]),
+                        Sigmas=' '.join([str(si) for si in par.par['Sigmas']]),
+                        Masses=' '.join([str(mi) for mi in par.par['Masses']]))
 
     # write the wells
     s.append('######################')

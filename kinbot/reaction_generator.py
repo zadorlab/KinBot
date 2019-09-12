@@ -75,6 +75,10 @@ class ReactionGenerator:
             alldone = 1
         else: 
             alldone = 0
+        
+        # status to see of kinbot needs to wait for the product optimizations
+        # from another kinbot run, to avoid duplication of calculations
+        products_waiting_status = [[] for i in self.species.reac_inst]
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
@@ -167,52 +171,22 @@ class ReactionGenerator:
                                     obj.product_bonds = prod.bond
                                     self.species.reac_ts_done[index] = 2
                 elif self.species.reac_ts_done[index] == 2:
-                    #identify bimolecular products and wells
-                    fragments, maps = obj.products.start_multi_molecular()
-                    obj.products = []
+                    if len(products_waiting_status[index]) == 0:
+                        #identify bimolecular products and wells
+                        fragments, maps = obj.products.start_multi_molecular()
+                        obj.products = []
+                        products_waiting_status[index] = [0 for fi in fragments]
+                        for frag in fragments:
+                            obj.products.append(frag)
+
                     for i, frag in enumerate(fragments):
-                        obj.products.append(frag)
-                        
-                        # check if this is a kinbot run or a pes run
-                        # for the latter, check if this species has been calculated already, and copy the 
-                        # files if they are there. If no file exists, make them and copy them over
-                        if self.par.par['pes']:
-                            # directory of the pes run
-                            dir = os.path.dirname(os.getcwd()) 
-                            # dir for this well
-                            dir_name = '{}/{}_db/'.format(dir, frag.chemid)
-                            # check if the directory is there
-                            if os.path.exists(dir_name):
-                                # check for the running tag, and if it contains the chemid
-                                # of this well, continue from here
-                                try:
-                                    with open(dir_name + 'running') as f:
-                                        chemid = int(f.read().split()[0])
-                                    if chemid == self.species.chemid:
-                                        # start the calculations
-                                        self.qc.qc_opt(frag, frag.geom)
-                                        self.species.reac_ts_done[index] = 3
-                                    else:
-                                        # this well just has to wait for 
-                                        # the product optimization to finish in another well
-                                        pass
-                                except IOError:
-                                    pass
-                                # if there is a done tag, copy everything and continue from there
-                                if os.path.exists(dir_name + 'done'):
-                                    filecopying.copy_from_database_folder(dir_name, frag, self.qc)
-                            else:
-                                # directory is not yet made, make it now
-                                os.makedirs(dir_name)
-                                # make the running tag
-                                with open(dir_name + 'running', 'w') as f:
-                                    f.write('{}'.format(self.species.chemid))
-                                # start the calculations
-                                self.qc.qc_opt(frag, frag.geom)
-                                self.species.reac_ts_done[index] = 3
-                        else:
+                        wait = filecopying.copy_from_database_folder(self.species.chemid, frag.chemid, self.qc)
+                        if not wait: 
                             self.qc.qc_opt(frag, frag.geom)
-                            self.species.reac_ts_done[index] = 3
+                            products_waiting_status[index][i] = 1
+
+                    if all([pi == 1 for pi in products_waiting_status[index]]):
+                        self.species.reac_ts_done[index] = 3
                 elif self.species.reac_ts_done[index] == 3:
                     #wait for the optimization to finish 
                     err = 0
@@ -331,24 +305,7 @@ class ReactionGenerator:
                         # copy the files of the species to an upper directory
                         frags = obj.products
                         for frag in frags:
-                            # directory of the pes run
-                            dir = os.path.dirname(os.getcwd()) 
-                            # dir for this well
-                            dir_name = '{}/{}_db/'.format(dir, frag.chemid)
-                            # check if the directory is there
-                            if os.path.exists(dir_name):
-                                # check for the running tag, and if it contains the chemid
-                                # of this well, continue from here
-                                if not os.path.exists(dir_name + 'done'):
-                                    if os.path.exists(dir_name + 'running'):
-                                        with open(dir_name + 'running') as f:
-                                            chemid = int(f.read().split()[0])
-                                        if chemid == self.species.chemid:
-                                            # copy the files
-                                            filecopying.copy_to_database_folder(dir_name, frag, self.qc)
-                                        # make a done tag
-                                        with open(dir_name + 'done', 'w') as f:
-                                            f.write('')
+                            filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
 
                     #check for wrong number of negative frequencies
                     neg_freq = 0
@@ -453,5 +410,5 @@ class ReactionGenerator:
                 
                 try:
                     os.remove(file)
-                except FileNotFoundError:
+                except OSError:
                     pass

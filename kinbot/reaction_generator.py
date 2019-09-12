@@ -26,6 +26,7 @@ import time
 import logging
 
 from kinbot import constants
+from kinbot import filecopying
 from kinbot import geometry
 from kinbot import pes
 from kinbot import postprocess
@@ -74,6 +75,10 @@ class ReactionGenerator:
             alldone = 1
         else: 
             alldone = 0
+        
+        # status to see of kinbot needs to wait for the product optimizations
+        # from another kinbot run, to avoid duplication of calculations
+        products_waiting_status = [[] for i in self.species.reac_inst]
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
@@ -166,14 +171,22 @@ class ReactionGenerator:
                                     obj.product_bonds = prod.bond
                                     self.species.reac_ts_done[index] = 2
                 elif self.species.reac_ts_done[index] == 2:
-                    #identify bimolecular products and wells
-                    fragments, maps = obj.products.start_multi_molecular()
-                    obj.products = []
+                    if len(products_waiting_status[index]) == 0:
+                        #identify bimolecular products and wells
+                        fragments, maps = obj.products.start_multi_molecular()
+                        obj.products = []
+                        products_waiting_status[index] = [0 for fi in fragments]
+                        for frag in fragments:
+                            obj.products.append(frag)
+
                     for i, frag in enumerate(fragments):
-                        obj.products.append(frag)
-                        self.qc.qc_opt(frag, frag.geom)
-                    
-                    self.species.reac_ts_done[index] = 3
+                        wait = filecopying.copy_from_database_folder(self.species.chemid, frag.chemid, self.qc)
+                        if not wait: 
+                            self.qc.qc_opt(frag, frag.geom)
+                            products_waiting_status[index][i] = 1
+
+                    if all([pi == 1 for pi in products_waiting_status[index]]):
+                        self.species.reac_ts_done[index] = 3
                 elif self.species.reac_ts_done[index] == 3:
                     #wait for the optimization to finish 
                     err = 0
@@ -289,7 +302,11 @@ class ReactionGenerator:
                                         #wait a second and try again
                                         time.sleep(1)
                                         pass
-                                        
+                        # copy the files of the species to an upper directory
+                        frags = obj.products
+                        for frag in frags:
+                            filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
+
                     #check for wrong number of negative frequencies
                     neg_freq = 0
                     for st_pt in obj.products:
@@ -390,8 +407,7 @@ class ReactionGenerator:
             for ext in extensions:
                 # delete file
                 file = '.'.join([name, ext])
-                # print(file)
                 try:
                     os.remove(file)
-                except FileNotFoundError:
+                except OSError:
                     pass

@@ -63,7 +63,6 @@ def main():
 
     # initialize the parameters for this run
     par = Parameters(input_file)
-
     # set up the logging environment
     if par.par['verbose']:
         logging.basicConfig(filename='kinbot.log', level=logging.DEBUG)

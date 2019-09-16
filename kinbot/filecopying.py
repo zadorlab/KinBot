@@ -47,18 +47,18 @@ def copy_from_database_folder(well0_chemid, chemid, qc):
                 if '.com' in file or '.log' in file or '.fchk' in file:
                     copyfile(dir_name + file, os.getcwd() + '/' + file)
             try:
-				hir_file_list = os.listdir(dir_name + 'hir/')
-				for file in hir_file_list:
-					if '.com' in file or '.log' in file:
-						copyfile(dir_name + 'hir/' + file, os.getcwd() + '/hir/' + file)
+                hir_file_list = os.listdir(dir_name + 'hir/')
+                for file in hir_file_list:
+                    if '.com' in file or '.log' in file:
+                        copyfile(dir_name + 'hir/' + file, os.getcwd() + '/hir/' + file)
             except IOError:
                 logging.warning("hir dir/file not found for " + dir_name)
  
             try:
-				conf_file_list = os.listdir(dir_name + 'conf/')
-				for file in conf_file_list:
-					if '.com' in file or '.log' in file:
-						copyfile(dir_name + 'conf/' + file, os.getcwd() + '/conf/' + file)
+                conf_file_list = os.listdir(dir_name + 'conf/')
+                for file in conf_file_list:
+                    if '.com' in file or '.log' in file:
+                        copyfile(dir_name + 'conf/' + file, os.getcwd() + '/conf/' + file)
             except IOError:
                 logging.warning("conf_file dir/file not found for " + dir_name)
  
@@ -117,7 +117,10 @@ def copy_to_database_folder(well0_chemid, chemid, qc):
                         if '{}_hir'.format(chemid) in file and '.com' in file:
                             copyfile(os.getcwd() + '/hir/' + file, dir_name + 'hir/' + file)
 
-                    conf_file_list = os.listdir(os.getcwd() + '/conf/')
+                    try:
+                        conf_file_list = os.listdir(os.getcwd() + '/conf/')
+                    except IOError:
+                        logging.error('Coud not find directory ' + os.getcwd() + '/conf/')
                     if not os.path.exists(dir_name + 'conf/'):
                         os.makedirs(dir_name + 'conf/')
                     for file in conf_file_list:

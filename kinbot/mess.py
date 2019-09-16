@@ -149,26 +149,25 @@ class MESS:
                     st_pt = reaction.prod_opt[0].species
                     well_blocks[st_pt.chemid] = self.write_well(st_pt)
                 #elif len(reaction.products) == 2:
-                    #bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                    #bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt])
+                #    bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                #    bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt])
                
-                #else: #termolec
-                #    termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in [reaction.products]))
-                #    termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt]) 
-                # 
+              #  else: #termolec
+              #      termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+               #     termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt]) 
                 else:
                     bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                     bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt])
 
         #list of the lines of the homolytic scissions
-        #barrierless = []
-        #if self.species.homolytic_scissions is not None:
-            #for index,hs in enumerate(self.species.homolytic_scissions.hss):
-                #if hs.status == -1:
-                    #prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-                #if not prod_name in bimolec_names:
-                    #barrierless.append('{name} {react} {prod}'.format(name='b_' + str(index)
-                    #barrierless_blocks[prod_name] = self.write_barrierless([opt.species for opt in reaction.prod_opt])
+       # barrierless = []
+       # if self.species.homolytic_scissions is not None:
+       #     for index,hs in enumerate(self.species.homolytic_scissions.hss):
+       #         if hs.status == -1:
+       #             prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
+       #         if not prod_name in bimolec_names:
+       #             barrierless.append('{name} {react} {prod}'.format(name='b_' + str(index)
+       #             barrierless_blocks[prod_name] = self.write_barrierless([opt.species for opt in reaction.prod_opt])
               
         # write the mess input file
         wells = ''
@@ -177,15 +176,15 @@ class MESS:
         bimols = ''
         for bimol in bimolec_blocks:
             bimols += bimolec_blocks[bimol] + '\n!****************************************\n'
-        #termols = ''
-        #for termol in termolec_blocks:
+       # termols = ''
+       # for termol in termolec_blocks:
             #termols += termol_blocks[termol] + '\n!****************************************\n'
         tss = ''
         for ts in ts_blocks:
             tss += ts_blocks[ts] + '\n!****************************************\n'
 
-        #barrierless = ''
-        #for rxn in barrierless_blocks:
+       # barrierless = ''
+       # for rxn in barrierless_blocks:
             #barrierless += barrierless_blocks[rxn] + '\n!****************************************\n'
  
         dummy_template = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
@@ -206,38 +205,127 @@ class MESS:
 
         return 0
 
-#def write_barrierless(self, species_list)
+    def write_barrierless(self, species_list):
     #Create the MESS block for barrierless products.
+    # open the templates
+        ts_file = pkg_resources.resource_filename('tpl', 'mess_ts.tpl')
+        with open(ts_file) as f:
+            tpl = f.read()
+        hir_file = pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')
+        with open(hir_file) as f:
+            rotor_tpl = f.read()
+        tunn_file = pkg_resources.resource_filename('tpl', 'mess_tunneling.tpl')
+        with open(tunn_file) as f:
+            tun_tpl = f.read()
+        barrierless_header = pkg_resources.resource_filename('tpl', 'mess_barrierless_header.tpl')
+        with open(barrierless_header) as f:
+            barrierless_head = f.read()
 
-    #for species in species_list:
-    #fragments = ''
-    #for species in species_list:
-	#if self.par.par['pes']:
-	#name = 'barrierless_fr_name_{}'.format(species.chemid)
-    #else:
-    #name = 'barrierless_' + self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
-    #energy =
-    #reaction
-    #frequency?, rotor?, etc? 
 
+        rotors = []
+        if self.par.par['rotor_scan']:
+            for i, rot in enumerate(reaction.ts.dihed):
+                group = ' '.join([str(pi+1) for pi in frequencies.partition(reaction.ts, rot, reaction.ts.natom)[0][1:]])
+                axis = '{} {}'.format(str(rot[1]+1), str(rot[2]+1))
+                rotorsymm = reaction.ts.sigma_int[rot[1]][rot[2]]
+                nrotorpot = reaction.ts.hir.nrotation // rotorsymm
+                ens = reaction.ts.hir.hir_energies[i]
+                rotorpot = [(ei - ens[0])*constants.AUtoKCAL for ei in ens]
+                rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:reaction.ts.hir.nrotation // rotorsymm]])
+                rotors.append(rotor_tpl.format(group=group,
+                                               axis=axis,
+                                               rotorsymm=rotorsymm,
+                                               nrotorpot=nrotorpot,
+                                               rotorpot=rotorpot))
+        rotors = '\n'.join(rotors)
 
-#def write_termol(self, species_list):
-    #Create the dummy MESS block for ter-molecular products.
+        freq = ''
+        #reduced freqs used for better accuracy of mess input files
+        for i, fr in enumerate(reaction.ts.reduced_freqs[1:]):
+            if i == 0:
+                freq += '{:.4f}'.format(fr)
+            elif i > 0 and i % 3 == 0:
+                freq += '\n            {:.4f}'.format(fr)
+            else:
+                freq += '    {:.4f}'.format(fr)
 
-    #open the dummy template
-    #dummy_file = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
-    #with open(dummy_file) as f:
-    #    tpl = f.read()
+        geom = ''
+        for i, at in enumerate(reaction.ts.atom):
+            if i > 0:
+                geom += '            '
+            x, y, z = reaction.ts.geom[i]
+            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
 
-    #fragments = ''
-    #for species in species_list:
-	#if self.par.par['pes']:
-	#name = 'fr_name_{}'.format(species.chemid)
-    #name = 'dummy_' + name
-    #else:
-    #name = 'dummy_' + self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
-    #fragments += tpl.format(barrier='tsd', reactant=species, dummy=name)
-         
+        #barriers = [
+        #    ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL,
+        #    ((reaction.ts.energy + reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt])) * constants.AUtoKCAL,]
+        #if any([bi < 0 for bi in barriers]):
+        #    tun = ''
+        #else:
+        #    tun = tun_tpl.format(cutoff=min(barriers),
+        #                         imfreq=-reaction.ts.reduced_freqs[0],
+        #                         welldepth1=barriers[0],
+        #                         welldepth2=barriers[1])
+
+        if len(reaction.products) == 1:
+            prod_name = self.well_names[reaction.products[0].chemid]
+        else:
+            long_name = '_'.join(sorted([str(pi.chemid) for pi in reaction.products]))
+            prod_name = self.bimolec_names[long_name]
+
+        if self.par.par['pes']:
+            name = '{name}'
+            chemid_reac = ''
+            chemid_prod = ''
+            long_rxn_name = ''
+            #energy = '{zeroenergy}'
+        else:
+            name = self.ts_names[reaction.instance_name]
+            chemid_reac = self.well_names[self.species.chemid]
+            chemid_prod = prod_name
+            long_rxn_name = reaction.instance_name
+            #energy = ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+
+        mess_ts = tpl.format(rxn_name=name,
+                             chemid_reac=chemid_reac,
+                             chemid_prod=chemid_prod,
+                             long_rxn_name=long_rxn_name,
+                             natom=reaction.ts.natom,
+                             geom=geom,
+                             symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
+                             nfreq=len(reaction.ts.reduced_freqs) - 1,
+                             freq=freq,
+                             hinderedrotor=rotors,
+                             tunneling="Barrierless Reaction",
+                             nelec=1,
+                             charge=reaction.ts.charge,
+                             mult=reaction.ts.mult,
+                             zeroenergy=0)
+
+        f = open(reaction.instance_name + '.mess', 'w')
+        f.write(barrierless_head)
+        f.write(mess_ts)
+        f.close()
+
+        return mess_ts
+
+    def write_termol(self, species_list):
+        #Create the dummy MESS block for ter-molecular products.
+
+        #open the dummy template
+        dummy_file = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')
+        with open(dummy_file) as f:
+            tpl = f.read()
+
+        fragments = ''
+        for species in species_list:
+            if self.par.par['pes']:
+                name = 'fr_name_{}'.format(species.chemid)
+                name = 'dummy_' + name
+            else:
+                name = 'dummy_' + self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
+                fragments += tpl.format(barrier='tsd', reactant=species, dummy=name)
+
     def write_bimol(self, species_list):
         """
         Create the block for MESS for a bimolecular product.

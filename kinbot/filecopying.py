@@ -107,16 +107,17 @@ def copy_to_database_folder(well0_chemid, chemid, qc):
                             copyfile(os.getcwd() + '/' + file, dir_name + file)
                         if '{}_well'.format(chemid) in file and '.fchk' in file:
                             copyfile(os.getcwd() + '/' + file, dir_name + file)
-
-                    hir_file_list = os.listdir(os.getcwd() + '/hir/')
-                    if not os.path.exists(dir_name + 'hir/'):
-                        os.makedirs(dir_name + 'hir/')
-                    for file in hir_file_list:
-                        if '{}_hir'.format(chemid) in file and '.log' in file:
-                            copyfile(os.getcwd() + '/hir/' + file, dir_name + 'hir/' + file)
-                        if '{}_hir'.format(chemid) in file and '.com' in file:
-                            copyfile(os.getcwd() + '/hir/' + file, dir_name + 'hir/' + file)
-
+                    try:
+						hir_file_list = os.listdir(os.getcwd() + '/hir/')
+						if not os.path.exists(dir_name + 'hir/'):
+							os.makedirs(dir_name + 'hir/')
+						for file in hir_file_list:
+							if '{}_hir'.format(chemid) in file and '.log' in file:
+								copyfile(os.getcwd() + '/hir/' + file, dir_name + 'hir/' + file)
+							if '{}_hir'.format(chemid) in file and '.com' in file:
+								copyfile(os.getcwd() + '/hir/' + file, dir_name + 'hir/' + file)
+                    except IOError:
+                        logging.error('could not find directory ' + os.getcwd() + '/hir/')
                     try:
                         conf_file_list = os.listdir(os.getcwd() + '/conf/')
                     except IOError:

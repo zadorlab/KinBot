@@ -51,7 +51,7 @@ def copy_from_database_folder(well0_chemid, chemid, qc):
                 for file in hir_file_list:
                     if '.com' in file or '.log' in file:
                         copyfile(dir_name + 'hir/' + file, os.getcwd() + '/hir/' + file)
-            except IOError:
+            except:
                 logging.warning("hir dir/file not found for " + dir_name)
  
             try:
@@ -59,7 +59,7 @@ def copy_from_database_folder(well0_chemid, chemid, qc):
                 for file in conf_file_list:
                     if '.com' in file or '.log' in file:
                         copyfile(dir_name + 'conf/' + file, os.getcwd() + '/conf/' + file)
-            except IOError:
+            except:
                 logging.warning("conf_file dir/file not found for " + dir_name)
  
             # read the database and populate the current database
@@ -107,28 +107,35 @@ def copy_to_database_folder(well0_chemid, chemid, qc):
                             copyfile(os.getcwd() + '/' + file, dir_name + file)
                         if '{}_well'.format(chemid) in file and '.fchk' in file:
                             copyfile(os.getcwd() + '/' + file, dir_name + file)
+                    hir=1
                     try:
-						hir_file_list = os.listdir(os.getcwd() + '/hir/')
-						if not os.path.exists(dir_name + 'hir/'):
-							os.makedirs(dir_name + 'hir/')
-						for file in hir_file_list:
-							if '{}_hir'.format(chemid) in file and '.log' in file:
-								copyfile(os.getcwd() + '/hir/' + file, dir_name + 'hir/' + file)
-							if '{}_hir'.format(chemid) in file and '.com' in file:
-								copyfile(os.getcwd() + '/hir/' + file, dir_name + 'hir/' + file)
-                    except IOError:
+                        hir_file_list = os.listdir(os.getcwd() + '/hir/')
+                    except:
                         logging.error('could not find directory ' + os.getcwd() + '/hir/')
+                        hir=0
+
+                    if not os.path.exists(dir_name + 'hir/'):
+                        os.makedirs(dir_name + 'hir/')
+                    if hir != 0:
+                        for file in hir_file_list:
+                            if '{}_hir'.format(chemid) in file and '.log' in file:
+                                copyfile(os.getcwd() + '/hir/' + file, dir_name + 'hir/' + file)
+                            if '{}_hir'.format(chemid) in file and '.com' in file:
+                                copyfile(os.getcwd() + '/hir/' + file, dir_name + 'hir/' + file)
+                    conf=1
                     try:
                         conf_file_list = os.listdir(os.getcwd() + '/conf/')
-                    except IOError:
+                    except:
                         logging.error('Coud not find directory ' + os.getcwd() + '/conf/')
+                        conf=0
                     if not os.path.exists(dir_name + 'conf/'):
                         os.makedirs(dir_name + 'conf/')
-                    for file in conf_file_list:
-                        if '{}'.format(chemid) in file and '.log' in file:
-                            copyfile(os.getcwd() + '/conf/' + file, dir_name + 'conf/' + file)
-                        if '{}'.format(chemid) in file and '.com' in file:
-                            copyfile(os.getcwd() + '/conf/' + file, dir_name + 'conf/' + file)
+                    if conf != 0:
+                        for file in conf_file_list:
+                            if '{}'.format(chemid) in file and '.log' in file:
+                                copyfile(os.getcwd() + '/conf/' + file, dir_name + 'conf/' + file)
+                            if '{}'.format(chemid) in file and '.com' in file:
+                                copyfile(os.getcwd() + '/conf/' + file, dir_name + 'conf/' + file)
                     # read the database and populate the current database
                     ase_db = connect(dir_name + '{}.db'.format(chemid))
                     for row in qc.db.select():

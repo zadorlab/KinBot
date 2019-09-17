@@ -127,7 +127,7 @@ def main():
     qc = QuantumChemistry(par)
 
     # check if this well was calcualted before in another directory
-    if par.par['pes']:
+    if par.par['pes'] == 1:
         # this flag indicates that this kinbot run
         # should wait for the information from another
         # kinbot run to become available and copy the necessary information
@@ -178,7 +178,7 @@ def main():
         return
     
     # check if the information on this well has to be copied to a database
-    if par.par['pes']:
+    if par.par['pes'] == 1:
         filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
     # do the reaction search using heuristics

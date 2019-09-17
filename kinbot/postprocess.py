@@ -30,6 +30,7 @@ import sys
 import pkg_resources
 import numpy as np
 
+from kinbot import cheminfo
 from kinbot import license_message
 from kinbot import constants
 
@@ -209,6 +210,7 @@ def createPESViewerInput(species,qc,par):
                 if not name in bimolec_names:
                     bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
                     bimolec_names.append(name)
+
     # add the bimolecular products form the homolytic scissions
     if not species.homolytic_scissions is None:
         for index,hs in enumerate(species.homolytic_scissions.hss):
@@ -269,6 +271,25 @@ def createPESViewerInput(species,qc,par):
                                                                       react=species.chemid,
                                                                       prod=prod_name))
 
+    #Print list of reactions with chemids/product names
+    #TO-DO: convert to inchi/smi
+    allRxns = []
+    rxnFile=open('reactionList.txt','a')
+    rxnFile.write("Reactions: \n")
+    n=1
+    i=0
+    for rxn in tss:
+        allRxns.append('{react} {prod}'.format(react=tss[i][2], prod=tss[i][3]))
+        i=i+1
+    for rxn in barrierless:
+        allRxns.append('{react} {prod}'.format(react=barrierless[i][2], prod=barrierless[i][3]))
+        i=i+1
+    for rxn in allRxns:
+        rxnFile.write('Reactions with barrier = 1-{ts}'.format(ts=(len(tss)+1)))
+        rxnFile.write('Barrierless reactions = {ts}-{nots}'.format(ts=(len(ts)+2),nots=len(barrierless)))
+        rxnFile.write('Rxn {n} = {react} --> {prod} \n'.format(n=n, react=allRxns[rxn][0], prod=allRxns[rxn][1]))
+        n=n+1
+
     # make strings from the different lists
     wells = '\n'.join(wells)
     bimolecs = '\n'.join(bimolecs)
@@ -292,3 +313,4 @@ def make_xyz(atoms,geom,name,dir):
         s.append('%s %.6f %.6f %.6f'%(atoms[index],geom[index][0],geom[index][1],geom[index][2]))
     with open(dir + name + '.xyz', 'w') as f:
         f.write('\n'.join(s))
+

@@ -179,7 +179,7 @@ class ReactionGenerator:
                         for frag in fragments:
                             obj.products.append(frag)
 
-                    if par.par['pes'] == 1:
+                    if self.par.par['pes'] == 1:
                         for i, frag in enumerate(fragments):
                             wait = filecopying.copy_from_database_folder(self.species.chemid, frag.chemid, self.qc)
                             if not wait: 
@@ -305,7 +305,7 @@ class ReactionGenerator:
                                         pass
                         # copy the files of the species to an upper directory
                         frags = obj.products
-                        if par.par['pes'] == 1:
+                        if self.par.par['pes'] == 1:
                             for frag in frags:
                                 filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
 

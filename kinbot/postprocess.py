@@ -270,7 +270,6 @@ def createPESViewerInput(species,qc,par):
                     barrierless.append('{name} {react} {prod}'.format(name='b_' + str(index),
                                                                       react=species.chemid,
                                                                       prod=prod_name))
-
     # make strings from the different lists
     wells = '\n'.join(wells)
     bimolecs = '\n'.join(bimolecs)

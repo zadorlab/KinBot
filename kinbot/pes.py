@@ -434,18 +434,6 @@ def postprocess(par, jobs, task, names):
                       prod_energies,
                       parent)
 
-    rxns=open('reactionList.log', 'a')
-    #list of molecule ids: chemid, smi, inchi
-    reactant_id = []
-    product_id = []
-    inchis = []
-    for reaction in reactions:
-        rxns.write("List of reactants: \n")
-        rxns.write("reactant: " + reaction[0] + "products" + reaction[2] + "\n")
-        inchi = cheminfo.create_inchi('', '', 'xyz/{}.xyz'.format(reaction[0]))
-        inchis.append(inchi)
-        rxns.write("reactant inchi: " + inchi)
-    rxns.close()
     
 def filter(wells, products, reactions, conn, bars, well_energies, task, names):
     """

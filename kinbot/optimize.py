@@ -318,5 +318,6 @@ class Optimize:
                 # print(file)
                 try:
                     os.remove(file)
-                except FileNotFoundError:
+                #except FileNotFoundError:
+                except:
                     pass

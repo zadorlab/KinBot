@@ -30,7 +30,6 @@ import sys
 import pkg_resources
 import numpy as np
 
-from kinbot import cheminfo
 from kinbot import license_message
 from kinbot import constants
 

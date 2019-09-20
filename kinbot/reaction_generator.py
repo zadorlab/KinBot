@@ -180,17 +180,20 @@ class ReactionGenerator:
                             obj.products.append(frag)
 
                     #only do copying if PES mode turned on
-                    if self.par.par['pes']:
-                        for i, frag in enumerate(fragments):
+                    for i, frag in enumerate(fragments):
+                        if self.par.par['pes']:
                             wait = filecopying.copy_from_database_folder(self.species.chemid, frag.chemid, self.qc)
                             if not wait: 
                                 self.qc.qc_opt(frag, frag.geom)
                                 products_waiting_status[index][i] = 1
-                    else:
-                        print("Filecopying turned off when PES mode is off")
+                        else:
+                            self.qc.qc_opt(frag, frag.geom)
+                            products_waiting_status[index][i] = 1
+                            print("Filecopying turned off when PES mode is off, line 190 in reaction generator")
 
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         self.species.reac_ts_done[index] = 3
+
                 elif self.species.reac_ts_done[index] == 3:
                     #wait for the optimization to finish 
                     err = 0
@@ -307,14 +310,10 @@ class ReactionGenerator:
                                         time.sleep(1)
                                         pass
            
-                        # only copy files if PES mode is turned on
-                        if self.par.par['pes']:
-                            # copy the files of the species to an upper directory
-                            frags = obj.products
-                            for frag in frags:
-                                filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
-                        else:
-                            print("Filecopying turned off when PES mode is turned off")
+                        # copy the files of the species to an upper directory
+                        frags = obj.products
+                        for frag in frags:
+                            filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
 
                     #check for wrong number of negative frequencies
                     neg_freq = 0

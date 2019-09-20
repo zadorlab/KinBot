@@ -138,7 +138,7 @@ def main():
             if wait_for_well:
                 time.sleep(1)
     else:
-        print("File copying turned off when PES mode is turned off")
+        print("File copying turned off when PES mode is turned off, line 141 kb")
 
     # start the initial optimization of the reactant
     logging.info('Starting optimization of intial well')
@@ -186,7 +186,7 @@ def main():
         # check if the information on this well has to be copied to a database
         filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
     else:
-        print("Filecopying turned off when PES mode is turned off")
+        print("Filecopying turned off when PES mode is turned off, line 189 kb")
 
     # do the reaction search using heuristics
     if par.par['reaction_search'] == 1:

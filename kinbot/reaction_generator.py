@@ -179,12 +179,15 @@ class ReactionGenerator:
                         for frag in fragments:
                             obj.products.append(frag)
 
-                    if self.par.par['pes'] == 1:
+                    #only do copying if PES mode turned on
+                    if self.par.par['pes']:
                         for i, frag in enumerate(fragments):
                             wait = filecopying.copy_from_database_folder(self.species.chemid, frag.chemid, self.qc)
                             if not wait: 
                                 self.qc.qc_opt(frag, frag.geom)
                                 products_waiting_status[index][i] = 1
+                    else:
+                        print("Filecopying turned off when PES mode is off")
 
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         self.species.reac_ts_done[index] = 3
@@ -303,11 +306,15 @@ class ReactionGenerator:
                                         #wait a second and try again
                                         time.sleep(1)
                                         pass
-                        # copy the files of the species to an upper directory
-                        frags = obj.products
-                        if self.par.par['pes'] == 1:
+           
+                        # only copy files if PES mode is turned on
+                        if self.par.par['pes']:
+                            # copy the files of the species to an upper directory
+                            frags = obj.products
                             for frag in frags:
                                 filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
+                        else:
+                            print("Filecopying turned off when PES mode is turned off")
 
                     #check for wrong number of negative frequencies
                     neg_freq = 0

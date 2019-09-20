@@ -354,12 +354,12 @@ class Conformers:
                         final_geoms.append(np.zeros((self.species.natom, 3)))
 
                 self.write_profile(status, final_geoms, energies)
-                return 1, lowest_e_geom
+                return 1, lowest_e_geom, lowest_energy
             else:
                 if wait:
                     time.sleep(1)
                 else:
-                    return 0, np.zeros((self.species.natom, 3))
+                    return 0, np.zeros((self.species.natom, 3)), self.species.energy
 
     def write_profile(self, status, final_geoms, energies, ring=0):
         """

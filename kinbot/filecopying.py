@@ -18,6 +18,7 @@
 ##                                               ##
 ###################################################
 import os
+import logging
 from shutil import copyfile
 
 from ase.db import connect

@@ -1,4 +1,4 @@
-###################################################
+##################################################
 ##                                               ##
 ## This file is part of the KinBot code v2.0     ##
 ##                                               ##
@@ -126,8 +126,9 @@ def main():
     # initialize the qc instance
     qc = QuantumChemistry(par)
 
-    # check if this well was calcualted before in another directory
-    if par.par['pes'] == 1:
+    #only run filecopying if PES is turned on
+    if par.par['pes']:
+        # check if this well was calcualted before in another directory
         # this flag indicates that this kinbot run
         # should wait for the information from another
         # kinbot run to become available and copy the necessary information
@@ -136,6 +137,9 @@ def main():
             wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
             if wait_for_well:
                 time.sleep(1)
+    else:
+        print("File copying turned off when PES mode is turned off")
+
     # start the initial optimization of the reactant
     logging.info('Starting optimization of intial well')
     qc.qc_opt(well0, well0.geom)
@@ -177,9 +181,12 @@ def main():
         logging.error('Error with high level optimization of initial structure.')
         return
     
-    # check if the information on this well has to be copied to a database
-    if par.par['pes'] == 1:
+    #Only check for information if PES is turned on        
+    if par.par['pes']:
+        # check if the information on this well has to be copied to a database
         filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
+    else:
+        print("Filecopying turned off when PES mode is turned off")
 
     # do the reaction search using heuristics
     if par.par['reaction_search'] == 1:

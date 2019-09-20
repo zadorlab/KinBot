@@ -118,11 +118,14 @@ class Optimize:
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        status, geom = self.species.confs.check_conformers(wait=self.wait)
+                        status, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
+                        print('{0} {1}'.format(status, low_energy))
                         if status == 1:
                             # conf search is done
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
+                            # save lowest energy conformer energy
+                            self.species.energy = low_energy
                             # set conf status to finished
                             self.sconf = 1
             else:

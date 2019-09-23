@@ -57,6 +57,7 @@ from kinbot.reac_Intra_RH_Add_Exocyclic_F import IntraRHAddExoF
 from kinbot.reac_Intra_RH_Add_Endocyclic_R import IntraRHAddEndoR
 from kinbot.reac_Intra_RH_Add_Endocyclic_F import IntraRHAddEndoF
 from kinbot.reac_HO2_Elimination_from_PeroxyRadical import HO2Elimination
+from kinbot.reac_beta_gamma import betagamma
 
 from kinbot.reac_combinatorial import Combinatorial
 
@@ -213,6 +214,9 @@ class ReactionFinder:
                     
                 if 'r13_insertion_RSR' in self.families or 'all' in self.families:
                     self.search_r13_insertion_RSR(natom,atom,bond,rad)
+
+                if 'beta_gamma' in self.families or 'all' in self.families:
+                    self.search_beta_gamma(natom,atom,bond,rad)
 
                 if 'combinatorial' in self.families:
                     self.search_combinatorial(natom,atom,bond,rad)
@@ -2087,6 +2091,45 @@ class ReactionFinder:
         return 0
 
 
+    def search_beta_gamma(self, natom, atom, bond, rad):
+        """
+        This is not an RMG class.
+
+        A*-B-C-D-E ==> A=B + C=D + E* 
+
+        It is the parallel breaking of not just the beta but also of the gamma bond, resulting in two unsaturated bonds and a radical.
+        """
+
+
+        if np.sum(rad) == 0: return
+
+        name = 'beta_gamma'
+
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = [] #reactions found with the current resonance isomer
+
+        motif = ['X', 'X', 'X', 'X', 'X']
+        for rad_site in np.nonzero(rad)[0]:
+            rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+
+        for inst in rxns:
+            new = 1
+            # filter for the same reactions
+            for instance in self.reactions[name]:
+                if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[1], inst[2]}), frozenset({inst[3], inst[4]})} or self.prod_bonds != {frozenset()}:
+                    new = 0
+            if new:
+                self.reactions[name].append(inst)
+
+        return 0
+
+
     def reaction_matrix(self, reac_list, reac_id):
         """ 
         Create arrays to store all reactions for species.
@@ -2260,6 +2303,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R13InsertionRSR(self.species,self.qc,self.par,reac_list[i],name))
+            elif reac_id == 'beta_gamma':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1 + '_' + str(reac_list[i][4] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(beta_gamma(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)

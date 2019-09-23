@@ -672,7 +672,7 @@ class MESS:
                 elif self.par.par['queuing'] == 'slurm':
                     qu.write((tpl_head + tpl).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me', slurm_feature=''))
             else:
-                qu.write(tpl_head.format(name='mess'))
+                qu.write(tpl_head.format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me', slurm_feature=''))
                 qu.write(tpl)
 
         command = [constants.qsubmit[self.par.par['queuing']], submitscript ]

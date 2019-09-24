@@ -57,7 +57,7 @@ from kinbot.reac_Intra_RH_Add_Exocyclic_F import IntraRHAddExoF
 from kinbot.reac_Intra_RH_Add_Endocyclic_R import IntraRHAddEndoR
 from kinbot.reac_Intra_RH_Add_Endocyclic_F import IntraRHAddEndoF
 from kinbot.reac_HO2_Elimination_from_PeroxyRadical import HO2Elimination
-from kinbot.reac_beta_gamma import betagamma
+from kinbot.reac_beta_delta import betadelta
 
 from kinbot.reac_combinatorial import Combinatorial
 
@@ -215,8 +215,8 @@ class ReactionFinder:
                 if 'r13_insertion_RSR' in self.families or 'all' in self.families:
                     self.search_r13_insertion_RSR(natom,atom,bond,rad)
 
-                if 'beta_gamma' in self.families or 'all' in self.families:
-                    self.search_beta_gamma(natom,atom,bond,rad)
+                if 'beta_delta' in self.families or 'all' in self.families:
+                    self.search_beta_delta(natom,atom,bond,rad)
 
                 if 'combinatorial' in self.families:
                     self.search_combinatorial(natom,atom,bond,rad)
@@ -2091,7 +2091,7 @@ class ReactionFinder:
         return 0
 
 
-    def search_beta_gamma(self, natom, atom, bond, rad):
+    def search_beta_delta(self, natom, atom, bond, rad):
         """
         This is not an RMG class.
 
@@ -2103,7 +2103,7 @@ class ReactionFinder:
 
         if np.sum(rad) == 0: return
 
-        name = 'beta_gamma'
+        name = 'beta_delta'
 
         if not name in self.reactions:
             self.reactions[name] = []
@@ -2303,10 +2303,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R13InsertionRSR(self.species,self.qc,self.par,reac_list[i],name))
-            elif reac_id == 'beta_gamma':
+            elif reac_id == 'beta_delta':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1 + '_' + str(reac_list[i][4] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(beta_gamma(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(beta_delta(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)

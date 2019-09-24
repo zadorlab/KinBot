@@ -24,7 +24,7 @@ import time
 from kinbot import reac_family
 from kinbot import geometry
 
-class betagamma:
+class betadelta:
     
     def __init__(self,species,qc,par,instance,instance_name):
         #st_pt of the reactant

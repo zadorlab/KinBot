@@ -84,25 +84,25 @@ class betadelta:
         if step < self.max_step:
             final_dist = 1.42
             if self.species.atom[self.instance[0]] == 'C' and self.species.atom[self.instance[1]] == 'C' and self.species.atom[self.instance[2]] == 'C':
-                final_dist = 2.20
+                final_dist = 1.6
             if self.species.atom[self.instance[0]] == 'C' and self.species.atom[self.instance[1]] == 'C' and self.species.atom[self.instance[2]] == 'H':
-                final_dist = 1.79
+                final_dist = 1.6
             if self.species.atom[self.instance[0]] == 'C' and self.species.atom[self.instance[1]] == 'C' and self.species.atom[self.instance[2]] == 'O':
-                final_dist = 2.04
+                final_dist = 1.6
             if self.species.atom[self.instance[0]] == 'O' and self.species.atom[self.instance[1]] == 'C' and self.species.atom[self.instance[2]] == 'C':
-                final_dist = 2.12
+                final_dist = 1.6
             if self.species.atom[self.instance[0]] == 'O' and self.species.atom[self.instance[1]] == 'C' and self.species.atom[self.instance[2]] == 'H':
-                final_dist = 1.84
+                final_dist = 1.6
             if self.species.atom[self.instance[0]] == 'O' and self.species.atom[self.instance[1]] == 'C' and self.species.atom[self.instance[2]] == 'O':
-                final_dist = 2.04 #TODO: verify if this value is OK
+                final_dist = 1.6 #TODO: verify if this value is OK
             if self.species.atom[self.instance[0]] == 'C' and self.species.atom[self.instance[1]] == 'O' and self.species.atom[self.instance[2]] == 'C':
-                final_dist = 2.04 #TODO: verify if this value is OK
+                final_dist = 1.6 #TODO: verify if this value is OK
             if self.species.atom[self.instance[0]] == 'C' and self.species.atom[self.instance[1]] == 'O' and self.species.atom[self.instance[2]] == 'H':
-                final_dist = 1.42
+                final_dist = 1.6
             if self.species.atom[self.instance[0]] == 'C' and self.species.atom[self.instance[1]] == 'O' and self.species.atom[self.instance[2]] == 'O':
-                final_dist = 2.04 #TODO: verify if this value is OK
+                final_dist = 1.6 #TODO: verify if this value is OK
             if self.species.atom[self.instance[0]] == 'O' and self.species.atom[self.instance[1]] == 'O' and self.species.atom[self.instance[2]] == 'C':
-                final_dist = 2.04 #TODO: verify if this value is OK
+                final_dist = 1.6 #TODO: verify if this value is OK
             
             val = geometry.new_bond_length(self.species,self.instance[1], self.instance[2], step, self.max_step, final_dist, geom)
             constraint = [self.instance[1] + 1, self.instance[2] + 1, val]

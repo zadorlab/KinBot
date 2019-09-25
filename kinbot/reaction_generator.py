@@ -215,7 +215,7 @@ class ReactionGenerator:
                             st_pt.calc_chemid()
                             if chemid != st_pt.chemid:
                                 # product was optimized to another structure, give warning and remove this reaction
-                                logging.info('\tProduct optimizatied to other structure for {}, product {} to {}'.format(instance_name,chemid,st_pt.chemid))
+                                logging.info('\tProduct optimized to other structure for {}, product {} to {}'.format(instance_name,chemid,st_pt.chemid))
                                 self.species.reac_ts_done[index] = -999
                                 err = -1
                     if err == 0:

@@ -290,6 +290,6 @@ def make_xyz(atoms,geom,name,dir):
     s.append('%i\n'%len(geom))
     for index in range(len(geom)):
         s.append('%s %.6f %.6f %.6f'%(atoms[index],geom[index][0],geom[index][1],geom[index][2]))
-    with open(dir + name + '.xyz', 'w') as f:
+    with open(dir + '/' + name + '.xyz', 'w') as f:
         f.write('\n'.join(s))
 

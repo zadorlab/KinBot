@@ -43,7 +43,7 @@ def carry_out_reaction(rxn, step, command):
 
     kwargs = rxn.qc.get_qc_arguments(   rxn.instance_name, rxn.species.mult, rxn.species.charge, ts = 1,
                                         step = step, max_step=rxn.max_step, scan = rxn.scan)
-    
+
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
             if rxn.qc.check_qc(rxn.instance_name) == 'normal': 
@@ -57,7 +57,7 @@ def carry_out_reaction(rxn, step, command):
         geom = rxn.species.geom
     else:
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error = 1)
-    
+
     #the the constraints for this step
     step, fix, change, release = rxn.get_constraints(step, geom)
 
@@ -77,8 +77,8 @@ def carry_out_reaction(rxn, step, command):
             for c in change:
                 fix.append(c[:-1])
             change = []
-        
-        
+
+
         kwargs['fix'] = fix
         kwargs['change'] = change
         kwargs['release'] = release
@@ -118,6 +118,6 @@ def carry_out_reaction(rxn, step, command):
     f_out.close()
     
     step += rxn.qc.submit_qc(rxn.instance_name, 0)
-    
+
     return step
     

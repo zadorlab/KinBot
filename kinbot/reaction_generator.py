@@ -189,7 +189,6 @@ class ReactionGenerator:
                         else:
                             self.qc.qc_opt(frag, frag.geom)
                             products_waiting_status[index][i] = 1
-                            print("Filecopying turned off when PES mode is off, line 190 in reaction generator")
 
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         self.species.reac_ts_done[index] = 3

@@ -195,6 +195,14 @@ class ReactionGenerator:
 
                 elif self.species.reac_ts_done[index] == 3:
                     #wait for the optimization to finish 
+
+                    # if two st_pt are the same in the products, we make them exactly identical otherwise
+                    # the different ordering of the atoms causes the chemid of the second to be seemingly wrong
+                    for i, st_pt_i in enumerate(obj.products):
+                        for j, st_pt_j in enumerate(obj.products):
+                            if st_pt_i.chemid == st_pt_j.chemid and i < j:
+                                obj.products[j] = obj.products[i]
+
                     err = 0
                     for st_pt in obj.products:
                         chemid = st_pt.chemid
@@ -214,7 +222,7 @@ class ReactionGenerator:
                             st_pt.calc_chemid()
                             if chemid != st_pt.chemid:
                                 # product was optimized to another structure, give warning and remove this reaction
-                                logging.info('\tProduct optimizatied to other structure for {}, product {} to {}'.format(instance_name,chemid,st_pt.chemid))
+                                logging.info('\tProduct optimized to other structure for {}, product {} to {}'.format(instance_name,chemid,st_pt.chemid))
                                 self.species.reac_ts_done[index] = -999
                                 err = -1
                     if err == 0:

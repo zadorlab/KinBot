@@ -200,7 +200,7 @@ class ReactionGenerator:
                     # the different ordering of the atoms causes the chemid of the second to be seemingly wrong
                     for i, st_pt_i in enumerate(obj.products):
                         for j, st_pt_j in enumerate(obj.products):
-                            if st_pt_i.chemid == st_pt_j.chemid and i != j:
+                            if st_pt_i.chemid == st_pt_j.chemid and i < j:
                                 obj.products[j] = obj.products[i]
 
                     err = 0

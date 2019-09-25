@@ -2118,7 +2118,7 @@ class ReactionFinder:
             new = 1
             # filter for the same reactions
             for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
+                if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2] and inst[3] == instance[3] and inst[4] == instance[4]:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:

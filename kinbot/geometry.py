@@ -139,7 +139,6 @@ def new_ring_dihedrals(species, instance, step_nr,
             fin_dih = 50.
         else:
             fin_dih = 1.
-        print(fin_dih)
         dihedrals = []
         for i in range(len(instance)-3):
             dihedrals.append(calc_dihedral(geom[instance[i]],

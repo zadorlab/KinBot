@@ -200,12 +200,6 @@ def get_frequencies(species, hess, geom):
 
     reduced_freqs = [convert_to_wavenumbers(ei) for ei in sorted(eigvals)]
 
-    fi=open("freq_py_vals.txt", 'a')
-    fi.write('{0} {1}'.format("\nspecies: ", species.name))
-    fi.write('{0} {1}'.format("\nfreqs\n", freqs))
-    fi.write('{0} {1}'.format("\nreduced freqs\n", reduced_freqs))
-    fi.close()
-
     return freqs, reduced_freqs
 
 

@@ -127,6 +127,7 @@ class HIR:
                             self.hir_energies[rotor][ai] = energy
                             self.hir_geoms[rotor][ai] = geom
                         else:
+                            logging.warning("GEOMETRY OPTIMIZATION FAILED - STRUCTURES DIFFER FOR  " + job)
                             self.hir_status[rotor][ai] = 1
                             self.hir_energies[rotor][ai] = -1
                             self.hir_geoms[rotor][ai] = geom
@@ -139,12 +140,21 @@ class HIR:
         while 1:
             # check if all the calculations are finished
             self.test_hir()
+            for rotor in range(len(self.species.dihed)):
+                status = self.hir_status[rotor]
+                energies = self.hir_energies[rotor]
+                #energies taken if status = 0, successful geom check or normal gauss termination
+                ens = [(energies[i] - energies[0])*constants.AUtoKCAL for i in range(len(status)) if status[i] == 0]
+
+            # if job finishes status set to 0 or 1, if all done then do the following calculation
             if all([all([test >= 0 for test in status]) for status in self.hir_status]):
                 for rotor in range(len(self.species.dihed)):
                     if self.species.wellorts:
                         job = self.species.name + '_hir_' + str(rotor)
                     else:
                         job = str(self.species.chemid) + '_hir_' + str(rotor)
+                    if len(ens) < self.nrotation - 2:
+                        logging.warning("More than 2 HIR calculations failed for " + job)
 
                     angles = [i * 2 * np.pi / float(self.nrotation) for i in range(self.nrotation)]
                     # write profile to file
@@ -158,6 +168,7 @@ class HIR:
 
                 return 1
             else:
+                print("HIR JOBS STILL RUNNING")
                 if wait:
                     time.sleep(1)
                 else:

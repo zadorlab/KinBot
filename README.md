@@ -1,3 +1,5 @@
+[![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/zadorlab/KinBot)
+
 # KinBot: Automated reaction pathway search for gas-phase molecules with C, H, O, N and S atoms
 
 <p>

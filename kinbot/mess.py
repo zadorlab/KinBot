@@ -192,12 +192,18 @@ class MESS:
             dummy = f.read()
         dum = dummy.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
+        #barrierless_header = pkg_resources.resource_filename('tpl', 'mess_barrierless_header.tpl')
+        #with open(barrierless_header) as f:
+        #    barrierless_tpl = f.read()
+        
+
         f_out = open('me/mess.inp', 'w')
         f_out.write(header + '\n!****************************************\n')
         f_out.write(wells)
         f_out.write(bimols)
         #f_out.write(termols)
         f_out.write(tss)
+        #f_out.write(barrierless_tpl)
         #f_out.write(barrierless)
         f_out.write(dum)
         f_out.write('\n!****************************************\nEnd ! end kinetics\n')
@@ -217,9 +223,6 @@ class MESS:
         tunn_file = pkg_resources.resource_filename('tpl', 'mess_tunneling.tpl')
         with open(tunn_file) as f:
             tun_tpl = f.read()
-        barrierless_header = pkg_resources.resource_filename('tpl', 'mess_barrierless_header.tpl')
-        with open(barrierless_header) as f:
-            barrierless_head = f.read()
 
 
         rotors = []
@@ -239,33 +242,10 @@ class MESS:
                                                rotorpot=rotorpot))
         rotors = '\n'.join(rotors)
 
-        freq = ''
-        #reduced freqs used for better accuracy of mess input files
-        for i, fr in enumerate(reaction.ts.reduced_freqs[1:]):
-            if i == 0:
-                freq += '{:.4f}'.format(fr)
-            elif i > 0 and i % 3 == 0:
-                freq += '\n            {:.4f}'.format(fr)
-            else:
-                freq += '    {:.4f}'.format(fr)
+        freq = 'No Freqs'
 
-        geom = ''
-        for i, at in enumerate(reaction.ts.atom):
-            if i > 0:
-                geom += '            '
-            x, y, z = reaction.ts.geom[i]
-            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+        geom = 'No TS Structure'
 
-        #barriers = [
-        #    ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL,
-        #    ((reaction.ts.energy + reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt])) * constants.AUtoKCAL,]
-        #if any([bi < 0 for bi in barriers]):
-        #    tun = ''
-        #else:
-        #    tun = tun_tpl.format(cutoff=min(barriers),
-        #                         imfreq=-reaction.ts.reduced_freqs[0],
-        #                         welldepth1=barriers[0],
-        #                         welldepth2=barriers[1])
 
         if len(reaction.products) == 1:
             prod_name = self.well_names[reaction.products[0].chemid]
@@ -278,32 +258,29 @@ class MESS:
             chemid_reac = ''
             chemid_prod = ''
             long_rxn_name = ''
-            #energy = '{zeroenergy}'
         else:
             name = self.ts_names[reaction.instance_name]
             chemid_reac = self.well_names[self.species.chemid]
             chemid_prod = prod_name
             long_rxn_name = reaction.instance_name
-            #energy = ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
         mess_ts = tpl.format(rxn_name=name,
                              chemid_reac=chemid_reac,
                              chemid_prod=chemid_prod,
                              long_rxn_name=long_rxn_name,
-                             natom=reaction.ts.natom,
-                             geom=geom,
-                             symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
-                             nfreq=len(reaction.ts.reduced_freqs) - 1,
-                             freq=freq,
-                             hinderedrotor=rotors,
-                             tunneling="Barrierless Reaction",
-                             nelec=1,
-                             charge=reaction.ts.charge,
-                             mult=reaction.ts.mult,
-                             zeroenergy=0)
+                             natom='N/A',
+                             geom='N/A',
+                             symm='N/A',
+                             nfreq='N/A',
+                             freq='N/A',
+                             hinderedrotor='N/A',
+                             tunneling='N/A',
+                             nelec='N/A',
+                             charge='N/A',
+                             mult='N/A',
+                             zeroenergy='Barrierless Reaction')
 
         f = open(reaction.instance_name + '.mess', 'w')
-        f.write(barrierless_head)
         f.write(mess_ts)
         f.close()
 
@@ -324,7 +301,14 @@ class MESS:
                 name = 'dummy_' + name
             else:
                 name = 'dummy_' + self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
-                fragments += tpl.format(barrier='tsd', reactant=species, dummy=name)
+            ter_fragments += tpl.format(barrier='tsd', reactant=species, dummy=name)
+
+
+            f=open(reaction.instance_name + '.mess', 'a')
+            f.write(ter_fragments)
+            f.close()
+ 
+        return ter_fragments
 
     def write_bimol(self, species_list):
         """

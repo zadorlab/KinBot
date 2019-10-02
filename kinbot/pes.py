@@ -333,6 +333,50 @@ def postprocess(par, jobs, task, names):
                     if reactions[temp][3] > barrier:
                         reactions.pop(temp)
                         reactions.append([reactant, ts, prod, barrier])
+
+            elif line.startswith('HOMOLYTIC_SCISSION'):
+                pieces = line.split()
+                reactant = ji
+                prod = pieces[2:]  # this is the chemid of the product
+                print('{0} {1}'.format(reactant, prod))
+
+                if reactant not in wells:
+                    wells.append(reactant)
+                    parent[reactant] = reactant
+
+                if len(prod) == 1:
+                    if prod[0] not in wells:
+                        if prod[0] not in parent:
+                            parent[prod[0]] = reactant
+                        wells.append(prod[0])
+                else:
+                    prod_name = '_'.join(sorted(prod))
+                    if prod_name not in products:
+                        if prod_name not in parent:
+                            parent[prod_name] = reactant
+                        products.append('_'.join(sorted(prod)))
+                new = 1
+                temp = None
+                for i, rxn in enumerate(reactions):
+                    rxn_prod_name = '_'.join(sorted(rxn[2]))
+                    if (reactant == rxn[0] and
+                            '_'.join(sorted(prod)) == rxn_prod_name):
+                        new = 0
+                        temp = i
+                    if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
+                        new = 0
+                        temp = i
+                if new:
+                    ts = 'barrierless'
+                    barrier = 0.0
+                    reactions.append([reactant, ts, prod, barrier])
+
+            #n=1
+            #rfi=open('reactions.txt', 'a')
+            #for rxn in reactions:
+            #    rfi.write('Reaction {0}\t{1}\t{2\t{3}\t{4}\n'.format(n, rxn[0], rxn[1], rxn[2], rxn[3]))
+            #rfi.close()
+
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
         # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.

@@ -17,6 +17,7 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
+from __future__ import print_function
 import copy
 import numpy as np
 
@@ -132,8 +133,10 @@ def new_ring_dihedrals(species, instance, step_nr,
         # step starts at zero, not consistent with bond lenghts
         frac = 1. / (total_nr_of_steps - step_nr + 0.)
     if len(instance) > 3:
-        if len(instance) < 6:
-            fin_dih = 15.
+        if len(instance) == 4:
+            fin_dih = 25.
+        elif len(instance) == 5:
+            fin_dih = 50.
         else:
             fin_dih = 1.
         dihedrals = []

@@ -2304,7 +2304,7 @@ class ReactionFinder:
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R13InsertionRSR(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'beta_delta':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1) + '_' + str(reac_list[i][4] + 1)
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1) + '_' + str(reac_list[i][4] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(betadelta(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'combinatorial':

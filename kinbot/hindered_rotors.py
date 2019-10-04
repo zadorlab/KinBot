@@ -168,7 +168,6 @@ class HIR:
 
                 return 1
             else:
-                print("HIR JOBS STILL RUNNING")
                 if wait:
                     time.sleep(1)
                 else:

@@ -70,6 +70,8 @@ class Parameters:
             'reaction_search': 1,
             # Which reaction families to include in the search
             'families': ['all'],
+            # Which chemids to skip kinbot runs for during PES calculations
+            'skip_chemids': ['none'],
             # break all single bonds to find the barriers
             # of potential homolytic scissions
             'homolytic_scissions': 0,

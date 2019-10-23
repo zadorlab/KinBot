@@ -73,6 +73,9 @@ class MESS:
         self.well_names[self.species.chemid] = 'w_1'
 
         for index, reaction in enumerate(self.species.reac_obj):
+            fi=open('reactionList.txt', 'w')
+            fi.write("reaction: {}\tNum Prods: {}".format(reaction, len(reaction.products)))
+            fi.close()
             if self.species.reac_ts_done[index] == -1:
                 self.ts_names[reaction.instance_name] = 'ts_' + str(len(self.ts_names)+1)
                 if len(reaction.products) == 1:
@@ -291,7 +294,7 @@ class MESS:
         
         ter_fragments += tpl.format(barrier=rxn_name, reactant=chemid_reac, dummy=terPr_name , product=terPr_name)
            
-        f=open(terPr_name + '.mess', 'a')
+        f=open(terPr_name + '.mess', 'w')
         f.write(ter_fragments)
         f.close()
  

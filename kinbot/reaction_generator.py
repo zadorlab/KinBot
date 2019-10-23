@@ -79,13 +79,20 @@ class ReactionGenerator:
         # status to see of kinbot needs to wait for the product optimizations
         # from another kinbot run, to avoid duplication of calculations
         products_waiting_status = [[] for i in self.species.reac_inst]
+        #print("prod_wait_stat len: {}".format(len(products_waiting_status)))
+        count=0
+        for i in self.species.reac_inst:
+             count=count+1
+        #print("reac_inst count: {}".format(count))
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
                 instance_name = obj.instance_name
+                #print("index = {}".format(index))
+                #print("instance_name: {}".format(instance_name))
 
-                # START REATION SEARCH
+                # START REACTION SEARCH
                 if self.species.reac_ts_done[index] == 0 and self.species.reac_step[index] == 0:
                     #verify after restart if search has failed in previous kinbot run
                     status = self.qc.check_qc(instance_name)
@@ -179,16 +186,22 @@ class ReactionGenerator:
                         for frag in fragments:
                             obj.products.append(frag)
 
+#                    print("len(prod_waiting): {}".format(len(products_waiting_status)))
+#                    print("len(prod_waiting[index]): {}".format(len(products_waiting_status[index])))
                     #only do copying if PES mode turned on
                     for i, frag in enumerate(fragments):
-                        if self.par.par['pes']:
-                            wait = filecopying.copy_from_database_folder(self.species.chemid, frag.chemid, self.qc)
-                            if not wait: 
-                                self.qc.qc_opt(frag, frag.geom)
-                                products_waiting_status[index][i] = 1
-                        else:
-                            self.qc.qc_opt(frag, frag.geom)
-                            products_waiting_status[index][i] = 1
+#                        print("i: {}".format(i))
+#                        print("index: {}".format(index))
+                        #if self.par.par['pes']:
+                        #    wait = filecopying.copy_from_database_folder(self.species.chemid, frag.chemid, self.qc)
+                        #    print(wait)
+                        #    if not wait:
+                        #        print("inside wait loop") 
+                        #        self.qc.qc_opt(frag, frag.geom)
+                        #        products_waiting_status[index][i] = 1
+                        #else:
+                        self.qc.qc_opt(frag, frag.geom)
+                        products_waiting_status[index][i] = 1
 
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         self.species.reac_ts_done[index] = 3

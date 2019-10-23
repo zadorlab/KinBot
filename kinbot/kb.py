@@ -127,16 +127,16 @@ def main():
     qc = QuantumChemistry(par)
 
     #only run filecopying if PES is turned on
-    if par.par['pes']:
+    #if par.par['pes']:
         # check if this well was calcualted before in another directory
         # this flag indicates that this kinbot run
         # should wait for the information from another
         # kinbot run to become available and copy the necessary information
-        wait_for_well = 1
-        while wait_for_well:
-            wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
-            if wait_for_well:
-                time.sleep(1)
+    #    wait_for_well = 1
+    #    while wait_for_well:
+    #        wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
+    #        if wait_for_well:
+    #            time.sleep(1)
 
     # start the initial optimization of the reactant
     logging.info('Starting optimization of intial well')

@@ -1,4 +1,4 @@
-###################################################
+##################################################
 ##                                               ##
 ## This file is part of the KinBot code v2.0     ##
 ##                                               ##
@@ -38,6 +38,7 @@ import pkg_resources
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+import random
 
 from ase.db import connect
 
@@ -99,19 +100,21 @@ def main():
                             smiles=par.par['smiles'],
                             structure=par.par['structure'])
     well0.characterize(par.par['dimer'])
-    write_input(par, well0, par.par['barrier_threshold'], os.getcwd())
+    write_input(par, well0, par.par['barrier_threshold'], os.getcwd()) 
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
         f.write(str(well0.chemid) + '\n')
 
     # create a directory for the L3 single point calculations 
-    # direcotry has the name of the code, e.g., molpro
+    # directory has the name of the code, e.g., molpro
     try:
         os.mkdir(par.par['single_point_qc'])
     except OSError:
         pass
 
+    #List of chemids to skip KinBot submissions for.
+    skipChemids=par.par['skip_chemids']
     # maximum number of kinbot jobs that run simultaneously
     max_running = par.par['simultaneous_kinbot']
     # jobs that are running
@@ -122,8 +125,14 @@ def main():
     jobs = []
     # dict of the pid's for all jobs
     pids = {}
+    a=0
+    b=0
+    c=0
     while 1:
         j = len(jobs)
+        if j != a:
+            logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
+        a=j
         with open('chemids', 'r') as f:
             jobs = f.read().split('\n')
             jobs = [ji for ji in jobs if ji != '']
@@ -131,22 +140,49 @@ def main():
         if len(jobs) > j:
             logging.info('\tPicked up new jobs: ' + ' '.join(jobs[j:]))
 
+        k=len(running)
+        l=len(finished)
+        if b!=k:
+            logging.info('{0} {1} {2}'.format("len(running): ", len(running), "\n"))
+        b=k
+        if c!=l:
+            logging.info('{0} {1} {2}'.format("len(finished): ", len(finished), "\n"))
+        c=l
+        
         if len(finished) == len(jobs):
-            break
+            time.sleep(2)
+            if len(finished) == len(jobs):    
+                 break
 
         while (len(running) < max_running and
                len(running) + len(finished) < len(jobs)):
             # start a new job
             job = jobs[len(running) + len(finished)]
-            pid = 0
-            if not no_kinbot:
-                pid = submit_job(job, par)  # kinbot is submitted here
+            kb=1
+            logging.info('Job: {}'.format(job))
+            logging.info('kb: {}'.format(kb))
+            if 'none' in skipChemids:
+                logging.info('No KinBot runs to be skipped')
             else:
-                get_wells(job)
-            pids[job] = pid
-            t = datetime.datetime.now()
-            logging.info('\tStarted job {} at {}'.format(job, t))
-            running.append(job)
+                if job in skipChemids:
+                    kb=0
+            logging.info('kb: {}'.format(kb))
+            if kb==1:
+                pid = 0
+                if not no_kinbot:
+                    pid = submit_job(job, par)  # kinbot is submitted here
+                else:
+                    get_wells(job)
+                pids[job] = pid
+                t = datetime.datetime.now()
+                logging.info('\tStarted job {} at {}'.format(job, t))
+                running.append(job)
+            elif kb==0:
+                logging.info('Skipping Kinbot for {}'.format(job))
+                finished.append(job)
+            else:
+                logging.info('kb value not 0 or 1')
+
         # check if a thread is done
         for job in running:
             if not check_status(job, pids[job]):
@@ -164,7 +200,6 @@ def main():
                         os.remove('{}_im_extent.txt'.format(par.par['title']))
                     except OSError:
                         pass
-        #            postprocess(par, jobs, task, names)
         # remove the finished threads
         for job in finished:
             if job in running:
@@ -216,7 +251,7 @@ def get_wells(job):
 
     new_wells = []
     for line in summary:
-        if line.startswith('SUCCESS'):
+        if (line.startswith('SUCCESS') or line.startswith("HOMOLYTIC_SCISSION")):
             pieces = line.split()
             prod = pieces[3:]
             if (len(prod) == 1 and
@@ -235,7 +270,7 @@ def postprocess(par, jobs, task, names):
     jobs: all of the jobs that were run
     temp: this is a temporary output file writing
     """
-
+    
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
@@ -253,6 +288,7 @@ def postprocess(par, jobs, task, names):
     # 3. products chemid list
     # 4. reaction barrier height
     reactions = []
+    #Reactions is empty at this point
 
     # list of the parents for each calculation
     # the key is the name of the calculation
@@ -274,7 +310,7 @@ def postprocess(par, jobs, task, names):
             continue
         # read the summary file
         for line in summary:
-            if line.startswith('SUCCESS'):
+            if (line.startswith('SUCCESS') or line.startswith('HOMOLYTIC_SCISSION')):
                 pieces = line.split()
                 reactant = ji
                 ts = pieces[2]  # this is the long specific name of the reaction
@@ -317,6 +353,7 @@ def postprocess(par, jobs, task, names):
                         products.append('_'.join(sorted(prod)))
                 new = 1
                 temp = None
+
                 for i, rxn in enumerate(reactions):
                     rxn_prod_name = '_'.join(sorted(rxn[2]))
                     if (reactant == rxn[0] and
@@ -329,7 +366,7 @@ def postprocess(par, jobs, task, names):
                 if new:
                     reactions.append([reactant, ts, prod, barrier])
                 else:
-                    # check if the previous reaction has a lower energy or not
+                    #check if the previous reaction has a lower energy or not
                     if reactions[temp][3] > barrier:
                         reactions.pop(temp)
                         reactions.append([reactant, ts, prod, barrier])
@@ -337,8 +374,8 @@ def postprocess(par, jobs, task, names):
             elif line.startswith('HOMOLYTIC_SCISSION'):
                 pieces = line.split()
                 reactant = ji
+                energy = pieces[1] # energy from summary
                 prod = pieces[2:]  # this is the chemid of the product
-                print('{0} {1}'.format(reactant, prod))
 
                 if reactant not in wells:
                     wells.append(reactant)
@@ -368,14 +405,9 @@ def postprocess(par, jobs, task, names):
                         temp = i
                 if new:
                     ts = 'barrierless'
-                    barrier = 0.0
+                    barrier = energy
                     reactions.append([reactant, ts, prod, barrier])
 
-            #n=1
-            #rfi=open('reactions.txt', 'a')
-            #for rxn in reactions:
-            #    rfi.write('Reaction {0}\t{1}\t{2\t{3}\t{4}\n'.format(n, rxn[0], rxn[1], rxn[2], rxn[3]))
-            #rfi.close()
 
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
@@ -429,12 +461,13 @@ def postprocess(par, jobs, task, names):
 
     ts_l3energies = {}
     for reac in reactions:
-        zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
-        status, l3energy = get_l3energy(reac[1], par)
-        if not status:
-            l3done = 0
-        else:
-            ts_l3energies[reac[1]] =  ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
+        if reac[1] != 'barrierless':
+            zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
+            status, l3energy = get_l3energy(reac[1], par)
+            if not status:
+                l3done = 0
+            else:
+                ts_l3energies[reac[1]] =  ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
 
     if l3done == 1 and len(reactions) > 1:
@@ -442,6 +475,7 @@ def postprocess(par, jobs, task, names):
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
             reac[3] = ts_l3energies[reac[1]]
+    
 
     # if L3 was done, everything below is done with that
     # filter according to tasks
@@ -453,14 +487,7 @@ def postprocess(par, jobs, task, names):
                                                    well_energies,
                                                    task,
                                                    names)
-    # write full pesviewer input
-    create_pesviewer_input(par,
-                           wells,
-                           products,
-                           reactions,
-                           well_energies,
-                           prod_energies,
-                           highlight)
+
     # draw a graph of the network
 #    create_graph(wells,
 #                 products,
@@ -468,12 +495,31 @@ def postprocess(par, jobs, task, names):
 #                 well_energies,
 #                 prod_energies,
  #                highlight)
-    # write_mess
+
+
+    barrierless = []
+    rxns = []
+    for rxn in reactions:
+        if rxn[1] == 'barrierless':
+            barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
+        else:
+            rxns.append([rxn[0], rxn[1], rxn[2], rxn[3]])
+
+    # write full pesviewer input
+    create_pesviewer_input(par,
+                           wells,
+                           products,
+                           rxns,
+                           barrierless,
+                           well_energies,
+                           prod_energies,
+                           highlight)
 
     create_mess_input(par,
                       wells,
                       products,
-                      reactions,
+                      rxns,
+                      barrierless,
                       well_energies,
                       prod_energies,
                       parent)
@@ -791,7 +837,7 @@ def get_rxn(prods, rxns):
             return rxn
 
 
-def create_short_names(wells, products, reactions):
+def create_short_names(wells, products, reactions, barrierless):
     """
     Create a short name for all the wells, all the
     bimolecular products and all the transition states
@@ -812,11 +858,17 @@ def create_short_names(wells, products, reactions):
     # key: reaction name (chemid, type and instance)
     # value: short name
     ts_short = {}
-   
+    # short name of the barrierless reactions
+    # key: reaction number
+    # value: reaction number
+    nobar_short = {}
+    
+     
     for well in wells:
         if well not in well_short:
             short_name = 'w_' + str(len(well_short) + 1)
             well_short[well] = short_name
+
     for prod in products:
         if prod not in pr_short:
             short_name = 'pr_' + str(len(pr_short) + 1)
@@ -825,11 +877,19 @@ def create_short_names(wells, products, reactions):
             if frag not in fr_short:
                 short_name = 'fr_' + str(len(fr_short) + 1)
                 fr_short[frag] = short_name
+
     for rxn in reactions:
         if rxn[1] not in ts_short:
             short_name = 'rxn_' + str(len(ts_short) + 1)
             ts_short[rxn[1]] = short_name
-    return well_short, pr_short, fr_short, ts_short
+
+    n=1
+    for rxn in barrierless:
+           nobar_name = 'nobar_' + str(n)
+           nobar_short[nobar_name] = nobar_name
+           n=n+1
+       
+    return well_short, pr_short, fr_short, ts_short, nobar_short
 
 #duplicate code, may delete function
 def write_header(par, well0):
@@ -857,7 +917,7 @@ def write_header(par, well0):
     return header
 
 
-def create_mess_input(par, wells, products, reactions,
+def create_mess_input(par, wells, products, reactions, barrierless,
                       well_energies, prod_energies, parent):
     """
     When calculating a full pes, the files from the separate wells
@@ -867,9 +927,11 @@ def create_mess_input(par, wells, products, reactions,
     2. all the zpe corrected energies
     """
     # generate short names for all startionary points
-    well_short, pr_short, fr_short, ts_short = create_short_names(wells,
-                                                                  products,
-                                                                  reactions)
+    well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
+                                                                               products,
+                                                                               reactions,
+                                                                               barrierless)
+     
     # list of the strings to write to mess input file
     s = []
 
@@ -918,6 +980,7 @@ def create_mess_input(par, wells, products, reactions,
     s.append('######################')
     s.append('# BIMOLECULAR PRODUCTS')
     s.append('######################')
+    a=0
     for prod in products:
         name = pr_short[prod] + ' ! ' + prod
         energy = prod_energies[prod]
@@ -930,6 +993,7 @@ def create_mess_input(par, wells, products, reactions,
             s.append(f.read().format(name=name,
                                      ground_energy=energy,
                                      **fr_names))
+        a=a+1
         s.append('!****************************************')
 
     # write the barrier
@@ -951,9 +1015,26 @@ def create_mess_input(par, wells, products, reactions,
                 s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
             s.append('!****************************************')
         except:
-            fi=open("pes.log", 'a')
-            fi.write('{0} {1} {2} {3}'.format(rxn[0], "/", rxn[1], ".mess not found\n"))
-            fi.close()
+            logging.info(('{0} {1} {2} {3}'.format(rxn[0], "/", rxn[1], ".mess not found\n")))
+    # add last end statement
+    s.append('!****************************************')
+
+
+    for rxn in barrierless:
+        name = [nobar_short]
+        name.append(rxn[0])
+        if len(rxn[2]) > 1:
+            name.append(pr_short['_'.join(sorted(rxn[2]))])
+        else:
+            name.append(rxn[2])
+        energy = rxn[3]
+        s.append('! BARRIERLESS REACTIONS !')
+        try:
+            with open(rxn[0] + '/' + rxn[2] + '.mess') as f:
+                s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
+            s.append('!****************************************')
+        except:
+            logging.info('{0} {1} {2} {3}'.format(rxn[0], "/", rxn[2], ".mess not found\n"))
     # add last end statement
     s.append('!****************************************')
     s.append('End ! end kinetics\n')
@@ -971,13 +1052,11 @@ def create_mess_input(par, wells, products, reactions,
                             par.par['mult'],
                             smiles=par.par['smiles'],
                             structure=par.par['structure'])
-
-    mess = MESS(par, dummy)
-    if par.par['me']:
-        mess.run()
+    well0.characterize(par.par['dimer'])
+   
 
 
-def create_pesviewer_input(par, wells, products, reactions,
+def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):
     """
     highlight: list of reaction names that need a red highlight
@@ -987,8 +1066,6 @@ def create_pesviewer_input(par, wells, products, reactions,
         os.remove('{}_xval.txt'.format(par.par['title']))
     except OSError:
         pass
-    try:
-        os.remove('{}_im_extent.txt'.format(par.par['title']))
     except OSError:
         pass
 
@@ -1016,10 +1093,27 @@ def create_pesviewer_input(par, wells, products, reactions,
                                                     rxn[0],
                                                     prod_name,
                                                     high))
+    barrierless_lines = []
+    index = 0
+    new = 1
+    prev_prod = []
+    for rxn in barrierless:
+        prod_name = '_'.join(sorted(rxn[2]))
+        for item in prev_prod:
+            if prod_name == item:
+                new = 0
+                break
+        if new:
+            barrierless_lines.append('{name} {react} {prod}'.format(name='nobar_' + str(index),
+                                                                    react = rxn[0],
+                                                                    prod = prod_name))
+            prev_prod.append(prod_name)
+            index=index+1
 
     well_lines = '\n'.join(well_lines)
     bimol_lines = '\n'.join(bimol_lines)
     ts_lines = '\n'.join(ts_lines)
+    barrierless_lines = '\n'.join(barrierless_lines)
 
     # write everything to a file
     fname = 'pesviewer.inp'
@@ -1030,7 +1124,7 @@ def create_pesviewer_input(par, wells, products, reactions,
                                wells=well_lines,
                                bimolecs=bimol_lines,
                                ts=ts_lines,
-                               barrierless='')
+                               barrierless=barrierless_lines)
     with open(fname, 'w') as f:
         f.write(template)
 
@@ -1233,7 +1327,6 @@ def submit_job(chemid, par):
     time.sleep(1)
     pid = process.pid
     return pid
-
 
 def write_input(par, species, threshold, root):
     # directory for this particular species

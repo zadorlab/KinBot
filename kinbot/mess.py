@@ -71,7 +71,6 @@ class MESS:
         """
         # add the initial well to the well names:
         self.well_names[self.species.chemid] = 'w_1'
-
         for index, reaction in enumerate(self.species.reac_obj):
             fi=open('reactionList.txt', 'w')
             fi.write("reaction: {}\tNum Prods: {}".format(reaction, len(reaction.products)))

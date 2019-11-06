@@ -55,7 +55,7 @@ try:
     geom = mol.positions
     db = connect('{working_dir}/kinbot.db')
     db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
-except RuntimeError: 
+except:
     #read the geometry from the output file
     outfile = '{label}.log'
     with open(outfile) as f:

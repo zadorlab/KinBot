@@ -841,7 +841,7 @@ class ReactionFinder:
             new = 1
             # filter for the same reactions
             for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                if inst[0] == instance[0] and inst[-2] == instance[-2]: # was -1 originally, fixed bug
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:

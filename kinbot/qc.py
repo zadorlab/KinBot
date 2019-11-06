@@ -832,7 +832,7 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             log_file = job + '.out'
         log_file_exists = os.path.exists(log_file)
-        
+
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'

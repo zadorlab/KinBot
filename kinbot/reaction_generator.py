@@ -234,10 +234,10 @@ class ReactionGenerator:
                             st_pt.characterize(0)  # not allowed to use the dimer option here
                             st_pt.calc_chemid()
                             if chemid != st_pt.chemid:
-                                # product was optimized to another structure, give warning and remove this reaction
+                                # product was optimized to another structure, give warning but don't remove reaction
                                 logging.info('\tProduct optimized to other structure for {}, product {} to {}'.format(instance_name,chemid,st_pt.chemid))
-                                self.species.reac_ts_done[index] = -999
-                                err = -1
+                                #self.species.reac_ts_done[index] = -999
+                                #err = -1
                     if err == 0:
                         self.species.reac_ts_done[index] = 4
                 elif self.species.reac_ts_done[index] == 4:

@@ -34,6 +34,7 @@ import logging
 # 320320000000000000001 = O2
 # 140260020000000000001 = CH2 
 # 170170000000000000002 = OH
+# 320000000000000000001 = S
  
 def get_spin(chemid,spin) #spin as defined in molpro = 2S
     if chemid == '320320000000000000001':

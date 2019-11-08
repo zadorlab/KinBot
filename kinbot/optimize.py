@@ -269,8 +269,7 @@ class Optimize:
                         self.species.energy = molpro_energy
                 
                 # delete unnecessary files
-                delete = 1
-                if delete:
+                if self.par.par['delete_intermediate_files'] == 1:
                     self.delete_files()
             if self.wait:
                 if self.shir == 1 or self.shigh == -999:

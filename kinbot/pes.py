@@ -276,6 +276,7 @@ def postprocess(par, jobs, task, names):
     # base of the energy is the first well, these are L2 energies
     base_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
     # L3 energies
+    print('post {}'.format(jobs[0]))
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
         l3done = 0
@@ -469,7 +470,7 @@ def postprocess(par, jobs, task, names):
             else:
                 ts_l3energies[reac[1]] =  ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
-
+    logging.info('l3done status {}'.format(l3done))
     if l3done == 1 and len(reactions) > 1:
         well_energies = well_l3energies
         prod_energies = prod_l3energies
@@ -1250,16 +1251,20 @@ def get_l3energy(job, par):
     Get the L3, single-point energies. 
     This is not object oriented.
     """
-
     if par.par['single_point_qc'] == 'molpro':
-        if os.path.exists('molpro/' + job + '.out'):
-            with open('molpro/' + job + '.out') as f:
-                lines = f.readlines()
-                for index, line in enumerate(reversed(lines)):
-                    if ('SETTING ' + par.par['single_point_key']) in line:
-                        return 1, float(line.split()[2])  # energy was found
+        if os.path.exists('molpro/' + job + '.out'): 
+            with open('molpro/' + job + '.out', 'r') as f: 
+                print(job) 
+                lines = f.readlines() 
+                for index, line in enumerate(reversed(lines)): 
+                    if ('SETTING MYENA_DZ(1)') in line:
+                        mpe=float(line.split()[3])
+                        print(mpe)
+                    #if ('SETTING ' + par.par['single_point_key']) in line:
+                        return 1, float(line.split()[3])  # energy was found
                     else:
-                        return 0, -1  # the job not yet done
+                        print("mp DNE")
+                        #return 0, -1  # the job not yet done
         else:
             return 0, -1  # job not yet started to run
 

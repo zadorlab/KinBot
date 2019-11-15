@@ -83,7 +83,8 @@ class Molpro:
                                    ))
 
 
-    def get_molpro_energy(self, key='MYENERGY'):
+    #def get_molpro_energy(self, key='MYENERGY'):
+    def get_molpro_energy(self, key='MYENA_DZ(1)'):
         """
         Verify if there is a molpro output file and if yes, read the energy
         key is the keyword for the energy we want to read
@@ -102,7 +103,9 @@ class Molpro:
 
             for index, line in enumerate(reversed(lines)):
                 if ('SETTING ' + key) in line:
-                    return 1, float(line.split()[2])
+                    #print(float(line.split()[2]))
+                    print(float(line.split()[3]))
+                    return 1, float(line.split()[3])
         else:
             return 0, -1
 

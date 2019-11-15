@@ -297,38 +297,38 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         #comment out so that double bonds & lone pair H mig will always be searched for
-        #if np.sum(rad) == 0: 
+        if np.sum(rad) == 0: 
         #find H-migrations over double bonds and to lone pairs
         
-        for ringsize in range(3, 9):
-            # double bonds 
-            motif = ['X' for i in range(ringsize)]
-            motif[-1] = 'H'
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-       
-            for instance in instances:
-                if any([bi > 1 for bi in bond[instance[0]]]):
-                    rxns += [instance]
-            # lone pairs
-            motif = ['X' for i in range(ringsize)]
-            motif[-1] = 'H'
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-       
-            for instance in instances:
-                if (self.species.atom[instance[0]] == 'O' or  
-                   self.species.atom[instance[0]] == 'S' or 
-                   self.species.atom[instance[0]] == 'N'):
-                    rxns += [instance]
+            for ringsize in range(3, 9):
+                # double bonds 
+                motif = ['X' for i in range(ringsize)]
+                motif[-1] = 'H'
+                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+           
+                for instance in instances:
+                    if any([bi > 1 for bi in bond[instance[0]]]):
+                        rxns += [instance]
+                # lone pairs
+                motif = ['X' for i in range(ringsize)]
+                motif[-1] = 'H'
+                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+           
+                for instance in instances:
+                    if (self.species.atom[instance[0]] == 'O' or  
+                       self.species.atom[instance[0]] == 'S' or 
+                       self.species.atom[instance[0]] == 'N'):
+                        rxns += [instance]
 
-        #else:
-        instances = []
-        for ringsize in range(3, 9):
-            motif = ['X' for i in range(ringsize)]
-            motif[-1] = 'H'
-            for rad_site in np.nonzero(rad)[0]:
-                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
-        for instance in instances: 
-            rxns.append(instance)
+        else:
+            instances = []
+            for ringsize in range(3, 9):
+                motif = ['X' for i in range(ringsize)]
+                motif[-1] = 'H'
+                for rad_site in np.nonzero(rad)[0]:
+                    instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+            for instance in instances: 
+                rxns.append(instance)
         
         #filter for the same reactions
         for inst in rxns:

@@ -49,7 +49,7 @@ class Optimize:
         self.par = par
         self.qc = qc
 
-        # wait for all calcualtions to finish before returning
+        # wait for all calculations to finish before returning
         self.wait = wait
 
         # high level job name

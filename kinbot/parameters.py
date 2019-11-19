@@ -53,7 +53,7 @@ class Parameters:
             # verbose log file
             'verbose': 0,
             # delete intermetidate files
-            'delete_intermediate_files' : 1,
+            'delete_intermediate_files' : 0,
 
             # INPUT SPECIES INFOR
             # SMILES of the species

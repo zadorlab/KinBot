@@ -151,6 +151,8 @@ class Parameters:
             'high_level_basis': '6-311++G(d,p)',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
+            # Optimization threshold
+            'opt': '',
             # for Gaussian irc: IRC(MaxPoints=n)
             'irc_maxpoints': 30,
             # for Gaussian irc, IRC(StepSize=n)

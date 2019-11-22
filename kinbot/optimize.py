@@ -164,6 +164,10 @@ class Optimize:
                             if status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
+				fr_file = self.fr_file_name(0)
+				self.qc.read_qc_hess(fr_file, self.species.natom)
+				fr_file = self.fr_file_name(1)
+				self.qc.read_qc_hess(fr_file, self.species.natom)
                                 if geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1):
                                     # geometry is as expected
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
@@ -250,11 +254,7 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                fr_file = self.species.name
-                if not self.species.wellorts:
-                    fr_file += '_well'
-                if self.par.par['high_level']:
-                        fr_file += '_high'
+                fr_file = self.fr_file_name(self.par.par['high_level'])
                 hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
 
@@ -326,3 +326,13 @@ class Optimize:
                 #except FileNotFoundError:
                 except:
                     pass
+
+
+    def fr_file_name(high):
+	fr_file = self.species.name
+	if not self.species.wellorts:
+	    fr_file += '_well'
+	#if self.par.par['high_level']:
+	if high:
+	    fr_file += '_high'
+ 

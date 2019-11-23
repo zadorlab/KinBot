@@ -184,3 +184,26 @@ def read_hess(job, natom):
     return hess
 
 
+    def read_qc_imag_mode(self, job, natom):
+	"""
+	Read the imaginary normal mode displacements from a log file.
+	Only for saddle points! It will read the firs normal mode
+	for a well, but that's not very useful.
+	"""
+
+	nmode = np.zeros(3, natom)
+        joblog = '{}.log'.format(job)
+	with open(joblog) as f:
+	    lines = f.read().split('\n')
+	
+	for l, line in enumerate(lines):
+	    if line[:10] == '  Atom  AN':
+		for n in natom:
+                    mm = line[l + n + 1].split() 
+                    nmode[n][0]= float(mm[2])
+                    nmode[n][1]= float(mm[3])
+                    nmode[n][2]= float(mm[4])
+
+	return(nmode)
+
+

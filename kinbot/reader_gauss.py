@@ -184,7 +184,7 @@ def read_hess(job, natom):
     return hess
 
 
-    def read_qc_imag_mode(self, job, natom):
+    def read_imag_mode(job, natom):
 	"""
 	Read the imaginary normal mode displacements from a log file.
 	Only for saddle points! It will read the firs normal mode

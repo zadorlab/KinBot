@@ -164,12 +164,16 @@ class Optimize:
                             if status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
+
 				fr_file = self.fr_file_name(0)
-				self.qc.read_qc_hess(fr_file, self.species.natom)
+				    if self.qc.qc == 'gauss':
+                                        imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
 				fr_file = self.fr_file_name(1)
-				self.qc.read_qc_hess(fr_file, self.species.natom)
-                                if geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1):
-                                    # geometry is as expected
+				    if self.qc.qc == 'gauss':
+                                        imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+                                if geometry.matrix_corr(imagmode, imagmode_high) > 0.9 and
+                           		geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3):
+                                    # geometry is as expected and normal modes are the same
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)
                                     err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)

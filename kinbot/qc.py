@@ -774,7 +774,7 @@ class QuantumChemistry:
         
         return 0, zpe
 
-    def read_qc_hess(self,job, natom):
+    def read_qc_hess(self, job, natom):
         """
         Read the hessian of a gaussian chk file
         """
@@ -814,7 +814,8 @@ class QuantumChemistry:
                     break
         return hess
 
-    def is_in_database(self,job):
+
+    def is_in_database(self, job):
         """
         Checks if the current job is in the database:
         """

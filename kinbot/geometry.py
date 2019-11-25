@@ -327,3 +327,57 @@ def equal_geom(bond, orig_geom, new_geom, cutoff):
                 if np.abs(new_dist - orig_dist) / orig_dist > cutoff:
                     return 0
     return 1
+
+
+def matrix_corr(p, q):
+    """
+    Calculates the correlation of two sets of points, p and q,
+    where each point in these sets are 3D. The correlation is calculated 
+    after p is rotated (r) and translated (t) such that it has maximum overlap
+    with q in this sense:
+    ||(r pi + t) - qi||^2 
+    """
+
+    # centorids of both point sets
+    pcent = np.zeros(3)
+    for pi in p:
+	pcent[0] += pi[0]
+        pcent[1] += pi[1]
+	pcent[2] += pi[2]
+    
+    qcent = np.zeros(3)
+    for pi in p:
+        qcent[0] += qi[0]
+        qcent[1] += qi[1]
+        qcent[2] += qi[2]
+    
+    l = len(p)
+    pcent = pcent / l
+    qcent = qcent / l 
+
+    # shift to centroids
+    x = p - pcent
+    y = q - qcent
+
+    # 3 by 3 covariance matrix
+    s = np.matmul(np.transpose(x), y)
+
+    # SVD of the covariance mx
+    u, _, v = np.linalg.svd(s)
+
+    # to determine the sign (reflection, if needed)
+    diag = np.identity(3)
+    diag[2][2] = np.linalg.det(np.matmul(np.transpose(v), np.transpose(u))) # +1 or -1
+
+    # rotation
+    r = np.matmul(np.matmul(np.transpose(v), diag), np.transpose(u))
+    # translation
+    t = qcent - np.matmul(r, pcent)
+
+    # rotated and translated p
+    pnew = np.zeros([len(p), 3]) # initialize
+    for i, pi in enumerate(p):
+        pnew[i] = np.matmul(r, pi) + t
+
+    return(np.corrcoef(np.matrix.flatten(pnew),np.matrix.flatten(q))[0][1])
+

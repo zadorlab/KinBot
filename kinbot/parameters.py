@@ -211,6 +211,9 @@ class Parameters:
             'Masses': [4.0, 87.0],
             # MESMER specific keywords
             'mesmer_command': 'mesmer',
+
+	    # for development
+	    'test': 0,
         }
 
         if self.input_file is not None:

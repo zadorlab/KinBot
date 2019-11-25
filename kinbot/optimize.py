@@ -171,8 +171,12 @@ class Optimize:
 				fr_file = self.fr_file_name(1)
 				    if self.qc.qc == 'gauss':
                                         imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-                                if geometry.matrix_corr(imagmode, imagmode_high) > 0.9 and
-                           		geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3):
+				if test == 1:
+				    boolean = geometry.matrix_corr(imagmode, imagmode_high) > 0.9 and
+                                        geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3)
+				else:
+				    boolean = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
+                                if boolean:
                                     # geometry is as expected and normal modes are the same
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)

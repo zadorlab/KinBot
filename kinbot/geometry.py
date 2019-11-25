@@ -341,9 +341,9 @@ def matrix_corr(p, q):
     # centorids of both point sets
     pcent = np.zeros(3)
     for pi in p:
-	pcent[0] += pi[0]
+        pcent[0] += pi[0]
         pcent[1] += pi[1]
-	pcent[2] += pi[2]
+        pcent[2] += pi[2]
     
     qcent = np.zeros(3)
     for pi in p:

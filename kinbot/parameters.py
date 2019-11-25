@@ -212,8 +212,8 @@ class Parameters:
             # MESMER specific keywords
             'mesmer_command': 'mesmer',
 
-	    # for development
-	    'test': 0,
+            # for development
+            'test': 0,
         }
 
         if self.input_file is not None:

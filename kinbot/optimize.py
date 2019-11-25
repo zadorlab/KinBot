@@ -30,6 +30,7 @@ from kinbot import symmetry
 from kinbot.conformers import Conformers
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
+from kinbot import reader_gauss
 
 
 class Optimize:
@@ -164,17 +165,17 @@ class Optimize:
                             if status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
-				fr_file = self.fr_file_name(0)
-				    if self.qc.qc == 'gauss':
-                                        imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-				fr_file = self.fr_file_name(1)
-				    if self.qc.qc == 'gauss':
-                                        imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-				if test == 1:
-				    boolean = geometry.matrix_corr(imagmode, imagmode_high) > 0.9 and
-                                        geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3)
-				else:
-				    boolean = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
+                                fr_file = self.fr_file_name(0)
+                                if self.qc.qc == 'gauss':
+                                    imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+                                fr_file = self.fr_file_name(1)
+                                if self.qc.qc == 'gauss':
+                                    imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+                                if self.par.par['test'] == 1:
+                                    boolean = (geometry.matrix_corr(imagmode, imagmode_high) > 0.9) + \
+                                              (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))
+                                else:
+                                    boolean = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
                                 if boolean:
                                     # geometry is as expected and normal modes are the same
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
@@ -335,11 +336,12 @@ class Optimize:
                     pass
 
 
-    def fr_file_name(high):
-	fr_file = self.species.name
-	if not self.species.wellorts:
-	    fr_file += '_well'
-	#if self.par.par['high_level']:
-	if high:
-	    fr_file += '_high'
+    def fr_file_name(self, high):
+        fr_file = self.species.name
+        if not self.species.wellorts:
+            fr_file += '_well'
+        #if self.par.par['high_level']:
+        if high:
+            fr_file += '_high'
  
+        return(fr_file)

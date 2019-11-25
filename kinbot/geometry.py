@@ -346,7 +346,7 @@ def matrix_corr(p, q):
         pcent[2] += pi[2]
     
     qcent = np.zeros(3)
-    for pi in p:
+    for qi in q:
         qcent[0] += qi[0]
         qcent[1] += qi[1]
         qcent[2] += qi[2]

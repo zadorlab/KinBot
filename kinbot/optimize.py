@@ -165,19 +165,22 @@ class Optimize:
                             if status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
-                                fr_file = self.fr_file_name(0)
-                                if self.qc.qc == 'gauss':
-                                    imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-                                fr_file = self.fr_file_name(1)
-                                if self.qc.qc == 'gauss':
-                                    imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-                                if self.par.par['test'] == 1:
-                                    boolean = (geometry.matrix_corr(imagmode, imagmode_high) > 0.9) + \
-                                              (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))
-                                else:
-                                    boolean = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
-                                if boolean:
-                                    # geometry is as expected and normal modes are the same
+                                if self.species.wellorts: # for TS we need reasonable geometry agreement and normal mode correlation
+                                    fr_file = self.fr_file_name(0)
+                                    if self.qc.qc == 'gauss':
+                                        imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+                                    fr_file = self.fr_file_name(1)
+                                    if self.qc.qc == 'gauss':
+                                        imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+                                    if self.par.par['test'] == 1:
+                                        same_geom = (geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
+                                                  (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))
+                                    else:
+                                        same_geom = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
+                                else: 
+                                    same_geom = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
+                                if same_geom:
+                                    # geometry is as expected and normal modes are the same for TS
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)
                                     err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
@@ -185,7 +188,7 @@ class Optimize:
                                     self.shigh = 1
                                 else:
                                     # geometry diverged to other structure
-                                    logging.info('\tHigh level ts optimization converged to different structure for {}'.format(self.species.name))
+                                    logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.species.name))
                                     self.shigh = -999
                     else:
                         # no high-level calculations necessary, set status to finished

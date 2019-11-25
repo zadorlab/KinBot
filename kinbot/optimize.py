@@ -164,7 +164,7 @@ class Optimize:
                             if status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
-                                if geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1):
+                                if geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3):
                                     # geometry is as expected
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)

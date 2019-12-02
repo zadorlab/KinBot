@@ -30,6 +30,7 @@ from kinbot import symmetry
 from kinbot.conformers import Conformers
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
+from kinbot import reader_gauss
 
 
 class Optimize:
@@ -49,7 +50,7 @@ class Optimize:
         self.par = par
         self.qc = qc
 
-        # wait for all calcualtions to finish before returning
+        # wait for all calculations to finish before returning
         self.wait = wait
 
         # high level job name
@@ -164,8 +165,19 @@ class Optimize:
                             if status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
-                                if geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1):
-                                    # geometry is as expected
+                                if self.species.wellorts: # for TS we need reasonable geometry agreement and normal mode correlation
+                                    fr_file = self.fr_file_name(0)
+                                    if self.qc.qc == 'gauss':
+                                        imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+                                    fr_file = self.fr_file_name(1)
+                                    if self.qc.qc == 'gauss':
+                                        imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+                                    same_geom = (geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
+                                                  (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))
+                                else: 
+                                    same_geom = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
+                                if same_geom:
+                                    # geometry is as expected and normal modes are the same for TS
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)
                                     err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
@@ -173,7 +185,7 @@ class Optimize:
                                     self.shigh = 1
                                 else:
                                     # geometry diverged to other structure
-                                    logging.info('\tHigh level ts optimization converged to different structure for {}'.format(self.species.name))
+                                    logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.species.name))
                                     self.shigh = -999
                     else:
                         # no high-level calculations necessary, set status to finished
@@ -249,8 +261,6 @@ class Optimize:
                 # calculate the symmetry numbers
                 symmetry.calculate_symmetry(self.species)
 
-     fr_file = self.species.name
-
                 # calculate the new frequencies with the internal rotations projected out
                 fr_file = self.species.name
                 if not self.species.wellorts:
@@ -258,6 +268,7 @@ class Optimize:
                     fr_file += '_well'
                 if self.par.par['high_level']:
                         fr_file += '_high'
+                fr_file = self.fr_file_name(self.par.par['high_level'])
                 hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
 
@@ -272,8 +283,7 @@ class Optimize:
                         self.species.energy = molpro_energy
                 
                 # delete unnecessary files
-                delete = 1
-                if delete:
+                if self.par.par['delete_intermediate_files'] == 1:
                     self.delete_files()
             if self.wait:
                 if self.shir == 1 or self.shigh == -999:
@@ -330,3 +340,14 @@ class Optimize:
                 #except FileNotFoundError:
                 except:
                     pass
+
+
+    def fr_file_name(self, high):
+        fr_file = self.species.name
+        if not self.species.wellorts:
+            fr_file += '_well'
+        #if self.par.par['high_level']:
+        if high:
+            fr_file += '_high'
+ 
+        return(fr_file)

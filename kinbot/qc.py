@@ -46,6 +46,7 @@ class QuantumChemistry:
         self.high_level_method = par.par['high_level_method']
         self.high_level_basis = par.par['high_level_basis']
         self.integral = par.par['integral']
+        self.opt = par.par['opt']
         self.ppn = par.par['ppn']
         self.queuing = par.par['queuing']
         self.queue_name = par.par['queue_name']
@@ -125,8 +126,8 @@ class QuantumChemistry:
             else:
                 kwargs['freq'] = 'freq'
             if scan or 'R_Addition_MultipleBond' in job:
-                    kwargs['method'] = 'mp2'
-                    kwargs['basis'] = self.basis
+                kwargs['method'] = 'mp2'
+                kwargs['basis'] = self.basis
             if irc is not None: 
                 #arguments for the irc calculations
                 kwargs['geom'] = 'AllCheck,NoKeepConstants'
@@ -136,7 +137,10 @@ class QuantumChemistry:
             if high_level:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
-                kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
+                if len(self.opt) > 0:
+                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999,{}'.format(self.opt)  # to overwrite possible CalcAll
+                else:
+                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
                 kwargs['freq'] = 'freq'
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral
@@ -341,7 +345,7 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self, species, geom, high_level = 0, mp2 = 0):
+    def qc_opt(self, species, geom, high_level=0, mp2=0):
         """ 
         Creates a geometry optimization input and runs it. 
         """
@@ -359,25 +363,30 @@ class QuantumChemistry:
         fi.write("chemid= {0}".format(species.chemid)) 
         if species.chemid == "320320000000000000001": 
             mult=3 
-            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level = high_level) 
+            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level) 
             fi.write("\tmult= {0}\n".format(mult)) 
         #CH2 
         elif species.chemid == "140260020000000000001": 
             mult=3 
-            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level = high_level) 
+            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level) 
             fi.write("\tmult= {0}\n".format(mult)) 
         #others 
         else: 
             mult=species.mult 
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level = high_level) 
+            kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level) 
             fi.write("\tmult= {0}\n".format(mult)) 
         fi.close()         
  
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level = high_level)
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level)
         if self.qc == 'gauss':
             kwargs['opt'] = 'CalcFC, Tight'
         if mp2:
             kwargs['method'] = 'mp2'
+        if high_level:
+            if self.opt:
+                kwargs['opt'] = 'CalcFC,{}'.format(self.opt)
+        # the integral is set in the get_qc_arguments parts, bad design
+
         
         atom = copy.deepcopy(species.atom)
         
@@ -765,7 +774,7 @@ class QuantumChemistry:
         
         return 0, zpe
 
-    def read_qc_hess(self,job, natom):
+    def read_qc_hess(self, job, natom):
         """
         Read the hessian of a gaussian chk file
         """
@@ -805,7 +814,8 @@ class QuantumChemistry:
                     break
         return hess
 
-    def is_in_database(self,job):
+
+    def is_in_database(self, job):
         """
         Checks if the current job is in the database:
         """

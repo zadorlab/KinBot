@@ -393,8 +393,9 @@ class ReactionGenerator:
                         postprocess.createPESViewerInput(self.species, self.qc, self.par)
                 elif self.species.reac_ts_done[index] == -999:
                     if not self.species.reac_obj[index].instance_name in deleted:
-                        self.delete_files(self.species.reac_obj[index].instance_name)
-                        deleted.append(self.species.reac_obj[index].instance_name)
+                        if self.par.par['delete_intermediate_files'] == 1:
+                            self.delete_files(self.species.reac_obj[index].instance_name)
+                            deleted.append(self.species.reac_obj[index].instance_name)
                         
             alldone = 1
             for index, instance in enumerate(self.species.reac_inst):

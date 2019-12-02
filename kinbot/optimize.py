@@ -249,9 +249,12 @@ class Optimize:
                 # calculate the symmetry numbers
                 symmetry.calculate_symmetry(self.species)
 
+     fr_file = self.species.name
+
                 # calculate the new frequencies with the internal rotations projected out
                 fr_file = self.species.name
                 if not self.species.wellorts:
+                    fr_file = str(self.species.chemid)
                     fr_file += '_well'
                 if self.par.par['high_level']:
                         fr_file += '_high'

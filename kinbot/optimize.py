@@ -251,13 +251,14 @@ class Optimize:
 
                 # calculate the new frequencies with the internal rotations projected out
                 fr_file = self.species.name
+                
                 if not self.species.wellorts:
+                    fr_file = str(self.species.chemid)
                     fr_file += '_well'
                 if self.par.par['high_level']:
                         fr_file += '_high'
                 hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
-
 
                 # write the molpro input and read the molpro energy, if available
                 if self.par.par['single_point_qc'] == 'molpro':

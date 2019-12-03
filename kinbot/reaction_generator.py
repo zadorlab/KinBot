@@ -18,7 +18,6 @@
 ##                                               ##
 ###################################################
 from __future__ import print_function
-                        print("start: {}".format(chemid))
 import numpy as np
 import sys
 import os

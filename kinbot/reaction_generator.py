@@ -79,18 +79,18 @@ class ReactionGenerator:
         # status to see of kinbot needs to wait for the product optimizations
         # from another kinbot run, to avoid duplication of calculations
         products_waiting_status = [[] for i in self.species.reac_inst]
-        #print("prod_wait_stat len: {}".format(len(products_waiting_status)))
+        print("prod_wait_stat len: {}".format(len(products_waiting_status)))
         count=0
         for i in self.species.reac_inst:
              count=count+1
-        #print("reac_inst count: {}".format(count))
+        print("reac_inst count: {}".format(count))
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
                 instance_name = obj.instance_name
-                #print("index = {}".format(index))
-                #print("instance_name: {}".format(instance_name))
+                print("index = {}".format(index))
+                print("instance_name: {}".format(instance_name))
 
                 # START REACTION SEARCH
                 if self.species.reac_ts_done[index] == 0 and self.species.reac_step[index] == 0:
@@ -201,11 +201,11 @@ class ReactionGenerator:
                     for st_pt in obj.products:
                         obj.products_final.append(st_pt)
                         chemid = st_pt.chemid
-                        #print("start: {}".format(chemid))
+                        print("start: {}".format(chemid))
                         orig_geom = copy.deepcopy(st_pt.geom)
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
-                        #print("original geom\n {}".format(orig_geom))
-                        #print("new geom\n {}".format(st_pt.geom))
+                        print("original geom\n {}".format(orig_geom))
+                        print("new geom\n {}".format(st_pt.geom))
                         
                         if e < 0:
                             logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name,st_pt.chemid))
@@ -223,11 +223,11 @@ class ReactionGenerator:
                                 obj.products_final.pop()
                                 # product was optimized to another structure, give warning but don't remove reaction
                                 logging.info('\tProduct optimized to other structure for {}, product {} to {}'.format(instance_name,chemid,st_pt.chemid))
-                                #print("original: {}".format(st_pt.chemid))
+                                print("original: {}".format(st_pt.chemid))
                                 newfrags, newmaps = st_pt.start_multi_molecular()
                                 products_waiting_status[index] = [0 for frag in newfrags]
                                 for a in newfrags:
-                                    #print("new frag: {}".format(a.chemid))
+                                    print("new frag: {}".format(a.chemid))
                                     obj.products_final.append(a)
                                     self.qc.qc_opt(a, a.geom)
                                 for i, frag in enumerate(newfrags):
@@ -238,17 +238,17 @@ class ReactionGenerator:
                     while i < j:
                         obj.products.pop()
                         i=i+1
-                    #print("len obj.prod: {}".format(j))
+                    print("len obj.prod: {}".format(j))
                     obj.products=obj.products_final     
  
                
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         self.species.reac_ts_done[index] = 3
  
-                    #print("Final obj.products")
+                    print("Final obj.products")
                     for int in obj.products:
-                    #    print(int.chemid)
-                    #print("\nDone with index == 2\n")
+                        print(int.chemid)
+                    print("\nDone with index == 2\n")
                 elif self.species.reac_ts_done[index] == 3:
                     #wait for the optimization to finish 
                     # if two st_pt are the same in the products, we make them exactly identical otherwise

@@ -244,7 +244,7 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = 3
  
                     #print("Final obj.products")
-                    for int in obj.products:
+                    # for int in obj.products:
                     #    print(int.chemid)
                     #print("\nDone with index == 2\n")
                 elif self.species.reac_ts_done[index] == 3:

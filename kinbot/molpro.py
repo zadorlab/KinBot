@@ -103,8 +103,6 @@ class Molpro:
 
             for index, line in enumerate(reversed(lines)):
                 if ('SETTING ' + key) in line:
-                    #print(float(line.split()[2]))
-                    print(float(line.split()[3]))
                     return 1, float(line.split()[3])
         else:
             return 0, -1

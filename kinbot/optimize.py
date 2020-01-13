@@ -157,6 +157,7 @@ class Optimize:
                         if self.shigh == 0:
                             # high level calculation is running
                             # check if it is finished
+                            #print("self.job_high: {}".format(self.job_high))
                             status = self.qc.check_qc(self.job_high)
                             if status == 'error':
                                 # found an error
@@ -165,6 +166,7 @@ class Optimize:
                             if status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
+                                
                                 if self.species.wellorts: # for TS we need reasonable geometry agreement and normal mode correlation
                                     fr_file = self.fr_file_name(0)
                                     if self.qc.qc == 'gauss':
@@ -176,6 +178,12 @@ class Optimize:
                                                   (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))
                                 else: 
                                     same_geom = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
+                                #print("! INSIDE OPTIMIZE !")
+                                #print("\tself.job_high: {}".format(self.job_high))
+                                
+                                #print("\tSpecies Geom: {}".format(self.species.geom))
+                                #print("\n\tNew Species Geom: {}".format(new_geom))
+                       
                                 if same_geom:
                                     # geometry is as expected and normal modes are the same for TS
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)

@@ -17,7 +17,6 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-from __future__ import print_function
 import copy
 import numpy as np
 
@@ -26,6 +25,7 @@ from kinbot import constants
 
 def calc_angle(a, b, c):
     """ Calculate the A - B - C angle in radians"""
+    
     v1 = (b-a) / np.linalg.norm(b-a)
     v2 = (b-c) / np.linalg.norm(b-c)
     return np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
@@ -95,7 +95,6 @@ def calc_dihedral(a, b, c, d):
     """
     collinear_cutoff = 175./180.
     collinear = 0
-
     if (abs(calc_angle(a, b, c)) > np.pi * collinear_cutoff or
             abs(calc_angle(b, c, d)) > np.pi * collinear_cutoff):
         collinear = 1
@@ -325,6 +324,7 @@ def equal_geom(bond, orig_geom, new_geom, cutoff):
                 orig_dist = np.linalg.norm(orig_geom[i]-orig_geom[j])
                 new_dist = np.linalg.norm(new_geom[i]-new_geom[j])
                 if np.abs(new_dist - orig_dist) / orig_dist > cutoff:
+                    print("GEOMETRY CHECK:\n\tORIGINAL DIST: {}\n\tNEW DIST: {}".format(orig_dist, new_dist))
                     return 0
     return 1
 

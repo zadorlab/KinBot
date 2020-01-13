@@ -17,7 +17,6 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-
 import os,sys
 import logging
 import numpy as np

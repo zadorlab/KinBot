@@ -339,21 +339,25 @@ def matrix_corr(p, q):
     """
 
     # centorids of both point sets
-    pcent = np.zeros(3)
-    for pi in p:
-        pcent[0] += pi[0]
-        pcent[1] += pi[1]
-        pcent[2] += pi[2]
+    #pcent = np.zeros(3)
+    #for pi in p:
+    #    pcent += pi
+        #pcent[0] += pi[0]
+        #pcent[1] += pi[1]
+        #pcent[2] += pi[2]
     
-    qcent = np.zeros(3)
-    for qi in q:
-        qcent[0] += qi[0]
-        qcent[1] += qi[1]
-        qcent[2] += qi[2]
-    
-    l = len(p)
-    pcent = pcent / l
-    qcent = qcent / l 
+    #qcent = np.zeros(3)
+    #for qi in q:
+    #    qcent[0] += qi[0]
+    #    qcent[1] += qi[1]
+    #    qcent[2] += qi[2]
+    #
+    #l = len(p)
+    #pcent = pcent / l
+    #qcent = qcent / l 
+
+    pcent = p.mean(axis=0)
+    qcent = q.mean(axis=0)
 
     # shift to centroids
     x = p - pcent
@@ -361,6 +365,8 @@ def matrix_corr(p, q):
 
     # 3 by 3 covariance matrix
     s = np.matmul(np.transpose(x), y)
+    #s = np.matmul(x.T, y) # only Python 3.6+ compatible
+
 
     # SVD of the covariance mx
     u, _, v = np.linalg.svd(s)
@@ -368,6 +374,7 @@ def matrix_corr(p, q):
     # to determine the sign (reflection, if needed)
     diag = np.identity(3)
     diag[2][2] = np.linalg.det(np.matmul(np.transpose(v), np.transpose(u))) # +1 or -1
+    #diag[2][2] = np.linalg.det(v.T @ u.T) # only Python 3.6+ compatible
 
     # rotation
     r = np.matmul(np.matmul(np.transpose(v), diag), np.transpose(u))
@@ -379,5 +386,6 @@ def matrix_corr(p, q):
     for i, pi in enumerate(p):
         pnew[i] = np.matmul(r, pi) + t
 
-    return(np.corrcoef(np.matrix.flatten(pnew),np.matrix.flatten(q))[0][1])
+    #return(np.corrcoef(np.matrix.flatten(pnew),np.matrix.flatten(q))[0][1])
+    return np.corrcoef(pnew.ravel(), q.ravel())[0][1]
 

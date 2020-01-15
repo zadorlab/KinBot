@@ -325,6 +325,8 @@ class Conformers:
                 self.conf_status.append(-1)
         status = self.conf_status
 
+        lowest_conf = str(0).zfill(self.zf) # the index of the lowest conf, to be updated as we go
+
         while 1:
             # check if conformational search is finished
             for i, si in enumerate(status):
@@ -347,6 +349,7 @@ class Conformers:
                         final_geoms.append(geom)
                         energies.append(energy)
                         if energy < lowest_energy:
+                            lowest_conf = str(ci).zfill(self.zf) 
                             lowest_energy = energy
                             lowest_e_geom = geom
                     else:
@@ -354,13 +357,13 @@ class Conformers:
                         final_geoms.append(np.zeros((self.species.natom, 3)))
                
                 self.write_profile(status, final_geoms, energies)
-                return 1, lowest_e_geom, lowest_energy
+                return 1, lowest_conf, lowest_e_geom, lowest_energy
 
             else:
                 if wait:
                     time.sleep(1)
                 else:
-                    return 0, np.zeros((self.species.natom, 3)), self.species.energy
+                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy
 
     def write_profile(self, status, final_geoms, energies, ring=0):
         """

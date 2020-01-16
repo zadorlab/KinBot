@@ -141,6 +141,9 @@ class Optimize:
                 # no conf search necessary, set status to finished
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
+                # if the conformers were already done in a previous run
+                if self.par.par['conformer_search'] == 1:
+                    status, lowest_conf, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
                 while self.restart < self.max_restart:
                     # do the high level calculations
                     if self.par.par['high_level'] == 1:

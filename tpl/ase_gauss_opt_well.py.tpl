@@ -20,8 +20,6 @@ from ase.calculators.gaussian import Gaussian
 from ase.optimize import BFGS
 from ase.db import connect
 
-from kinbot.reader_gauss import ml_read_opt_dft 
-
 label = '{label}'
 kwargs = {kwargs}
 
@@ -40,7 +38,6 @@ natom = len([at for at in atom if at !='X']) #filter out the dummy atoms
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
-    ml_read_opt_dft('{label}.log', natom, method)
     """
     #read the geometry from the output file
     outfile = '{label}.log'
@@ -109,7 +106,6 @@ except RuntimeError:
             geom[-(i+1)][0:3] = d[0:3]
         mol.positions = geom
         e = mol.get_potential_energy() # use the Gaussian optimizer
-        ml_read_opt_dft('{label}.log', natom, method)
         #read the geometry from the output file
         outfile = '{label}.log'
         with open(outfile) as f:

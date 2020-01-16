@@ -208,29 +208,4 @@ def read_imag_mode(job, natom):
     return(nmode)
 
 
-def ml_read_opt_dft(outfile, natom, method):
-    """
-    Read all geometries and energies from a standard optimization job using DFT.
-    method contains the level of theory as assembled in the template.
-    This function is called in the template only.
-    """
-    with open(outfile) as f:
-        lines = f.readlines()
-   
-    geom = np.zeros((natom, 3))
-    for index, line in enumerate(lines):
-        if 'Input orientation:' in line:
-            for n in range(natom):
-                geom[n][0:3] = lines[index+5+n].split()[3:6]
-        if 'SCF Done' in line:
-            energy = line.split()[4]
-            with open('ml_data.dat', 'a') as f: # only write geom if there is energy
-                f.write('{} @ {}\n'.format(energy, method))
-                for i in range(natom):
-                    for j in range(3):
-                        f.write('{} '.format(geom[i][j]))
-                    f.write('\n')
-
-    return 1
-
 

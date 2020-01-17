@@ -281,7 +281,11 @@ class ReactionGenerator:
 
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         self.species.reac_ts_done[index] = 3
-
+ 
+                    #print("Final obj.products")
+                    # for int in obj.products:
+                    #    print(int.chemid)
+                    #print("\nDone with index == 2\n")
                 elif self.species.reac_ts_done[index] == 3:
                     # wait for the optimization to finish 
                     # if two st_pt are the same in the products, we make them exactly identical otherwise

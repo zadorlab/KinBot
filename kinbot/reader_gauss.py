@@ -33,7 +33,7 @@ def read_geom(outfile, mol, dummy):
     with open(outfile) as f:
         lines = f.readlines()
 
-    geom = np.zeros((len(mol),3))
+    geom = np.zeros((len(mol), 3))
     for index, line in enumerate(reversed(lines)):
         if 'Input orientation:' in line:
             for n in range(len(mol)):
@@ -206,5 +206,6 @@ def read_imag_mode(job, natom):
             break
 
     return(nmode)
+
 
 

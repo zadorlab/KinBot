@@ -105,7 +105,7 @@ class Optimize:
                     if status:
                         # ring conf search is finished
                         self.scycconf = 1
-                # do the open chain par of the molecule
+                # do the open chain part of the molecule
                 if self.scycconf == 1:
                     # do open chain part if cyclic part is done
                     if self.sconf == -1:
@@ -119,7 +119,7 @@ class Optimize:
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        status, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
+                        status, lowest_conf, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
                          
                         #print('{0} {1}'.format(status, low_energy))
                         if status == 1:
@@ -141,6 +141,9 @@ class Optimize:
                 # no conf search necessary, set status to finished
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
+                # if the conformers were already done in a previous run
+                if self.par.par['conformer_search'] == 1:
+                    status, lowest_conf, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
                 while self.restart < self.max_restart:
                     # do the high level calculations
                     if self.par.par['high_level'] == 1:
@@ -168,14 +171,20 @@ class Optimize:
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
                                 
                                 if self.species.wellorts: # for TS we need reasonable geometry agreement and normal mode correlation
-                                    fr_file = self.fr_file_name(0)
+                                    if self.par.par['conformer_search'] == 0:
+                                        fr_file = self.fr_file_name(0) # name of the original TS file
+                                    else:
+                                        fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
                                     if self.qc.qc == 'gauss':
                                         imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
                                     fr_file = self.fr_file_name(1)
                                     if self.qc.qc == 'gauss':
                                         imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-                                    same_geom = (geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
-                                                  (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))
+                                    # either geom is roughly same with closely matching imaginary modes, or geometry is very close
+                                    # maybe we need to do IRC at the high level as well...
+                                    same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
+                                            (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))) \
+                                            or (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.15))
                                 else: 
                                     same_geom = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
                        

@@ -178,11 +178,6 @@ class Optimize:
                                                   (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))
                                 else: 
                                     same_geom = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
-                                #print("! INSIDE OPTIMIZE !")
-                                #print("\tself.job_high: {}".format(self.job_high))
-                                
-                                #print("\tSpecies Geom: {}".format(self.species.geom))
-                                #print("\n\tNew Species Geom: {}".format(new_geom))
                        
                                 if same_geom:
                                     # geometry is as expected and normal modes are the same for TS
@@ -191,6 +186,7 @@ class Optimize:
                                     err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
                                     err, self.species.zpe = self.qc.get_qc_zpe(self.job_high)
                                     self.shigh = 1
+                                    print("opt, species: {}, energy: {}".format(self.species.chemid, self.species.energy))
                                 else:
                                     # geometry diverged to other structure
                                     logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.species.name))

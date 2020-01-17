@@ -732,7 +732,7 @@ class QuantumChemistry:
 
         #open the database
         rows = self.db.select(name = job)
-        
+        energy=0
         #take the last entry
         for row in rows:
             if hasattr(row, 'data'):

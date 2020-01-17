@@ -195,7 +195,6 @@ def createPESViewerInput(species,qc,par):
             if len(species.reac_obj[index].prod_opt) > 1:
                 energy = 0. - well_energy
                 names = []
-                print("Start species: {}".format(species.reac_inst))
                 print("\tEnergy ( 0 - well_energy ): {}".format(energy))
                 for prod_opt in species.reac_obj[index].prod_opt:
                     st_pt = prod_opt.species
@@ -208,7 +207,7 @@ def createPESViewerInput(species,qc,par):
                 for i, prod_opt in enumerate(species.reac_obj[index].prod_opt):
                     st_pt = prod_opt.species
                     pesdata=open("pesdata.txt",'a')
-                    pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
+                    pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}\n".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
                     pesdata.close()
                     # make twice the same file but with adifferent name
                     # TODO: is there no better way?

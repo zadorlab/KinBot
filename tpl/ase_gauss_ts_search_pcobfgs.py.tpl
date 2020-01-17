@@ -90,3 +90,9 @@ except RuntimeError:
     data = {{'status' : 'error'}}
 
 db.write(mol, name=label, data=data)
+
+# add the finished stamp
+f = open(label + '.log','a')
+f.write('done\n')
+f.close()
+

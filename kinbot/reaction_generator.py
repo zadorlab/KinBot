@@ -302,7 +302,7 @@ class ReactionGenerator:
                     obj.ts_opt = Optimize(obj.ts,self.par,self.qc)
                     obj.ts_opt.do_optimization()
 					#do the products optimizations
-                    for st_pt in obj.products:
+                    for k, st_pt in enumerate(obj.products):
                         #check for products of other reactions that are the same as this product
                         #in the case such products are found, use the same Optimize object for both
                         new = 1
@@ -316,6 +316,12 @@ class ReactionGenerator:
                                                 prod_opt = obj_i.prod_opt[j]
                                                 new = 0
                                                 break
+                        if new:  # was not the same as another prod in another reaction
+                            for l, st_pt_2 in enumerate(obj.products[:k]):  # checking against earlier prods of the current channel
+                                if st_pt_2 == st_pt:  
+                                    prod_opt = obj.products[l]  # point to earlier one
+                                    new = 0
+                                    break
                         if new:
                             prod_opt = Optimize(st_pt,self.par,self.qc)
                             prod_opt.do_optimization()

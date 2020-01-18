@@ -330,6 +330,7 @@ class ReactionGenerator:
                     obj.ts_opt.do_optimization()
                     #do the products optimizations
                     for st_pt in obj.products:
+					#do the products optimizations
                         #check for products of other reactions that are the same as this product
                         #in the case such products are found, use the same Optimize object for both
                         for i, inst_i in enumerate(self.species.reac_inst):
@@ -343,12 +344,10 @@ class ReactionGenerator:
                                                 prod_opt = obj_i.prod_opt[j]
                                                 new = 0
                                                 break
-
                         if new:
                             prod_opt = Optimize(st_pt,self.par,self.qc)
                             prod_opt.do_optimization()
                         obj.prod_opt.append(prod_opt)
-
 
                     for st_pt in obj.products:                        
                     #section where comparing products in same reaction occurs

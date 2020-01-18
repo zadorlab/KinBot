@@ -324,7 +324,7 @@ def equal_geom(bond, orig_geom, new_geom, cutoff):
                 orig_dist = np.linalg.norm(orig_geom[i]-orig_geom[j])
                 new_dist = np.linalg.norm(new_geom[i]-new_geom[j])
                 if np.abs(new_dist - orig_dist) / orig_dist > cutoff:
-                    print("GEOMETRY CHECK:\n\tORIGINAL DIST: {}\n\tNEW DIST: {}".format(orig_dist, new_dist))
+                    #print("GEOMETRY CHECK:\n\tORIGINAL DIST: {}\n\tNEW DIST: {}".format(orig_dist, new_dist))
                     return 0
     return 1
 

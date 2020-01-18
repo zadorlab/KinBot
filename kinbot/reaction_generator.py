@@ -270,22 +270,12 @@ class ReactionGenerator:
                     for prod in obj.products_final:
                         obj.products.append(prod)
                     
-                    n=1
-                    print("PRODUCTS PUSHED TO REMAINING CODE")
-                    for prod in obj.products:
-                        print("\tProduct {}: chemid: {}, atoms: {}".format(n,prod.chemid,prod.atom))
-                        n=n+1
-
                     obj.products_final=[] 
 
 
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         self.species.reac_ts_done[index] = 3
  
-                    #print("Final obj.products")
-                    # for int in obj.products:
-                    #    print(int.chemid)
-                    #print("\nDone with index == 2\n")
                 elif self.species.reac_ts_done[index] == 3:
                     # wait for the optimization to finish 
                     # if two st_pt are the same in the products, we make them exactly identical otherwise
@@ -313,7 +303,6 @@ class ReactionGenerator:
                             st_pt.calc_chemid()
                             if chemid != st_pt.chemid:
                                 # product was optimized to another structure, give warning but don't remove reaction
-                                print("b) Product optimized to other structure for {}, product {} to {}".format(instance_name,chemid,st_pt.chemid))
                                 logging.info('\t b) Product optimized to other structure for {}, product {} to {}'.format(instance_name,chemid,st_pt.chemid))
                                 e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                                 if e < 0:
@@ -340,53 +329,40 @@ class ReactionGenerator:
                     obj.ts_opt = Optimize(obj.ts,self.par,self.qc)
                     obj.ts_opt.do_optimization()
                     #do the products optimizations
-                    print("PRODUCT OPTIMIZATION STEP")
-                    new=1
                     for st_pt in obj.products:
                         #check for products of other reactions that are the same as this product
                         #in the case such products are found, use the same Optimize object for both
                         for i, inst_i in enumerate(self.species.reac_inst):
+                            new=1
                             if not i == index:
                                 obj_i = self.species.reac_obj[i]
                                 if self.species.reac_ts_done[i] > 3:
                                     for j,st_pt_i in enumerate(obj_i.products):
                                         if st_pt_i.chemid == st_pt.chemid:
-                                            print("j = {}, len(obj_i.prod_opt) = {}".format(j,len(obj_i.prod_opt)))
                                             if len(obj_i.prod_opt) > j:
                                                 prod_opt = obj_i.prod_opt[j]
                                                 new = 0
-                                                dup = 1
                                                 break
-                        #for st_pt in obj.products:                        
-                        #section where comparing products in same reaction occurs
-                        #    if len(obj.prod_opt) > 0:
-                        #        for j, st_pt_opt in enumerate(obj.prod_opt):
-                        #            print("st_pt: {}, st_pt_opt {}, j = {}".format(st_pt.chemid, st_pt_opt.species.chemid,j))
-                        #            if st_pt.chemid == st_pt_opt.species.chemid:
-                        #                prod_opt = obj.prod_opt[j]
-                        #                new=0
-                        #                break
 
                         if new:
-                            print("new chemid: {}".format(st_pt.chemid))
                             prod_opt = Optimize(st_pt,self.par,self.qc)
                             prod_opt.do_optimization()
                         obj.prod_opt.append(prod_opt)
+
 
                     for st_pt in obj.products:                        
                     #section where comparing products in same reaction occurs
                         if len(obj.prod_opt) > 0:
                             for j, st_pt_opt in enumerate(obj.prod_opt):
-                                print("st_pt: {}, st_pt_opt {}, j = {}".format(st_pt.chemid, st_pt_opt.species.chemid,j))
                                 if st_pt.chemid == st_pt_opt.species.chemid:
-                                    prod_opt = obj.prod_opt[j]
-                                    break
+                                    if len(obj.prod_opt) > j:
+                                        prod_opt = obj.prod_opt[j]
+                                        break
 
                     elog=open("energy.log",'a')
                     for prod_opt in obj.prod_opt:
                         elog.write("prod_opt: {} |\tenergy: {}\n".format(prod_opt.species.chemid, prod_opt.species.energy))
                     elog.close()
-                    
 
                     self.species.reac_ts_done[index] = 5
                 elif self.species.reac_ts_done[index] == 5:

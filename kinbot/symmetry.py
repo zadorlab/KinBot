@@ -17,6 +17,7 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
+from __future__ import print_function
 import os,sys
 import logging
 import numpy as np

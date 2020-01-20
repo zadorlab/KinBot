@@ -52,6 +52,8 @@ class Parameters:
             'title': '',
             # verbose log file
             'verbose': 0,
+            # delete intermetidate files
+            'delete_intermediate_files' : 0,
 
             # INPUT SPECIES INFOR
             # SMILES of the species
@@ -149,6 +151,8 @@ class Parameters:
             'high_level_basis': '6-311++G(d,p)',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
+            # Optimization threshold
+            'opt': '',
             # for Gaussian irc: IRC(MaxPoints=n)
             'irc_maxpoints': 30,
             # for Gaussian irc, IRC(StepSize=n)
@@ -207,6 +211,9 @@ class Parameters:
             'Masses': [4.0, 87.0],
             # MESMER specific keywords
             'mesmer_command': 'mesmer',
+
+            # for development
+            'test': 0,
         }
 
         if self.input_file is not None:

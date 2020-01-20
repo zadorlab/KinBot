@@ -167,6 +167,9 @@ def createPESViewerInput(species,qc,par):
     # use this well as point zero for the energy
     wells.append('{} 0.0'.format(species.chemid)) 
     well_energy = species.energy + species.zpe
+    
+    print("PESVIEWER DATA")
+    print("Species: {}\n\tEnergy: {}\n\tZPE: {}".format(species.chemid, species.energy, species.zpe))
 
     # iterate the reactions and search for single products
     # i.e. other wells on the pes
@@ -186,19 +189,26 @@ def createPESViewerInput(species,qc,par):
     # list of the names of the bimolecular products
     bimolec_names = []
     # add the bimolecular products from the regular reactions
+    print("length reac_inst: {}".format(len(species.reac_inst)))
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             if len(species.reac_obj[index].prod_opt) > 1:
                 energy = 0. - well_energy
                 names = []
+                print("\tEnergy ( 0 - well_energy ): {}".format(energy))
                 for prod_opt in species.reac_obj[index].prod_opt:
                     st_pt = prod_opt.species
+                    print("species: {}\n\tEnergy: {}\n\tSt_pt energy: {}\n\tst_pt zpe: {}".format(prod_opt.species.chemid, energy, st_pt.energy, st_pt.zpe))
                     energy += st_pt.energy + st_pt.zpe
+                    print("\tUpdated energy {}: ".format(energy))
                     names.append(str(st_pt.chemid))
                 name = '_'.join(sorted(names))
 
                 for i, prod_opt in enumerate(species.reac_obj[index].prod_opt):
                     st_pt = prod_opt.species
+                    pesdata=open("pesdata.txt",'a')
+                    pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}\n".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
+                    pesdata.close()
                     # make twice the same file but with adifferent name
                     # TODO: is there no better way?
                     # this is for the pes viewer
@@ -206,9 +216,11 @@ def createPESViewerInput(species,qc,par):
                     # this is for the rmg postprocessing
                     make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
                 energy = energy * constants.AUtoKCAL
+                print("Final Energy in Bimol Loop: {}".format(energy))
                 if not name in bimolec_names:
                     bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
                     bimolec_names.append(name)
+                
 
     # add the bimolecular products form the homolytic scissions
     if not species.homolytic_scissions is None:

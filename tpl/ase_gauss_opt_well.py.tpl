@@ -33,6 +33,8 @@ geom = {geom}
 mol = Atoms(symbols = atom, positions = geom)
 mol.set_calculator(calc)
 
+method = '{{}}/{{}}'.format(kwargs['method'], kwargs['basis'])
+natom = len([at for at in atom if at !='X']) #filter out the dummy atoms
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
@@ -61,7 +63,6 @@ try:
     with open('{label}.log') as f:
         lines = f.readlines()
 
-    natom = len([at for at in atom if at !='X']) #filter out the dummy atoms
     if natom == 1:
         freq = []
     else:
@@ -87,7 +88,7 @@ try:
         mol.pop()
     db = connect('{working_dir}/kinbot.db')
     db.write(mol, name = label, data = {{'energy': e,'frequencies': np.asarray(freq), 'zpe':zpe, 'status' : 'normal'}})
-    
+
 except RuntimeError: 
     # in case of fail, try again with final geometry
     try:
@@ -122,7 +123,6 @@ except RuntimeError:
         with open('{label}.log') as f:
             lines = f.readlines()
 
-        natom = len([at for at in atom if at !='X']) #filter out the dummy atoms
         if natom == 1:
             freq = []
         else:

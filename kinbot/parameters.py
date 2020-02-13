@@ -52,8 +52,7 @@ class Parameters:
             'title': '',
             # verbose log file
             'verbose': 0,
-            # delete intermetidate files
-            'delete_intermediate_files' : 0,
+
 
             # INPUT SPECIES INFOR
             # SMILES of the species
@@ -129,10 +128,6 @@ class Parameters:
             'one_reaction_comb' : 0,
             # Search for one specific reaction using family approach
             'one_reaction_fam' : 0,
-            # break the following bonds
-            'break_bonds' : [],
-            # form the following bonds
-            'form_bonds' : [],
 
             # QUANTUM CHEMISTRY INFO
             # Which quantum chemistry code to use
@@ -184,6 +179,8 @@ class Parameters:
             'single_point_ppn': 1,
             # This many spaces can be used for numbering files, e.g., in ga
             'zf': 4,
+            # delete intermetidate files
+            'delete_intermediate_files' : 0,
             # Scratch directory
             'scratch': '/scratch/jzador',
             # User name

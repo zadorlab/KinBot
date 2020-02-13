@@ -29,7 +29,6 @@ import os
 import sys
 import json
 import logging
-
 import numpy as np
 
 
@@ -52,8 +51,6 @@ class Parameters:
             'title': '',
             # verbose log file
             'verbose': 0,
-            # delete intermetidate files
-            'delete_intermediate_files' : 0,
 
             # INPUT SPECIES INFOR
             # SMILES of the species
@@ -79,6 +76,7 @@ class Parameters:
             'homolytic_scissions': 0,
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed
+            # atom index for break/form bonds starts at 0
             'specific_reaction': 0,
             'break_bonds': [],
             'form_bonds': [],
@@ -129,10 +127,6 @@ class Parameters:
             'one_reaction_comb' : 0,
             # Search for one specific reaction using family approach
             'one_reaction_fam' : 0,
-            # break the following bonds
-            'break_bonds' : [],
-            # form the following bonds
-            'form_bonds' : [],
 
             # QUANTUM CHEMISTRY INFO
             # Which quantum chemistry code to use
@@ -145,6 +139,8 @@ class Parameters:
             'method': 'b3lyp',
             # Basis set to use
             'basis': '6-31G',
+            # for Gaussian, request CalcAll for TS optimization
+            'calcall_ts': 0,
             # Quantum chemistry method to use for high-level L2
             'high_level_method': 'M062X',
             # Basis set to use for high-level
@@ -157,8 +153,6 @@ class Parameters:
             'irc_maxpoints': 30,
             # for Gaussian irc, IRC(StepSize=n)
             'irc_stepsize': 20,
-            # for Gaussian, request CalcAll for TS optimization
-            'calcall_ts': 0,
             # for Gaussian, allow Guess=(Mix,Always) 
             'guessmix' : 0,
             # name of the single point code's name
@@ -184,6 +178,8 @@ class Parameters:
             'single_point_ppn': 1,
             # This many spaces can be used for numbering files, e.g., in ga
             'zf': 4,
+            # delete intermetidate files
+            'delete_intermediate_files' : 0,
             # Scratch directory
             'scratch': '/scratch/jzador',
             # User name

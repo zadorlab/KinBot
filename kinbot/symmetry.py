@@ -54,6 +54,7 @@ def calculate_symmetry(species):
     
     #get all atom-centered symmetries
     for at in range(natom):
+        #print(species.chemid)
         if species.cycle[at] == 0:
             nei = get_neighbors(species,at)
             if len(nei) == 1: #no symmetry contributions

@@ -195,7 +195,7 @@ class Optimize:
                                     err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
                                     err, self.species.zpe = self.qc.get_qc_zpe(self.job_high)
                                     self.shigh = 1
-                                    print("opt, species: {}, energy: {}".format(self.species.chemid, self.species.energy))
+                                    #print("opt, species: {}, energy: {}".format(self.species.chemid, self.species.energy))
                                 else:
                                     # geometry diverged to other structure
                                     logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.species.name))
@@ -276,7 +276,6 @@ class Optimize:
 
                 # calculate the new frequencies with the internal rotations projected out
                 fr_file = self.species.name
-                
                 if not self.species.wellorts:
                     fr_file = str(self.species.chemid)
                     fr_file += '_well'
@@ -285,6 +284,7 @@ class Optimize:
                 fr_file = self.fr_file_name(self.par.par['high_level'])
                 hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
+
 
                 # write the molpro input and read the molpro energy, if available
                 if self.par.par['single_point_qc'] == 'molpro':

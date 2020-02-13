@@ -168,8 +168,8 @@ def createPESViewerInput(species,qc,par):
     wells.append('{} 0.0'.format(species.chemid)) 
     well_energy = species.energy + species.zpe
     
-    print("PESVIEWER DATA")
-    print("Species: {}\n\tEnergy: {}\n\tZPE: {}".format(species.chemid, species.energy, species.zpe))
+    #print("PESVIEWER DATA")
+    #print("Species: {}\n\tEnergy: {}\n\tZPE: {}".format(species.chemid, species.energy, species.zpe))
 
     # iterate the reactions and search for single products
     # i.e. other wells on the pes
@@ -189,18 +189,18 @@ def createPESViewerInput(species,qc,par):
     # list of the names of the bimolecular products
     bimolec_names = []
     # add the bimolecular products from the regular reactions
-    print("length reac_inst: {}".format(len(species.reac_inst)))
+    #print("length reac_inst: {}".format(len(species.reac_inst)))
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             if len(species.reac_obj[index].prod_opt) > 1:
                 energy = 0. - well_energy
                 names = []
-                print("\tEnergy ( 0 - well_energy ): {}".format(energy))
+                #print("\tEnergy ( 0 - well_energy ): {}".format(energy))
                 for prod_opt in species.reac_obj[index].prod_opt:
                     st_pt = prod_opt.species
-                    print("species: {}\n\tEnergy: {}\n\tSt_pt energy: {}\n\tst_pt zpe: {}".format(prod_opt.species.chemid, energy, st_pt.energy, st_pt.zpe))
+                    #print("species: {}\n\tEnergy: {}\n\tSt_pt energy: {}\n\tst_pt zpe: {}".format(prod_opt.species.chemid, energy, st_pt.energy, st_pt.zpe))
                     energy += st_pt.energy + st_pt.zpe
-                    print("\tUpdated energy {}: ".format(energy))
+                    #print("\tUpdated energy {}: ".format(energy))
                     names.append(str(st_pt.chemid))
                 name = '_'.join(sorted(names))
 
@@ -216,7 +216,7 @@ def createPESViewerInput(species,qc,par):
                     # this is for the rmg postprocessing
                     make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
                 energy = energy * constants.AUtoKCAL
-                print("Final Energy in Bimol Loop: {}".format(energy))
+                #print("Final Energy in Bimol Loop: {}".format(energy))
                 if not name in bimolec_names:
                     bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
                     bimolec_names.append(name)

@@ -31,6 +31,8 @@ from ase.db import connect
 from kinbot import constants
 from kinbot import geometry
 
+from shutil import copyfile
+
 class QuantumChemistry:
     """
     This class provides the link between KinBot and the qc code
@@ -396,7 +398,9 @@ class QuantumChemistry:
                 atom = np.append(atom,['X'])
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
-        
+        geom2=list([list(gi) for gi in geom]),
+        if species.chemid == 1013014525626134822312: 
+            print("pre template geom: {}".format(geom2))
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job,
@@ -411,9 +415,10 @@ class QuantumChemistry:
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
         f_out.close()
-        
+        if species.chemid == 1013014525626134822312: 
+            geom=list([list(gi) for gi in geom]),
+            print("qc geom: {}".format(geom))
         self.submit_qc(job)
-
         return 0
 
     def qc_freq(self, species, geom, high_level = 0):

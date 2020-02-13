@@ -7,7 +7,6 @@ KinBot needs to pass to the template:
 4. The atom vector
 5. The geometry
 6. The Gaussian command
-
 """
 
 import os, sys, re

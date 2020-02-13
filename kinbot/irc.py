@@ -17,6 +17,7 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
+from __future__ import print_function
 import numpy as np
 import os
 import copy
@@ -93,6 +94,7 @@ class IRC:
         else:
             # ircs OK: well and product found
             logging.info('\tIRCs successful for {}'.format(instance_name))
+            print("rxn: {} prod_hit: {}".format(instance_name, prod_hit))
             return st_pts[prod_hit]
 
     def problem_in_geom(self, geom):

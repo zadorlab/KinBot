@@ -72,12 +72,39 @@ def carry_out_reaction(rxn, step, command):
             c_new = [ci - 1 for ci in c[:-1]]
             c_new.append(c[-1])
             change_starting_zero.append(c_new)
+
+        geom2 = ''
+        for i, at in enumerate(rxn.species.atom):
+            if i > 0:
+                geom2 += '            '
+                x, y, z = rxn.species.geom[i]
+                geom2 += '{:.6f} {:.6f} {:.6f}\n'.format(x, y, z)
+ 
+        a=str(len(rxn.species.atom))
+        g=open('bfgs_geom.log','a')
+        g.write(a)
+        g.write("\nOriginal Geom, chemid: {}\n".format(rxn.species.chemid))
+        g.write(geom2)
+        g.close()
+
         if len(change_starting_zero) >0 :
             success, geom = modify_geom.modify_coordinates(rxn.species, rxn.instance_name, geom, change_starting_zero, rxn.species.bond)
             for c in change:
                 fix.append(c[:-1])
             change = []
 
+        geom3 = ''
+        for i, at in enumerate(rxn.species.atom):
+            if i > 0:
+                geom3 += '            '
+                x, y, z = rxn.species.geom[i]
+                geom3 += '{:.6f} {:.6f} {:.6f}\n'.format(x, y, z)
+
+        g=open('bfgs_geom.log','a')
+        g.write(a)
+        g.write("\nNew Geom, chemid: {}\n".format(rxn.species.chemid))
+        g.write(geom3)
+        g.close()
 
         kwargs['fix'] = fix
         kwargs['change'] = change

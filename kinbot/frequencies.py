@@ -17,7 +17,6 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-from __future__ import print_function
 import numpy as np
 
 from kinbot import constants
@@ -37,15 +36,18 @@ def get_frequencies(species, hess, geom):
     """
     atom = species.atom
     natom = species.natom
+
     masses = []
     for at in atom:
         masses += [constants.exact_mass[at]] * 3
     masses = np.array(masses)
+
     # Translate molecule's center of mass to (0, 0, 0)
     geom = geom - geometry.get_center_of_mass(geom, atom)
-    
+
     # Mass-weight the hessian
-    hess /= np.sqrt(np.outer(masses,masses))
+    hess /= np.sqrt(np.outer(masses, masses))
+
     # STEP 1: calculate the initial frequencies
     all_eigvals, all_eigvecs = np.linalg.eig(hess)
 

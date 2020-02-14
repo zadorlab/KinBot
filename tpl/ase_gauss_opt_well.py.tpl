@@ -38,27 +38,7 @@ natom = len([at for at in atom if at !='X']) #filter out the dummy atoms
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
-    """
-    #read the geometry from the output file
-    outfile = '{label}.log'
-    #fc = open("doneCheck.log", 'a')
-    #fc.write("Entering into gDone check\n")
-    #gDone=outfile.closed()
-    #while gDone == False:
-    #    fc.write(gDone)
-    #    time.sleep(1)
-    #    gDone=outfile.closed()
-    #fc.closed()        
-    with open(outfile) as f:
-        lines = f.readlines()
-    for index, line in enumerate(reversed(lines)):
-        if re.search('Input orientation:', line) != None:
-            for n in range(len(mol)):
-                geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
-            break
-    mol.positions = geom
-    
-    """
+    #Positions (geom) updated in ase/ases/io/gaussian.py code
     #read the frequencies
     with open('{label}.log') as f:
         lines = f.readlines()

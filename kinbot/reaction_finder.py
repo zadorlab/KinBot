@@ -78,6 +78,7 @@ class ReactionFinder:
         self.qc = qc
         self.par = par
         self.families = par.par['families']
+        self.skip_families = par.par['skip_families']
         self.specific_reaction = par.par['specific_reaction']
         self.break_bond = par.par['break_bonds']
         self.form_bond = par.par['form_bonds']
@@ -126,97 +127,128 @@ class ReactionFinder:
                 
             else:
                 if 'intra_H_migration' in self.families or 'all' in self.families:
-                    self.search_intra_H_migration(natom,atom,bond,rad)
+                    if not 'intra_H_migration' in self.skip_families:
+                        self.search_intra_H_migration(natom,atom,bond,rad)
                     
                 if 'intra_H_migration_suprafacial' in self.families or 'all' in self.families:
-                    self.search_intra_H_migration_suprafacial(natom,atom,bond,rad)
+                    if not 'intra_H_migration_suprafacial' in self.skip_families:
+                        self.search_intra_H_migration_suprafacial(natom,atom,bond,rad)
                     
                 if 'intra_R_migration' in self.families or 'all' in self.families:
-                    self.search_intra_R_migration(natom,atom,bond,rad)
+                    if not 'intra_R_migration' in self.skip_families:
+                        self.search_intra_R_migration(natom,atom,bond,rad)
                     
                 if 'intra_OH_migration' in self.families or 'all' in self.families:
-                    self.search_intra_OH_migration(natom,atom,bond,rad)
+                    if not 'intra_OH_migration' in self.skip_families:
+                        self.search_intra_OH_migration(natom,atom,bond,rad)
                     
                 if 'cpd_H_migration' in self.families or 'all' in self.families:
-                    self.search_cpd_H_migration(natom,atom,bond,rad)
+                    if not 'cpd_H_migration' in self.skip_families:
+                        self.search_cpd_H_migration(natom,atom,bond,rad)
                     
                 if 'Intra_RH_Add_Endocyclic_F' in self.families or 'all' in self.families:
-                    self.search_Intra_RH_Add_Endocyclic_F(natom,atom,bond,rad)
+                    if not 'Intra_RH_Add_Endocyclic_F' in self.skip_families:
+                        self.search_Intra_RH_Add_Endocyclic_F(natom,atom,bond,rad)
                     
                 if 'Intra_RH_Add_Endocyclic_R' in self.families or 'all' in self.families:
-                    self.search_Intra_RH_Add_Endocyclic_R(natom,atom,bond,rad)
+                    if not 'Intra_RH_Add_Endocyclic_R' in self.skip_families:
+                        self.search_Intra_RH_Add_Endocyclic_R(natom,atom,bond,rad)
                     
                 if 'Cyclic_Ether_Formation' in self.families or 'all' in self.families:
-                    self.search_Cyclic_Ether_Formation(natom,atom,bond,rad)
+                    if not 'Cyclic_Ether_Formation' in self.skip_families:
+                        self.search_Cyclic_Ether_Formation(natom,atom,bond,rad)
                     
                 if 'Intra_RH_Add_Exocyclic_F' in self.families or 'all' in self.families:
-                    self.search_Intra_RH_Add_Exocyclic_F(natom,atom,bond,rad)
+                    if not 'Intra_RH_Add_Exocyclic_F' in self.skip_families:
+                        self.search_Intra_RH_Add_Exocyclic_F(natom,atom,bond,rad)
                     
                 if 'Intra_RH_Add_Exocyclic_R' in self.families or 'all' in self.families:
-                    self.search_Intra_RH_Add_Exocyclic_R(natom,atom,bond,rad)
+                    if not 'Intra_RH_Add_Exocyclic_R' in self.skip_families:
+                        self.search_Intra_RH_Add_Exocyclic_R(natom,atom,bond,rad)
                     
                 if 'Retro_Ene' in self.families or 'all' in self.families:
-                    self.search_Retro_Ene(natom,atom,bond,rad)
+                    if not 'Retro_Ene' in self.skip_families:
+                        self.search_Retro_Ene(natom,atom,bond,rad)
                     
                 if 'Intra_R_Add_Endocyclic_F' in self.families or 'all' in self.families:
-                    self.search_Intra_R_Add_Endocyclic_F(natom,atom,bond,rad)
+                    if not 'Intra_R_Add_Endocyclic_F' in self.skip_families:
+                        self.search_Intra_R_Add_Endocyclic_F(natom,atom,bond,rad)
                     
                 if 'Intra_R_Add_ExoTetCyclic_F' in self.families or 'all' in self.families:
-                    self.search_Intra_R_Add_ExoTetCyclic_F(natom,atom,bond,rad)
+                    if not 'Intra_R_Add_ExoTetCyclic_F' in self.skip_families:
+                        self.search_Intra_R_Add_ExoTetCyclic_F(natom,atom,bond,rad)
                     
                 if 'Intra_R_Add_Exocyclic_F' in self.families or 'all' in self.families:
-                    self.search_Intra_R_Add_Exocyclic_F(natom,atom,bond,rad)
+                    if not 'Intra_R_Add_Exocyclic_F' in self.skip_families:
+                        self.search_Intra_R_Add_Exocyclic_F(natom,atom,bond,rad)
                     
                 if 'Korcek_step2' in self.families or 'all' in self.families:
-                    self.search_Korcek_step2(natom,atom,bond,rad)
+                    if not 'Korcek_step2' in self.skip_families:
+                        self.search_Korcek_step2(natom,atom,bond,rad)
                     
                 if 'r22_cycloaddition' in self.families or 'all' in self.families:
-                    self.search_r22_cycloaddition(natom,atom,bond,rad)
+                    if not 'r22_cycloaddition' in self.skip_families:
+                        self.search_r22_cycloaddition(natom,atom,bond,rad)
                     
                 if 'r12_cycloaddition' in self.families or 'all' in self.families:
-                    self.search_r12_cycloaddition(natom,atom,bond,rad)
+                    if not 'r12_cycloaddition' in self.skip_families:
+                        self.search_r12_cycloaddition(natom,atom,bond,rad)
                     
                 if 'r12_insertion_R' in self.families or 'all' in self.families:
-                    self.search_r12_insertion_R(natom,atom,bond,rad)
+                    if not 'r12_insertion_R' in self.skip_families:
+                        self.search_r12_insertion_R(natom,atom,bond,rad)
                     
                 if 'r13_insertion_CO2' in self.families or 'all' in self.families:
-                    self.search_r13_insertion_CO2(natom,atom,bond,rad)
+                    if not 'r13_insertion_CO2' in self.skip_families:
+                        self.search_r13_insertion_CO2(natom,atom,bond,rad)
                     
                 if 'r13_insertion_ROR' in self.families or 'all' in self.families:
-                    self.search_r13_insertion_ROR(natom,atom,bond,rad)
+                    if not 'r13_insertion_ROR' in self.skip_families:
+                        self.search_r13_insertion_ROR(natom,atom,bond,rad)
                     
                 if 'Diels_alder_addition' in self.families or 'all' in self.families:
-                    self.search_Diels_alder_addition(natom,atom,bond,rad)
+                    if not 'Diels_alder_addition' in self.skip_families:
+                        self.search_Diels_alder_addition(natom,atom,bond,rad)
                     
                 if 'Intra_Diels_alder_R' in self.families or 'all' in self.families:
-                    self.search_Intra_Diels_alder_R(natom,atom,bond,rad)
+                    if not 'Intra_Diels_alder_R' in self.skip_families:
+                        self.search_Intra_Diels_alder_R(natom,atom,bond,rad)
                     
                 if 'ketoenol' in self.families or 'all' in self.families:
-                    self.search_ketoenol(natom,atom,bond,rad)
+                    if not 'ketoenol' in self.skip_families:
+                        self.search_ketoenol(natom,atom,bond,rad)
                     
                 if 'HO2_Elimination_from_PeroxyRadical' in self.families or 'all' in self.families:
-                    self.search_HO2_Elimination_from_PeroxyRadical(natom,atom,bond,rad)
+                    if not 'HO2_Elimination_from_PeroxyRadical' in self.skip_families:
+                        self.search_HO2_Elimination_from_PeroxyRadical(natom,atom,bond,rad)
                     
                 if 'R_Addition_COm3_R' in self.families or 'all' in self.families:
-                    self.search_R_Addition_COm3_R(natom,atom,bond,rad)
+                    if not 'R_Addition_COm3_R' in self.skip_families:
+                        self.search_R_Addition_COm3_R(natom,atom,bond,rad)
                     
                 if 'R_Addition_MultipleBond' in self.families or 'all' in self.families:
-                    self.search_R_Addition_MultipleBond(natom,atom,bond,rad)
+                    if not 'R_Addition_MultipleBond' in self.skip_families:
+                        self.search_R_Addition_MultipleBond(natom,atom,bond,rad)
                     
                 if '12_shift_S_F' in self.families or 'all' in self.families:
-                    self.search_12_shift_S_F(natom,atom,bond,rad)
+                    if not '12_shift_S_F' in self.skip_families:
+                        self.search_12_shift_S_F(natom,atom,bond,rad)
                     
                 if '12_shift_S_R' in self.families or 'all' in self.families:
-                    self.search_12_shift_S_R(natom,atom,bond,rad)
+                    if not '12_shift_S_R' in self.skip_families:
+                        self.search_12_shift_S_R(natom,atom,bond,rad)
                     
                 if 'R_Addition_CSm_R' in self.families or 'all' in self.families:
-                    self.search_R_Addition_CSm_R(natom,atom,bond,rad)
+                    if not 'R_Addition_CSm_R' in self.skip_families:
+                        self.search_R_Addition_CSm_R(natom,atom,bond,rad)
                     
                 if 'r13_insertion_RSR' in self.families or 'all' in self.families:
-                    self.search_r13_insertion_RSR(natom,atom,bond,rad)
+                    if not 'r13_insertion_RSR' in self.skip_families:
+                        self.search_r13_insertion_RSR(natom,atom,bond,rad)
 
                 if 'beta_delta' in self.families or 'all' in self.families:
-                    self.search_beta_delta(natom,atom,bond,rad)
+                    if not 'beta_delta' in self.skip_families:
+                        self.search_beta_delta(natom,atom,bond,rad)
 
                 if 'combinatorial' in self.families:
                     self.search_combinatorial(natom,atom,bond,rad)

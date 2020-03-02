@@ -121,7 +121,6 @@ class Optimize:
                         # check if the conformational search is done
                         status, lowest_conf, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
                          
-                        #print('{0} {1}'.format(status, low_energy))
                         if status == 1:
                         #    cfi=open("conf_energies.txt", 'a')
                         #    cfi.write(self.species.name)
@@ -160,7 +159,6 @@ class Optimize:
                         if self.shigh == 0:
                             # high level calculation is running
                             # check if it is finished
-                            #print("self.job_high: {}".format(self.job_high))
                             status = self.qc.check_qc(self.job_high)
                             if status == 'error':
                                 # found an error
@@ -195,7 +193,6 @@ class Optimize:
                                     err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
                                     err, self.species.zpe = self.qc.get_qc_zpe(self.job_high)
                                     self.shigh = 1
-                                    print("opt, species: {}, energy: {}".format(self.species.chemid, self.species.energy))
                                 else:
                                     # geometry diverged to other structure
                                     logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.species.name))
@@ -347,7 +344,6 @@ class Optimize:
             for ext in extensions:
                 # delete file
                 file = '.'.join([name, ext])
-                # print(file)
                 try:
                     os.remove(file)
                 #except FileNotFoundError:

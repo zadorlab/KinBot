@@ -293,7 +293,6 @@ def main():
     mol = StationaryPoint('well0', charge, mult, smiles=smi)
     mol.characterize()
     reactions = generate_all_product_bond_matrices(mol)
-    print(len(reactions))
 
 
 if __name__ == "__main__":

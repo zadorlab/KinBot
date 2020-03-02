@@ -39,7 +39,11 @@ mol = Atoms(symbols = atom, positions = geom)
 mol.set_calculator(calc)
 
 try:
+    db2 = connect('{working_dir}/geoms2.db')
+    db2.write(mol, name=label) 
     e = mol.get_potential_energy() # use the Gaussian optimizer (task optimize)
+    db3 = connect('{working_dir}/geoms3.db')
+    db3.write(mol, name=label)
     """
     #read the geometry from the output file
     outfile = '{label}.log'

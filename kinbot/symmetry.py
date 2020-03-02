@@ -17,7 +17,6 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-from __future__ import print_function
 import os,sys
 import logging
 import numpy as np
@@ -54,7 +53,6 @@ def calculate_symmetry(species):
     
     #get all atom-centered symmetries
     for at in range(natom):
-        #print(species.chemid)
         if species.cycle[at] == 0:
             nei = get_neighbors(species,at)
             if len(nei) == 1: #no symmetry contributions

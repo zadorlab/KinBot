@@ -21,12 +21,12 @@
 Generic methods for the reaction families
 """
 
+from __future__ import print_function
 import os
 import numpy as np
 import copy
 import time
 import pkg_resources
-
 from kinbot import modify_geom
 
 def carry_out_reaction(rxn, step, command):
@@ -57,8 +57,7 @@ def carry_out_reaction(rxn, step, command):
         geom = rxn.species.geom
     else:
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error = 1)
-
-    #the the constraints for this step
+    
     step, fix, change, release = rxn.get_constraints(step, geom)
 
     if step > rxn.max_step:
@@ -78,9 +77,9 @@ def carry_out_reaction(rxn, step, command):
             if i > 0:
                 geom2 += '            '
                 x, y, z = rxn.species.geom[i]
-                geom2 += '{:.6f} {:.6f} {:.6f}\n'.format(x, y, z)
+                geom2 += '{} {:.6f} {:.6f} {:.6f}\n'.format(rxn.species.atom[i], x, y, z)
  
-        a=str(len(rxn.species.atom))
+        a=str(len(rxn.species.atom)-1)
         g=open('bfgs_geom.log','a')
         g.write(a)
         g.write("\nOriginal Geom, chemid: {}\n".format(rxn.species.chemid))
@@ -98,7 +97,7 @@ def carry_out_reaction(rxn, step, command):
             if i > 0:
                 geom3 += '            '
                 x, y, z = rxn.species.geom[i]
-                geom3 += '{:.6f} {:.6f} {:.6f}\n'.format(x, y, z)
+                geom3 += '{} {:.6f} {:.6f} {:.6f}\n'.format(rxn.species.atom[i],x, y, z)
 
         g=open('bfgs_geom.log','a')
         g.write(a)

@@ -17,7 +17,6 @@
 ##   Ruben Van de Vijver                         ##
 ##                                               ##
 ###################################################
-from __future__ import print_function
 import numpy as np
 import sys
 import os
@@ -89,7 +88,6 @@ class ReactionGenerator:
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
                 instance_name = obj.instance_name
-
                 # START REACTION SEARCH
                 if self.species.reac_ts_done[index] == 0 and self.species.reac_step[index] == 0:
                     #verify after restart if search has failed in previous kinbot run
@@ -99,7 +97,6 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                 
                 if self.species.reac_ts_done[index] == 0: # ts search is ongoing
-                    
                     if obj.scan == 0: #don't do a scan of a bond
                         if self.species.reac_step[index] == obj.max_step + 1:
                             status = self.qc.get_qc_freq(instance_name, self.species.natom)[0]
@@ -108,7 +105,7 @@ class ReactionGenerator:
                             elif status == -1:
                                 logging.info('\tRxn search failed for {}'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
-                        else: 
+                        else: #where rxn search is initiated
                             self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                     
                     else: # do a bond scan
@@ -119,7 +116,7 @@ class ReactionGenerator:
                             elif status == -1:
                                 logging.info('\tRxn search failed for {}'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
-                        else:        
+                        else: #where rxn search is initiated
                             if self.species.reac_step[index] == 0:
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                             elif self.species.reac_step[index] > 0:
@@ -133,7 +130,8 @@ class ReactionGenerator:
                                         self.species.reac_scan_energy[index].append(energy)
                                         if len(self.species.reac_scan_energy[index]) > 1:
                                             if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:
-                                                self.species.reac_step[index] = self.par.par['scan_step'] 
+                                                self.species.reac_step[index] = self.par.par['scan_step']
+                                        #ts search restarted w/ next line? 
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
 
                 elif self.species.reac_ts_done[index] == 1:
@@ -183,14 +181,12 @@ class ReactionGenerator:
 
                         a=[]
                         for frag in fragments:
-                            print("fragment chemid: {}".format(frag.chemid))
                             a.append(frag)
                             if len(frag_unique) == 0:
                                 frag_unique.append(frag)
                             elif len(frag_unique) > 0:
                                 new=1
                                 for fragb in frag_unique:
-                                    #print("fb: {} {}".format(fragb.chemid, fragb.geom[0]))
                                     if frag.chemid == fragb.chemid:
                                         e, geom2 = self.qc.get_qc_geom(str(fragb.chemid) + '_well', fragb.natom)
                                         if e == 0:
@@ -205,9 +201,6 @@ class ReactionGenerator:
                         for frag in a:
                             self.qc.qc_opt(frag, frag.geom)
                             e, geom2 = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
-                            if e != 0:
-                                print("chemid: {} error: {}, qc geom2: {}".format(frag.chemid, e, geom2))
-                        #    if e == 0:
                             obj.products_final.append(frag)
  
                         #check products make sure they are the same
@@ -236,12 +229,10 @@ class ReactionGenerator:
                         orig_geom = copy.deepcopy(st_pt.geom)
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
-                            print("check: {} {}".format(st_pt.chemid, e))
                             logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name,st_pt.chemid))
                             self.species.reac_ts_done[index] = -999
                             err = -1
                         elif e != 0:
-                            print("check: {} {}".format(st_pt.chemid, e))
                             err = -1
                         else:
                             e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
@@ -275,7 +266,6 @@ class ReactionGenerator:
 
                     for prod in obj.products_final:
                         obj.products.append(prod)
-                        #print("prod: {}, {}".format(prod.chemid, prod.geom))
                     obj.products_final=[] 
 
                  
@@ -287,14 +277,12 @@ class ReactionGenerator:
                     # if two st_pt are the same in the products, we make them exactly identical otherwise
                     # the different ordering of the atoms causes the chemid of the second to be seemingly wrong
                     #for st_pt in obj.products:
-                        #print("START {} {}".format(st_pt.chemid,st_pt.geom[0]))
                     for i, st_pt_i in enumerate(obj.products):
                         for j, st_pt_j in enumerate(obj.products):
                             if st_pt_i.chemid == st_pt_j.chemid and i < j:
                                 obj.products[j] = obj.products[i]
                     err = 0
                     for st_pt in obj.products:
-                        #print(st_pt.geom[0])
                         chemid = st_pt.chemid
                         orig_geom = copy.deepcopy(st_pt.geom)
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
@@ -316,7 +304,6 @@ class ReactionGenerator:
                                 e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                                 if e < 0:
                                     err = -1
-                    #print(st_pt.geom[0])
                     if err == 0:
                         self.species.reac_ts_done[index] = 4
                 elif self.species.reac_ts_done[index] == 4:

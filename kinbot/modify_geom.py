@@ -25,7 +25,6 @@ The optimization is done based on interatomic distances only
 The deviations of the the distances are weighted by the inverse of the distance itself
 """
 from __future__ import division
-from __future__ import print_function
 import os
 import copy
 import logging
@@ -126,7 +125,12 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
 
     Bond is the bond matrix of the molecule
     """
-    #print(species.chemid)
+    #Print for testing
+    print(species.chemid)
+    print(geom)
+    print(changes)
+    print(bond)
+ 
     start_time = time.time()
     logging.debug('Starting coordinate modification for {}'.format(name))
     logging.debug('Changes:')

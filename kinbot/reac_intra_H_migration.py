@@ -17,12 +17,11 @@ class IntraHMigration(GeneralReac):
             self.fix_bonds(fix)
 
         if step < self.dihstep:
-           self.set_dihedrals(change, step)
-
-           if step == 0 and len(self.instance) > 6:
-               self.set_angles(change)
-           else:
-               self.fix_angles(fix)
+            self.set_dihedrals(change, step)
+            if step == 0 and len(self.instance) > 6:
+                self.set_angles(change)
+            else:
+                self.fix_angles(fix)
 
         elif step == self.dihstep:
             if len(self.instance) > 3:
@@ -37,6 +36,7 @@ class IntraHMigration(GeneralReac):
                 if self.species.atom[self.instance[-2]] == 'O': fval = 1.2
                 self.set_bond(-2, -1, fval, change)
                 step += 1
+
         elif step == self.dihstep + 1:
             self.release_angles(release)
             self.release_dihedrals(release)
@@ -48,7 +48,6 @@ class IntraHMigration(GeneralReac):
             fval = 1.35
             if self.species.atom[self.instance[-2]] == 'O': fval = 1.2
             self.set_bond(-2, -1, fval, change)
-
 
         self.clean_constraints(change, fix)
         

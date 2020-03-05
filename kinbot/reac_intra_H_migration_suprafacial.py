@@ -9,31 +9,34 @@ class IntraHMigrationSuprafacial(GeneralReac):
     dihstep = 12
     
 
-    def get_constraints(self,step, geom):
+    def get_constraints(self, step, geom):
         fix = []
         change = []
         release = []
         if step < self.max_step:
             self.fix_bonds(fix)
+
         if step < self.dihstep:
             self.set_dihedrals(change, step)
             if step == 0 and len(self.instance) > 6:
                 self.set_angles(change)
             else:
                 self.fix_angles(fix)
-        elif step == dihstep:
+
+        elif step == self.dihstep:
             if len(self.instance) > 3:
                 self.fix_dihedrals(fix)
                 self.set_angles(change)
             else:
                 fval = 1.35
                 if self.species.atom[self.instance[0]] == 'O': fval = 1.2
-                set_bond(0, -1, fval, change)
+                self.set_bond(0, -1, fval, change)
                 
                 fval = 1.35
                 if self.species.atom[self.instance[-2]] == 'O': fval = 1.2
-                set_bond(-2, -1, fval, change)
+                self.set_bond(-2, -1, fval, change)
                 step += 1
+
         elif step == self.dihstep + 1:
             self.release_angles(release)
             self.release_dihedrals(release)
@@ -48,7 +51,6 @@ class IntraHMigrationSuprafacial(GeneralReac):
             fval = 1.35
             if self.species.atom[self.instance[-2]] == 'O': fval = 1.2
             self.set_bond(-2, -1, fval, change)
-        
 
         self.clean_constraints(change, fix)
         

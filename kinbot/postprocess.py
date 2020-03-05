@@ -168,9 +168,6 @@ def createPESViewerInput(species,qc,par):
     wells.append('{} 0.0'.format(species.chemid)) 
     well_energy = species.energy + species.zpe
     
-    print("PESVIEWER DATA")
-    print("Species: {}\n\tEnergy: {}\n\tZPE: {}".format(species.chemid, species.energy, species.zpe))
-
     # iterate the reactions and search for single products
     # i.e. other wells on the pes
     for index in range(len(species.reac_inst)):

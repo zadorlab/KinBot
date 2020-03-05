@@ -42,39 +42,15 @@ class IntraHMigration:
 
 
     def fix_bonds(self, fix):
-        if step < max_step:
-            for i in range(self.species.natom - 1):
-                for j in range(i + 1, self.species.natom):
-                    if self.species.bond[i][j] > 0:
-                        fix.append([i + 1, j + 1])
+        for i in range(self.species.natom - 1):
+            for j in range(i + 1, self.species.natom):
+                if self.species.bond[i][j] > 0:
+                    fix.append([i + 1, j + 1])
 
         return fix
 
 
-    def update_dihs(self, change, step):
-        new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, dihstep)
-        for dih in range(len(self.instance) - 3):
-            constraint = []
-            for i in range(4):
-                constraint.append(self.instance[dih+i] + 1)
-            constraint.append(new_dihs[dih])
-            change.append(constraint)
-
-        return change
-
-
-    def set_angles(self, change):
-        for angle in range(len(self.instance) - 2):
-            constraint = []
-            for i in range(3):
-                constraint.append(self.instance[angle+i] + 1)
-            constraint.append(180. * (len(self.instance) - 2.) / len(self.instance))
-            change.append(constraint)
-
-        return change
-
-
-    def fix_angle(self, fix):
+    def fix_angles(self, fix):
         for angle in range(len(self.instance) - 2):
             constraint = []
             for i in range(3):
@@ -99,6 +75,29 @@ class IntraHMigration:
         change.append(constraint)
 
 
+    def set_angles(self, change):
+        for angle in range(len(self.instance) - 2):
+            constraint = []
+            for i in range(3):
+                constraint.append(self.instance[angle+i] + 1)
+            constraint.append(180. * (len(self.instance) - 2.) / len(self.instance))
+            change.append(constraint)
+
+        return change
+
+
+    def set_dihedrals(self, change, step):
+        new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, self.dihstep)
+        for dih in range(len(self.instance) - 3):
+            constraint = []
+            for i in range(4):
+                constraint.append(self.instance[dih+i] + 1)
+            constraint.append(new_dihs[dih])
+            change.append(constraint)
+
+        return change
+
+
     def release_angles(self, release):
         for angle in range(len(self.instance)-2):
             constraint = []
@@ -109,7 +108,7 @@ class IntraHMigration:
         return release
 
     
-    def release_dihedrals(release):
+    def release_dihedrals(self, release):
         for dih in range(len(self.instance)-3):  
             constraint = []
             for i in range(4):
@@ -123,18 +122,18 @@ class IntraHMigration:
         fix = []
         change = []
         release = []
-        if step < max_step:
+        if step < self.max_step:
             self.fix_bonds(fix)
 
-        if step < dihstep:
-           self.update_dihs(change, step)
+        if step < self.dihstep:
+           self.set_dihedrals(change, step)
 
            if step == 0 and len(self.instance) > 6:
                self.set_angles(change)
            else:
                self.fix_angles(fix)
 
-        elif step == dihstep:
+        elif step == self.dihstep:
             if len(self.instance) > 3:
                 self.fix_dihedrals(fix)
                 self.set_angles(change)
@@ -147,7 +146,7 @@ class IntraHMigration:
                 if self.species.atom[self.instance[-2]] == 'O': fval = 1.2
                 self.set_bond(-2, -1, fval, change)
                 step += 1
-        elif step == dihstep + 1:
+        elif step == self.dihstep + 1:
             self.release_angles(release)
             self.release_dihedrals(release)
                

@@ -903,8 +903,9 @@ class QuantumChemistry:
                     log_file_exists = os.path.exists(log_file)
                     time.sleep(1)
                 
-                    
             logging.debug('log file {} does not exist'.format(log_file))
+            return 0
+
         else:
             logging.debug('job {} is not in database'.format(job))
             return 0

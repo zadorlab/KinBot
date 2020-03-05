@@ -460,8 +460,8 @@ class StationaryPoint:
         TODO: leave all the leaves of the graph out for the search, i.e.
         the atoms that only have neighbor, as they never participate in a cycle
 
-        The cycles are keps in the cycle_chain list, which is a list of lists
-        Its lists contain the atom indices participating in each cycle.
+        The cycles are kept in the cycle_chain list, which is a list of lists
+        These lists contain the atom indices participating in each cycle.
 
         In the case of fused cycles, keep all the possible cycles (e.g. two fused
         rings lead to three cycles, and they are all defined in the cycle_chain

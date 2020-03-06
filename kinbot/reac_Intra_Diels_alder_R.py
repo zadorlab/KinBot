@@ -1,7 +1,7 @@
 from kinbot import geometry
 from kinbot.reac_General import GeneralReac
 
-class IntraDielsAlder:
+class IntraDielsAlder(GeneralReac):
     max_step = 22
     scan = 0
     skip = 0

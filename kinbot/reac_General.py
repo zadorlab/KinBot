@@ -50,20 +50,20 @@ class GeneralReac:
         for angle in range(len(self.instance) - 2):
             constraint = []
             for i in range(3):
-                constraint.append(self.instance[angle+i] + 1)
+                constraint.append(self.instance[angle + i] + 1)
             fix.append(constraint)
 
 
     def fix_dihedrals(self, fix):
-        for dih in range(len(self.instance)-3):
+        for dih in range(len(self.instance) - 3):
             f = []
             for i in range(4):
-                f.append(self.instance[dih+i] + 1)
+                f.append(self.instance[dih + i] + 1)
             fix.append(f)
 
 
     def set_bond(self, atom1, atom2, fval, change):
-        constraint = [self.instance[atom1] + 1,self.instance[atom2] + 1,fval]
+        constraint = [self.instance[atom1] + 1, self.instance[atom2] + 1, fval]
         change.append(constraint)
 
 
@@ -71,7 +71,7 @@ class GeneralReac:
         for angle in range(len(self.instance) - 2):
             constraint = []
             for i in range(3):
-                constraint.append(self.instance[angle+i] + 1)
+                constraint.append(self.instance[angle + i] + 1)
             constraint.append(180. * (len(self.instance) - 2.) / len(self.instance))
             change.append(constraint)
 
@@ -81,22 +81,22 @@ class GeneralReac:
         for dih in range(len(self.instance) - 3):
             constraint = []
             for i in range(4):
-                constraint.append(self.instance[dih+i] + 1)
+                constraint.append(self.instance[dih + i] + 1)
             constraint.append(new_dihs[dih])
             change.append(constraint)
 
 
     def release_angles(self, release):
-        for angle in range(len(self.instance)-2):
+        for angle in range(len(self.instance) - 2):
             constraint = []
             for i in range(3):
-                constraint.append(self.instance[angle+i] + 1)
+                constraint.append(self.instance[angle + i] + 1)
             release.append(constraint)
 
     
-    def release_dihedrals(self, release):
-        for dih in range(len(self.instance)-3):  
+    def release_dihedrals(self, release, start=0):
+        for dih in range(start, len(self.instance) - 3):  
             constraint = []
             for i in range(4):
-                constraint.append(self.instance[dih+i] + 1)
+                constraint.append(self.instance[dih + i] + 1)
             release.append(constraint)

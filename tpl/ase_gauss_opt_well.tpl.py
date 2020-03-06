@@ -17,7 +17,6 @@ import numpy as np
 import ase
 from ase import Atoms
 from ase.calculators.gaussian import Gaussian
-from ase.optimize import BFGS
 from ase.db import connect
 
 label = '{label}'
@@ -28,7 +27,6 @@ calc = Gaussian(**kwargs)
 
 atom = {atom}
 geom = {geom}
-
 
 mol = Atoms(symbols = atom, positions = geom)
 mol.set_calculator(calc)

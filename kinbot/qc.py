@@ -1,22 +1,3 @@
-###################################################
-##                                               ##
-## This file is part of the KinBot code v2.0     ##
-##                                               ##
-## The contents are covered by the terms of the  ##
-## BSD 3-clause license included in the LICENSE  ##
-## file, found at the root.                      ##
-##                                               ##
-## Copyright 2018 National Technology &          ##
-## Engineering Solutions of Sandia, LLC (NTESS). ##
-## Under the terms of Contract DE-NA0003525 with ##
-## NTESS, the U.S. Government retains certain    ##
-## rights to this software.                      ##
-##                                               ##
-## Authors:                                      ##
-##   Judit Zador                                 ##
-##   Ruben Van de Vijver                         ##
-##                                               ##
-###################################################
 import os, sys
 import subprocess
 import logging
@@ -38,7 +19,7 @@ class QuantumChemistry:
     the jobs for success or failure
     """
     
-    def __init__(self,par):
+    def __init__(self, par):
         self.par = par
         self.qc = par.par['qc']
         self.method = par.par['method']
@@ -64,7 +45,8 @@ class QuantumChemistry:
             self.slurm_feature = '#SBATCH -C ' + par.par['slurm_feature']
         self.queue_job_limit = par.par['queue_job_limit']
         self.username = par.par['username']
-        
+       
+
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0,
                          high_level=0, hir=0, start_form_geom=0):
         """

@@ -17,7 +17,7 @@ class IntraDielsAlder(GeneralReac):
         if step < self.dihstep:
             self.set_dihedrals(change)
         elif step < self.max_step:
-            self.release_dihedrals(release)
+            self.release_dihedrals(release, start=1)
 
             first_dih = [self.instance[i] + 1 for i in range(4)]
             if step < 18: # make sure that the forming double bond stays in trans instead of moving to cis

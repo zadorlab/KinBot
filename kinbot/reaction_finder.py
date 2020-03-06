@@ -83,8 +83,7 @@ class ReactionFinder:
 
     def find_reactions(self):
         """
-        List all reaction types available, and find the key atoms for them 
-        for the current structure.
+        List all reaction types available, and find the key atoms for them.
         """
 
         reaction_names = {'intra_H_migration': self.search_intra_H_migration,

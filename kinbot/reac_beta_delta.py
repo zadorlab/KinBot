@@ -1,7 +1,7 @@
 from kinbot import geometry
 from kinbot.reac_General import GeneralReac
 
-class betadelta(GeneralReac):
+class BetaDelta(GeneralReac):
     max_step = 12
     scan = 0
     skip = 0

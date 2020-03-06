@@ -87,42 +87,40 @@ class ReactionFinder:
         for the current structure.
         """
 
-        reaction_names = ['intra_H_migration',
-                          'intra_H_migration_suprafacial',
-                          'intra_R_migration',
-                          'intra_OH_migration',
-                          'cpd_H_migration', 
-                          'Intra_RH_Add_Endocyclic_F',
-                          'Intra_RH_Add_Endocyclic_R',
-                          'Cyclic_Ether_Formation',
-                          'Intra_RH_Add_Exocyclic_F',
-                          'Intra_RH_Add_Exocyclic_R',
-                          'Retro_Ene',
-                          'Intra_R_Add_Endocyclic_F', 
-                          'Intra_R_Add_ExoTetCyclic_F',
-                          'Intra_R_Add_Exocyclic_F', 
-                          'Korcek_step2', 
-                          'r22_cycloaddition', 
-                          'r12_cycloaddition', 
-                          'r12_insertion_R', 
-                          'r13_insertion_CO2', 
-                          'r13_insertion_ROR', 
-                          'Diels_alder_addition', 
-                          'Intra_Diels_alder_R', 
-                          'ketoenol', 
-                          'HO2_Elimination_from_PeroxyRadical', 
-                          'R_Addition_COm3_R', 
-                          'R_Addition_MultipleBond', 
-                          '12_shift_S_F', 
-                          '12_shift_S_R', 
-                          'R_Addition_CSm_R', 
-                          'r13_insertion_RSR', 
-                          'beta_delta', 
-                          'combinatorial',
-                          ] 
+        reaction_names = {'intra_H_migration': self.search_intra_H_migration,
+                          'intra_H_migration_suprafacial': self.search_intra_H_migration_suprafacial,
+                          'intra_R_migration': self.search_intra_R_migration,
+                          'intra_OH_migration': self.search_intra_OH_migration,
+                          'cpd_H_migration': self.search_cpd_H_migration, 
+                          'Intra_RH_Add_Endocyclic_F': self.search_Intra_RH_Add_Endocyclic_F,
+                          'Intra_RH_Add_Endocyclic_R': self.search_Intra_RH_Add_Endocyclic_R,
+                          'Cyclic_Ether_Formation': self.search_Cyclic_Ether_Formation,
+                          'Intra_RH_Add_Exocyclic_F': self.search_Intra_RH_Add_Exocyclic_F,
+                          'Intra_RH_Add_Exocyclic_R': self.search_Intra_RH_Add_Exocyclic_R,
+                          'Retro_Ene': self.search_Retro_Ene,
+                          'Intra_R_Add_Endocyclic_F': self.search_Intra_R_Add_Endocyclic_F, 
+                          'Intra_R_Add_ExoTetCyclic_F': self.search_Intra_R_Add_ExoTetCyclic_F,
+                          'Intra_R_Add_Exocyclic_F': self.search_Intra_R_Add_Exocyclic_F, 
+                          'Korcek_step2': self.search_Korcek_step2, 
+                          'r22_cycloaddition': self.search_r22_cycloaddition, 
+                          'r12_cycloaddition': self.search_r12_cycloaddition, 
+                          'r12_insertion_R': self.search_r12_insertion_R, 
+                          'r13_insertion_CO2': self.search_r13_insertion_CO2, 
+                          'r13_insertion_ROR': self.search_r13_insertion_ROR, 
+                          'Diels_alder_addition': self.search_Diels_alder_addition, 
+                          'Intra_Diels_alder_R': self.search_Intra_Diels_alder_R, 
+                          'ketoenol': self.search_ketoenol, 
+                          'HO2_Elimination_from_PeroxyRadical': self.search_HO2_Elimination_from_PeroxyRadical, 
+                          'R_Addition_COm3_R': self.search_R_Addition_COm3_R, 
+                          'R_Addition_MultipleBond': self.search_R_Addition_MultipleBond, 
+                          '12_shift_S_F': self.search_12_shift_S_F, 
+                          '12_shift_S_R': self.search_12_shift_S_R, 
+                          'R_Addition_CSm_R': self.search_R_Addition_CSm_R, 
+                          'r13_insertion_RSR': self.search_r13_insertion_RSR, 
+                          'beta_delta': self.search_beta_delta, 
+                          'combinatorial': self.search_combinatorial,
+                          }
          
-        # function_names = globals()['ReactionFinder'](self.species, self.par, self.qc)
-
         atom = self.species.atom
         natom = self.species.natom
        
@@ -144,13 +142,10 @@ class ReactionFinder:
                 self.reactions[name].append([self.reac_bonds, self.prod_bonds, ts, 1])
                 
             else:
-                functions = {'intra_H_migration': self.search_intra_H_migration}
                 for rn in reaction_names:
                     if rn in self.families or 'all' in self.families:
                         if not rn in self.skip_families:
-                            if rn in functions:
-                                functions[rn](natom, atom, bond, rad)
-                            # getattr(function_names, 'search_{}'.format(rn))(natom, atom, bond, rad)
+                            reaction_names[rn](natom, atom, bond, rad)
 
         for name in self.reactions:
             self.reaction_matrix(self.reactions[name], name) 

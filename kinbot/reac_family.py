@@ -55,10 +55,10 @@ def carry_out_reaction(rxn, step, command):
     kwargs['release'] = release
 
     if step < rxn.max_step:
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.py.tpl'.format(qc=rxn.qc.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
         template = open(template_file,'r').read()
     else:
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc=rxn.qc.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
         template = open(template_file,'r').read()
     
     template = template.format(label=rxn.instance_name, 

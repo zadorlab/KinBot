@@ -222,7 +222,7 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job, 
                                    kwargs=kwargs, 
@@ -275,7 +275,7 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
     
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -330,7 +330,7 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs, 
@@ -401,7 +401,7 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs, 
@@ -448,7 +448,7 @@ class QuantumChemistry:
                 del kwargs['NoSymm']
         dummy = [d.tolist() for d in dummy]
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs, 
@@ -478,7 +478,7 @@ class QuantumChemistry:
 
         kwargs = self.get_qc_arguments(job,species.mult,species.charge,ts = 1,step = 1,max_step=1,high_level = 1)
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job, 
                                    kwargs=kwargs, 

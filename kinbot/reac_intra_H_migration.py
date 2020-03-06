@@ -8,7 +8,6 @@ class IntraHMigration(GeneralReac):
     skip = 1
     dihstep = 12
 
-test
 
     def get_constraints(self, step, geom):
         fix = []

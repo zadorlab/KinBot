@@ -1,22 +1,3 @@
-###################################################
-##                                               ##
-## This file is part of the KinBot code v2.0     ##
-##                                               ##
-## The contents are covered by the terms of the  ##
-## BSD 3-clause license included in the LICENSE  ##
-## file, found at the root.                      ##
-##                                               ##
-## Copyright 2018 National Technology &          ##
-## Engineering Solutions of Sandia, LLC (NTESS). ##
-## Under the terms of Contract DE-NA0003525 with ##
-## NTESS, the U.S. Government retains certain    ##
-## rights to this software.                      ##
-##                                               ##
-## Authors:                                      ##
-##   Judit Zador                                 ##
-##   Ruben Van de Vijver                         ##
-##                                               ##
-###################################################
 # -*- coding: utf-8 -*-
 import numpy as np
 import sys
@@ -57,7 +38,7 @@ from kinbot.reac_Intra_RH_Add_Exocyclic_F import IntraRHAddExoF
 from kinbot.reac_Intra_RH_Add_Endocyclic_R import IntraRHAddEndoR
 from kinbot.reac_Intra_RH_Add_Endocyclic_F import IntraRHAddEndoF
 from kinbot.reac_HO2_Elimination_from_PeroxyRadical import HO2Elimination
-from kinbot.reac_beta_delta import betadelta
+from kinbot.reac_beta_delta import BetaDelta
 
 from kinbot.reac_combinatorial import Combinatorial
 
@@ -68,12 +49,13 @@ from kinbot.reac_Intra_disproportionation_F import IntraDisproportionationF
 from kinbot.reac_r14_birad_scission import R14BiradScission
 from kinbot.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
 
+
 class ReactionFinder:
     """
     Class to find all the potential reactions starting from a well
     """
     
-    def __init__(self,species,par,qc):
+    def __init__(self, species, par, qc):
         self.species = species
         self.qc = qc
         self.par = par
@@ -105,9 +87,45 @@ class ReactionFinder:
         for the current structure.
         """
 
+        reaction_names = ['intra_H_migration',
+                          'intra_H_migration_suprafacial',
+                          'intra_R_migration',
+                          'intra_OH_migration',
+                          'cpd_H_migration', 
+                          'Intra_RH_Add_Endocyclic_F',
+                          'Intra_RH_Add_Endocyclic_R',
+                          'Cyclic_Ether_Formation',
+                          'Intra_RH_Add_Exocyclic_F',
+                          'Intra_RH_Add_Exocyclic_R',
+                          'Retro_Ene',
+                          'Intra_R_Add_Endocyclic_F', 
+                          'Intra_R_Add_ExoTetCyclic_F',
+                          'Intra_R_Add_Exocyclic_F', 
+                          'Korcek_step2', 
+                          'r22_cycloaddition', 
+                          'r12_cycloaddition', 
+                          'r12_insertion_R', 
+                          'r13_insertion_CO2', 
+                          'r13_insertion_ROR', 
+                          'Diels_alder_addition', 
+                          'Intra_Diels_alder_R', 
+                          'ketoenol', 
+                          'HO2_Elimination_from_PeroxyRadical', 
+                          'R_Addition_COm3_R', 
+                          'R_Addition_MultipleBond', 
+                          '12_shift_S_F', 
+                          '12_shift_S_R', 
+                          'R_Addition_CSm_R', 
+                          'r13_insertion_RSR', 
+                          'beta_delta', 
+                          'combinatorial',
+                          ] 
+         
+        # function_names = globals()['ReactionFinder'](self.species, self.par, self.qc)
+
         atom = self.species.atom
         natom = self.species.natom
-        
+       
         for i, bond in enumerate(self.species.bonds):
             rad = self.species.rads[i]
             
@@ -126,165 +144,31 @@ class ReactionFinder:
                 self.reactions[name].append([self.reac_bonds, self.prod_bonds, ts, 1])
                 
             else:
-                if 'intra_H_migration' in self.families or 'all' in self.families:
-                    if not 'intra_H_migration' in self.skip_families:
-                        self.search_intra_H_migration(natom,atom,bond,rad)
-                    
-                if 'intra_H_migration_suprafacial' in self.families or 'all' in self.families:
-                    if not 'intra_H_migration_suprafacial' in self.skip_families:
-                        self.search_intra_H_migration_suprafacial(natom,atom,bond,rad)
-                    
-                if 'intra_R_migration' in self.families or 'all' in self.families:
-                    if not 'intra_R_migration' in self.skip_families:
-                        self.search_intra_R_migration(natom,atom,bond,rad)
-                    
-                if 'intra_OH_migration' in self.families or 'all' in self.families:
-                    if not 'intra_OH_migration' in self.skip_families:
-                        self.search_intra_OH_migration(natom,atom,bond,rad)
-                    
-                if 'cpd_H_migration' in self.families or 'all' in self.families:
-                    if not 'cpd_H_migration' in self.skip_families:
-                        self.search_cpd_H_migration(natom,atom,bond,rad)
-                    
-                if 'Intra_RH_Add_Endocyclic_F' in self.families or 'all' in self.families:
-                    if not 'Intra_RH_Add_Endocyclic_F' in self.skip_families:
-                        self.search_Intra_RH_Add_Endocyclic_F(natom,atom,bond,rad)
-                    
-                if 'Intra_RH_Add_Endocyclic_R' in self.families or 'all' in self.families:
-                    if not 'Intra_RH_Add_Endocyclic_R' in self.skip_families:
-                        self.search_Intra_RH_Add_Endocyclic_R(natom,atom,bond,rad)
-                    
-                if 'Cyclic_Ether_Formation' in self.families or 'all' in self.families:
-                    if not 'Cyclic_Ether_Formation' in self.skip_families:
-                        self.search_Cyclic_Ether_Formation(natom,atom,bond,rad)
-                    
-                if 'Intra_RH_Add_Exocyclic_F' in self.families or 'all' in self.families:
-                    if not 'Intra_RH_Add_Exocyclic_F' in self.skip_families:
-                        self.search_Intra_RH_Add_Exocyclic_F(natom,atom,bond,rad)
-                    
-                if 'Intra_RH_Add_Exocyclic_R' in self.families or 'all' in self.families:
-                    if not 'Intra_RH_Add_Exocyclic_R' in self.skip_families:
-                        self.search_Intra_RH_Add_Exocyclic_R(natom,atom,bond,rad)
-                    
-                if 'Retro_Ene' in self.families or 'all' in self.families:
-                    if not 'Retro_Ene' in self.skip_families:
-                        self.search_Retro_Ene(natom,atom,bond,rad)
-                    
-                if 'Intra_R_Add_Endocyclic_F' in self.families or 'all' in self.families:
-                    if not 'Intra_R_Add_Endocyclic_F' in self.skip_families:
-                        self.search_Intra_R_Add_Endocyclic_F(natom,atom,bond,rad)
-                    
-                if 'Intra_R_Add_ExoTetCyclic_F' in self.families or 'all' in self.families:
-                    if not 'Intra_R_Add_ExoTetCyclic_F' in self.skip_families:
-                        self.search_Intra_R_Add_ExoTetCyclic_F(natom,atom,bond,rad)
-                    
-                if 'Intra_R_Add_Exocyclic_F' in self.families or 'all' in self.families:
-                    if not 'Intra_R_Add_Exocyclic_F' in self.skip_families:
-                        self.search_Intra_R_Add_Exocyclic_F(natom,atom,bond,rad)
-                    
-                if 'Korcek_step2' in self.families or 'all' in self.families:
-                    if not 'Korcek_step2' in self.skip_families:
-                        self.search_Korcek_step2(natom,atom,bond,rad)
-                    
-                if 'r22_cycloaddition' in self.families or 'all' in self.families:
-                    if not 'r22_cycloaddition' in self.skip_families:
-                        self.search_r22_cycloaddition(natom,atom,bond,rad)
-                    
-                if 'r12_cycloaddition' in self.families or 'all' in self.families:
-                    if not 'r12_cycloaddition' in self.skip_families:
-                        self.search_r12_cycloaddition(natom,atom,bond,rad)
-                    
-                if 'r12_insertion_R' in self.families or 'all' in self.families:
-                    if not 'r12_insertion_R' in self.skip_families:
-                        self.search_r12_insertion_R(natom,atom,bond,rad)
-                    
-                if 'r13_insertion_CO2' in self.families or 'all' in self.families:
-                    if not 'r13_insertion_CO2' in self.skip_families:
-                        self.search_r13_insertion_CO2(natom,atom,bond,rad)
-                    
-                if 'r13_insertion_ROR' in self.families or 'all' in self.families:
-                    if not 'r13_insertion_ROR' in self.skip_families:
-                        self.search_r13_insertion_ROR(natom,atom,bond,rad)
-                    
-                if 'Diels_alder_addition' in self.families or 'all' in self.families:
-                    if not 'Diels_alder_addition' in self.skip_families:
-                        self.search_Diels_alder_addition(natom,atom,bond,rad)
-                    
-                if 'Intra_Diels_alder_R' in self.families or 'all' in self.families:
-                    if not 'Intra_Diels_alder_R' in self.skip_families:
-                        self.search_Intra_Diels_alder_R(natom,atom,bond,rad)
-                    
-                if 'ketoenol' in self.families or 'all' in self.families:
-                    if not 'ketoenol' in self.skip_families:
-                        self.search_ketoenol(natom,atom,bond,rad)
-                    
-                if 'HO2_Elimination_from_PeroxyRadical' in self.families or 'all' in self.families:
-                    if not 'HO2_Elimination_from_PeroxyRadical' in self.skip_families:
-                        self.search_HO2_Elimination_from_PeroxyRadical(natom,atom,bond,rad)
-                    
-                if 'R_Addition_COm3_R' in self.families or 'all' in self.families:
-                    if not 'R_Addition_COm3_R' in self.skip_families:
-                        self.search_R_Addition_COm3_R(natom,atom,bond,rad)
-                    
-                if 'R_Addition_MultipleBond' in self.families or 'all' in self.families:
-                    if not 'R_Addition_MultipleBond' in self.skip_families:
-                        self.search_R_Addition_MultipleBond(natom,atom,bond,rad)
-                    
-                if '12_shift_S_F' in self.families or 'all' in self.families:
-                    if not '12_shift_S_F' in self.skip_families:
-                        self.search_12_shift_S_F(natom,atom,bond,rad)
-                    
-                if '12_shift_S_R' in self.families or 'all' in self.families:
-                    if not '12_shift_S_R' in self.skip_families:
-                        self.search_12_shift_S_R(natom,atom,bond,rad)
-                    
-                if 'R_Addition_CSm_R' in self.families or 'all' in self.families:
-                    if not 'R_Addition_CSm_R' in self.skip_families:
-                        self.search_R_Addition_CSm_R(natom,atom,bond,rad)
-                    
-                if 'r13_insertion_RSR' in self.families or 'all' in self.families:
-                    if not 'r13_insertion_RSR' in self.skip_families:
-                        self.search_r13_insertion_RSR(natom,atom,bond,rad)
+                functions = {'intra_H_migration': self.search_intra_H_migration}
+                for rn in reaction_names:
+                    if rn in self.families or 'all' in self.families:
+                        if not rn in self.skip_families:
+                            if rn in functions:
+                                functions[rn](natom, atom, bond, rad)
+                            # getattr(function_names, 'search_{}'.format(rn))(natom, atom, bond, rad)
 
-                if 'beta_delta' in self.families or 'all' in self.families:
-                    if not 'beta_delta' in self.skip_families:
-                        self.search_beta_delta(natom,atom,bond,rad)
-
-                if 'combinatorial' in self.families:
-                    self.search_combinatorial(natom,atom,bond,rad)
-            
-            
-            #if 'birad_recombination_F' in self.families or 'all' in self.families:
-            #    self.search_birad_recombination_F(natom,atom,bond,rad)
-            #if 'birad_recombination_R' in self.families or 'all' in self.families:
-            #    self.search_birad_recombination_R(natom,atom,bond,rad)
-            #if 'Intra_disproportionation_F' in self.families or 'all' in self.families:
-            #    self.search_Intra_disproportionation_F(natom,atom,bond,rad)
-            #if 'Intra_disproportionation_R' in self.families or 'all' in self.families:
-            #    self.search_Intra_disproportionation_R(natom,atom,bond,rad)
-            #if 'r14_birad_scission' in self.families or 'all' in self.families:
-            #    self.search_r14_birad_scission(natom,atom,bond,rad)
-            #if 'r14_cyclic_birad_scission_R' in self.families or 'all' in self.families:
-            #    self.search_r14_cyclic_birad_scission_R(natom,atom,bond,rad)
-
-        
         for name in self.reactions:
             self.reaction_matrix(self.reactions[name], name) 
         
-        #verify if every name is unique
         for index in range(len(self.species.reac_name)-1):
             if self.species.reac_name[index] in self.species.reac_name[index+1:]:
-                logging.error('Found reaction name "%s" more than once'%self.species.reac_name[index])
+                logging.error('Found reaction name "{}" more than once'
+                               .format(self.species.reac_name[index]))
                 logging.error('Exiting')
                 sys.exit()
 
-        #write the reactions that were found to the log
         logging.info('\tFound the following reactions:')
         for rxn in self.species.reac_name:
-            logging.info('\t\t%s'%rxn)
+            logging.info('\t\t{}'.format(rxn))
         
         return 0  
-    
+   
+
     def search_combinatorial(self, natom, atom, bond, rad):
         """ 
         This is a method to create all possible combinations of maximum 3 bond breakings 
@@ -539,7 +423,8 @@ class ReactionFinder:
 
         R*~~~~~~~O-OH <==> HOR~~~~~~~O*
 
-        Find all unique cases for ring sizes between 3 and 9. The H atom is not counted in the cycle size but has to be there.
+        Find all unique cases for ring sizes between 3 and 9. 
+        The H atom is not counted in the cycle size but has to be there.
         """
         
         
@@ -560,14 +445,16 @@ class ReactionFinder:
             motif[-2] = 'O'
             motif[-3] = 'O'
             for rad_site in np.nonzero(rad)[0]:
-                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+                instances += find_motif.start_motif(motif, natom, bond, atom, 
+                                                    rad_site, self.species.atom_eqv)
             # reverse direction
             motif = ['X' for i in range(ringsize+1)]
             motif[-1] = 'H'
             motif[-2] = 'O'
             motif[0] = 'O'
             for rad_site in np.nonzero(rad)[0]:
-                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+                instances += find_motif.start_motif(motif, natom, bond, atom, 
+                                                    rad_site, self.species.atom_eqv)
             for ins in instances:
                 rxns.append(ins)
 
@@ -588,7 +475,6 @@ class ReactionFinder:
                 self.reactions[name].append(inst)
 
         return 0
-
 
 
     def search_Intra_RH_Add_Endocyclic_F(self, natom, atom, bond, rad):
@@ -693,7 +579,6 @@ class ReactionFinder:
         self.reactions[name]
 
         return 0
-
 
 
     def search_Cyclic_Ether_Formation(self, natom, atom, bond, rad):
@@ -2339,7 +2224,7 @@ class ReactionFinder:
             elif reac_id == 'beta_delta':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1) + '_' + str(reac_list[i][4] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(betadelta(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(BetaDelta(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)
@@ -2347,4 +2232,3 @@ class ReactionFinder:
             else:
                 self.species.reac_name.append(0)
         return 0
-

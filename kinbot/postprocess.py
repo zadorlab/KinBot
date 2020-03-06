@@ -186,7 +186,6 @@ def createPESViewerInput(species,qc,par):
     # list of the names of the bimolecular products
     bimolec_names = []
     # add the bimolecular products from the regular reactions
-    print("length reac_inst: {}".format(len(species.reac_inst)))
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             if len(species.reac_obj[index].prod_opt) > 1:

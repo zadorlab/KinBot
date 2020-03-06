@@ -121,7 +121,7 @@ class ReactionFinder:
                           'combinatorial',
                           ] 
          
-        function_names = globals()['ReactionFinder'](self.species, self.par, self.qc)
+        # function_names = globals()['ReactionFinder'](self.species, self.par, self.qc)
 
         atom = self.species.atom
         natom = self.species.natom
@@ -144,10 +144,13 @@ class ReactionFinder:
                 self.reactions[name].append([self.reac_bonds, self.prod_bonds, ts, 1])
                 
             else:
+                functions = {'intra_H_migration': self.search_intra_H_migration}
                 for rn in reaction_names:
                     if rn in self.families or 'all' in self.families:
                         if not rn in self.skip_families:
-                            getattr(function_names, 'search_{}'.format(rn))(natom, atom, bond, rad)
+                            if rn in functions:
+                                functions[rn](natom, atom, bond, rad)
+                            # getattr(function_names, 'search_{}'.format(rn))(natom, atom, bond, rad)
 
         for name in self.reactions:
             self.reaction_matrix(self.reactions[name], name) 

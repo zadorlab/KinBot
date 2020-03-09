@@ -38,6 +38,22 @@ class GeneralReac:
                 if index > -1:
                     del fix[index]
 
+    def check_cycle(self, species, instances):
+        cycle_atoms = self.species.cycle_chain
+        instances=instances
+        filtered_instances=instances
+        for c, cycle in enumerate(cycle_atoms):
+            for a, atoms in enumerate(instances):
+	        j=a-1
+	        k=a+1
+	        if k < len(instances) and j >= 0:
+	            ca=instances[j]
+	            cb=instances[a]
+	            cc=instances[k]
+	            if ca in cycle_atoms[c] and cb in cycle_atoms[c] and cc in cycle_atoms[c]:
+		        filtered_instances.pop(a)
+
+        return filtered_instances
 
     def fix_bonds(self, fix):
         for i in range(self.species.natom - 1):

@@ -125,11 +125,6 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
 
     Bond is the bond matrix of the molecule
     """
-    #Print for testing
-    print(species.chemid)
-    print(geom)
-    print(changes)
-    print(bond)
  
     start_time = time.time()
     logging.debug('Starting coordinate modification for {}'.format(name))

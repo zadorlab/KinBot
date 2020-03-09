@@ -144,11 +144,7 @@ def new_ring_dihedrals(species, instance, step_nr,
                                            geom[instance[i+1]],
                                            geom[instance[i+2]],
                                            geom[instance[i+3]])[0])
-        fi='{}_dihedralChanges.txt'.format(species.instance_name)
-        fio=open(fi,'a')
         new_dihedrals = [dij + frac * (fin_dih - dij) for dij in dihedrals]
-        fio.write("dij: {}\nfrac: {}\nfin_dih: {}\n new_dihedral: {}\n".format(dij, frac, fin_dih, new_dihedrals))
-        fio.close()
         return new_dihedrals
 
 

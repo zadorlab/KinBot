@@ -17,6 +17,7 @@ class IntraHMigration(GeneralReac):
             self.fix_bonds(fix)
 
         if step < self.dihstep:
+            self.instance=self.check_cycle(self.species,self.instance)
             self.set_dihedrals(change, step)
             if step == 0 and len(self.instance) > 6:
                 self.set_angles(change)

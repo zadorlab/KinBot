@@ -50,6 +50,7 @@ try:
             break
     mol.positions = geom
     """
+    #Positions (geom) updated in ase/ases/io/gaussian.py code    
     #read the frequencies
     natom = len(mol)
     if natom == 1:

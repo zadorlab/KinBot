@@ -67,7 +67,8 @@ class QuantumChemistry:
         self.queue_job_limit = par.par['queue_job_limit']
         self.username = par.par['username']
         
-    def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0, high_level=0, hir=0):
+    def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0,
+                         high_level=0, hir=0, start_form_geom=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         
@@ -132,9 +133,12 @@ class QuantumChemistry:
                 kwargs['basis'] = self.basis
             if irc is not None: 
                 #arguments for the irc calculations
-                kwargs['geom'] = 'AllCheck,NoKeepConstants'
-                kwargs['guess'] = 'Read'
-                kwargs['irc'] = 'RCFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
+                if start_form_geom == 0:
+                    kwargs['geom'] = 'AllCheck,NoKeepConstants'
+                    kwargs['guess'] = 'Read'
+                    kwargs['irc'] = 'RCFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
+                else:
+                    kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 del kwargs['freq']
             if high_level:
                 kwargs['method'] = self.high_level_method
@@ -836,16 +840,13 @@ class QuantumChemistry:
         """
         Checks the status of the qc job.
         """
-        if self.qc == 'gauss':
-            log_file = job + '.log'
-        elif self.qc == 'nwchem':
-            log_file = job + '.out'
-        log_file_exists = os.path.exists(log_file)
-
+        logging.debug('Checking job {}'.format(job))
+        
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell = True, stdout=devnull, stderr=devnull)) == 0: 
+                logging.debug('Job is running')
                 return 'running'
         elif self.queuing == 'slurm':
             #command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
@@ -863,6 +864,7 @@ class QuantumChemistry:
                         line = line[1:]
                     pid = line.split()[0]
                     if pid == self.job_ids.get(job,'-1'):
+                        logging.debug('Job is running')
                         return 'running'
         else:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
@@ -870,19 +872,40 @@ class QuantumChemistry:
             sys.exit()
         #if int(subprocess.call(command, shell = True, stdout=devnull, stderr=devnull)) == 0: 
         #    return 'running' 
-        if self.is_in_database(job) and log_file_exists: #by deleting a log file, you allow restarting a job
-            #open the database
-            rows = self.db.select(name = job)
-            data = None
-            #take the last entry
-            for row in rows:
-                if hasattr(row,'data'):
-                    data = row.data
-            if data is None:
-                return 0
-            else:
-                return data['status']
-        else: 
+        
+        if self.is_in_database(job):
+            for i in range(10):
+                
+                if self.qc == 'gauss':
+                    log_file = job + '.log'
+                elif self.qc == 'nwchem':
+                    log_file = job + '.out'
+                log_file_exists = os.path.exists(log_file)
+                if log_file_exists:
+                    logging.debug('Log file is present after {} iterations'.format(i))
+                    #by deleting a log file, you allow restarting a job
+                    #open the database
+                    rows = self.db.select(name = job)
+                    data = None
+                    #take the last entry
+                    for row in rows:
+                        if hasattr(row,'data'):
+                            data = row.data
+                    if data is None:
+                        logging.debug('Data is not in database...')
+                        return 0
+                    else:
+                        logging.debug('Returning status {}'.format(data['status']))
+                        return data['status']
+                else:
+                    logging.debug('Checking againg for log file')
+                    log_file_exists = os.path.exists(log_file)
+                    time.sleep(1)
+                
+                    
+            logging.debug('log file {} does not exist'.format(log_file))
+        else:
+            logging.debug('job {} is not in database'.format(job))
             return 0
             
 

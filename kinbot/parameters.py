@@ -69,6 +69,8 @@ class Parameters:
             'reaction_search': 1,
             # Which reaction families to include in the search
             'families': ['all'],
+            # Which reaction families to skip in the search
+            'skip_families' : ['none'],
             # Which chemids to skip kinbot runs for during PES calculations
             'skip_chemids': ['none'],
             # break all single bonds to find the barriers

@@ -152,7 +152,10 @@ class IntraHMigration:
                             index = i
                 if index > -1:
                     del fix[index]
-        
+        fi='{}_constraints.txt'.format(self.instance_name)
+        fio=open(fi,'a')
+        fio.write("Step: {}\nFix: {}\nChange: {}\nRelease: {}\n".format(step,fix,change,release))
+        fio.close()
         return step, fix, change, release
 
     def get_bond_change(self, instance):

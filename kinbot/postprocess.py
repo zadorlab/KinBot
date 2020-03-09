@@ -167,7 +167,6 @@ def createPESViewerInput(species,qc,par):
     # use this well as point zero for the energy
     wells.append('{} 0.0'.format(species.chemid)) 
     well_energy = species.energy + species.zpe
-    
 
     # iterate the reactions and search for single products
     # i.e. other wells on the pes

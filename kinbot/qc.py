@@ -1,22 +1,3 @@
-###################################################
-##                                               ##
-## This file is part of the KinBot code v2.0     ##
-##                                               ##
-## The contents are covered by the terms of the  ##
-## BSD 3-clause license included in the LICENSE  ##
-## file, found at the root.                      ##
-##                                               ##
-## Copyright 2018 National Technology &          ##
-## Engineering Solutions of Sandia, LLC (NTESS). ##
-## Under the terms of Contract DE-NA0003525 with ##
-## NTESS, the U.S. Government retains certain    ##
-## rights to this software.                      ##
-##                                               ##
-## Authors:                                      ##
-##   Judit Zador                                 ##
-##   Ruben Van de Vijver                         ##
-##                                               ##
-###################################################
 import os, sys
 import subprocess
 import logging
@@ -40,7 +21,7 @@ class QuantumChemistry:
     the jobs for success or failure
     """
     
-    def __init__(self,par):
+    def __init__(self, par):
         self.par = par
         self.qc = par.par['qc']
         self.method = par.par['method']
@@ -66,7 +47,8 @@ class QuantumChemistry:
             self.slurm_feature = '#SBATCH -C ' + par.par['slurm_feature']
         self.queue_job_limit = par.par['queue_job_limit']
         self.username = par.par['username']
-        
+       
+
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0,
                          high_level=0, hir=0, start_form_geom=0):
         """
@@ -224,7 +206,7 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job, 
                                    kwargs=kwargs, 
@@ -277,7 +259,7 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
     
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -332,7 +314,7 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs, 
@@ -402,7 +384,8 @@ class QuantumChemistry:
                 atom = np.append(atom,['X'])
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.py.tpl'.format(qc = self.qc))
+        
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs, 
@@ -416,6 +399,7 @@ class QuantumChemistry:
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
         f_out.close()
+
         self.submit_qc(job)
         return 0
 
@@ -447,7 +431,7 @@ class QuantumChemistry:
                 del kwargs['NoSymm']
         dummy = [d.tolist() for d in dummy]
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs, 
@@ -477,7 +461,7 @@ class QuantumChemistry:
 
         kwargs = self.get_qc_arguments(job,species.mult,species.charge,ts = 1,step = 1,max_step=1,high_level = 1)
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.py.tpl'.format(qc = self.qc))
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc = self.qc))
         template = open(template_file,'r').read()
         template = template.format(label=job, 
                                    kwargs=kwargs, 
@@ -516,7 +500,7 @@ class QuantumChemistry:
             if check != 0: return 0
         else:
             if check == 'running': return 0
-
+        
 
         try: 
             if self.par.par['queue_template'] == '':
@@ -902,8 +886,8 @@ class QuantumChemistry:
                     log_file_exists = os.path.exists(log_file)
                     time.sleep(1)
                 
-                    
             logging.debug('log file {} does not exist'.format(log_file))
+            return 0
         else:
             logging.debug('job {} is not in database'.format(job))
             return 0

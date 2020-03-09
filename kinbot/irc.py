@@ -150,7 +150,7 @@ class IRC:
             if self.rxn.qc.qc == 'gauss':
                 prod_kwargs['opt'] = 'CalcFC, Tight'
 
-            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_irc.py.tpl'.format(qc=self.rxn.qc.qc))
+            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_irc.tpl.py'.format(qc=self.rxn.qc.qc))
             template = open(template_file, 'r').read()
             template = template.format(label=irc_name,
                                        kwargs=kwargs,

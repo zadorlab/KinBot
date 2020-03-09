@@ -38,14 +38,14 @@ class GeneralReac:
                 if index > -1:
                     del fix[index]
 
-    def check_cycle(self, species, instances):
+    def filter_cycle(self, species, instances):
         cycle_atoms = self.species.cycle_chain
-        instances=instances
-        filtered_instances=instances
+        instances = instances
+        filtered_instances = instances
         for c, cycle in enumerate(cycle_atoms):
             for a, atoms in enumerate(instances):
-	        j=a-1
-	        k=a+1
+	        j = a - 1
+	        k = a + 1
 	        if k < len(instances) and j >= 0:
 	            ca=instances[j]
 	            cb=instances[a]

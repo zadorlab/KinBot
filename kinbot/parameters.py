@@ -147,7 +147,7 @@ class Parameters:
             # energy. Compulsory is Molpro energies are used. 
             "single_point_key": '',
             # Command string to be used for single point energy calculation
-            "single_point_command": 'molprop -n 4',
+            "single_point_command": '',
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

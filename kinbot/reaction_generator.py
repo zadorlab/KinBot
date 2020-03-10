@@ -356,11 +356,6 @@ class ReactionGenerator:
                                         prod_opt = obj.prod_opt[j]
                                         break
 
-                    elog=open("energy.log",'a')
-                    for prod_opt in obj.prod_opt:
-                        elog.write("prod_opt: {} |\tenergy: {}\n".format(prod_opt.species.chemid, prod_opt.species.energy))
-                    elog.close()
-
                     self.species.reac_ts_done[index] = 5
                 elif self.species.reac_ts_done[index] == 5:
                     #check up on the TS and product optimizations 

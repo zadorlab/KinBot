@@ -110,6 +110,10 @@ class Parameters:
             'one_reaction_comb' : 0,
             # Search for one specific reaction using family approach
             'one_reaction_fam' : 0,
+            # break the following bonds
+            'break_bonds' : [],
+            # form the following bonds
+            'form_bonds' : [],
 
             # QUANTUM CHEMISTRY INFO
             # Which quantum chemistry code to use
@@ -161,7 +165,7 @@ class Parameters:
             'single_point_ppn': 1,
             # This many spaces can be used for numbering files, e.g., in ga
             'zf': 4,
-            # delete intermetidate files
+            # delete intermediate files
             'delete_intermediate_files' : 0,
             # Scratch directory
             'scratch': '/scratch/jzador',
@@ -191,10 +195,26 @@ class Parameters:
             # MESMER specific keywords
             'mesmer_command': 'mesmer',
 
+            # UQ KEYWORDS
+            # UQ off/on (0/1)
+            'uq': 0,                   
+            # Number of mess input files generated for each structure
+            'uq_n': 5,
+            # Max number of mess calculations running at once
+            'uq_max_runs' : 5,
+            # Uncertainty in stationary point energy, +/- 0.5 kcal/mol
+            'stPt_uq': 0.5,
+            # Uncertainty in saddle point (TS) energy, +/- 1.0 kcal/mol
+            'barrier_uq': 1.0,
+            # Uncertainty in positive frequency values, mult/div 1.2 (1.2 = 20% uncertainty)
+            'posFreq_uq': 20,
+            # Uncertainty in negative frequency values, mult/div 1.1 (1.1 = 10% uncertainty)
+            'negFreq_uq': 10,
+
             # for development
             'test': 0,
         }
-
+ 
         if self.input_file is not None:
             # Read the user input and overwrite the user-defined parameters
             self.read_user_input()

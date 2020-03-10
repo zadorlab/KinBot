@@ -101,6 +101,14 @@ def main():
         logging.error('Specific reaction cannot be searched in PES mode.')
         return
 
+    uq = par.par['uq']
+    if uq == 1:
+        uq_n = par.par['uq_n']
+        stPt_uq = par.par['stPt_uq']
+        barrier_uq = par.par['barrier_uq']
+        posFreq_uq = par.par['posFreq_uq']
+        negFreq_uq = par.par['negFreq_uq']
+
     # initialize the reactant
     well0 = StationaryPoint('well0',
                             par.par['charge'],
@@ -109,7 +117,7 @@ def main():
                             structure=par.par['structure'])
     well0.short_name = 'w1'
 
-    # wrtie the initial reactant geometry to a file for visualization
+    # write the initial reactant geometry to a file for visualization
     geom_out = open('geometry.xyz', 'w')
     geom_out.write('{}\n\n'.format(well0.natom))
     for i, at in enumerate(well0.atom):
@@ -196,18 +204,47 @@ def main():
         logging.info('Starting the search for homolytic scission products')
         well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
         well0.homolytic_scissions.find_homolytic_scissions()
-  
     # initialize the master equation instance
-    mess = MESS(par, well0)
-    mess.write_input()
-    #mesmer = MESMER(par, well0)
-    #mesmer.write_input()
+
+    # check to see if uq analysis is turned on
+    if par.par['me'] == 1:
+        logging.info('ME turned on')
+        if uq == 0:
+            n=1
+            logging.info('uq turned off')
+            mess = MESS(par, well0)
+            mess.write_input(uq,n)
+        elif uq == 1:
+            logging.info('uq turned on')
+            n=uq_n
+            mess = MESS(par, well0)
+            mess.write_input(uq,n)
+        else:
+            logging.error('Cannot recognize uq code {}'.format(par.par['uq']))
+    else:
+        logging.info('ME turned off')
+    
+    #TO DO: CODE UQ into MESMER
+
+    mesmer = MESMER(par, well0)
+    mesmer.write_input()
+    #mess = MESS(par, well0)
+    #mess.write_input()
+
     if par.par['me'] == 1:
         logging.info('Starting Master Equation calculations')
         if par.par['me_code'] == 'mess':
-            mess.run()
-        elif par.par['me_code'] == '#mesmer':
+                n=uq_n
+                mess.run(n)
+
+   #TO DO: FINISH CODING UQ INTO MESMER
+        elif par.par['me_code'] == 'mesmer':
+           #if par.par['uq'] == 0:
             mesmer.run()
+           #elif par.par['uq'] == 1:
+           #    mesmer.run(n)
+           #else:
+               #logging.error('Cannot recognize uq code {}'.format(par.par['uq']))
         else:
             logging.error('Cannot recognize me code {}'.format(par.par['me_code']))
 

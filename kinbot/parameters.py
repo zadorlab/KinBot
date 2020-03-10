@@ -147,8 +147,11 @@ class Parameters:
             # Name of the template for the single-point calculation (L3)
             # If not specified, then the tpl/[single_point_qc].inp is used
             'single_point_template': '',
-            # if there is a key (e.g., Molpro), what it is to read L3
-            "single_point_key": "MYENERGY",
+            # The keyword to be searched for in Molpro for the desired
+            # energy. Compulsory is Molpro energies are used. 
+            "single_point_key": '',
+            # Command string to be used for single point energy calculation
+            "single_point_command": '',
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

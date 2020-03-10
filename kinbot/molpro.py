@@ -83,8 +83,7 @@ class Molpro:
                                    ))
 
 
-    #def get_molpro_energy(self, key='MYENERGY'):
-    def get_molpro_energy(self, key='MYENA_DZ(1)'):
+    def get_molpro_energy(self, key):
         """
         Verify if there is a molpro output file and if yes, read the energy
         key is the keyword for the energy we want to read
@@ -111,7 +110,6 @@ class Molpro:
         """
         write a pbs file for the molpro input file
         """
-
         fname = str(self.species.chemid)
         if self.species.wellorts:
             fname = self.species.name
@@ -125,10 +123,19 @@ class Molpro:
             tpl = f.read()
         # substitution
         with open('molpro/' + fname + '.' + self.par.par['queuing'], 'w' ) as f:
-            if self.par.par['queue_name'] == 'pbs':
-                f.write((tpl_head + tpl).format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
-            elif self.par.par['queue_name'] == 'slurm':
-                f.write((tpl_head + tpl).format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro', slurm_feature=self.par.par['slurm_feature']))
+            if self.par.par['queuing'] == 'pbs':
+                f.write((tpl_head + tpl).format(name=fname, 
+                                                ppn=self.par.par['single_point_ppn'], 
+                                                queue_name=self.par.par['queue_name'], 
+                                                dir='molpro',
+                                                command=self.par.par['single_point_command']))
+            elif self.par.par['queuing'] == 'slurm':
+                f.write((tpl_head + tpl).format(name=fname,
+                                                ppn=self.par.par['single_point_ppn'],
+                                                queue_name=self.par.par['queue_name'],
+                                                dir='molpro',
+                                                command=self.par.par['single_point_command'],
+                                                slurm_feature=self.par.par['slurm_feature']))
 
         #command = ['qsub', 'run_molpro.pbs']
         #process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)

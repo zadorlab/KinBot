@@ -276,7 +276,6 @@ def postprocess(par, jobs, task, names):
     # base of the energy is the first well, these are L2 energies
     base_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
     # L3 energies
-    print('post {}'.format(jobs[0]))
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
         l3done = 0

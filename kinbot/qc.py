@@ -397,7 +397,7 @@ class QuantumChemistry:
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
         f_out.close()
-        
+       
         self.submit_qc(job)
 
         return 0
@@ -499,7 +499,7 @@ class QuantumChemistry:
             if check != 0: return 0
         else:
             if check == 'running': return 0
-
+        
 
         try: 
             if self.par.par['queue_template'] == '':
@@ -887,7 +887,6 @@ class QuantumChemistry:
                 
             logging.debug('log file {} does not exist'.format(log_file))
             return 0
-
         else:
             logging.debug('job {} is not in database'.format(job))
             return 0

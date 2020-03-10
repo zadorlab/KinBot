@@ -12,7 +12,7 @@ class BetaDelta(GeneralReac):
         change = []
         release = []
         if step < self.max_step:
-            self.fix_bond(fix)
+            self.fix_bonds(fix)
         if step == 0:
             # verify if the radical atom has more than one neighbor and 
             # change the dihedral to 90 degrees in that case
@@ -54,6 +54,6 @@ class BetaDelta(GeneralReac):
             val = geometry.new_bond_length(self.species,self.instance[3], self.instance[4], step, self.max_step, final_dist, geom)
             self.set_bond(3, 4, val, change)
 
-        self.clean_contraints(change, fix)
+        self.clean_constraints(change, fix)
         
         return step, fix, change, release

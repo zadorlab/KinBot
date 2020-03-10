@@ -83,8 +83,7 @@ class Molpro:
                                    ))
 
 
-    #def get_molpro_energy(self, key='MYENERGY'):
-    def get_molpro_energy(self, key='MYENA_DZ(1)'):
+    def get_molpro_energy(self, key):
         """
         Verify if there is a molpro output file and if yes, read the energy
         key is the keyword for the energy we want to read

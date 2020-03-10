@@ -117,9 +117,12 @@ class ReactionFinder:
                           'R_Addition_CSm_R': self.search_R_Addition_CSm_R, 
                           'r13_insertion_RSR': self.search_r13_insertion_RSR, 
                           'beta_delta': self.search_beta_delta, 
-                          'combinatorial': self.search_combinatorial,
+                          #'combinatorial': self.search_combinatorial,
                           }
-         
+        
+        if 'combinatorial' in self.families:
+            reaction_names['combinatorial'] = self.search_combinatorial
+ 
         atom = self.species.atom
         natom = self.species.natom
        

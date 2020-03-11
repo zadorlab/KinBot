@@ -10,7 +10,6 @@ import os
 import sys
 import json
 import logging
-
 import numpy as np
 
 
@@ -33,7 +32,6 @@ class Parameters:
             'title': '',
             # verbose log file
             'verbose': 0,
-
 
             # INPUT SPECIES INFOR
             # SMILES of the species
@@ -61,6 +59,7 @@ class Parameters:
             'homolytic_scissions': 0,
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed
+            # atom index for break/form bonds starts at 0
             'specific_reaction': 0,
             'break_bonds': [],
             'form_bonds': [],
@@ -123,6 +122,8 @@ class Parameters:
             'method': 'b3lyp',
             # Basis set to use
             'basis': '6-31G',
+            # for Gaussian, request CalcAll for TS optimization
+            'calcall_ts': 0,
             # Quantum chemistry method to use for high-level L2
             'high_level_method': 'M062X',
             # Basis set to use for high-level
@@ -135,8 +136,6 @@ class Parameters:
             'irc_maxpoints': 30,
             # for Gaussian irc, IRC(StepSize=n)
             'irc_stepsize': 20,
-            # for Gaussian, request CalcAll for TS optimization
-            'calcall_ts': 0,
             # for Gaussian, allow Guess=(Mix,Always) 
             'guessmix' : 0,
             # name of the single point code's name
@@ -144,8 +143,11 @@ class Parameters:
             # Name of the template for the single-point calculation (L3)
             # If not specified, then the tpl/[single_point_qc].inp is used
             'single_point_template': '',
-            # if there is a key (e.g., Molpro), what it is to read L3
-            "single_point_key": "MYENERGY",
+            # The keyword to be searched for in Molpro for the desired
+            # energy. Compulsory is Molpro energies are used. 
+            "single_point_key": '',
+            # Command string to be used for single point energy calculation
+            "single_point_command": '',
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

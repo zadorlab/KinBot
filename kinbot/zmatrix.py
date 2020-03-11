@@ -1,22 +1,4 @@
-###################################################
-##                                               ##
-## This file is part of the KinBot code v2.0     ##
-##                                               ##
-## The contents are covered by the terms of the  ##
-## BSD 3-clause license included in the LICENSE  ##
-## file, found at the root.                      ##
-##                                               ##
-## Copyright 2018 National Technology &          ##
-## Engineering Solutions of Sandia, LLC (NTESS). ##
-## Under the terms of Contract DE-NA0003525 with ##
-## NTESS, the U.S. Government retains certain    ##
-## rights to this software.                      ##
-##                                               ##
-## Authors:                                      ##
-##   Judit Zador                                 ##
-##   Ruben Van de Vijver                         ##
-##                                               ##
-###################################################
+from __future__ import print_function
 import os,sys
 import logging
 import numpy as np
@@ -33,6 +15,7 @@ def make_zmat_from_cart(species, rotor, cart, mode):
     If mode = 1: only those bonds, which generate conformers
     If mode = 2: suply your one rotor in rotor as a list of atom indices
     """
+    #print(species.chemid)
     natom = species.natom
     atom = species.atom
     if mode == 0:
@@ -132,6 +115,8 @@ def make_zmat_from_cart(species, rotor, cart, mode):
     for i in range(natom):
         if i == a or i == b or i == c or i == d:
             continue
+        #print(species.chemid, i, j, len(atom), len(zmat_atom))
+        #print(atom[i])
         zmat_atom[j] = atom[i]
         zmatorder[j] = i
         if groupA[i] == 1:

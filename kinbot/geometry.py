@@ -1,22 +1,3 @@
-###################################################
-##                                               ##
-## This file is part of the KinBot code v2.0     ##
-##                                               ##
-## The contents are covered by the terms of the  ##
-## BSD 3-clause license included in the LICENSE  ##
-## file, found at the root.                      ##
-##                                               ##
-## Copyright 2018 National Technology &          ##
-## Engineering Solutions of Sandia, LLC (NTESS). ##
-## Under the terms of Contract DE-NA0003525 with ##
-## NTESS, the U.S. Government retains certain    ##
-## rights to this software.                      ##
-##                                               ##
-## Authors:                                      ##
-##   Judit Zador                                 ##
-##   Ruben Van de Vijver                         ##
-##                                               ##
-###################################################
 import copy
 import numpy as np
 
@@ -324,7 +305,6 @@ def equal_geom(bond, orig_geom, new_geom, cutoff):
                 orig_dist = np.linalg.norm(orig_geom[i]-orig_geom[j])
                 new_dist = np.linalg.norm(new_geom[i]-new_geom[j])
                 if np.abs(new_dist - orig_dist) / orig_dist > cutoff:
-                    #print("GEOMETRY CHECK:\n\tORIGINAL DIST: {}\n\tNEW DIST: {}".format(orig_dist, new_dist))
                     return 0
     return 1
 

@@ -1,22 +1,3 @@
-###################################################
-##                                               ##
-## This file is part of the KinBot code v2.0     ##
-##                                               ##
-## The contents are covered by the terms of the  ##
-## BSD 3-clause license included in the LICENSE  ##
-## file, found at the root.                      ##
-##                                               ##
-## Copyright 2018 National Technology &          ##
-## Engineering Solutions of Sandia, LLC (NTESS). ##
-## Under the terms of Contract DE-NA0003525 with ##
-## NTESS, the U.S. Government retains certain    ##
-## rights to this software.                      ##
-##                                               ##
-## Authors:                                      ##
-##   Judit Zador                                 ##
-##   Ruben Van de Vijver                         ##
-##                                               ##
-###################################################
 """
 This class modifies a given geometry according to a set of coordinates that
 need to have a new value assigned.
@@ -125,6 +106,7 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
 
     Bond is the bond matrix of the molecule
     """
+ 
     start_time = time.time()
     logging.debug('Starting coordinate modification for {}'.format(name))
     logging.debug('Changes:')

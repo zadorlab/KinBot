@@ -1,23 +1,3 @@
-###################################################
-##                                               ##
-## This file is part of the KinBot code v2.0     ##
-##                                               ##
-## The contents are covered by the terms of the  ##
-## BSD 3-clause license included in the LICENSE  ##
-## file, found at the root.                      ##
-##                                               ##
-## Copyright 2018 National Technology &          ##
-## Engineering Solutions of Sandia, LLC (NTESS). ##
-## Under the terms of Contract DE-NA0003525 with ##
-## NTESS, the U.S. Government retains certain    ##
-## rights to this software.                      ##
-##                                               ##
-## Authors:                                      ##
-##   Judit Zador                                 ##
-##   Ruben Van de Vijver                         ##
-##                                               ##
-###################################################
-from __future__ import print_function
 import numpy as np
 import sys
 import os
@@ -84,11 +64,11 @@ class ReactionGenerator:
              count=count+1
         all_unique_prod=[]
         frag_unique=[]
+        nameUnique=[]
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
                 instance_name = obj.instance_name
-
                 # START REACTION SEARCH
                 if self.species.reac_ts_done[index] == 0 and self.species.reac_step[index] == 0:
                     #verify after restart if search has failed in previous kinbot run
@@ -98,7 +78,6 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                 
                 if self.species.reac_ts_done[index] == 0: # ts search is ongoing
-                    
                     if obj.scan == 0: #don't do a scan of a bond
                         if self.species.reac_step[index] == obj.max_step + 1:
                             status = self.qc.get_qc_freq(instance_name, self.species.natom)[0]
@@ -107,7 +86,7 @@ class ReactionGenerator:
                             elif status == -1:
                                 logging.info('\tRxn search failed for {}'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
-                        else: 
+                        else:
                             self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                     
                     else: # do a bond scan
@@ -118,7 +97,7 @@ class ReactionGenerator:
                             elif status == -1:
                                 logging.info('\tRxn search failed for {}'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
-                        else:        
+                        else:
                             if self.species.reac_step[index] == 0:
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                             elif self.species.reac_step[index] > 0:
@@ -132,7 +111,8 @@ class ReactionGenerator:
                                         self.species.reac_scan_energy[index].append(energy)
                                         if len(self.species.reac_scan_energy[index]) > 1:
                                             if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:
-                                                self.species.reac_step[index] = self.par.par['scan_step'] 
+                                                self.species.reac_step[index] = self.par.par['scan_step']
+                                        #ts search restarted w/ next line? 
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
 
                 elif self.species.reac_ts_done[index] == 1:
@@ -170,7 +150,6 @@ class ReactionGenerator:
                                     logging.info('\t\tNo product found for {}'.format(instance_name))
                                     self.species.reac_ts_done[index] = -999
                                 else:
-                                    #IRC's are done
                                     obj.products = prod
                                     obj.product_bonds = prod.bond
                                     self.species.reac_ts_done[index] = 2
@@ -187,35 +166,34 @@ class ReactionGenerator:
                             if len(frag_unique) == 0:
                                 frag_unique.append(frag)
                             elif len(frag_unique) > 0:
-                                i=1
+                                new=1
                                 for fragb in frag_unique:
                                     if frag.chemid == fragb.chemid:
-                                        a.pop()
-                                        frag=fragb
-                                        a.append(frag)
-                                        break
-                                    if i == len(frag_unique):
-                                        frag_unique.append(frag)
-                                        break
-                                    i=i+1
-
-                        n=1
+                                        e, geom2 = self.qc.get_qc_geom(str(fragb.chemid) + '_well', fragb.natom)
+                                        if e == 0:
+                                            a.pop()
+                                            frag=fragb
+                                            a.append(frag)
+                                            new=0
+                                            break
+                                if new:
+                                    frag_unique.append(frag)
+                        obj.products_final=[]
                         for frag in a:
-                            obj.products.append(frag)
                             self.qc.qc_opt(frag, frag.geom)
-                            n=n+1
-
+                            e, geom2 = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+                            obj.products_final.append(frag)
+ 
                         #check products make sure they are the same
-                        for i, st_pt_i in enumerate(obj.products):
-                            for j, st_pt_j in enumerate(obj.products):
+                        for i, st_pt_i in enumerate(obj.products_final):
+                            for j, st_pt_j in enumerate(obj.products_final):
                                 if st_pt_i.chemid == st_pt_j.chemid and i < j:
-                                    obj.products[j] = obj.products[i]
-
+                                    obj.products_final[j] = obj.products_final[i]
 
 
                     #print products generated by IRC
                     products=[] 
-                    for st_pt in obj.products: 
+                    for st_pt in obj.products_final:
                         products.append(st_pt.chemid) 
                     products.append(' ') 
                     products.append(' ') 
@@ -224,10 +202,10 @@ class ReactionGenerator:
                     logging.info('\tReaction {} has a barrier of {} and lead to products {} {} {}'.format(instance_name,barrier,products[0],products[1],products[2]))
 
                     #check geom post optimization
-                    obj.products_final = []
+                    #obj.products_final = []
 
-                    for st_pt in obj.products:
-                        obj.products_final.append(st_pt)
+                    for st_pt in obj.products_final:
+                        #obj.products_final.append(st_pt)
                         chemid = st_pt.chemid
                         orig_geom = copy.deepcopy(st_pt.geom)
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
@@ -256,7 +234,7 @@ class ReactionGenerator:
                                             newfrags.append(a)
                                             break
                                     obj.products_final.append(a)
-                                    self.qc.qc_opt(a, a.geom)
+                                    self.qc.qc_opt(a, a.geom, 0)
                                     fragChemid.append(a.chemid)
                                 if len(fragChemid) == 1:
                                     fragChemid.append(" ")
@@ -269,10 +247,9 @@ class ReactionGenerator:
 
                     for prod in obj.products_final:
                         obj.products.append(prod)
-                    
                     obj.products_final=[] 
 
-
+                 
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         self.species.reac_ts_done[index] = 3
  
@@ -280,6 +257,7 @@ class ReactionGenerator:
                     # wait for the optimization to finish 
                     # if two st_pt are the same in the products, we make them exactly identical otherwise
                     # the different ordering of the atoms causes the chemid of the second to be seemingly wrong
+                    #for st_pt in obj.products:
                     for i, st_pt_i in enumerate(obj.products):
                         for j, st_pt_j in enumerate(obj.products):
                             if st_pt_i.chemid == st_pt_j.chemid and i < j:
@@ -328,9 +306,10 @@ class ReactionGenerator:
                     #do the ts optimization
                     obj.ts_opt = Optimize(obj.ts,self.par,self.qc)
                     obj.ts_opt.do_optimization()
+
                     #do the products optimizations
                     for st_pt in obj.products:
-					#do the products optimizations
+			#do the products optimizations
                         #check for products of other reactions that are the same as this product
                         #in the case such products are found, use the same Optimize object for both
                         for i, inst_i in enumerate(self.species.reac_inst):

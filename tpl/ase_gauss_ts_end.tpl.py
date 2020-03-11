@@ -33,7 +33,23 @@ geom = {geom}
 mol = Atoms(symbols = atom, positions = geom)
 mol.set_calculator(calc)
 try:
+    db2 = connect('{working_dir}/geoms2_end.db')
+    db2.write(mol, name=label)
     e = mol.get_potential_energy() # use the Gaussian optimizer
+    db3 = connect('{working_dir}/geoms3_end.db')
+    db3.write(mol, name=label)
+    """
+    #read the geometry from the output file
+    outfile = '{label}.log'
+    with open(outfile) as f:
+        lines = f.readlines()
+    for index, line in enumerate(reversed(lines)):
+        if re.search('Input orientation:', line) != None:
+            for n in range(len(mol)):
+                geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
+            break
+    mol.positions = geom
+    """
     #Positions (geom) updated in ase/ases/io/gaussian.py code    
     #read the frequencies
     natom = len(mol)

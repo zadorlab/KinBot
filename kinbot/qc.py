@@ -12,6 +12,8 @@ from ase.db import connect
 from kinbot import constants
 from kinbot import geometry
 
+from shutil import copyfile
+
 class QuantumChemistry:
     """
     This class provides the link between KinBot and the qc code
@@ -397,9 +399,8 @@ class QuantumChemistry:
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
         f_out.close()
-       
-        self.submit_qc(job)
 
+        self.submit_qc(job)
         return 0
 
     def qc_freq(self, species, geom, high_level = 0):

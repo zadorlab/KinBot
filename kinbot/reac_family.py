@@ -1,9 +1,9 @@
+from __future__ import print_function
 import os
 import numpy as np
 import copy
 import time
 import pkg_resources
-
 from kinbot import modify_geom
 
 def carry_out_reaction(rxn, step, command):
@@ -37,7 +37,7 @@ def carry_out_reaction(rxn, step, command):
 
     if step > rxn.max_step:
         return step
-
+    
     #apply the geometry changes here and fix the coordinates that changed
     change_starting_zero = []
     for c in change:

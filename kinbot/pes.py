@@ -1,23 +1,3 @@
-##################################################
-##                                               ##
-## This file is part of the KinBot code v2.0     ##
-##                                               ##
-## The contents are covered by the terms of the  ##
-## BSD 3-clause license included in the LICENSE  ##
-## file, found at the root.                      ##
-##                                               ##
-## Copyright 2018 National Technology &          ##
-## Engineering Solutions of Sandia, LLC (NTESS). ##
-## Under the terms of Contract DE-NA0003525 with ##
-## NTESS, the U.S. Government retains certain    ##
-## rights to this software.                      ##
-##                                               ##
-## Authors:                                      ##
-##   Judit Zador                                 ##
-##   Ruben Van de Vijver                         ##
-##                                               ##
-###################################################
-
 """
 This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
@@ -276,7 +256,6 @@ def postprocess(par, jobs, task, names):
     # base of the energy is the first well, these are L2 energies
     base_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
     # L3 energies
-    print('post {}'.format(jobs[0]))
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
         l3done = 0

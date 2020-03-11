@@ -39,7 +39,23 @@ mol = Atoms(symbols = atom, positions = geom)
 mol.set_calculator(calc)
 
 try:
+    db2 = connect('{working_dir}/geoms2.db')
+    db2.write(mol, name=label) 
     e = mol.get_potential_energy() # use the Gaussian optimizer (task optimize)
+    db3 = connect('{working_dir}/geoms3.db')
+    db3.write(mol, name=label)
+    """
+    #read the geometry from the output file
+    outfile = '{label}.log'
+    with open(outfile) as f:
+        lines = f.readlines()
+    for index, line in enumerate(reversed(lines)):
+        if re.search('Input orientation:', line) != None:
+            for n in range(len(mol)):
+                geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
+            break
+    mol.positions = geom
+    """
     #Positions (geom) updated in ase/ases/io/gaussian.py code
     db = connect('{working_dir}/kinbot.db')
     db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})

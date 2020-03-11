@@ -1,22 +1,3 @@
-###################################################
-##                                               ##
-## This file is part of the KinBot code v2.0     ##
-##                                               ##
-## The contents are covered by the terms of the  ##
-## BSD 3-clause license included in the LICENSE  ##
-## file, found at the root.                      ##
-##                                               ##
-## Copyright 2018 National Technology &          ##
-## Engineering Solutions of Sandia, LLC (NTESS). ##
-## Under the terms of Contract DE-NA0003525 with ##
-## NTESS, the U.S. Government retains certain    ##
-## rights to this software.                      ##
-##                                               ##
-## Authors:                                      ##
-##   Judit Zador                                 ##
-##   Ruben Van de Vijver                         ##
-##                                               ##
-###################################################
 """
 This file contains the postprocessing of the KinBot run
 It includes
@@ -167,7 +148,7 @@ def createPESViewerInput(species,qc,par):
     # use this well as point zero for the energy
     wells.append('{} 0.0'.format(species.chemid)) 
     well_energy = species.energy + species.zpe
-    
+
     # iterate the reactions and search for single products
     # i.e. other wells on the pes
     for index in range(len(species.reac_inst)):
@@ -191,12 +172,9 @@ def createPESViewerInput(species,qc,par):
             if len(species.reac_obj[index].prod_opt) > 1:
                 energy = 0. - well_energy
                 names = []
-                print("\tEnergy ( 0 - well_energy ): {}".format(energy))
                 for prod_opt in species.reac_obj[index].prod_opt:
                     st_pt = prod_opt.species
-                    print("species: {}\n\tEnergy: {}\n\tSt_pt energy: {}\n\tst_pt zpe: {}".format(prod_opt.species.chemid, energy, st_pt.energy, st_pt.zpe))
                     energy += st_pt.energy + st_pt.zpe
-                    print("\tUpdated energy {}: ".format(energy))
                     names.append(str(st_pt.chemid))
                 name = '_'.join(sorted(names))
 
@@ -212,7 +190,6 @@ def createPESViewerInput(species,qc,par):
                     # this is for the rmg postprocessing
                     make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
                 energy = energy * constants.AUtoKCAL
-                print("Final Energy in Bimol Loop: {}".format(energy))
                 if not name in bimolec_names:
                     bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
                     bimolec_names.append(name)

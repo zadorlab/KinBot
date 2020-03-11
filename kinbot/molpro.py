@@ -11,7 +11,6 @@ class Molpro:
     def __init__(self, species, par):
         self.species = species
         self.par = par
-        # self.qc = qc
 
     def create_molpro_input(self):
         """
@@ -22,7 +21,7 @@ class Molpro:
         if self.par.par['single_point_template'] == '':
             tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
         else:
-            tpl_file = self.par.par['single_point_template']  
+            tpl_file = self.par.par['single_point_template']
         with open(tpl_file) as f:
             file = f.read()
 
@@ -40,19 +39,8 @@ class Molpro:
         nelectron -= self.species.charge
 
         symm = 1
-        #TODO: Code exceptions into their own function/py script that opt can call.
-        #TODO: Fix symmetry numbers for calcs as well if needed
-        #O2
-        if self.species.chemid == "320320000000000000001": 
-            symm = 1
-            spin = 2 
-        #CH2 
-        elif self.species.chemid == "140260020000000000001": 
-            symm = 1
-            spin = 2
-        #others 
-        else: 
-            spin = self.species.mult-1
+        spin = self.species.mult - 1
+
         with open('molpro/' + fname + '.inp', 'w') as outf:
             outf.write(file.format(name=fname,
                                    natom=self.species.natom,
@@ -62,7 +50,6 @@ class Molpro:
                                    spin=spin,
                                    charge=self.species.charge
                                    ))
-
 
     def get_molpro_energy(self, key):
         """
@@ -94,37 +81,34 @@ class Molpro:
         fname = str(self.species.chemid)
         if self.species.wellorts:
             fname = self.species.name
-        
+
         # open the template head and template
-        molpro_head = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
+        molpro_head = pkg_resources.resource_filename(
+                'tpl',
+                self.par.par['queuing'] + '.tpl')
         with open(molpro_head) as f:
             tpl_head = f.read()
-        molpro_tpl = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_molpro.tpl')
+        molpro_tpl = pkg_resources.resource_filename(
+                        'tpl',
+                        self.par.par['queuing'] + '_molpro.tpl')
         with open(molpro_tpl) as f:
             tpl = f.read()
         # substitution
-        with open('molpro/' + fname + '.' + self.par.par['queuing'], 'w' ) as f:
+        with open('molpro/' + fname + '.' + self.par.par['queuing'], 'w') as f:
             if self.par.par['queuing'] == 'pbs':
-                f.write((tpl_head + tpl).format(name=fname, 
-                                                ppn=self.par.par['single_point_ppn'], 
-                                                queue_name=self.par.par['queue_name'], 
-                                                dir='molpro',
-                                                command=self.par.par['single_point_command']))
+                f.write((tpl_head + tpl).format(
+                        name=fname,
+                        ppn=self.par.par['single_point_ppn'],
+                        queue_name=self.par.par['queue_name'],
+                        dir='molpro',
+                        command=self.par.par['single_point_command']))
             elif self.par.par['queuing'] == 'slurm':
-                f.write((tpl_head + tpl).format(name=fname,
-                                                ppn=self.par.par['single_point_ppn'],
-                                                queue_name=self.par.par['queue_name'],
-                                                dir='molpro',
-                                                command=self.par.par['single_point_command'],
-                                                slurm_feature=self.par.par['slurm_feature']))
-
-        #command = ['qsub', 'run_molpro.pbs']
-        #process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        #out, err = process.communicate()
-        #out = out.decode()
-        #pid = out.split('\n')[0].split('.')[0]
+                f.write((tpl_head + tpl).format(
+                        name=fname,
+                        ppn=self.par.par['single_point_ppn'],
+                        queue_name=self.par.par['queue_name'],
+                        dir='molpro',
+                        command=self.par.par['single_point_command'],
+                        slurm_feature=self.par.par['slurm_feature']))
 
         return 0
-
-
-

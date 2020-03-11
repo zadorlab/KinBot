@@ -1,5 +1,6 @@
 import os
 import pkg_resources
+import numpy as np
 
 from kinbot import constants
 
@@ -114,9 +115,9 @@ class Molpro:
         return 0
 
     def molpro_symm(self):
-        if self.sepcies.atom == ['O'] and self.species.mult == 3:
+        if np.array_equal(self.species.atom, ['O']) and self.species.mult == 3:
             return 4
-        if self.species.atom == ['O', 'O'] and self.species.mult == 3:
+        if np.array_equal(self.species.atom, ['O', 'O']) and self.species.mult == 3:
             return 4
-        if sorted(self.species.atom) == sorted(['H', 'O']):
+        if np.array_equal(sorted(self.species.atom), sorted(['O', 'H'])) and self.species.mult == 3:
             return 2

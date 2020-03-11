@@ -38,7 +38,7 @@ class Molpro:
 
         nelectron -= self.species.charge
 
-        symm = 1
+        symm = self.molpro_symm()
         spin = self.species.mult - 1
 
         with open('molpro/' + fname + '.inp', 'w') as outf:
@@ -112,3 +112,11 @@ class Molpro:
                         slurm_feature=self.par.par['slurm_feature']))
 
         return 0
+
+    def molpro_symm(self):
+        if self.sepcies.atom == ['O']:
+            return 4
+        if self.species.atom == ['O', 'O']:
+            return 4
+        if sorted(self.species.atom) == sorted(['H', 'O']):
+            return 2

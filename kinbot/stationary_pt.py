@@ -124,7 +124,6 @@ class StationaryPoint:
                 self.dist[i][j] = np.linalg.norm(self.geom[i] - self.geom[j])
         return 0 
 
-
     def bond_mx(self):
         """ 
         Create bond matrix 
@@ -256,7 +255,6 @@ class StationaryPoint:
 
         return 0
 
-
     def make_extra_bond(self, parts, maps):
         """
         Make an extra bond between two fragments.
@@ -281,25 +279,23 @@ class StationaryPoint:
 
         return 0
 
-
     def calc_multiplicity(self, atomlist):
         """ 
-        Calculate the multiplicity based on atom types.
-        Returns the lowest multiplicity possible, i.e., singlet or dublet,
-        Gaussian style.
+        1 = singlet, 2 = doublet, 3 = triplet, etc.
         """
 
         if all([element == 'O' for element in atomlist]):
             return 3 # O and O2 are triplet
         if len(atomlist) == 1 and atomlist[0] == 'C':
-            return 3 # C atom is triplet?
+            return 3 # C atom is triplet
+        if len(atomlist) == 3 and atomlist.count('C') == 1 and atomlist.count('H') == 2:
+            return 2 # CH2
 
         mult = 0
         for element in atomlist:
             mult += constants.st_bond[element]
 
         return 1 + mult % 2
-
 
     def start_multi_molecular(self):
         """
@@ -366,7 +362,6 @@ class StationaryPoint:
 
         return mols, maps
 
-
     def extract_next_mol(self, natom, bond):
         """
         Test if a structure is bimolecular or one complex.
@@ -426,7 +421,6 @@ class StationaryPoint:
         else:
             return 0, [abs(si) for si in status]
 
-
     def find_cycle(self):
         """
         Find all the cycles in a molecule, if any
@@ -469,7 +463,6 @@ class StationaryPoint:
                             self.cycle[at] = 1
         return 0
 
-
     def calc_chemid(self):
         """ 
         The total id for a species.
@@ -488,7 +481,6 @@ class StationaryPoint:
         self.chemid += self.mult
 
         return 0
-                                                                                                
                                                                                                                         
     def start_id(self, i):
         """ 
@@ -505,10 +497,8 @@ class StationaryPoint:
         # a, visit = self.calc_atomid(visit, depth, i, atomid, natom, atom)
 
         # self.atomid[i] = a
-
         
         return 0
-                                
                                 
     def calc_atomid(self, visit, depth, i, atomid):
         """ Caclulate chemical ID for a given atom. """        
@@ -535,7 +525,6 @@ class StationaryPoint:
 
         return atomid, visit
 
-    
     def find_dihedral(self): 
         """ 
         Identify unique rotatable bonds in the structure 
@@ -571,7 +560,6 @@ class StationaryPoint:
 
         return 0
 
-
     def find_conf_dihedral(self):
         """
         Just keep those rotatable bonds that are needed for conformer search.
@@ -598,7 +586,6 @@ class StationaryPoint:
                     elif self.atomid[i] != base: 
                         dihed_sideb.append(self.dihed[rotbond][:])
                         break
-                
                         
         for rotbond in range(len(self.dihed)):
             start = 0
@@ -619,7 +606,6 @@ class StationaryPoint:
                 if dihed_sideb[b] == dihed_sidec[c]: self.conf_dihed.append(dihed_sideb[b][:])
                 
         return 0
-                
                 
     def find_atom_eqv(self):
         """
@@ -643,7 +629,6 @@ class StationaryPoint:
                 self.atom_eqv.append([atomi])
         
         return 0
-
 
     def rigid_along_path(self,atomi, atomj):
         """
@@ -677,7 +662,6 @@ class StationaryPoint:
                                     return 1
                     return 0
         return 0
-
 
 def main():
     """

@@ -1,2 +1,2 @@
-molprop -n {ppn} {name}.inp
+{command} {name}.inp
 

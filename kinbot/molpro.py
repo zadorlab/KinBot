@@ -105,9 +105,18 @@ class Molpro:
         # substitution
         with open('molpro/' + fname + '.' + self.par.par['queuing'], 'w' ) as f:
             if self.par.par['queuing'] == 'pbs':
-                f.write((tpl_head + tpl).format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro'))
+                f.write((tpl_head + tpl).format(name=fname, 
+                                                ppn=self.par.par['single_point_ppn'], 
+                                                queue_name=self.par.par['queue_name'], 
+                                                dir='molpro',
+                                                command=self.par.par['single_point_command']))
             elif self.par.par['queuing'] == 'slurm':
-                f.write((tpl_head + tpl).format(name=fname, ppn=self.par.par['single_point_ppn'], queue_name=self.par.par['queue_name'], dir='molpro', slurm_feature=self.par.par['slurm_feature']))
+                f.write((tpl_head + tpl).format(name=fname,
+                                                ppn=self.par.par['single_point_ppn'],
+                                                queue_name=self.par.par['queue_name'],
+                                                dir='molpro',
+                                                command=self.par.par['single_point_command'],
+                                                slurm_feature=self.par.par['slurm_feature']))
 
         #command = ['qsub', 'run_molpro.pbs']
         #process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)

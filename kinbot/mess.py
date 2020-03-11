@@ -262,135 +262,6 @@ class MESS:
                 allProdFr=[] 
                 allBimolFr=[] 
                 
-                # TO DO - ADD ALL VALUES TO ARRAY - only final itteration is being added currently
-                # Array above has all of the iterations
-                """
-                if i == (n-1):
-                    sets=len(all_tsE)
-                    nts=len(all_tsE[0])
-                    nwell=len(all_wellE[0])
-                    nprods=len(all_prodE[0])
-                    nbimols=len(all_bimolE[0])
-
-                    all_tsE_t=[] #transposed array
-                    all_wellE_t=[]
-                    all_prodE_t=[]
-                    all_bimolE_t=[]
-                    i=0
-                    while i < nts:
-                        j=0
-                        tsE_t=[]
-                        while j < sets:
-                            tsE_t.append(all_tsE[j][i])
-                            j=j+1
-                        all_tsE_t.append(tsE_t)
-                        i=i+1
-                    i=0
-                    while i < nwell:
-                        j=0
-                        wellE_t=[]
-                        while j < sets:
-                            wellE_t.append(all_wellE[j][i])
-                            j=j+1
-                        all_wellE_t.append(wellE_t)
-                        i=i+1
-                    i=0
-                    while i < nprods:
-                        j=0
-                        prodE_t=[]
-                        while j < sets:
-                            prodE_t.append(all_prodE[j][i])
-                            j=j+1
-                        all_prodE_t.append(prodE_t)
-                        i=i+1
-                    i=0
-                    while i < nbimols:
-                        j=0
-                        bimolE_t=[]
-                        while j < sets:
-                            bimolE_t.append(all_bimolE[j][i])
-                            j=j+1
-                        all_bimolE_t.append(bimolE_t)
-                        i=i+1
-
-                    #self.norm(all_tsE_t, "tsE", 0, all_tsRxnName, len(all_tsE_t))
-                    #self.norm(all_wellE_t, "wellE", 0, all_tsRxnName, len(all_wellE_t))
-                    #self.norm(all_bimolE_t, "bimolE", 0, all_tsRxnName, len(all_bimolE_t))
-                    #self.norm(all_prodE_t, "prodE", 0, all_tsRxnName, len(all_prodE_t))
-                    
-                    #negative freq for TSs
-                    all_tsFrNeg_t=[]
-                    i=0
-                    while i < nts:
-                        j=0
-                        tsFrNeg_t=[]
-                        while j < sets:
-                            tsFrNeg_t.append(all_tsFrNeg[j][i])
-                            j=j+1
-                        all_tsFrNeg_t.append(tsFrNeg_t)
-                        i=i+1
-                    self.norm(all_tsFrNeg_t, "tsFrNeg", 1, all_tsRxnName, len(all_tsFrNeg_t))
-             
-                    #positive freqs
-                    k=len(all_tsFrPos[0])
-                    tsPosFr=[]
-                    for i, x in enumerate(all_tsFrPos):
-                        j=0
-                        while j < k:
-                            posfr=all_tsFrPos[i][j]
-                            tsPosFr.append(posfr)
-                            j=j+1
-                        allTSPosFr.append(tsPosFr)
-                        tsPosFr=[]
-                
-                    fr_i=[]
-                    frSet_i=[]
-                    m=len(all_wellFr[0])
-                    #all_wellFr = [set][species][fr]
-                    #goal = [species][fr][set]
-                    k=0
-                    for i, x in enumerate(all_wellFr): #sets
-                        for j, y in enumerate(all_wellFr[i]): #species
-                            while k < m: #freqs
-                                posfr=all_wellFr[k][i][j]
-                                fr_i.append(posfr) #all fr for set
-                                k=k+1
-                            frSet_i.append(fr_i)
-                            fr_i=[]
-                        all_wellFr.append(frSet_i)
-                        frSet_i=[]
-
-                    
-                    for i, well in enumerate(all_wellFr):
-                        for j, fr in enumerate(all_wellFr[i]):
- 
-                    k=len(all_bimolFr[0])
-                    bimolFr=[]
-                    for i, x in enumerate(all_bimolFr):
-                        j=0
-                        while j < k:
-                            posfr=all_bimolFr[i][j]
-                            bimolFr.append(posfr)
-                            j=j+1
-                        allBimolFr.append(bimolFr)
-                        bimolFr=[]
-
-                    k=len(all_prodFr[0])
-                    prodPosFr=[]
-                    for i, x in enumerate(all_prodFr):
-                        j=0
-                        while j < k:
-                            posfr=all_prodFr[i][j]
-                            prodPosFr.append(posfr)
-                            j=j+1
-                        allProdFr.append(prodPosFr)
-                        prodPosFr=[]
-
-                    #self.norm(allTSPosFr, "TS Pos Fr", 1, all_tsRxnName, len(allTSPosFr))
-                    #self.norm(allWellFr, "Well Pos Fr", 2, all_tsRxnName, len(allWellFr))
-                    #self.norm(allBimolFr, "Bimol Pos Fr", 1, all_tsRxnName, len(allBimolFr))
-                    #self.norm(allProdFr, "Prod Pos Fr", 1, all_tsRxnName, len(allProdFr))
-            """        
             wells = ''
             for well in well_blocks:
                 wells += well_blocks[well] + '\n!****************************************\n'
@@ -931,26 +802,19 @@ class MESS:
         """
         
         # open the the header and the specific templates
+        
         if self.par.par['queue_template'] == '':
             q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
         else:
             q_file = self.par.par['queue_template']
         with open(q_file) as f:
             tpl_head = f.read()
-
+        
         q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_mess_uq.tpl')
         with open(q_file) as f:
             tpl = f.read()
         queue_name=self.par.par['queuing']
         submitscript = 'run_mess' + constants.qext[self.par.par['queuing']]
-        with open(submitscript, 'a') as qu: 
-            if self.par.par['queue_template'] == '':
-                if self.par.par['queuing'] == 'pbs':
-                    qu.write((tpl_head).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
-                elif self.par.par['queuing'] == 'slurm':
-                    qu.write((tpl_head).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature='')
-            else:
-                qu.write(tpl_head)
 
         '''
            copy submit script so that new runs can be done from run_mess_n files
@@ -960,176 +824,77 @@ class MESS:
            need to optimize the number that can be submitted
         '''
 
-        #if uq=1 then run section below
-        #else just run mess command 
-
-        subcp= 'run_mess_uq' + constants.qext[self.par.par['queuing']]
-
         i=0 #counter for jobs
-        x=self.par.par['uq_max_runs'] #max jobs running at once, can make this an input parameter at somepoint if neccessary
+        job_counter=1
+        if self.par.par['uq'] == 1:
+            job_counter=self.par.par['uq_max_runs'] #max jobs running at once, can make this an input parameter at somepoint if neccessary
         n=n #total number of mess jobs to run
-        xcounter=x #total jobs that have been submitted throughout process
         previousLoop=0 #number of running jobs on previous run so that jobs are not double counted as finishing
         pids=[] #list of job pids
         while(i<n):
-                while(i<xcounter):
-                    copyfile(submitscript, subcp)
-                    with open(subcp, 'a') as f:
-                        if self.par.par['queue_template'] == '':
-                            if self.par.par['queuing'] == 'pbs':
-                                f.write((tpl).format(n=i))
-                            elif self.par.par['queuing'] == 'slurm':
-                                f.write((tpl).format(n=i))
-                        else:
-                            f.write((tpl).format(n=i))
-                         
-                    command = [constants.qsubmit[self.par.par['queuing']], subcp ]
-                    #command = [constants.qsubmit[self.par.par['queuing']], submitscript ]
-                    
-                    process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-                    out, err = process.communicate()
-                    out = out.decode()
-                    if self.par.par['queuing'] == 'pbs':
-                        pid = out.split('\n')[0].split('.')[0]
-                    elif self.par.par['queuing'] == 'slurm':
-                        pid = out.split('\n')[0].split()[-1]
-                    pids.append(pid)
-                    time.sleep(5)
-                    i=i+1 
-
-                a=0 #job being evaluated
-                runningJobs=0 #number of running jobs
-                exit=0 #bool to exit loop
-                while(exit == 0):
-                    devnull = open(os.devnull, 'w')
-                    currentLoop=0 #number of jobs finished in current loop through pids[]
-                    while(a<len(pids)):
-                        pida=pids[a]
+            if n < job_counter:
+                job_counter = n
+            print(i,n,job_counter)
+            while(i<job_counter):
+                with open(submitscript, 'w') as f:
+                    if self.par.par['queue_template'] == '':
                         if self.par.par['queuing'] == 'pbs':
-                            command = 'qstat -f | grep ' + '"Job Id: ' + pida + '"' + ' > /dev/null'
+                            f.write((tpl_head).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
+                            f.write((tpl).format(n=i))
                         elif self.par.par['queuing'] == 'slurm':
-                            command = 'scontrol show job ' + pida + ' | grep "JobId=' + pida + '"' + ' > /dev/null'
+                            f.write((tpl_head).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature='')
+                            f.write((tpl).format(n=i))
+                    else:
+                        f.write(tpl_head)
+                        f.write((tpl).format(n=i))
+                         
+                command = [constants.qsubmit[self.par.par['queuing']], submitscript ]
+                process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+                out, err = process.communicate()
+                out = out.decode()
+                if self.par.par['queuing'] == 'pbs':
+                    pid = out.split('\n')[0].split('.')[0]
+                elif self.par.par['queuing'] == 'slurm':
+                    pid = out.split('\n')[0].split()[-1]
+                pids.append(pid)
+                time.sleep(5)
+                i=i+1 
 
-                        stat = int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
+            a=0 #job being evaluated
+            runningJobs=0 #number of running jobs
+            exit=0 #bool to exit loop
+            while(exit == 0):
+                devnull = open(os.devnull, 'w')
+                currentLoop=0 #number of jobs finished in current loop through pids[]
+                while(a<len(pids)):
+                    pida=pids[a]
+                    if self.par.par['queuing'] == 'pbs':
+                        command = 'qstat -f | grep ' + '"Job Id: ' + pida + '"' + ' > /dev/null'
+                    elif self.par.par['queuing'] == 'slurm':
+                        command = 'scontrol show job ' + pida + ' | grep "JobId=' + pida + '"' + ' > /dev/null'
 
-                        if stat == 0:
-                            #time.sleep(1)
-                            a=a+1
-                            runningJobs=runningJobs+1
+                    stat = int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
 
-                        if stat == 1:
-                            currentLoop=currentLoop+1
-                            a=a+1
-                        
-                        if a==len(pids) and runningJobs==x:
-                            a=0
-                            runningJobs=0
-                            currentLoop=0
+                    if stat == 0:
+                        #time.sleep(1)
+                        a=a+1
+                        runningJobs=runningJobs+1
 
-                        if((currentLoop > previousLoop) and (a==len(pids))):
-                            xcounter=xcounter+currentLoop-previousLoop
-                            previousLoop=currentLoop
-                            currentLoop=0
-                            runningJobs=0
-                            a=0
-                            exit=1
+                    if stat == 1:
+                        currentLoop=currentLoop+1
+                        a=a+1
+                   
+                    if a==len(pids) and runningJobs==job_counter:
+                        a=0
+                        runningJobs=0
+                        currentLoop=0
 
-
-                if xcounter > n:
-                    xcounter=n
-                 
-        return 0
-    """
-    def norm(self, values, variable, varType, names,n):
-    #function to normalize UQ values
-        fi='{}_uq.log'.format(variable)
-        fio=open(fi,'w')
-        fio.write("{} UQ Normalization\nEnergy\tNormalized Value\n".format(variable))
-        if varType == 0: #energy/barrier
-            rxns=names
-            data=values
-            allNormVals=[]
-            allMin=[]
-            allMax=[]
-            allAvg=[]
-            allStDev=[]
-            ogs=data[0]
-            for i, x in enumerate(data):
-                npData=np.array(data[i])
-                low=np.min(npData)
-                allMin.append(low)
-                high=np.max(npData)
-                allMax.append(high)
-                avg=np.mean(npData)
-                allAvg.append(avg)
-                stDev=np.std(npData)
-                allStDev.append(stDev)
-                og=data[i][0]
-                normVal=[]
-                for j in data[i]:
-                    val=2*((j-low)/(high-low))-1
-                    normVal.append(val)
-                allNormVals.append(normVal)
-                npAllNormVals=np.array(allNormVals)
-            if len(npAllNormVals) == n:
-                for k, x in enumerate(npAllNormVals):
-                    for j, y in enumerate(npAllNormVals[k]):
-                        en=npAllNormVals[k][j]
-                        en=float(en)
-                        enf=('{:.4}'.format(en))
-                        #str_j = str(enf)[1 : -1]
-                        datap=data[k][j]
-                        str_k = str(datap)[1 : -1]
-                        en1=float(str_k)
-                        en1f=('{:.4}'.format(en1))
-                        fio.write("\n{}\t{}".format(en1f,str(enf)))
-                    fio.write("\n")
-    
-        elif varType == 1:
-            name=variable
-            rxn=names
-            data=values
-            allnormVal=[]
-            allNormVals=[]
-            allMin=[]
-            allMax=[]
-            allAvg=[]
-            allStDev=[]
-            ogs=data[0]
-            for i, x in enumerate(data):
-                npData=np.array(data[i])
-                low=np.min(npData)
-                allMin.append(low)
-                high=np.max(npData)
-                allMax.append(high)
-                avg=np.mean(npData)
-                allAvg.append(avg)
-                stDev=np.std(npData)
-                allStDev.append(stDev)
-                og=data[i][0]
-                normVal=[]
-                for j in data[i]:
-                    lnx=np.log(j)
-                    lnmin=np.log(low)
-                    lnmax=np.log(high)       
-                    val=2*((lnx-lnmin)/(lnmax-lnmin))-1
-                    normVal.append(val)
-                allNormVals.append(normVal)
-                npAllNormVals=np.array(allNormVals)
-            if len(npAllNormVals) == n:
-                for k, x in enumerate(npAllNormVals):
-                    for j, y in enumerate(npAllNormVals[k]):
-                        en=npAllNormVals[k][j]
-                        en=float(en)
-                        enf=('{:.4}'.format(en))
-                        #str_j = str(enf)[1 : -1]
-                        datap=data[k][j]
-                        str_k = str(datap)[1 : -1]
-                        en1=float(str_k)
-                        en1f=('{:.8}'.format(en1))
-                        fio.write("\n{}\t{}".format(en1f,str(enf)))
-                    fio.write("\n")
-        elif varType == 2:
+                    if((currentLoop > previousLoop) and (a==len(pids))):
+                        job_counter=job_counter+currentLoop-previousLoop
+                        previousLoop=currentLoop
+                        currentLoop=0
+                        runningJobs=0
+                        a=0
+                        exit=1
 
         return 0
-        """

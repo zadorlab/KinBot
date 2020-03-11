@@ -1071,20 +1071,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             os.mkdir('me')
 
         # write everything to a file
-        with open('me/mess.inp', 'w') as f:
+        with open('me/mess_0.inp', 'w') as f:
             f.write(header)
             f.write('\n'.join(s))
 
-        #dummy = StationaryPoint('dummy',
-        #                        par.par['charge'],
-        #                        par.par['mult'],
-        #                        smiles=par.par['smiles'],
-        #                        structure=par.par['structure'])
-
-        #mess = MESS(par, dummy)
         me=par.par['me']
         if me == 1:
-            mess.run()
+            mess.run(n)
 
     elif uq == 1:
         while(i<n):

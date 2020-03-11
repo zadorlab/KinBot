@@ -102,6 +102,7 @@ def main():
         return
 
     uq = par.par['uq']
+    uq_n=1
     if uq == 1:
         uq_n = par.par['uq_n']
         stPt_uq = par.par['stPt_uq']

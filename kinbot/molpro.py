@@ -114,9 +114,9 @@ class Molpro:
         return 0
 
     def molpro_symm(self):
-        if self.sepcies.atom == ['O']:
+        if self.sepcies.atom == ['O'] and self.species.mult == 3:
             return 4
-        if self.species.atom == ['O', 'O']:
+        if self.species.atom == ['O', 'O'] and self.species.mult == 3:
             return 4
         if sorted(self.species.atom) == sorted(['H', 'O']):
             return 2

@@ -205,8 +205,8 @@ class Parameters:
             'uq_n': 5,
             # Max number of mess calculations running at once
             'uq_max_runs' : 5,
-            # Uncertainty in stationary point energy, +/- 0.5 kcal/mol
-            'stPt_uq': 0.5,
+            # Uncertainty in stable intermediate  energy, +/- 0.5 kcal/mol
+            'well_uq': 0.5,
             # Uncertainty in saddle point (TS) energy, +/- 1.0 kcal/mol
             'barrier_uq': 1.0,
             # Uncertainty in positive frequency values, mult/div 1.2 (1.2 = 20% uncertainty)

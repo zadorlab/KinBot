@@ -16,6 +16,7 @@ import numpy as np
 from kinbot import constants
 from kinbot import frequencies
 from kinbot import license_message
+from kinbot import normalization
 from kinbot.parameters import Parameters
 
 

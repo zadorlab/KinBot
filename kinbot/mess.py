@@ -94,7 +94,7 @@ class MESS:
 
         uq=uq
         n=n
-        stPt_uq=self.par.par['stPt_uq']
+        well_uq=self.par.par['well_uq']
         barrier_uq=self.par.par['barrier_uq']
         posFreq_uq=self.par.par['posFreq_uq']
         negFreq_uq=self.par.par['negFreq_uq']
@@ -150,14 +150,14 @@ class MESS:
         while ( i<n ):
             #set UQ factors for each i run
             if i == 0:
-                stPt_factor=barrier_factor=posFreq_factor=negFreq_factor=0
+                well_factor=barrier_factor=posFreq_factor=negFreq_factor=0
 
             logFile=open('uq.log','a')
             logFile.write("\nUQ round: {}\n".format(i))
             if i == 0:
                 logFile.write("\tInitial Run, all values should remain unchanged\n") 
             if i > 0 :
-                logFile.write("\tStPt_factor:\t{}\n".format(stPt_factor))
+                logFile.write("\tStPt_factor:\t{}\n".format(well_factor))
                 logFile.write("\tBarrier_factor:\t{}\n".format(barrier_factor))
                 logFile.write("\tPosFreq_factor:\t{}\n".format(posFreq_factor))
                 logFile.write("\tNegFreq_factor:\t{}\n\n".format(negFreq_factor))
@@ -182,15 +182,15 @@ class MESS:
                 bimol_e_i=[]
                 bimol_frPos_i=[]
                 
-                stPt_uqVal=float(stPt_uq)
+                well_uqVal=float(well_uq)
                 posFreq_uqVal=float(posFreq_uq)
                 negFreq_uqVal=float(negFreq_uq)
                 barrier_uqVal=float(barrier_uq)
      
-                well_stPt_factor=random.uniform(-stPt_uqVal,stPt_uqVal)
+                well_factor=random.uniform(-well_uqVal,well_uqVal)
                 well_posFreqPercent=random.uniform(-posFreq_uqVal,posFreq_uqVal)
                 well_posFreq_factor=(100+well_posFreqPercent)/100
-                well_blocks[self.species.chemid], well_e, well_fr = self.write_well(self.species, i, uq, well_stPt_factor, well_posFreq_factor,n)
+                well_blocks[self.species.chemid], well_e, well_fr = self.write_well(self.species, i, uq, well_factor, well_posFreq_factor,n)
                 well_e_i.append(well_e)
                 well_frPos_i.append(well_fr)
                 for index, reaction in enumerate(self.species.reac_obj):
@@ -210,19 +210,19 @@ class MESS:
                         if i == (n-1):
                             ts_rxnName_i.append(reaction.instance_name)
                         if len(reaction.products) == 1:
-                            prod_stPt_factor=random.uniform(-stPt_uqVal,stPt_uqVal)
+                            prod_factor=random.uniform(-well_uqVal,well_uqVal)
                             prod_posFreqPercent=random.uniform(-posFreq_uqVal,posFreq_uqVal)
                             prod_posFreq_factor=(100+prod_posFreqPercent)/100
                             st_pt = reaction.prod_opt[0].species
-                            well_blocks[st_pt.chemid], prod_e, prod_fr = self.write_well(st_pt, i, uq, prod_stPt_factor, prod_posFreq_factor,n)
+                            well_blocks[st_pt.chemid], prod_e, prod_fr = self.write_well(st_pt, i, uq, prod_factor, prod_posFreq_factor,n)
                             prod_e_i.append(prod_e)
                             prod_frPos_i.append(prod_fr)
                         else:
-                            bimol_stPt_factor=random.uniform(-stPt_uqVal,stPt_uqVal)
+                            bimol_factor=random.uniform(-well_uqVal,well_uqVal)
                             bimol_posFreqPercent=random.uniform(-posFreq_uqVal,posFreq_uqVal)
                             bimol_posFreq_factor=(100+bimol_posFreqPercent)/100
                             bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                            bimolec_blocks[bimol_name], bimol_e, bimol_fr = self.write_bimol([opt.species for opt in reaction.prod_opt], i, uq, bimol_stPt_factor, bimol_posFreq_factor,n)
+                            bimolec_blocks[bimol_name], bimol_e, bimol_fr = self.write_bimol([opt.species for opt in reaction.prod_opt], i, uq, bimol_factor, bimol_posFreq_factor,n)
                             bimol_e_i.append(bimol_e)
                             bimol_frPos_i.append(bimol_fr)
 
@@ -271,7 +271,7 @@ class MESS:
             i=i+1 
         return 0
 
-    def write_bimol(self, species_list, n_uq, uq, stPt_factor, posFreq_factor,n):
+    def write_bimol(self, species_list, n_uq, uq, well_factor, posFreq_factor,n):
         """
         Create the block for MESS for a bimolecular product.
         well0: reactant on this PES (zero-energy reference)
@@ -407,14 +407,14 @@ class MESS:
             energy = (sum([sp.energy for sp in species_list]) + sum([sp.zpe for sp in species_list]) -
                       (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
             if n_uq == 0:
-                stPt_factor=0
-                logFile.write("\tBimol stPt_factor: {}\n".format(stPt_factor))
+                well_factor=0
+                logFile.write("\tBimol well_factor: {}\n".format(well_factor))
                 logFile.write("\t\tOriginal Energy = {}\n".format(energy))
             if n_uq > 0:
-                stPt_factor=stPt_factor
-                logFile.write("\tBimol stPt_factor: {}\n".format(stPt_factor))
+                well_factor=well_factor
+                logFile.write("\tBimol well_factor: {}\n".format(well_factor))
                 logFile.write("\t\tOriginal Energy = {}\n".format(energy))
-                energy=energy+stPt_factor
+                energy=energy+well_factor
             logFile.write("\t\tUpdated energy = {}\n\n".format(energy))
 
         logFile.close()
@@ -444,7 +444,7 @@ class MESS:
 
         return bimol, e, fr
 
-    def write_well(self, species, n_uq, uq, stPt_factor, posFreq_factor,n):
+    def write_well(self, species, n_uq, uq, well_factor, posFreq_factor,n):
         """
         Create the block for MESS for a well.
         well0: reactant on this PES (zero-energy reference)
@@ -527,14 +527,14 @@ class MESS:
             name = self.well_names[species.chemid] + ' ! ' + str(species.chemid)
             energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
             if n_uq == 0:
-                stPt_factor=0
-                logFile.write("\tWell stPt factor: {}\n".format(stPt_factor))
+                well_factor=0
+                logFile.write("\tWell stPt factor: {}\n".format(well_factor))
                 logFile.write("\t\tOriginal energy = {}\n".format(energy))
             if n_uq > 0:
-                stPt_factor=stPt_factor
-                logFile.write("\tWell stPt factor: {}\n".format(stPt_factor))
+                well_factor=well_factor
+                logFile.write("\tWell stPt factor: {}\n".format(well_factor))
                 logFile.write("\t\tOriginal energy = {}\n".format(energy))
-                energy=energy+stPt_factor
+                energy=energy+well_factor
             logFile.write("\t\tUpdated energy = {}\n\n".format(energy))
         logFile.close()
         wellsArrayEnergy.append(energy)

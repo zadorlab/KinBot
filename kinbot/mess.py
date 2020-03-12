@@ -806,9 +806,10 @@ class MESS:
         '''
 
         i=0 #counter for jobs
-        job_counter=1
+        x=1
         if self.par.par['uq'] == 1:
-            job_counter=self.par.par['uq_max_runs'] #max jobs running at once, can make this an input parameter at somepoint if neccessary
+            x=self.par.par['uq_max_runs'] #max jobs running at once, can make this an input parameter at somepoint if neccessary
+        job_counter=x
         n=n #total number of mess jobs to run
         previousLoop=0 #number of running jobs on previous run so that jobs are not double counted as finishing
         pids=[] #list of job pids
@@ -816,6 +817,7 @@ class MESS:
             if n < job_counter:
                 job_counter = n
             print(i,n,job_counter)
+            #I think job counter is off
             while(i<job_counter):
                 with open(submitscript, 'w') as f:
                     if self.par.par['queue_template'] == '':
@@ -865,7 +867,7 @@ class MESS:
                         currentLoop=currentLoop+1
                         a=a+1
                    
-                    if a==len(pids) and runningJobs==job_counter:
+                    if a==len(pids) and runningJobs==x:
                         a=0
                         runningJobs=0
                         currentLoop=0
@@ -877,5 +879,6 @@ class MESS:
                         runningJobs=0
                         a=0
                         exit=1
-
+            if job_counter > n:
+                job_counter = n
         return 0

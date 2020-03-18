@@ -21,7 +21,7 @@ class IntraRAddEndocyclicF(GeneralReac):
             if len(self.instance) > 3:
                 self.fix_dihedrals(fix)
                 self.set_angles(change)
-        elif step == self.dishtep + 1:
+        elif step == self.dihstep + 1:
             self.release_angles(release)
             self.releave_dihedrals(release)
 

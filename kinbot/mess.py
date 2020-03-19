@@ -211,6 +211,7 @@ class MESS:
             tss += nts_blocks[ts] + '\n!****************************************\n'
         barrierless = ''
         for rxn in barrierless_blocks:
+            print(barrierless_blocks[rxn])
             barrierless += barrierless_blocks[rxn] + '\n!****************************************\n'
  
         dummy_template = pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')

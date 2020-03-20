@@ -16,14 +16,14 @@ class IntraRAddEndocyclicF(GeneralReac):
             self.fix_bonds(fix)
 
         if step < self.dihstep:
-            self.set_dihedrals(change)
+            self.set_dihedrals(change, step)
         elif step == self.dihstep:
             if len(self.instance) > 3:
                 self.fix_dihedrals(fix)
                 self.set_angles(change)
-        elif step == self.dishtep + 1:
+        elif step == self.dihstep + 1:
             self.release_angles(release)
-            self.releave_dihedrals(release)
+            self.release_dihedrals(release)
 
             if len(self.instance) > 4:
                 fval = 2.2

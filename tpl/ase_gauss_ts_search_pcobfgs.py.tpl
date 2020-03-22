@@ -82,11 +82,7 @@ mol.rattle(0.05)
 
 try:
     dyn.run(fmax=0.01, steps = 400)
-    db2 = connect('{working_dir}/geoms_pcobfgs.db')
-    db2.write(mol, name=label)
     e = mol.get_potential_energy()
-    db3 = connect('{working_dir}/geoms2_pcobfgs.db')
-    db3.write(mol, name=label)
     data = {{'energy': e,'status' : 'normal'}}
 except RuntimeError: 
     data = {{'status' : 'error'}}

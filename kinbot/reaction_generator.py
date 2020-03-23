@@ -200,12 +200,8 @@ class ReactionGenerator:
                     products.append(' ') 
                     barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
                     logging.info('\tReaction {} has a barrier of {} and lead to products {} {} {}'.format(instance_name,barrier,products[0],products[1],products[2]))
-
-                    #check geom post optimization
-                    #obj.products_final = []
-
-                    for st_pt in obj.products_final:
-                        #obj.products_final.append(st_pt)
+                     
+                    for i, st_pt in enumerate(obj.products_final):
                         chemid = st_pt.chemid
                         orig_geom = copy.deepcopy(st_pt.geom)
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
@@ -222,18 +218,20 @@ class ReactionGenerator:
                             st_pt.characterize(0)  # not allowed to use the dimer option here
                             st_pt.calc_chemid()
                             if chemid != st_pt.chemid:
-                                obj.products_final.pop()
+                                obj.products_final.pop(i)
                                 newfrags, newmaps = st_pt.start_multi_molecular()
                                 products_waiting_status[index] = [0 for frag in newfrags]
                                 fragChemid=[]
-                                for a in newfrags:
+                                for i, a in enumerate(newfrags):
                                     for prod in frag_unique:
                                         if a.chemid == prod.chemid:
-                                            newfrags.pop()
+                                            newfrags.pop(i)
                                             a=prod
-                                            newfrags.append(a)
-                                            break
-                                    obj.products_final.append(a)
+                                            j=i-1
+                                            newfrags.insert(j,a)
+                                    #add new frag to frag_unique somehow?
+                                    j=i-1
+                                    obj.products_final.insert(j,a)
                                     self.qc.qc_opt(a, a.geom, 0)
                                     fragChemid.append(a.chemid)
                                 if len(fragChemid) == 1:
@@ -244,7 +242,6 @@ class ReactionGenerator:
                                 logging.info('\ta) Product optimized to other structure for {}, product {} to {} {}'.format(instance_name,chemid, fragChemid[0], fragChemid[1]))                
                     
                     obj.products=[]
-
                     for prod in obj.products_final:
                         obj.products.append(prod)
                     obj.products_final=[] 

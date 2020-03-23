@@ -1233,12 +1233,10 @@ def get_l3energy(job, par):
     if par.par['single_point_qc'] == 'molpro':
         if os.path.exists('molpro/' + job + '.out'): 
             with open('molpro/' + job + '.out', 'r') as f: 
-                print(job) 
                 lines = f.readlines() 
                 for index, line in enumerate(reversed(lines)): 
                     if ('SETTING MYENA_DZ(1)') in line:
                         mpe=float(line.split()[3])
-                        print(mpe)
                     #if ('SETTING ' + par.par['single_point_key']) in line:
                         return 1, float(line.split()[3])  # energy was found
                     else:

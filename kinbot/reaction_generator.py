@@ -214,9 +214,7 @@ class ReactionGenerator:
                         else:
                             e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                             e2, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
-                            st_pt.bond_mx()
                             st_pt.characterize(0)  # not allowed to use the dimer option here
-                            st_pt.calc_chemid()
                             if chemid != st_pt.chemid:
                                 obj.products_final.pop(i)
                                 newfrags, newmaps = st_pt.start_multi_molecular()
@@ -226,12 +224,12 @@ class ReactionGenerator:
                                     for prod in frag_unique:
                                         if a.chemid == prod.chemid:
                                             newfrags.pop(i)
-                                            a=prod
-                                            j=i-1
-                                            newfrags.insert(j,a)
+                                            a = prod
+                                            j = i - 1
+                                            newfrags.insert(j, a)
                                     #add new frag to frag_unique somehow?
-                                    j=i-1
-                                    obj.products_final.insert(j,a)
+                                    j = i - 1
+                                    obj.products_final.insert(j, a)
                                     self.qc.qc_opt(a, a.geom, 0)
                                     fragChemid.append(a.chemid)
                                 if len(fragChemid) == 1:
@@ -243,6 +241,8 @@ class ReactionGenerator:
                     
                     obj.products=[]
                     for prod in obj.products_final:
+                        prod.characterize()
+                        print(prod.chemid, prod.cycle, prod.geom, prod.bond)
                         obj.products.append(prod)
                     obj.products_final=[] 
 
@@ -272,9 +272,7 @@ class ReactionGenerator:
                         else:
                             e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                             e2, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
-                            st_pt.bond_mx()
                             st_pt.characterize(0)  # not allowed to use the dimer option here
-                            st_pt.calc_chemid()
                             if chemid != st_pt.chemid:
                                 # product was optimized to another structure, give warning but don't remove reaction
                                 logging.info('\tb) Product optimized to other structure for {}, product {} to {}'.format(instance_name, chemid, st_pt.chemid))
@@ -313,14 +311,14 @@ class ReactionGenerator:
                             if not i == index:
                                 obj_i = self.species.reac_obj[i]
                                 if self.species.reac_ts_done[i] > 3:
-                                    for j,st_pt_i in enumerate(obj_i.products):
+                                    for j, st_pt_i in enumerate(obj_i.products):
                                         if st_pt_i.chemid == st_pt.chemid:
                                             if len(obj_i.prod_opt) > j:
                                                 prod_opt = obj_i.prod_opt[j]
                                                 new = 0
                                                 break
                         if new:
-                            prod_opt = Optimize(st_pt,self.par,self.qc)
+                            prod_opt = Optimize(st_pt, self.par, self.qc)
                             prod_opt.do_optimization()
                         obj.prod_opt.append(prod_opt)
 

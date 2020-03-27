@@ -434,7 +434,6 @@ class StationaryPoint:
         The search is halted before reaching natoms if a certain morif length 
         does not give any hit
 
-
         TODO: leave all the leaves of the graph out for the search, i.e.
         the atoms that only have neighbor, as they never participate in a cycle
 
@@ -448,7 +447,7 @@ class StationaryPoint:
         self.cycle_chain = [] #list of the cycles
         self.cycle = [0 for i in range(self.natom)] # 0 if atom is not in cycle, 1 otherwise
 
-        for cycle_size in range(3,self.natom+1):
+        for cycle_size in range(3, self.natom + 1):
             motif = ['X' for i in range(cycle_size)]
             instances = find_motif.start_motif(motif, self.natom, self.bond, self.atom, -1, [[k] for k in range(self.natom)])
             if len(instances) == 0:
@@ -570,7 +569,6 @@ class StationaryPoint:
         The result is stored in self.conf_dihed.
         """
         
-        
         self.find_dihedral()
         self.conf_dihed = []
         dihed_sideb = []
@@ -633,7 +631,7 @@ class StationaryPoint:
         
         return 0
 
-    def rigid_along_path(self,atomi, atomj):
+    def rigid_along_path(self, atomi, atomj):
         """
         Method finds the shortest path between two atoms and checks if any atom along that
         pathway is rigid. An atom is rigid if it is in a cycle or is doubly bonded to another atom

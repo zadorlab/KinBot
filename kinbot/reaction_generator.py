@@ -130,7 +130,7 @@ class ReactionGenerator:
                             sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well')[1]
                             barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
                         if barrier > self.par.par['barrier_threshold']:
-                            logging.info('\tRxn barrier too high ({val}) for {name}'.format(val=barrier,name=instance_name))
+                            logging.info('\tRxn barrier too high ({0:.2f}) for {1}'.format(barrier, instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
                             obj.irc = IRC(obj, self.par) #TODO: this doesn't seem like a good design
@@ -195,18 +195,15 @@ class ReactionGenerator:
                     products=[] 
                     for st_pt in obj.products_final:
                         products.append(st_pt.chemid) 
-                    products.append(' ') 
-                    products.append(' ') 
-                    products.append(' ') 
+                    products.extend([' ', ' ', ' ']) 
                     barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
-                    logging.info('\tReaction {} has a barrier of {} and lead to products {} {} {}'.format(instance_name,barrier,products[0],products[1],products[2]))
+                    logging.info('\tReaction {} has a barrier of {} and leads to products {} {} {}'.format(instance_name, barrier, products[0], products[1], products[2]))
                      
                     for i, st_pt in enumerate(obj.products_final):
                         chemid = st_pt.chemid
-                        orig_geom = copy.deepcopy(st_pt.geom)
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
-                            logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name,st_pt.chemid))
+                            logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name, st_pt.chemid))
                             self.species.reac_ts_done[index] = -999
                             err = -1
                         elif e != 0:
@@ -217,21 +214,21 @@ class ReactionGenerator:
                             st_pt.characterize(0)  # not allowed to use the dimer option here
                             if chemid != st_pt.chemid:
                                 obj.products_final.pop(i)
-                                newfrags, newmaps = st_pt.start_multi_molecular()
+                                newfrags, newmaps = st_pt.start_multi_molecular()  # newfrags is list of stpt obj 
                                 products_waiting_status[index] = [0 for frag in newfrags]
                                 fragChemid=[]
-                                for i, a in enumerate(newfrags):
+                                for i, newfr in enumerate(newfrags):
                                     for prod in frag_unique:
-                                        if a.chemid == prod.chemid:
+                                        if newfr.chemid == prod.chemid:
                                             newfrags.pop(i)
-                                            a = prod
+                                            newfr = prod
                                             j = i - 1
-                                            newfrags.insert(j, a)
+                                            newfrags.insert(j, newfr)
                                     #add new frag to frag_unique somehow?
                                     j = i - 1
-                                    obj.products_final.insert(j, a)
-                                    self.qc.qc_opt(a, a.geom, 0)
-                                    fragChemid.append(a.chemid)
+                                    obj.products_final.insert(j, newfr)
+                                    self.qc.qc_opt(newfr, newfr.geom, 0) # what does this do?
+                                    fragChemid.append(newfr.chemid)
                                 if len(fragChemid) == 1:
                                     fragChemid.append(" ")
                                 for i, frag in enumerate(newfrags):
@@ -241,8 +238,6 @@ class ReactionGenerator:
                     
                     obj.products=[]
                     for prod in obj.products_final:
-                        prod.characterize()
-                        print(prod.chemid, prod.cycle, prod.geom, prod.bond)
                         obj.products.append(prod)
                     obj.products_final=[] 
 
@@ -261,7 +256,6 @@ class ReactionGenerator:
                     err = 0
                     for st_pt in obj.products:
                         chemid = st_pt.chemid
-                        orig_geom = copy.deepcopy(st_pt.geom)
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
                             logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name,st_pt.chemid))

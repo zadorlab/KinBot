@@ -336,7 +336,9 @@ class StationaryPoint:
 
                 if not bool and len(mols) == 0:
                     #the bond matrix corresponds to one molecule only
+                    self.characterize(0)  # NEW
                     self.calc_chemid()
+                    print('lala', self.cycle, self.chemid)
                     self.name = str(self.chemid)
                     mols.append(self)
                     break
@@ -345,7 +347,7 @@ class StationaryPoint:
                 atomi = atomlist[np.where(np.asarray(fragi) == 1)]
                 multi = self.calc_multiplicity(atomi)
                 chargei = self.charge # todo
-                moli = StationaryPoint('prod_%i'%(len(mols)+1),chargei,multi,atom=atomi,natom=natomi,geom=geomi)
+                moli = StationaryPoint('prod_%i'%(len(mols)+1), chargei, multi, atom=atomi, natom=natomi, geom=geomi)
                 moli.characterize(0)  # dimer is not allowed
                 moli.calc_chemid()
                 moli.name = str(moli.chemid)
@@ -533,7 +535,7 @@ class StationaryPoint:
         No rotation around ring bonds and double and triple bonds.
         """
         self.calc_chemid()
-        if not hasattr(self,'cycle_chain'):
+        if not hasattr(self, 'cycle_chain'):
             self.find_cycle()
         if len(self.bonds) == 0:
             self.bonds = [self.bond]

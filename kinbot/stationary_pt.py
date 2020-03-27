@@ -336,9 +336,12 @@ class StationaryPoint:
 
                 if not bool and len(mols) == 0:
                     #the bond matrix corresponds to one molecule only
-                    self.characterize(0)  # NEW
+                    try:
+                        delattr(self, 'cycle_chain')
+                    except AttributeError:
+                        pass
+                    self.characterize(0)  
                     self.calc_chemid()
-                    print('lala', self.cycle, self.chemid)
                     self.name = str(self.chemid)
                     mols.append(self)
                     break
@@ -534,6 +537,7 @@ class StationaryPoint:
         Identify unique rotatable bonds in the structure 
         No rotation around ring bonds and double and triple bonds.
         """
+        
         self.calc_chemid()
         if not hasattr(self, 'cycle_chain'):
             self.find_cycle()

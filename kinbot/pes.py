@@ -1235,13 +1235,10 @@ def get_l3energy(job, par):
             with open('molpro/' + job + '.out', 'r') as f: 
                 lines = f.readlines() 
                 for index, line in enumerate(reversed(lines)): 
-                    if ('SETTING MYENA_DZ(1)') in line:
-                        mpe=float(line.split()[3])
-                    #if ('SETTING ' + par.par['single_point_key']) in line:
+                    if ('SETTING ' + par.par['single_point_key']) in line:
                         return 1, float(line.split()[3])  # energy was found
                     else:
-                        print("mp DNE")
-                        #return 0, -1  # the job not yet done
+                        return 0, -1  # the job not yet done
         else:
             return 0, -1  # job not yet started to run
 

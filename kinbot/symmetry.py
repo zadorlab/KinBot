@@ -140,10 +140,10 @@ def calculate_symmetry(species):
             cyc_atomid = [species.atomid[ci] for ci in cyc]
             symm = 0
             for i in range(len(cyc)):
-                new_order = np.roll(np.array(cyc_atomid),-i)
+                new_order = np.roll(np.array(cyc_atomid), -i)
                 if all([cyc_atomid[at] == new_order[at] for at in range(len(cyc))]):
                     symm += 1
-                new_order_reversed = np.roll(np.array(cyc_atomid[::-1]),-i)
+                new_order_reversed = np.roll(np.array(cyc_atomid[::-1]), -i)
                 if all([cyc_atomid[at] == new_order_reversed[at] for at in range(len(cyc))]):
                     symm += 1
             #additional patch: if an atom has two identical neighbors 
@@ -152,7 +152,7 @@ def calculate_symmetry(species):
             if symm > 1:
                 divide = 1
                 for at in cyc:
-                    nei = get_neighbors(species,at)
+                    nei = get_neighbors(species, at)
                     cyc_nei = [ni for ni in nei if ni in cyc]
                     other_nei = [ni for ni in nei if ni not in cyc]
                     if len(other_nei) > 1:

@@ -62,7 +62,7 @@ class HIR:
                                                    self.species.natom,
                                                    self.species.atom,
                                                    zmatorder)
-            fi = [(zi+1) for zi in zmatorder[:4]]
+            fi = [(zi + 1) for zi in zmatorder[:4]]
             self.qc.qc_hir(self.species, cart_new, rotor, 0, [fi])
             for ai in range(1, self.nrotation):
                 ang = 360. / float(self.nrotation)

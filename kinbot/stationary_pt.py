@@ -336,7 +336,11 @@ class StationaryPoint:
 
                 if not bool and len(mols) == 0:
                     #the bond matrix corresponds to one molecule only
-                    self.calc_chemid()
+                    try:
+                        delattr(self, 'cycle_chain')
+                    except AttributeError:
+                        pass
+                    self.characterize(0)  
                     self.name = str(self.chemid)
                     mols.append(self)
                     break
@@ -345,7 +349,7 @@ class StationaryPoint:
                 atomi = atomlist[np.where(np.asarray(fragi) == 1)]
                 multi = self.calc_multiplicity(atomi)
                 chargei = self.charge # todo
-                moli = StationaryPoint('prod_%i'%(len(mols)+1),chargei,multi,atom=atomi,natom=natomi,geom=geomi)
+                moli = StationaryPoint('prod_%i'%(len(mols)+1), chargei, multi, atom=atomi, natom=natomi, geom=geomi)
                 moli.characterize(0)  # dimer is not allowed
                 moli.calc_chemid()
                 moli.name = str(moli.chemid)
@@ -434,7 +438,6 @@ class StationaryPoint:
         The search is halted before reaching natoms if a certain morif length 
         does not give any hit
 
-
         TODO: leave all the leaves of the graph out for the search, i.e.
         the atoms that only have neighbor, as they never participate in a cycle
 
@@ -448,7 +451,7 @@ class StationaryPoint:
         self.cycle_chain = [] #list of the cycles
         self.cycle = [0 for i in range(self.natom)] # 0 if atom is not in cycle, 1 otherwise
 
-        for cycle_size in range(3,self.natom+1):
+        for cycle_size in range(3, self.natom + 1):
             motif = ['X' for i in range(cycle_size)]
             instances = find_motif.start_motif(motif, self.natom, self.bond, self.atom, -1, [[k] for k in range(self.natom)])
             if len(instances) == 0:
@@ -533,8 +536,9 @@ class StationaryPoint:
         Identify unique rotatable bonds in the structure 
         No rotation around ring bonds and double and triple bonds.
         """
+        
         self.calc_chemid()
-        if not hasattr(self,'cycle_chain'):
+        if not hasattr(self, 'cycle_chain'):
             self.find_cycle()
         if len(self.bonds) == 0:
             self.bonds = [self.bond]
@@ -569,7 +573,6 @@ class StationaryPoint:
         This way we exclude things like methyl groups, t-butyl groups, etc.            
         The result is stored in self.conf_dihed.
         """
-        
         
         self.find_dihedral()
         self.conf_dihed = []
@@ -633,7 +636,7 @@ class StationaryPoint:
         
         return 0
 
-    def rigid_along_path(self,atomi, atomj):
+    def rigid_along_path(self, atomi, atomj):
         """
         Method finds the shortest path between two atoms and checks if any atom along that
         pathway is rigid. An atom is rigid if it is in a cycle or is doubly bonded to another atom

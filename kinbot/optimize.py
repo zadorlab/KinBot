@@ -28,6 +28,8 @@ class Optimize:
 
     def __init__(self, species, par, qc, wait=0):
         self.species = species
+        delattr(self.species, 'cycle_chain')
+        self.species.characterize()
         self.par = par
         self.qc = qc
 

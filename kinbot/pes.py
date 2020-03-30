@@ -388,7 +388,6 @@ def postprocess(par, jobs, task, names):
                     barrier = energy
                     reactions.append([reactant, ts, prod, barrier])
 
-
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
         # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.

@@ -238,7 +238,6 @@ class ReactionGenerator:
                                     fragChemid.append(" ")
                                 for i, frag in enumerate(newfrags):
                                     products_waiting_status[index][i] = 1
-                                
                                 logging.info('\ta) Product optimized to other structure for {}, product {} to {} {}'.format(instance_name,chemid, fragChemid[0], fragChemid[1]))                
                     
                     obj.products=[]
@@ -303,7 +302,7 @@ class ReactionGenerator:
                     #do the ts optimization
                     obj.ts_opt = Optimize(obj.ts,self.par,self.qc)
                     obj.ts_opt.do_optimization()
-
+          
                     #do the products optimizations
                     for st_pt in obj.products:
 			#do the products optimizations

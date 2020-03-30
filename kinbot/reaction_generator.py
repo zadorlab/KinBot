@@ -227,7 +227,7 @@ class ReactionGenerator:
                                     #add new frag to frag_unique somehow?
                                     j = i - 1
                                     obj.products_final.insert(j, newfr)
-                                    self.qc.qc_opt(newfr, newfr.geom, 0) # what does this do?
+                                    self.qc.qc_opt(newfr, newfr.geom, 0) 
                                     fragChemid.append(newfr.chemid)
                                 if len(fragChemid) == 1:
                                     fragChemid.append(" ")

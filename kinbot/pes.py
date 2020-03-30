@@ -201,6 +201,13 @@ def main():
                 f.write('\n'.join(summary_lines))
             time.sleep(1)
 
+    # delete skipped jobs from the jobs before sending to postprocess
+    for skip in skipChemids:
+        try:
+            jobs.pop(jobs.index(skip))
+        except ValueError:
+            pass
+
     postprocess(par, jobs, task, names)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission

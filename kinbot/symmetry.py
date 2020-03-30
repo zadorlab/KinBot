@@ -151,7 +151,6 @@ def calculate_symmetry(species):
             #the symmetry number needs to be divided by 2
             if symm > 1:
                 divide = 1
-                print('cyclebug', species.chemid)
                 for at in cyc:
                     nei = get_neighbors(species, at)
                     cyc_nei = [ni for ni in nei if ni in cyc]

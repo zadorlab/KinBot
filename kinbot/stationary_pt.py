@@ -341,7 +341,6 @@ class StationaryPoint:
                     except AttributeError:
                         pass
                     self.characterize(0)  
-                    self.calc_chemid()
                     self.name = str(self.chemid)
                     mols.append(self)
                     break

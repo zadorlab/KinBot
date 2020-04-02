@@ -27,6 +27,7 @@ from kinbot import license_message
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.mess import MESS
+from kinbot.uncertaintyAnalysis import UQ
 
 def main():
     try:
@@ -63,7 +64,7 @@ def main():
     par = Parameters(input_file)
 
     #set uncertainty parameters
-    n=par.par['uq_n']
+    uq_n=par.par['uq_n']
     uq=par.par['uq']
     # set up the logging environment
     logging.basicConfig(filename='pes.log', level=logging.INFO)
@@ -296,14 +297,6 @@ def postprocess(par, jobs, task, names, n):
             continue
         # read the summary file
         for line in summary:
-            rxnPre=open("reactions_initial.log", 'a')
-            for i in reactions:
-                rxnPre.write('{0} {1}'.format("\nchemid: ", i[0])) 
-                rxnPre.write('{0} {1}'.format("\nname: ", i[1])) 
-                rxnPre.write('{0} {1}'.format("\nprod chemid list: ", i[2])) 
-                rxnPre.write('{0} {1}'.format("\nbarrier: ", i[3]))
-                rxnPre.write("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
-            rxnPre.close() 
             if (line.startswith('SUCCESS') or line.startswith('HOMOLYTIC_SCISSION')):
                 pieces = line.split()
                 reactant = ji
@@ -348,7 +341,6 @@ def postprocess(par, jobs, task, names, n):
                 new = 1
                 temp = None
 
-                rxns=open("rxns.log", 'a')
                 for i, rxn in enumerate(reactions):
                     rxn_prod_name = '_'.join(sorted(rxn[2]))
                     if (reactant == rxn[0] and
@@ -491,7 +483,7 @@ def postprocess(par, jobs, task, names, n):
 #                 prod_energies,
  #                highlight)
     # write_mess
-    n=par.par['uq_n']
+    uq_n=par.par['uq_n']
     w=len(wells)
 
 
@@ -521,7 +513,7 @@ def postprocess(par, jobs, task, names, n):
                       well_energies,
                       prod_energies,
                       parent,
-                      n)
+                      uq_n)
 
     
 def filter(wells, products, reactions, conn, bars, well_energies, task, names):
@@ -917,7 +909,7 @@ def write_header(par, well0):
 
 
 def create_mess_input(par, wells, products, reactions, barrierless,
-                      well_energies, prod_energies, parent, n):
+                      well_energies, prod_energies, parent, uq_n):
     """
     When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
@@ -928,8 +920,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
      
    
     i=0 #uncertainty counter
-    n=n #number of runs
-    #uq=0
     uq=par.par['uq']
     fi=open('pes.log', 'a')
     fi.write('{0} {1} {2}'.format("uq value: ", uq, "\n"))
@@ -940,14 +930,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                                                                                reactions,
                                                                                barrierless)
      
-    rxn_ts=open("reactions_tsShorts.log", 'a')
-    rxn_ts.write("reactions in reactions\n")
-    for r in reactions:
-        rxn_ts.write('{0} {1}'.format(r, "\n"))
-    rxn_ts.write("ts_shorts in ts_short\n")
-    for r in ts_short:
-        rxn_ts.write('{0} {1}'.format(r, "\n"))
-    rxn_ts.close()
  
     # list of the strings to write to mess input file
     s = []
@@ -985,12 +967,11 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
     if uq == 0:
         fi=open('pes.log', 'a')
-        fi.write("\nInside uq == 0\n")
+        fi.write("\nUncertainty analysis turned off.\n")
         fi.close()
         # list of the strings to write to mess input file
         s = []
         # write the header
-        #s.append(write_header(par, well_short[wells[0]]))
 
         #create dummy for mess object 
         dummy = StationaryPoint('dummy',
@@ -1012,7 +993,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             energy = well_energies[well]
             fi=parent[well] + '/' + well + '.mess'
             with open(fi, 'r') as f:
-            #with open(parent[well] + '/' + well + '.mess') as f:
                 s.append(f.read().format(name=name, zeroenergy=energy))
             s.append('!****************************************')
         
@@ -1077,7 +1057,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
         me=par.par['me']
         if me == 1:
-            mess.run(n)
+            mess.run(n_uq)
 
     elif uq == 1:
         while(i<n):
@@ -1093,8 +1073,12 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                                     smiles=par.par['smiles'],
                                     structure=par.par['structure'])
 
-            #mess object
             mess=MESS(par, dummy)
+            uq_obj=UQ()
+            well_uq = self.par.par['well_uq']
+            barrier_uq = self.par.par['barrier_uq']
+            freq_uq = self.par.par['freq_uq']
+            imagfreq_uq = self.par.par['imagfreq_uq'] 
 
             # write the wells
             s.append('######################')
@@ -1108,15 +1092,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 logFile.write('{0} {1}'.format('original energy: ', energy))
                 logFile.close()
                 if i > 0:
-                    uq_energyAdd=random.uniform(-0.5,0.5)
+                    uq_energyAdd=uq_obj.calc_energyUQ(well_uq)
                     energy=energy+uq_energyAdd                
                     logFile=open('uq_pes.log', 'a')
                     logFile.write('{0} {1}'.format('uq_energyAdd: ', uq_energyAdd))
                     logFile.write('{0} {1}'.format('updated energy: ', energy))
                     logFile.close()
-                fi = "_uq_%d.mess" %i
-                #with open(fi, 'r') as f:
-                #with open(parent[well] + '/' + well + '.mess') as f:
+                fi = "_%d.mess" %i
                 with open(parent[well] + '/' + well + fi) as f:
                     s.append(f.read().format(name=name, zeroenergy=energy))
                 s.append('!****************************************')
@@ -1132,25 +1114,15 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             for prod in products:
                 name = pr_short[prod] + ' ! ' + prod
                 energy = prod_energies[prod]
-                logFile=open('uq_pes.log', 'a')
-                logFile.write('{0} {1}'.format('Bimol Prod: ', name))
-                logFile.write('{0} {1}'.format('original energy: ', energy))
-                logFile.close()
                 if i > 0:
-                    uq_energyAdd=random.uniform(-0.5,0.5)
+                    uq_energyAdd=uq_obj.calc_energyUQ(well_uq)
                     energy=energy+uq_energyAdd                
-                    logFile=open('uq_pes.log', 'a')
-                    logFile.write('{0} {1}'.format('uq_energyAdd: ', uq_energyAdd))
-                    logFile.write('{0} {1}'.format('updated energy: ', energy))
-                    logFile.close()
                 fr_names = {}
                 for fr in prod.split('_'):
                     key = 'fr_name_{}'.format(fr)
                     value = fr_short[fr] + ' ! ' + fr
                     fr_names[key] = value
-                fi = "_uq_%d.mess" %i
-                #with open(fi, 'r') as f:
-                #with open(parent[prod] + '/' + prod + '.mess') as f:
+                fi = "_%d.mess" %i
                 with open(parent[prod] + '/' + prod + fi) as f:
                     s.append(f.read().format(name=name,
                                              ground_energy=energy,
@@ -1176,17 +1148,15 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 logFile.write('{0} {1}'.format('original energy: ', energy))
                 logFile.close()
                 if i > 0:
-                    uq_energyAdd=random.uniform(-1.0,1.0)
+                    uq_energyAdd=uq_obj.calc_energyUQ(well_uq)
                     energy=energy+uq_energyAdd                
                     logFile=open('uq_pes.log', 'a')
                     logFile.write('{0} {1}'.format('uq_energyAdd: ', uq_energyAdd))
                     logFile.write('{0} {1}'.format('updated energy: ', energy))
                     logFile.close()
-                fi = "_uq_%d.mess" % i
+                fi = "_%d.mess" % i
                 try:
                     with open(rxn[0] + '/' + rxn[1] + fi) as f:
-                #with open(rxn[0] + '/' + rxn[1] + '.mess') as f:
-                #with open(fi, 'r') as f:
                         s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
                     s.append('!****************************************')
                 except:
@@ -1209,7 +1179,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
         me=par.par['me']
         if me == 1:
-            mess.run(n)
+            mess.run(uq_n)
 
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,

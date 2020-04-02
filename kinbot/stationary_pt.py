@@ -288,7 +288,10 @@ class StationaryPoint:
             return 3 # O and O2 are triplet
         if len(atomlist) == 1 and atomlist[0] == 'C':
             return 3 # C atom is triplet
-        if len(atomlist) == 3 and atomlist.count('C') == 1 and atomlist.count('H') == 2:
+        atomC = np.char.count(atomlist,'C')
+        atomH = np.char.count(atomlist,'H')
+        if len(atomlist) == 3 and np.sum(atomC) == 1 and np.sum(atomH) == 2:
+        #if len(atomlist) == 3 and np.char.count(atomlist, 'C') == 1 and np.char.count(atomlist, 'H') == 2:
             return 2 # CH2
 
         mult = 0

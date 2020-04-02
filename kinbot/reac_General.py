@@ -1,6 +1,5 @@
 from kinbot import geometry
 
-
 class GeneralReac:
     max_step = -1
     scan = -1

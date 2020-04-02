@@ -209,10 +209,12 @@ class Parameters:
             'well_uq': 0.5,
             # Uncertainty in saddle point (TS) energy, +/- 1.0 kcal/mol
             'barrier_uq': 1.0,
-            # Uncertainty in positive frequency values, mult/div 1.2 (1.2 = 20% uncertainty)
-            'posFreq_uq': 20,
-            # Uncertainty in negative frequency values, mult/div 1.1 (1.1 = 10% uncertainty)
-            'negFreq_uq': 10,
+            # Uncertainty in positive frequency values, mult/div by a maximum factor of 1.2.
+            # factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original frequency
+            'freq_uq': 1.2,
+            # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1.
+            # factor of 1.2 corresponds to values ranging from 0.909 to 1.1 times the original frequency
+            'imagfreq_uq': 1.1,
 
             # for development
             'test': 0,

@@ -1,5 +1,4 @@
-    Barrier       {barrier} {reactant} {dummy}
-    ! Barrierless Reaction
+    Barrier       {barrier} {reactant} {prod} {dummy}
     RRHO
         Geometry[angstrom]            2
 	    O 1.0 0.0 0.0
@@ -19,8 +18,7 @@
     End ! end barrier
 
 !****************************************
- 
-   Bimolecular     {chemids}
+   Bimolecular  {prod} {dummy}     
 
 {fragments}
 

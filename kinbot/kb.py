@@ -82,13 +82,14 @@ def main():
         return
 
     uq = par.par['uq']
-    uq_n=1
+    uq_n = 1
+
     if uq == 1:
         uq_n = par.par['uq_n']
-        stPt_uq = par.par['stPt_uq']
+        well_uq = par.par['well_uq']
         barrier_uq = par.par['barrier_uq']
-        posFreq_uq = par.par['posFreq_uq']
-        negFreq_uq = par.par['negFreq_uq']
+        freq_uq = par.par['freq_uq']
+        imagfreq_uq = par.par['imagfreq_uq']
 
     # initialize the reactant
     well0 = StationaryPoint('well0',
@@ -191,41 +192,30 @@ def main():
     if par.par['me'] == 1:
         logging.info('ME turned on')
         if uq == 0:
-            n=1
             logging.info('uq turned off')
             mess = MESS(par, well0)
-            mess.write_input(uq,n)
+            mess.write_input(uq, uq_n, qc)
         elif uq == 1:
             logging.info('uq turned on')
-            n=uq_n
             mess = MESS(par, well0)
-            mess.write_input(uq,n)
+            mess.write_input(uq, uq_n, qc)
         else:
             logging.error('Cannot recognize uq code {}'.format(par.par['uq']))
     else:
         logging.info('ME turned off')
     
     #TO DO: CODE UQ into MESMER
-
     mesmer = MESMER(par, well0)
     mesmer.write_input()
-    #mess = MESS(par, well0)
-    #mess.write_input()
 
     if par.par['me'] == 1:
         logging.info('Starting Master Equation calculations')
         if par.par['me_code'] == 'mess':
-                n=uq_n
-                mess.run(n)
+                mess.run(uq_n)
 
    #TO DO: FINISH CODING UQ INTO MESMER
         elif par.par['me_code'] == 'mesmer':
-           #if par.par['uq'] == 0:
             mesmer.run()
-           #elif par.par['uq'] == 1:
-           #    mesmer.run(n)
-           #else:
-               #logging.error('Cannot recognize uq code {}'.format(par.par['uq']))
         else:
             logging.error('Cannot recognize me code {}'.format(par.par['me_code']))
 

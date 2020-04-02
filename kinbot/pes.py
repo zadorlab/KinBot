@@ -97,7 +97,7 @@ def main():
         pass
 
     #List of chemids to skip KinBot submissions for.
-    skipChemids=par.par['skip_chemids']
+    skipChemids = par.par['skip_chemids']
     # maximum number of kinbot jobs that run simultaneously
     max_running = par.par['simultaneous_kinbot']
     # jobs that are running
@@ -108,9 +108,9 @@ def main():
     jobs = []
     # dict of the pid's for all jobs
     pids = {}
-    a=0
-    b=0
-    c=0
+    a = 0
+    b = 0
+    c = 0
     while 1:
         j = len(jobs)
         fi=open("pes.log", 'a')
@@ -126,15 +126,14 @@ def main():
         if len(jobs) > j:
             logging.info('\tPicked up new jobs: ' + ' '.join(jobs[j:]))
 
-        k=len(running)
-        l=len(finished)
-        if b!=k:
-            fi.write('{0} {1} {2}'.format("len(running): ", len(running), "\n"))
+        k = len(running)
+        l = len(finished)
+        if b != k:
+            logging.info('{0} {1} {2}'.format("len(running): ", len(running), "\n"))
         b=k
         if c!=l:
-            fi.write('{0} {1} {2}'.format("len(finished): ", len(finished), "\n"))
-        c=l
-        fi.close() 
+            logging.info('{0} {1} {2}'.format("len(finished): ", len(finished), "\n"))
+        c = l
         
         if len(finished) == len(jobs):
             time.sleep(2)
@@ -145,16 +144,15 @@ def main():
                len(running) + len(finished) < len(jobs)):
             # start a new job
             job = jobs[len(running) + len(finished)]
-            kb=1
+            kb = 1
             logging.info('Job: {}'.format(job))
-            logging.info('kb: {}'.format(kb))
             if 'none' in skipChemids:
                 logging.info('No KinBot runs to be skipped')
             else:
                 if job in skipChemids:
-                    kb=0
+                    kb = 0
             logging.info('kb: {}'.format(kb))
-            if kb==1:
+            if kb == 1:
                 pid = 0
                 if not no_kinbot:
                     pid = submit_job(job, par)  # kinbot is submitted here
@@ -164,7 +162,7 @@ def main():
                 t = datetime.datetime.now()
                 logging.info('\tStarted job {} at {}'.format(job, t))
                 running.append(job)
-            elif kb==0:
+            elif kb == 0:
                 logging.info('Skipping Kinbot for {}'.format(job))
                 finished.append(job)
             else:
@@ -209,7 +207,14 @@ def main():
                 f.write('\n'.join(summary_lines))
             time.sleep(1)
 
-    postprocess(par, jobs, task, names, n)
+    # delete skipped jobs from the jobs before sending to postprocess
+    for skip in skipChemids:
+        try:
+            jobs.pop(jobs.index(skip))
+        except ValueError:
+            pass
+
+    postprocess(par, jobs, task, names)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission
     # read in the molpro energies for the keys in the above three dicts
@@ -1378,12 +1383,12 @@ def get_l3energy(job, par):
     """
 
     if par.par['single_point_qc'] == 'molpro':
-        if os.path.exists('molpro/' + job + '.out'):
-            with open('molpro/' + job + '.out') as f:
-                lines = f.readlines()
-                for index, line in enumerate(reversed(lines)):
+        if os.path.exists('molpro/' + job + '.out'): 
+            with open('molpro/' + job + '.out', 'r') as f: 
+                lines = f.readlines() 
+                for index, line in enumerate(reversed(lines)): 
                     if ('SETTING ' + par.par['single_point_key']) in line:
-                        return 1, float(line.split()[2])  # energy was found
+                        return 1, float(line.split()[3])  # energy was found
                     else:
                         return 0, -1  # the job not yet done
         else:

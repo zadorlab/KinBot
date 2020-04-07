@@ -1,3 +1,4 @@
+from __future__ import print_function
 from __future__ import division
 import random
 import time
@@ -5,6 +6,7 @@ import copy
 import logging
 import numpy as np
 
+from math import pow
 from kinbot import geometry
 from kinbot import zmatrix
 
@@ -207,7 +209,10 @@ class Conformers:
         This is a recursive routine to generate them.
         rotor: the rotor number in the order it was discovered
         """
-        if len(self.species.conf_dihed) > self.max_dihed:
+        ndihed = len(self.species.conf_dihed)
+        theoreticalConfs = pow(3,ndihed)*self.cyc_conf
+ 
+        if len(self.species.conf_dihed) > self.max_dihed or theoreticalConfs > self.nconfs:
             self.generate_conformers_random_sampling(cart)
             return 0
 
@@ -237,7 +242,7 @@ class Conformers:
             if zmat_ref[i][2] == 4:
                 zmat[i][2] += 120.
             if zmat_ref[i][2] == 1:
-                zmat[i][2] += 120.
+                mat[i][2] += 120.
         cart2 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart2)
 
@@ -247,7 +252,10 @@ class Conformers:
         """
         Generate a random sampling of each dihedral for a number nconfs of conformers
         """
-        for ni in range(self.nconfs):
+        self.new_nconfs = self.nconfs
+        if self.cyc_conf > 1:
+            self.new_nconfs = int(round(self.nconfs/self.cyc_conf) + 1)
+        for ni in range(self.new_nconfs):
             cart = copy.deepcopy(ini_cart)
             if ni == 0:
                 sample = [0. for di in self.species.conf_dihed]

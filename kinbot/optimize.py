@@ -5,6 +5,7 @@ import copy
 import logging
 import time
 
+from math import pow
 from kinbot import frequencies
 from kinbot import geometry
 from kinbot import symmetry
@@ -28,6 +29,8 @@ class Optimize:
 
     def __init__(self, species, par, qc, wait=0):
         self.species = species
+        delattr(self.species, 'cycle_chain')
+        self.species.characterize()
         self.par = par
         self.qc = qc
 
@@ -60,6 +63,8 @@ class Optimize:
 
     def do_optimization(self):
         while 1:
+	    self.nconfs = self.par.par['random_conf'] #number of conformers user wants limited
+            self.max_dihed = self.par.par['max_dihed'] #max number of dihedrals a molecule should have
             # do the conformational search
             if self.par.par['conformer_search'] == 1:
                 if self.scycconf == -1 and self.sconf == -1:
@@ -91,6 +96,7 @@ class Optimize:
                     # do open chain part if cyclic part is done
                     if self.sconf == -1:
                         # open chain part has not started yet
+                        # conformer limitation of rings
                         for geom in self.species.confs.cyc_conf_geoms:
                             # take all the geometries from the cyclic part
                             # generate the conformers for the current geometry
@@ -103,16 +109,11 @@ class Optimize:
                         status, lowest_conf, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
                          
                         if status == 1:
-                        #    cfi=open("conf_energies.txt", 'a')
-                        #    cfi.write(self.species.name)
-                        #    cfi.write(": Initial E: {0}".format(self.species.energy))
                             # conf search is done
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
                             # save lowest energy conformer energy
                             self.species.energy = low_energy
-                        #    cfi.write(", Final E: {0}\n".format(self.species.energy))
-                        #    cfi.close()
                       
                             # set conf status to finished
                             self.sconf = 1

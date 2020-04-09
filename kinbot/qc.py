@@ -279,13 +279,15 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_conf(self,species, geom, index=-1, ring = 0):
+    def qc_conf(self, species, geom, index=-1, ring = 0):
         """ 
         Creates a geometry optimization input for the conformational search and runs it.
         qc: 'gauss' or 'nwchem'
         wellorts: 0 for wells and 1 for saddle points
         index: >=0 for sampling, each job will get numbered with index
         """
+        #if species.wellorts == 1: index = 1
+        #print("wellorts for {} = {}, index: {}".format(species.name, species.wellorts, index))
         if index == -1:
             job = 'conf/' + str(species.chemid) + '_well'
         else:
@@ -324,7 +326,8 @@ class QuantumChemistry:
                                    dummy = dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
-
+        #print("geom for {}".format(species.name))
+        #print(geom)
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
         f_out.close()

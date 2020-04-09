@@ -196,7 +196,8 @@ def create_inchi(job, chemid, xyz_file=''):
         logging.error('Pybel is not installed or loaded correctly.')
         sys.exit()
 
-    return obmol.write("inchi", opt={'T': 'nostereo'}).split()[0]
+    #return obmol.write("inchi", opt={'T': 'nostereo'}).split()[0]
+    return obmol.write("inchi").split()[0]
 
 
 def create_inchi_from_smi(smi):

@@ -74,13 +74,16 @@ class Optimize:
 
                 # first do the cyclic part of the molecule
                 if self.scycconf == -1:
+                    #print("start cyclic part of {}".format(self.species.name)) 
                     # start the ring conf search
                     if len(self.species.cycle_chain) > 0:
+                        #print("cycle exists in {}".format(self.species.name)) 
                         # there are rings in the molecule, do a search
                         self.species.confs.generate_ring_conformers(copy.deepcopy(self.species.geom))
                         # set the cyclic conf status to running
                         self.scycconf = 0
                     else:
+                        #print("NO cycle exists in {}".format(self.species.name)) 
                         # there are no rings in the molecule, continue from the current geometry
                         self.species.confs.cyc_conf_geoms = [copy.deepcopy(self.species.geom)]
                         # no ring conf search has to be done, set status to finished
@@ -93,11 +96,13 @@ class Optimize:
                         self.scycconf = 1
                 # do the open chain part of the molecule
                 if self.scycconf == 1:
+                    #print("starting open chain search for  {}".format(self.species.name)) 
                     # do open chain part if cyclic part is done
                     if self.sconf == -1:
                         # open chain part has not started yet
                         # conformer limitation of rings
                         for geom in self.species.confs.cyc_conf_geoms:
+                            #print("generating conformers for {}".format(self.species.name)) 
                             # take all the geometries from the cyclic part
                             # generate the conformers for the current geometry
                             self.species.confs.generate_conformers(0, geom)

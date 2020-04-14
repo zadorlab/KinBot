@@ -750,15 +750,20 @@ class QuantumChemistry:
                     return 0, 0.
             else:
                 break
-
+        zpe = 0.0 #set as default
         #open the database
         rows = self.db.select(name = job)
-
+       
         #take the last entry
         for row in rows:
             if hasattr(row, 'data'):
                 zpe = row.data.get('zpe')
-        
+            else:
+                zpe = 0.0
+
+        if zpe == 0.0:
+            logging.warning("{} has no zpe in database. ZPE SET TO 0.0")
+              
         return 0, zpe
 
     def read_qc_hess(self, job, natom):

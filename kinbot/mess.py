@@ -239,7 +239,7 @@ class MESS:
                                                                                                        ts_freqFactor,
                                                                                                        imagfreqFactor,
                                                                                                        uq_iter,
-																									   qc)
+                                                                                                       qc)
                         ts_e_iter.append(ts_e)
                         ts_imagFreq_iter.append(ts_imagFreq)
                         ts_freq_iter.append(ts_freq)
@@ -355,13 +355,13 @@ class MESS:
         if len(reaction.products) == 2:
             lenProd = len(reaction.products)
             barrierless, barrierless_e, barrierless_fr = self.write_bimol(species_list,
-			    														  bar,
-				    													  uq,
-					    												  uq_n, 
-						    											  lenProd,
-							    						                  energyAdd,
-								    								      freqFactor,
-									    								  uq_iter)
+                                                                          bar,
+                                                                          uq,
+                                                                          uq_n, 
+                                                                          lenProd,
+                                                                          energyAdd,
+                                                                          freqFactor,
+                                                                          uq_iter)
         else:
             barrierless = self.write_termol(species_list, reaction, uq, uq_n, energyAdd, freqFactor, bar, uq_iter)
             barrierless_e, barrierless_fr = 0.0
@@ -898,35 +898,34 @@ class MESS:
                 geom += '            '
             x, y, z = reaction.ts.geom[i]
             geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
-        p_tot_energy = 0
-        p_tot_zpe = 0
-        if 'R_Addition_MultipleBond' in reaction.instance_name and not self.par.par['high_level']: 
-        #if self.species.reac_type[reaction] == 'R_Addition_MultipleBond' and not self.par.par['high_level']: 
-            we_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
-            we_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_mp2')[1]
-            for opt in reaction.prod_opt:
-                print(opt)
-                p_energy = opt.get_qc_energy(str(opt.species.chemid) + '_well_mp2')[1]
-                p_zpe = opt.get_qc_zpe(str(opt.species.chemid) + '_well_mp2')[1]
-                p_tot_energy = p_tot_energy + p_energy
-                p_tot_zpe = p_tot_zpe + p_zpe
 
-            energy_we = (ts.energy + ts.zpe - we_energy - we_zpe) * constants.AUtoKCAL
-            
-            barriers = [
-                ((reaction.ts.energy + reaction.ts.zpe) - (we_energy + we_zpe)) * constants.AUtoKCAL,
-                ((reaction.ts.energy + reaction.ts.zpe) - (p_tot_energy + p_tot_zpe)) * constants.AUtoKCAL,
-            ]
-        else:
-            barriers = [
-                ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL,
-                ((reaction.ts.energy + reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt])) * constants.AUtoKCAL,
-            ]
+        for index in range(len(self.species.reac_inst)):
+            if self.species.reac_ts_done[index] == -1:
+                ts = self.species.reac_obj[index].ts
+                if self.species.reac_type[index] == 'R_Addition_MultipleBond' and not self.par.par['high_level']:
+                    mp2_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
+                    mp2_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_mp2')[1]
+                    energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
+                    prod_mp2_energy = 0
+                    prod_mp2_zpe = 0
+                    for opt in reaction.prod_opt:
+                        energy = qc.get_qc_energy(str(opt.species.chemid) + 'well_mp2')[1]
+                        zpe = qc.get_qc_zpe(str(opt.species.chemid) + 'well_mp2')[1]
+                        prod_mp2_energy = prod_mp2_energy + energy
+                        prod_zpe_energy = prod_mp2_zpe + zpe
+                    energy2 = (ts.energy + ts.zpe - prod_mp2_energy - prod_zpe_energy) * constants.AUtoKCAL
+                else:
+                    energy = (ts.energy + ts.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
+                    energy2 = (reaction.ts.energy + reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt]) * constants.AUtoKCAL 
 
-        print(reaction.instance_name)
-        for ba in barriers:
-            print(ba)
+                barriers = [ energy, energy2, ]
 
+                """
+                barriers = [
+                    ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL,
+                    ((reaction.ts.energy + reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt])) * constants.AUtoKCAL,
+                ]
+                """
         if any([bi < 0 for bi in barriers]):
             tun = ''
         else:
@@ -968,7 +967,16 @@ class MESS:
             chemid_reac = self.well_names[self.species.chemid]
             chemid_prod = prod_name
             long_rxn_name = reaction.instance_name
-            energy = ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+            for index in range(len(self.species.reac_inst)):
+                if self.species.reac_ts_done[index] == -1:
+                    ts = self.species.reac_obj[index].ts
+                    if self.species.reac_type[index] == 'R_Addition_MultipleBond' and not self.par.par['high_level']:
+                        mp2_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
+                        mp2_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_mp2')[1]
+                        energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
+                    else:
+                        energy = (ts.energy + ts.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
+            
             if uq_iter == 0:
                 barrier_add = 0.0
                 logFile.write("\tBarrier_add: {}\n".format(barrier_add))

@@ -33,7 +33,6 @@ class Optimize:
             self.species.characterize(self.species.bond)
         else:
             self.species.characterize()
-        print(self.species.name, self.species.bond)
         self.par = par
         self.qc = qc
 

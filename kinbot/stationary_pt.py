@@ -97,11 +97,12 @@ class StationaryPoint:
         self.atom = self.structure[:, 0]
         self.geom = self.structure[:, 1:4].astype(float)
 
-    def characterize(self, dimer=0):
+    def characterize(self, bond_mx=None, dimer=0):
         """
         With one call undertake a typical set of structural characterizations.
         """
-        self.bond_mx()
+        if bond_mx is None:
+            self.bond_mx()
         if dimer:
             parts, maps = self.start_multi_molecular()
             if len(parts) > 2:

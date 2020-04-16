@@ -293,7 +293,7 @@ class StationaryPoint:
         atomC = np.char.count(atomlist, 'C')
         atomH = np.char.count(atomlist, 'H')
         if len(atomlist) == 3 and np.sum(atomC) == 1 and np.sum(atomH) == 2:
-            return 2 # CH2
+            return 3 # CH2
 
         mult = 0
         for element in atomlist:

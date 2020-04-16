@@ -319,6 +319,7 @@ class ReactionGenerator:
                     for i in range(self.species.natom):
                         for j in range(self.species.natom):
                             bond_mx[i][j] = max(self.species.bond[i][j], obj.product_bonds[i][j])
+ 
                     err, geom = self.qc.get_qc_geom(instance_name, self.species.natom)
                     ts = StationaryPoint(   instance_name, self.species.charge, self.species.mult,
                                             atom=self.species.atom, geom=geom, wellorts=1)
@@ -485,6 +486,7 @@ class ReactionGenerator:
                 
                 # Populate the ts_bond_lengths dict with the values
                 # of this reaction
+
                 if self.species.reac_ts_done[index] == -1:
                     for i in range(self.species.natom - 1):
                         for j in range(i + 1, self.species.natom):
@@ -498,6 +500,7 @@ class ReactionGenerator:
                                     dist = np.linalg.norm(obj.ts.geom[i] - obj.ts.geom[j])
                                     s.append('TS_BOND_LENGTHS\t{}\t{}'.format(syms, dist))
                 # write the expected inchis
+ 
                 s.append('EXPECTED_INCHIS\t' + '\t'.join(inchi for inchi in obj.prod_inchi))
                 # get the inchis the reaction found
                 if self.species.reac_ts_done[index] == -1:

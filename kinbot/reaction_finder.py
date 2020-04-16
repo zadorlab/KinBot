@@ -124,7 +124,7 @@ class ReactionFinder:
  
         atom = self.species.atom
         natom = self.species.natom
-       
+        
         for i, bond in enumerate(self.species.bonds):
             rad = self.species.rads[i]
             

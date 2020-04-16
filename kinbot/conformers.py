@@ -205,7 +205,6 @@ class Conformers:
         This is a recursive routine to generate them.
         rotor: the rotor number in the order it was discovered
         """
-        logging.info("Generating confs for {}, conf_dihed = {}, max dihed = {}".format(self.species.name, len(self.species.conf_dihed), self.max_dihed))
         if len(self.species.conf_dihed) > self.max_dihed:
             self.generate_conformers_random_sampling(cart)
             return 0
@@ -216,13 +215,11 @@ class Conformers:
             return 0
 
         cart = np.asarray(cart)
-        print("initial cart {}\n{}".format(self.species.name,cart))
         zmat_atom, zmat_ref, zmat, zmatorder = zmatrix.make_zmat_from_cart(self.species, rotor, cart, 1)
 
         rotor += 1
         cart0 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart0)
-        print("cart0 {}\n{}".format(self.species.name,cart0))
         
         zmat[3][2] += 120.
         for i in range(4, self.species.natom):
@@ -232,7 +229,6 @@ class Conformers:
                 zmat[i][2] += 120.
         cart1 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart1)
-        print("cart1 {}\n{}".format(self.species.name,cart1))
 
         zmat[3][2] += 120.
         for i in range(4, self.species.natom):
@@ -242,7 +238,6 @@ class Conformers:
                 zmat[i][2] += 120.
         cart2 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart2)
-        print("cart2 {}\n{}".format(self.species.name,cart2))
 
         return 0
 
@@ -250,7 +245,6 @@ class Conformers:
         """
         Generate a random sampling of each dihedral for a number nconfs of conformers
         """
-        print("inside random sampling for self.species.name")
         for ni in range(self.nconfs):
             cart = copy.deepcopy(ini_cart)
             if ni == 0:

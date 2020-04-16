@@ -5,7 +5,6 @@ import copy
 import logging
 import time
 
-from math import pow
 from kinbot import frequencies
 from kinbot import geometry
 from kinbot import symmetry
@@ -30,11 +29,7 @@ class Optimize:
     def __init__(self, species, par, qc, wait=0):
         self.species = species
         delattr(self.species, 'cycle_chain')
-        if self.species.wellorts:
-            self.species.characterize(self.species.bond)
-        else:
-            self.species.characterize()
-        print(self.species.name, self.species.bond)
+        self.species.characterize()
         self.par = par
         self.qc = qc
 
@@ -67,8 +62,6 @@ class Optimize:
 
     def do_optimization(self):
         while 1:
-	    self.nconfs = self.par.par['random_conf'] #number of conformers user wants limited
-            self.max_dihed = self.par.par['max_dihed'] #max number of dihedrals a molecule should have
             # do the conformational search
             if self.par.par['conformer_search'] == 1:
                 if self.scycconf == -1 and self.sconf == -1:
@@ -78,16 +71,13 @@ class Optimize:
 
                 # first do the cyclic part of the molecule
                 if self.scycconf == -1:
-                    #print("start cyclic part of {}".format(self.species.name)) 
                     # start the ring conf search
                     if len(self.species.cycle_chain) > 0:
-                        #print("cycle exists in {}".format(self.species.name)) 
                         # there are rings in the molecule, do a search
                         self.species.confs.generate_ring_conformers(copy.deepcopy(self.species.geom))
                         # set the cyclic conf status to running
                         self.scycconf = 0
                     else:
-                        #print("NO cycle exists in {}".format(self.species.name)) 
                         # there are no rings in the molecule, continue from the current geometry
                         self.species.confs.cyc_conf_geoms = [copy.deepcopy(self.species.geom)]
                         # no ring conf search has to be done, set status to finished
@@ -100,11 +90,9 @@ class Optimize:
                         self.scycconf = 1
                 # do the open chain part of the molecule
                 if self.scycconf == 1:
-                    #print("starting open chain search for  {}".format(self.species.name)) 
                     # do open chain part if cyclic part is done
                     if self.sconf == -1:
                         # open chain part has not started yet
-                        # conformer limitation of rings
                         for geom in self.species.confs.cyc_conf_geoms:
                             # take all the geometries from the cyclic part
                             # generate the conformers for the current geometry
@@ -117,11 +105,16 @@ class Optimize:
                         status, lowest_conf, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
                          
                         if status == 1:
+                        #    cfi=open("conf_energies.txt", 'a')
+                        #    cfi.write(self.species.name)
+                        #    cfi.write(": Initial E: {0}".format(self.species.energy))
                             # conf search is done
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
                             # save lowest energy conformer energy
                             self.species.energy = low_energy
+                        #    cfi.write(", Final E: {0}\n".format(self.species.energy))
+                        #    cfi.close()
                       
                             # set conf status to finished
                             self.sconf = 1
@@ -240,7 +233,7 @@ class Optimize:
                                                 self.shigh = -1
                                                 self.shir = -1
                                             else:
-                                                logging.info('\t\tLower energy found, but reached max restart for {}'.format(self.species.name))
+                                                logging.info('\t\tLower energy found, but readched max restart for {}'.format(self.species.name))
                                                 self.shir = 1
                                         else:
                                             self.shir = 1

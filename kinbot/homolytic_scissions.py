@@ -27,6 +27,7 @@ class HomolyticScission:
         # copy the reactant stationary point
         atom = copy.deepcopy(self.species.atom)
         geom = copy.deepcopy(self.species.geom)
+        print("inside homolytic: name = {}, mult = {}".format(self.species.name, self.species.mult))
         temp = StationaryPoint('temp', self.species.charge,
                                self.species.mult, atom=atom, geom=geom)
         temp.characterize()
@@ -46,7 +47,7 @@ class HomolyticScissions:
         self.par = par
         # list of homolytic scission objects
         self.hss = []
-
+        print("HS: name = {}, mult = {}".format(self.species.name, self.species.mult))
     def find_homolytic_scissions(self):
         """
         Enumerate all unique homolytic scission reactions

@@ -102,7 +102,6 @@ class Optimize:
                         # open chain part has not started yet
                         # conformer limitation of rings
                         for geom in self.species.confs.cyc_conf_geoms:
-                            #print("generating conformers for {}".format(self.species.name)) 
                             # take all the geometries from the cyclic part
                             # generate the conformers for the current geometry
                             self.species.confs.generate_conformers(0, geom)

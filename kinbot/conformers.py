@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import division
 import random
 import time
 import copy
@@ -7,6 +7,7 @@ import numpy as np
 
 from kinbot import geometry
 from kinbot import zmatrix
+
 
 class Conformers:
     """
@@ -149,10 +150,6 @@ class Conformers:
                 logging.debug('Running the next dihedral for conformer {}'.format(job))
                 return geom, -1
             else:
-                # check to see if inchi changed
-                #original_inchi = cheminfo.create_inchi_from_geom(self.species.atom, self.species.geom)
-                #conf_inchi = cheminfo.create_inchi_from_geom(self.species.atom, geom)
-                #print("original inchi: {}\nnew inchi: {}".format(original_inchi, conf_inchi))
                 # check if all the bond lenghts are withing 10% or the original bond lengths
                 if geometry.equal_geom(self.species.bond, self.species.geom, geom, 0.10):
                     logging.debug('Successfullly finished conformer {}'.format(job))
@@ -166,11 +163,9 @@ class Conformers:
         Check if the conformer optimizations finished.
         Test them, and submit frequency calculations.
         Then select the lowest energy one.
-
         returns:
         *status: 0 if still running, 1 if finished
         *geometries of all the conformers
-
         wait: wait for all the conformer calculations to finish before returning anything
         """
         if len(self.cyc_conf_status) < self.cyc_conf:
@@ -210,29 +205,25 @@ class Conformers:
         This is a recursive routine to generate them.
         rotor: the rotor number in the order it was discovered
         """
-        #print("Inside generate_conformers for {}".format(self.species.name))
-        ndihed = len(self.species.conf_dihed)
-        theoreticalConfs = np.power(3,ndihed)*self.cyc_conf
- 
+        logging.info("Generating confs for {}, conf_dihed = {}, max dihed = {}".format(self.species.name, len(self.species.conf_dihed), self.max_dihed))
         if len(self.species.conf_dihed) > self.max_dihed:
-        #if len(self.species.conf_dihed) > self.max_dihed or theoreticalConfs > self.nconfs:
-            #print("switch to random sampling for {}".format(self.species.name))
             self.generate_conformers_random_sampling(cart)
             return 0
-        #print("rotor: {}, len(self.species.conf_dihed): {}".format(rotor, len(self.species.conf_dihed)))
+
         if rotor == len(self.species.conf_dihed):
-            #print("calling self.qc.qc_conf for {}".format(self.species.name))
             self.qc.qc_conf(self.species, cart, self.conf)
             self.conf += 1
             return 0
 
         cart = np.asarray(cart)
+        print("initial cart {}\n{}".format(self.species.name,cart))
         zmat_atom, zmat_ref, zmat, zmatorder = zmatrix.make_zmat_from_cart(self.species, rotor, cart, 1)
 
         rotor += 1
         cart0 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart0)
-
+        print("cart0 {}\n{}".format(self.species.name,cart0))
+        
         zmat[3][2] += 120.
         for i in range(4, self.species.natom):
             if zmat_ref[i][2] == 4:
@@ -241,6 +232,7 @@ class Conformers:
                 zmat[i][2] += 120.
         cart1 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart1)
+        print("cart1 {}\n{}".format(self.species.name,cart1))
 
         zmat[3][2] += 120.
         for i in range(4, self.species.natom):
@@ -250,6 +242,7 @@ class Conformers:
                 zmat[i][2] += 120.
         cart2 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart2)
+        print("cart2 {}\n{}".format(self.species.name,cart2))
 
         return 0
 
@@ -257,31 +250,22 @@ class Conformers:
         """
         Generate a random sampling of each dihedral for a number nconfs of conformers
         """
-        self.new_nconfs = self.nconfs
-        if self.cyc_conf > 1:
-            self.new_nconfs = int(round(self.nconfs/self.cyc_conf) + 1)
-        for ni in range(self.new_nconfs):
+        print("inside random sampling for self.species.name")
+        for ni in range(self.nconfs):
             cart = copy.deepcopy(ini_cart)
-            #print("generate conf initial geom for {}".format(self.species.name))
-            #print(ini_cart)
             if ni == 0:
                 sample = [0. for di in self.species.conf_dihed]
             else:
                 sample = [random.choice([0., 120., 240.]) for di in self.species.conf_dihed]
             for rotor in range(len(self.species.conf_dihed)):
                 zmat_atom, zmat_ref, zmat, zmatorder = zmatrix.make_zmat_from_cart(self.species, rotor, cart, 1)
-                #print("zmat atom\n{}\nzmat_ref\n{}\nzmat\n{}\nzmatorder: {}".format(zmat_atom, zmat_ref, zmat, zmatorder))
                 zmat[3][2] += sample[rotor]
                 for i in range(4, self.species.natom):
                     if zmat_ref[i][2] == 4:
                         zmat[i][2] += sample[rotor]
                     if zmat_ref[i][2] == 1:
                         zmat[i][2] += sample[rotor]
-                #print(zmat)
                 cart = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
-            #print("generate conf final geom for {}".format(self.species.name))
-            #print(cart)
-            #print("submitting qc_conf inside random for {}".format(self.species.name))
             self.qc.qc_conf(self.species, cart, self.conf)
             self.conf += 1
 
@@ -303,11 +287,6 @@ class Conformers:
         elif status == -1:  # conformer search failed
             return np.zeros((self.species.natom, 3)), 1
         else:
-            # check to see if inchi changed
-            #original_inchi = cheminfo.create_inchi_from_geom(self.species.atom, self.species.geom)
-            #conf_inchi = cheminfo.create_inchi_from_geom(self.species.atom, geom)
-            #print("original inchi: {}\nnew inchi: {}".format(original_inchi, conf_inchi))
-            
             # check if all the bond lenghts are withing 10% or the original bond lengths
             if geometry.equal_geom(self.species.bond, self.species.geom, geom, 0.10):
                 return geom, 0
@@ -319,11 +298,9 @@ class Conformers:
         Check if the conformer optimizations finished.
         Test them, and submit frequency calculations.
         Then select the lowest energy one.
-
         returns:
         *status: 0 if still running, 1 if finished
         *geometry of lowest energy conformer
-
         wait: wait for all the conformer calculations to finish before returning anything
         """
         if len(self.conf_status) < self.conf:

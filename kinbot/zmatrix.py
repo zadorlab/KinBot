@@ -903,6 +903,7 @@ def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder):
                 # D is placed parallel to the B-C axis, relative to A (the origin)
                 # B->C vector
                 bc = [cart[c][j] - cart[b][j] for j in range(3)]
+                print(bc)
                 bc = bc / np.linalg.norm(bc)
                 # y/x = p
                 # z/x = q

@@ -283,7 +283,6 @@ class StationaryPoint:
         """ 
         1 = singlet, 2 = doublet, 3 = triplet, etc.
         """
-
         if all([element == 'O' for element in atomlist]):
             return 3 # O and O2 are triplet
         if len(atomlist) == 1 and atomlist[0] == 'C':
@@ -292,7 +291,7 @@ class StationaryPoint:
         atomC = np.char.count(atomlist, 'C')
         atomH = np.char.count(atomlist, 'H')
         if len(atomlist) == 3 and np.sum(atomC) == 1 and np.sum(atomH) == 2:
-            return 2 # CH2
+            return 1 # CH2
 
         mult = 0
         for element in atomlist:

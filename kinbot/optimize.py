@@ -30,7 +30,7 @@ class Optimize:
         self.species = species
         delattr(self.species, 'cycle_chain')
         if self.species.wellorts:
-            self.species.characterize(self.species.bond)
+            self.species.characterize(bond_mx=self.species.bond)
         else:
             self.species.characterize()
         self.par = par

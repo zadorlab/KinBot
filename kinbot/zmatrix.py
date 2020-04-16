@@ -10,7 +10,7 @@ from kinbot import geometry
 def make_zmat_from_cart(species, rotor, cart, mode):
     """
     Rearrange geometry defined in Cartesian into a Z-matrix,
-    with references suitable for a 1-D shindered rotor scan.
+    with references suitable for a 1-D hindered rotor scan.
     If mode = 0: all rotatable bonds
     If mode = 1: only those bonds, which generate conformers
     If mode = 2: suply your one rotor in rotor as a list of atom indices
@@ -83,7 +83,7 @@ def make_zmat_from_cart(species, rotor, cart, mode):
     zmat_ref = np.zeros((natom, 3), dtype=int) - 1
     zmat = np.zeros((natom, 3)) - 1
 
-    # FIXME need to take care about TS strucutres maybe
+    # FIXME need to take care about TS structures maybe
     zmatorder = [-1 for i in range(natom)]
     
     zmat_atom[0] = atom[a]
@@ -896,9 +896,9 @@ def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder):
 
             # D
             for i in range(3, len(zmat_atom)):
-                c = zmat_ref[i][0] -1 # distance
-                b = zmat_ref[i][1] -1 # angle
-                a = zmat_ref[i][2] -1 # dihedral
+                c = zmat_ref[i][0] - 1 # distance
+                b = zmat_ref[i][1] - 1 # angle
+                a = zmat_ref[i][2] - 1 # dihedral
 
                 # D is placed parallel to the B-C axis, relative to A (the origin)
                 # B->C vector

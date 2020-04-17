@@ -130,7 +130,7 @@ class ReactionGenerator:
                             sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well')[1]
                             barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
                         if barrier > self.par.par['barrier_threshold']:
-                            logging.info('\tRxn barrier too high ({0:.2f}) for {1}'.format(barrier, instance_name))
+                            logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'.format(barrier, instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
                             obj.irc = IRC(obj, self.par) #TODO: this doesn't seem like a good design
@@ -197,7 +197,7 @@ class ReactionGenerator:
                         products.append(st_pt.chemid) 
                     products.extend([' ', ' ', ' ']) 
                     barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
-                    logging.info('\tReaction {} has a barrier of {} and leads to products {} {} {}'.format(instance_name, barrier, products[0], products[1], products[2]))
+                    logging.info('\tReaction {0} has a barrier of {1:.2f kcal/mol} and leads to products {2} {3} {4}'.format(instance_name, barrier, products[0], products[1], products[2]))
                      
                     for i, st_pt in enumerate(obj.products_final):
                         chemid = st_pt.chemid

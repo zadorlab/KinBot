@@ -211,9 +211,7 @@ class Conformers:
         else:
             cycles = self.cyc_conf
        
-        print(len(self.species.conf_dihed), self.cyc_conf)
         theoretical_confs = np.power(3,len(self.species.conf_dihed))*cycles
-        print("dih: {} theo: {} cyc: {}".format(self.species.conf_dihed, theoretical_confs, self.cyc_conf))
         if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
             self.generate_conformers_random_sampling(cart)
             return 0
@@ -257,7 +255,6 @@ class Conformers:
         self.nconfs_new = self.nconfs
         if self.cyc_conf > 1:
             self.nconfs_new = int(round(self.nconfs/self.cyc_conf) + 2)
-        print("{} {}".format(self.nconfs, self.nconfs_new))
         for ni in range(self.nconfs_new):
             cart = copy.deepcopy(ini_cart)
             if ni == 0:

@@ -163,11 +163,9 @@ class Conformers:
         Check if the conformer optimizations finished.
         Test them, and submit frequency calculations.
         Then select the lowest energy one.
-
         returns:
         *status: 0 if still running, 1 if finished
         *geometries of all the conformers
-
         wait: wait for all the conformer calculations to finish before returning anything
         """
         if len(self.cyc_conf_status) < self.cyc_conf:
@@ -207,7 +205,16 @@ class Conformers:
         This is a recursive routine to generate them.
         rotor: the rotor number in the order it was discovered
         """
-        if len(self.species.conf_dihed) > self.max_dihed:
+        
+        if self.cyc_conf == 0:
+            cycles = 1
+        else:
+            cycles = self.cyc_conf
+       
+        print(len(self.species.conf_dihed), self.cyc_conf)
+        theoretical_confs = np.power(3,len(self.species.conf_dihed))*cycles
+        print("dih: {} theo: {} cyc: {}".format(self.species.conf_dihed, theoretical_confs, self.cyc_conf))
+        if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
             self.generate_conformers_random_sampling(cart)
             return 0
 
@@ -222,7 +229,7 @@ class Conformers:
         rotor += 1
         cart0 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart0)
-
+        
         zmat[3][2] += 120.
         for i in range(4, self.species.natom):
             if zmat_ref[i][2] == 4:
@@ -247,7 +254,11 @@ class Conformers:
         """
         Generate a random sampling of each dihedral for a number nconfs of conformers
         """
-        for ni in range(self.nconfs):
+        self.nconfs_new = self.nconfs
+        if self.cyc_conf > 1:
+            self.nconfs_new = int(round(self.nconfs/self.cyc_conf) + 2)
+        print("{} {}".format(self.nconfs, self.nconfs_new))
+        for ni in range(self.nconfs_new):
             cart = copy.deepcopy(ini_cart)
             if ni == 0:
                 sample = [0. for di in self.species.conf_dihed]
@@ -294,11 +305,9 @@ class Conformers:
         Check if the conformer optimizations finished.
         Test them, and submit frequency calculations.
         Then select the lowest energy one.
-
         returns:
         *status: 0 if still running, 1 if finished
         *geometry of lowest energy conformer
-
         wait: wait for all the conformer calculations to finish before returning anything
         """
         if len(self.conf_status) < self.conf:

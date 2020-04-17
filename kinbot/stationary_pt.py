@@ -139,7 +139,6 @@ class StationaryPoint:
                     self.bond[i][j] = 1
 
         max_bond = [constants.st_bond[self.atom[i]] for i in range(self.natom)]
-
         n_bond = np.sum(self.bond, axis=0)
 
         save_n_bond = n_bond
@@ -226,12 +225,10 @@ class StationaryPoint:
         if len(perm_rad) > 0:
             tot_rad_sum = [np.sum(x) for x in perm_rad]  # total number of radicals in the molecule
             value,idx = min((val,i) for (i,val) in enumerate(tot_rad_sum)) 
-
             # take a "random" bond matrix, corresponding to the lowest number of radical centers
             #as the standard bond matrix for this stationary point
             self.bond = perm_bond[idx] 
             self.rad = perm_rad[idx]
-
         # collect all the resonance isomers 
         for i, perm_b in enumerate(perm_bond):
             #only consider the resonance structure with the minimum number of radical centers
@@ -277,14 +274,12 @@ class StationaryPoint:
                     pivot2 = maps[1][j]
         self.bond[pivot1][pivot2] = 1
         self.bond[pivot2][pivot1] = 1
-
         return 0
 
     def calc_multiplicity(self, atomlist):
         """ 
         1 = singlet, 2 = doublet, 3 = triplet, etc.
         """
-
         if all([element == 'O' for element in atomlist]):
             return 3 # O and O2 are triplet
         if len(atomlist) == 1 and atomlist[0] == 'C':
@@ -513,7 +508,7 @@ class StationaryPoint:
         if not hasattr(self,'bond'): 
             # recalculate the bond matrix only if it is not there yet
             self.bond_mx()
-            
+        
         maxdepth = 7
         digit = 3
         if depth == maxdepth: return atomid, visit
@@ -543,7 +538,6 @@ class StationaryPoint:
             self.find_cycle()
         if len(self.bonds) == 0:
             self.bonds = [self.bond]
-        
         self.dihed = []
         hit = 0
 
@@ -668,6 +662,7 @@ class StationaryPoint:
                                 if sum(self.bond[neigh]) > 2:  # atom has at least on other neighbor
                                     return 1
                     return 0
+
         return 0
 
 def main():

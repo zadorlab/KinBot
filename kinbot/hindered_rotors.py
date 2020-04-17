@@ -194,7 +194,8 @@ class HIR:
                 X[i][j+n_terms] = np.sin((j+1) * ai)
 
         if(len(ens) > 0):
-            a=1
+            a = 1
+            print(type(X), type(np.array(ens)))
             A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
 
             for i, si in enumerate(status):

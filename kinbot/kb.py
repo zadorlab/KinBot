@@ -99,7 +99,7 @@ def main():
     geom_out.close()
 
     # characterize the initial reactant
-    well0.characterize(par.par['dimer'])
+    well0.characterize(dimer=par.par['dimer'])
     well0.name = str(well0.chemid)
     start_name = well0.name
 
@@ -133,7 +133,7 @@ def main():
         return
 
     # characterize again and look for differences
-    well0.characterize(par.par['dimer'])
+    well0.characterize(dimer=par.par['dimer'])
     well0.name = str(well0.chemid)
     if well0.name != start_name:
         logging.error('The first well optimized to a structure different from the input.')
@@ -146,7 +146,7 @@ def main():
     err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
 
     # characterize again and look for differences
-    well0.characterize(par.par['dimer'])
+    well0.characterize(dimer=par.par['dimer'])
     well0.name = str(well0.chemid)
 
     # read the energy and the zpe corrected energy

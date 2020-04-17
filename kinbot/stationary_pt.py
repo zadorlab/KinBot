@@ -171,7 +171,7 @@ class StationaryPoint:
         perm_bond = []
         perm_rad = []
 
-        for index,perm in enumerate(perms):  # iterate the permutations
+        for index, perm in enumerate(perms):  # iterate the permutations
             # copy the objects of the molecule into temporary objects for this search
             perm_bond.append(copy.deepcopy(self.bond))
             perm_rad.append(np.copy(self.rad))
@@ -230,7 +230,7 @@ class StationaryPoint:
             self.bond = perm_bond[idx] 
             self.rad = perm_rad[idx]
         # collect all the resonance isomers 
-        for i,perm_b in enumerate(perm_bond):
+        for i, perm_b in enumerate(perm_bond):
             #only consider the resonance structure with the minimum number of radical centers
             if np.sum(perm_rad[i]) == value: 
                 #check the uniqueness of the rad vector
@@ -336,7 +336,7 @@ class StationaryPoint:
                         delattr(self, 'cycle_chain')
                     except AttributeError:
                         pass
-                    self.characterize(0)  
+                    self.characterize(dimer=0)  
                     self.name = str(self.chemid)
                     mols.append(self)
                     break
@@ -346,7 +346,7 @@ class StationaryPoint:
                 multi = self.calc_multiplicity(atomi)
                 chargei = self.charge # todo
                 moli = StationaryPoint('prod_%i'%(len(mols)+1), chargei, multi, atom=atomi, natom=natomi, geom=geomi)
-                moli.characterize(0)  # dimer is not allowed
+                moli.characterize(dimer=0)  # dimer is not allowed
                 moli.calc_chemid()
                 moli.name = str(moli.chemid)
 

@@ -79,7 +79,7 @@ def main():
                             par.par['mult'],
                             smiles=par.par['smiles'],
                             structure=par.par['structure'])
-    well0.characterize(par.par['dimer'])
+    well0.characterize(dimer=par.par['dimer'])
     write_input(par, well0, par.par['barrier_threshold'], os.getcwd()) 
 
     # add the initial well to the chemids
@@ -926,7 +926,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                             par.par['mult'],
                             smiles=par.par['smiles'],
                             structure=par.par['structure'])
-    well0.characterize(par.par['dimer'])
+    well0.characterize(dimer=par.par['dimer'])
 
     """
     Create the header block for MESS
@@ -1037,8 +1037,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                             par.par['mult'],
                             smiles=par.par['smiles'],
                             structure=par.par['structure'])
-    well0.characterize(par.par['dimer'])
-   
+    well0.characterize(dimer=par.par['dimer'])
 
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,

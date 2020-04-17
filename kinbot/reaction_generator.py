@@ -215,7 +215,7 @@ class ReactionGenerator:
                         else:
                             e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                             e2, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
-                            st_pt.characterize(0)  # not allowed to use the dimer option here
+                            st_pt.characterize(dimer=0)  # not allowed to use the dimer option here
                             if chemid != st_pt.chemid:
                                 obj.products_final.pop(i)
                                 newfrags, newmaps = st_pt.start_multi_molecular()  # newfrags is list of stpt obj 
@@ -303,7 +303,7 @@ class ReactionGenerator:
                         else:
                             e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                             e2, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
-                            st_pt.characterize(0)  # not allowed to use the dimer option here
+                            st_pt.characterize(dimer=0)  # not allowed to use the dimer option here
                             if chemid != st_pt.chemid:
                                 # product was optimized to another structure, give warning but don't remove reaction
                                 logging.info('\tb) Product optimized to other structure for {}, product {} to {}'.format(instance_name, chemid, st_pt.chemid))

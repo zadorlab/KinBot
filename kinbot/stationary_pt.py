@@ -75,6 +75,8 @@ class StationaryPoint:
         self.sigma_int = []  # internal summetry number around each atom
         self.nopt = -1  # number of optical isomers
 
+        self.chiral = []
+
         # frequencies calculated by kinbot
         self.kinbot_freqs = []
         self.reduced_freqs = []
@@ -114,6 +116,7 @@ class StationaryPoint:
 
         self.find_conf_dihedral()
         self.find_atom_eqv()
+        self.calc_chiral()
 
     def distance_mx(self):
         """ 
@@ -476,7 +479,6 @@ class StationaryPoint:
         It is the sum of the atomids, plus a number for the multiplicity, Gaussian style.
         """
         self.chemid = int(0)
-        #self.atomid = np.zeros(natom, dtype=long)
         self.atomid = [int(0) for i in range(self.natom)]
                       
         for i in range(self.natom):
@@ -669,6 +671,77 @@ class StationaryPoint:
                                     return 1
                     return 0
         return 0
+    
+
+    def calc_chiral(self):
+        """
+        Calculate self.chiral. 0 if non-chiral, +1 or -1 if chiral. Each atom gets a label like this.
+        """
+
+        self.chiral = np.zeros(self.natom)
+        for i in range(self.natom):
+            if np.sum(self.bond[i]) > 3:  # at least 4 neighbors
+                atids = []
+                positions = np.zeros((np.sum(self.bond[i]), 3))
+                for j in range(self.natom):
+                    k = 0
+                    if self.bond[i][j] > 0:
+                        atids.append(self.atomid[j])
+                        positions[k] = self.geom[j]
+                        k += 1
+                    if len(set(atids)) > 3:  # at least 4 different
+                        self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
+
+        print(self.chiral)
+
+        return 0
+
+
+    def calc_chiral_hand(self, center, ligands, atomids):
+        """
+        Calculate the handedness of a chiral center. 
+        """
+
+        largelig = np.argmax(atomids)
+       
+        aligned_geom = geometry.translate_and_rotate(np.concatenate(([center], ligands)), None, 0, largelig + 1)
+        if aligned_geom[largelig + 1][2] < 0:
+            mirror = -1
+        else:
+            mirror = 1
+        aligned_ligands = np.delete(aligned_geom, [0, largelig + 1], 0)
+        
+        xyproj = aligned_ligands[:,:2]
+        
+        xangle = []
+        for pt in xyproj:
+            print('PT0', pt[0], 'LEN', np.linalg.norm(pt))
+            th = np.arccos(pt[0] / np.linalg.norm(pt))
+            if pt[0] > 0 and pt[1] < 0:
+                th = 2. * np.pi - th
+            elif pt[0] < 0 and pt[1] < 0:
+                th = 2. * np.pi - th
+            elif pt[0] < 0 and pt[1] > 0:
+                th = np.pi / 2. + th
+            xangle.append(th)
+        
+        xorder = np.argsort(xangle)
+        atomids.pop(largelig)
+        idorder = np.argsort(atomids)
+        
+        zero_xorder = np.where(xorder==0)
+        zero_idorder = np.where(idorder==0)
+        
+        xorder = np.roll(xorder, -zero_xorder[0])
+        idorder = np.roll(idorder, -zero_idorder[0])
+
+        if xorder.all() == idorder.all():
+            hand = +1 * mirror
+        else:
+            hand = -1 * mirror
+        
+        return hand
+
 
 def main():
     """

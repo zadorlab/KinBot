@@ -683,16 +683,14 @@ class StationaryPoint:
             if np.sum(self.bond[i]) > 3:  # at least 4 neighbors
                 atids = []
                 positions = np.zeros((np.sum(self.bond[i]), 3))
+                k = 0
                 for j in range(self.natom):
-                    k = 0
                     if self.bond[i][j] > 0:
                         atids.append(self.atomid[j])
                         positions[k] = self.geom[j]
                         k += 1
-                    if len(set(atids)) > 3:  # at least 4 different
-                        self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
-
-        print(self.chiral)
+            if len(set(atids)) > 3:  # at least 4 different
+                self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
 
         return 0
 
@@ -710,12 +708,11 @@ class StationaryPoint:
         else:
             mirror = 1
         aligned_ligands = np.delete(aligned_geom, [0, largelig + 1], 0)
-        
+
         xyproj = aligned_ligands[:,:2]
         
         xangle = []
         for pt in xyproj:
-            print('PT0', pt[0], 'LEN', np.linalg.norm(pt))
             th = np.arccos(pt[0] / np.linalg.norm(pt))
             if pt[0] > 0 and pt[1] < 0:
                 th = 2. * np.pi - th
@@ -735,11 +732,11 @@ class StationaryPoint:
         xorder = np.roll(xorder, -zero_xorder[0])
         idorder = np.roll(idorder, -zero_idorder[0])
 
-        if xorder.all() == idorder.all():
+        if np.array_equal(xorder, idorder):
             hand = +1 * mirror
         else:
             hand = -1 * mirror
-        
+
         return hand
 
 

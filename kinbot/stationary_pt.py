@@ -75,8 +75,6 @@ class StationaryPoint:
         self.sigma_int = []  # internal summetry number around each atom
         self.nopt = -1  # number of optical isomers
 
-        self.chiral = []
-
         # frequencies calculated by kinbot
         self.kinbot_freqs = []
         self.reduced_freqs = []

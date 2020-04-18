@@ -46,7 +46,6 @@ class HomolyticScissions:
         self.par = par
         # list of homolytic scission objects
         self.hss = []
-
     def find_homolytic_scissions(self):
         """
         Enumerate all unique homolytic scission reactions

@@ -673,7 +673,7 @@ class StationaryPoint:
 
         self.chiral = np.zeros(self.natom)
         for i in range(self.natom):
-            if np.sum(self.bond[i]) > 3:  # at least 4 neighbors
+            if np.sum(self.bond[i]) == 4:  # exactly 4 neighbors
                 atids = []
                 positions = np.zeros((np.sum(self.bond[i]), 3))
                 k = 0
@@ -682,7 +682,7 @@ class StationaryPoint:
                         atids.append(self.atomid[j])
                         positions[k] = self.geom[j]
                         k += 1
-            if len(set(atids)) > 3:  # at least 4 different
+            if len(set(atids)) == 4:  # all are different
                 self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
 
         return 0

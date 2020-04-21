@@ -8,7 +8,7 @@ class GeneralReac:
     dihstep = -1
 
 
-    def __init__(self, species, qc,par, instance, instance_name):
+    def __init__(self, species, qc, par, instance, instance_name):
         self.species = species
         self.ts = None
         self.products = []
@@ -24,6 +24,9 @@ class GeneralReac:
         
         self.instance = instance
         self.instance_name = instance_name
+
+        if scan:
+            max_step = self.par.par['scan_step']
 
 
     def clean_constraints(self, change, fix):
@@ -68,6 +71,11 @@ class GeneralReac:
             for i in range(3):
                 constraint.append(self.instance[angle + i] + 1)
             fix.append(constraint)
+
+
+    def fix_angle_single(self, a, b, c, fix):
+        constraint = [self.instance[a] + 1,self.instance[b] + 1, self.instance[c] + 1]
+        fix.append(constraint)
 
 
     def fix_dihedrals(self, fix):

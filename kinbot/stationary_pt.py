@@ -682,8 +682,8 @@ class StationaryPoint:
                         atids.append(self.atomid[j])
                         positions[k] = self.geom[j]
                         k += 1
-            if len(set(atids)) == 4:  # all are different
-                self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
+                if len(set(atids)) == 4:  # all are different
+                    self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
 
 # conjugated double bonds to be added
 #            if np.count_nonzero(self.bond[i] == 2) == 2:  # exactly 2 double bonds
@@ -699,8 +699,7 @@ class StationaryPoint:
 #                self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
 
 #        print(self.chiral)
-
-        return 0
+        return self.chiral
 
 
     def calc_chiral_hand(self, center, ligands, atomids):
@@ -744,7 +743,7 @@ class StationaryPoint:
             hand = +1 * mirror
         else:
             hand = -1 * mirror
-
+        
         return hand
 
 

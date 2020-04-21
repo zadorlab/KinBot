@@ -8,7 +8,6 @@ import numpy as np
 from kinbot import geometry
 from kinbot import zmatrix
 
-
 class Conformers:
     """
     Class that does all the steps for the conformers of one species
@@ -20,7 +19,6 @@ class Conformers:
         """
         self.species = species
         self.qc = qc
-
         # status of the conformational analysis
         # -1: not yet started
         # 0: running

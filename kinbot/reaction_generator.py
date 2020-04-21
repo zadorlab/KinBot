@@ -315,7 +315,7 @@ class ReactionGenerator:
                 elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization
                     # make a stationary point object of the ts
-                    bond_mx = np.zeros((self.species.natom, self.species.natom))
+                    bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)
                     for i in range(self.species.natom):
                         for j in range(self.species.natom):
                             bond_mx[i][j] = max(self.species.bond[i][j], obj.product_bonds[i][j])

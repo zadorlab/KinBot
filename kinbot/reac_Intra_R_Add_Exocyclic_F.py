@@ -1,6 +1,9 @@
+from kinbot.reac_General import GeneralReac
+
+
 class IntraRAddExocyclicF(GeneralReac):
     max_step = 14
-    self.scan = 0
+    scan = 0
     skip = 1
     dihstep = max_step - 2
 

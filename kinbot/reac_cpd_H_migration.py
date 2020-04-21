@@ -1,3 +1,6 @@
+from kinbot.reac_General import GeneralReac
+
+
 class CpdHMigration(GeneralReac):
     max_step = 14
     scan = 0

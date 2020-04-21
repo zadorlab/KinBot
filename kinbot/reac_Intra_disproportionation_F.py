@@ -1,4 +1,6 @@
 from kinbot import geometry
+from kinbot.reac_General import GeneralReac
+
 
 class IntraDisproportionationF(GeneralReac):
     max_step = 22

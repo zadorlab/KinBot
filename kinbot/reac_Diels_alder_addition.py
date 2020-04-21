@@ -1,3 +1,6 @@
+from kinbot.reac_General import GeneralReac
+
+
 class DielsAlder(GeneralReac):
     max_step = 1
     scan = 0

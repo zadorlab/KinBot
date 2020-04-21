@@ -98,9 +98,9 @@ class GeneralReac:
         change.append(constraint)
 
 
-    def set_dihedrals(self, change, step):
+    def set_dihedrals(self, change, step, cut=0):
         new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, self.dihstep)
-        for dih in range(len(self.instance) - 3):
+        for dih in range(len(self.instance) - 3 - cut):
             constraint = []
             for i in range(4):
                 constraint.append(self.instance[dih + i] + 1)

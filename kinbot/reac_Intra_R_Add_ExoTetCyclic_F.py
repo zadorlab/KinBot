@@ -1,4 +1,5 @@
 from kinbot import geometry
+from kinbot.reac_General import GeneralReac
 
 class IntraRAddExoTetCyclicF(GeneralReac):
     max_step = 22

@@ -1,9 +1,12 @@
+from kinbot.reac_General import GeneralReac
+
+
 class BiradRecombinationR(GeneralReac):
-    max_step = self.par.par['scan_step']
     scan = 1
     skip = 0
     
     def get_constraints(self, step, geom):
+        self.max_step = self.par.par['scan_step']
         fix = []
         change = []
         release = []

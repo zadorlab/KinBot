@@ -92,6 +92,12 @@ class GeneralReac:
             change.append(constraint)
 
 
+    def set_angle_single(self, a, b, c, val, change):
+        constraint = [self.instance[a] + 1, self.instance[b] + 1, self.instance[c] + 1]
+        constraint.append(val)
+        change.append(constraint)
+
+
     def set_dihedrals(self, change, step):
         new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, self.dihstep)
         for dih in range(len(self.instance) - 3):

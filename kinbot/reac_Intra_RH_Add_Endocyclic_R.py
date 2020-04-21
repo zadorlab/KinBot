@@ -22,8 +22,7 @@ class IntraRHAddEndoR(GeneralReac):
                     j = 0
                 else:
                     j = i + 1
-                val = geometry.new_bond_length(self.species,self.instance[i],self.instance[j],step,12,final_dist[i],geom)
-                self.set_bond(i, j, val, change)
+                self.set_bond(i, j, -999, change, step=step, stmax=self.max_step, findist=final_dist[i], geom=geom)
 
         self.clean_constraints(change, fix)
 

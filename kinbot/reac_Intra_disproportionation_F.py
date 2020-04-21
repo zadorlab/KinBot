@@ -21,12 +21,8 @@ class IntraDisproportionationF(GeneralReac):
             self.release_dihedrals(release)
                 
             fval = 1.35
-
-            val = geometry.new_bond_length(self.species, self.instance[0], self.instance[-1], step-11, 10, fval, geom)
-            self.set_bond(0, -1, val)
-            
-            val = geometry.new_bond_length(self.species, self.instance[-2], self.instance[-1], step-11, 10, fval, geom)
-            self.set_bond(-2, -1, val)
+            self.set_bond(0, -1, -999, change, step=step-11, stmax=10, findist=fval, geom=geom)
+            self.set_bond(-2, -1, -999, change, step=step-11, stmax=10, findist=fval, geom=geom)
         
         self.clean_constraints(change, fix)
         

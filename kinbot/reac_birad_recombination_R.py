@@ -6,7 +6,6 @@ class BiradRecombinationR(GeneralReac):
     skip = 0
     
     def get_constraints(self, step, geom):
-        self.max_step = self.par.par['scan_step']
         fix = []
         change = []
         release = []

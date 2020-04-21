@@ -37,14 +37,12 @@ class IntraRAddExoTetCyclicF(GeneralReac):
             fdist1 = constants.st_bond[''.join(sorted(self.species.atom[self.instance[0]] + self.species.atom[self.instance[-2]]))] * 1.0
             if ''.join(sorted(self.species.atom[self.instance[0]] + self.species.atom[self.instance[-2]])) == 'CO':
                 fdist1 = 1.68
-            ndist1 = geometry.new_bond_length(self.species, self.instance[0], self.instance[-2], step-11, 10, fdist1, geom)
-            self.set_bond(0, -2, ndist1, change)
+            self.set_bond(0, -2, -999, change, step=step-11, stmax=10, findist=fdist1, geom=geom)
             
             fdist2 = constants.st_bond[''.join(sorted(self.species.atom[self.instance[-1]] + self.species.atom[self.instance[-2]]))] * 1.0
             if ''.join(sorted(self.species.atom[self.instance[-1]] + self.species.atom[self.instance[-2]])) == 'CO':
                 fdist2 = 1.68
-            ndist2 = geometry.new_bond_length(self.species, self.instance[-1], self.instance[-2], step-11, 10, fdist2, geom)
-            self.set_bond(-1, -2, ndist2, change)
+            self.set_bond(-1, -2, -999, change, step=step-11, stmax=10, findist=fdist2, geom=geom)
 
         self.clean_constraints(change, fix)
         

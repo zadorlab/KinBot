@@ -27,19 +27,16 @@ class KorcekStep2(GeneralReac):
             if self.species.atom[self.instance[-1]] == 'H':
                 fval[2] = 1.35
                 fval[3] = 1.35
-            val = geometry.new_bond_length(self.species,self.instance[0],self.instance[1],step+1,12,fval[0],geom)
-            self.set_bond(0, 1, val, change)
-            
-            val = geometry.new_bond_length(self.species,self.instance[2],self.instance[3],step+1,12,fval[1],geom)
-            self.set_bond(2, 3, val, change)
+
+            self.set_bond(0, 1, -999, change, step=step+1, stmax=self.step_max, findist=fval[0], geom=geom)
+            self.set_bond(2, 3, -999, change, step=step+1, stmax=self.step_max, findist=fval[1], geom=geom)
             
             if self.species.bond[self.instance[-1]][self.instance[-2]] == 1:
-                val = geometry.new_bond_length(self.species,self.instance[-1],self.instance[-2],step+1,12,fval[2],geom)
-                self.set_bond(-1, -2, val, change)
+                self.set_bond(-1, -2, -999, change, step=step+1, stmax=self.step_max, findist=fval[2], geom=geom)
                 #else do not change this bond length, the bond needs to stay and just change in order
             
-            val = geometry.new_bond_length(self.species,self.instance[-1],self.instance[3],step+1,12,fval[3],geom)
-            self.set_bond(-1, 3, val, change)  #todo: larger rings, this only work for 5 membered rings
+            self.set_bond(-1, 3, -999, change, step=step+1, stmax=self.step_max, findist=fval[3], geom=geom)
+            # TODO larger rings, this only work for 5 membered rings
 
         self.clean_constraints(change, fix) 
         

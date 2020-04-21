@@ -21,12 +21,10 @@ class IntraRHAddExoR(GeneralReac):
                     j = 0
                 else:
                     j = i + 1
-                val = geometry.new_bond_length(self.species,self.instance[i],self.instance[j],step + 1,12,final_dist[i],geom)
-                self.set_bond(i, j, val, change)
+                self.set_bond(i, j, -999, change, step=step+1, stmax=self.step_max, findist=final_dist[i], geom=geom)
 
             f_dist = 1.3
-            val = geometry.new_bond_length(self.species,self.instance[1],self.instance[3],step + 1,12,f_dist,geom)
-            self.set_bond(1, 3, val, change)
+            self.set_bond(1, 3, -999, change, step=step+1, stmax=self.step_max, findist=f_dist, geom=geom)
 
         self.clean_constraints(change, fix)
         

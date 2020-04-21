@@ -21,17 +21,10 @@ class RetroEne(GeneralReac):
         elif step < self.max_step:
             self.release_dihedrals(release)
             
-            final_dist = [1.35, 1.35, 2.0]
+            self.set_bond(0, -1, -999, change, step=step-11, stmax=10, findist=1.35, geom=geom)
+            self.set_bond(-1, -2, -999, change, step=step-11, stmax=10, findist=1.35, geom=geom)
+            self.set_bond(2, 3, -999, change, step=step-11, stmax=10, findist=2.0, geom=geom)
             
-            val = geometry.new_bond_length(self.species,self.instance[0],self.instance[-1],step - 11,10,final_dist[0],geom)
-            self.set_bond(0, -1, val, change)
-            
-            val = geometry.new_bond_length(self.species,self.instance[-1],self.instance[-2],step - 11,10,final_dist[1],geom)
-            self.set_bond(-1, -2, val, change)
-            
-            val = geometry.new_bond_length(self.species,self.instance[2],self.instance[3],step - 11,10,final_dist[2],geom)
-            self.set_bond(2, 3, val, change)
-
         self.clean_constraints(change, fix)
         
         return step, fix, change, release

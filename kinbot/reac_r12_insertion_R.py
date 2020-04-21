@@ -7,7 +7,7 @@ class R12Insertion(GeneralReac):
     skip = 0
     
 
-    def get_constraints(self,step, geom):
+    def get_constraints(self, step, geom):
         fix = []
         change = []
         release = []
@@ -15,22 +15,17 @@ class R12Insertion(GeneralReac):
 
         if step < self.max_step:
             
-            fval = [1.67,2.2,1.9]
+            fval = [1.67, 2.2, 1.9]
             if self.species.atom[self.instance[0]] == 'H':
-                fval = [1.7,1.09,2.2]
+                fval = [1.7, 1.09, 2.2]
             if self.species.atom[self.instance[2]] == 'H': 
-                fval = [2.2,1.09,1.7]
+                fval = [2.2, 1.09, 1.7]
             if self.species.atom[self.instance[0]] == 'O' or self.species.atom[self.instance[2]] == 'O': 
                 fval[1] = 1.8
 
-            val = geometry.new_bond_length(self.species,self.instance[0],self.instance[1],step+1,12,fval[0],geom)
-            self.set_bond(0, 1, val, change)
-            
-            val = geometry.new_bond_length(self.species,self.instance[1],self.instance[2],step+1,12,fval[1],geom)
-            self.set_bond(1, 2, val, change)
-            
-            val = geometry.new_bond_length(self.species,self.instance[2],self.instance[0],step+1,12,fval[2],geom)
-            self.set_bond(2, 0, val, change)
+            self.set_bond(0, 1, -999, change, step=step+1, stmax=self.step_max, findist=fval[0], geom=geom)
+            self.set_bond(1, 2, -999, change, step=step+1, stmax=self.step_max, findist=fval[1], geom=geom)
+            self.set_bond(2, 0, -999, change, step=step+1, stmax=self.step_max, findist=fval[2], geom=geom)
 
         self.clean_constraints(change, fix)
         

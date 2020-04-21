@@ -19,19 +19,14 @@ class IntraRHAddEndoF(GeneralReac):
             self.set_dihedrals(change, step, 1)
 
         elif step < self.max_step:
-            self.realease_dihedrals(release)
+            self.release_dihedrals(release)
 
             fvals = [2.0, 1.4, 1.3, 1.8, 1.3]
-            val1 = geometry.new_bond_length(self.species, self.instance[0], self.instance[-2], step-11, 10, fvals[0], geom)
-            self.set_bond(0, -2, val1, change)
-            val2 = geometry.new_bond_length(self.species, self.instance[0], self.instance[1], step-11, 10, fvals[1], geom)
-            self.set_bond(0, 1, val2, change)
-            val3 = geometry.new_bond_length(self.species, self.instance[1], self.instance[-1], step-11, 10, fvals[2], geom)
-            self.set_bond(1, -1, val3, change)
-            val4 = geometry.new_bond_length(self.species, self.instance[0], self.instance[-1], step-11, 10, fvals[3], geom)
-            self.set_bond(0, -1, val4, change)
-            val5 = geometry.new_bond_length(self.species, self.instance[-1], self.instance[-2], step-11, 10, fvals[4], geom)
-            self.set_bond(-1, -2, val5, change)
+            self.set_bond(0, -2, -999, change, step=step-11, stmax=10, findist=fvals[0], geom=geom)
+            self.set_bond(0, 1, -999, change, step=step-11, stmax=10, findist=fvals[1], geom=geom)
+            self.set_bond(1, -1, -999, change, step=step-11, stmax=10, findist=fvals[2], geom=geom)
+            self.set_bond(0, -1, -999, change, step=step-11, stmax=10, findist=fvals[3], geom=geom)
+            self.set_bond(-1, -2, -999, change, step=step-11, stmax=10, findist=fvals[4], geom=geom)
         
         self.clean_constraints(change, fix)
 

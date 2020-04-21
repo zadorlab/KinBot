@@ -1,4 +1,3 @@
-
 def start_motif(motif, natom, bond, atom, allover, eqv):
     """
     Initialize the motif search.

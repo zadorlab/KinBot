@@ -708,7 +708,7 @@ class StationaryPoint:
                                 center = instance[int(dlen / 2)]
                                 self.chiral[center] = self.calc_chiral_hand(self.geom[center], positions, atids)
 
-        return 0
+        return self.chiral
 
 
     def calc_chiral_hand(self, center, ligands, atomids):

@@ -82,7 +82,7 @@ def main():
                             par.par['mult'],
                             smiles=par.par['smiles'],
                             structure=par.par['structure'])
-    well0.characterize(par.par['dimer'])
+    well0.characterize(dimer=par.par['dimer'])
     write_input(par, well0, par.par['barrier_threshold'], os.getcwd()) 
 
     # add the initial well to the chemids
@@ -399,7 +399,6 @@ def postprocess(par, jobs, task, names, n):
                     ts = 'barrierless'
                     barrier = energy
                     reactions.append([reactant, ts, prod, barrier])
-
 
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
@@ -945,7 +944,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                             par.par['mult'],
                             smiles=par.par['smiles'],
                             structure=par.par['structure'])
-    well0.characterize(par.par['dimer'])
+    well0.characterize(dimer=par.par['dimer'])
 
 
     """
@@ -1185,7 +1184,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         me=par.par['me']
         if me == 1:
             mess.run(uq_n)
-
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):

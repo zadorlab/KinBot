@@ -29,7 +29,10 @@ class Optimize:
     def __init__(self, species, par, qc, wait=0):
         self.species = species
         delattr(self.species, 'cycle_chain')
-        self.species.characterize()
+        if self.species.wellorts:
+            self.species.characterize(bond_mx=self.species.bond)
+        else:
+            self.species.characterize()
         self.par = par
         self.qc = qc
 

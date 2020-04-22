@@ -279,7 +279,7 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_conf(self,species, geom, index=-1, ring = 0):
+    def qc_conf(self, species, geom, index=-1, ring = 0):
         """ 
         Creates a geometry optimization input for the conformational search and runs it.
         qc: 'gauss' or 'nwchem'
@@ -324,7 +324,6 @@ class QuantumChemistry:
                                    dummy = dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
-
         f_out = open('{}.py'.format(job),'w')
         f_out.write(template)
         f_out.close()

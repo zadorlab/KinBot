@@ -97,11 +97,12 @@ class StationaryPoint:
         self.atom = self.structure[:, 0]
         self.geom = self.structure[:, 1:4].astype(float)
 
-    def characterize(self, dimer=0):
+    def characterize(self, bond_mx=None, dimer=0):
         """
         With one call undertake a typical set of structural characterizations.
         """
-        self.bond_mx()
+        if bond_mx is None:
+            self.bond_mx()
         if dimer:
             parts, maps = self.start_multi_molecular()
             if len(parts) > 2:
@@ -138,7 +139,6 @@ class StationaryPoint:
                     self.bond[i][j] = 1
 
         max_bond = [constants.st_bond[self.atom[i]] for i in range(self.natom)]
-
         n_bond = np.sum(self.bond, axis=0)
 
         save_n_bond = n_bond
@@ -171,7 +171,7 @@ class StationaryPoint:
         perm_bond = []
         perm_rad = []
 
-        for index,perm in enumerate(perms):  # iterate the permutations
+        for index, perm in enumerate(perms):  # iterate the permutations
             # copy the objects of the molecule into temporary objects for this search
             perm_bond.append(copy.deepcopy(self.bond))
             perm_rad.append(np.copy(self.rad))
@@ -225,14 +225,12 @@ class StationaryPoint:
         if len(perm_rad) > 0:
             tot_rad_sum = [np.sum(x) for x in perm_rad]  # total number of radicals in the molecule
             value,idx = min((val,i) for (i,val) in enumerate(tot_rad_sum)) 
-
             # take a "random" bond matrix, corresponding to the lowest number of radical centers
             #as the standard bond matrix for this stationary point
             self.bond = perm_bond[idx] 
             self.rad = perm_rad[idx]
-
         # collect all the resonance isomers 
-        for i,perm_b in enumerate(perm_bond):
+        for i, perm_b in enumerate(perm_bond):
             #only consider the resonance structure with the minimum number of radical centers
             if np.sum(perm_rad[i]) == value: 
                 #check the uniqueness of the rad vector
@@ -276,14 +274,12 @@ class StationaryPoint:
                     pivot2 = maps[1][j]
         self.bond[pivot1][pivot2] = 1
         self.bond[pivot2][pivot1] = 1
-
         return 0
 
     def calc_multiplicity(self, atomlist):
         """ 
         1 = singlet, 2 = doublet, 3 = triplet, etc.
         """
-
         if all([element == 'O' for element in atomlist]):
             return 3 # O and O2 are triplet
         if len(atomlist) == 1 and atomlist[0] == 'C':
@@ -291,7 +287,7 @@ class StationaryPoint:
         atomC = np.char.count(atomlist, 'C')
         atomH = np.char.count(atomlist, 'H')
         if len(atomlist) == 3 and np.sum(atomC) == 1 and np.sum(atomH) == 2:
-            return 2 # CH2
+            return 3 # CH2
 
         mult = 0
         for element in atomlist:
@@ -339,7 +335,7 @@ class StationaryPoint:
                         delattr(self, 'cycle_chain')
                     except AttributeError:
                         pass
-                    self.characterize(0)  
+                    self.characterize(dimer=0)  
                     self.name = str(self.chemid)
                     mols.append(self)
                     break
@@ -349,7 +345,7 @@ class StationaryPoint:
                 multi = self.calc_multiplicity(atomi)
                 chargei = self.charge # todo
                 moli = StationaryPoint('prod_%i'%(len(mols)+1), chargei, multi, atom=atomi, natom=natomi, geom=geomi)
-                moli.characterize(0)  # dimer is not allowed
+                moli.characterize(dimer=0)  # dimer is not allowed
                 moli.calc_chemid()
                 moli.name = str(moli.chemid)
 
@@ -511,7 +507,7 @@ class StationaryPoint:
         if not hasattr(self,'bond'): 
             # recalculate the bond matrix only if it is not there yet
             self.bond_mx()
-            
+        
         maxdepth = 7
         digit = 3
         if depth == maxdepth: return atomid, visit
@@ -541,7 +537,6 @@ class StationaryPoint:
             self.find_cycle()
         if len(self.bonds) == 0:
             self.bonds = [self.bond]
-        
         self.dihed = []
         hit = 0
 
@@ -666,6 +661,7 @@ class StationaryPoint:
                                 if sum(self.bond[neigh]) > 2:  # atom has at least on other neighbor
                                     return 1
                     return 0
+
         return 0
 
 def main():

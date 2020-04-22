@@ -24,7 +24,7 @@ class GeneralReac:
         self.instance = instance
         self.instance_name = instance_name
 
-        if scan:
+        if self.scan:
             max_step = self.par.par['scan_step']
 
 

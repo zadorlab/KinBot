@@ -467,7 +467,6 @@ def postprocess(par, jobs, task, names, n):
         for reac in reactions:  # swap out the barrier
             reac[3] = ts_l3energies[reac[1]]
     
-
     # if L3 was done, everything below is done with that
     # filter according to tasks
     wells, products, reactions, highlight = filter(wells,
@@ -489,7 +488,6 @@ def postprocess(par, jobs, task, names, n):
     # write_mess
     uq_n=par.par['uq_n']
     w=len(wells)
-
 
     barrierless = []
     rxns = []
@@ -1386,10 +1384,11 @@ def get_l3energy(job, par):
                 lines = f.readlines() 
                 for index, line in enumerate(reversed(lines)): 
                     if ('SETTING ' + par.par['single_point_key']) in line:
-                        return 1, float(line.split()[3])  # energy was found
-                    else:
-                        return 0, -1  # the job not yet done
+                        e = float(line.split()[3])
+                        logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                        return 1, e  # energy was found
         else:
+            logging.info('L3 for {} is missing.'.format(job))
             return 0, -1  # job not yet started to run
 
     

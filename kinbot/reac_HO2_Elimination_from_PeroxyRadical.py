@@ -33,7 +33,8 @@ class HO2Elimination(GeneralReac):
             self.set_bond(0, 1, fval)
             
             fval = 2.0
-            self.set_bond(2, 1, fval)
+            #self.set_bont(2, 1, fval)
+            self.set_bond(2, 3, fval)
         
         self.clean_constraints(change, fix)
         

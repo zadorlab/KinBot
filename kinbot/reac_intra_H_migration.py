@@ -1,4 +1,3 @@
-from kinbot import geometry
 from kinbot.reac_General import GeneralReac
 
 

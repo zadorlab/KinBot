@@ -114,6 +114,7 @@ class StationaryPoint:
 
         self.find_conf_dihedral()
         self.find_atom_eqv()
+        self.calc_chiral()
 
     def distance_mx(self):
         """ 
@@ -470,7 +471,6 @@ class StationaryPoint:
         It is the sum of the atomids, plus a number for the multiplicity, Gaussian style.
         """
         self.chemid = int(0)
-        #self.atomid = np.zeros(natom, dtype=long)
         self.atomid = [int(0) for i in range(self.natom)]
                       
         for i in range(self.natom):
@@ -663,6 +663,98 @@ class StationaryPoint:
                     return 0
 
         return 0
+    
+
+    def calc_chiral(self):
+        """
+        Calculate self.chiral. 0 if non-chiral, +1 or -1 if chiral. Each atom gets a label like this.
+        """
+
+        self.chiral = np.zeros(self.natom)
+
+        # take min of resonance structure bonds
+        # as those portions are planar and do not contribute to chirality
+        # for the >C=C=C< case
+        reduced_bond = self.bonds[0]
+        for b in range(len(self.bonds) - 1):
+            reduced_bond = np.minimum(self.bonds[b], self.bonds[b + 1])
+
+        for i in range(self.natom):
+            if np.count_nonzero(reduced_bond[i] > 0) == 4:  # exactly 4 neighbors
+                atids = []
+                positions = np.empty((0, 3))
+                for j in range(self.natom):
+                    if reduced_bond[i][j] > 0:
+                        atids.append(self.atomid[j])
+                        positions = np.append(positions, [self.geom[j]], axis=0)
+                if len(set(atids)) == 4:  # all are different
+                    self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
+
+            if np.count_nonzero(reduced_bond[i] == 2) > 0:  # has at least one double bond
+                for dlen in range(2, 9, 2):  # up to 8, even number of double bonds in a row
+                    motif = ['X' for i in range(dlen + 1)]
+                    instances = find_motif.start_motif(motif, self.natom, reduced_bond, self.atom, i, self.atom_eqv)
+                    bondpattern = [2 for d in range(dlen)]
+                    for instance in instances:
+                        atids = []
+                        if find_motif.bondfilter(instance, reduced_bond, bondpattern) == 0:
+                            positions = np.empty((0, 3))
+                            for j in range(self.natom):
+                                if (reduced_bond[instance[0]][j] > 0 or reduced_bond[instance[-1]][j] > 0) and \
+                                   (j not in instance):  # bonded to first or last atom in instance
+                                    atids.append(self.atomid[j])
+                                    positions = np.append(positions, [self.geom[j]], axis=0)
+                            if len(set(atids)) == 4:
+                                center = instance[int(dlen / 2)]
+                                self.chiral[center] = self.calc_chiral_hand(self.geom[center], positions, atids)
+
+        return 0
+
+
+    def calc_chiral_hand(self, center, ligands, atomids):
+        """
+        Calculate the handedness of a chiral center. 
+        """
+
+        largelig = np.argmax(atomids)
+       
+        aligned_geom = geometry.translate_and_rotate(np.concatenate(([center], ligands)), None, 0, largelig + 1)
+        if aligned_geom[largelig + 1][2] < 0:
+            mirror = -1
+        else:
+            mirror = 1
+        aligned_ligands = np.delete(aligned_geom, [0, largelig + 1], 0)
+
+        xyproj = aligned_ligands[:,:2]
+        
+        xangle = []
+        for pt in xyproj:
+            th = np.arccos(pt[0] / np.linalg.norm(pt))
+            if pt[0] > 0 and pt[1] < 0:
+                th = 2. * np.pi - th
+            elif pt[0] < 0 and pt[1] < 0:
+                th = 2. * np.pi - th
+            elif pt[0] < 0 and pt[1] > 0:
+                th = np.pi / 2. + th
+            xangle.append(th)
+        
+        xorder = np.argsort(xangle)
+        atomids.pop(largelig)
+        idorder = np.argsort(atomids)
+        
+        zero_xorder = np.where(xorder == 0)
+        zero_idorder = np.where(idorder == 0)
+        
+        xorder = np.roll(xorder, -zero_xorder[0])
+        idorder = np.roll(idorder, -zero_idorder[0])
+
+        if np.array_equal(xorder, idorder):
+            hand = +1 * mirror
+        else:
+            hand = -1 * mirror
+
+        return hand
+
 
 def main():
     """

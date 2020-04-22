@@ -26,12 +26,10 @@ class IntraDielsAlder(GeneralReac):
                 release.append(first_dih)
 
             fval = 2.2
-            val = geometry.new_bond_length(self.species, self.instance[0], self.instance[-1], step-11, 10, fval,geom)
-            self.set_bond(0, -1, val, change)
+            self.set_bond(0, -1, -999, change, step=step-11, stmax=10, findist=fval, geom=geom)
             
             fval = 1.8
-            val = geometry.new_bond_length(self.species, self.instance[-2], self.instance[3], step-11, 10, fval, geom)
-            self.set_bond(-2, 3, val, change)
+            self.set_bond(-2, 3, -999, change, step=step-11, stmax=10, findist=fval, geom=geom)
 
         self.clean_constraints(change, fix)
 

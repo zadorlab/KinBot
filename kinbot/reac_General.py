@@ -89,7 +89,7 @@ class GeneralReac:
     def set_bond(self, a, b, val, change, step=None, stmax=None, findist=None, geom=None):
         if step is not None:
             val = geometry.new_bond_length(self.species, self.instance[a], self.instance[b],
-                    step , findist, geom)
+                    step, stmax, findist, geom)
         constraint = [self.instance[a] + 1, self.instance[b] + 1, val]
         change.append(constraint)
 

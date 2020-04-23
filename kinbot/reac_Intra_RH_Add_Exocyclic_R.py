@@ -21,10 +21,10 @@ class IntraRHAddExoR(GeneralReac):
                     j = 0
                 else:
                     j = i + 1
-                self.set_bond(i, j, -999, change, step=step+1, stmax=self.step_max, findist=final_dist[i], geom=geom)
+                self.set_bond(i, j, -999, change, step=step+1, stmax=self.max_step, findist=final_dist[i], geom=geom)
 
             f_dist = 1.3
-            self.set_bond(1, 3, -999, change, step=step+1, stmax=self.step_max, findist=f_dist, geom=geom)
+            self.set_bond(1, 3, -999, change, step=step+1, stmax=self.max_step, findist=f_dist, geom=geom)
 
         self.clean_constraints(change, fix)
         

@@ -200,7 +200,6 @@ class HIR:
             for i, si in enumerate(status):
                 if si == 1:
                     energies[i] = energies[0] + self.get_fit_value(A, n_terms, angles[i])/constants.AUtoKCAL
-
             if self.plot_hir_profiles:
                 # fit the plot to a png file
                 plt.plot(ang, ens, 'ro')

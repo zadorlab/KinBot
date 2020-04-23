@@ -1191,6 +1191,7 @@ def create_graph(wells, products, reactions,
     # position the nodes
     pos = nx.spring_layout(G, scale=1)
 
+    
     # make the matplotlib figure
     plt.figure(figsize=(8, 8))
     nx.draw_networkx_edges(G, pos, edgelist=edges, width=weights)
@@ -1202,7 +1203,7 @@ def create_graph(wells, products, reactions,
     nx.draw_networkx_labels(G, pos, labels, font_size=8)
     plt.axis('off')
     plt.savefig('graph.png')
-
+    
 
 def get_energy(dir, job, ts, high_level, mp2=0):
     db = connect(dir + '/kinbot.db')

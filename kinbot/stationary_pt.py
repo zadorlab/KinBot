@@ -672,33 +672,43 @@ class StationaryPoint:
         """
 
         self.chiral = np.zeros(self.natom)
+
+        # take min of resonance structure bonds
+        # as those portions are planar and do not contribute to chirality
+        # for the >C=C=C< case
+        reduced_bond = self.bonds[0]
+        for b in range(len(self.bonds) - 1):
+            reduced_bond = np.minimum(self.bonds[b], self.bonds[b + 1])
+
         for i in range(self.natom):
-            if np.count_nonzero(self.bond[i] > 0) == 4:  # exactly 4 neighbors
+            if np.count_nonzero(reduced_bond[i] > 0) == 4:  # exactly 4 neighbors
                 atids = []
-                positions = np.zeros((np.sum(self.bond[i]), 3))
-                k = 0
+                positions = np.empty((0, 3))
                 for j in range(self.natom):
-                    if self.bond[i][j] > 0:
+                    if reduced_bond[i][j] > 0:
                         atids.append(self.atomid[j])
-                        positions[k] = self.geom[j]
-                        k += 1
+                        positions = np.append(positions, [self.geom[j]], axis=0)
                 if len(set(atids)) == 4:  # all are different
                     self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
 
-# conjugated double bonds to be added
-#            if np.count_nonzero(self.bond[i] == 2) == 2:  # exactly 2 double bonds
-#                atids = []
-#                positions = np.zeros((np.sum(self.bond[i]), 3))
-#                k = 0
-#                for j in range(self.natom):
-#                    if self.bond[i][j] > 0:
-#                        atids.append(self.atomid[j])
-#                        positions[k] = self.geom[j]
-#                        k += 1
-#            if len(set(atids)) == 4:  # all are different
-#                self.chiral[i] = self.calc_chiral_hand(self.geom[i], positions, atids)
-
-#        print(self.chiral)
+            if np.count_nonzero(reduced_bond[i] == 2) > 0:  # has at least one double bond
+                for dlen in range(2, 9, 2):  # up to 8, even number of double bonds in a row
+                    motif = ['X' for i in range(dlen + 1)]
+                    instances = find_motif.start_motif(motif, self.natom, reduced_bond, self.atom, i, self.atom_eqv)
+                    bondpattern = [2 for d in range(dlen)]
+                    for instance in instances:
+                        atids = []
+                        if find_motif.bondfilter(instance, reduced_bond, bondpattern) == 0:
+                            positions = np.empty((0, 3))
+                            for j in range(self.natom):
+                                if (reduced_bond[instance[0]][j] > 0 or reduced_bond[instance[-1]][j] > 0) and \
+                                   (j not in instance):  # bonded to first or last atom in instance
+                                    atids.append(self.atomid[j])
+                                    positions = np.append(positions, [self.geom[j]], axis=0)
+                            if len(set(atids)) == 4:
+                                center = instance[int(dlen / 2)]
+                                self.chiral[center] = self.calc_chiral_hand(self.geom[center], positions, atids)
+        #return 0
         return self.chiral
 
 
@@ -733,8 +743,8 @@ class StationaryPoint:
         atomids.pop(largelig)
         idorder = np.argsort(atomids)
         
-        zero_xorder = np.where(xorder==0)
-        zero_idorder = np.where(idorder==0)
+        zero_xorder = np.where(xorder == 0)
+        zero_idorder = np.where(idorder == 0)
         
         xorder = np.roll(xorder, -zero_xorder[0])
         idorder = np.roll(idorder, -zero_idorder[0])

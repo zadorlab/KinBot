@@ -15,7 +15,7 @@ class IntraDielsAlder(GeneralReac):
         if step < self.max_step:
             self.fix_bonds(fix)
         if step < self.dihstep:
-            self.set_dihedrals(change)
+            self.set_dihedrals(change, step)
         elif step < self.max_step:
             self.release_dihedrals(release, start=1)
 

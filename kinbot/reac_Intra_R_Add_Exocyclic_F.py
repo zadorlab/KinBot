@@ -16,7 +16,7 @@ class IntraRAddExocyclicF(GeneralReac):
             self.fix_bonds(fix)
 
         if step < self.dihstep:
-            self.set_dihedrals(change, fix, cut=1)
+            self.set_dihedrals(change, step, cut=1)
 
         elif step == self.dihstep:
             self.fix_dihedrals(fix)

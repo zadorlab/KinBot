@@ -1,4 +1,6 @@
 from kinbot.reac_General import GeneralReac
+from kinbot import constants
+
 
 class IntraRMigration(GeneralReac):
     max_step = 14

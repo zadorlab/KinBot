@@ -16,7 +16,7 @@ class R14CyclicBiradScission(GeneralReac):
         self.fix_bonds(fix)
 
         if step < self.dihstep:
-            self.set_dihedrals(change)
+            self.set_dihedrals(change, step)
 
         elif step == self.dihstep:  # originally was < 12, must be a typo
             self.release_dihedrals(release)

@@ -874,31 +874,6 @@ def create_short_names(wells, products, reactions, barrierless):
        
     return well_short, pr_short, fr_short, ts_short, nobar_short
 
-#duplicate code, may delete function
-def write_header(par, well0):
-    """
-    Create the header block for MESS
-    """
-    # Read the header template
-    header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
-    with open(header_file) as f:
-        tpl = f.read()
-    header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par.par['TemperatureList']]),
-                        PressureList=' '.join([str(pi) for pi in par.par['PressureList']]),
-                        EnergyStepOverTemperature=par.par['EnergyStepOverTemperature'],
-                        ExcessEnergyOverTemperature=par.par['ExcessEnergyOverTemperature'],
-                        ModelEnergyLimit=par.par['ModelEnergyLimit'],
-                        CalculationMethod=par.par['CalculationMethod'],
-                        ChemicalEigenvalueMax=par.par['ChemicalEigenvalueMax'],
-                        Reactant=well0,
-                        EnergyRelaxationFactor=par.par['EnergyRelaxationFactor'],
-                        EnergyRelaxationPower=par.par['EnergyRelaxationPower'],
-                        EnergyRelaxationExponentCutoff=par.par['EnergyRelaxationExponentCutoff'],
-                        Epsilons=' '.join([str(ei) for ei in par.par['Epsilons']]),
-                        Sigmas=' '.join([str(si) for si in par.par['Sigmas']]),
-                        Masses=' '.join([str(mi) for mi in par.par['Masses']]))
-    return header
-
 
 def create_mess_input(par, wells, products, reactions, barrierless,
                       well_energies, prod_energies, parent):
@@ -940,7 +915,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         ModelEnergyLimit=par.par['ModelEnergyLimit'],
                         CalculationMethod=par.par['CalculationMethod'],
                         ChemicalEigenvalueMax=par.par['ChemicalEigenvalueMax'],
-                        Reactant=well0,
+                        Reactant=well_short[wells[0]],
                         EnergyRelaxationFactor=par.par['EnergyRelaxationFactor'],
                         EnergyRelaxationPower=par.par['EnergyRelaxationPower'],
                         EnergyRelaxationExponentCutoff=par.par['EnergyRelaxationExponentCutoff'],

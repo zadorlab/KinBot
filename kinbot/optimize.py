@@ -106,29 +106,6 @@ class Optimize:
                         # conformational search is running
                         # check if the conformational search is done
                         status, lowest_conf, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
-                        #create stationary points for chirality check
-                        well0_stpt = StationaryPoint(name='well0', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                                                  natom=self.species.natom, atom=self.species.atom, geom=self.species.geom)
-                        lowConf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                                                   natom=self.species.natom, atom=self.species.atom, geom=geom)
-                        #characterize & generate chirality label for well0 & conf
-                        well0_stpt.characterize()
-                        well0_stpt.bond = self.species.bond
-                        well0_chiral = well0_stpt.calc_chiral()
-                        print("well0: {}".format(well0_chiral))
-
-                        lowConf_stpt.characterize()
-                        lowConf_stpt.bond = self.species.bond
-                        lowConfChiral = lowConf_stpt.calc_chiral()
-                        well0Chiral_str = ' '.join(str(val) for val in well0_chiral)
-                        lowConfChiral_str = ' '.join(str(val) for val in lowConfChiral)
-                        print("{}\nwell0: {}\nlow conf: {}".format(self.species.chemid, well0_chiral, lowConfChiral))
-                        if well0Chiral_str != lowConfChiral_str:
-                            for i, conf in enumerate(conformers):
-                                conf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=conf)
-                                conf_stpt.characterize()
-                                conf_stpt.bond = self.species.bond
-                                conf_stptChiral = conf_stpt.calc_chiral()
-                                conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
-                                print("{} conf {}: {}".format(self.species.chemid, i, conf_stptChiral))
 
                         if status == 1:
                             # save lowest energy conformer as species geometry

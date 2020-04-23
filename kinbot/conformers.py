@@ -7,8 +7,6 @@ import numpy as np
 
 from kinbot import geometry
 from kinbot import zmatrix
-
-
 class Conformers:
     """
     Class that does all the steps for the conformers of one species

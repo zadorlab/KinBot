@@ -258,43 +258,40 @@ class ReactionGenerator:
                                 obj.products[j] = obj.products[i]
                     try:
                         import pybel
-                        pybel=1
+                        if len(stpt_inchis) == 0:
+                            well0_inchi = cheminfo.create_inchi_from_geom(self.species.atom,self.species.geom)                        
+                            well0_chemicalFormula = well0_inchi.split('S/')[1].split('/')[0]
+                            well0_stereochem = ''
+                            if "/t" in str(well0_inchi):
+                                well0_stereochem = well0_inchi.split('/t')[1].split('/')[0]
+                                well0_info = [self.species.chemid, well0_chemicalFormula, well0_inchi, well0_stereochem]
+                                stpt_inchis.append(well0_info)
+
+                        for st_pt in obj.products:
+                            prod_chemid = st_pt.chemid
+                            prod_inchi = cheminfo.create_inchi_from_geom(st_pt.atom,st_pt.geom)                        
+                            prod_chemicalFormula = prod_inchi.split('S/')[1].split('/')[0]
+                            prod_stereochem = ''
+                            if "/t" in str(prod_inchi):
+                                prod_stereochem = prod_inchi.split('/t')[1].split('/')[0]
+                                prod_info = [prod_chemid, prod_chemicalFormula, prod_inchi, prod_stereochem]
+                                stpt_inchis.append(prod_info)
+
+                        inchiFile = open('inchis.log','w')
+                        well0_chemid = stpt_inchis[0][0]
+                        well0_chemicalFormula = stpt_inchis[0][1]
+                        well0_stereochem = stpt_inchis[0][3]
+                        for inchi in stpt_inchis:
+                            inchiFile.write("{}\t|{}\t|{}\t|{}\n".format(inchi[0],inchi[1],inchi[2],inchi[3]))
+                            prod_chemid = inchi[0]
+                            prod_stereochem = inchi[3]
+                            prod_chemicalFormula = inchi[1]
+                            if well0_chemicalFormula == prod_chemicalFormula:
+                                if str(well0_stereochem) != str(prod_stereochem):
+                                    logging.warning("\t\t!WARNING! Stereochemistry for product {} differs from the initial well ({}) for reaction {}".format(prod_chemid, well0_chemid, instance_name))
+                        inchiFile.close()
                     except ImportError:
-                        pybel=0
-                    # generate and compare inchis
-                    if pybel == 0:
-			    if len(stpt_inchis) == 0:
-				well0_inchi = cheminfo.create_inchi_from_geom(self.species.atom,self.species.geom)                        
-				well0_chemicalFormula = well0_inchi.split('S/')[1].split('/')[0]
-				well0_stereochem = ''
-				if "/t" in str(well0_inchi):
-				    well0_stereochem = well0_inchi.split('/t')[1].split('/')[0]
-				well0_info = [self.species.chemid, well0_chemicalFormula, well0_inchi, well0_stereochem]
-				stpt_inchis.append(well0_info)
-
-			    for st_pt in obj.products:
-				prod_chemid = st_pt.chemid
-				prod_inchi = cheminfo.create_inchi_from_geom(st_pt.atom,st_pt.geom)                        
-				prod_chemicalFormula = prod_inchi.split('S/')[1].split('/')[0]
-				prod_stereochem = ''
-				if "/t" in str(prod_inchi):
-				    prod_stereochem = prod_inchi.split('/t')[1].split('/')[0]
-				prod_info = [prod_chemid, prod_chemicalFormula, prod_inchi, prod_stereochem]
-				stpt_inchis.append(prod_info)
-
-			    inchiFile = open('inchis.log','w')
-			    well0_chemid = stpt_inchis[0][0]
-			    well0_chemicalFormula = stpt_inchis[0][1]
-			    well0_stereochem = stpt_inchis[0][3]
-			    for inchi in stpt_inchis:
-				inchiFile.write("{}\t|{}\t|{}\t|{}\n".format(inchi[0],inchi[1],inchi[2],inchi[3]))
-				prod_chemid = inchi[0]
-				prod_stereochem = inchi[3]
-				prod_chemicalFormula = inchi[1]
-				if well0_chemicalFormula == prod_chemicalFormula:
-				    if str(well0_stereochem) != str(prod_stereochem):
-					logging.warning("\t\t!WARNING! Stereochemistry for product {} differs from the initial well ({}) for reaction {}".format(prod_chemid, well0_chemid, instance_name))
-			    inchiFile.close()
+                        logging.error("Pybel could not be imported, inchis cannot be created")
                     err = 0
                     for st_pt in obj.products:
                         chemid = st_pt.chemid
@@ -333,8 +330,6 @@ class ReactionGenerator:
                     ts.bond = bond_mx
                     ts.find_cycle()
                     ts.find_conf_dihedral()
-                    chiral = ts.calc_chiral()
-                    print("{}: {}".format(instance_name,chiral)) 
                     obj.ts = ts
                     #do the ts optimization
                     obj.ts_opt = Optimize(obj.ts, self.par, self.qc)
@@ -373,11 +368,11 @@ class ReactionGenerator:
                     #energy & chirality of products
                     elog = open("energy.log", 'a')
                     for prod_opt in obj.prod_opt:
-                        prod_stpt = StationaryPoint(name='prod', charge=prod_opt.species.charge, mult=prod_opt.species.mult,                                                                               natom=prod_opt.species.natom, atom=prod_opt.species.atom, geom=prod_opt.species.geom)
-                        prod_stpt.characterize()
-                        prod_stpt.bond = prod_opt.species.bond
-                        prod_chiral = prod_stpt.calc_chiral()
-                        print("prod {}: {}".format(prod_opt.species.chemid, prod_chiral))
+                        #prod_stpt = StationaryPoint(name='prod', charge=prod_opt.species.charge, mult=prod_opt.species.mult,                                                                               natom=prod_opt.species.natom, atom=prod_opt.species.atom, geom=prod_opt.species.geom)
+                        #prod_stpt.characterize()
+                        #prod_stpt.bond = prod_opt.species.bond
+                        #prod_chiral = prod_stpt.calc_chiral()
+                        #print("prod {}: {}".format(prod_opt.species.chemid, prod_chiral))
                         elog.write("prod_opt: {} |\tenergy: {}\n".format(prod_opt.species.chemid, prod_opt.species.energy))
                     elog.close()
                     

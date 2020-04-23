@@ -8,7 +8,7 @@ class GeneralReac:
     dihstep = -1
 
 
-    def __init__(self, species, qc,par, instance, instance_name):
+    def __init__(self, species, qc, par, instance, instance_name):
         self.species = species
         self.ts = None
         self.products = []
@@ -24,6 +24,9 @@ class GeneralReac:
         
         self.instance = instance
         self.instance_name = instance_name
+
+        if self.scan:
+            max_step = self.par.par['scan_step']
 
 
     def clean_constraints(self, change, fix):
@@ -70,6 +73,11 @@ class GeneralReac:
             fix.append(constraint)
 
 
+    def fix_angle_single(self, a, b, c, fix):
+        constraint = [self.instance[a] + 1,self.instance[b] + 1, self.instance[c] + 1]
+        fix.append(constraint)
+
+
     def fix_dihedrals(self, fix):
         for dih in range(len(self.instance) - 3):
             f = []
@@ -78,8 +86,11 @@ class GeneralReac:
             fix.append(f)
 
 
-    def set_bond(self, atom1, atom2, fval, change):
-        constraint = [self.instance[atom1] + 1, self.instance[atom2] + 1, fval]
+    def set_bond(self, a, b, val, change, step=None, stmax=None, findist=None, geom=None):
+        if step is not None:
+            val = geometry.new_bond_length(self.species, self.instance[a], self.instance[b],
+                    step, stmax, findist, geom)
+        constraint = [self.instance[a] + 1, self.instance[b] + 1, val]
         change.append(constraint)
 
 
@@ -92,9 +103,15 @@ class GeneralReac:
             change.append(constraint)
 
 
-    def set_dihedrals(self, change, step):
+    def set_angle_single(self, a, b, c, val, change):
+        constraint = [self.instance[a] + 1, self.instance[b] + 1, self.instance[c] + 1]
+        constraint.append(val)
+        change.append(constraint)
+
+
+    def set_dihedrals(self, change, step, cut=0):
         new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, self.dihstep)
-        for dih in range(len(self.instance) - 3):
+        for dih in range(len(self.instance) - 3 - cut):
             constraint = []
             for i in range(4):
                 constraint.append(self.instance[dih + i] + 1)

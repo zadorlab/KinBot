@@ -110,18 +110,24 @@ class Optimize:
                         #create stationary points for chirality check
                         well0_stpt = StationaryPoint(name='well0', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                natom=self.species.natom, atom=self.species.atom, geom=self.species.geom)
                         lowConf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=geom)
+
                         #characterize & generate chirality label for well0 & conf
                         well0_stpt.characterize()
                         well0_stpt.bond = self.species.bond
                         well0_chiral = well0_stpt.calc_chiral()
-                        print("well0: {}".format(well0_chiral))
                         
                         lowConf_stpt.characterize()
                         lowConf_stpt.bond = self.species.bond
                         lowConfChiral = lowConf_stpt.calc_chiral()
                         well0Chiral_str = ' '.join(str(val) for val in well0_chiral)
                         lowConfChiral_str = ' '.join(str(val) for val in lowConfChiral)
-                        print("{}\nwell0: {}\nlow conf: {}".format(self.species.chemid, well0_chiral, lowConfChiral))
+                        print("{}\nwell0: {}\nlow conf: {}".format(self.species.chemid, well0Chiral_str, lowConfChiral_str))
+                        
+                        #FOR TESTING
+                        for i, conf in enumerate(conformers)
+                            print("reading through conformers")
+                            print(i, conf)
+ 
                         if well0Chiral_str != lowConfChiral_str:
                             for i, conf in enumerate(conformers):
                                 conf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=conf)

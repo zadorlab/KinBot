@@ -46,13 +46,11 @@ class BetaDelta(GeneralReac):
             if self.species.atom[self.instance[0]] == 'O' and self.species.atom[self.instance[1]] == 'O' and self.species.atom[self.instance[2]] == 'C':
                 final_dist = 1.6 
             
-            val = geometry.new_bond_length(self.species,self.instance[1], self.instance[2], step, self.max_step, final_dist, geom)
-            self.set_bond(1, 2, val, change)
+            self.set_bond(1, 2, -999, change, step=step, stmax=self.max_step, findist=final_dist, geom=geom)
 
             # breaking the delta bond
             final_dist = 1.7 # this might need to be refined
-            val = geometry.new_bond_length(self.species,self.instance[3], self.instance[4], step, self.max_step, final_dist, geom)
-            self.set_bond(3, 4, val, change)
+            self.set_bond(3, 4, -999, change, step=step, stmax=self.max_step, findist=final_dist, geom=geom)
 
         self.clean_constraints(change, fix)
         

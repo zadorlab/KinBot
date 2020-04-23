@@ -16,7 +16,7 @@ class KorcekStep2(GeneralReac):
             
             if step < 10:
                 dih = geometry.calc_dihedral(geom[self.instance[-4]], geom[self.instance[-3]], geom[self.instance[-2]], geom[self.instance[-1]])[0]
-                if np.abs(dih) < 160:
+                if abs(dih) < 160:
                     #move the dihedral to 160 degrees in 10 steps
                     frac = 1. / (10 - step + 0.)
                     new_dih = dih + frac * (160. - dih)

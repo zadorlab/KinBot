@@ -256,7 +256,7 @@ class ReactionGenerator:
                         for j, st_pt_j in enumerate(obj.products):
                             if st_pt_i.chemid == st_pt_j.chemid and i < j:
                                 obj.products[j] = obj.products[i]
-
+                    '''
                     # generate and compare inchis
                     if len(stpt_inchis) == 0:
                         well0_inchi = cheminfo.create_inchi_from_geom(self.species.atom,self.species.geom)                        
@@ -290,6 +290,7 @@ class ReactionGenerator:
                             if str(well0_stereochem) != str(prod_stereochem):
                                 logging.warning("\t\t!WARNING! Stereochemistry for product {} differs from the initial well ({}) for reaction {}".format(prod_chemid, well0_chemid, instance_name))
                     inchiFile.close()
+                    '''
                     err = 0
                     for st_pt in obj.products:
                         chemid = st_pt.chemid

@@ -16,7 +16,7 @@ class IntraRAddExoTetCyclicF(GeneralReac):
             self.fix_bonds(fix)
 
         if step < self.dihstep:
-            self.set_dihedrals(change, step, cut)
+            self.set_dihedrals(change, step, cut=1)
 
             ldih = [] # constraint for the last dihedral, which needs to be 180 degrees    
             for i in range(4):

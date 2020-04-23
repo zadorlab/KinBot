@@ -7,6 +7,7 @@ import numpy as np
 
 from kinbot import geometry
 from kinbot import zmatrix
+#from kinbot.stationary_pt import StationaryPoint
 
 
 class Conformers:

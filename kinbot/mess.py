@@ -41,9 +41,9 @@ class MESS:
                             EnergyRelaxationFactor=self.par.par['EnergyRelaxationFactor'],
                             EnergyRelaxationPower=self.par.par['EnergyRelaxationPower'],
                             EnergyRelaxationExponentCutoff=self.par.par['EnergyRelaxationExponentCutoff'],
-                            e_coll=constants.epsilon[self.par.par[collider]],
-                            s_coll=constants.sigma[self.par.par[collider]],
-                            m_coll=constants.mass[self.par.par[collider]],
+                            e_coll=constants.epsilon[self.par.par['collider']],
+                            s_coll=constants.sigma[self.par.par['collider']],
+                            m_coll=constants.mass[self.par.par['collider']],
                             e_well=self.par.par['epsilon'],
                             s_well=self.par.par['sigma'],
                             m_well=self.species.mass,
@@ -331,6 +331,7 @@ class MESS:
                 rotors = '\n'.join(rotors)
                 freq = ''
                 #reduced freqs used always bc HIR creates more accurate mess input
+                print('lala', species.reduced_freqs)
                 for i, fr in enumerate(species.reduced_freqs):
                     if i == 0:
                         freq += '{:.4f}'.format(fr)

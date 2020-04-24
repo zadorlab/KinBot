@@ -27,14 +27,14 @@ class HO2Elimination(GeneralReac):
             self.release_dihedrals(release)
                 
             fval = 1.3
-            self.set_bond(0, -1, fval)
+            self.set_bond(0, -1, fval, change)
             
             fval = 1.3
-            self.set_bond(0, 1, fval)
+            self.set_bond(0, 1, fval, change)
             
             fval = 2.0
             #self.set_bont(2, 1, fval)
-            self.set_bond(2, 3, fval)
+            self.set_bond(2, 3, fval, change)
         
         self.clean_constraints(change, fix)
         

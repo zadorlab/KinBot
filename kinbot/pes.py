@@ -919,9 +919,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         EnergyRelaxationFactor=par.par['EnergyRelaxationFactor'],
                         EnergyRelaxationPower=par.par['EnergyRelaxationPower'],
                         EnergyRelaxationExponentCutoff=par.par['EnergyRelaxationExponentCutoff'],
-                        Epsilons=' '.join([str(ei) for ei in par.par['Epsilons']]),
-                        Sigmas=' '.join([str(si) for si in par.par['Sigmas']]),
-                        Masses=' '.join([str(mi) for mi in par.par['Masses']]))
+                        e_coll=constants.epsilon[self.par.par[collider]],
+                        s_coll=constants.sigma[self.par.par[collider]],
+                        m_coll=constants.mass[self.par.par[collider]],
+                        e_well=self.par.par['epsilon'],
+                        s_well=self.par.par['sigma'],
+                        m_well=self.species.mass,
+                        )
 
     # write the wells
     s.append('######################')

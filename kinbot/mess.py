@@ -41,9 +41,13 @@ class MESS:
                             EnergyRelaxationFactor=self.par.par['EnergyRelaxationFactor'],
                             EnergyRelaxationPower=self.par.par['EnergyRelaxationPower'],
                             EnergyRelaxationExponentCutoff=self.par.par['EnergyRelaxationExponentCutoff'],
-                            Epsilons=' '.join([str(ei) for ei in self.par.par['Epsilons']]),
-                            Sigmas=' '.join([str(si) for si in self.par.par['Sigmas']]),
-                            Masses=' '.join([str(mi) for mi in self.par.par['Masses']]))
+                            e_coll=constants.epsilon[self.par.par[collider]],
+                            s_coll=constants.sigma[self.par.par[collider]],
+                            m_coll=constants.mass[self.par.par[collider]],
+                            e_well=self.par.par['epsilon'],
+                            s_well=self.par.par['sigma'],
+                            m_well=self.species.mass,
+                            )
         return header
 
     def create_short_names(self):

@@ -331,7 +331,6 @@ class MESS:
                 rotors = '\n'.join(rotors)
                 freq = ''
                 #reduced freqs used always bc HIR creates more accurate mess input
-                print('lala', species.reduced_freqs)
                 for i, fr in enumerate(species.reduced_freqs):
                     if i == 0:
                         freq += '{:.4f}'.format(fr)

@@ -39,6 +39,7 @@ from kinbot.reac_Intra_RH_Add_Endocyclic_R import IntraRHAddEndoR
 from kinbot.reac_Intra_RH_Add_Endocyclic_F import IntraRHAddEndoF
 from kinbot.reac_HO2_Elimination_from_PeroxyRadical import HO2Elimination
 from kinbot.reac_beta_delta import BetaDelta
+from kinbot.reac_h2_elim import H2Elim
 
 from kinbot.reac_combinatorial import Combinatorial
 
@@ -117,6 +118,7 @@ class ReactionFinder:
                           'R_Addition_CSm_R': self.search_R_Addition_CSm_R, 
                           'r13_insertion_RSR': self.search_r13_insertion_RSR, 
                           'beta_delta': self.search_beta_delta, 
+                          'h2_elim': self.search_h2_elim,
                           }
         
         if 'combinatorial' in self.families:
@@ -2044,6 +2046,43 @@ class ReactionFinder:
         return 0
 
 
+    def search_h2_elim(self, natom, atom, bond, rad):
+        """ 
+        This is not an RMG class.
+
+
+        H   H
+        |   |
+        X - X ==> X=X  + H2 
+
+        """
+
+        name = 'h2_elim'
+
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = [] #reactions found with the current resonance isomer
+
+        motif = ['H','X','X','H']
+        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+
+        for inst in rxns:
+            new = 1
+            # filter for the same reactions
+            for instance in self.reactions[name]:
+                if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
+                    new = 0
+            if new:
+                self.reactions[name].append(inst)
+
+        return 0
+
+
     def reaction_matrix(self, reac_list, reac_id):
         """ 
         Create arrays to store all reactions for species.
@@ -2221,6 +2260,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1) + '_' + str(reac_list[i][4] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BetaDelta(self.species,self.qc,self.par,reac_list[i],name))
+            elif reac_id == 'h2_elim':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(H2Elim(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)

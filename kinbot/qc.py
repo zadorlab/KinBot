@@ -782,10 +782,11 @@ class QuantumChemistry:
             with open(fchk) as f:
                 lines = f.read().split('\n')
             
-            nvals = 3*natom * (3 * natom +1) / 2
+            nvals = 3 * natom * (3 * natom +1) / 2
 
             for index, line in enumerate(reversed(lines)):
                 if re.search('Cartesian Force Constants', line) != None:
+                    print('ITTT', job)
                     hess_flat = []
                     n = 0
                     while len(hess_flat) < nvals:
@@ -797,7 +798,9 @@ class QuantumChemistry:
                             hess[i][j] = hess_flat[n]
                             hess[j][i] = hess_flat[n]
                             n += 1
+                    print('HESSSSSSSS', hess)
                     break
+        print('juju', job, hess)
         return hess
 
 

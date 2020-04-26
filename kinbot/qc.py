@@ -798,7 +798,6 @@ class QuantumChemistry:
                             hess[j][i] = hess_flat[n]
                             n += 1
                     break
-        print('juju', job, hess)
         return hess
 
 

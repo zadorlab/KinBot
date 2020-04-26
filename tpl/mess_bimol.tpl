@@ -2,7 +2,7 @@
 
 {fragments}
 
-        GroundEnergy[kcal/mol]        {ground_energy.2f}
+        GroundEnergy[kcal/mol]        {ground_energy}
 
     
     End ! end bimolecular

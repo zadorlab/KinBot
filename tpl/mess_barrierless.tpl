@@ -24,7 +24,7 @@
 
 {fragments}
 
-        GroundEnergy[kcal/mol]        {ground_energy}
+        GroundEnergy[kcal/mol]        {ground_energy.2f}
 
     
     End ! end Barrierless

@@ -15,7 +15,7 @@ Model
     End
   CollisionFrequency
     LennardJones
-      Epsilons[1/cm]                    {e_coll} {e_well}
+      Epsilons[1/cm]                    {e_coll} {e_well.3f}
       Sigmas[angstrom]                  {s_coll} {s_well}
       Masses[amu]                       {m_coll} {m_well}
     End

@@ -16,7 +16,7 @@
         ElectronicLevels[1/cm]      {nelec}
             {charge}    {mult}
 
-        ZeroEnergy[kcal/mol]        {zeroenergy}
+        ZeroEnergy[kcal/mol]        {zeroenergy.2f}
     End
   End ! end well
 

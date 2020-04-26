@@ -278,6 +278,7 @@ class Optimize:
                     status, molpro_energy = molp.get_molpro_energy(self.par.par['single_point_key'])
                     if status:
                         self.species.energy = molpro_energy
+                        print('MOLPRO', self.species.energy, self.species.name)
                 
                 # delete unnecessary files
                 if self.par.par['delete_intermediate_files'] == 1:

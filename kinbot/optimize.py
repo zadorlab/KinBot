@@ -178,6 +178,7 @@ class Optimize:
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)
                                     err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
                                     err, self.species.zpe = self.qc.get_qc_zpe(self.job_high)
+                                    print('CHE**********', self.species.energy, self.species.zpe, self.species.name)
                                     self.shigh = 1
                                 else:
                                     # geometry diverged to other structure

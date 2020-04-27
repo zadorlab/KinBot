@@ -8,7 +8,6 @@ import numpy as np
 from kinbot import geometry
 from kinbot import zmatrix
 #from kinbot.stationary_pt import StationaryPoint - only useable when matplotlib gone
-
 class Conformers:
     """
     Class that does all the steps for the conformers of one species
@@ -316,13 +315,13 @@ class Conformers:
         while 1:
             # check if conformational search is finished
             final_geoms = []  # list of all final conformer geometries
+            energies = []
             for i, si in enumerate(status):
                 if si == -1:
                     status[i] = self.test_conformer(i)[1]
             if all([si >= 0 for si in status]):
                 lowest_energy = self.species.energy
                 lowest_e_geom = self.species.geom
-                energies = []
                 for ci in range(self.conf):
                     si = status[ci]
                     if si == 0:  # this is a valid confomer
@@ -343,13 +342,13 @@ class Conformers:
                         final_geoms.append(np.zeros((self.species.natom, 3)))
                
                 self.write_profile(status, final_geoms, energies)
-                return 1, lowest_conf, lowest_e_geom, lowest_energy, final_geoms
+                return 1, lowest_conf, lowest_e_geom, lowest_energy, final_geoms, energies
 
             else:
                 if wait:
                     time.sleep(1)
                 else:
-                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy, final_geoms
+                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy, final_geoms, energies
 
     def write_profile(self, status, final_geoms, energies, ring=0):
         """

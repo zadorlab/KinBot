@@ -4,6 +4,7 @@ import os
 import copy
 import logging
 import time
+import numpy as np
 
 from kinbot import frequencies
 from kinbot import geometry
@@ -105,39 +106,49 @@ class Optimize:
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        status, lowest_conf, geom, low_energy, conformers = self.species.confs.check_conformers(wait=self.wait)
-                        
-                        #create stationary points for chirality check
-                        well0_stpt = StationaryPoint(name='well0', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                natom=self.species.natom, atom=self.species.atom, geom=self.species.geom)
-                        lowConf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=geom)
-
-                        #characterize & generate chirality label for well0 & conf
-                        well0_stpt.characterize()
-                        well0_stpt.bond = self.species.bond
-                        well0_chiral = well0_stpt.calc_chiral()
-                        
-                        lowConf_stpt.characterize()
-                        lowConf_stpt.bond = self.species.bond
-                        lowConfChiral = lowConf_stpt.calc_chiral()
-                        well0Chiral_str = ' '.join(str(val) for val in well0_chiral)
-                        lowConfChiral_str = ' '.join(str(val) for val in lowConfChiral)
-                        print("{}\nwell0: {}\nlow conf: {}".format(self.species.chemid, well0Chiral_str, lowConfChiral_str))
-                        
-                        #FOR TESTING
-                        for i, conf in enumerate(conformers)
-                            print("reading through conformers")
-                            print(i, conf)
- 
-                        if well0Chiral_str != lowConfChiral_str:
-                            for i, conf in enumerate(conformers):
-                                conf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=conf)
-                                conf_stpt.characterize()
-                                conf_stpt.bond = self.species.bond
-                                conf_stptChiral = conf_stpt.calc_chiral()
-                                conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
-                                print("{} conf {}: {}".format(self.species.chemid, i, conf_stptChiral))
- 
+                        status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                         if status == 1:
+     
+                            #create stationary points for chirality check
+                            well0_stpt = StationaryPoint(name='well0', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                natom=self.species.natom, atom=self.species.atom, geom=self.species.geom)
+                            lowConf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=geom)
+
+                            #characterize & generate chirality label for well0 & conf
+                            well0_stpt.characterize()
+                            well0_stpt.bond = self.species.bond
+                            well0_chiral = well0_stpt.calc_chiral()
+            
+                            lowConf_stpt.characterize()
+                            lowConf_stpt.bond = self.species.bond
+                            lowConfChiral = lowConf_stpt.calc_chiral()
+                            well0Chiral_str = ' '.join(str(val) for val in well0_chiral)
+                            lowConfChiral_str = ' '.join(str(val) for val in lowConfChiral)
+                            print("{}\nwell0: {}\nlow conf: {}".format(self.species.chemid, well0Chiral_str, lowConfChiral_str))
+            
+                            
+                            #Implement the following
+                            # 1. check next conf chirality
+                            # 2. if chirality changes remove conf & energy + create log
+                            # 3. if lowest E conf changes chirality check array for lowest energy & report lowest E as new conf
+                            test = 1
+                            npe = np.array(energies)
+                            if test == 1:
+                            #if well0Chiral_str != lowConfChiral_str:
+                                print("reading through conformers")
+                                for i, conf in enumerate(conformers):
+                                    conf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=conf)
+                                    conf_stpt.characterize()
+                                    conf_stpt.bond = self.species.bond
+                                    conf_stptChiral = conf_stpt.calc_chiral()
+                                    conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
+                                    print("{} conf {}, energy: {} chiral: {}".format(self.species.chemid, i, energies[i], conf_stptChiral))
+                                while len(energies) > 0:
+                                    lowe_index = energies.index(np.amin(npe))
+                                    print("min energy at index {}, e = {}".format(lowe_index, energies[lowe_index]))
+                                    conformers.pop(lowe_index)
+                                    energies.pop(lowe_index)
+                                    npe = np.delete(npe, lowe_index)
+                                    print(len(energies), len(npe), len(conformers))
                             # conf search is done
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
@@ -152,7 +163,7 @@ class Optimize:
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
                 if self.par.par['conformer_search'] == 1:
-                    status, lowest_conf, geom, low_energy, conformers = self.species.confs.check_conformers(wait=self.wait)
+                    status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                 while self.restart < self.max_restart:
                     # do the high level calculations
                     if self.par.par['high_level'] == 1:

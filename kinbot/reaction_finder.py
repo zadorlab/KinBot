@@ -2066,6 +2066,8 @@ class ReactionFinder:
 
         motif = ['H','X','X','H']
         instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        for instance in instances: 
+            rxns += [instance]
 
         for inst in rxns:
             new = 1

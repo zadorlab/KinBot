@@ -269,10 +269,10 @@ def postprocess(par, jobs, task, names):
     base_zpe = get_zpe(jobs[0], jobs[0], 0, par.par['high_level'])
 
     # list of lists with four elements
-    # 1. reactant chemid
-    # 2. reaction name
-    # 3. products chemid list
-    # 4. reaction barrier height
+    # 0. reactant chemid
+    # 1. reaction name
+    # 2. products chemid list
+    # 3. reaction barrier height
     reactions = []
     #Reactions is empty at this point
 
@@ -460,6 +460,7 @@ def postprocess(par, jobs, task, names):
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
             reac[3] = ts_l3energies[reac[1]]
+        logging.info('Energies are updated to L3.')
     
     # if L3 was done, everything below is done with that
     # filter according to tasks

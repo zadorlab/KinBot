@@ -11,8 +11,8 @@ class KorcekStep2(GeneralReac):
         fix = []
         change = []
         release = []
-        self.fix_bonds(fix)
-        if step < 12:
+        if step < self.max_step:
+            self.fix_bonds(fix)
             
             if step < 10:
                 dih = geometry.calc_dihedral(geom[self.instance[-4]], geom[self.instance[-3]], geom[self.instance[-2]], geom[self.instance[-1]])[0]
@@ -20,10 +20,10 @@ class KorcekStep2(GeneralReac):
                     #move the dihedral to 160 degrees in 10 steps
                     frac = 1. / (10 - step + 0.)
                     new_dih = dih + frac * (160. - dih)
-                    constraint = [self.instance[-4] + 1,self.instance[-3] + 1,self.instance[-2] + 1,self.instance[-1] + 1,new_dih]
+                    constraint = [self.instance[-4] + 1, self.instance[-3] + 1, self.instance[-2] + 1, self.instance[-1] + 1, new_dih]
                     change.append(constraint)
             
-            fval = [2.0,2.0,1.8,1.8]
+            fval = [2.0, 2.0, 1.8, 1.8]
             if self.species.atom[self.instance[-1]] == 'H':
                 fval[2] = 1.35
                 fval[3] = 1.35

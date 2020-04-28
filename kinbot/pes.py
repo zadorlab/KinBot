@@ -436,17 +436,17 @@ def postprocess(par, jobs, task, names, n):
     prod_energies = {}
     prod_l3energies = {}
     for prods in products:
-        energy = 0. - base_energy - base_zpe
-        l3energy = 0. - base_l3energy - base_zpe
+        energy = 0. - (base_energy + base_zpe)
+        l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
             energy += get_energy(parent[prods], pr, 0, par.par['high_level'])
             zpe = get_zpe(parent[prods], pr, 0, par.par['high_level'])
             energy += zpe
-            status, l3energy = get_l3energy(pr, par)
+            status, l3e = get_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
             else:
-                l3energy = ((l3energy + zpe) - (base_l3energy + base_zpe)) 
+                l3energy += l3e + zpe  
         prod_energies[prods] = energy * constants.AUtoKCAL
         prod_l3energies[prods] = l3energy * constants.AUtoKCAL
 

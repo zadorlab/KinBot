@@ -16,7 +16,7 @@ class RAdditionCO(GeneralReac):
 
         if step == 0:
             fval = 2.2
-            self.set_bond(0, 1, fval)
+            self.set_bond(0, 1, fval, change)
 
         self.clean_constraints(change, fix)
 

@@ -16,8 +16,8 @@ class DielsAlder(GeneralReac):
 
         if step ==0 :
             fval = 2.2
-            self.set_bond(2, 3, fval)
-            self.set_bond(4, 5, fval)
+            self.set_bond(2, 3, fval, change)
+            self.set_bond(4, 5, fval, change)
         
         self.clean_constraints(change, fix)
         

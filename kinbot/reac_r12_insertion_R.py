@@ -23,9 +23,9 @@ class R12Insertion(GeneralReac):
             if self.species.atom[self.instance[0]] == 'O' or self.species.atom[self.instance[2]] == 'O': 
                 fval[1] = 1.8
 
-            self.set_bond(0, 1, -999, change, step=step+1, stmax=self.step_max, findist=fval[0], geom=geom)
-            self.set_bond(1, 2, -999, change, step=step+1, stmax=self.step_max, findist=fval[1], geom=geom)
-            self.set_bond(2, 0, -999, change, step=step+1, stmax=self.step_max, findist=fval[2], geom=geom)
+            self.set_bond(0, 1, -999, change, step=step+1, stmax=self.max_step, findist=fval[0], geom=geom)
+            self.set_bond(1, 2, -999, change, step=step+1, stmax=self.max_step, findist=fval[1], geom=geom)
+            self.set_bond(2, 0, -999, change, step=step+1, stmax=self.max_step, findist=fval[2], geom=geom)
 
         self.clean_constraints(change, fix)
         

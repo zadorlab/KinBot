@@ -176,6 +176,10 @@ class Parameters:
             # MASTER EQUATION
             # Which ME code to use:
             'me_code': 'mess',  # or mesmer
+            # collision parameters
+            'collider': 'He',
+            'epsilon': 0.0,
+            'sigma': 0.0,
             # MESS specific keywords
             'mess_command': 'mess',
             'TemperatureList': [500+100*i for i in range(16)],
@@ -188,14 +192,8 @@ class Parameters:
             'EnergyRelaxationFactor': 200,
             'EnergyRelaxationPower': .85,
             'EnergyRelaxationExponentCutoff': 15,
-            'Epsilons': [7.08, 310.387],
-            'Sigmas': [2.576, 6.000],
-            'Masses': [4.0, 87.0],
             # MESMER specific keywords
             'mesmer_command': 'mesmer',
-
-            # for development
-            'test': 0,
         }
 
         if self.input_file is not None:

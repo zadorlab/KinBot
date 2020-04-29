@@ -2075,6 +2075,8 @@ class ReactionFinder:
             for instance in self.reactions[name]:
                 if inst[0] == instance[0] and inst[-1] == instance[-1]:
                     new = 0
+                if inst[0] == instance[-1] and inst[-1] == instance[0]:
+                    new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
                 if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
@@ -2263,7 +2265,7 @@ class ReactionFinder:
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BetaDelta(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'h2_elim':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(H2Elim(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'combinatorial':

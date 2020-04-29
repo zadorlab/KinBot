@@ -322,18 +322,19 @@ class ReactionGenerator:
                     for i in range(self.species.natom):
                         for j in range(self.species.natom):
                             bond_mx[i][j] = max(self.species.bond[i][j], obj.product_bonds[i][j])
+
  
                     err, geom = self.qc.get_qc_geom(instance_name, self.species.natom)
                     ts = StationaryPoint(   instance_name, self.species.charge, self.species.mult,
                                             atom=self.species.atom, geom=geom, wellorts=1)
                     err, ts.energy = self.qc.get_qc_energy(instance_name)
-                    err, ts.zpe = self.qc.get_qc_zpe(instance_name)
+                    err, ts.zpe = self.qc.get_qc_zpe(instance_name)  #  NEW STOPS HERE 
                     ts.bond = bond_mx
                     ts.find_cycle()
                     ts.find_conf_dihedral()
-                    obj.ts = ts
+                    obj.ts = ts 
                     #do the ts optimization
-                    obj.ts_opt = Optimize(obj.ts, self.par, self.qc)
+                    obj.ts_opt = Optimize(obj.ts, self.par, self.qc) 
                     obj.ts_opt.do_optimization()
           
                     #do the products optimizations

@@ -275,10 +275,10 @@ def postprocess(par, jobs, task, names, n):
     base_zpe = get_zpe(jobs[0], jobs[0], 0, par.par['high_level'])
 
     # list of lists with four elements
-    # 1. reactant chemid
-    # 2. reaction name
-    # 3. products chemid list
-    # 4. reaction barrier height
+    # 0. reactant chemid
+    # 1. reaction name
+    # 2. products chemid list
+    # 3. reaction barrier height
     reactions = []
     #Reactions is empty at this point
 
@@ -461,11 +461,22 @@ def postprocess(par, jobs, task, names, n):
                 ts_l3energies[reac[1]] =  ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
+    logging.info('Energies in kcal/mol, incl. ZPE')
+    
+    for well in wells:
+        logging.info('{1}   {2.2f}'.format(well, well_l3energies[well]))
+    for prod in products:
+        logging.info('{1}   {2.2f}'.format(prod, prod_l3energies[prod]))
+    for ts in ts_l3energies:
+        logging.info('{1}   {2.2f}'.format(ts, ts_l3energies[ts]))
+
+
     if l3done == 1 and len(reactions) > 1:
         well_energies = well_l3energies
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
             reac[3] = ts_l3energies[reac[1]]
+        logging.info('Energies are updated to L3 in ME and PESViewer.')
     
     # if L3 was done, everything below is done with that
     # filter according to tasks
@@ -884,31 +895,6 @@ def create_short_names(wells, products, reactions, barrierless):
        
     return well_short, pr_short, fr_short, ts_short, nobar_short
 
-#duplicate code, may delete function
-def write_header(par, well0):
-    """
-    Create the header block for MESS
-    """
-    # Read the header template
-    header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
-    with open(header_file) as f:
-        tpl = f.read()
-    header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par.par['TemperatureList']]),
-                        PressureList=' '.join([str(pi) for pi in par.par['PressureList']]),
-                        EnergyStepOverTemperature=par.par['EnergyStepOverTemperature'],
-                        ExcessEnergyOverTemperature=par.par['ExcessEnergyOverTemperature'],
-                        ModelEnergyLimit=par.par['ModelEnergyLimit'],
-                        CalculationMethod=par.par['CalculationMethod'],
-                        ChemicalEigenvalueMax=par.par['ChemicalEigenvalueMax'],
-                        Reactant=well0,
-                        EnergyRelaxationFactor=par.par['EnergyRelaxationFactor'],
-                        EnergyRelaxationPower=par.par['EnergyRelaxationPower'],
-                        EnergyRelaxationExponentCutoff=par.par['EnergyRelaxationExponentCutoff'],
-                        Epsilons=' '.join([str(ei) for ei in par.par['Epsilons']]),
-                        Sigmas=' '.join([str(si) for si in par.par['Sigmas']]),
-                        Masses=' '.join([str(mi) for mi in par.par['Masses']]))
-    return header
-
 
 def create_mess_input(par, wells, products, reactions, barrierless,
                       well_energies, prod_energies, parent, uq_n):
@@ -959,13 +945,17 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         ModelEnergyLimit=par.par['ModelEnergyLimit'],
                         CalculationMethod=par.par['CalculationMethod'],
                         ChemicalEigenvalueMax=par.par['ChemicalEigenvalueMax'],
-                        Reactant=well0,
+                        Reactant=well_short[wells[0]],
                         EnergyRelaxationFactor=par.par['EnergyRelaxationFactor'],
                         EnergyRelaxationPower=par.par['EnergyRelaxationPower'],
                         EnergyRelaxationExponentCutoff=par.par['EnergyRelaxationExponentCutoff'],
-                        Epsilons=' '.join([str(ei) for ei in par.par['Epsilons']]),
-                        Sigmas=' '.join([str(si) for si in par.par['Sigmas']]),
-                        Masses=' '.join([str(mi) for mi in par.par['Masses']]))
+                        e_coll=constants.epsilon[par.par['collider']],
+                        s_coll=constants.sigma[par.par['collider']],
+                        m_coll=constants.mass[par.par['collider']],
+                        e_well=par.par['epsilon'],
+                        s_well=par.par['sigma'],
+                        m_well=well0.mass,
+                        )
 
     if uq == 0:
         fi=open('pes.log', 'a')

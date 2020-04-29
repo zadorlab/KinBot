@@ -195,7 +195,6 @@ class HIR:
 
         if(len(ens) > 0):
             a = 1
-            print(type(X), type(np.array(ens)))
             A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
 
             for i, si in enumerate(status):

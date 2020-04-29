@@ -29,7 +29,6 @@ def find_motif(motif, visit, chain, nsteps, current,
     allover = > 0: only atom 'allover' is used for the search
     eqv: array for equvivalent atoms
     """
-    print("motif: {}, visit: {}, chain: {}, nsteps: {}, current: {}, i: {}, previous: {}, motifset: {}, allover: {}, natom: {}, bond: {}, atom: {}, eqv: {}".format(motif, visit, chain, nsteps, current, previous, motifset, allover, natom, bond, atom, eqv))
     if nsteps == -1:
         nsteps = 0
         previous = -1
@@ -59,8 +58,6 @@ def find_motif(motif, visit, chain, nsteps, current,
         for m in motifset:
             if m[nsteps] in eqv_list:
                 return 0
-        print(allover, natom)
-        print(current, len(visit))
         if visit[current] == 1:
             return 0
         if nsteps == len(motif):

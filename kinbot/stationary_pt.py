@@ -114,7 +114,7 @@ class StationaryPoint:
 
         self.find_conf_dihedral()
         self.find_atom_eqv()
-        #self.calc_chiral()
+        self.calc_chiral()
         self.calc_mass()
 
     def calc_mass(self):
@@ -676,7 +676,7 @@ class StationaryPoint:
         """
         Calculate self.chiral. 0 if non-chiral, +1 or -1 if chiral. Each atom gets a label like this.
         """
-
+        print("inside calc chiral")
         self.chiral = np.zeros(self.natom)
 
         # take min of resonance structure bonds
@@ -700,7 +700,6 @@ class StationaryPoint:
             if np.count_nonzero(reduced_bond[i] == 2) > 0:  # has at least one double bond
                 for dlen in range(2, 9, 2):  # up to 8, even number of double bonds in a row
                     motif = ['X' for i in range(dlen + 1)]
-                    #print("in stpt - motif: {}, natom: {}, reducedbond: {}, atom: {}, i: {}, atom_eqv: {}".format(motif, self.natom, reduced_bond, self.atom, i, self.atom_eqv))
                     instances = find_motif.start_motif(motif, self.natom, reduced_bond, self.atom, i, self.atom_eqv)
                     bondpattern = [2 for d in range(dlen)]
                     for instance in instances:

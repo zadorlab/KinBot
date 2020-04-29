@@ -326,13 +326,6 @@ class MESS:
                 dummy = f.read()
             dum = dummy.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
-            barrierless_header = pkg_resources.resource_filename('tpl', 'mess_barrierless_header.tpl')
-            with open(barrierless_header) as f:
-                barrierless_tpl = f.read()
-
-            termol_header = pkg_resources.resource_filename('tpl', 'mess_termol_header.tpl')
-            with open(termol_header) as f:
-                termol_tpl = f.read()
 
             mess_iter = "{0:04d}".format(uq_iter)
             f_out = open('me/mess_%s.inp' %mess_iter, 'w')
@@ -340,9 +333,7 @@ class MESS:
             f_out.write(wells)
             f_out.write(bimols)
             f_out.write(tss)
-            #f_out.write(termol_tpl)
             f_out.write(termols)
-            #f_out.write(barrierless_tpl)
             f_out.write(barrierless)
             f_out.write('\n!****************************************\nEnd ! end kinetics\n')
             f_out.close()

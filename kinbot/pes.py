@@ -214,7 +214,7 @@ def main():
         except ValueError:
             pass
 
-    postprocess(par, jobs, task, names)
+    postprocess(par, jobs, task, names, uq_n)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission
     # read in the molpro energies for the keys in the above three dicts
@@ -1062,7 +1062,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             mess.run(n_uq)
 
     elif uq == 1:
-        while(i<n):
+        while(i < uq_n):
             #list of the strings to write to mess input file
             s = []
             # write the header
@@ -1077,10 +1077,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
             mess=MESS(par, dummy)
             uq_obj=UQ()
-            well_uq = self.par.par['well_uq']
-            barrier_uq = self.par.par['barrier_uq']
-            freq_uq = self.par.par['freq_uq']
-            imagfreq_uq = self.par.par['imagfreq_uq'] 
+            well_uq = par.par['well_uq']
+            barrier_uq = par.par['barrier_uq']
+            freq_uq = par.par['freq_uq']
+            imagfreq_uq =par.par['imagfreq_uq'] 
 
             # write the wells
             s.append('######################')

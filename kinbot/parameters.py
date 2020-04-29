@@ -167,9 +167,9 @@ class Parameters:
             # delete intermetidate files
             'delete_intermediate_files' : 0,
             # Scratch directory
-            'scratch': '/scratch/jzador',
+            'scratch': '',
             # User name
-            'username': 'jzador',
+            'username': '',
             # Max. number of job from user in queue, if negative, ignored
             'queue_job_limit' : -1,
 
@@ -200,6 +200,16 @@ class Parameters:
             # Read the user input and overwrite the user-defined parameters
             self.read_user_input()
 
+        if self.par['scratch'] == '':
+            err = 'Please provide a scratch space location (scratch keyword).'
+            logging.error(err)
+            sys.exit()
+        if self.par['username'] == '':
+            err = 'Please provide a username (username keyword).'
+            logging.error(err)
+            sys.exit()
+           
+
     def read_user_input(self):
         """
         Read the user input file and overwrite the default values
@@ -220,6 +230,7 @@ class Parameters:
             else:
                 err = 'KinBot does not recognize option {} with value {}'
                 logging.error(err.format(key, user_data[key]))
+
 
     def print_parameters(self):
         """

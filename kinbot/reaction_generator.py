@@ -298,7 +298,7 @@ class ReactionGenerator:
                         if e < 0:
                             logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name,st_pt.chemid))
                             self.species.reac_ts_done[index] = -999
-                            rr = -1
+                            err = -1
                         elif e != 0:
                             err = -1
                         else:

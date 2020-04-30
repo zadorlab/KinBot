@@ -115,6 +115,13 @@ class StationaryPoint:
         self.find_conf_dihedral()
         self.find_atom_eqv()
         self.calc_chiral()
+        self.calc_mass()
+
+    def calc_mass(self):
+        """ Calculate mass """
+        self.mass = 0.
+        for i in self.atom:
+            self.mass += constants.mass[i]
 
     def distance_mx(self):
         """ 

@@ -307,7 +307,7 @@ class Optimize:
                     else:
                         time.sleep(1)
             if self.shir == 1:
-                # finilize if no waiting is required or if the hir calcs are done
+                # finalize if no waiting is required or if the hir calcs are done
                 # calculate the symmetry numbers
                 symmetry.calculate_symmetry(self.species)
 

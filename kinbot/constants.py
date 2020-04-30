@@ -1,3 +1,5 @@
+from ase import units
+
 AUtoKCAL = 627.5091809
 AUtoCM = 219474.63068
 CMtoKCAL = 0.0028591
@@ -51,6 +53,26 @@ znumber['C'] = 6
 znumber['N'] = 7
 znumber['O'] = 8
 znumber['S'] = 16
+
+#collision parameters
+# Jasper & Miller, C&F 161, 101-110 (2014)
+# data is expected in CHEMKING format, where
+# sigma is in Angstrom (no need to convert for MESS)
+# epsilon is in epsilon/kB (K), need to be converted to cm-1
+mass['He'] = 4.0
+sigma = {'He': 2.715}  # Angstrom
+epsilon = {'He': 11.442}  # e/kB 
+
+mass['N2'] = mass['N'] * 2.
+sigma['N2'] = 3.610 
+epsilon['N2'] = 97.839
+
+mass['Ar'] = 40.
+sigma['Ar'] = 3.462
+epsilon['Ar'] = 127.697
+
+for e in epsilon:
+    epsilon[e] = epsilon[e] * units.kB / units.invcm
 
 # submission keywords
 qsubmit = {'pbs': 'qsub'}

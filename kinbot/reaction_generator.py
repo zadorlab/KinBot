@@ -276,7 +276,8 @@ class ReactionGenerator:
                                 prod_stereochem = prod_inchi.split('/t')[1].split('/')[0]
                                 prod_info = [prod_chemid, prod_chemicalFormula, prod_inchi, prod_stereochem]
                                 stpt_inchis.append(prod_info)
-
+                        print("stpt_inchis array: {}".format(stpt_inchis))
+                        """
                         inchiFile = open('inchis.log','w')
                         well0_chemid = stpt_inchis[0][0]
                         well0_chemicalFormula = stpt_inchis[0][1]
@@ -290,6 +291,7 @@ class ReactionGenerator:
                                 if str(well0_stereochem) != str(prod_stereochem):
                                     logging.warning("\t\t!WARNING! Stereochemistry for product {} differs from the initial well ({}) for reaction {}".format(prod_chemid, well0_chemid, instance_name))
                         inchiFile.close()
+                        """
                     except ImportError:
                         logging.error("Pybel could not be imported, inchis cannot be created")
                     err = 0

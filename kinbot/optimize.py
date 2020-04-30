@@ -124,14 +124,33 @@ class Optimize:
                             well0Chiral_str = ' '.join(str(val) for val in well0_chiral)
                             lowConfChiral_str = ' '.join(str(val) for val in lowConfChiral)
                             print("{}\nwell0: {}\nlow conf: {}".format(self.species.chemid, well0Chiral_str, lowConfChiral_str))
-            
+                            npe = np.array(energies)
+                            badconfs = []
+                            #if well0Chiral_str != lowConfChiral_str:
+                            check = 1
+                            while check == 1:
+                                #logging.info("Low energy conformer chirality differs from well chirality")
+                                #logging.info("\tChecking conformation of other conformers")
+                                print("Checking conformation of other conformers")
+                                for i, conf in enumerate(conformers):
+                                    conf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                                                   natom=self.species.natom, atom=self.species.atom, geom=conf)
+                                    conf_stpt.characterize()
+                                    conf_stpt.bond = self.species.bond
+                                    conf_stptChiral = conf_stpt.calc_chiral()
+                                    conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
+                                    if conf_stptChiralStr == well0Chiral_str:
+                                        print("conf {} matches chirality".format(i))
+                                    else:
+                                        print("conf {} does NOT match chirality".format(i))
+                                        badconfs.append(i)
+                                print(badconfs)
+                                check = 0
                             
                             #Implement the following
                             # 1. check next conf chirality
                             # 2. if chirality changes remove conf & energy + create log
                             # 3. if lowest E conf changes chirality check array for lowest energy & report lowest E as new conf
                             test = 1
-                            npe = np.array(energies)
                             if test == 1:
                             #if well0Chiral_str != lowConfChiral_str:
                                 print("reading through conformers")

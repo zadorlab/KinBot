@@ -297,7 +297,6 @@ class ReactionGenerator:
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
                             logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name,st_pt.chemid))
-                            print("lala, line 301")
                             self.species.reac_ts_done[index] = -999
                             err = -1
                         elif e != 0:

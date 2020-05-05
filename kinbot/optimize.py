@@ -236,7 +236,7 @@ class Optimize:
                                                 self.shigh = -1
                                                 self.shir = -1
                                             else:
-                                                logging.info('\t\tLower energy found, but readched max restart for {}'.format(self.species.name))
+                                                logging.info('\t\tLower energy found, but reached max restart for {}'.format(self.species.name))
                                                 self.shir = 1
                                         else:
                                             self.shir = 1
@@ -267,7 +267,6 @@ class Optimize:
                 fr_file = self.fr_file_name(self.par.par['high_level'])
                 hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
-
 
                 # write the molpro input and read the molpro energy, if available
                 if self.par.par['single_point_qc'] == 'molpro':

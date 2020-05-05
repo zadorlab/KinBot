@@ -499,7 +499,6 @@ class QuantumChemistry:
             if check != 0: return 0
         else:
             if check == 'running': return 0
-        
 
         try: 
             if self.par.par['queue_template'] == '':

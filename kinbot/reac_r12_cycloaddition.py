@@ -6,7 +6,7 @@ class R12Cycloaddition(GeneralReac):
     scan = 1
     skip = 0
     par = Parameters()
-    max_step = par.par['scan_step']
+    max_step = par.par['scan_step']    
 
     def get_constraints(self, step, geom):
         fix = []

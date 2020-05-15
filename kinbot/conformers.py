@@ -7,7 +7,7 @@ import numpy as np
 
 from kinbot import geometry
 from kinbot import zmatrix
-#from kinbot.stationary_pt import StationaryPoint
+
 
 class Conformers:
     """
@@ -205,13 +205,15 @@ class Conformers:
         This is a recursive routine to generate them.
         rotor: the rotor number in the order it was discovered
         """
-        
+
         if self.cyc_conf == 0:
             cycles = 1
         else:
             cycles = self.cyc_conf
-       
-        theoretical_confs = np.power(3,len(self.species.conf_dihed))*cycles
+        # what is the value of cycles
+        # what is value of all things associated w/ conf generation
+        # what is length of conf_dihed?
+        theoretical_confs = np.power(3, len(self.species.conf_dihed))*cycles
         if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
             self.generate_conformers_random_sampling(cart)
             return 0
@@ -227,7 +229,7 @@ class Conformers:
         rotor += 1
         cart0 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart0)
-        
+
         zmat[3][2] += 120.
         for i in range(4, self.species.natom):
             if zmat_ref[i][2] == 4:
@@ -245,7 +247,6 @@ class Conformers:
                 zmat[i][2] += 120.
         cart2 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart2)
-
         return 0
 
     def generate_conformers_random_sampling(self, ini_cart):
@@ -272,7 +273,6 @@ class Conformers:
                 cart = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
             self.qc.qc_conf(self.species, cart, self.conf)
             self.conf += 1
-
         return 0
 
     def test_conformer(self, conf):
@@ -312,7 +312,7 @@ class Conformers:
                 self.conf_status.append(-1)
         status = self.conf_status
 
-        lowest_conf = str(0).zfill(self.zf) # the index of the lowest conf, to be updated as we go
+        lowest_conf = str(0).zfill(self.zf)  # the index of the lowest conf, to be updated as we go
 
         while 1:
             # check if conformational search is finished
@@ -336,13 +336,13 @@ class Conformers:
                         final_geoms.append(geom)
                         energies.append(energy)
                         if energy < lowest_energy:
-                            lowest_conf = str(ci).zfill(self.zf) 
+                            lowest_conf = str(ci).zfill(self.zf)
                             lowest_energy = energy
                             lowest_e_geom = geom
                     else:
                         energies.append(0.)
                         final_geoms.append(np.zeros((self.species.natom, 3)))
-               
+
                 self.write_profile(status, final_geoms, energies)
 
                 return 1, lowest_conf, lowest_e_geom, lowest_energy

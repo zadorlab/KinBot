@@ -6,7 +6,6 @@ class GeneralReac:
     skip = -1
     dihstep = -1
 
-
     def __init__(self, species, qc, par, instance, instance_name):
         self.species = species
         self.ts = None

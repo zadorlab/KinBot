@@ -15,7 +15,6 @@ import sys
 import os
 import logging
 import datetime
-import time
 
 from kinbot import filecopying
 from kinbot import license_message
@@ -76,7 +75,6 @@ def main():
     if not os.path.exists('me'):
         os.mkdir('me')
 
-
     if par.par['pes'] and par.par['specific_reaction']:
         logging.error('Specific reaction cannot be searched in PES mode.')
         return
@@ -86,10 +84,6 @@ def main():
 
     if uq == 1:
         uq_n = par.par['uq_n']
-        well_uq = par.par['well_uq']
-        barrier_uq = par.par['barrier_uq']
-        freq_uq = par.par['freq_uq']
-        imagfreq_uq = par.par['imagfreq_uq']
 
     # initialize the reactant
     well0 = StationaryPoint('well0',
@@ -115,13 +109,12 @@ def main():
 
     # initialize the qc instance
     qc = QuantumChemistry(par)
-
-    #only run filecopying if PES is turned on
-    #if par.par['pes']:
-        # check if this well was calcualted before in another directory
-        # this flag indicates that this kinbot run
-        # should wait for the information from another
-        # kinbot run to become available and copy the necessary information
+    # only run filecopying if PES is turned on
+    # if par.par['pes']:
+    # check if this well was calcualted before in another directory
+    # this flag indicates that this kinbot run
+    # should wait for the information from another
+    # kinbot run to become available and copy the necessary information
     #    wait_for_well = 1
     #    while wait_for_well:
     #        wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
@@ -168,8 +161,8 @@ def main():
     if well_opt.shigh == -999:
         logging.error('Error with high level optimization of initial structure.')
         return
-    
-    #Only check for information if PES is turned on        
+
+    # Only check for information if PES is turned on
     if par.par['pes']:
         # check if the information on this well has to be copied to a database
         filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
@@ -203,17 +196,17 @@ def main():
             logging.error('Cannot recognize uq code {}'.format(par.par['uq']))
     else:
         logging.info('ME turned off')
-    
-    #TO DO: CODE UQ into MESMER
+
+    # TO DO: CODE UQ into MESMER
     mesmer = MESMER(par, well0)
     mesmer.write_input()
 
     if par.par['me'] == 1:
         logging.info('Starting Master Equation calculations')
         if par.par['me_code'] == 'mess':
-                mess.run(uq_n)
+            mess.run(uq_n)
 
-   #TO DO: FINISH CODING UQ INTO MESMER
+        # TO DO: FINISH CODING UQ INTO MESMER
         elif par.par['me_code'] == 'mesmer':
             mesmer.run()
         else:

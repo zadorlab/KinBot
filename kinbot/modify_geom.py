@@ -38,13 +38,13 @@ class cost_function():
             j = coord[1]
             d = coord[2]
             weight = coord[3]
-            dc = (x[3*i] - x[3*j])**2 + (x[3*i+1] - x[3*j+1])**2 + (x[3*i+2] - x[3*j+2])**2
+            dc = (x[3 * i] - x[3 * j]) ** 2 + (x[3 * i + 1] - x[3 * j + 1]) ** 2 + (x[3 * i + 2] - x[3 * j + 2]) ** 2
             if len(coord) == 5:
                 if dc < d:
                     # add the one-sided potential
-                    e += ((dc - d) * weight)**2
+                    e += ((dc - d) * weight) ** 2
             else:
-                e += ((dc - d) * weight)**2
+                e += ((dc - d) * weight) ** 2
         return e
 
     def gradient(self, x):
@@ -54,24 +54,24 @@ class cost_function():
             j = coord[1]
             d = coord[2]
             weight = coord[3]
-            dc = (x[3*i] - x[3*j])**2 + (x[3*i+1] - x[3*j+1])**2 + (x[3*i+2] - x[3*j+2])**2
+            dc = (x[3 * i] - x[3 * j]) ** 2 + (x[3 * i + 1] - x[3 * j + 1]) ** 2 + (x[3 * i + 2] - x[3 * j + 2]) ** 2
             if len(coord) == 5:
                 if dc < d:
-                    grad[3*i] += 2 * ((dc - d) * weight) * 2 * (x[3*i] - x[3*j])
-                    grad[3*i+1] += 2 * ((dc - d) * weight) * 2 * (x[3*i+1] - x[3*j+1])
-                    grad[3*i+2] += 2 * ((dc - d) * weight) * 2 * (x[3*i+2] - x[3*j+2])
+                    grad[3 * i] += 2 * ((dc - d) * weight) * 2 * (x[3 * i] - x[3 * j])
+                    grad[3 * i + 1] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 1] - x[3 * j + 1])
+                    grad[3 * i + 2] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 2] - x[3 * j + 2])
 
-                    grad[3*j] += 2 * ((dc - d) * weight) * 2 * (x[3*i] - x[3*j]) * -1
-                    grad[3*j+1] += 2 * ((dc - d) * weight) * 2 * (x[3*i+1] - x[3*j+1]) * -1
-                    grad[3*j+2] += 2 * ((dc - d) * weight) * 2 * (x[3*i+2] - x[3*j+2]) * -1
+                    grad[3 * j] += 2 * ((dc - d) * weight) * 2 * (x[3 * i] - x[3 * j]) * -1
+                    grad[3 * j + 1] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 1] - x[3 * j + 1]) * -1
+                    grad[3 * j + 2] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 2] - x[3 * j + 2]) * -1
             else:
-                grad[3*i] += 2 * ((dc - d) * weight) * 2 * (x[3*i] - x[3*j])
-                grad[3*i+1] += 2 * ((dc - d) * weight) * 2 * (x[3*i+1] - x[3*j+1])
-                grad[3*i+2] += 2 * ((dc - d) * weight) * 2 * (x[3*i+2] - x[3*j+2])
+                grad[3 * i] += 2 * ((dc - d) * weight) * 2 * (x[3 * i] - x[3 * j])
+                grad[3 * i + 1] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 1] - x[3 * j + 1])
+                grad[3 * i + 2] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 2] - x[3 * j + 2])
 
-                grad[3*j] += 2 * ((dc - d) * weight) * 2 * (x[3*i] - x[3*j]) * -1
-                grad[3*j+1] += 2 * ((dc - d) * weight) * 2 * (x[3*i+1] - x[3*j+1]) * -1
-                grad[3*j+2] += 2 * ((dc - d) * weight) * 2 * (x[3*i+2] - x[3*j+2]) * -1
+                grad[3 * j] += 2 * ((dc - d) * weight) * 2 * (x[3 * i] - x[3 * j]) * -1
+                grad[3 * j + 1] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 1] - x[3 * j + 1]) * -1
+                grad[3 * j + 2] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 2] - x[3 * j + 2]) * -1
 
         return grad
 
@@ -106,7 +106,7 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
 
     Bond is the bond matrix of the molecule
     """
- 
+
     start_time = time.time()
     logging.debug('Starting coordinate modification for {}'.format(name))
     logging.debug('Changes:')
@@ -126,7 +126,7 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
         f_out = open(fname, 'w')
 
     new_geom = copy.deepcopy(geom)
-    step = append_geom(species.natom, step, 0., species.atom, new_geom, np.zeros((species.natom*3)), atoms_list, f_out=f_out)
+    step = append_geom(species.natom, step, 0., species.atom, new_geom, np.zeros((species.natom * 3)), atoms_list, f_out=f_out)
 
     # change dihedrals, if necessary
     for ci in changes:
@@ -144,7 +144,7 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
                     zmat[i][2] += dih_diff
             new_geom = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, species.natom, species.atom, zmatorder)
             # write_zmat(zmat_atom, zmat_ref, zmat, new_geom, species.atom)
-            step = append_geom(species.natom, step, 0., species.atom, new_geom, np.zeros((species.natom*3)), atoms_list, f_out=f_out)
+            step = append_geom(species.natom, step, 0., species.atom, new_geom, np.zeros((species.natom * 3)), atoms_list, f_out=f_out)
         # change angles, if necessary
         if len(ci) == 4:
             # original angle in radians
@@ -168,18 +168,18 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
             else:
                 rot_ax = np.cross(v1, v2)
 
-            rot_ax = rot_ax/np.linalg.norm(rot_ax)
+            rot_ax = rot_ax / np.linalg.norm(rot_ax)
             # rotate all the atoms on the side of the last atom
             st, ats, ats2 = divide_atoms(ci[2], ci[1], bond, species.natom, species.atom)
             if not st:
                 break
             for atj in ats:
-                new_geom[atj] = perform_rotation(new_geom[atj], new_geom[ci[1]], rot_ax, new_angle-orig_angle)
-                step = append_geom(species.natom, step, 1., species.atom, new_geom, np.zeros((species.natom*3)), atoms_list, f_out=f_out)
+                new_geom[atj] = perform_rotation(new_geom[atj], new_geom[ci[1]], rot_ax, new_angle - orig_angle)
+                step = append_geom(species.natom, step, 1., species.atom, new_geom, np.zeros((species.natom * 3)), atoms_list, f_out=f_out)
 
     coords = get_coords(species, bond, new_geom, changes, 0)
     # optimize the geometry to meet the coords list
-    x0 = np.reshape(new_geom, 3*species.natom)
+    x0 = np.reshape(new_geom, 3 * species.natom)
     cost_fct = cost_function(coords)
     logging.debug('Starting BFGS')
     gs = ''  # initial geomtry string
@@ -249,7 +249,7 @@ def control_changes(species, name, geom, new_geom, changes, bond):
 
     # check if the bond lengths are good:
     for i in range(species.natom - 1):
-        for j in range(i+1, species.natom):
+        for j in range(i + 1, species.natom):
             if bond[i][j] > 0:
                 is_change = 0
                 for ci in changes:
@@ -268,7 +268,7 @@ def control_changes(species, name, geom, new_geom, changes, bond):
 
     # check if non-bonded atoms are too close:
     for i in range(species.natom - 1):
-        for j in range(i+1, species.natom):
+        for j in range(i + 1, species.natom):
             if bond[i][j] == 0:
                 dist = np.linalg.norm(new_geom[i] - new_geom[j])
                 min = constants.st_bond[''.join(sorted([species.atom[i], species.atom[j]]))]
@@ -310,8 +310,8 @@ def get_coords(species, bond, geom, changes, mode):
     natom = species.natom
     atom = species.atom
     coords = []
-    for i in range(natom-1):
-        for j in range(i+1, natom):
+    for i in range(natom - 1):
+        for j in range(i + 1, natom):
             is_change = 0  # the distance from i to j needs to be changed
             change = []
             for ci in changes:
@@ -320,25 +320,25 @@ def get_coords(species, bond, geom, changes, mode):
                     change = ci
             if is_change:
                 if len(change) == 3:
-                    coords.append([i, j, change[-1]**2, 1.])
+                    coords.append([i, j, change[-1] ** 2, 1.])
                 elif len(change) == 4:
                     # calculate the bond length that corresponds to the new angle
-                    b1 = np.linalg.norm(geom[i]-geom[change[1]])
-                    b2 = np.linalg.norm(geom[j]-geom[change[1]])
+                    b1 = np.linalg.norm(geom[i] - geom[change[1]])
+                    b2 = np.linalg.norm(geom[j] - geom[change[1]])
                     a = np.radians(change[-1])
-                    d = b1**2 + b2**2 - 2*b1*b2*np.cos(a)
+                    d = b1 ** 2 + b2 ** 2 - 2 * b1 * b2 * np.cos(a)
                     coords.append([i, j, d, 10])
                 elif len(change) == 5:
                     # take the current interatomic distance
-                    d = np.linalg.norm(geom[i]-geom[j])**2
+                    d = np.linalg.norm(geom[i] - geom[j]) ** 2
                     coords.append([i, j, d, 10])
             else:
                 if mode == 0:
-                    d = np.linalg.norm(geom[i]-geom[j])**2
-                    d_min = (constants.st_bond[''.join(sorted([atom[i], atom[j]]))]*1.2)**2
+                    d = np.linalg.norm(geom[i] - geom[j]) ** 2
+                    d_min = (constants.st_bond[''.join(sorted([atom[i], atom[j]]))] * 1.2) ** 2
                     if np.sqrt(d) < 4.:  # use a cutoff of 4 angstroms
                         if bond[i][j] > 0:
-                            coords.append([i, j, d, 1./d])  # use a larger weight for bonds
+                            coords.append([i, j, d, 1. / d])  # use a larger weight for bonds
                         else:
                             # check if i and j have the same neighbor
                             same_neighbor = 0
@@ -347,9 +347,9 @@ def get_coords(species, bond, geom, changes, mode):
                                     if bond[i][k] > 0 and bond[j][k] > 0:
                                         same_neighbor = 1
                             if same_neighbor:
-                                coords.append([i, j, d, .5/d])  # this is a shallow two-sided potential
+                                coords.append([i, j, d, .5 / d])  # this is a shallow two-sided potential
                             else:
-                                coords.append([i, j, d_min, 1./d_min, 1])  # this is stronger one-sided potential
+                                coords.append([i, j, d_min, 1. / d_min, 1])  # this is stronger one-sided potential
 
     return coords
 
@@ -373,7 +373,7 @@ def divide_atoms(ati, atj, bond, natom, atom):
     division = [ati]
 
     # check for cycles and cut them in half
-    for ring_size in range(3, natom+1):
+    for ring_size in range(3, natom + 1):
         motif = ['X' for at in range(ring_size)]
         inst = find_motif.start_motif(motif, natom, bond, atom, -1, [])
         for ins in inst:
@@ -382,7 +382,7 @@ def divide_atoms(ati, atj, bond, natom, atom):
                 if ins[0] == ati and ins[-1] == atj:
                     forbidden.append(ins[ring_size // 2])
                 if ins[0] == atj and ins[-1] == ati:
-                    forbidden.append(ins[- ring_size//2 - 1])
+                    forbidden.append(ins[- ring_size // 2 - 1])
         if len(inst) == 0:
             break
 
@@ -406,13 +406,13 @@ def perform_rotation(at, center, axis, angle):
     at -= center
 
     # create rotation matrix:
-    a = np.cos(angle/2)
-    b, c, d = -axis*np.sin(angle/2)
-    aa, bb, cc, dd = a*a, b*b, c*c, d*d
-    bc, ad, ac, ab, bd, cd = b*c, a*d, a*c, a*b, b*d, c*d
-    rot_matrix = ([[aa+bb-cc-dd, 2*(bc+ad),   2*(bd-ac)],
-                   [2*(bc-ad),   aa+cc-bb-dd, 2*(cd+ab)],
-                   [2*(bd+ac),   2*(cd-ab),   aa+dd-bb-cc]])
+    a = np.cos(angle / 2)
+    b, c, d = -axis * np.sin(angle / 2)
+    aa, bb, cc, dd = a * a, b * b, c * c, d * d
+    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+    rot_matrix = ([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
+                   [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
+                   [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
 
     # perform the rotation:
     at = np.dot(rot_matrix, at)

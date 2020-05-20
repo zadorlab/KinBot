@@ -89,7 +89,20 @@ class Conformers:
                 # number of independent dihedrals
                 nd = len(dihs) - 3
                 # number of conformers for this ring:
-                nc = np.power(3, nd)
+                # 4, 5, 6 member rings nc = 3 ^ nd
+                # 7+ member rings = nc from (ring size - 1) + (2 ^ nd)
+                # ex: 7 member ring = 6 member ring nc + 2 ^ 4 = 27 + 16 = 43
+                if cyc < 7:
+                    nc = np.power(3, nd)
+                else:
+                    baseConf = 27  # 3 ^ 3
+                    nc = baseConf
+                    exp = 4
+                    while exp <= nd:
+                        conf_add = np.power(2, exp)
+                        nc = nc + conf_add
+                        exp = exp + 1
+                             
                 for i in range(nc):
                     self.cyc_dih_atoms.append(random_dihs)
                     # values the dihedrals will be modified to

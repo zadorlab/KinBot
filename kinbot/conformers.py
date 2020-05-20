@@ -317,6 +317,10 @@ class Conformers:
 
         while 1:
             # check if conformational search is finished
+            if self.species.wellorts:
+                name = self.species.name
+            else:
+                name = self.species.chemid
             for i, si in enumerate(status):
                 if si == -1:
                     status[i] = self.test_conformer(i)[1]
@@ -345,6 +349,7 @@ class Conformers:
                         final_geoms.append(np.zeros((self.species.natom, 3)))
                
                 self.write_profile(status, final_geoms, energies)
+                logging.info('Conformer {} is the lowest energy {} conformer'.format(lowest_conf, name))
                 return 1, lowest_conf, lowest_e_geom, lowest_energy
 
             else:

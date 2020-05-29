@@ -126,10 +126,10 @@ class MESS:
         """
 
         uq_obj = UQ()
-        well_uq = float(self.par.par['well_uq'])
-        barrier_uq = float(self.par.par['barrier_uq'])
-        freq_uq = float(self.par.par['freq_uq'])
-        imagfreq_uq = float(self.par.par['imagfreq_uq'])
+        well_uqVal = float(self.par.par['well_uq'])
+        barrier_uqVal = float(self.par.par['barrier_uq'])
+        freq_uqVal = float(self.par.par['freq_uq'])
+        imagfreq_uqVal = float(self.par.par['imagfreq_uq'])
         qc = qc
 
         if uq == 1:

@@ -113,24 +113,6 @@ class Optimize:
                             else:
                                 name = self.species.chemid
 
-                            #create stationary points for chirality check
-                            well0_stpt = StationaryPoint(name='well0', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                natom=self.species.natom, atom=self.species.atom, geom=self.species.geom)
-                            lowConf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=geom)
-
-                            #characterize & generate chirality label for well0 & conf
-                            well0_stpt.characterize()
-                            well0_stpt.bond = self.species.bond
-                            well0_chiral = well0_stpt.calc_chiral()
-
-                            lowConf_stpt.characterize()
-                            lowConf_stpt.bond = self.species.bond
-                            lowConfChiral = lowConf_stpt.calc_chiral()
-                            well0Chiral_str = ' '.join(str(val) for val in well0_chiral)
-                            lowConfChiral_str = ' '.join(str(val) for val in lowConfChiral)
-                            
-                            if lowConfChiral_str != well0Chiral_str:
-                                logging.info("Lowest energy conformer {} does not match well0 chirality".format(name))
-                            else:
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
                             # save lowest energy conformer energy

@@ -15,11 +15,13 @@ class MESS:
     Class that read and writes MESS files
     UQ analysis parameter (uq) can be used to generate 'n' number of mess input files
     with the following parameters randomized within the alloted UQ tolerance.
-    UQ tolerance is set default values as follows
+    UQ tolerance is set to the default values as follows
        1. Stationary point energy (E+ZPE, +/- 0.5 kcal/mol)
        2. Barrier (E+ZPE, +/- 1.0 kcal/mol)
        3. Frequencies (cm-1 +/- 20%)
     Default parameters were chosen/based on the following paper:  Goldsmith, C. F. PCI, 2013, 177-185
+    New parameters can be set within the input json file with the following keywords
+    See parameters.py file for more information.
     """
 
     def __init__(self, par, species):
@@ -124,10 +126,10 @@ class MESS:
         """
 
         uq_obj = UQ()
-        well_uq = self.par.par['well_uq']
-        barrier_uq = self.par.par['barrier_uq']
-        freq_uq = self.par.par['freq_uq']
-        imagfreq_uq = self.par.par['imagfreq_uq']
+        well_uq = float(self.par.par['well_uq'])
+        barrier_uq = float(self.par.par['barrier_uq'])
+        freq_uq = float(self.par.par['freq_uq'])
+        imagfreq_uq = float(self.par.par['imagfreq_uq'])
         qc = qc
 
         if uq == 1:
@@ -178,7 +180,7 @@ class MESS:
         termol_e_iter = []
         barrierless_e_iter = []
         
-        while (uq_iter < uq_n):
+        for uq_iter in range(0, uq_n):
             fi = open('uq.log', 'a')
             fi.write("uq iteration {}".format(uq_iter))
             fi.close()
@@ -216,11 +218,6 @@ class MESS:
 
                 barrierless_fr_iter = []
                 barrierless_name = []
-
-                well_uqVal = float(well_uq)
-                freq_uqVal = float(freq_uq)
-                imagfreq_uqVal = float(imagfreq_uq)
-                barrier_uqVal = float(barrier_uq)
 
                 well_energyAdd = uq_obj.calc_energyUQ(well_uqVal)
                 well_freqFactor = uq_obj.calc_freqUQ(freq_uqVal)
@@ -356,7 +353,6 @@ class MESS:
             f_out.write('\n!****************************************\nEnd ! end kinetics\n')
             f_out.close()
 
-            uq_iter = uq_iter + 1
         # uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
         # uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
         # uq_obj.norm_energy(prod_e_iter, "prod", prod_names, uq_n)  # working

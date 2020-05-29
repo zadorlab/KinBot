@@ -88,7 +88,20 @@ class Conformers:
                 # number of independent dihedrals
                 nd = len(dihs) - 3
                 # number of conformers for this ring:
-                nc = np.power(3, nd)
+                # 4, 5, 6 member rings nc = 3 ^ nd
+                # 7+ member rings = nc from (ring size - 1) + (2 ^ nd)
+                # ex: 7 member ring = 6 member ring nc + 2 ^ 4 = 27 + 16 = 43
+                if cyc < 7:
+                    nc = np.power(3, nd)
+                else:
+                    baseConf = 27  # 3 ^ 3
+                    nc = baseConf
+                    exp = 4
+                    while exp <= nd:
+                        conf_add = np.power(2, exp)
+                        nc = nc + conf_add
+                        exp = exp + 1
+                             
                 for i in range(nc):
                     self.cyc_dih_atoms.append(random_dihs)
                     # values the dihedrals will be modified to
@@ -316,6 +329,10 @@ class Conformers:
 
         while 1:
             # check if conformational search is finished
+            if self.species.wellorts:
+                name = self.species.name
+            else:
+                name = self.species.chemid
             for i, si in enumerate(status):
                 if si == -1:
                     status[i] = self.test_conformer(i)[1]
@@ -344,6 +361,7 @@ class Conformers:
                         final_geoms.append(np.zeros((self.species.natom, 3)))
 
                 self.write_profile(status, final_geoms, energies)
+                logging.info('Conformer {} is the lowest energy {} conformer'.format(lowest_conf, name))
 
                 return 1, lowest_conf, lowest_e_geom, lowest_energy
 

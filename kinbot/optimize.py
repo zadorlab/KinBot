@@ -11,7 +11,7 @@ from kinbot.conformers import Conformers
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
 from kinbot import reader_gauss
-
+from kinbot.stationary_pt import StationaryPoint
 
 class Optimize:
     """
@@ -97,7 +97,6 @@ class Optimize:
                     # do open chain part if cyclic part is done
                     if self.sconf == -1:
                         # open chain part has not started yet
-                        print(len(self.species.confs.cyc_conf_geoms))
                         for geom in self.species.confs.cyc_conf_geoms:
                             # take all the geometries from the cyclic part
                             # generate the conformers for the current geometry
@@ -107,9 +106,13 @@ class Optimize:
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        status, lowest_conf, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
-
+                        status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                         if status == 1:
+                            if self.species.wellorts:
+                                name = self.species.name
+                            else:
+                                name = self.species.chemid
+
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
                             # save lowest energy conformer energy
@@ -123,7 +126,7 @@ class Optimize:
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
                 if self.par.par['conformer_search'] == 1:
-                    status, lowest_conf, geom, low_energy = self.species.confs.check_conformers(wait=self.wait)
+                    status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                 while self.restart < self.max_restart:
                     # do the high level calculations
                     if self.par.par['high_level'] == 1:

@@ -285,7 +285,7 @@ class ReactionGenerator:
                             prod_chemicalFormula = inchi[1]
                             if well0_chemicalFormula == prod_chemicalFormula:
                                 if str(well0_stereochem) != str(prod_stereochem):
-                                    logging.warning("\t\t!WARNING! Stereochemistry for product {} differs from the initial well ({}) for reaction {}".format(prod_chemid, well0_chemid, instance_name))
+                                    logging.warning("\t!WARNING! Stereochemistry for product {} differs from the initial well ({}) for reaction {}".format(prod_chemid, well0_chemid, instance_name))
                         inchiFile.close()
                     except ImportError:
                         logging.error("Could not import pybel, inchi labels not created for stationary points")

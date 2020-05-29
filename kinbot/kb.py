@@ -184,14 +184,14 @@ def main():
     # check to see if uq analysis is turned on
     if par.par['me'] == 1:
         logging.info('ME turned on')
+        mess = MESS(par, well0)
+        mess.write_input(uq, uq_n, qc)
         if uq == 0:
-            logging.info('uq turned off')
-            mess = MESS(par, well0)
-            mess.write_input(uq, uq_n, qc)
+            logging.info('uncertainty analysis turned off')
         elif uq == 1:
-            logging.info('uq turned on')
-            mess = MESS(par, well0)
-            mess.write_input(uq, uq_n, qc)
+            logging.info('uncertainty analysis turned on')
+            if uq_n < 500:
+                logging.warning('The UQ sample size of {} iterations is too low'.format(uq_n))
         else:
             logging.error('Cannot recognize uq code {}'.format(par.par['uq']))
     else:

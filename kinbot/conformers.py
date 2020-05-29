@@ -86,8 +86,32 @@ class Conformers:
                 # with N the number of dihedrals in the ring
                 random_dihs = random.sample(dihs, len(dihs) - 3)
                 # number of independent dihedrals
+                
                 nd = len(dihs) - 3
+                # 4mem = 3 ^ (4 - 3) = 3 ^ 1 = 3 - ok
+                # 5mem = 3 ^ (5 - 3) = 3 ^ 2 = 9 - ok
+                # 6mem = 3 ^ (6 - 3) = 3 ^ 3 = 27 - ok
+
+                # 7mem = 27 + 2 ^ 4 = 27 + 16 = 43 ok
+                # 8mem = 43 + 2 ^ 5 = 43 + 32 = 75 ok
+                # 9mem = 75 + 2 ^ 6 = 75 + 64 = 138 ok
+                # 10mem = 138 + 2 ^ 7 = 138 + 128 = 266 ok
+                # 11mem = 266 + 2 ^ 8 = 266 + 256 = 522 ok
+                # 12mem = 522 + 2 ^ 9 = 522 + 512 = 1034 ok
+  
+                if cyc < 7:
+                    nc = np.power(3, nd)
+                else:
+                    baseConf = 27  # 3 ^ 3
+                    nc = baseConf
+                    exp = 4
+                    while exp <= nd:
+                        conf_add = np.power(2, exp)
+                        nc = nc + conf_add
+                        exp = exp + 1
+                
                 # number of conformers for this ring:
+                
                 # 4, 5, 6 member rings nc = 3 ^ nd
                 # 7+ member rings = nc from (ring size - 1) + (2 ^ nd)
                 # ex: 7 member ring = 6 member ring nc + 2 ^ 4 = 27 + 16 = 43
@@ -113,7 +137,6 @@ class Conformers:
                     self.cyc_conf += 1
             else:
                 self.cyc_conf_geoms.append(copy.deepcopy(cart))
-
         for ci in range(self.cyc_conf):
             self.start_ring_conformer_search(ci, copy.deepcopy(self.species.geom))
 
@@ -361,15 +384,15 @@ class Conformers:
                         final_geoms.append(np.zeros((self.species.natom, 3)))
 
                 self.write_profile(status, final_geoms, energies)
+                
+                return 1, lowest_conf, lowest_e_geom, lowest_energy, final_geoms, energies 
                 logging.info('Conformer {} is the lowest energy {} conformer'.format(lowest_conf, name))
-
-                return 1, lowest_conf, lowest_e_geom, lowest_energy
 
             else:
                 if wait:
                     time.sleep(1)
                 else:
-                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy
+                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy, np.zeros((self.species.natom, 3)), np.zeros(1)
 
     def write_profile(self, status, final_geoms, energies, ring=0):
         """

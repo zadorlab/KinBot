@@ -119,7 +119,7 @@ class IRC:
             if self.rxn.qc.qc == 'nwchem' and direction == 'Reverse':
                 direction = 'Backward'
 
-            # odft = self.rxn.species.mult > 1
+            odft = self.rxn.species.mult > 1
             kwargs = self.rxn.qc.get_qc_arguments(irc_name,
                                                   self.rxn.species.mult,
                                                   self.rxn.species.charge,

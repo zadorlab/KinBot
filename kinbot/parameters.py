@@ -196,7 +196,7 @@ class Parameters:
             # UQ off/on (0/1)
             'uq': 0,
             # Number of mess input files generated for each structure
-            'uq_n': 5,
+            'uq_n': 100,
             # Max number of mess calculations running at once
             'uq_max_runs': 5,
             # Uncertainty in stable intermediate  energy, +/- 0.5 kcal/mol

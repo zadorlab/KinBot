@@ -30,11 +30,12 @@ class UQ:
         names = names
         data = energyList
         if len(names) != 0 and len(energyList) == 0:
-            print("empty array")
+            # print("empty array")
             elements = n * len(names)
             energyList = np.zeros(elements)
-        print(names)
-        print(energyList)
+        # print(names)
+        # print(energyList)
+
         if len(energyList) == 0:
             fio.write("\nNo {} data".format(speciesType))
             return 0
@@ -51,7 +52,7 @@ class UQ:
                 label = []
                 energy = []
                 while j < n:
-                    print(i,j,k)
+                    # print(i,j,k)
                     energy.append(energyList[k])
                     label.append(names[i])
                     k = k + n  # should be n-1
@@ -60,7 +61,7 @@ class UQ:
                 k = i
                 normVals = []
                 npData = np.array(energy)
-                print(npData)
+                # print(npData)
                 if len(npData) == 0:
                     norm = []
                 # for v, val in enumerate(npData):
@@ -72,7 +73,7 @@ class UQ:
                     norm_e = 2 * ((e - low) / (high - low)) - 1
                     norm.append(norm_e)
                 npNormVals = np.array(norm)
-                print(npNormVals)
+                # print(npNormVals)
                 if len(npNormVals) == n:
                     for v, val in enumerate(npNormVals):
                         norm_energy = ('{:.4}'.format(float(npNormVals[v])))

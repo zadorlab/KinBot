@@ -1,7 +1,5 @@
 import numpy as np
 import os
-import copy
-import time
 import logging
 from shutil import copyfile
 import pkg_resources
@@ -104,11 +102,11 @@ class IRC:
         directions = ['Forward', 'Reverse']
         for i, direction in enumerate(directions):
             irc_name = '{}_IRC_{}'.format(instance_name, direction[0])
-            
+
             # This boolean is false if the checkpoint file is available
-            # and true if no checkpoint file is found. 
+            # and true if no checkpoint file is found.
             # In the latter case, the geometry needs to be supplies to
-            # the gaussian calculation and the keywords 
+            # the gaussian calculation and the keywords
             # geom(AllCheck,NoKeepConstants) guess=Read need to be removed
             start_from_geometry = 0
             if self.rxn.qc.qc == 'gauss':
@@ -121,7 +119,7 @@ class IRC:
             if self.rxn.qc.qc == 'nwchem' and direction == 'Reverse':
                 direction = 'Backward'
 
-            odft = self.rxn.species.mult > 1
+            # odft = self.rxn.species.mult > 1
             kwargs = self.rxn.qc.get_qc_arguments(irc_name,
                                                   self.rxn.species.mult,
                                                   self.rxn.species.charge,

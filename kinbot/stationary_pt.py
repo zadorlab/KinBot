@@ -292,7 +292,6 @@ class StationaryPoint:
             return 3 # O and O2 are triplet
         if len(atomlist) == 1 and atomlist[0] == 'C':
             return 3 # C atom is triplet
-
         atomC = np.char.count(atomlist, 'C')
         atomH = np.char.count(atomlist, 'H')
         if len(atomlist) == 3 and np.sum(atomC) == 1 and np.sum(atomH) == 2:
@@ -677,16 +676,13 @@ class StationaryPoint:
         """
         Calculate self.chiral. 0 if non-chiral, +1 or -1 if chiral. Each atom gets a label like this.
         """
-
         self.chiral = np.zeros(self.natom)
-
         # take min of resonance structure bonds
         # as those portions are planar and do not contribute to chirality
         # for the >C=C=C< case
         reduced_bond = self.bonds[0]
         for b in range(len(self.bonds) - 1):
             reduced_bond = np.minimum(self.bonds[b], self.bonds[b + 1])
-
         for i in range(self.natom):
             if np.count_nonzero(reduced_bond[i] > 0) == 4:  # exactly 4 neighbors
                 atids = []
@@ -700,9 +696,10 @@ class StationaryPoint:
 
             if np.count_nonzero(reduced_bond[i] == 2) > 0:  # has at least one double bond
                 for dlen in range(2, 9, 2):  # up to 8, even number of double bonds in a row
-                    motif = ['X' for i in range(dlen + 1)]
+                    motif = ['X' for j in range(dlen + 1)]
                     instances = find_motif.start_motif(motif, self.natom, reduced_bond, self.atom, i, self.atom_eqv)
                     bondpattern = [2 for d in range(dlen)]
+                    
                     for instance in instances:
                         atids = []
                         if find_motif.bondfilter(instance, reduced_bond, bondpattern) == 0:
@@ -716,7 +713,7 @@ class StationaryPoint:
                                 center = instance[int(dlen / 2)]
                                 self.chiral[center] = self.calc_chiral_hand(self.geom[center], positions, atids)
 
-        return 0
+        return self.chiral
 
 
     def calc_chiral_hand(self, center, ligands, atomids):

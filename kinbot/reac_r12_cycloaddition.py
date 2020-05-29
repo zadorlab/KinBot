@@ -1,6 +1,6 @@
 from kinbot.reac_General import GeneralReac
-from kinbot.parameters import Parameters
 import numpy as np
+from kinbot.parameters import Parameters
 
 class R12Cycloaddition(GeneralReac):
     scan = 1
@@ -13,9 +13,7 @@ class R12Cycloaddition(GeneralReac):
         change = []
         release = []
         self.fix_bonds(fix)
-
         if step < self.max_step:
-
             val = np.linalg.norm(geom[self.instance[0]] - geom[self.instance[2]]) + 0.02
             self.set_bond(0, 2, val, change)
             

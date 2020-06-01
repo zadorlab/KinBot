@@ -219,7 +219,7 @@ class MESS:
                 bimol_names = []
 
                 termol_fr_iter = []
-                termol_names = []
+                termolec_names = []
 
                 barrierless_fr_iter = []
                 barrierless_name = []
@@ -296,7 +296,7 @@ class MESS:
                             termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                             termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt], reaction, uq, uq_n, energyAdd, freqFactor, 0, uq_iter)
                             print(termol_name)
-                            termol_names.append(termol_name)
+                            termolec_names.append(termol_name)
                 # Homolytic scission - barrierless reactions
                 barrierless = {}
                 if self.species.homolytic_scissions is not None:
@@ -307,7 +307,7 @@ class MESS:
                         new = 1
                         if hs.status == -1:
                             hs_prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-                            if hs_prod_name not in self.bimolec_names and hs_prod_name not in self.termol_names:
+                            if hs_prod_name not in self.bimolec_names and hs_prod_name not in self.termolec_names:
                                 print(hs_prod_name)
                                 if hs_prod_name in self.barrierless_names:
                                     new = 0

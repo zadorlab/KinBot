@@ -137,11 +137,12 @@ class HomolyticScissions:
                             prod_energy += pr_opt.species.energy
                         barrier = (prod_energy - species_energy)*constants.AUtoKCAL
                         if barrier > self.par.par['barrier_threshold']:
-                            logging.info("{} > threshold for {}".format(barrier, pr_opt.species.chemid))
+                            logging.info("Energy of product {} is too high (E = {:.2f} kcal/mol)".format(pr_opt.species.chemid, barrier))
                             hs.status = -999
                         else:
                             hs.status = -1
-                            logging.info('homolytic scission (barrier {} kcal.mol) lead to products {}'.format(barrier, pr.species.chemid) for pr in hs.prod_opt)
+                            name = '_'.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
+                            logging.info('homolytic scission (barrier {} kcal.mol) lead to products {}'.format(barrier, name))
             if all([hs.status < 0 for hs in self.hss]):
                 for hs in self.hss:
                     if hs.status == -1:

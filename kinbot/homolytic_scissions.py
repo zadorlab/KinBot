@@ -142,7 +142,7 @@ class HomolyticScissions:
                         else:
                             hs.status = -1
                             name = '_'.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
-                            logging.info('homolytic scission (barrier {} kcal.mol) lead to products {}'.format(barrier, name))
+                            logging.info('Homolytic scission (barrier {:.2f} kcal/mol) lead to products {}'.format(barrier, name))
             if all([hs.status < 0 for hs in self.hss]):
                 for hs in self.hss:
                     if hs.status == -1:

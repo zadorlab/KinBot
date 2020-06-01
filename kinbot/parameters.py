@@ -5,6 +5,7 @@ The defaults are listed in this file and the user defined parameters
 are defined in a json file that needs to be given as an argument to the
 initializer.
 """
+import sys
 from __future__ import with_statement
 import json
 import logging
@@ -217,6 +218,13 @@ class Parameters:
         if self.input_file is not None:
             # Read the user input and overwrite the user-defined parameters
             self.read_user_input()
+
+        if self.par['me'] == 1:
+            if self.par['epsilon'] == 0. or self.par['sigma'] == 0.:
+                err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
+                logging.error(err)
+                sys.exit(-1)
+                
 
     def read_user_input(self):
         """

@@ -5,8 +5,8 @@ The defaults are listed in this file and the user defined parameters
 are defined in a json file that needs to be given as an argument to the
 initializer.
 """
-import sys
 from __future__ import with_statement
+import sys
 import json
 import logging
 

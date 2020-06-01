@@ -104,7 +104,12 @@ class MESS:
                         for st_pt in hs.products:
                             if st_pt.chemid not in self.fragment_names:
                                 self.fragment_names[st_pt.chemid] = 'fr_' + str(len(self.fragment_names) + 1)
-                    bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in hs.products]))
+                    bimol_name = '_'.join(
+                        
+                        
+                        
+                        
+                        ed([str(st_pt.chemid) for st_pt in hs.products]))
                     if bimol_name not in self.bimolec_names:
                         self.bimolec_names[bimol_name] = 'b_' + str(len(self.bimolec_names) + 1)
                     else:
@@ -148,7 +153,7 @@ class MESS:
             if self.species.reac_ts_done[index] == -1:
                 prod_list = reaction.products
                 rxnProds = []
-                for x in sorted(prod_list):
+                for x in prod_list:
                     rxnProds.append(x.chemid)
                 rxnProds.sort()
                 prod_name = '_'.join([str(pi) for pi in rxnProds])

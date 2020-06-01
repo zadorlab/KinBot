@@ -78,7 +78,6 @@ class MESS:
                         self.well_names[st_pt.chemid] = 'w_' + str(len(self.well_names) + 1)
                 elif len(reaction.products) == 2:
                     for st_pt in reaction.products:
-                        print("rxns: {}".format(st_pt.chemid))
                         if st_pt.chemid not in self.fragment_names:
                             self.fragment_names[st_pt.chemid] = 'fr_' + str(len(self.fragment_names) + 1)
                     bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
@@ -102,9 +101,6 @@ class MESS:
                         if st_pt.chemid not in self.well_names:
                             self.well_names[st_pt.chemid] = 'w_' + str(len(self.well_names) + 1)
                     elif len(hs.products) == 2:
-                        for st_pt in hs.products:
-                            print("hs {}".format(st_pt.chemid))
-                            if st_pt.chemid not in self.fragment_names:
                                 self.fragment_names[st_pt.chemid] = 'fr_' + str(len(self.fragment_names) + 1)
                     bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in hs.products]))
                     if bimol_name not in self.bimolec_names:
@@ -153,7 +149,6 @@ class MESS:
                 for x in prod_list:
                     rxnProds.append(x.chemid)
                 rxnProds.sort()
-                print(rxnProds)
                 prod_name = '_'.join([str(pi) for pi in rxnProds])
                 energy = reaction.ts.energy
                 zpe = reaction.ts.zpe
@@ -293,7 +288,6 @@ class MESS:
                             termolec_ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                             termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                             termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt], reaction, uq, uq_n, energyAdd, freqFactor, 0, uq_iter)
-                            print(termol_name)
                             termolec_names.append(termol_name)
                 # Homolytic scission - barrierless reactions
                 barrierless = {}
@@ -306,7 +300,6 @@ class MESS:
                         if hs.status == -1:
                             hs_prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
                             if hs_prod_name not in self.bimolec_names and hs_prod_name not in self.termolec_names:
-                                print(hs_prod_name)
                                 if hs_prod_name in self.barrierless_names:
                                     new = 0
                                 if new:
@@ -363,7 +356,7 @@ class MESS:
         # uq_obj.norm_energy(termol_e_iter, "termol", termol_names, uq_n)
         # uq_obj.norm_energy(barrierless_e_iter, "barrierless", barrierless_name, uq_n)
         # print("wells\n{}\n{}".format(well_e_iter, well_name)) 
-        print("ts\n{}\n{}".format(ts_e_iter, ts_rxnName))
+        # print("ts\n{}\n{}".format(ts_e_iter, ts_rxnName))
         # print("prod\n{}\n{}".format(prod_e_iter, prod_name))
         # print("bimol\n{}\n{}".format(bimol_e_iter, bimol_names))
         # print("termol\n{}\n{}".format(termol_e_iter, termol_name))
@@ -632,7 +625,6 @@ class MESS:
                     name = '{' + name + '}'
                     energy = '{ground_energy}'
                 else:
-                    print(self.fragment_names)
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
                 # molecule template
                 fragments += fragment_tpl.format(chemid=name,

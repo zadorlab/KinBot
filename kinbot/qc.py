@@ -745,7 +745,7 @@ class QuantumChemistry:
                 zpe = 0.0
 
         if zpe == 0.0:
-            logging.warning("{} has no zpe in database. ZPE SET TO 0.0")
+            logging.warning("{} has no zpe in database. ZPE SET TO 0.0".format(job))
 
         return 0, zpe
 

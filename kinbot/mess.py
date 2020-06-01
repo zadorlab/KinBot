@@ -146,11 +146,12 @@ class MESS:
         ts_all = {}
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
-                prod_list = reaction.products
+                prod_list = reaction.product
                 rxnProds = []
-                for x in sorted(prod_list):
+                for x in prod_list:
                     rxnProds.append(x.chemid)
                 rxnProds.sort()
+                print(rxnProds)
                 prod_name = '_'.join([str(pi) for pi in rxnProds])
                 energy = reaction.ts.energy
                 zpe = reaction.ts.zpe
@@ -249,10 +250,6 @@ class MESS:
                                                                                                        uq_iter,
                                                                                                        qc,
                                                                                                        count)
-                        ts_e_iter.append(ts_e)
-                        ts_imagFreq_iter.append(ts_imagFreq)
-                        ts_freq_iter.append(ts_freq)
-                        count = count + 1
 
                     if reaction.instance_name in ts_unique:
                         lenProd = len(reaction.products)
@@ -260,6 +257,10 @@ class MESS:
                         freqFactor = uq_obj.calc_freqUQ(freq_uqVal)
                         energyAdd = uq_obj.calc_energyUQ(well_uqVal)
                         if uq_iter == (uq_n - 1):
+                            ts_e_iter.append(ts_e)
+                            ts_imagFreq_iter.append(ts_imagFreq)
+                            ts_freq_iter.append(ts_freq)
+                            count = count + 1
                             ts_rxnName.append(reaction.instance_name)
                         if len(reaction.products) == 1:
                             st_pt = reaction.prod_opt[0].species
@@ -302,7 +303,7 @@ class MESS:
                         new = 1
                         if hs.status == -1:
                             hs_prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-                            if hs_prod_name not in self.bimolec_names and hs_prod_name not in self.termol_names:
+                            if hs_prod_name not in self.bimolec_names and hs_prod_name not in self.termolec_names:
                                 print(hs_prod_name)
                                 if hs_prod_name in self.barrierless_names:
                                     new = 0
@@ -353,14 +354,14 @@ class MESS:
             f_out.write('\n!****************************************\nEnd ! end kinetics\n')
             f_out.close()
 
-        # uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
-        # uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
+        uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
+        uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
         # uq_obj.norm_energy(prod_e_iter, "prod", prod_names, uq_n)  # working
         # uq_obj.norm_energy(bimol_e_iter, "bimol", bimol_names, uq_n)
         # uq_obj.norm_energy(termol_e_iter, "termol", termol_names, uq_n)
         # uq_obj.norm_energy(barrierless_e_iter, "barrierless", barrierless_name, uq_n)
         # print("wells\n{}\n{}".format(well_e_iter, well_name)) 
-        # print("ts\n{}\n{}".format(ts_e_iter, ts_rxnName))
+        print("ts\n{}\n{}".format(ts_e_iter, ts_rxnName))
         # print("prod\n{}\n{}".format(prod_e_iter, prod_name))
         # print("bimol\n{}\n{}".format(bimol_e_iter, bimol_names))
         # print("termol\n{}\n{}".format(termol_e_iter, termol_name))

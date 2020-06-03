@@ -926,6 +926,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
     with open(header_file) as f:
         tpl = f.read()
+    print(wells[0])
+    print(well_short)
     header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par.par['TemperatureList']]),
                         PressureList=' '.join([str(pi) for pi in par.par['PressureList']]),
                         EnergyStepOverTemperature=par.par['EnergyStepOverTemperature'],

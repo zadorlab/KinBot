@@ -1,12 +1,10 @@
 from kinbot import geometry
 
-
 class GeneralReac:
     max_step = -1
     scan = -1
     skip = -1
     dihstep = -1
-
 
     def __init__(self, species, qc, par, instance, instance_name):
         self.species = species

@@ -34,7 +34,7 @@ st_bond['S'] = 6  # maximum valence, can also be 2 or 4
 st_bond['C'] = 4
 st_bond['O'] = 2
 st_bond['H'] = 1
-st_bond['N'] = 5  # maximum valence, can also be 3 
+st_bond['N'] = 5  # maximum valence, can also be 3
 
 mass = {'H': 1}
 mass['C'] = 12
@@ -54,17 +54,17 @@ znumber['N'] = 7
 znumber['O'] = 8
 znumber['S'] = 16
 
-#collision parameters
+# collision parameters
 # Jasper & Miller, C&F 161, 101-110 (2014)
 # data is expected in CHEMKING format, where
 # sigma is in Angstrom (no need to convert for MESS)
 # epsilon is in epsilon/kB (K), need to be converted to cm-1
 mass['He'] = 4.0
 sigma = {'He': 2.715}  # Angstrom
-epsilon = {'He': 11.442}  # e/kB 
+epsilon = {'He': 11.442}  # e/kB
 
 mass['N2'] = mass['N'] * 2.
-sigma['N2'] = 3.610 
+sigma['N2'] = 3.610
 epsilon['N2'] = 97.839
 
 mass['Ar'] = 40.
@@ -88,6 +88,7 @@ qsubmit['slurm'] = 'sbatch'
 # extensions
 qext = {'pbs': '.pbs'}
 qext['slurm'] = '.sbatch'
+
 
 def main():
     """

@@ -120,9 +120,9 @@ class ReactionFinder:
                           'beta_delta': self.search_beta_delta, 
                           'h2_elim': self.search_h2_elim,
                           }
-        
+
         if 'combinatorial' in self.families:
-            reaction_names['combinatorial'] = self.search_combinatorial
+            reaction_names['combinatorial'] = self.search_combinatorial        
  
         atom = self.species.atom
         natom = self.species.natom

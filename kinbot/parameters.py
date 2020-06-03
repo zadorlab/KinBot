@@ -6,11 +6,9 @@ are defined in a json file that needs to be given as an argument to the
 initializer.
 """
 from __future__ import with_statement
-import os
 import sys
 import json
 import logging
-import numpy as np
 
 
 class Parameters:
@@ -51,7 +49,7 @@ class Parameters:
             # Which reaction families to include in the search
             'families': ['all'],
             # Which reaction families to skip in the search
-            'skip_families' : ['none'],
+            'skip_families': ['none'],
             # Which chemids to skip kinbot runs for during PES calculations
             'skip_chemids': ['none'],
             # break all single bonds to find the barriers
@@ -107,9 +105,9 @@ class Parameters:
             # For the combinatorial search, allow the breaking of valence
             'break_valence': 1,
             # Search for one specific reaction using combinatorial approach
-            'one_reaction_comb' : 0,
+            'one_reaction_comb': 0,
             # Search for one specific reaction using family approach
-            'one_reaction_fam' : 0,
+            'one_reaction_fam': 0,
 
             # QUANTUM CHEMISTRY INFO
             # Which quantum chemistry code to use
@@ -136,15 +134,15 @@ class Parameters:
             'irc_maxpoints': 30,
             # for Gaussian irc, IRC(StepSize=n)
             'irc_stepsize': 20,
-            # for Gaussian, allow Guess=(Mix,Always) 
-            'guessmix' : 0,
+            # for Gaussian, allow Guess=(Mix,Always)
+            'guessmix': 0,
             # name of the single point code's name
             'single_point_qc': 'molpro',
             # Name of the template for the single-point calculation (L3)
             # If not specified, then the tpl/[single_point_qc].inp is used
             'single_point_template': '',
             # The keyword to be searched for in Molpro for the desired
-            # energy. Compulsory is Molpro energies are used. 
+            # energy. Compulsory is Molpro energies are used.
             "single_point_key": '',
             # Command string to be used for single point energy calculation
             "single_point_command": '',
@@ -164,14 +162,14 @@ class Parameters:
             'single_point_ppn': 1,
             # This many spaces can be used for numbering files, e.g., in ga
             'zf': 4,
-            # delete intermetidate files
-            'delete_intermediate_files' : 0,
+            # delete intermediate files
+            'delete_intermediate_files': 0,
             # Scratch directory
             'scratch': '',
             # User name
             'username': '',
             # Max. number of job from user in queue, if negative, ignored
-            'queue_job_limit' : -1,
+            'queue_job_limit': -1,
 
             # MASTER EQUATION
             # Which ME code to use:
@@ -182,7 +180,7 @@ class Parameters:
             'sigma': 0.0,
             # MESS specific keywords
             'mess_command': 'mess',
-            'TemperatureList': [500+100*i for i in range(16)],
+            'TemperatureList': [500 + 100 * i for i in range(16)],
             'PressureList': [760],
             'EnergyStepOverTemperature': .2,
             'ExcessEnergyOverTemperature': 30,
@@ -194,6 +192,27 @@ class Parameters:
             'EnergyRelaxationExponentCutoff': 15,
             # MESMER specific keywords
             'mesmer_command': 'mesmer',
+
+            # UQ KEYWORDS
+            # UQ off/on (0/1)
+            'uq': 0,
+            # Number of mess input files generated for each structure
+            'uq_n': 100,
+            # Max number of mess calculations running at once
+            'uq_max_runs': 5,
+            # Uncertainty in stable intermediate  energy, +/- 0.5 kcal/mol
+            'well_uq': 0.5,
+            # Uncertainty in saddle point (TS) energy, +/- 1.0 kcal/mol
+            'barrier_uq': 1.0,
+            # Uncertainty in positive frequency values, mult/div by a maximum factor of 1.2.
+            # factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original frequency
+            'freq_uq': 1.2,
+            # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1.
+            # factor of 1.2 corresponds to values ranging from 0.909 to 1.1 times the original frequency
+            'imagfreq_uq': 1.1,
+
+            # for development
+            'test': 0,
         }
 
         if self.input_file is not None:
@@ -208,7 +227,12 @@ class Parameters:
             err = 'Please provide a username (username keyword).'
             logging.error(err)
             sys.exit()
-           
+        if self.par['me'] == 1:
+            if self.par['epsilon'] == 0. or self.par['sigma'] == 0.:
+                err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
+                logging.error(err)
+                sys.exit(-1)
+                
 
     def read_user_input(self):
         """

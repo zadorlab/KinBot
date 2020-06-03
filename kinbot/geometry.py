@@ -6,7 +6,7 @@ from kinbot import constants
 
 def calc_angle(a, b, c):
     """ Calculate the A - B - C angle in radians"""
-    
+
     v1 = (b-a) / np.linalg.norm(b-a)
     v2 = (b-c) / np.linalg.norm(b-c)
     return np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
@@ -312,29 +312,29 @@ def equal_geom(bond, orig_geom, new_geom, cutoff):
 def matrix_corr(p, q):
     """
     Calculates the correlation of two sets of points, p and q,
-    where each point in these sets are 3D. The correlation is calculated 
+    where each point in these sets are 3D. The correlation is calculated
     after p is rotated (r) and translated (t) such that it has maximum overlap
     with q in this sense:
-    ||(r pi + t) - qi||^2 
+    ||(r pi + t) - qi||^2
     """
 
     # centorids of both point sets
-    #pcent = np.zeros(3)
-    #for pi in p:
-    #    pcent += pi
-        #pcent[0] += pi[0]
-        #pcent[1] += pi[1]
-        #pcent[2] += pi[2]
-    
-    #qcent = np.zeros(3)
-    #for qi in q:
-    #    qcent[0] += qi[0]
-    #    qcent[1] += qi[1]
-    #    qcent[2] += qi[2]
-    #
-    #l = len(p)
-    #pcent = pcent / l
-    #qcent = qcent / l 
+    # pcent = np.zeros(3)
+    # for pi in p:
+    #     pcent += pi
+    #     pcent[0] += pi[0]
+    #     pcent[1] += pi[1]
+    #     pcent[2] += pi[2]
+
+    # qcent = np.zeros(3)
+    # for qi in q:
+    #     qcent[0] += qi[0]
+    #     qcent[1] += qi[1]
+    #     qcent[2] += qi[2]
+
+    # l = len(p)
+    # pcent = pcent / l
+    # qcent = qcent / l
 
     pcent = p.mean(axis=0)
     qcent = q.mean(axis=0)
@@ -345,16 +345,15 @@ def matrix_corr(p, q):
 
     # 3 by 3 covariance matrix
     s = np.matmul(np.transpose(x), y)
-    #s = np.matmul(x.T, y) # only Python 3.6+ compatible
-
+    # s = np.matmul(x.T, y) #  only Python 3.6+ compatible
 
     # SVD of the covariance mx
     u, _, v = np.linalg.svd(s)
 
     # to determine the sign (reflection, if needed)
     diag = np.identity(3)
-    diag[2][2] = np.linalg.det(np.matmul(np.transpose(v), np.transpose(u))) # +1 or -1
-    #diag[2][2] = np.linalg.det(v.T @ u.T) # only Python 3.6+ compatible
+    diag[2][2] = np.linalg.det(np.matmul(np.transpose(v), np.transpose(u)))  # +1 or -1
+    # diag[2][2] = np.linalg.det(v.T @ u.T) #  only Python 3.6+ compatible
 
     # rotation
     r = np.matmul(np.matmul(np.transpose(v), diag), np.transpose(u))
@@ -362,10 +361,9 @@ def matrix_corr(p, q):
     t = qcent - np.matmul(r, pcent)
 
     # rotated and translated p
-    pnew = np.zeros([len(p), 3]) # initialize
+    pnew = np.zeros([len(p), 3])  # initialize
     for i, pi in enumerate(p):
         pnew[i] = np.matmul(r, pi) + t
 
-    #return(np.corrcoef(np.matrix.flatten(pnew),np.matrix.flatten(q))[0][1])
+    # return(np.corrcoef(np.matrix.flatten(pnew),np.matrix.flatten(q))[0][1])
     return np.corrcoef(pnew.ravel(), q.ravel())[0][1]
-

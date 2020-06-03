@@ -1,10 +1,6 @@
-import os
-import sys
-import copy
 import itertools
 import numpy as np
 
-from kinbot import cheminfo
 from kinbot import find_motif
 from kinbot.stationary_pt import StationaryPoint
 
@@ -115,7 +111,7 @@ def get_product_bonds(bonds, par, rad=-1):
             # the list of reactant atoms
             if sorted(atoms) == sorted(prod_atoms):
                 prods.append(sorted(prod))
-                # also make a list in which one of the bonds is not formed, 
+                # also make a list in which one of the bonds is not formed,
                 # this is needed to break the valence of atoms and form
                 # for example zwitterionic species.
                 if par.par['break_valence']:
@@ -261,9 +257,9 @@ def generate_product_bond_matrices(mol, bond, nbonds, par, rad=-1):
                 ts = generate_ts(comb, prod, bond)
                 # add the reaction three times, with an early, a mid
                 # and a late ts
-                #reactions.append([comb, prod, ts, 0])
+                # reactions.append([comb, prod, ts, 0])
                 reactions.append([comb, prod, ts, 1])
-                #reactions.append([comb, prod, ts, 2])
+                # reactions.append([comb, prod, ts, 2])
     return reactions
 
 

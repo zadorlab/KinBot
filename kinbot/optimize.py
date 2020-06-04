@@ -37,7 +37,6 @@ class Optimize:
             self.species.characterize()
         self.par = par
         self.qc = qc
-
         # wait for all calculations to finish before returning
         self.wait = wait
         # high level job name
@@ -47,7 +46,6 @@ class Optimize:
         else:
             self.job_high = str(self.species.chemid) + '_well_high'
             self.job_hir = 'hir/' + str(self.species.chemid) + '_hir_'
-
         # status of the various parts
         # -1: not yet started
         #  0: running
@@ -65,6 +63,7 @@ class Optimize:
         self.max_restart = par.par['rotation_restart']
 
     def do_optimization(self):
+        print("{}\n{}".format(self.species.chemid, self.species.bond))
         while 1:
             # do the conformational search
             if self.par.par['conformer_search'] == 1:
@@ -112,7 +111,7 @@ class Optimize:
                                 name = self.species.name
                             else:
                                 name = self.species.chemid
-
+                            logging.info("lowest energy conformer for species: {} is number {}".format(self.species.chemid, lowest_conf))
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
                             # save lowest energy conformer energy
@@ -182,6 +181,7 @@ class Optimize:
                                     # geometry diverged to other structure
                                     logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.species.name))
                                     self.shigh = -999
+                              
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
@@ -279,12 +279,14 @@ class Optimize:
                 # delete unnecessary files
                 if self.par.par['delete_intermediate_files'] == 1:
                     self.delete_files()
+
             if self.wait:
                 if self.shir == 1 or self.shigh == -999:
                     return 0
                 time.sleep(1)
             else:
                 return 0
+            
 
     def delete_files(self):
         # job names

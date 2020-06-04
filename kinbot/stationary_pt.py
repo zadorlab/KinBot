@@ -258,6 +258,7 @@ class StationaryPoint:
                     if is_unique:
                         self.rads.append(perm_rad[i])
                         self.bonds.append(perm_bond[i])
+        print("{}".format(self.bonds))
 
         return 0
 
@@ -514,7 +515,6 @@ class StationaryPoint:
         if not hasattr(self,'bond'): 
             # recalculate the bond matrix only if it is not there yet
             self.bond_mx()
-        
         maxdepth = 7
         digit = 3
         if depth == maxdepth: return atomid, visit

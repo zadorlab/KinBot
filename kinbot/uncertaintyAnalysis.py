@@ -33,9 +33,9 @@ class UQ:
             # print("empty array")
             elements = n * len(names)
             energyList = np.zeros(elements)
-        print("len(names) {} len e {}".format(len(names), len(energyList)))
-        print("names {}".format(names))
-        print("e {}".format(energyList))
+        # print("len(names) {} len e {}".format(len(names), len(energyList)))
+        # print("names {}".format(names))
+        # print("e {}".format(energyList))
    
         if len(energyList) == 0:
             fio.write("\nNo {} data".format(speciesType))

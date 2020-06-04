@@ -91,7 +91,7 @@ class HomolyticScissions:
                         e, prod.geom = hs.qc.get_qc_geom(str(prod.chemid) + '_well', prod.natom)
                         if e < 0:
                             # optimizatin failed
-                            logging.info("optimization failed for {}".format(prod.chemid))
+                            logging.info("HS optimization failed for {}".format(prod.chemid))
                             hs.status = -999
                             err = -1
                         elif e != 0:
@@ -136,13 +136,14 @@ class HomolyticScissions:
                         for pr_opt in hs.prod_opt:
                             prod_energy += pr_opt.species.energy
                         barrier = (prod_energy - species_energy)*constants.AUtoKCAL
+                        prod_name = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
                         if barrier > self.par.par['barrier_threshold']:
-                            logging.info("Energy of product {} is too high (E = {:.2f} kcal/mol)".format(pr_opt.species.chemid, barrier))
+                            logging.info("Energy of HS product {} is above the barrier threshold ({:.3} kcal/mol)".format(prod_name, barrier))
                             hs.status = -999
                         else:
                             hs.status = -1
                             name = '_'.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
-                            logging.info('homolytic scission (barrier {} kcal.mol) lead to products {}'.format(barrier, name))
+                            logging.info('homolytic scission (barrier {:.2} kcal.mol) lead to products {}'.format(barrier, name))
             if all([hs.status < 0 for hs in self.hss]):
                 for hs in self.hss:
                     if hs.status == -1:

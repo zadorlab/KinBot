@@ -99,7 +99,7 @@ class Conformers:
                 # 11mem = 266 + 2 ^ 8 = 266 + 256 = 522 ok
                 # 12mem = 522 + 2 ^ 9 = 522 + 512 = 1034 ok
   
-                if cyc < 7:
+                if len(cyc) < 7:
                     nc = np.power(3, nd)
                 else:
                     baseConf = 27  # 3 ^ 3
@@ -115,7 +115,7 @@ class Conformers:
                 # 4, 5, 6 member rings nc = 3 ^ nd
                 # 7+ member rings = nc from (ring size - 1) + (2 ^ nd)
                 # ex: 7 member ring = 6 member ring nc + 2 ^ 4 = 27 + 16 = 43
-                if cyc < 7:
+                if len(cyc) < 7:
                     nc = np.power(3, nd)
                 else:
                     baseConf = 27  # 3 ^ 3

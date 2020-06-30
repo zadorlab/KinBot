@@ -53,8 +53,8 @@ class HomolyticScissions:
         """
         # set of unique bonds to break
         bonds = []
-        for i in range(len(self.species.atom)-1):
-            for j in range(i+1, len(self.species.atom)):
+        for i in range(self.species.natom - 1):
+            for j in range(i+1, self.species.natom):
                 # only consider a bond of which both
                 # atoms are not in the same cycle
                 cycle = []
@@ -64,18 +64,36 @@ class HomolyticScissions:
                 if j not in cycle:
                     # only consider single bonds for homolytic scissions
                     if self.species.bond[i][j] == 1:
-                        # check if a bond with identical atomids
-                        # has been added to the bonds list yet
-                        new = 1
-                        for bi in bonds:
-                            if sorted([self.species.atomid[at] for at in bi]) == sorted([self.species.atomid[i], self.species.atomid[j]]):
-                                new = 0
-                        if new:
-                            bonds.append([i, j])
-                            hs = HomolyticScission(self.species, self.par,
-                                                   self.qc, [i, j])
-                            hs.create_geometries()
-                            self.hss.append(hs)
+                        # check if the bond is present in the 'homolytic_bonds' list, or if the list is empty
+                        # add is a boolean that tells if the bond needs to be added to the homolytic scissions
+                        # to be considered (i.e. the 'bonds' list)
+                        add = 0
+                        # get the elements of the current bond under consideration, and put them
+                        # in alphabetical order
+                        bond_elements = sorted([self.species.atom[i], self.species.atom[j]])
+                        # check all bonds to be considered, supplied by the user
+                        for user_bond in self.par.par['homolytic_bonds']:
+                            if sorted(user_bond) == bond_elements:
+                                # if there is a match between the current bond and a user-defined
+                                # bond, put the add boolean to 1
+                                add = 1
+                        # add the bond if the 'add' boolean is 1 or if the user defined list is empty
+                        # (in the latter case, all single bonds that are not in a cycle are considered. 
+                        if len(self.par.par['homolytic_bonds']) == 0 or add:
+                            # check if a bond with identical atomids
+                            # has been added to the bonds list yet
+                            new = 1
+                            for bi in bonds:
+                                if sorted([self.species.atomid[at] for at in bi]) == sorted([self.species.atomid[i], self.species.atomid[j]]):
+                                    new = 0
+                            if new:
+                                bonds.append([i, j])
+                                hs = HomolyticScission(self.species, self.par,
+                                                       self.qc, [i, j])
+                                hs.create_geometries()
+                                self.hss.append(hs)
+        
+        return
         # optimize the products of the hss
         while 1:
             for index, hs in enumerate(self.hss):

@@ -55,6 +55,12 @@ class Parameters:
             # break all single bonds to find the barriers
             # of potential homolytic scissions
             'homolytic_scissions': 0,
+            # perform variational calculations for the homolytic scissions
+            'variational' : 0,
+            # break specific bonds (defined by element pair) in the homolytic
+            # search (i.e. do not break all single bonds but only the ones 
+            # specified by the user)
+            'homolytic_bonds' : [],
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed
             # atom index for break/form bonds starts at 0

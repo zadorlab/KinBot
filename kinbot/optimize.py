@@ -235,7 +235,7 @@ class Optimize:
                                                 self.shigh = -1
                                                 self.shir = -1
                                             else:
-                                                logging.info('\t\tLower energy found, but readched max restart for {}'.format(self.species.name))
+                                                logging.info('\t\tLower energy found, but reached max restart for {}'.format(self.species.name))
                                                 self.shir = 1
                                         else:
                                             self.shir = 1

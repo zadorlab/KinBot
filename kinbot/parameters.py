@@ -165,9 +165,9 @@ class Parameters:
             # delete intermediate files
             'delete_intermediate_files': 0,
             # Scratch directory
-            'scratch': '',
+            'scratch': '/scratch/jzador',
             # User name
-            'username': '',
+            'username': 'jzador',
             # Max. number of job from user in queue, if negative, ignored
             'queue_job_limit': -1,
 
@@ -219,14 +219,6 @@ class Parameters:
             # Read the user input and overwrite the user-defined parameters
             self.read_user_input()
 
-        if self.par['scratch'] == '':
-            err = 'Please provide a scratch space location (scratch keyword).'
-            logging.error(err)
-            sys.exit()
-        if self.par['username'] == '':
-            err = 'Please provide a username (username keyword).'
-            logging.error(err)
-            sys.exit()
         if self.par['me'] == 1:
             if self.par['epsilon'] == 0. or self.par['sigma'] == 0.:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
@@ -254,7 +246,6 @@ class Parameters:
             else:
                 err = 'KinBot does not recognize option {} with value {}'
                 logging.error(err.format(key, user_data[key]))
-
 
     def print_parameters(self):
         """

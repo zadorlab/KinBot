@@ -71,14 +71,6 @@ mass['Ar'] = 40.
 sigma['Ar'] = 3.462
 epsilon['Ar'] = 127.697
 
-mass['O2'] = mass['O'] * 2.
-sigma['O2'] = 3.069
-epsilon['O2'] = 676.424
-
-mass['H2O'] = mass['O'] * 2. + mass['H']
-sigma['H2O'] = 2.943
-epsilon['H2O'] = 637.056
-
 for e in epsilon:
     epsilon[e] = epsilon[e] * units.kB / units.invcm
 

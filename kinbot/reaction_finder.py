@@ -31,6 +31,8 @@ from kinbot.reac_r12_cycloaddition import R12Cycloaddition
 from kinbot.reac_R_Addition_MultipleBond import RAdditionMultipleBond
 from kinbot.reac_R_Addition_CSm_R import RAdditionCS
 from kinbot.reac_R_Addition_COm3_R import RAdditionCO
+from kinbot.reac_Korcek_step2_odd import KorcekStep2Odd
+from kinbot.reac_Korcek_step2_even import KorcekStep2Even
 from kinbot.reac_Korcek_step2 import KorcekStep2
 from kinbot.reac_ketoenol import KetoEnol
 from kinbot.reac_Intra_RH_Add_Exocyclic_R import IntraRHAddExoR
@@ -101,6 +103,8 @@ class ReactionFinder:
                           'Intra_R_Add_Endocyclic_F': self.search_Intra_R_Add_Endocyclic_F, 
                           'Intra_R_Add_ExoTetCyclic_F': self.search_Intra_R_Add_ExoTetCyclic_F,
                           'Intra_R_Add_Exocyclic_F': self.search_Intra_R_Add_Exocyclic_F, 
+                          'Korcek_step2_odd': self.search_Korcek_step2_odd, 
+                          'Korcek_step2_even': self.search_Korcek_step2_even, 
                           'Korcek_step2': self.search_Korcek_step2, 
                           'r22_cycloaddition': self.search_r22_cycloaddition, 
                           'r12_cycloaddition': self.search_r12_cycloaddition, 
@@ -2204,6 +2208,18 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRAddExocyclicF(self.species,self.qc,self.par,reac_list[i],name))
+            elif reac_id == 'Korcek_step2_odd':
+                name = str(self.species.chemid) + '_' + reac_id
+                for j in len(reac_list[i]):
+                    name += '_' + str(reac_list[i][j] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(KorcekStep2(self.species,self.qc,self.par,reac_list[i],name))
+            elif reac_id == 'Korcek_step2_even':
+                name = str(self.species.chemid) + '_' + reac_id
+                for j in len(reac_list[i]):
+                    name += '_' + str(reac_list[i][j] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(KorcekStep2(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'Korcek_step2':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)

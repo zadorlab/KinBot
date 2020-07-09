@@ -15,7 +15,7 @@ class KorcekStep2Even(GeneralReac):
             self.fix_bonds(fix)
 
             for ati in self.instance[1::2]:
-                for atj in np.roll(self.instance[::2], int(len(self.instance) / 2 - 1):
+                for atj in np.roll(self.instance[::2], int(len(self.instance) / 2 - 1)):
                     fval = 2.0  # to be refined based on atom types
                     ii = np.where(self.instance, ati)[0][0]
                     jj = np.where(self.instance, atj)[0][0]

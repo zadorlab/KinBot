@@ -159,7 +159,7 @@ class Parameters:
             # Number of cores to run the L0-L2 qc jobs on
             'ppn': 1,
             # Number of cores to run the L3 qc jobs on
-            'single_point_ppn': 1,
+            'single_point_ppn': 4,
             # This many spaces can be used for numbering files, e.g., in ga
             'zf': 4,
             # delete intermediate files

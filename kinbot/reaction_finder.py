@@ -968,17 +968,17 @@ class ReactionFinder:
             korcek_chain = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
             # filter clockwise and anti clockwise hits
             korcek_chain_filt = []
-            for kch in korchek_chain:
+            for kch in korcek_chain:
                 new = 1
                 k = copy.copy(kch)  # need in order to prevent changes to korcek_chain with reverse()
-                if (k not in korcek_chain_filt) and (k.reverse() not in korchek_chain_filt):
+                if (k not in korcek_chain_filt) and (k.reverse() not in korcek_chain_filt):
                     korcek_chain_filt.append(kch)
 
             for ins in korcek_chain_filt:
                 if bond[ins[0]][ins[-1]] == 1:  # it is a ring
-                    fragment = [2] * ((ringsize - 3) / 2 + 1)
+                    fragment = [2] * int((ringsize - 3) / 2 + 1)
                     fragment[0] = 3  # [3, 2, 2, ...]
-                    for ii in range(nfrag):  # loop over all possible 2/3 fragmentation
+                    for ii in range(len(fragment)):  # loop over all possible 2/3 fragmentation
                         threefrag = ins[ii * 2 + 1 : ii * 2 + 3 + 1]  # atoms in the 3-long fragment
                         for at in range(natom):
                             if bond[threefrag[1]][at] == 1 and atom[at] == 'H':  # there is H on the middle atom
@@ -1031,10 +1031,10 @@ class ReactionFinder:
             korcek_chain =  find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
             # filter clockwise and anti clockwise hits
             korcek_chain_filt = []
-            for kch in korchek_chain:
+            for kch in korcek_chain:
                 new = 1
                 k = copy.copy(kch)  # need in order to prevent changes to korcek_chain with reverse()
-                if (k not in korcek_chain_filt) and (k.reverse() not in korchek_chain_filt):
+                if (k not in korcek_chain_filt) and (k.reverse() not in korcek_chain_filt):
                     korcek_chain_filt.append(kch)
 
             for ins in korcek_chain:
@@ -2210,13 +2210,13 @@ class ReactionFinder:
                 self.species.reac_obj.append(IntraRAddExocyclicF(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'Korcek_step2_odd':
                 name = str(self.species.chemid) + '_' + reac_id
-                for j in len(reac_list[i]):
+                for j in range(len(reac_list[i])):
                     name += '_' + str(reac_list[i][j] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(KorcekStep2(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'Korcek_step2_even':
                 name = str(self.species.chemid) + '_' + reac_id
-                for j in len(reac_list[i]):
+                for j in range(len(reac_list[i])):
                     name += '_' + str(reac_list[i][j] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(KorcekStep2(self.species,self.qc,self.par,reac_list[i],name))

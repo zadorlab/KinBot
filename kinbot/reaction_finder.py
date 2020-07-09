@@ -931,6 +931,133 @@ class ReactionFinder:
         return 0
 
 
+    def search_Korcek_step2_odd(self, natom, atom, bond, rad):
+        """ 
+        Korcek step 2 for cyclic peroxides originating with odd number of atoms in the cycle.
+        Ring breaks at O-O and then forms 1 three-ringatom and (ringsize-3)/2 two-ringatom 
+        fragments. 
+        The three-ringatom fragment needs to have a H atom transfer. 
+        Numbering:
+        0 1 2 3 4 5 6 7 8
+        O-X-X-X-X-X-X-X-O
+        if the fragment is set to 2 2 3 2, then it breaks like
+        O-X X-X X-X-X X-X
+        and the X-X-X will have 0, 1, or 2 possible H transfers. 
+        If the H transfer is not possible, the path is abandoned.
+        The instance name is:
+            all atoms in the chain, the middle atom in the triplet,
+            and the atom to which the H is migrates in the triplet
+            and the hydrogen itself
+        """
+
+        name = 'Korcek_step2_odd'
+
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = [] #reactions found with the current resonance isomer
+
+        for ringsize in range(5, 15, 2):  # odd number of atoms in the ring
+            motif = ['X' for i in range(ringsize)]
+            motif[-1] = 'O'
+            motif[0] = 'O'
+            korcek_chain = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            # filter clockwise and anti clockwise hits
+            korcek_chain_filt = []
+            for kch in korchek_chain:
+                new = 1
+                k = copy.copy(kch)  # need in order to prevent changes to korcek_chain with reverse()
+                if (k not in korcek_chain_filt) and (k.reverse() not in korchek_chain_filt):
+                    korcek_chain_filt.append(kch)
+
+            for ins in korcek_chain_filt:
+                if bond[ins[0]][ins[-1]] == 1:  # it is a ring
+                    fragment = [2] * ((ringsize - 3) / 2 + 1)
+                    fragment[0] = 3  # [3, 2, 2, ...]
+                    for ii in range(nfrag):  # loop over all possible 2/3 fragmentation
+                        threefrag = ins[ii * 2 + 1 : ii * 2 + 3 + 1]  # atoms in the 3-long fragment
+                        for at in range(natom):
+                            if bond[threefrag[1]][at] == 1 and atom[at] == 'H':  # there is H on the middle atom
+                                # if there are 2 hydrogens, they are treated separately, as they are not 
+                                # in general equivalent due to the ring
+                                ins_full = ins + [threefrag[0:2]] + [at] # H adds to the first atom of this fragment
+                                rxns += [ins]
+                                ins_full = ins + [threefrag[1:3]] + [at] # H adds to the second atom of this fragment
+                                rxns += [ins]
+
+        for n, inst in enumerate(rxns):
+            new = 1
+            #filter for the same reactions
+            for instance in self.reactions[name]:
+                if inst == instance:
+                    new = 0
+            # filter for specific reaction after this # TODO
+            #if self.one_reaction_fam and new:
+            #    if ring_var[n] == 7: 
+            #        if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
+            #            new = 0
+            #    if ring_var[n] == 8: 
+            #        #  TODO this is an incomplete check
+            #        if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
+            #            new = 0
+            if new:
+                self.reactions[name].append(inst)
+
+        return 0
+
+
+    def search_Korcek_step2_even(self, natom, atom, bond, rad):
+        """ 
+        Korcek step 2 for cyclic peroxides with even number of atoms in the ring.
+        Still, the 4 membered ring equals a 2,2 cycloaddition and is not considered here.
+        Ring breaks at O-O and then at every second bond, no H shift is needed.
+        """
+
+        name = 'Korcek_step2_even'
+
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = [] #reactions found with the current resonance isomer
+
+        for ringsize in range(6, 14, 2):  # even number of atoms in the ring
+            motif = ['X' for i in range(ringsize)]
+            motif[-1] = 'O'
+            motif[0] = 'O'
+            korcek_chain =  find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            # filter clockwise and anti clockwise hits
+            korcek_chain_filt = []
+            for kch in korchek_chain:
+                new = 1
+                k = copy.copy(kch)  # need in order to prevent changes to korcek_chain with reverse()
+                if (k not in korcek_chain_filt) and (k.reverse() not in korchek_chain_filt):
+                    korcek_chain_filt.append(kch)
+
+            for ins in korcek_chain:
+                if bond[ins[0]][ins[-1]] == 1:  # it is a ring
+                    rxns += [ins]
+
+        for n, inst in enumerate(rxns):
+            new = 1
+            #filter for the same reactions
+            for instance in self.reactions[name]:
+                if inst == instance:
+                    new = 0
+            # filter for specific reaction after this
+            #if self.one_reaction_fam and new:
+            #    if ring_var[n] == 7: 
+            #        if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
+            #            new = 0
+            #    if ring_var[n] == 8: 
+            #        #  TODO this is an incomplete check
+            #        if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
+            #            new = 0
+            if new:
+                self.reactions[name].append(inst)
+
+        return 0
+
+
     def search_Korcek_step2(self, natom, atom, bond, rad):
         """ 
         Generalized Korcek step 

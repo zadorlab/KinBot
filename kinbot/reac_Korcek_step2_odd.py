@@ -28,9 +28,10 @@ class KorcekStep2Odd(GeneralReac):
 
             fval = 1.35
             self.set_bond(-3, -1, -999, change, step=step, stmax=self.max_step, findist=fval, geom=geom)
+            self.set_bond(-2, -1, -999, change, step=step, stmax=self.max_step, findist=fval, geom=geom)
 
-        if step == self.max_step - 1:
-            self.set_angle_single(-1, -3, -2, 60., change)
+        #if step == self.max_step - 1:
+        #    self.set_angle_single(-1, -3, -2, 60., change)
 
         self.clean_constraints(change, fix)
 

@@ -17,8 +17,8 @@ class KorcekStep2Even(GeneralReac):
             for ati in self.instance[1::2]:
                 for atj in np.roll(self.instance[::2], int(len(self.instance) / 2 - 1)):
                     fval = 2.0  # to be refined based on atom types
-                    ii = np.where(self.instance, ati)[0][0]
-                    jj = np.where(self.instance, atj)[0][0]
+                    ii = np.where(self.instance == ati)[0][0]
+                    jj = np.where(self.instance == atj)[0][0]
                     self.set_bond(ii, jj, -999, change, step=step, stmax=self.max_step, findist=fval, geom=geom)
 
         self.clean_constraints(change, fix)

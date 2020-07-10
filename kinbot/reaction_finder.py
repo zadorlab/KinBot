@@ -2213,13 +2213,13 @@ class ReactionFinder:
                 for j in range(len(reac_list[i])):
                     name += '_' + str(reac_list[i][j] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(KorcekStep2(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(KorcekStep2Odd(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'Korcek_step2_even':
                 name = str(self.species.chemid) + '_' + reac_id
                 for j in range(len(reac_list[i])):
                     name += '_' + str(reac_list[i][j] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(KorcekStep2(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(KorcekStep2Even(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'Korcek_step2':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)

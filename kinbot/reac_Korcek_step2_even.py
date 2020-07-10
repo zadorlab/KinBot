@@ -1,5 +1,6 @@
 from kinbot.reac_General import GeneralReac
 from kinbot import geometry
+import numpy as np
 
 class KorcekStep2Even(GeneralReac):
     max_step = 12
@@ -14,12 +15,14 @@ class KorcekStep2Even(GeneralReac):
         if step < self.max_step:
             self.fix_bonds(fix)
 
-            for ati in self.instance[1::2]:
-                for atj in np.roll(self.instance[::2], int(len(self.instance) / 2 - 1)):
-                    fval = 2.0  # to be refined based on atom types
-                    ii = np.where(self.instance == ati)[0][0]
-                    jj = np.where(self.instance == atj)[0][0]
-                    self.set_bond(ii, jj, -999, change, step=step, stmax=self.max_step, findist=fval, geom=geom)
+            bondbreak = np.array(self.instance[1:])
+            bondbreak = np.append(bondbreak, self.instance[0])  # the O-O bond
+
+            for ii in range(int(len(bondbreak) / 2)):
+                fval = 1.8
+                a = np.where(self.instance == bondbreak[2 * ii])[0][0]
+                b = np.where(self.instance == bondbreak[2 * ii + 1])[0][0]
+                self.set_bond(a, b, -999, change, step=step, stmax=self.max_step, findist=fval, geom=geom)
 
         self.clean_constraints(change, fix)
 

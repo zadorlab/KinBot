@@ -1037,7 +1037,7 @@ class ReactionFinder:
                 if k not in korcek_chain_filt and l not in korcek_chain_filt:
                     korcek_chain_filt.append(kch)
 
-            for ins in korcek_chain:
+            for ins in korcek_chain_filt:
                 if bond[ins[0]][ins[-1]] == 1:  # it is a ring
                     rxns += [ins]
 

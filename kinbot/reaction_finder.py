@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import sys
-import os
 import copy
-import time
 import logging
 
 from kinbot import bond_combinations
@@ -969,9 +967,10 @@ class ReactionFinder:
             # filter clockwise and anti clockwise hits
             korcek_chain_filt = []
             for kch in korcek_chain:
-                new = 1
-                k = copy.copy(kch)  # need in order to prevent changes to korcek_chain with reverse()
-                if (k not in korcek_chain_filt) and (k.reverse() not in korcek_chain_filt):
+                k = copy.deepcopy(kch)  # need in order to prevent changes to korcek_chain with reverse()
+                l = copy.deepcopy(kch)
+                l.reverse()
+                if k not in korcek_chain_filt and l not in korcek_chain_filt:
                     korcek_chain_filt.append(kch)
 
             for ins in korcek_chain_filt:
@@ -979,15 +978,15 @@ class ReactionFinder:
                     fragment = [2] * int((ringsize - 3) / 2 + 1)
                     fragment[0] = 3  # [3, 2, 2, ...]
                     for ii in range(len(fragment)):  # loop over all possible 2/3 fragmentation
-                        threefrag = ins[ii * 2 + 1 : ii * 2 + 3 + 1]  # atoms in the 3-long fragment
+                        threefrag = ins[ii * 2 : ii * 2 + 3]  # atoms in the 3-long fragment
                         for at in range(natom):
                             if bond[threefrag[1]][at] == 1 and atom[at] == 'H':  # there is H on the middle atom
                                 # if there are 2 hydrogens, they are treated separately, as they are not 
                                 # in general equivalent due to the ring
-                                ins_full = ins + [threefrag[0:2]] + [at] # H adds to the first atom of this fragment
-                                rxns += [ins]
-                                ins_full = ins + [threefrag[1:3]] + [at] # H adds to the second atom of this fragment
-                                rxns += [ins]
+                                ins_full = ins + [threefrag[1]] + [threefrag[0]] + [at] # H adds to the first atom of this fragment
+                                rxns += [ins_full]
+                                ins_full = ins + [threefrag[1]] + [threefrag[2]] + [at] # H adds to the second atom of this fragment
+                                rxns += [ins_full]
 
         for n, inst in enumerate(rxns):
             new = 1
@@ -1032,9 +1031,10 @@ class ReactionFinder:
             # filter clockwise and anti clockwise hits
             korcek_chain_filt = []
             for kch in korcek_chain:
-                new = 1
-                k = copy.copy(kch)  # need in order to prevent changes to korcek_chain with reverse()
-                if (k not in korcek_chain_filt) and (k.reverse() not in korcek_chain_filt):
+                k = copy.deepcopy(kch)  # need in order to prevent changes to korcek_chain with reverse()
+                l = copy.deepcopy(kch)
+                l.reverse()
+                if k not in korcek_chain_filt and l not in korcek_chain_filt:
                     korcek_chain_filt.append(kch)
 
             for ins in korcek_chain:

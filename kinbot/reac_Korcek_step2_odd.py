@@ -19,6 +19,7 @@ class KorcekStep2Odd(GeneralReac):
             bondbreak = np.array(self.instance[1:-3])
             bondbreak = np.delete(bondbreak(np.where(bondbreak == self.instance[-3])[0][0]))
             bondbreak = np.append(bondbreak, self.instance[0])  # the O-O bond
+            print(bondbreak, 'bondbreak')
 
             for ati in bondbreak[1::2]:
                 for atj in np.roll(bondbreak[::2], int(len(bondbreak) / 2 - 1)):

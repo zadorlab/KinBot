@@ -96,7 +96,6 @@ class Optimize:
                     # do open chain part if cyclic part is done
                     if self.sconf == -1:
                         # open chain part has not started yet
-                        print("len self.species.confs.cyc_conf_geoms: {}".format(len(self.species.confs.cyc_conf_geoms)))
                         for geom in self.species.confs.cyc_conf_geoms:
                             # take all the geometries from the cyclic part
                             # generate the conformers for the current geometry

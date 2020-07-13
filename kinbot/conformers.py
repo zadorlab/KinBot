@@ -64,7 +64,6 @@ class Conformers:
         Generate the conformers of a cyclic structure
         by randomly sampling the dihedrals of the ring
         """
-
         # iterate the different rings in the species
         for cyc in self.species.cycle_chain:
             if len(cyc) > 3:  # three membered rings don't have conformers
@@ -85,21 +84,25 @@ class Conformers:
                 # randomly select N-3 dihedrals,
                 # with N the number of dihedrals in the ring
                 random_dihs = random.sample(dihs, len(dihs) - 3)
+
                 # number of independent dihedrals
-                
                 nd = len(dihs) - 3
-  
+                
+                # number of conformers (nc) per ring conformer:
+                # 4, 5, 6 member rings nc = 3 ^ nd
+                # 7+ member rings = nc from (ring size - 1) + (2 ^ nd)
+                # ex: 7 member ring = 6 member ring nc + 2 ^ 4 = 27 + 16 = 43
                 if len(cyc) < 7:
                     nc = np.power(3, nd)
                 else:
-                    baseConf = 27  # 3 ^ 3
+                    baseConf = 27  # 3 ^ (6-3)
                     nc = baseConf
                     exp = 4
                     while exp <= nd:
                         conf_add = np.power(2, exp)
                         nc = nc + conf_add
                         exp = exp + 1
-                             
+
                 for i in range(nc):
                     self.cyc_dih_atoms.append(random_dihs)
                     # values the dihedrals will be modified to
@@ -215,7 +218,7 @@ class Conformers:
         This is a recursive routine to generate them.
         rotor: the rotor number in the order it was discovered
         """
-
+        
         if self.cyc_conf == 0:
             cycles = 1
         else:

@@ -40,7 +40,7 @@ class HIR:
         """
         Generate the initial geometries of the points along the scans
         """
-        # re-initialize the lists incase of a restart of the HIR scans
+        # re-initialize the lists in case of a restart of the HIR scans
         self.hir_status = []
         self.hir_energies = []
         self.hir_geoms = []

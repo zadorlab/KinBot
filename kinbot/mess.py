@@ -841,7 +841,7 @@ class MESS:
         """
         Create the block for a MESS barrier.
         """
-        print(reaction, barrier_adds)
+        #print(reaction, barrier_adds)
         logFile = open('uq.log', 'a')
         tmp = self.ts_names[reaction.instance_name]
         # open the templates

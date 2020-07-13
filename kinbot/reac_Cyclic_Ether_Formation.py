@@ -21,7 +21,7 @@ class CyclicEtherFormation(GeneralReac):
             if len(self.instance) > 3:
                 self.fix_dihedrals(fix)
                 self.set_angles(change)
-        elif step == self.dihstep:
+        elif step == self.dihstep + 1:
             self.release_angles(release)
             self.release_dihedrals(release)
             

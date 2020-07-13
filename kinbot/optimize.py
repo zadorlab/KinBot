@@ -63,13 +63,13 @@ class Optimize:
         self.max_restart = par.par['rotation_restart']
 
     def do_optimization(self):
-        print("{}\n{}".format(self.species.chemid, self.species.bond))
+        #print("start do_opt {}".format(self.species.chemid))
         while 1:
             # do the conformational search
             if self.par.par['conformer_search'] == 1:
                 if self.scycconf == -1 and self.sconf == -1:
                     # conformational analysis has to be started
-                    logging.info('\tStarting conformational search of {}'.format(self.species.name))
+                    logging.info('\tStarting conformational search of {}'.format(self.species.chemid))
                     self.species.confs = Conformers(self.species, self.par, self.qc)
 
                 # first do the cyclic part of the molecule
@@ -96,6 +96,7 @@ class Optimize:
                     # do open chain part if cyclic part is done
                     if self.sconf == -1:
                         # open chain part has not started yet
+                        print("len self.species.confs.cyc_conf_geoms: {}".format(len(self.species.confs.cyc_conf_geoms)))
                         for geom in self.species.confs.cyc_conf_geoms:
                             # take all the geometries from the cyclic part
                             # generate the conformers for the current geometry
@@ -108,10 +109,10 @@ class Optimize:
                         status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                         if status == 1:
                             if self.species.wellorts:
-                                name = self.species.name
+                                self.name = self.species.name
                             else:
-                                name = self.species.chemid
-                            logging.info("lowest energy conformer for species: {} is number {}".format(self.species.chemid, lowest_conf))
+                                self.name = self.species.chemid
+                            logging.info("lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
                             # save lowest energy conformer energy
@@ -126,12 +127,23 @@ class Optimize:
                 # if the conformers were already done in a previous run
                 if self.par.par['conformer_search'] == 1:
                     status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
+
+                    # perform conformer check at this point
+                    filteredConf = [] 
+                    #for conf in conformers:
+                        #print(conf)
+                        #confStPt = StationaryPoint(self.name, self.species.charge, self.species.mult, self.species.natom, self.species.atom, geom, self.species.wellorts)
+                        
                 while self.restart < self.max_restart:
                     # do the high level calculations
                     if self.par.par['high_level'] == 1:
                         if self.shigh == -1:
+                            if self.species.wellorts:
+                                name = self.species.name
+                            else:
+                                name = self.species.chemid
                             # high level calculation did not start yet
-                            logging.info('\tStarting high level optimization of {}'.format(self.species.name))
+                            logging.info('\tStarting high level optimization of {}'.format(name))
                             if self.species.wellorts:
                                 # do the high level optimization of a ts
                                 self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)
@@ -185,6 +197,7 @@ class Optimize:
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
+                    logging.info("done with conformer search for {}".format(self.species.name))
                     if self.shigh == 1:
                         # do the HIR calculation
                         if self.par.par['rotor_scan'] == 1:

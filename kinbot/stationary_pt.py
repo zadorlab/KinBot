@@ -258,7 +258,6 @@ class StationaryPoint:
                     if is_unique:
                         self.rads.append(perm_rad[i])
                         self.bonds.append(perm_bond[i])
-        print("{}".format(self.bonds))
 
         return 0
 
@@ -471,6 +470,32 @@ class StationaryPoint:
                         self.cycle_chain.append(ins)
                         for at in ins:
                             self.cycle[at] = 1
+        ringSizes = []
+        filteredRings = []
+        if self.cycle_chain > 1:
+            for ring in self.cycle_chain:
+                ringSize = len(ring)
+                ringSizes.append(ringSize)
+            ringSizes.sort()
+            ringSizes.reverse()
+            for size in ringSizes:
+                for ring in self.cycle_chain:
+                    if len(ring) == size:
+                        filteredRings.append(ring)
+            checkRings = filteredRings
+            for i, ring in enumerate(checkRings):
+                duplicateRing = [0] * len(ring)
+                for k, a in enumerate(checkRings[i]):
+                    j = i + 1
+                    while j < len(checkRings):
+                        for b in checkRings[j]:
+                            if a == b:
+                                duplicateRing[k] = 1
+                        j = j + 1
+                    sumDuplicateRing = sum(duplicateRing)
+                    if sumDuplicateRing == len(checkRings[i]):
+                        filteredRings.pop(i)
+            self.cycle_chain = filteredRings
         return 0
 
     def calc_chemid(self):

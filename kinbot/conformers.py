@@ -114,6 +114,7 @@ class Conformers:
                     self.cyc_conf += 1
             else:
                 self.cyc_conf_geoms.append(copy.deepcopy(cart))
+
         for ci in range(self.cyc_conf):
             self.start_ring_conformer_search(ci, copy.deepcopy(self.species.geom))
 
@@ -218,7 +219,7 @@ class Conformers:
         This is a recursive routine to generate them.
         rotor: the rotor number in the order it was discovered
         """
-        
+        i = 1
         if self.cyc_conf == 0:
             cycles = 1
         else:
@@ -242,7 +243,7 @@ class Conformers:
         rotor += 1
         cart0 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart0)
-
+        print(i)
         zmat[3][2] += 120.
         for i in range(4, self.species.natom):
             if zmat_ref[i][2] == 4:
@@ -251,7 +252,8 @@ class Conformers:
                 zmat[i][2] += 120.
         cart1 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart1)
-
+        i += 1
+        print(i)
         zmat[3][2] += 120.
         for i in range(4, self.species.natom):
             if zmat_ref[i][2] == 4:
@@ -260,6 +262,8 @@ class Conformers:
                 zmat[i][2] += 120.
         cart2 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
         self.generate_conformers(rotor, cart2)
+        i += 1
+        print(i)
         return 0
 
     def generate_conformers_random_sampling(self, ini_cart):

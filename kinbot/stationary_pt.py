@@ -470,7 +470,7 @@ class StationaryPoint:
                             self.cycle[at] = 1
         ringSizes = []
         filteredRings = []
-        if self.cycle_chain > 1:
+        if len(self.cycle_chain) > 1:
             for ring in self.cycle_chain:
                 ringSize = len(ring)
                 ringSizes.append(ringSize)

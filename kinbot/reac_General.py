@@ -133,3 +133,4 @@ class GeneralReac:
             for i in range(4):
                 constraint.append(self.instance[dih + i] + 1)
             release.append(constraint)
+

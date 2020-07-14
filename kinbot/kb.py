@@ -177,11 +177,12 @@ def main():
         well0.homolytic_scissions.find_homolytic_scissions()
   
     # initialize the master equation instance
-    mess = MESS(par, well0)
-    mess.write_input()
-    #mesmer = MESMER(par, well0)
-    #mesmer.write_input()
     if par.par['me'] == 1:
+        logging.info('Master Equation calculations turned on, input files created')
+        mess = MESS(par, well0)
+        mess.write_input()
+        #mesmer = MESMER(par, well0)
+        #mesmer.write_input()
         logging.info('Starting Master Equation calculations')
         if par.par['me_code'] == 'mess':
             mess.run()
@@ -189,6 +190,8 @@ def main():
             mesmer.run()
         else:
             logging.error('Cannot recognize me code {}'.format(par.par['me_code']))
+    else:
+        logging.info('Master Equation calculations turned off, no input files created')
 
     # postprocess the calculations
     postprocess.createSummaryFile(well0, qc, par)

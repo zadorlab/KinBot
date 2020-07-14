@@ -256,6 +256,7 @@ class ReactionGenerator:
                         for j, st_pt_j in enumerate(obj.products):
                             if st_pt_i.chemid == st_pt_j.chemid and i < j:
                                 obj.products[j] = obj.products[i]
+                    """
                     try:
                         import pybel
                         if len(stpt_inchis) == 0:
@@ -276,8 +277,7 @@ class ReactionGenerator:
                                 prod_stereochem = prod_inchi.split('/t')[1].split('/')[0]
                                 prod_info = [prod_chemid, prod_chemicalFormula, prod_inchi, prod_stereochem]
                                 stpt_inchis.append(prod_info)
-                        print("stpt_inchis array: {}".format(stpt_inchis))
-                        """
+                        #print("stpt_inchis array: {}".format(stpt_inchis))
                         inchiFile = open('inchis.log','w')
                         well0_chemid = stpt_inchis[0][0]
                         well0_chemicalFormula = stpt_inchis[0][1]
@@ -291,9 +291,9 @@ class ReactionGenerator:
                                 if str(well0_stereochem) != str(prod_stereochem):
                                     logging.warning("\t\t!WARNING! Stereochemistry for product {} differs from the initial well ({}) for reaction {}".format(prod_chemid, well0_chemid, instance_name))
                         inchiFile.close()
-                        """
                     except ImportError:
                         logging.error("Pybel could not be imported, inchis cannot be created")
+                    """
                     err = 0
                     for st_pt in obj.products:
                         chemid = st_pt.chemid
@@ -383,13 +383,16 @@ class ReactionGenerator:
                     self.species.reac_ts_done[index] = 5
                 elif self.species.reac_ts_done[index] == 5:
                     #check up on the TS and product optimizations 
+                    print("inside step 5")
                     opts_done = 1
                     fails = 0
                     #check if ts is done
                     if not obj.ts_opt.shir == 1:
+                        print("no break shir {}".format(obj.ts_opt.shir))
                         opts_done = 0
                         obj.ts_opt.do_optimization()
                     if obj.ts_opt.shigh == -999:
+                        print("break shigh -999: {}".format(obj.ts_opt.shigh))
                         logging.info("Reaction {} ts_opt_shigh failure".format(instance_name))
                         fails = 1
                     for pr_opt in obj.prod_opt:
@@ -399,6 +402,8 @@ class ReactionGenerator:
                         if pr_opt.shigh == -999:
                             logging.info("Reaction {} pr_opt_shigh failure".format(instance_name))
                             fails = 1
+                        print("break for loop")
+                        break
                     if fails:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:

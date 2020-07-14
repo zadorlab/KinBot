@@ -117,8 +117,8 @@ def createSummaryFile(species, qc, par):
                 if prod_name not in products:
                     energy = 0
                     for prod in hs.products:
-                        energy += prod.energy
-                    energy = (energy - species.energy) * constants.AUtoKCAL
+                        energy += prod.energy + prod.zpe
+                    energy = (energy - species.energy - species.zpe) * constants.AUtoKCAL
                     s.append('HOMOLYTIC_SCISSION\t{energy:.2f}\t{prod}'.format(energy=energy, prod=prod_name))
 
     # make a string out of all the lines

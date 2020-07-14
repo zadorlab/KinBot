@@ -123,51 +123,55 @@ class Optimize:
                             lowConfChiral = lowConf_stpt.calc_chiral()
                             well0Chiral_str = ' '.join(str(val) for val in well0_chiral)
                             lowConfChiral_str = ' '.join(str(val) for val in lowConfChiral)
+
                             print("{}\nwell0: {}\nlow conf: {}".format(self.species.chemid, well0Chiral_str, lowConfChiral_str))
                             npe = np.array(energies)
                             badconfs = []
                             #if well0Chiral_str != lowConfChiral_str:
-                            check = 1
-                            while check == 1:
-                                #logging.info("Low energy conformer chirality differs from well chirality")
-                                #logging.info("\tChecking conformation of other conformers")
-                                print("Checking conformation of other conformers")
-                                for i, conf in enumerate(conformers):
-                                    conf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                                                   natom=self.species.natom, atom=self.species.atom, geom=conf)
-                                    conf_stpt.characterize()
-                                    conf_stpt.bond = self.species.bond
-                                    conf_stptChiral = conf_stpt.calc_chiral()
-                                    conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
-                                    if conf_stptChiralStr == well0Chiral_str:
-                                        print("conf {} matches chirality".format(i))
-                                    else:
-                                        print("conf {} does NOT match chirality".format(i))
-                                        badconfs.append(i)
-                                print(badconfs)
-                                check = 0
-                            
+			    #logging.info("Low energy conformer chirality differs from well chirality")
+			    #logging.info("\tChecking conformation of other conformers")
+			    print("Checking conformation of other conformers")
+                            print("conformers: {}".format(len(conformers)))
+			    
+                            for i, conf in enumerate(conformers):
+			        print(i)
+                                #conf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                                                   natom=self.species.natom, atom=self.species.atom, geom=conf)
+			        #conf_stpt.characterize()
+			        #conf_stpt.bond = self.species.bond
+			        #conf_stptChiral = conf_stpt.calc_chiral()
+			        #conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
+			        #if conf_stptChiralStr == well0Chiral_str:
+				#    print("conf {} matches chirality".format(i))
+			        #else:
+				#    print("conf {} does NOT match chirality".format(i))
+				#    badconfs.append(i)
+                                    
+                                #print("done with confs")
+                                #print(badconfs, i)
+                                
+                            print("done with confs") 
+                            """
                             #Implement the following
                             # 1. check next conf chirality
                             # 2. if chirality changes remove conf & energy + create log
                             # 3. if lowest E conf changes chirality check array for lowest energy & report lowest E as new conf
-                            test = 1
-                            if test == 1:
                             #if well0Chiral_str != lowConfChiral_str:
-                                print("reading through conformers")
-                                for i, conf in enumerate(conformers):
-                                    conf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=conf)
-                                    conf_stpt.characterize()
-                                    conf_stpt.bond = self.species.bond
-                                    conf_stptChiral = conf_stpt.calc_chiral()
-                                    conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
-                                    print("{} conf {}, energy: {} chiral: {}".format(self.species.chemid, i, energies[i], conf_stptChiral))
-                                while len(energies) > 0:
-                                    lowe_index = energies.index(np.amin(npe))
-                                    print("min energy at index {}, e = {}".format(lowe_index, energies[lowe_index]))
-                                    conformers.pop(lowe_index)
-                                    energies.pop(lowe_index)
-                                    npe = np.delete(npe, lowe_index)
-                                    print(len(energies), len(npe), len(conformers))
+			    print("reading through conformers")
+			    for i, conf in enumerate(conformers):
+			        conf_stpt.characterize()
+			        conf_stpt.bond = self.species.bond
+			        conf_stptChiral = conf_stpt.calc_chiral()
+			        conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
+			        print("{} conf {}, energy: {} chiral: {}".format(self.species.chemid, i, energies[i], conf_stptChiral))
+			    while len(energies) > 0:
+			        lowe_index = energies.index(np.amin(npe))
+			        print("min energy at index {}, e = {}".format(lowe_index, energies[lowe_index]))
+			        conformers.pop(lowe_index)
+			        energies.pop(lowe_index)
+			        npe = np.delete(npe, lowe_index)
+			        print(len(energies), len(npe), len(conformers))
+                            """
+                            print("past conf check")
                             # conf search is done
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
@@ -328,6 +332,7 @@ class Optimize:
                     molp = Molpro(self.species, self.par)
                     molp.create_molpro_input()
                     molp.create_molpro_submit()
+                    print(self.par.par['single_point_key'])
                     status, molpro_energy = molp.get_molpro_energy(self.par.par['single_point_key'])
                     if status:
                         self.species.energy = molpro_energy

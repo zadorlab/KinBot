@@ -63,7 +63,7 @@ class Molpro:
         fname = str(self.species.chemid)
         if self.species.wellorts:
             fname = self.species.name
-
+        print("looking at file: {}".format(fname))
         status = os.path.exists('molpro/' + fname + '.out')
         if status:
             with open('molpro/' + fname + '.out') as f:

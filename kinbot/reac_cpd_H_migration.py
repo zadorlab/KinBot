@@ -12,7 +12,7 @@ class CpdHMigration(GeneralReac):
         change = []
         release = []
         if step < self.max_step:
-            fix_bonds(fix)
+            self.fix_bonds(fix)
 
         if step == 0:
             self.set_angle_single(-2, -1, 0, 70., change)

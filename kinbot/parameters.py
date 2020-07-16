@@ -73,6 +73,9 @@ class Parameters:
             'high_level': 0,
             # Do a conformational search
             'conformer_search': 0,
+            # Do an am1 conformational search and select the lowest conformers
+            # for the L1 conformer search
+            'am1_conformer_search': 0,
             # Do a hindered rotor scan
             'rotor_scan': 0,
             # Number of points along the rotor scan

@@ -128,6 +128,7 @@ class Optimize:
                             # if am1 conformer were searched for, start from those, 
                             # else start from cyclic conformers
                             if self.par.par['am1_conformer_search'] == 1:
+                                self.species.confs.nconfs = 1
                                 for i, geom in enumerate(self.am1_conformers):
                                     if (self.am1_energies[i] - self.am1_low_energy) * constants.AUtoKCAL < self.par.par['am1_confomer_threshold']:
                                         self.species.confs.generate_conformers(0, geom)

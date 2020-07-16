@@ -88,6 +88,15 @@ class Parameters:
             'max_dihed': 5,
             # Number of random conformers in case no exhaustive search is done
             'random_conf': 500,
+            # Maximum number of diherals for which exhaustive
+            # comformation searches are done at am1 level
+            'max_dihed_am1': 5,
+            # Number of random conformers in case no exhaustive search is done
+            # at am1 level
+            'random_conf_am1': 500,
+            # threshold of conformers at am1 level to take to the L1 level
+            # in kcal per mol
+            'am1_confomer_threshold' : 5,
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions
             'min_bond_break': 2,

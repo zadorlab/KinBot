@@ -268,7 +268,7 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_conf(self, species, geom, index=-1, ring=0):
+    def qc_conf(self, species, geom, index=-1, ring=0, am1=0):
         """
         Creates a geometry optimization input for the conformational search and runs it.
         qc: 'gauss' or 'nwchem'
@@ -278,13 +278,15 @@ class QuantumChemistry:
         if index == -1:
             job = 'conf/' + str(species.chemid) + '_well'
         else:
-            r = ''
+            add = ''
             if ring:
-                r = 'r'
+                add = 'r'
+            if am1:
+                add = 'am1_'
             if species.wellorts:
-                job = 'conf/' + species.name + '_' + r + str(index).zfill(self.zf)
+                job = 'conf/' + species.name + '_' + add + str(index).zfill(self.zf)
             else:
-                job = 'conf/' + str(species.chemid) + '_' + r + str(index).zfill(self.zf)
+                job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
 
         if species.wellorts:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1)
@@ -294,7 +296,9 @@ class QuantumChemistry:
                 kwargs['opt'] = 'CalcFC, Tight'
 
         del kwargs['chk']
-
+        if am1:
+            kwargs['method'] = 'am1'
+            kwargs['basis'] = ''
         atom = copy.deepcopy(species.atom)
 
         dummy = geometry.is_linear(geom, species.bond)

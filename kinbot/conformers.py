@@ -13,10 +13,11 @@ class Conformers:
     """
     Class that does all the steps for the conformers of one species
     """
-    def __init__(self, species, par, qc):
+    def __init__(self, species, par, qc, am1=0):
         """
         species: instance of StationaryPoint
         qc: instance of QuantumChemistry
+        am1: is this search at low level (am1) or at the L1 level. The latter is the default.
         """
         self.species = species
         self.qc = qc
@@ -52,12 +53,23 @@ class Conformers:
         self.conf_status = []
         self.zf = par.par['zf']
 
+        # do am1 conformer search?
+        self.am1 = am1
+
         # Maximum number of diherals for which exhaustive
         # conformation searches are done
         self.max_dihed = par.par['max_dihed']
         # Number of random conformers in case no
         # exhaustive search is done
         self.nconfs = par.par['random_conf']
+        
+        if am1:
+            # Maximum number of diherals for which exhaustive
+            # conformation searches are done
+            self.max_dihed = par.par['max_dihed_am1']
+            # Number of random conformers in case no
+            # exhaustive search is done
+            self.nconfs = par.par['random_conf_am1']
 
     def generate_ring_conformers(self, cart):
         """
@@ -232,7 +244,7 @@ class Conformers:
             return 0
 
         if rotor == len(self.species.conf_dihed):
-            self.qc.qc_conf(self.species, cart, self.conf)
+            self.qc.qc_conf(self.species, cart, self.conf, am1=self.am1)
             self.conf += 1
             return 0
 
@@ -284,7 +296,7 @@ class Conformers:
                     if zmat_ref[i][2] == 1:
                         zmat[i][2] += sample[rotor]
                 cart = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
-            self.qc.qc_conf(self.species, cart, self.conf)
+            self.qc.qc_conf(self.species, cart, self.conf, am1=self.am1)
             self.conf += 1
         return 0
 
@@ -293,10 +305,13 @@ class Conformers:
         Test whether a conformer has the same bond matrix as the original structure.
         Returns the conformer object and -1 if not yet finished, 0 if same, and 1 if not.
         """
+        add = ''
+        if self.am1:
+            add = 'am1_'
         if self.species.wellorts:
-            job = 'conf/' + self.species.name + '_' + str(conf).zfill(self.zf)
+            job = 'conf/' + self.species.name + '_' + add + str(conf).zfill(self.zf)
         else:
-            job = 'conf/' + str(self.species.chemid) + '_' + str(conf).zfill(self.zf)
+            job = 'conf/' + str(self.species.chemid) + '_' + add + str(conf).zfill(self.zf)
 
         status, geom = self.qc.get_qc_geom(job, self.species.natom)
         if status == 1:  # still running
@@ -344,10 +359,13 @@ class Conformers:
                 for ci in range(self.conf):
                     si = status[ci]
                     if si == 0:  # this is a valid confomer
+                        add = ''
+                        if self.am1:
+                            add = 'am1_'
                         if self.species.wellorts:
-                            job = 'conf/' + self.species.name + '_' + str(ci).zfill(self.zf)
+                            job = 'conf/' + self.species.name + '_' + add + str(ci).zfill(self.zf)
                         else:
-                            job = 'conf/' + str(self.species.chemid) + '_' + str(ci).zfill(self.zf)
+                            job = 'conf/' + str(self.species.chemid) + '_' + add + str(ci).zfill(self.zf)
                         err, energy = self.qc.get_qc_energy(job)
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         final_geoms.append(geom)

@@ -13,11 +13,11 @@ class Conformers:
     """
     Class that does all the steps for the conformers of one species
     """
-    def __init__(self, species, par, qc, am1=0):
+    def __init__(self, species, par, qc, semi_emp=0):
         """
         species: instance of StationaryPoint
         qc: instance of QuantumChemistry
-        am1: is this search at low level (am1) or at the L1 level. The latter is the default.
+        semi_emp: is this search at low level (e.g. am1) or at the L1 level. The latter is the default.
         """
         self.species = species
         self.qc = qc
@@ -53,8 +53,8 @@ class Conformers:
         self.conf_status = []
         self.zf = par.par['zf']
 
-        # do am1 conformer search?
-        self.am1 = am1
+        # do semi empirical conformer search?
+        self.semi_emp = semi_emp
 
         # Maximum number of diherals for which exhaustive
         # conformation searches are done
@@ -63,13 +63,13 @@ class Conformers:
         # exhaustive search is done
         self.nconfs = par.par['random_conf']
         
-        if am1:
+        if semi_emp:
             # Maximum number of diherals for which exhaustive
             # conformation searches are done
-            self.max_dihed = par.par['max_dihed_am1']
+            self.max_dihed = par.par['max_dihed_semi_emp']
             # Number of random conformers in case no
             # exhaustive search is done
-            self.nconfs = par.par['random_conf_am1']
+            self.nconfs = par.par['random_conf_semi_emp']
 
     def generate_ring_conformers(self, cart):
         """
@@ -242,9 +242,8 @@ class Conformers:
         if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
             self.generate_conformers_random_sampling(cart)
             return 0
-
         if rotor == len(self.species.conf_dihed):
-            self.qc.qc_conf(self.species, cart, self.conf, am1=self.am1)
+            self.qc.qc_conf(self.species, cart, self.conf, semi_emp=self.semi_emp)
             self.conf += 1
             return 0
 
@@ -296,7 +295,7 @@ class Conformers:
                     if zmat_ref[i][2] == 1:
                         zmat[i][2] += sample[rotor]
                 cart = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
-            self.qc.qc_conf(self.species, cart, self.conf, am1=self.am1)
+            self.qc.qc_conf(self.species, cart, self.conf, semi_emp=self.semi_emp)
             self.conf += 1
         return 0
 
@@ -306,8 +305,8 @@ class Conformers:
         Returns the conformer object and -1 if not yet finished, 0 if same, and 1 if not.
         """
         add = ''
-        if self.am1:
-            add = 'am1_'
+        if self.semi_emp:
+            add = 'semi_emp_'
         if self.species.wellorts:
             job = 'conf/' + self.species.name + '_' + add + str(conf).zfill(self.zf)
         else:
@@ -352,7 +351,7 @@ class Conformers:
                 if si == -1:
                     status[i] = self.test_conformer(i)[1]
             if all([si >= 0 for si in status]):
-                lowest_energy = self.species.energy
+                lowest_energy = None
                 lowest_e_geom = self.species.geom
                 final_geoms = []  # list of all final conformer geometries
                 energies = []
@@ -360,8 +359,8 @@ class Conformers:
                     si = status[ci]
                     if si == 0:  # this is a valid confomer
                         add = ''
-                        if self.am1:
-                            add = 'am1_'
+                        if self.semi_emp:
+                            add = 'semi_emp_'
                         if self.species.wellorts:
                             job = 'conf/' + self.species.name + '_' + add + str(ci).zfill(self.zf)
                         else:
@@ -370,6 +369,8 @@ class Conformers:
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         final_geoms.append(geom)
                         energies.append(energy)
+                        if lowest_energy == None:
+                            lowest_energy = energy
                         if energy < lowest_energy:
                             lowest_conf = str(ci).zfill(self.zf)
                             lowest_energy = energy

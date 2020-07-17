@@ -7,6 +7,7 @@ import re
 import time
 import copy
 import pkg_resources
+from shutil import copyfile
 
 from ase.db import connect
 from kinbot import constants
@@ -268,7 +269,7 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_conf(self, species, geom, index=-1, ring=0, am1=0):
+    def qc_conf(self, species, geom, index=-1, ring=0, semi_emp=0):
         """
         Creates a geometry optimization input for the conformational search and runs it.
         qc: 'gauss' or 'nwchem'
@@ -281,8 +282,8 @@ class QuantumChemistry:
             add = ''
             if ring:
                 add = 'r'
-            if am1:
-                add = 'am1_'
+            if semi_emp:
+                add = 'semi_emp_'
             if species.wellorts:
                 job = 'conf/' + species.name + '_' + add + str(index).zfill(self.zf)
             else:
@@ -296,8 +297,8 @@ class QuantumChemistry:
                 kwargs['opt'] = 'CalcFC, Tight'
 
         del kwargs['chk']
-        if am1:
-            kwargs['method'] = 'am1'
+        if semi_emp:
+            kwargs['method'] = self.par.par['semi_emp_method']
             kwargs['basis'] = ''
         atom = copy.deepcopy(species.atom)
 
@@ -476,7 +477,7 @@ class QuantumChemistry:
         If the number of jobs in the queue is larger than the user-set limit,
         KinBot will park here until resources are freed up.
         """
-
+        # if the logfile already exists, copy it with another name
         if self.queue_job_limit > 0:
             self.limit_jobs()
 

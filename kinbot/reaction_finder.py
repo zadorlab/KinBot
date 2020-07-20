@@ -49,6 +49,7 @@ from kinbot.reac_Intra_disproportionation_R import IntraDisproportionationR
 from kinbot.reac_Intra_disproportionation_F import IntraDisproportionationF
 from kinbot.reac_r14_birad_scission import R14BiradScission
 from kinbot.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
+from kinbot.reac_barrierless_saddle import BarrierlessSaddle
 
 
 class ReactionFinder:
@@ -75,6 +76,10 @@ class ReactionFinder:
         self.prod_bonds = set()
         for i, bond in enumerate(par.par['form_bonds']):
             self.prod_bonds.add(frozenset(par.par['form_bonds'][i]))
+        try:
+            self.barrierless_saddle = par.par[self.species.chemid]
+        except KeyError:
+            None
 
         #keys: names of the families
         #values: list of instances
@@ -119,6 +124,7 @@ class ReactionFinder:
                           'r13_insertion_RSR': self.search_r13_insertion_RSR, 
                           'beta_delta': self.search_beta_delta, 
                           'h2_elim': self.search_h2_elim,
+                          'barrierless_saddle': self.search_barrierless_saddle,
                           }
 
         if 'combinatorial' in self.families:
@@ -2087,6 +2093,37 @@ class ReactionFinder:
         return 0
 
 
+    def search_barrierless_saddle(self, natom, atom, bond, rad):
+        """ 
+        This is not an RMG class.
+
+        R - R ==> R + R
+
+        Attempts to find a saddle point for a nominally barrierless reaction.
+        """
+
+        name = 'barrierless_saddle'
+
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = self.barrierless_saddle  # defined by the user
+
+        for inst in rxns:
+            new = 1
+            # filter for the same reactions
+            for instance in self.reactions[name]:
+                if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                    new = 0
+                if inst[0] == instance[-1] and inst[-1] == instance[0]:
+                    new = 0
+            # no filter for specific reaction after this, this is a specific reaction already
+            if new:
+                self.reactions[name].append(inst)
+
+        return 0
+
+
     def reaction_matrix(self, reac_list, reac_id):
         """ 
         Create arrays to store all reactions for species.
@@ -2268,6 +2305,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(H2Elim(self.species,self.qc,self.par,reac_list[i],name))
+            elif reac_id == 'barrierless_saddle':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(BarrierlessSaddle(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)

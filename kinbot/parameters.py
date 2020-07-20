@@ -56,11 +56,12 @@ class Parameters:
             # of potential homolytic scissions
             'homolytic_scissions': 0,
             # perform variational calculations for the homolytic scissions
-            'variational' : 0,
-            # break specific bonds (defined by element pair) in the homolytic
-            # search (i.e. do not break all single bonds but only the ones 
-            # specified by the user)
-            'homolytic_bonds' : [],
+            'variational': 0,
+            # break specific bonds in the homolytic search
+            # this is a dictionary written as:
+            # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
+            'barrierless_saddle': None,
+            'homolytic_bonds': [],
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed
             # atom index for break/form bonds starts at 0

@@ -95,25 +95,34 @@ class ReactionGenerator:
                             if status == 0:
                                 self.species.reac_ts_done[index] = 1
                             elif status == -1:
-                                logging.info('\tRxn search failed for {}'.format(instance_name))
+                                logging.info('\tRxn search using scan failed for {} in TS optimization stage.'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else:
                             if self.species.reac_step[index] == 0:
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
-                            elif self.species.reac_step[index] > 0:
+                            elif self.species.reac_step[index] < self.par.par['scan_step']:
                                 status = self.qc.check_qc(instance_name)
                                 if status == 'error' or status == 'killed':
-                                    logging.info('\tRxn search failed for {}'.format(instance_name))
+                                    logging.info('\tRxn search using scan failed for {} in step {}'.format(instance_name, self.species.reac_step[index]))
                                     self.species.reac_ts_done[index] = -999
                                 else:
                                     err, energy = self.qc.get_qc_energy(instance_name)
                                     if err == 0:
                                         self.species.reac_scan_energy[index].append(energy)
-                                        if len(self.species.reac_scan_energy[index]) > 1:
-                                            if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:
-                                                self.species.reac_step[index] = self.par.par['scan_step']
+                                        if len(self.species.reac_scan_energy[index]) >= 3:  # need at least 3 point for a maximum
+                                            # if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:  # old
+                                            ediff = np.diff(self.species.reac_scan_energy[index])
+                                            if ediff[-1] > 0 and ediff[-2] < 0:  # max
+                                                self.species.reac_step[index] = self.par.par['scan_step']  # ending the scan
+                                            if len(ediff) >=3:
+                                                if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
+                                                    self.species.reac_step[index] = self.par.par['scan_step']  # ending the scan
                                         # ts search restarted w/ next line?
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
+                            else:  # the last step was reached, and no max or inflection was found
+                                logging.info('\tRxn search using scan failed for {}, no saddle guess found.'.format(instance_name))
+                                self.species.reac_ts_done[index] = -999
+
 
                 elif self.species.reac_ts_done[index] == 1:
                     status = self.qc.check_qc(instance_name)

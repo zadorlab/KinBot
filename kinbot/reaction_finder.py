@@ -77,9 +77,9 @@ class ReactionFinder:
         for i, bond in enumerate(par.par['form_bonds']):
             self.prod_bonds.add(frozenset(par.par['form_bonds'][i]))
         try:
-            self.barrierless_saddle = par.par[self.species.chemid]
+            self.barrierless_saddle = par.par['barrierless_saddle'][str(self.species.chemid)]
         except KeyError:
-            None
+            self.barrierless_saddle = None
 
         #keys: names of the families
         #values: list of instances
@@ -2107,7 +2107,10 @@ class ReactionFinder:
         if not name in self.reactions:
             self.reactions[name] = []
 
-        rxns = self.barrierless_saddle  # defined by the user
+        if self.barrierless_saddle is not None:
+            rxns = self.barrierless_saddle  # defined by the user
+        else:
+            return 0
 
         for inst in rxns:
             new = 1

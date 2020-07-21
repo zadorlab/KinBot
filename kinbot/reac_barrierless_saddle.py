@@ -1,5 +1,6 @@
 from kinbot.reac_General import GeneralReac
 from kinbot import geometry
+import numpy as np
 
 class BarrierlessSaddle(GeneralReac):
     max_step = 20

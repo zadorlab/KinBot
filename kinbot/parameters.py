@@ -127,6 +127,10 @@ class Parameters:
             'method': 'b3lyp',
             # Basis set to use
             'basis': '6-31G',
+            # Method to scan bonds in barrierless_saddle family
+            'barrierless_saddle_method': 'b3lyp',
+            # Basis set to scan bonds in barrierless_saddle family
+            'barrierless_saddle_basis': '6-31G',
             # for Gaussian, request CalcAll for TS optimization
             'calcall_ts': 0,
             # Quantum chemistry method to use for high-level L2
@@ -232,6 +236,11 @@ class Parameters:
                 logging.error(err)
                 sys.exit(-1)
                 
+        if self.par['families'] != 'all' and self.par['skip_families'] != ['none']:
+            err = 'Only one of the "families" or "skip_families" parameters can be defined.'
+            logging.error(err)
+            sys.exit(-1)
+
 
     def read_user_input(self):
         """

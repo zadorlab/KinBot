@@ -74,8 +74,8 @@ class QuantumChemistry:
                 'charge': charge,
                 'scf': 'xqc'
             }
-            if self.par.par['guessmix'] == 1:
-                kwargs['guess'] = '(Mix,Always)'
+            if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                kwargs['guess'] = 'Mix,Always'
             if ts:
                 # arguments for transition state searches
                 kwargs['method'] = 'am1'

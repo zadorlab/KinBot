@@ -73,6 +73,9 @@ class Parameters:
             'high_level': 0,
             # Do a conformational search
             'conformer_search': 0,
+            # Do an semi empirical conformational search and select the lowest conformers
+            # for the L1 conformer search
+            'semi_emp_conformer_search': 0,
             # Do a hindered rotor scan
             'rotor_scan': 0,
             # Number of points along the rotor scan
@@ -88,6 +91,15 @@ class Parameters:
             'max_dihed': 5,
             # Number of random conformers in case no exhaustive search is done
             'random_conf': 500,
+            # Maximum number of diherals for which exhaustive
+            # comformation searches are done at semi empirical level
+            'max_dihed_semi_emp': 5,
+            # Number of random conformers in case no exhaustive search is done
+            # at semi empirical level
+            'random_conf_semi_emp': 500,
+            # threshold of conformers at semi empirical level to take to the L1 level
+            # in kcal per mol
+            'semi_emp_confomer_threshold' : 5,
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions
             'min_bond_break': 2,
@@ -126,6 +138,8 @@ class Parameters:
             'high_level_method': 'M062X',
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
+            # method for semi empirical conformer search
+            'semi_emp_method' : 'am1',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
             # Optimization threshold

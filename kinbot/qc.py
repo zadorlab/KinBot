@@ -25,6 +25,8 @@ class QuantumChemistry:
         self.qc = par.par['qc']
         self.method = par.par['method']
         self.basis = par.par['basis']
+        self.bls_method = par.par['barrierless_saddle_method']
+        self.bls_basis = par.par['barrierless_saddle_basis']
         self.high_level_method = par.par['high_level_method']
         self.high_level_basis = par.par['high_level_basis']
         self.integral = par.par['integral']
@@ -103,6 +105,9 @@ class QuantumChemistry:
             if scan or 'R_Addition_MultipleBond' in job:
                 kwargs['method'] = 'mp2'
                 kwargs['basis'] = self.basis
+            if 'barrierless_saddle' in job or 'bls' in job:
+                kwargs['method'] = self.bls_method
+                kwargs['basis'] = self.bls_basis
             if irc is not None:
                 # arguments for the irc calculations
                 if start_form_geom == 0:
@@ -322,7 +327,7 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self, species, geom, high_level=0, mp2=0):
+    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0):
         """
         Creates a geometry optimization input and runs it.
         """
@@ -332,6 +337,8 @@ class QuantumChemistry:
             job = str(species.chemid) + '_well_high'
         if mp2:
             job = str(species.chemid) + '_well_mp2'
+        if bls:
+            job = str(species.chemid) + '_well_bls'
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed

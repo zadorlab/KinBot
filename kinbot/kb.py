@@ -149,7 +149,7 @@ def main():
             'r12_cycloaddition' in par.par['families'] or \
             'r14_birad_scission' in par.par['families'] or \
             'R_Addition_MultipleBond' in par.par['families'] or \
-            (par.par['families'] != ['none'] and \
+            (par.par['skip_families'] != ['none'] and \
             ('birad_recombination_R' not in par.par['skip_families'] or \
             'r12_cycloaddition' not in par.par['skip_families'] or \
             'r14_birad_scission' not in par.par['skip_families'] or \

@@ -919,7 +919,8 @@ class MESS:
         for index in range(len(self.species.reac_inst)):
             if self.species.reac_ts_done[index] == -1:
                 ts = self.species.reac_obj[index].ts
-                if self.species.reac_type[index] == 'R_Addition_MultipleBond' and not self.par.par['high_level']:
+                #if self.species.reac_type[index] == 'R_Addition_MultipleBond' and not self.par.par['high_level']:
+                if self.species.reac_obj[index].mp2 == 1 and not self.par.par['high_level']:
                     mp2_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
                     mp2_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_mp2')[1]
                     energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
@@ -931,6 +932,18 @@ class MESS:
                         prod_mp2_energy = prod_mp2_energy + energy
                         prod_zpe_energy = prod_mp2_zpe + zpe
                     energy2 = (ts.energy + ts.zpe - prod_mp2_energy - prod_zpe_energy) * constants.AUtoKCAL
+                elif self.species.reac_type[index] == 'barrierless_saddle' and not self.par.par['high_level']:
+                    bls_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_bls')[1]
+                    bls_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_bls')[1]
+                    energy = (ts.energy + ts.zpe - bls_energy - bls_zpe) * constants.AUtoKCAL
+                    prod_bls_energy = 0
+                    prod_bls_zpe = 0
+                    for opt in reaction.prod_opt:
+                        energy = qc.get_qc_energy(str(opt.species.chemid) + 'well_bls')[1]
+                        zpe = qc.get_qc_zpe(str(opt.species.chemid) + 'well_bls')[1]
+                        prod_bls_energy = prod_bls_energy + energy
+                        prod_zpe_energy = prod_bls_zpe + zpe
+                    energy2 = (ts.energy + ts.zpe - prod_bls_energy - prod_zpe_energy) * constants.AUtoKCAL
                 else:
                     energy = (ts.energy + ts.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
                     energy2 = (reaction.ts.energy + reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt]) * constants.AUtoKCAL
@@ -983,10 +996,15 @@ class MESS:
             for index in range(len(self.species.reac_inst)):
                 if self.species.reac_ts_done[index] == -1:
                     ts = self.species.reac_obj[index].ts
-                    if self.species.reac_type[index] == 'R_Addition_MultipleBond' and not self.par.par['high_level']:
+                    #if self.species.reac_type[index] == 'R_Addition_MultipleBond' and not self.par.par['high_level']:
+                    if self.species.reac_obj[index].mp2 == 1 and not self.par.par['high_level']:
                         mp2_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
                         mp2_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_mp2')[1]
                         energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
+                    elif self.species.reac_type[index] == 'barrierless_saddle' and not self.par.par['high_level']:
+                        bls_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_bls')[1]
+                        bls_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_bls')[1]
+                        energy = (ts.energy + ts.zpe - bls_energy - bls_zpe) * constants.AUtoKCAL
                     else:
                         energy = (ts.energy + ts.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
                     energies.append(energy)

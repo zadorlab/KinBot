@@ -1,9 +1,11 @@
 from kinbot.reac_General import GeneralReac
 from kinbot import geometry
+from kinbot.parameters import Parameters
 import numpy as np
 
 class BarrierlessSaddle(GeneralReac):
-    max_step = 20
+    par = Parameters()
+    max_step = par.par['scan_step']
     scan = 1
     skip = 0
     

@@ -11,12 +11,13 @@ def carry_out_reaction(rxn, step, command):
     skip: boolean which tells to skip the first 12 steps in case of an instance shorter than 4
     scan: boolean which tells if this is part of an energy scan along a bond length coordinate
     """
+    print('in carry out', step, rxn.max_step)
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error': return step
   
     kwargs = rxn.qc.get_qc_arguments(   rxn.instance_name, rxn.species.mult, rxn.species.charge, ts=1,
-                                        step = step, max_step=rxn.max_step, scan = rxn.scan)
+                                        step=step, max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
             if rxn.qc.check_qc(rxn.instance_name) == 'normal': 
@@ -52,6 +53,7 @@ def carry_out_reaction(rxn, step, command):
     kwargs['change'] = change
     kwargs['release'] = release
 
+    print('in carry out, low', step, rxn.max_step)
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
         template = open(template_file,'r').read()

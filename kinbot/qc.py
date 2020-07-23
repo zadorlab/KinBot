@@ -29,6 +29,8 @@ class QuantumChemistry:
         self.bls_basis = par.par['barrierless_saddle_basis']
         self.high_level_method = par.par['high_level_method']
         self.high_level_basis = par.par['high_level_basis']
+        self.bls_high_level_method = par.par['barrierless_saddle_method_high']
+        self.bls_high_level_basis = par.par['barrierless_saddle_basis_high']
         self.integral = par.par['integral']
         self.opt = par.par['opt']
         self.ppn = par.par['ppn']
@@ -87,7 +89,6 @@ class QuantumChemistry:
                     kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
-                    # kwargs['geom'] = 'AllCheck'
                     kwargs['guess'] = 'Read'
                 else:
                     kwargs['method'] = self.method
@@ -98,8 +99,6 @@ class QuantumChemistry:
                     else:
                         kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
                         kwargs['freq'] = 'freq'
-                    # kwargs['geom'] = 'AllCheck,NoKeepConstants'
-                    # kwargs['guess'] = 'Read'
             else:
                 kwargs['freq'] = 'freq'
             if scan or 'R_Addition_MultipleBond' in job:
@@ -118,8 +117,12 @@ class QuantumChemistry:
                     kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 del kwargs['freq']
             if high_level:
-                kwargs['method'] = self.high_level_method
-                kwargs['basis'] = self.high_level_basis
+                if 'barrierless_saddle' in job:
+                    kwargs['method'] = self.bls_high_level_method
+                    kwargs['basis'] = self.bls_high_level_basis
+                else:
+                    kwargs['method'] = self.high_level_method
+                    kwargs['basis'] = self.high_level_basis
                 if len(self.opt) > 0:
                     kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999,{}'.format(self.opt)  # to overwrite possible CalcAll
                 else:
@@ -542,7 +545,7 @@ class QuantumChemistry:
 
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
-    def get_qc_geom(self, job, natom, wait=0, allow_error=0):
+    def get_qc_geom(self, job, natom, wait=0, allow_error=0, previous=0):
         """
         Get the geometry from the ase database file.
         Returns it, with the following conditions about the status of the job.
@@ -553,6 +556,9 @@ class QuantumChemistry:
         If allow_error = 0, do not read the final geometry if the status is not "normal"
         if allow_error = 1, read the geometry even though there is an error in the output file
             This option is to read the final IRC geometry when it did not converge
+        If previous = 0, read the last geometry, this is the normal behavious
+        if previous = 1, read the geometry before the last one, this is needed in scan types so
+            that the max energy point is taken, not the one after that
         """
         geom = np.zeros((natom, 3))
 
@@ -583,12 +589,16 @@ class QuantumChemistry:
         found_entry = 0
         # take the last entry
         for row in rows:
+            if found_entry:
+                prev_geom = geom  # saves the previous 
             mol = row.toatoms()
             geom = mol.positions
             found_entry = 1
 
-        if found_entry:
+        if found_entry and previous == 0:
             return status, geom
+        elif found_entry and previous == 1:
+            return status, prev_geom
         else:
             return -1, geom
 

@@ -99,7 +99,6 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                         else:
                             if self.species.reac_step[index] == 0:
-                                print(self.species.reac_step[index])
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                             elif self.species.reac_step[index] < self.par.par['scan_step']:
                                 status = self.qc.check_qc(instance_name)
@@ -110,21 +109,16 @@ class ReactionGenerator:
                                     err, energy = self.qc.get_qc_energy(instance_name)
                                     if err == 0:
                                         self.species.reac_scan_energy[index].append(energy)
-                                        print(self.species.reac_scan_energy[index])
                                         if len(self.species.reac_scan_energy[index]) >= 3:  # need at least 3 point for a maximum
                                             # if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:  # old
                                             ediff = np.diff(self.species.reac_scan_energy[index])
-                                            print('ediff', ediff)
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
                                                 self.species.reac_step[index] = self.par.par['scan_step']  # ending the scan
-                                                print('max was found', )
                                             if len(ediff) >=3:
                                                 if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
                                                     self.species.reac_step[index] = self.par.par['scan_step']  # ending the scan
-                                                    print('infl was found')
                                         logging.info('\tScan energies for {}: {}.'.format(instance_name, self.species.reac_scan_energy[index]))
                                         # scan continues, and if reached scan_step, then goes for full optimization
-                                        print(self.species.reac_step[index])
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
                             else:  # the last step was reached, and no max or inflection was found
                                 logging.info('\tRxn search using scan failed for {}, no saddle guess found.'.format(instance_name))

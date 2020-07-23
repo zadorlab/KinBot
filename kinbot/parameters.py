@@ -131,6 +131,10 @@ class Parameters:
             'barrierless_saddle_method': 'b3lyp',
             # Basis set to scan bonds in barrierless_saddle family
             'barrierless_saddle_basis': '6-31G',
+            # Method to scan bonds in barrierless_saddle family
+            'barrierless_saddle_method_high': 'b3lyp',
+            # Basis set to scan bonds in barrierless_saddle family
+            'barrierless_saddle_basis_high': '6-31G',
             # for Gaussian, request CalcAll for TS optimization
             'calcall_ts': 0,
             # Quantum chemistry method to use for high-level L2

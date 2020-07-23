@@ -9,9 +9,12 @@ import logging
 try:
     import pybel
 except ImportError:
-    print('Warning: Pybel could not be imported.')
-    print('Certain features or the whole code might not run properly.')
-    pass
+    try:
+        from openbabel import pybel
+    except:
+        print('Warning: Pybel could not be imported.')
+        print('Certain features or the whole code might not run properly.')
+        pass
 
 try:
     from rdkit import Chem
@@ -98,7 +101,14 @@ def generate_3d_structure(smi, obabel=1):
         for i in range(len(obmol.atoms)):
             for j in range(len(obmol.atoms)):
                 if not obmol.OBMol.GetBond(i+1, j+1) is None:
-                    order = obmol.OBMol.GetBond(i+1, j+1).GetBO()
+                    try:
+                        order = obmol.OBMol.GetBond(i+1, j+1).GetBO()
+                    except:
+                        try:
+                            order = obmol.OBMol.GetBond(i+1, j+1).GetBondOrder()
+                        except:
+                            logging.error('Something went wrong with OpenBabel')
+                            sys.exit()
                     bond[i][j] = order
         for at in obmol.atoms:
             pos = at.coords

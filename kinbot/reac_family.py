@@ -16,7 +16,7 @@ def carry_out_reaction(rxn, step, command):
         if status != 'normal' and status != 'error': return step
   
     kwargs = rxn.qc.get_qc_arguments(   rxn.instance_name, rxn.species.mult, rxn.species.charge, ts=1,
-                                        step = step, max_step=rxn.max_step, scan = rxn.scan)
+                                        step=step, max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
             if rxn.qc.check_qc(rxn.instance_name) == 'normal': 
@@ -28,8 +28,10 @@ def carry_out_reaction(rxn, step, command):
         if rxn.skip and len(rxn.instance) < 4:
             step = 12
         geom = rxn.species.geom
+    elif step == rxn.max_step and rxn.scan:
+        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1, previous=1)
     else:
-        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error = 1)
+        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
 
     step, fix, change, release = rxn.get_constraints(step, geom)
 

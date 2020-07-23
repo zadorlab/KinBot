@@ -161,10 +161,20 @@ class Parameters:
             # If not specified, then the tpl/[single_point_qc].inp is used
             'single_point_template': '',
             # The keyword to be searched for in Molpro for the desired
-            # energy. Compulsory is Molpro energies are used.
-            "single_point_key": '',
+            # energy. Compulsory if Molpro energies are used.
+            'single_point_key': '',
+            # L3 for barrierless template, CASPT2-like molpro is expected
+            'barrierless_saddle_single_point_template': '',
+            # active orbitals
+            'barrieless_saddle_norbital': 0,
+            # number of electrons on them 
+            'barrieless_saddle_nelectron': 0,
+            # number of states
+            'barrierless_saddle_nstate': 0,
+            # single point key for barrierless
+            'barrierless_saddle_single_point_key': '',
             # Command string to be used for single point energy calculation
-            "single_point_command": '',
+            'single_point_command': '',
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

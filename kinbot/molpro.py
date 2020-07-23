@@ -1,6 +1,7 @@
 import os
 import pkg_resources
 import numpy as np
+import logging
 
 from kinbot import constants
 
@@ -13,7 +14,7 @@ class Molpro:
         self.species = species
         self.par = par
 
-    def create_molpro_input(self):
+    def create_molpro_input(self, bls=0):
         """
         Create the input for molpro based on the template,
         which is either the one in the system, or provided
@@ -21,6 +22,8 @@ class Molpro:
         """
         if self.par.par['single_point_template'] == '':
             tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
+        elif bls == 1:
+            tpl_file = self.par.par['barrierless_saddle_single_point_template']
         else:
             tpl_file = self.par.par['single_point_template']
         with open(tpl_file) as f:
@@ -38,19 +41,44 @@ class Molpro:
             nelectron += constants.znumber[at]
 
         nelectron -= self.species.charge
-
         symm = self.molpro_symm()
         spin = self.species.mult - 1
+        
+        if bls == 0:
+            with open('molpro/' + fname + '.inp', 'w') as outf:
+                outf.write(file.format(name=fname,
+                                       natom=self.species.natom,
+                                       geom=geom,
+                                       nelectron=nelectron,
+                                       symm=symm,
+                                       spin=spin,
+                                       charge=self.species.charge
+                                       ))
 
-        with open('molpro/' + fname + '.inp', 'w') as outf:
-            outf.write(file.format(name=fname,
-                                   natom=self.species.natom,
-                                   geom=geom,
-                                   nelectron=nelectron,
-                                   symm=symm,
-                                   spin=spin,
-                                   charge=self.species.charge
-                                   ))
+        else:
+            closed = (nelectron - self.par.par['barrierless_saddle_nelectron']) / 2
+            if type(closed) is not int:
+                logging.warning("The number of closed orbitals is not an integer, 
+                             the CASPT2-like calculation will crash, but
+                             KinBot carries on for now. Revise your input,
+                             barrierless_saddle_nelectron is incorrect.")
+            occ = closed + self.par.par['barrierless_saddle_norbital'] 
+
+            with open('molpro/' + fname + '.inp', 'w') as outf:
+                outf.write(file.format(name=fname,
+                                       natom=self.species.natom,
+                                       geom=geom,
+                                       nelectron=nelectron,
+                                       symm=symm,
+                                       spin=spin,
+                                       charge=self.species.charge,
+                                       state=self.par.par['barrierless_saddle_nstate'],
+                                       closed=closed,
+                                       occ=occ
+                                       ))
+
+        return 0
+
 
     def get_molpro_energy(self, key):
         """
@@ -74,6 +102,7 @@ class Molpro:
                     return 1, float(line.split()[3])
         else:
             return 0, -1
+
 
     def create_molpro_submit(self):
         """
@@ -109,6 +138,7 @@ class Molpro:
                         slurm_feature=self.par.par['slurm_feature']))
 
         return 0
+
 
     def molpro_symm(self):
         if np.array_equal(self.species.atom, ['O']) and self.species.mult == 3:

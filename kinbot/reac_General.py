@@ -25,7 +25,7 @@ class GeneralReac:
         self.instance_name = instance_name
 
         if self.scan:
-            max_step = self.par.par['scan_step']
+            self.max_step = self.par.par['scan_step']
 
 
     def clean_constraints(self, change, fix):

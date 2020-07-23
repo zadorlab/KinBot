@@ -17,9 +17,9 @@ class BarrierlessSaddle(GeneralReac):
 
         if step < self.max_step:
             if step == 0:
-                delta = 0.5
+                delta = par.par['barrierless_saddle_start'] - np.linalg.norm(geom[self.instance[0]] - geom[self.instance[1]])
             else:
-                delta = 0.2
+                delta = par.par['barrierless_saddle_step']
             val = np.linalg.norm(geom[self.instance[0]] - geom[self.instance[1]]) + delta
             self.set_bond(0, 1, val, change)
 

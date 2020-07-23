@@ -61,6 +61,10 @@ class Parameters:
             # this is a dictionary written as:
             # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
             'barrierless_saddle': None,
+            # starting distance for barrierless_saddle searches, A
+            'barrierless_saddle_start': 2.0,
+            # step size in A
+            'barrierless_saddle_step': 0.2,
             'homolytic_bonds': [],
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed

@@ -58,9 +58,9 @@ class Molpro:
         else:
             closed = (nelectron - self.par.par['barrierless_saddle_nelectron']) / 2
             if type(closed) is not int:
-                logging.warning("The number of closed orbitals is not an integer, 
-                             the CASPT2-like calculation will crash, but
-                             KinBot carries on for now. Revise your input,
+                logging.warning("The number of closed orbitals is not an integer,\
+                             the CASPT2-like calculation will crash, but\
+                             KinBot carries on for now. Revise your input,\
                              barrierless_saddle_nelectron is incorrect.")
             occ = closed + self.par.par['barrierless_saddle_norbital'] 
 

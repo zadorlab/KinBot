@@ -7,6 +7,7 @@ import re
 import time
 import copy
 import pkg_resources
+from shutil import copyfile
 
 from ase.db import connect
 from kinbot import constants
@@ -25,8 +26,12 @@ class QuantumChemistry:
         self.qc = par.par['qc']
         self.method = par.par['method']
         self.basis = par.par['basis']
+        self.bls_method = par.par['barrierless_saddle_method']
+        self.bls_basis = par.par['barrierless_saddle_basis']
         self.high_level_method = par.par['high_level_method']
         self.high_level_basis = par.par['high_level_basis']
+        self.bls_high_level_method = par.par['barrierless_saddle_method_high']
+        self.bls_high_level_basis = par.par['barrierless_saddle_basis_high']
         self.integral = par.par['integral']
         self.opt = par.par['opt']
         self.ppn = par.par['ppn']
@@ -74,8 +79,8 @@ class QuantumChemistry:
                 'charge': charge,
                 'scf': 'xqc'
             }
-            if self.par.par['guessmix'] == 1:
-                kwargs['guess'] = '(Mix,Always)'
+            if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                kwargs['guess'] = 'Mix,Always'
             if ts:
                 # arguments for transition state searches
                 kwargs['method'] = 'am1'
@@ -85,7 +90,6 @@ class QuantumChemistry:
                     kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
-                    # kwargs['geom'] = 'AllCheck'
                     kwargs['guess'] = 'Read'
                 else:
                     kwargs['method'] = self.method
@@ -96,13 +100,14 @@ class QuantumChemistry:
                     else:
                         kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
                         kwargs['freq'] = 'freq'
-                    # kwargs['geom'] = 'AllCheck,NoKeepConstants'
-                    # kwargs['guess'] = 'Read'
             else:
                 kwargs['freq'] = 'freq'
             if scan or 'R_Addition_MultipleBond' in job:
                 kwargs['method'] = 'mp2'
                 kwargs['basis'] = self.basis
+            if 'barrierless_saddle' in job or 'bls' in job:
+                kwargs['method'] = self.bls_method
+                kwargs['basis'] = self.bls_basis
             if irc is not None:
                 # arguments for the irc calculations
                 if start_form_geom == 0:
@@ -113,8 +118,12 @@ class QuantumChemistry:
                     kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 del kwargs['freq']
             if high_level:
-                kwargs['method'] = self.high_level_method
-                kwargs['basis'] = self.high_level_basis
+                if 'barrierless_saddle' in job:
+                    kwargs['method'] = self.bls_high_level_method
+                    kwargs['basis'] = self.bls_high_level_basis
+                else:
+                    kwargs['method'] = self.high_level_method
+                    kwargs['basis'] = self.high_level_basis
                 if len(self.opt) > 0:
                     kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999,{}'.format(self.opt)  # to overwrite possible CalcAll
                 else:
@@ -268,7 +277,7 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_conf(self, species, geom, index=-1, ring=0):
+    def qc_conf(self, species, geom, index=-1, ring=0, semi_emp=0):
         """
         Creates a geometry optimization input for the conformational search and runs it.
         qc: 'gauss' or 'nwchem'
@@ -278,13 +287,15 @@ class QuantumChemistry:
         if index == -1:
             job = 'conf/' + str(species.chemid) + '_well'
         else:
-            r = ''
+            add = ''
             if ring:
-                r = 'r'
+                add = 'r'
+            if semi_emp:
+                add = 'semi_emp_'
             if species.wellorts:
-                job = 'conf/' + species.name + '_' + r + str(index).zfill(self.zf)
+                job = 'conf/' + species.name + '_' + add + str(index).zfill(self.zf)
             else:
-                job = 'conf/' + str(species.chemid) + '_' + r + str(index).zfill(self.zf)
+                job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
 
         if species.wellorts:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1)
@@ -294,7 +305,9 @@ class QuantumChemistry:
                 kwargs['opt'] = 'CalcFC, Tight'
 
         del kwargs['chk']
-
+        if semi_emp:
+            kwargs['method'] = self.par.par['semi_emp_method']
+            kwargs['basis'] = ''
         atom = copy.deepcopy(species.atom)
 
         dummy = geometry.is_linear(geom, species.bond)
@@ -322,7 +335,7 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self, species, geom, high_level=0, mp2=0):
+    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0):
         """
         Creates a geometry optimization input and runs it.
         """
@@ -332,6 +345,8 @@ class QuantumChemistry:
             job = str(species.chemid) + '_well_high'
         if mp2:
             job = str(species.chemid) + '_well_mp2'
+        if bls:
+            job = str(species.chemid) + '_well_bls'
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -472,7 +487,7 @@ class QuantumChemistry:
         If the number of jobs in the queue is larger than the user-set limit,
         KinBot will park here until resources are freed up.
         """
-
+        # if the logfile already exists, copy it with another name
         if self.queue_job_limit > 0:
             self.limit_jobs()
 
@@ -535,7 +550,7 @@ class QuantumChemistry:
 
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
-    def get_qc_geom(self, job, natom, wait=0, allow_error=0):
+    def get_qc_geom(self, job, natom, wait=0, allow_error=0, previous=0):
         """
         Get the geometry from the ase database file.
         Returns it, with the following conditions about the status of the job.
@@ -546,6 +561,9 @@ class QuantumChemistry:
         If allow_error = 0, do not read the final geometry if the status is not "normal"
         if allow_error = 1, read the geometry even though there is an error in the output file
             This option is to read the final IRC geometry when it did not converge
+        If previous = 0, read the last geometry, this is the normal behavious
+        if previous = 1, read the geometry before the last one, this is needed in scan types so
+            that the max energy point is taken, not the one after that
         """
         geom = np.zeros((natom, 3))
 
@@ -576,12 +594,16 @@ class QuantumChemistry:
         found_entry = 0
         # take the last entry
         for row in rows:
+            if found_entry:
+                prev_geom = geom  # saves the previous 
             mol = row.toatoms()
             geom = mol.positions
             found_entry = 1
 
-        if found_entry:
+        if found_entry and previous == 0:
             return status, geom
+        elif found_entry and previous == 1:
+            return status, prev_geom
         else:
             return -1, geom
 

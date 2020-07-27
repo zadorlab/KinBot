@@ -309,20 +309,25 @@ def postprocess(par, jobs, task, names, n):
                 prod = pieces[3:]  # this is the chemid of the product
                 # calculate the barrier based on the new energy base
                 barrier = 0. - base_energy - base_zpe
+
                 # overwrite energies with mp2 energy if needed
-                if ('R_Addition_MultipleBond' in ts and
-                        not par.par['high_level']):
-                    base_energy_mp2 = get_energy(jobs[0],
-                                                 jobs[0],
-                                                 0,
-                                                 par.par['high_level'],
-                                                 mp2=1)
-                    base_zpe_mp2 = get_zpe(jobs[0],
-                                           jobs[0],
-                                           0,
-                                           par.par['high_level'],
-                                           mp2=1)
+                mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
+                        'reac_r12_cycloaddition', 'reac_r14_birad_scission']
+                if (any([mm in ts for mm in mp2_list]) and not par.par['high_level']):
+                    base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
+                                                 par.par['high_level'], mp2=1)
+                    base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
+                                           par.par['high_level'], mp2=1)
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
+
+                # overwrite energies with bls energy if needed
+                if 'barrierless_saddle' in ts and not par.par[ 'high_level']:
+                    base_energy_bls = get_energy(jobs[0], jobs[0], 0,
+                                                 par.par['high_level'], bls=1)
+                    base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
+                                           par.par['high_level'], bls=1)
+                    barrier = 0. - base_energy_bls - base_zpe_bls
+
                 ts_energy = get_energy(reactant, ts, 1, par.par['high_level'])
                 ts_zpe = get_zpe(reactant, ts, 1, par.par['high_level'])
                 barrier += ts_energy + ts_zpe
@@ -1325,7 +1330,7 @@ def create_graph(wells, products, reactions,
     plt.savefig('graph.png')
 
 
-def get_energy(dir, job, ts, high_level, mp2=0):
+def get_energy(dir, job, ts, high_level, mp2=0, bls=0):
     db = connect(dir + '/kinbot.db')
     if ts:
         j = job
@@ -1333,6 +1338,8 @@ def get_energy(dir, job, ts, high_level, mp2=0):
         j = job + '_well'
     if mp2:
         j += '_mp2'
+    if bls:
+        j += '_bls'
     if high_level:
         j += '_high'
     rows = db.select(name=j)
@@ -1370,7 +1377,7 @@ def get_l3energy(job, par):
             return 0, -1  # job not yet started to run
 
 
-def get_zpe(dir, job, ts, high_level, mp2=0):
+def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):
     db = connect(dir + '/kinbot.db')
     if ts:
         j = job
@@ -1378,6 +1385,8 @@ def get_zpe(dir, job, ts, high_level, mp2=0):
         j = job + '_well'
     if mp2:
         j += '_mp2'
+    if bls:
+        j += '_bls'
     if high_level:
         j += '_high'
     rows = db.select(name=j)

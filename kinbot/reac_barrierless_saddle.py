@@ -1,25 +1,28 @@
 from kinbot.reac_General import GeneralReac
+from kinbot import geometry
 from kinbot.parameters import Parameters
 import numpy as np
 
-class BiradRecombinationR(GeneralReac):
-    scan = 1
-    skip = 0
+class BarrierlessSaddle(GeneralReac):
     par = Parameters()
     max_step = par.par['scan_step']
-    mp2 = 1
+    scan = 1
+    skip = 0
     
+
     def get_constraints(self, step, geom):
         fix = []
         change = []
         release = []
-        if step < self.max_step:
-            self.fix_bonds(fix)
 
         if step < self.max_step:
-            val = np.linalg.norm(geom[self.instance[0]] - geom[self.instance[1]]) + 0.1
+            if step == 0:
+                delta = 0.5
+            else:
+                delta = 0.2
+            val = np.linalg.norm(geom[self.instance[0]] - geom[self.instance[1]]) + delta
             self.set_bond(0, 1, val, change)
 
         self.clean_constraints(change, fix)
-
+        
         return step, fix, change, release

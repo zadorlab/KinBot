@@ -22,6 +22,9 @@ class KorcekStep2Even(GeneralReac):
                 fval = 1.8
                 a = np.where(self.instance == bondbreak[2 * ii])[0][0]
                 b = np.where(self.instance == bondbreak[2 * ii + 1])[0][0]
+                finalAtomIndex = len(self.instance) - 1
+                if a == finalAtomIndex and b == 0:
+                    fval = 1.9  # Should be the O-O bond length at the TS
                 self.set_bond(a, b, -999, change, step=step, stmax=self.max_step, findist=fval, geom=geom)
 
         self.clean_constraints(change, fix)

@@ -2,6 +2,7 @@ import numpy as np
 
 from kinbot import constants
 from kinbot import geometry
+from kinbot.bmat import B_Mat
 
 
 def get_frequencies(species, hess, geom):
@@ -107,7 +108,7 @@ def get_frequencies(species, hess, geom):
 
     # STEP 3: project out internal rotations
 
-    # Build set of internal rotaton vectors to project out
+    # Build set of internal rotation vectors to project out
     R = []
     for rot in species.dihed:
         # mass weight the cartesian coordinates
@@ -132,7 +133,6 @@ def get_frequencies(species, hess, geom):
                     sign = -1
                 rot_vect = sign * np.cross(per, axis)
                 Ri[3*at:3*at+3] = rot_vect
-
         # project the translational, external rotational and previous
         # internal rotations out of the current vector
         Ri = Ri / np.linalg.norm(Ri)
@@ -213,3 +213,24 @@ def get_neighbors(ati, visited, forbidden, division, bond, natom):
                 division.append(atj)
                 visited.append(atj)
                 get_neighbors(atj, visited, forbidden, division, bond, natom)
+
+
+def curvature(species, hess):
+    bbb = B_Mat(species)
+    bbb.bond_bij()
+    bbb.angle_bij()
+    bbb.dihedral_bij()
+    bbb.B = np.reshape(bbb.B, (-1, species.natom * 3))
+
+    # convert Hessian to Hartree / A**2
+    hess_ang = hess / constants.BOHRtoCM**2 * 1.e-8**2
+
+    jacobian = np.linalg.pinv(bbb.B)
+    m = np.dot(np.dot(jacobian.T, hess_ang), jacobian)
+
+    eigval, eigvec = np.linalg.eig(m)
+    print(eigval)
+    print(len(bbb.bond), len(bbb.angle), len(bbb.dihed))
+    #print(bbb.dihed)
+
+    return 0

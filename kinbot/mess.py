@@ -101,6 +101,8 @@ class MESS:
                         if st_pt.chemid not in self.well_names:
                             self.well_names[st_pt.chemid] = 'w_' + str(len(self.well_names) + 1)
                     elif len(hs.products) == 2:
+                        for st_pt in hs.products:
+                            if st_pt.chemid not in self.fragment_names:
                                 self.fragment_names[st_pt.chemid] = 'fr_' + str(len(self.fragment_names) + 1)
                     bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in hs.products]))
                     if bimol_name not in self.bimolec_names:
@@ -237,7 +239,6 @@ class MESS:
                     ts_freqFactor = uq_obj.calc_freqUQ(freq_uqVal)
                     imagfreqFactor = uq_obj.calc_freqUQ(imagfreq_uqVal)
                     if reaction.instance_name in ts_all:
-                  
                         allTS[reaction.instance_name], ts_e, ts_freq, ts_imagFreq = self.write_barrier(reaction,
                                                                                                        uq,
                                                                                                        uq_n,
@@ -840,6 +841,7 @@ class MESS:
         """
         Create the block for a MESS barrier.
         """
+        #print(reaction, barrier_adds)
         logFile = open('uq.log', 'a')
         tmp = self.ts_names[reaction.instance_name]
         # open the templates

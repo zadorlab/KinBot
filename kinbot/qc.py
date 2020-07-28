@@ -339,7 +339,6 @@ class QuantumChemistry:
         """
         Creates a geometry optimization input and runs it.
         """
-
         job = str(species.chemid) + '_well'
         if high_level:
             job = str(species.chemid) + '_well_high'

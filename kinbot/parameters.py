@@ -60,7 +60,7 @@ class Parameters:
             # break specific bonds in the homolytic search
             # this is a dictionary written as:
             # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
-            'barrierless_saddle': None,
+            'barrierless_saddle': {},
             'homolytic_bonds': [],
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed

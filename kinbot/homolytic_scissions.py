@@ -126,8 +126,16 @@ class HomolyticScissions:
                         prod_opt = Optimize(prod, self.par, self.qc)
                         if str(chemid) != str(prod_opt.species.chemid):
                             logging.info("HS product {} changed to {} during optimization.".format(chemid, prod_opt.species.chemid))
+                        pre = prod_opt.species.chemid
                         prod_opt.do_optimization()
+                        print("prod_opt post do.optimization chemid: {} (pre {} --> {})".format(prod_opt.species.chemid, chemid, pre))
                         hs.prod_opt.append(prod_opt)
+                    print("hs.products")
+                    for item in hs.products:
+                        print(item.chemid)
+                    print("hs.prod_opt")
+                    for item in hs.prod_opt:
+                        print(prod_opt.species.chemid)
                     hs.status = 3
                 if hs.status == 3:
                     # check up on the optimization

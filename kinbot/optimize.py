@@ -159,6 +159,7 @@ class Optimize:
                                     if (self.semi_emp_energies[i] - self.semi_emp_low_energy) * constants.AUtoKCAL < self.par.par['semi_emp_confomer_threshold']:
                                         self.species.confs.generate_conformers(0, geom)
                             else:
+                                self.ssemi_empconf = -1  # TODO not sure about this line
                     # first do an semi empirical optimization if requested by the user
                     if self.par.par['semi_emp_conformer_search'] == 1:
                         if self.ssemi_empconf == -1:

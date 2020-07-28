@@ -112,7 +112,10 @@ class QuantumChemistry:
                 # arguments for the irc calculations
                 if start_form_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
-                    kwargs['guess'] = 'Read'
+                    if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                        kwargs['guess'] = 'Read,Mix'  # Always is illegal here
+                    else:
+                        kwargs['guess'] = 'Read'
                     kwargs['irc'] = 'RCFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 else:
                     kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)

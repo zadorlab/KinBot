@@ -93,7 +93,6 @@ class HomolyticScissions:
                                 hs.create_geometries()
                                 self.hss.append(hs)
         
-        return
         # optimize the products of the hss
         while 1:
             for index, hs in enumerate(self.hss):

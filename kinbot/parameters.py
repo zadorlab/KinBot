@@ -84,7 +84,7 @@ class Parameters:
             'high_level': 0,
             # Do a conformational search
             'conformer_search': 0,
-            # Do an semi empirical conformational search and select the lowest conformers
+            # Do a semi empirical conformational search and select the lowest conformers
             # for the L1 conformer search
             'semi_emp_conformer_search': 0,
             # Do a hindered rotor scan
@@ -180,9 +180,9 @@ class Parameters:
             # L3 for barrierless template, CASPT2-like molpro is expected
             'barrierless_saddle_single_point_template': '',
             # active orbitals
-            'barrieless_saddle_norbital': 0,
+            'barrierless_saddle_norbital': 0,
             # number of electrons on them 
-            'barrieless_saddle_nelectron': 0,
+            'barrierless_saddle_nelectron': 0,
             # number of states
             'barrierless_saddle_nstate': 0,
             # single point key for barrierless

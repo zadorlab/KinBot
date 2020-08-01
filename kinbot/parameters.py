@@ -84,6 +84,8 @@ class Parameters:
             'high_level': 0,
             # Do a conformational search
             'conformer_search': 0,
+            # The angular grid for dihedrals, angle = 360 / grid
+            'conf_grid': 3,
             # Do a semi empirical conformational search and select the lowest conformers
             # for the L1 conformer search
             'semi_emp_conformer_search': 0,
@@ -109,7 +111,7 @@ class Parameters:
             # at semi empirical level
             'random_conf_semi_emp': 500,
             # threshold of conformers at semi empirical level to take to the L1 level
-            # in kcal per mol
+            # in kcal/mol
             'semi_emp_confomer_threshold' : 5,
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions

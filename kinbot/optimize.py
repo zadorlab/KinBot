@@ -34,8 +34,10 @@ class Optimize:
             logging.info("{} has no cycle_chain attribute to delete".format(self.species.chemid))
         if self.species.wellorts:
             self.species.characterize(bond_mx=self.species.bond)
+            self.name = self.species.name
         else:
             self.species.characterize()
+            self.name = self.species.chemid
         self.par = par
         self.qc = qc
         # wait for all calculations to finish before returning
@@ -123,6 +125,7 @@ class Optimize:
 
                     # first do an semi empirical optimization if requested by the user
                 if self.par.par['semi_emp_conformer_search'] == 1:
+                    logging.info("semi empirical conformer search is starting for {}".format(self.name))
                     if self.ssemi_empconf == -1:
                         # semi empirical part has not started yet
                         self.species.semi_emp_confs = Conformers(self.species, self.par, self.qc, semi_emp=1)
@@ -137,10 +140,6 @@ class Optimize:
                             # check if the conformational search is done
                             status, lowest_conf, geom, self.semi_emp_low_energy, self.semi_emp_conformers, self.semi_emp_energies = self.species.semi_emp_confs.check_conformers(wait=self.wait)
                             if status == 1:
-                                if self.species.wellorts:
-                                    self.name = self.species.name
-                                else:
-                                    self.name = self.species.chemid
                                 logging.info("semi empirical lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
                                 # set conf status to finished
                                 self.ssemi_empconf = 1
@@ -169,10 +168,6 @@ class Optimize:
                         # check if the conformational search is done
                         status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                         if status == 1:
-                            if self.species.wellorts:
-                                self.name = self.species.name
-                            else:
-                                self.name = self.species.chemid
                             logging.info("lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
@@ -198,10 +193,6 @@ class Optimize:
                     # do the high level calculations
                     if self.par.par['high_level'] == 1:
                         if self.shigh == -1:
-                            if self.species.wellorts:
-                                name = self.species.name
-                            else:
-                                name = self.species.chemid
                             # high level calculation did not start yet
                             logging.info('\tStarting high level optimization of {}'.format(name))
                             if self.species.wellorts:

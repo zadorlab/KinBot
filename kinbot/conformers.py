@@ -237,12 +237,21 @@ class Conformers:
             cycles = 1
         else:
             cycles = self.cyc_conf
+
+        if self.species.wellorts:
+            name = self.species.name
+        else:
+            name = self.species.chemid
+ 
         # what is the value of cycles
         # what is value of all things associated w/ conf generation
         # what is length of conf_dihed?
-        theoretical_confs = np.power(3, len(self.species.conf_dihed))*cycles
+        theoretical_confs = np.power(self.grid, len(self.species.conf_dihed)) * cycles
+        if rotor == 0:
+            logging.info('Theoretical number of conformers for open chain is {} for {}.'.format(theoretical_confs, name))
         if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
-            logging.info('Random conformer search is done for {}.'.format(name))
+            if rotor == 0:
+                logging.info('Random conformer search is done for {}.'.format(name))
             self.generate_conformers_random_sampling(cart)
             return 0
         if rotor == len(self.species.conf_dihed):

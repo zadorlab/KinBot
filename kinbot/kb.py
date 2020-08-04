@@ -159,11 +159,14 @@ def main():
         err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
 
     # comparison for barrierless scan
+    print(bool(par.par['barrierless_saddle']))
     if par.par['barrierless_saddle']:
         logging.info('Optimization of intial well for barrierless at {}/{}'.
                 format(par.par['barrierless_saddle_method'], par.par['barrierless_saddle_basis']))
         qc.qc_opt(well0, well0.geom, bls=1)
         err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
+    else:
+        print("Skipping BLS on well0")
 
     # characterize again and look for differences
     well0.characterize(dimer=par.par['dimer'])

@@ -112,7 +112,10 @@ class QuantumChemistry:
                 # arguments for the irc calculations
                 if start_form_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
-                    kwargs['guess'] = 'Read'
+                    if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                        kwargs['guess'] = 'Read,Mix'  # Always is illegal here
+                    else:
+                        kwargs['guess'] = 'Read'
                     kwargs['irc'] = 'RCFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 else:
                     kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
@@ -345,7 +348,7 @@ class QuantumChemistry:
         if mp2:
             job = str(species.chemid) + '_well_mp2'
         if bls:
-            job = str(species.chemid) + '_well_bls'
+            job = str(species.chemid) + '_well_ls'
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed

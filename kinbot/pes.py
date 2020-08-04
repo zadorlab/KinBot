@@ -255,7 +255,7 @@ def get_wells(job):
     if len(new_wells) > 0:
         with open('chemids', 'a') as f:
             f.write('\n'.join(new_wells) + '\n')
-
+    
 
 def postprocess(par, jobs, task, names, n):
     """
@@ -268,6 +268,7 @@ def postprocess(par, jobs, task, names, n):
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
+    print("base_energy")
     base_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
@@ -314,6 +315,7 @@ def postprocess(par, jobs, task, names, n):
                 mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
                         'reac_r12_cycloaddition', 'reac_r14_birad_scission']
                 if (any([mm in ts for mm in mp2_list]) and not par.par['high_level']):
+                    print("base_mp2_energy")
                     base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
                                                  par.par['high_level'], mp2=1)
                     base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
@@ -322,12 +324,13 @@ def postprocess(par, jobs, task, names, n):
 
                 # overwrite energies with bls energy if needed
                 if 'barrierless_saddle' in ts and not par.par[ 'high_level']:
+                    print("base_bls_energy")
                     base_energy_bls = get_energy(jobs[0], jobs[0], 0,
                                                  par.par['high_level'], bls=1)
                     base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
                                            par.par['high_level'], bls=1)
                     barrier = 0. - base_energy_bls - base_zpe_bls
-
+                print("ts_energy")
                 ts_energy = get_energy(reactant, ts, 1, par.par['high_level'])
                 ts_zpe = get_zpe(reactant, ts, 1, par.par['high_level'])
                 barrier += ts_energy + ts_zpe
@@ -384,6 +387,7 @@ def postprocess(par, jobs, task, names, n):
                         wells.append(prod[0])
                 else:
                     prod_name = '_'.join(sorted(prod))
+                    print("pes.py read summary file: prod_name = {}".format(prod_name))
                     if prod_name not in products:
                         if prod_name not in parent:
                             parent[prod_name] = reactant
@@ -426,6 +430,7 @@ def postprocess(par, jobs, task, names, n):
     well_energies = {}
     well_l3energies = {}
     for well in wells:
+        print("well energy")
         energy = get_energy(parent[well], well, 0, par.par['high_level'])  # from the db
         zpe = get_zpe(parent[well], well, 0, par.par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
@@ -437,9 +442,11 @@ def postprocess(par, jobs, task, names, n):
     prod_energies = {}
     prod_l3energies = {}
     for prods in products:
+        print(prods)
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
+            print("prod_energy")
             energy += get_energy(parent[prods], pr, 0, par.par['high_level'])
             zpe = get_zpe(parent[prods], pr, 0, par.par['high_level'])
             energy += zpe
@@ -517,15 +524,18 @@ def postprocess(par, jobs, task, names, n):
                            well_energies,
                            prod_energies,
                            highlight)
-    create_mess_input(par,
-                      wells,
-                      products,
-                      rxns,
-                      barrierless,
-                      well_energies,
-                      prod_energies,
-                      parent,
-                      uq_n)
+    if par.par['me'] == 1:
+        create_mess_input(par,
+                          wells,
+                          products,
+                          rxns,
+                          barrierless,
+                          well_energies,
+                          prod_energies,
+                          parent,
+                          uq_n)
+    else:
+        logging.info("ME calculations turned off")
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -1434,6 +1444,8 @@ def submit_job(chemid, par):
         shutil.copyfile('{}'.format(par.par['queue_template']), '{}/{}'.format(chemid, par.par['queue_template']))
     if par.par['single_point_template'] != '':
         shutil.copyfile('{}'.format(par.par['single_point_template']), '{}/{}'.format(chemid, par.par['single_point_template']))
+    if par.par['barrierless_saddle_single_point_template'] != '':
+        shutil.copyfile('{}'.format(par.par['barrierless_saddle_single_point_template']), '{}/{}'.format(chemid, par.par['barrierless_saddle_single_point_template']))
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
     process = subprocess.Popen(command,

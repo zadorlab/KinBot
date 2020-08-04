@@ -245,7 +245,6 @@ class ReactionGenerator:
                                 for i, frag in enumerate(newfrags):
                                     products_waiting_status[index][i] = 1
                                 logging.info('\ta) Product optimized to other structure for {}, product {} to {} {}'.format(instance_name, chemid, fragChemid[0], fragChemid[1]))
-
                     obj.products = []
                     for prod in obj.products_final:
                         obj.products.append(prod)

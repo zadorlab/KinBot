@@ -53,6 +53,7 @@ class HomolyticScissions:
         """
         # set of unique bonds to break
         bonds = []
+        frag_unique = []
         for i in range(self.species.natom - 1):
             for j in range(i+1, self.species.natom):
                 # only consider a bond of which both
@@ -92,8 +93,12 @@ class HomolyticScissions:
                                                        self.qc, [i, j])
                                 hs.create_geometries()
                                 self.hss.append(hs)
-        
-        return
+        if len(self.hss) == 0:
+            logging.info("No HS products")
+        else:
+            for item in self.hss:
+                print(item.species.chemid)
+        print("end of generate hs")
         # optimize the products of the hss
         while 1:
             for index, hs in enumerate(self.hss):
@@ -104,8 +109,13 @@ class HomolyticScissions:
                     hs.status = 1
                 if hs.status == 1:
                     # wait for the optimization to finish
+                    print("running hs.status == 1 loop")
                     err = 0
+                    hs.products_final = []
                     for prod in hs.products:
+                        hs.products_final.append(prod)
+                    for i, prod in enumerate(hs.products_final):
+                        chemid = prod.chemid
                         e, prod.geom = hs.qc.get_qc_geom(str(prod.chemid) + '_well', prod.natom)
                         if e < 0:
                             # optimizatin failed
@@ -117,25 +127,52 @@ class HomolyticScissions:
                         else:
                             e2, prod.energy = hs.qc.get_qc_energy(str(prod.chemid) + '_well', prod.natom)
                             e2, prod.zpe = hs.qc.get_qc_zpe(str(prod.chemid) + '_well', prod.natom)
+                            prod.characterize(dimer=0)
+                            fragmentChemid = []
+                            if chemid != prod.chemid:
+                                hs.products_final.pop(i)
+                                newfrags, newmaps = prod.start_multi_molecular()
+                                for i, newProd in  enumerate(newfrags):
+                                    newProd.characterize(dimer=0)
+                                    for f in frag_unique:
+                                        if newprod.chemid == f.chemid:
+                                            newfrags.pop(i)
+                                            newprod = f
+                                            j = i - 1
+                                            newfrags.insert(j, newProd)
+                                    j = i - 1
+                                hs.products_final.insert(j, newProd)
+                                hs.qc.qc_opt(newProd, newProd.geom, 0)
+                                fragmentChemid.append(newProd.chemid)
+                            if len(fragmentChemid) == 1:
+                                fragmentChemid.append(" ")
+                            if len(fragmentChemid) > 0:
+                                logging.info("HS product {} changed to {} {} during optimization.".format(chemid, fragmentChemid[0], fragmentChemid[1]))
+                    print("hs.products")
+                    for prod in hs.products:
+                        print(prod.chemid)
+                    print("hs.products_final")
+                    for prodf in hs.products_final:
+                        print(prodf.chemid)
+
+                    hs.products = []
+                    for prodf in hs.products_final:
+                        hs.products.append(prodf)
+                    hs.products_final = []
                     if err == 0:
+                        print("inside err == 0")
                         hs.status = 2
                 if hs.status == 2:
                     # Do the product conf search, high level opt and HIR
                     for i, prod in enumerate(hs.products):
                         chemid = prod.chemid
                         prod_opt = Optimize(prod, self.par, self.qc)
-                        if str(chemid) != str(prod_opt.species.chemid):
-                            logging.info("HS product {} changed to {} during optimization.".format(chemid, prod_opt.species.chemid))
-                        pre = prod_opt.species.chemid
                         prod_opt.do_optimization()
-                        print("prod_opt post do.optimization chemid: {} (pre {} --> {})".format(prod_opt.species.chemid, chemid, pre))
-                        hs.prod_opt.append(prod_opt)
-                    print("hs.products")
-                    for item in hs.products:
-                        print(item.chemid)
-                    print("hs.prod_opt")
-                    for item in hs.prod_opt:
-                        print(prod_opt.species.chemid)
+                        if str(chemid) != str(prod_opt.species.chemid):
+                            logging.info("product changed from {} to {} during step 2 of homolytic_scissons".format(chemid, prod_opt.species.chemid))
+                    print("end step 2")
+                    for p in hs.prod_opt:
+                        print(p.species.chemid, p.species.energy)
                     hs.status = 3
                 if hs.status == 3:
                     # check up on the optimization
@@ -155,6 +192,7 @@ class HomolyticScissions:
                         species_energy = self.species.energy
                         prod_energy = 0.
                         for pr_opt in hs.prod_opt:
+                            print(pr_opt.species.energy)
                             prod_energy += pr_opt.species.energy
                         barrier = (prod_energy - species_energy)*constants.AUtoKCAL
                         prod_name = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
@@ -165,9 +203,17 @@ class HomolyticScissions:
                             hs.status = -1
                             name = '_'.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
                             logging.info('Homolytic scission (barrier {:.2f} kcal/mol) lead to products {}'.format(barrier, name))
-
             if all([hs.status < 0 for hs in self.hss]):
+                print("end hs")
+                for p in hs.products:
+                    print(p.chemid)
+                for pr in hs.prod_opt:
+                    print("\t{}".format(prod_opt.species.chemid))
+                print("for hs in self.hss")
                 for hs in self.hss:
                     if hs.status == -1:
+                        p1 = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
+                        p2 = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
+                        print("products {}--> prod_opt {}".format(p1, p2))
                         prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
                 break

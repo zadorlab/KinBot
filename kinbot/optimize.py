@@ -309,7 +309,7 @@ class Optimize:
                     molp = Molpro(self.species, self.par)
                     if 'barrierless_saddle' in self.species.name:
                         molp.create_molpro_input(bls=1)
-                        molp.create_molpro_submit(bls=1)
+                        molp.create_molpro_submit()
                         status, molpro_energy = molp.get_molpro_energy(self.par.par['barrierless_saddle_single_point_key'])
                     else:
                         molp.create_molpro_input()

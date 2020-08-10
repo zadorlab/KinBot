@@ -145,6 +145,10 @@ class Parameters:
             'method': 'b3lyp',
             # Basis set to use
             'basis': '6-31G',
+            # Quantum chemistry method to use as L1 for scans
+            'scan_method': 'mp2',
+            # Basis set to use for scans
+            'scan_basis': '6-31G',
             # Method to scan bonds in barrierless_saddle family
             'barrierless_saddle_method': 'b3lyp',
             # Basis set to scan bonds in barrierless_saddle family

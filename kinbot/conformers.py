@@ -231,6 +231,7 @@ class Conformers:
         Generate guesses for all of the canonical conformers.
         This is a recursive routine to generate them.
         rotor: the rotor number in the order it was discovered
+        if -999, then just do a single calculation at the given geometry
         """
         
         if self.cyc_conf == 0:
@@ -249,12 +250,15 @@ class Conformers:
         theoretical_confs = np.power(self.grid, len(self.species.conf_dihed)) * cycles
         if rotor == 0:
             logging.info('Theoretical number of conformers for open chain is {} for {}.'.format(theoretical_confs, name))
-        if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
-            if rotor == 0:
-                logging.info('Random conformer search is done for {}.'.format(name))
-            self.generate_conformers_random_sampling(cart)
-            return 0
-        if rotor == len(self.species.conf_dihed):
+
+        if rotor != -999:
+            if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
+                if rotor == 0:
+                    logging.info('Random conformer search is carried out for {}.'.format(name))
+                self.generate_conformers_random_sampling(cart)
+                return 0
+        # retraction from the recursion
+        if rotor == len(self.species.conf_dihed) or rotor == -999:
             self.qc.qc_conf(self.species, cart, self.conf, semi_emp=self.semi_emp)
             self.conf += 1
             return 0
@@ -274,27 +278,8 @@ class Conformers:
             cartmod = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
             self.generate_conformers(rotor, cartmod)
 
-#        cart0 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
-#        self.generate_conformers(rotor, cart0)
-#
-#        zmat[3][2] += 120.
-#        for i in range(4, self.species.natom):
-#            if zmat_ref[i][2] == 4:
-#                zmat[i][2] += 120.
-#            if zmat_ref[i][2] == 1:
-#                zmat[i][2] += 120.
-#        cart1 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
-#        self.generate_conformers(rotor, cart1)
-#
-#        zmat[3][2] += 120.
-#        for i in range(4, self.species.natom):
-#            if zmat_ref[i][2] == 4:
-#                zmat[i][2] += 120.
-#            if zmat_ref[i][2] == 1:
-#                zmat[i][2] += 120.
-#        cart2 = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
-#        self.generate_conformers(rotor, cart2)
         return 0
+
 
     def generate_conformers_random_sampling(self, ini_cart):
         """

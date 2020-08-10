@@ -26,6 +26,8 @@ class QuantumChemistry:
         self.qc = par.par['qc']
         self.method = par.par['method']
         self.basis = par.par['basis']
+        self.scan_method = par.par['scan_method']
+        self.scan_basis = par.par['scan_basis']
         self.bls_method = par.par['barrierless_saddle_method']
         self.bls_basis = par.par['barrierless_saddle_basis']
         self.high_level_method = par.par['high_level_method']
@@ -103,8 +105,8 @@ class QuantumChemistry:
             else:
                 kwargs['freq'] = 'freq'
             if scan or 'R_Addition_MultipleBond' in job:
-                kwargs['method'] = 'mp2'
-                kwargs['basis'] = self.basis
+                kwargs['method'] = self.scan_method 
+                kwargs['basis'] = self.scan_basis
             if 'barrierless_saddle' in job or 'bls' in job:
                 kwargs['method'] = self.bls_method
                 kwargs['basis'] = self.bls_basis
@@ -370,7 +372,8 @@ class QuantumChemistry:
         if self.qc == 'gauss':
             kwargs['opt'] = 'CalcFC, Tight'
         if mp2:
-            kwargs['method'] = 'mp2'
+            kwargs['method'] = self.scan_method
+            kwargs['basis'] = self.scan_basis
         if high_level:
             if self.opt:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)

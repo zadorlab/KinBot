@@ -84,14 +84,10 @@ class Molpro:
             fname = self.species.name
 
         # open the template head and template
-        molpro_head = pkg_resources.resource_filename(
-                'tpl',
-                self.par.par['queuing'] + '.tpl')
+        molpro_head = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
         with open(molpro_head) as f:
             tpl_head = f.read()
-        molpro_tpl = pkg_resources.resource_filename(
-                        'tpl',
-                        self.par.par['queuing'] + '_molpro.tpl')
+        molpro_tpl = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_molpro.tpl')
         with open(molpro_tpl) as f:
             tpl = f.read()
         # substitution

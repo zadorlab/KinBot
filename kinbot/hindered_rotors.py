@@ -40,7 +40,7 @@ class HIR:
         """
         Generate the initial geometries of the points along the scans
         """
-        # re-initialize the lists incase of a restart of the HIR scans
+        # re-initialize the lists in case of a restart of the HIR scans
         self.hir_status = []
         self.hir_energies = []
         self.hir_geoms = []
@@ -124,7 +124,7 @@ class HIR:
             for rotor in range(len(self.species.dihed)):
                 status = self.hir_status[rotor]
                 energies = self.hir_energies[rotor]
-                #energies taken if status = 0, successful geom check or normal gauss termination
+                # energies taken if status = 0, successful geom check or normal gauss termination
                 ens = [(energies[i] - energies[0])*constants.AUtoKCAL for i in range(len(status)) if status[i] == 0]
 
             # if job finishes status set to 0 or 1, if all done then do the following calculation
@@ -140,12 +140,12 @@ class HIR:
                     angles = [i * 2 * np.pi / float(self.nrotation) for i in range(self.nrotation)]
                     # write profile to file
                     self.write_profile(rotor, job)
-                    #Check to see if HIR failed, job will continue if failed, but warning will be generated
-                    A,a=self.fourier_fit(job,angles,rotor)
-                    if(a==0):
+                    # Check to see if HIR failed, job will continue if failed, but warning will be generated
+                    A, a = self.fourier_fit(job, angles, rotor)
+                    if(a == 0):
                         logging.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
                     else:
-                        self.hir_fourier.append(self.fourier_fit(job,angles,rotor))
+                        self.hir_fourier.append(self.fourier_fit(job, angles, rotor))
 
                 return 1
             else:
@@ -194,7 +194,7 @@ class HIR:
                 X[i][j+n_terms] = np.sin((j+1) * ai)
 
         if(len(ens) > 0):
-            a=1
+            a = 1
             A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
 
             for i, si in enumerate(status):
@@ -211,8 +211,8 @@ class HIR:
                 plt.savefig('hir_profiles/{}.png'.format(job))
                 plt.clf()
         else:
-            A=0
-            a=0
+            A = 0
+            a = 0
 
         return A, a
 

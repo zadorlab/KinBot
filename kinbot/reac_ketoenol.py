@@ -16,7 +16,7 @@ class KetoEnol(GeneralReac):
             self.fix_bonds(fix)
 
         if step < self.dihstep:
-            self.set_dihedral(change, step)
+            self.set_dihedrals(change, step)
 
         elif step == self.dihstep:
             self.fix_dihedrals(fix)

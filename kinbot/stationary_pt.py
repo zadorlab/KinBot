@@ -1,8 +1,6 @@
 from __future__ import print_function, division
 import sys
-import os
 import numpy as np
-import re
 import logging
 import copy
 import math
@@ -292,7 +290,6 @@ class StationaryPoint:
             return 3 # O and O2 are triplet
         if len(atomlist) == 1 and atomlist[0] == 'C':
             return 3 # C atom is triplet
-
         atomC = np.char.count(atomlist, 'C')
         atomH = np.char.count(atomlist, 'H')
         if len(atomlist) == 3 and np.sum(atomC) == 1 and np.sum(atomH) == 2:
@@ -310,7 +307,7 @@ class StationaryPoint:
         """
         bond = copy.deepcopy(self.bond)
 
-        max_step = 1000
+        max_step = 1000  # this is unused ??
         status = [0 for i in range(self.natom)]  # 1: part of a molecule, 0: not part of a molecule
         atoms = [i for i in range(self.natom)]
         mols = []  # list of stationary_pt objects for the parts 
@@ -471,6 +468,32 @@ class StationaryPoint:
                         self.cycle_chain.append(ins)
                         for at in ins:
                             self.cycle[at] = 1
+        ringSizes = []
+        filteredRings = []
+        if len(self.cycle_chain) > 1:
+            for ring in self.cycle_chain:
+                ringSize = len(ring)
+                ringSizes.append(ringSize)
+            ringSizes.sort()
+            ringSizes.reverse()
+            for size in ringSizes:
+                for ring in self.cycle_chain:
+                    if len(ring) == size:
+                        filteredRings.append(ring)
+            checkRings = filteredRings
+            for i, ring in enumerate(checkRings):
+                duplicateRing = [0] * len(ring)
+                for k, a in enumerate(checkRings[i]):
+                    j = i + 1
+                    while j < len(checkRings):
+                        for b in checkRings[j]:
+                            if a == b:
+                                duplicateRing[k] = 1
+                        j = j + 1
+                    sumDuplicateRing = sum(duplicateRing)
+                    if sumDuplicateRing == len(checkRings[i]):
+                        filteredRings.pop(i)
+            self.cycle_chain = filteredRings
         return 0
 
     def calc_chemid(self):
@@ -515,7 +538,6 @@ class StationaryPoint:
         if not hasattr(self,'bond'): 
             # recalculate the bond matrix only if it is not there yet
             self.bond_mx()
-        
         maxdepth = 7
         digit = 3
         if depth == maxdepth: return atomid, visit
@@ -534,10 +556,11 @@ class StationaryPoint:
 
         return atomid, visit
 
-    def find_dihedral(self): 
+    def find_dihedral(self, findall=0): 
         """ 
         Identify unique rotatable bonds in the structure 
         No rotation around ring bonds and double and triple bonds.
+        If all is set to 1, then redundant dihedrals are also found.
         """
         
         self.calc_chemid()
@@ -546,6 +569,7 @@ class StationaryPoint:
         if len(self.bonds) == 0:
             self.bonds = [self.bond]
         self.dihed = []
+        self.dihed_all = []
         hit = 0
 
         if self.natom < 4: return 0
@@ -555,7 +579,7 @@ class StationaryPoint:
             if hit == 1: hit = 0
             for c in range(b, self.natom):
                 if hit == 1: hit = 0
-                if all([bi[b][c]==1 for bi in self.bonds]) and self.cycle[b] * self.cycle[c] == 0:
+                if all([bi[b][c] == 1 for bi in self.bonds]) and self.cycle[b] * self.cycle[c] == 0:
                     for a in range(self.natom):
                         if hit == 1: break
                         if self.bond[a][b] == 1 and a != c:
@@ -564,8 +588,11 @@ class StationaryPoint:
                                 if self.bond[c][d] == 1 and d != b:
                                     dihedral_angle, warning = geometry.calc_dihedral(self.geom[a], self.geom[b], self.geom[c], self.geom[d])
                                     if warning == 0:
-                                        self.dihed.append([a, b, c, d])
-                                        hit = 1 
+                                        if findall == 0:
+                                            self.dihed.append([a, b, c, d])
+                                            hit = 1 
+                                        else:
+                                            self.dihed_all.append([a, b, c, d])
 
         return 0
 
@@ -615,6 +642,40 @@ class StationaryPoint:
                 
         return 0
                 
+    def find_angle(self):
+        """
+        Find all angles in a structure.
+        """
+
+        self.angle = []
+        # a-b-c angle
+        for b in range(self.natom):
+            for a in range(self.natom):
+                if any([bi[a][b] > 0 for bi in self.bonds]):
+                    for c in range(self.natom):
+                        if any([bi[b][c] > 0 for bi in self.bonds]) and c != a:
+                            if c < a:
+                                angle = [c, b, a]
+                            else:
+                                angle = [a, b, c]
+                            if angle not in self.angle:
+                                self.angle.append(angle)
+        return 0 
+
+    def find_bond(self):
+        """
+        Create a list of all bonds.
+        """
+
+        self.bondlist = []
+        # a-b bond
+        for a in range(self.natom):
+            for b in range(a + 1, self.natom):
+                if any([bi[a][b] > 0 for bi in self.bonds]):
+                    self.bondlist.append([a, b])
+
+        return 0
+
     def find_atom_eqv(self):
         """
         Determines which atoms are equivalent.
@@ -677,16 +738,13 @@ class StationaryPoint:
         """
         Calculate self.chiral. 0 if non-chiral, +1 or -1 if chiral. Each atom gets a label like this.
         """
-
         self.chiral = np.zeros(self.natom)
-
         # take min of resonance structure bonds
         # as those portions are planar and do not contribute to chirality
         # for the >C=C=C< case
         reduced_bond = self.bonds[0]
         for b in range(len(self.bonds) - 1):
             reduced_bond = np.minimum(self.bonds[b], self.bonds[b + 1])
-
         for i in range(self.natom):
             if np.count_nonzero(reduced_bond[i] > 0) == 4:  # exactly 4 neighbors
                 atids = []
@@ -700,9 +758,10 @@ class StationaryPoint:
 
             if np.count_nonzero(reduced_bond[i] == 2) > 0:  # has at least one double bond
                 for dlen in range(2, 9, 2):  # up to 8, even number of double bonds in a row
-                    motif = ['X' for i in range(dlen + 1)]
+                    motif = ['X' for j in range(dlen + 1)]
                     instances = find_motif.start_motif(motif, self.natom, reduced_bond, self.atom, i, self.atom_eqv)
                     bondpattern = [2 for d in range(dlen)]
+                    
                     for instance in instances:
                         atids = []
                         if find_motif.bondfilter(instance, reduced_bond, bondpattern) == 0:
@@ -715,7 +774,6 @@ class StationaryPoint:
                             if len(set(atids)) == 4:
                                 center = instance[int(dlen / 2)]
                                 self.chiral[center] = self.calc_chiral_hand(self.geom[center], positions, atids)
-        #return 0
         return self.chiral
 
 

@@ -151,13 +151,12 @@ def create_rdkit_mol(bond, atom):
         logging.error('RDKit is not installed or loaded correctly.')
         sys.exit()
 
-
     mw = Chem.RWMol(m)
     for i in range(1, len(atom)):
         dummy = Chem.MolFromSmiles('[' + atom[i] + ']')
         at = dummy.GetAtoms()[0]
-        #at = Chem.Atom(syms_to_num[atom[i]])
-        #at.SetNoImplicit(True)
+        # at = Chem.Atom(syms_to_num[atom[i]])
+        # at.SetNoImplicit(True)
         mw.AddAtom(at)
     for i in range(len(atom)-1):
         for j in range(i, len(atom)):
@@ -196,7 +195,7 @@ def create_inchi(job, chemid, xyz_file=''):
         logging.error('Pybel is not installed or loaded correctly.')
         sys.exit()
 
-    #return obmol.write("inchi", opt={'T': 'nostereo'}).split()[0]
+    # return obmol.write("inchi", opt={'T': 'nostereo'}).split()[0]
     return obmol.write("inchi").split()[0]
 
 
@@ -226,5 +225,3 @@ def create_smiles(inchi):
         sys.exit()
 
     return obmol.write("smi").split()[0]
-
-

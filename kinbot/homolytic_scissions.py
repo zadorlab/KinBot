@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import copy
-
+import logging
 from kinbot import constants
 from kinbot.optimize import Optimize
 from kinbot.stationary_pt import StationaryPoint
@@ -46,6 +46,7 @@ class HomolyticScissions:
         self.par = par
         # list of homolytic scission objects
         self.hss = []
+
     def find_homolytic_scissions(self):
         """
         Enumerate all unique homolytic scission reactions
@@ -75,7 +76,6 @@ class HomolyticScissions:
                                                    self.qc, [i, j])
                             hs.create_geometries()
                             self.hss.append(hs)
-
         # optimize the products of the hss
         while 1:
             for index, hs in enumerate(self.hss):
@@ -91,6 +91,7 @@ class HomolyticScissions:
                         e, prod.geom = hs.qc.get_qc_geom(str(prod.chemid) + '_well', prod.natom)
                         if e < 0:
                             # optimizatin failed
+                            logging.info("HS optimization failed for {}".format(prod.chemid))
                             hs.status = -999
                             err = -1
                         elif e != 0:
@@ -102,8 +103,18 @@ class HomolyticScissions:
                         hs.status = 2
                 if hs.status == 2:
                     # Do the product conf search, high level opt and HIR
-                    for prod in hs.products:
+                    for i, prod in enumerate(hs.products):
+                        chemid = prod.chemid
                         prod_opt = Optimize(prod, self.par, self.qc)
+                        if str(chemid) != str(prod_opt.species.chemid):
+                            logging.info("HS product {} changed to {} during optimization.".format(chemid, prod_opt.species.chemid))
+                            j = i - 1
+                            print("{}\n{}".format(prod, prod_opt))
+                            oldProd = hs.products.pop(i)
+                            print(oldProd.chemid, prod_opt.species.chemid)
+                            hs.products.insert(j, prod_opt.species)
+                            hs.qc.qc_opt(prod, prod.geom)
+                            prod_opt = Optimize(prod, self.par, self.qc)
                         prod_opt.do_optimization()
                         hs.prod_opt.append(prod_opt)
                     hs.status = 3
@@ -127,9 +138,17 @@ class HomolyticScissions:
                         for pr_opt in hs.prod_opt:
                             prod_energy += pr_opt.species.energy
                         barrier = (prod_energy - species_energy)*constants.AUtoKCAL
+                        prod_name = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
                         if barrier > self.par.par['barrier_threshold']:
+                            logging.info("Energy of HS product {} is above the barrier threshold ({:.3} kcal/mol)".format(prod_name, barrier))
                             hs.status = -999
                         else:
                             hs.status = -1
+                            name = '_'.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
+                            logging.info('Homolytic scission (barrier {:.2f} kcal/mol) lead to products {}'.format(barrier, name))
+
             if all([hs.status < 0 for hs in self.hss]):
+                for hs in self.hss:
+                    if hs.status == -1:
+                        prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
                 break

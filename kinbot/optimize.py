@@ -1,5 +1,4 @@
 from __future__ import print_function
-import sys
 import os
 import copy
 import logging
@@ -29,17 +28,18 @@ class Optimize:
 
     def __init__(self, species, par, qc, wait=0):
         self.species = species
-        delattr(self.species, 'cycle_chain')
+        try:
+            delattr(self.species, 'cycle_chain')
+        except AttributeError:
+            logging.info("{} has no cycle_chain attribute to delete".format(self.species.chemid))
         if self.species.wellorts:
             self.species.characterize(bond_mx=self.species.bond)
         else:
             self.species.characterize()
         self.par = par
         self.qc = qc
-
         # wait for all calculations to finish before returning
         self.wait = wait
-
         # high level job name
         if self.species.wellorts:
             self.job_high = self.species.name + '_high'
@@ -47,7 +47,6 @@ class Optimize:
         else:
             self.job_high = str(self.species.chemid) + '_well_high'
             self.job_hir = 'hir/' + str(self.species.chemid) + '_hir_'
-
         # status of the various parts
         # -1: not yet started
         #  0: running
@@ -65,12 +64,13 @@ class Optimize:
         self.max_restart = par.par['rotation_restart']
 
     def do_optimization(self):
+        #print("start do_opt {}".format(self.species.chemid))
         while 1:
             # do the conformational search
             if self.par.par['conformer_search'] == 1:
                 if self.scycconf == -1 and self.sconf == -1:
                     # conformational analysis has to be started
-                    logging.info('\tStarting conformational search of {}'.format(self.species.name))
+                    logging.info('\tStarting conformational search of {}'.format(self.species.chemid))
                     self.species.confs = Conformers(self.species, self.par, self.qc)
 
                 # first do the cyclic part of the molecule
@@ -173,13 +173,18 @@ class Optimize:
                             """
                             print("past conf check")
                             # conf search is done
+                            if self.species.wellorts:
+                                self.name = self.species.name
+                            else:
+                                self.name = self.species.chemid
+                            logging.info("lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
                             # save lowest energy conformer energy
                             self.species.energy = low_energy
                             # set conf status to finished
                             self.sconf = 1
-                             
+
             else:
                 # no conf search necessary, set status to finished
                 self.sconf = 1
@@ -187,12 +192,22 @@ class Optimize:
                 # if the conformers were already done in a previous run
                 if self.par.par['conformer_search'] == 1:
                     status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
+                    # perform conformer check at this point
+                    filteredConf = [] 
+                    #for conf in conformers:
+                        #print(conf)
+                        #confStPt = StationaryPoint(self.name, self.species.charge, self.species.mult, self.species.natom, self.species.atom, geom, self.species.wellorts)
+                        
                 while self.restart < self.max_restart:
                     # do the high level calculations
                     if self.par.par['high_level'] == 1:
                         if self.shigh == -1:
+                            if self.species.wellorts:
+                                name = self.species.name
+                            else:
+                                name = self.species.chemid
                             # high level calculation did not start yet
-                            logging.info('\tStarting high level optimization of {}'.format(self.species.name))
+                            logging.info('\tStarting high level optimization of {}'.format(name))
                             if self.species.wellorts:
                                 # do the high level optimization of a ts
                                 self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)
@@ -211,10 +226,11 @@ class Optimize:
                             if status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
-                                
-                                if self.species.wellorts: # for TS we need reasonable geometry agreement and normal mode correlation
+
+                                if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
                                     if self.par.par['conformer_search'] == 0:
-                                        fr_file = self.fr_file_name(0) # name of the original TS file
+                                        fr_file = self.fr_file_name(0)  # name of the original TS file
+
                                     else:
                                         fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
                                     if self.qc.qc == 'gauss':
@@ -227,9 +243,9 @@ class Optimize:
                                     same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
                                             (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))) \
                                             or (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.15))
-                                else: 
+                                else:
                                     same_geom = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
-                       
+
                                 if same_geom:
                                     # geometry is as expected and normal modes are the same for TS
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
@@ -241,9 +257,11 @@ class Optimize:
                                     # geometry diverged to other structure
                                     logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.species.name))
                                     self.shigh = -999
+                              
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
+                    logging.info("done with conformer search for {}".format(self.species.name))
                     if self.shigh == 1:
                         # do the HIR calculation
                         if self.par.par['rotor_scan'] == 1:
@@ -321,11 +339,10 @@ class Optimize:
                     fr_file = str(self.species.chemid)
                     fr_file += '_well'
                 if self.par.par['high_level']:
-                        fr_file += '_high'
+                    fr_file += '_high'
                 fr_file = self.fr_file_name(self.par.par['high_level'])
                 hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
-
 
                 # write the molpro input and read the molpro energy, if available
                 if self.par.par['single_point_qc'] == 'molpro':
@@ -336,17 +353,19 @@ class Optimize:
                     status, molpro_energy = molp.get_molpro_energy(self.par.par['single_point_key'])
                     if status:
                         self.species.energy = molpro_energy
-                
+
                 # delete unnecessary files
                 if self.par.par['delete_intermediate_files'] == 1:
                     self.delete_files()
+
             if self.wait:
                 if self.shir == 1 or self.shigh == -999:
                     return 0
                 time.sleep(1)
             else:
                 return 0
-    
+            
+
     def delete_files(self):
         # job names
         names = []
@@ -358,7 +377,7 @@ class Optimize:
             names.append(self.species.name + '_IRC_R')
             names.append(self.species.name + '_IRC_F_prod')
             names.append(self.species.name + '_IRC_R_prod')
-            
+
             if self.par.par['high_level'] == 1:
                 for count in range(self.species.hir.nrotation):
                     for rot_num in range(self.par.par['nrotation']):
@@ -382,26 +401,25 @@ class Optimize:
                 for count in range(self.species.confs.cyc_conf):
                     for num in range(self.species.confs.cyc_conf_index[count]):
                         names.append('conf/' + self.species.name + '_r' + str(count).zfill(zf) + '_' + str(num).zfill(zf))
- 
+
         extensions = ['chk', 'py', 'sbatch']
-        
+
         for name in names:
             for ext in extensions:
                 # delete file
                 file = '.'.join([name, ext])
                 try:
                     os.remove(file)
-                #except FileNotFoundError:
+                # except FileNotFoundError:
                 except:
                     pass
-
 
     def fr_file_name(self, high):
         fr_file = self.species.name
         if not self.species.wellorts:
             fr_file += '_well'
-        #if self.par.par['high_level']:
+        # if self.par.par['high_level']:
         if high:
             fr_file += '_high'
- 
+
         return(fr_file)

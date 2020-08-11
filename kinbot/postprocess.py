@@ -7,7 +7,6 @@ reactions, including their barrier heights and which products are formed
 2. Writing an input file for the PES viewer.
 """
 import os
-import sys
 import pkg_resources
 import numpy as np
 
@@ -18,8 +17,8 @@ from kinbot import constants
 def creatMLInput(species, qc, par):
     """
     Create the files for the input of the Machine Learning tool
-    of Ghent University. 
-    This input consists of the atom vectors and bond matrices of 
+    of Ghent University.
+    This input consists of the atom vectors and bond matrices of
     the reactant and all the products, and the transition state
     bond distances
     """
@@ -111,7 +110,7 @@ def createSummaryFile(species, qc, par):
         else:
             s.append('FAILED\t\t{name}'.format(name=species.reac_name[index]))
     if species.homolytic_scissions is not None:
-        for index,hs in enumerate(species.homolytic_scissions.hss):
+        for index, hs in enumerate(species.homolytic_scissions.hss):
             if hs.status == -1:
                 prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
                 if prod_name not in products:
@@ -125,11 +124,11 @@ def createSummaryFile(species, qc, par):
     s = '\n'.join(s)
     # write the string to a file
     fname = 'summary_{chemid}.out'.format(chemid=species.chemid)
-    with open(fname,'w') as f:
+    with open(fname, 'w') as f:
         f.write(s)
 
 
-def createPESViewerInput(species,qc,par):
+def createPESViewerInput(species, qc, par):
     """
     Write an input file for the PESViewer code
     """
@@ -143,10 +142,10 @@ def createPESViewerInput(species,qc,par):
     # list of the names of the wells
     well_names = [str(species.chemid)]
     # make an xyz file for the initial well
-    make_xyz(species.atom,species.geom,str(species.chemid),dir_xyz)
+    make_xyz(species.atom, species.geom, str(species.chemid), dir_xyz)
     # add the initial well to the wells list
     # use this well as point zero for the energy
-    wells.append('{} 0.0'.format(species.chemid)) 
+    wells.append('{} 0.0'.format(species.chemid))
     well_energy = species.energy + species.zpe
 
     # iterate the reactions and search for single products
@@ -156,8 +155,8 @@ def createPESViewerInput(species,qc,par):
             if len(species.reac_obj[index].prod_opt) == 1:
                 st_pt = species.reac_obj[index].prod_opt[0].species
                 name = str(st_pt.chemid)
-                if not name in well_names:
-                    make_xyz(species.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
+                if name not in well_names:
+                    make_xyz(species.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
                     energy = (st_pt.energy + st_pt.zpe - well_energy) * constants.AUtoKCAL
                     wells.append('{name} {energy:.2f}'.format(name=st_pt.chemid, energy=energy))
                     well_names.append(name)
@@ -180,38 +179,37 @@ def createPESViewerInput(species,qc,par):
 
                 for i, prod_opt in enumerate(species.reac_obj[index].prod_opt):
                     st_pt = prod_opt.species
-                    pesdata=open("pesdata.txt",'a')
+                    pesdata = open("pesviewer_data.txt", 'a')
                     pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}\n".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
                     pesdata.close()
                     # make twice the same file but with adifferent name
                     # TODO: is there no better way?
                     # this is for the pes viewer
-                    make_xyz(st_pt.atom,st_pt.geom,name + str(i+1),dir_xyz)
+                    make_xyz(st_pt.atom, st_pt.geom, name + str(i + 1), dir_xyz)
                     # this is for the rmg postprocessing
-                    make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
+                    make_xyz(st_pt.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
                 energy = energy * constants.AUtoKCAL
-                if not name in bimolec_names:
+                if name not in bimolec_names:
                     bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
                     bimolec_names.append(name)
-                
 
     # add the bimolecular products form the homolytic scissions
-    if not species.homolytic_scissions is None:
-        for index,hs in enumerate(species.homolytic_scissions.hss):
+    if species.homolytic_scissions is not None:
+        for index, hs in enumerate(species.homolytic_scissions.hss):
             if hs.status == -1:
                 name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-                if not name in bimolec_names:
+                if name not in bimolec_names:
                     energy = 0. - well_energy
                     for st_pt in hs.products:
                         energy += st_pt.energy + st_pt.zpe
                     energy = energy * constants.AUtoKCAL
-                    for i,st_pt in enumerate(hs.products):
+                    for i, st_pt in enumerate(hs.products):
                         # make twice the same file but with adifferent name
                         # TODO: is there no better way?
                         # first for the pes viewer
-                        make_xyz(st_pt.atom,st_pt.geom,name + str(i+1),dir_xyz)
+                        make_xyz(st_pt.atom, st_pt.geom, name + str(i + 1), dir_xyz)
                         # second for the rmg postprocessing
-                        make_xyz(st_pt.atom,st_pt.geom,str(st_pt.chemid),dir_xyz)
+                        make_xyz(st_pt.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
                     bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
 
     # list of the lines of the ts's
@@ -247,10 +245,10 @@ def createPESViewerInput(species,qc,par):
     # list of the lines of the homolytic scissions
     barrierless = []
     if species.homolytic_scissions is not None:
-        for index,hs in enumerate(species.homolytic_scissions.hss):
+        for index, hs in enumerate(species.homolytic_scissions.hss):
             if hs.status == -1:
                 prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-                if not prod_name in bimolec_names:
+                if prod_name not in bimolec_names:
                     barrierless.append('{name} {react} {prod}'.format(name='b_' + str(index),
                                                                       react=species.chemid,
                                                                       prod=prod_name))
@@ -266,15 +264,14 @@ def createPESViewerInput(species,qc,par):
     with open(template_file_path) as template_file:
         template = template_file.read()
     template = template.format(id=species.chemid, wells=wells, bimolecs=bimolecs, ts=tss, barrierless=barrierless)
-    with open(fname,'w') as f:
+    with open(fname, 'w') as f:
         f.write(template)
 
 
-def make_xyz(atoms,geom,name,dir):
+def make_xyz(atoms, geom, name, dir):
     s = []
-    s.append('%i\n'%len(geom))
+    s.append('%i\n' % len(geom))
     for index in range(len(geom)):
-        s.append('%s %.6f %.6f %.6f'%(atoms[index],geom[index][0],geom[index][1],geom[index][2]))
+        s.append('%s %.6f %.6f %.6f' % (atoms[index], geom[index][0], geom[index][1], geom[index][2]))
     with open(dir + '/' + name + '.xyz', 'w') as f:
         f.write('\n'.join(s))
-

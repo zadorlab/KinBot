@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os
 import numpy as np
 import copy
@@ -15,10 +14,9 @@ def carry_out_reaction(rxn, step, command):
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error': return step
-
+  
     kwargs = rxn.qc.get_qc_arguments(   rxn.instance_name, rxn.species.mult, rxn.species.charge, ts=1,
                                         step = step, max_step=rxn.max_step, scan = rxn.scan)
-
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
             if rxn.qc.check_qc(rxn.instance_name) == 'normal': 
@@ -27,7 +25,7 @@ def carry_out_reaction(rxn, step, command):
                     err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
                     step = rxn.max_step + 1
                     return step
-        if rxn.skip and len(rxn.instance) < 4: 
+        if rxn.skip and len(rxn.instance) < 4:
             step = 12
         geom = rxn.species.geom
     else:

@@ -22,10 +22,11 @@ class Molpro:
         """
         if self.par.par['single_point_template'] == '':
             tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
-        elif bls == 1:
-            tpl_file = self.par.par['barrierless_saddle_single_point_template']
         else:
             tpl_file = self.par.par['single_point_template']
+
+        if bls == 1:
+            tpl_file = self.par.par['barrierless_saddle_single_point_template']
         with open(tpl_file) as f:
             file = f.read()
 
@@ -57,11 +58,13 @@ class Molpro:
 
         else:
             closed = (nelectron - self.par.par['barrierless_saddle_nelectron']) / 2
-            if type(closed) is not int:
-                logging.warning("The number of closed orbitals is not an integer,\
-                             the CASPT2-like calculation will crash, but\
-                             KinBot carries on for now. Revise your input,\
+            if closed.is_integer() != True:
+                logging.warning("The number of closed orbitals is not an integer,\n\
+                             the CASPT2-like calculation will crash, but\n\
+                             KinBot carries on for now. Revise your input,\n\
                              barrierless_saddle_nelectron is incorrect.")
+            else:
+                closed = int(closed)
             occ = closed + self.par.par['barrierless_saddle_norbital'] 
 
             with open('molpro/' + fname + '.inp', 'w') as outf:

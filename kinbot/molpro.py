@@ -152,3 +152,4 @@ class Molpro:
         if np.array_equal(sorted(self.species.atom), sorted(['O', 'H'])) \
                 and self.species.mult == 3:
             return 2
+        return 1

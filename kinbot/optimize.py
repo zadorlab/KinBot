@@ -167,7 +167,7 @@ class Optimize:
                     if self.par.par['high_level'] == 1:
                         if self.shigh == -1:
                             # high level calculation did not start yet
-                            logging.info('\tStarting high level optimization of {}'.format(name))
+                            logging.info('\tStarting high level optimization of {}'.format(self.name))
                             if self.species.wellorts:
                                 # do the high level optimization of a ts
                                 self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)

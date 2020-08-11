@@ -221,7 +221,6 @@ class Optimize:
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
-                    logging.info("done with conformer search for {}".format(self.species.name))
                     if self.shigh == 1:
                         # do the HIR calculation
                         if self.par.par['rotor_scan'] == 1:

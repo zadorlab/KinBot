@@ -161,7 +161,7 @@ class Conformers:
         Test whether a conformer has the same bond matrix as the original structure.
         Returns the conformer object and -1 if not yet finished, 0 if same, and 1 if not.
         """
-        job = self.get_job_name(index, cyc=1):
+        job = self.get_job_name(index, cyc=1)
 
         status, geom = self.qc.get_qc_geom(job, self.species.natom)
         if status == 1:  # still running
@@ -206,7 +206,7 @@ class Conformers:
                 for ci in range(self.cyc_conf):
                     si = self.cyc_conf_status[ci]
                     if si == 0:  # this is a valid confomer
-                        job = self.get_job_name(ci, cyc=1):
+                        job = self.get_job_name(ci, cyc=1)
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         geoms.append(geom)
                         final_geoms.append(geom)
@@ -306,7 +306,7 @@ class Conformers:
         add = ''
         if self.semi_emp:
             add = 'semi_emp_'
-        job = self.get_job_name(conf, add=add):
+        job = self.get_job_name(conf, add=add)
 
         status, geom = self.qc.get_qc_geom(job, self.species.natom)
         if status == 1:  # still running
@@ -344,7 +344,7 @@ class Conformers:
                 if si == -1:
                     status[i] = self.test_conformer(i)[1]
             if all([si >= 0 for si in status]):
-                lowest_totenergy = None
+                lowest_totenergy = 0.
                 lowest_e_geom = self.species.geom
                 final_geoms = []  # list of all final conformer geometries
                 totenergies = []
@@ -355,18 +355,18 @@ class Conformers:
                         add = ''
                         if self.semi_emp:
                             add = 'semi_emp_'
-                        job = self.get_job_name(ci, add=add):
+                        job = self.get_job_name(ci, add=add)
                         err, energy = self.qc.get_qc_energy(job)
                         err, zpe = self.qc.get_qc_zpe(job)
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         final_geoms.append(geom)
                         totenergies.append(energy + zpe)
-                        if lowest_totenergy == None:  # likely / hopefully the first sample
+                        if lowest_totenergy == 0.:  # likely / hopefully the first sample
                             if ci != 0:
                                 logging.warning('For {} conformer 0 failed.'.format(name))
-                            err, freq = qc.get_qc_freq(job, self.species.natom)
+                            err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             if self.species.natom > 1:
-                                if self.species_wellorts:
+                                if self.species.wellorts:
                                     if freq[0] >= 0.:
                                         err = -1
                                     if self.species.natom > 2 and freq[1] <= 0.:
@@ -375,11 +375,11 @@ class Conformers:
                                     if freq[0] <= 0.:
                                         err = -1
                             if err == 0:
-                                lowest_energy = energy + zpe
+                                lowest_totenergy = energy + zpe
                                 if self.species.wellorts:
                                     base_imag_freq = freq[0]
                         if energy + zpe < lowest_totenergy:
-                            err, freq = qc.get_qc_freq(job, self.species.natom)
+                            err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             ratio = 0.8
                             if self.species.wellorts:
                                 if freq[0] / base_imag_freq < ratio:

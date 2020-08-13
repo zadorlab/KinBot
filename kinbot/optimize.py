@@ -190,7 +190,6 @@ class Optimize:
                                 if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
                                     if self.par.par['conformer_search'] == 0:
                                         fr_file = self.fr_file_name(0)  # name of the original TS file
-
                                     else:
                                         fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
                                     if self.qc.qc == 'gauss':

@@ -1,3 +1,4 @@
+import numpy as np
 from kinbot import geometry
 
 class GeneralReac:
@@ -132,3 +133,10 @@ class GeneralReac:
             for i in range(4):
                 constraint.append(self.instance[dih + i] + 1)
             release.append(constraint)
+
+
+    def eliminate_linear(self, geom, change):
+        for i in range(len(self.instance) - 2):
+            alpha = geometry.calc_angle(self.instance[i], self.instance[i + 1], self.instance[i + 2])
+            if alpha > 175. * np.pi / 180.:
+                self.set_angle_single(i, i + 1, i + 2, 170., change)

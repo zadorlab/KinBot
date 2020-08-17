@@ -472,6 +472,11 @@ class ReactionGenerator:
                 else:
                     alldone = 0
 
+    # HERE: go over all instance_name, and if barrierless_saddle is in it, then put the product pair(!) into an array, get those geoms, and 
+    # put them far away and make a molpro input. The name of that file should be the SP+product.
+    # then in the postprocess that file is taken as a reference for the L3 energy, shifted to the normal L3 energy of the members of the pair.
+
+
             # write a small summary while running
             wr = 1
             if wr:

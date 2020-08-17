@@ -144,6 +144,6 @@ class IRC:
             f_out.write(template)
             f_out.close()
 
-            self.rxn.qc.submit_qc(irc_name, 0)
+            self.rxn.qc.submit_qc(irc_name, singlejob=0)
 
         return 0

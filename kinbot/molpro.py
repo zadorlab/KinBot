@@ -14,7 +14,7 @@ class Molpro:
         self.species = species
         self.par = par
 
-    def create_molpro_input(self, bls=0):
+    def create_molpro_input(self, bls=0, name=''):
         """
         Create the input for molpro based on the template,
         which is either the one in the system, or provided
@@ -30,9 +30,12 @@ class Molpro:
         with open(tpl_file) as f:
             file = f.read()
 
-        fname = str(self.species.chemid)
-        if self.species.wellorts:
+        if name != '':
+            fname = name
+        elif self.species.wellorts:
             fname = self.species.name
+        else:
+            fname = str(self.species.chemid)
 
         geom = ''
         nelectron = 0

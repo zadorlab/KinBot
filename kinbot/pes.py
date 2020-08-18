@@ -454,12 +454,29 @@ def postprocess(par, jobs, task, names, n):
     ts_l3energies = {}
     for reac in reactions:
         if reac[1] != 'barrierless':
-            zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
-            status, l3energy = get_l3energy(reac[1], par)
-            if not status:
-                l3done = 0
+            if 'barrierless_saddle' in reac[1]:
+                zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
+                status, l3energy = get_l3energy(reac[1], par, bls=1)
+
+                status_prod1, l3energy_prod1 = get_l3energy(reac[2][0], par)
+                status_prod2, l3energy_prod2 = get_l3energy(reac[2][1], par)
+
+                status_prod, l3energy_prod = get_l3energy(reac[1] + '_prod', par, bls=1)
+
+                if not status * status_prod:
+                    l3done = 0
+                else:
+                    delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
+                    delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
+                    ts_l3energies[reac[1]] = (delta2 - delta1) * constants.AUtoKCAL
+                    print(delta1, delta2, (delta2 - delta1))
             else:
-                ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
+                zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
+                status, l3energy = get_l3energy(reac[1], par)
+                if not status:
+                    l3done = 0
+                else:
+                    ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
     logging.info('Energies in kcal/mol, incl. ZPE')
@@ -1357,18 +1374,23 @@ def get_energy(dir, job, ts, high_level, mp2=0, bls=0):
     return energy
 
 
-def get_l3energy(job, par):
+def get_l3energy(job, par, bls=0):
     """
     Get the L3, single-point energies.
     This is not object oriented.
     """
+
+    if bls:
+        key = par.par['barrierless_saddle_single_point_key']
+    else:
+        key = par.par['single_point_key']
 
     if par.par['single_point_qc'] == 'molpro':
         if os.path.exists('molpro/' + job + '.out'):
             with open('molpro/' + job + '.out', 'r') as f:
                 lines = f.readlines()
                 for index, line in enumerate(reversed(lines)):
-                    if ('SETTING ' + par.par['single_point_key']) in line:
+                    if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found

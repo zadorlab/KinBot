@@ -350,8 +350,8 @@ class MESS:
             f_out.write('\n!****************************************\nEnd ! end kinetics\n')
             f_out.close()
 
-        uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
-        uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
+        #uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
+        #uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
         # uq_obj.norm_energy(prod_e_iter, "prod", prod_names, uq_n)  # working
         # uq_obj.norm_energy(bimol_e_iter, "bimol", bimol_names, uq_n)
         # uq_obj.norm_energy(termol_e_iter, "termol", termol_names, uq_n)

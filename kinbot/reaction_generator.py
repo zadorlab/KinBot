@@ -501,7 +501,7 @@ class ReactionGenerator:
                     key = self.par.par['barrierless_saddle_single_point_key']
                     molpname = '{}_prod'.format(obj.instance_name)
                     molp.create_molpro_input(bls=1, name=molpname)
-                    molp.create_molpro_submit()
+                    molp.create_molpro_submit(name=molpname)
 
         s = []
         for index, instance in enumerate(self.species.reac_inst):

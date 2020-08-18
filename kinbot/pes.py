@@ -469,7 +469,6 @@ def postprocess(par, jobs, task, names, n):
                     delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
                     delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
                     ts_l3energies[reac[1]] = (delta2 - delta1) * constants.AUtoKCAL
-                    print(delta1, delta2, (delta2 - delta1))
             else:
                 zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
                 status, l3energy = get_l3energy(reac[1], par)
@@ -921,9 +920,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
 
     i = 0  # uncertainty counter
-    uq = par.par['uq']
     fi = open('pes.log', 'a')
-    fi.write('{0} {1} {2}'.format("uq value: ", uq, "\n"))
+    fi.write('{0} {1} {2}'.format("uq value: ", par.par['uq'], "\n"))
     fi.close()
     well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
                                                                                products,
@@ -967,7 +965,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         m_well=well0.mass,
                         )
 
-    if uq == 0:
+    if par.par['uq'] == 0:
         fi = open('pes.log', 'a')
         fi.write("\nUncertainty analysis turned off.\n")
         fi.close()
@@ -1056,11 +1054,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             f.write(header)
             f.write('\n'.join(s))
 
-        me = par.par['me']
-        if me == 1:
-            mess.run(uq_n)
+        if par.par['me']:
+            mess.run(1)
 
-    elif uq == 1:
+    else:
         uq_iter = 0
         while(uq_iter < uq_n):
             # list of the strings to write to mess input file
@@ -1178,8 +1175,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 f.write('\n'.join(s))
             uq_iter = uq_iter + 1
 
-        me = par.par['me']
-        if me == 1:
+        if par.par['me'] == 1:
             mess.run(uq_n)
 
 

@@ -478,20 +478,22 @@ def postprocess(par, jobs, task, names, n):
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
-    logging.info('Energies in kcal/mol, incl. ZPE')
 
-    if l3done == 1 and len(reactions) > 1:
+    if l3done == 1:
+        logging.info('Energies are updated to L3 in ME and PESViewer.')
         well_energies = well_l3energies
         prod_energies = prod_l3energies
-        for well in wells:
-            logging.info('{}   {2.2f}'.format(well, well_l3energies[well]))
-        for prod in products:
-            logging.info('{}   {2.2f}'.format(prod, prod_l3energies[prod]))
-        for ts in ts_l3energies:
-            logging.info('{}   {2.2f}'.format(ts, ts_l3energies[ts]))
         for reac in reactions:  # swap out the barrier
             reac[3] = ts_l3energies[reac[1]]
-        logging.info('Energies are updated to L3 in ME and PESViewer.')
+
+        logging.info('L3 energies in kcal/mol, incl. ZPE')
+        for well in wells:
+            logging.info('{}   {:.2f}'.format(well, well_l3energies[well]))
+        for prod in products:
+            logging.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
+        for ts in ts_l3energies:
+            logging.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
+
 
     # if L3 was done, everything below is done with that
     # filter according to tasks
@@ -513,8 +515,6 @@ def postprocess(par, jobs, task, names, n):
     #              prod_energies,
     #              highlight)
     # write_mess
-    uq_n = par.par['uq_n']
-    w = len(wells)
 
     barrierless = []
     rxns = []
@@ -541,7 +541,7 @@ def postprocess(par, jobs, task, names, n):
                       well_energies,
                       prod_energies,
                       parent,
-                      uq_n)
+                      par.par['uq_n'])
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):

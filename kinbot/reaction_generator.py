@@ -336,6 +336,7 @@ class ReactionGenerator:
                                          atom=self.species.atom, geom=geom, wellorts=1)
                     err, ts.energy = self.qc.get_qc_energy(instance_name)
                     err, ts.zpe = self.qc.get_qc_zpe(instance_name)  # NEW STOPS HERE
+                    ts.distance_mx()
                     ts.bond = bond_mx
                     ts.find_cycle()
                     ts.find_conf_dihedral()

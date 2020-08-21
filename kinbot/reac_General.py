@@ -25,12 +25,21 @@ class GeneralReac:
         self.instance = instance
         self.instance_name = instance_name
 
+
         if self.scan:
             self.max_step = self.par.par['scan_step']
 
+        self.linear = []
+        linear = self.species.linear
+
+        for i in range(len(instance) - 2):
+            if [instance[i], instance[i + 1], instance[i + 2]] in linear:
+                self.linear.append([instance[i], instance[i + 1], instance[i + 2]])
+            elif [instance[i + 2], instance[i + 1], instance[i]] in linear:
+                self.linear.append([instance[i + 2], instance[i + 1], instance[i]])
+
 
     def clean_constraints(self, change, fix):
-
         for c in change:
             if len(c) == 3:
                 index = -1
@@ -110,6 +119,8 @@ class GeneralReac:
 
 
     def set_dihedrals(self, change, step, cut=0):
+        for lin in self.linear:
+            self.set_angle_single(lin[0], lin[1], lin[2], 170., change)
         new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, self.dihstep)
         for dih in range(len(self.instance) - 3 - cut):
             constraint = []
@@ -133,10 +144,3 @@ class GeneralReac:
             for i in range(4):
                 constraint.append(self.instance[dih + i] + 1)
             release.append(constraint)
-
-
-    def eliminate_linear(self, geom, change):
-        for i in range(len(self.instance) - 2):
-            alpha = geometry.calc_angle(self.instance[i], self.instance[i + 1], self.instance[i + 2])
-            if alpha > 175. * np.pi / 180.:
-                self.set_angle_single(i, i + 1, i + 2, 170., change)

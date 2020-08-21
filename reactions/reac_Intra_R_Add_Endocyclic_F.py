@@ -27,7 +27,7 @@ class IntraRAddEndocyclicF(GeneralReac):
             if len(self.instance) > 4:
                 fval = 2.2
             else:
-                fval = 2.0
+                fval = 1.9
             self.set_bond(0, -1, fval, change)
 
         self.clean_constraints(change, fix)

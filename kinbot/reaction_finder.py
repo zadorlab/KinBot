@@ -47,7 +47,6 @@ from reactions.reac_r14_birad_scission import R14BiradScission
 from reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
 from reactions.reac_barrierless_saddle import BarrierlessSaddle
 from reactions.reac_h2_elim import H2Elim
-from reactions.reac_ringexpand_F import RingexpandF
 
 from reactions.reac_combinatorial import Combinatorial
 

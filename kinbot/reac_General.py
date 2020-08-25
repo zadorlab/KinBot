@@ -5,6 +5,7 @@ class GeneralReac:
     scan = -1
     skip = -1
     dihstep = -1
+    mp2 = 0
 
     def __init__(self, species, qc, par, instance, instance_name):
         self.species = species
@@ -24,7 +25,7 @@ class GeneralReac:
         self.instance_name = instance_name
 
         if self.scan:
-            max_step = self.par.par['scan_step']
+            self.max_step = self.par.par['scan_step']
 
 
     def clean_constraints(self, change, fix):

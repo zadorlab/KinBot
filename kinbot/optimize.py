@@ -3,7 +3,6 @@ import os
 import copy
 import logging
 import time
-import numpy as np
 
 from kinbot import frequencies
 from kinbot import geometry
@@ -108,71 +107,6 @@ class Optimize:
                         # check if the conformational search is done
                         status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                         if status == 1:
-     
-                            #create stationary points for chirality check
-                            well0_stpt = StationaryPoint(name='well0', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                natom=self.species.natom, atom=self.species.atom, geom=self.species.geom)
-                            lowConf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                 natom=self.species.natom, atom=self.species.atom, geom=geom)
-
-                            #characterize & generate chirality label for well0 & conf
-                            well0_stpt.characterize()
-                            well0_stpt.bond = self.species.bond
-                            well0_chiral = well0_stpt.calc_chiral()
-            
-                            lowConf_stpt.characterize()
-                            lowConf_stpt.bond = self.species.bond
-                            lowConfChiral = lowConf_stpt.calc_chiral()
-                            well0Chiral_str = ' '.join(str(val) for val in well0_chiral)
-                            lowConfChiral_str = ' '.join(str(val) for val in lowConfChiral)
-
-                            print("{}\nwell0: {}\nlow conf: {}".format(self.species.chemid, well0Chiral_str, lowConfChiral_str))
-                            npe = np.array(energies)
-                            badconfs = []
-                            #if well0Chiral_str != lowConfChiral_str:
-			    #logging.info("Low energy conformer chirality differs from well chirality")
-			    #logging.info("\tChecking conformation of other conformers")
-			    print("Checking conformation of other conformers")
-                            print("conformers: {}".format(len(conformers)))
-			    
-                            for i, conf in enumerate(conformers):
-			        print(i)
-                                #conf_stpt = StationaryPoint(name='conf', charge=self.par.par['charge'], mult=self.par.par['mult'],                                                                                                                   natom=self.species.natom, atom=self.species.atom, geom=conf)
-			        #conf_stpt.characterize()
-			        #conf_stpt.bond = self.species.bond
-			        #conf_stptChiral = conf_stpt.calc_chiral()
-			        #conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
-			        #if conf_stptChiralStr == well0Chiral_str:
-				#    print("conf {} matches chirality".format(i))
-			        #else:
-				#    print("conf {} does NOT match chirality".format(i))
-				#    badconfs.append(i)
-                                    
-                                #print("done with confs")
-                                #print(badconfs, i)
-                                
-                            print("done with confs") 
-                            """
-                            #Implement the following
-                            # 1. check next conf chirality
-                            # 2. if chirality changes remove conf & energy + create log
-                            # 3. if lowest E conf changes chirality check array for lowest energy & report lowest E as new conf
-                            #if well0Chiral_str != lowConfChiral_str:
-			    print("reading through conformers")
-			    for i, conf in enumerate(conformers):
-			        conf_stpt.characterize()
-			        conf_stpt.bond = self.species.bond
-			        conf_stptChiral = conf_stpt.calc_chiral()
-			        conf_stptChiralStr = ' '.join(str(val) for val in conf_stptChiral)
-			        print("{} conf {}, energy: {} chiral: {}".format(self.species.chemid, i, energies[i], conf_stptChiral))
-			    while len(energies) > 0:
-			        lowe_index = energies.index(np.amin(npe))
-			        print("min energy at index {}, e = {}".format(lowe_index, energies[lowe_index]))
-			        conformers.pop(lowe_index)
-			        energies.pop(lowe_index)
-			        npe = np.delete(npe, lowe_index)
-			        print(len(energies), len(npe), len(conformers))
-                            """
-                            print("past conf check")
-                            # conf search is done
                             if self.species.wellorts:
                                 self.name = self.species.name
                             else:
@@ -192,6 +126,7 @@ class Optimize:
                 # if the conformers were already done in a previous run
                 if self.par.par['conformer_search'] == 1:
                     status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
+
                     # perform conformer check at this point
                     filteredConf = [] 
                     #for conf in conformers:
@@ -223,7 +158,7 @@ class Optimize:
                                 # found an error
                                 logging.info('\tHigh level optimization failed for {}'.format(self.species.name))
                                 self.shigh = -999
-                            if status == 'normal':
+                            elif status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
 
@@ -349,7 +284,6 @@ class Optimize:
                     molp = Molpro(self.species, self.par)
                     molp.create_molpro_input()
                     molp.create_molpro_submit()
-                    print(self.par.par['single_point_key'])
                     status, molpro_energy = molp.get_molpro_energy(self.par.par['single_point_key'])
                     if status:
                         self.species.energy = molpro_energy

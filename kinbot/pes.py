@@ -270,9 +270,9 @@ def postprocess(par, jobs, task, names, n):
     # base of the energy is the first well, these are L2 energies
     base_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
     # L3 energies
-    status, base_l3energy = get_l3energy(jobs[0], par)
-    if not status:
-        l3done = 0
+    #status, base_l3energy = get_l3energy(jobs[0], par)
+    #if not status:
+    #    l3done = 0
     # L2 ZPE
     base_zpe = get_zpe(jobs[0], jobs[0], 0, par.par['high_level'])
     # list of lists with four elements
@@ -309,20 +309,25 @@ def postprocess(par, jobs, task, names, n):
                 prod = pieces[3:]  # this is the chemid of the product
                 # calculate the barrier based on the new energy base
                 barrier = 0. - base_energy - base_zpe
+
                 # overwrite energies with mp2 energy if needed
-                if ('R_Addition_MultipleBond' in ts and
-                        not par.par['high_level']):
-                    base_energy_mp2 = get_energy(jobs[0],
-                                                 jobs[0],
-                                                 0,
-                                                 par.par['high_level'],
-                                                 mp2=1)
-                    base_zpe_mp2 = get_zpe(jobs[0],
-                                           jobs[0],
-                                           0,
-                                           par.par['high_level'],
-                                           mp2=1)
+                mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
+                        'reac_r12_cycloaddition', 'reac_r14_birad_scission']
+                if (any([mm in ts for mm in mp2_list]) and not par.par['high_level']):
+                    base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
+                                                 par.par['high_level'], mp2=1)
+                    base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
+                                           par.par['high_level'], mp2=1)
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
+
+                # overwrite energies with bls energy if needed
+                if 'barrierless_saddle' in ts and not par.par[ 'high_level']:
+                    base_energy_bls = get_energy(jobs[0], jobs[0], 0,
+                                                 par.par['high_level'], bls=1)
+                    base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
+                                           par.par['high_level'], bls=1)
+                    barrier = 0. - base_energy_bls - base_zpe_bls
+
                 ts_energy = get_energy(reactant, ts, 1, par.par['high_level'])
                 ts_zpe = get_zpe(reactant, ts, 1, par.par['high_level'])
                 barrier += ts_energy + ts_zpe
@@ -424,11 +429,11 @@ def postprocess(par, jobs, task, names, n):
         energy = get_energy(parent[well], well, 0, par.par['high_level'])  # from the db
         zpe = get_zpe(parent[well], well, 0, par.par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
-        status, l3energy = get_l3energy(well, par)
-        if not status:
-            l3done = 0  # not all L3 calculations are done
-        else:
-            well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
+        #status, l3energy = get_l3energy(well, par)
+        #if not status:
+        #    l3done = 0  # not all L3 calculations are done
+        #else:
+        #    well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
     prod_energies = {}
     prod_l3energies = {}
     for prods in products:
@@ -438,11 +443,11 @@ def postprocess(par, jobs, task, names, n):
             energy += get_energy(parent[prods], pr, 0, par.par['high_level'])
             zpe = get_zpe(parent[prods], pr, 0, par.par['high_level'])
             energy += zpe
-            status, l3e = get_l3energy(pr, par)
-            if not status:
-                l3done = 0  # not all L3 calculations are done
-            else:
-                l3energy += l3e + zpe
+         #   status, l3e = get_l3energy(pr, par)
+         #   if not status:
+         #       l3done = 0  # not all L3 calculations are done
+         #   else:
+         #       l3energy += l3e + zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
         prod_l3energies[prods] = l3energy * constants.AUtoKCAL
 
@@ -450,11 +455,11 @@ def postprocess(par, jobs, task, names, n):
     for reac in reactions:
         if reac[1] != 'barrierless':
             zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
-            status, l3energy = get_l3energy(reac[1], par)
-            if not status:
-                l3done = 0
-            else:
-                ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
+         #   status, l3energy = get_l3energy(reac[1], par)
+         #   if not status:
+         #       l3done = 0
+         #   else:
+         #       ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
     logging.info('Energies in kcal/mol, incl. ZPE')
@@ -1326,7 +1331,7 @@ def create_graph(wells, products, reactions,
     plt.savefig('graph.png')
     
 
-def get_energy(dir, job, ts, high_level, mp2=0):
+def get_energy(dir, job, ts, high_level, mp2=0, bls=0):
     db = connect(dir + '/kinbot.db')
     if ts:
         j = job
@@ -1334,6 +1339,8 @@ def get_energy(dir, job, ts, high_level, mp2=0):
         j = job + '_well'
     if mp2:
         j += '_mp2'
+    if bls:
+        j += '_bls'
     if high_level:
         j += '_high'
     rows = db.select(name=j)
@@ -1371,7 +1378,7 @@ def get_l3energy(job, par):
             return 0, -1  # job not yet started to run
 
 
-def get_zpe(dir, job, ts, high_level, mp2=0):
+def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):
     db = connect(dir + '/kinbot.db')
     if ts:
         j = job
@@ -1379,6 +1386,8 @@ def get_zpe(dir, job, ts, high_level, mp2=0):
         j = job + '_well'
     if mp2:
         j += '_mp2'
+    if bls:
+        j += '_bls'
     if high_level:
         j += '_high'
     rows = db.select(name=j)
@@ -1426,6 +1435,8 @@ def submit_job(chemid, par):
         shutil.copyfile('{}'.format(par.par['queue_template']), '{}/{}'.format(chemid, par.par['queue_template']))
     if par.par['single_point_template'] != '':
         shutil.copyfile('{}'.format(par.par['single_point_template']), '{}/{}'.format(chemid, par.par['single_point_template']))
+    if par.par['barrierless_saddle_single_point_template'] != '':
+        shutil.copyfile('{}'.format(par.par['barrierless_saddle_single_point_template']), '{}/{}'.format(chemid, par.par['barrierless_saddle_single_point_template']))
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
     process = subprocess.Popen(command,

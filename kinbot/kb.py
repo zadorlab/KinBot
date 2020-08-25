@@ -142,10 +142,28 @@ def main():
         return
 
     # do an MP2 optimization of the reactant,
-    # to compare Beta scission barrier heigths to
-    logging.info('Starting MP2 optimization of intial well')
-    qc.qc_opt(well0, well0.geom, mp2=1)
-    err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
+    # to compare some scan barrier heigths to
+    if par.par['families'] == ['all'] or \
+            'birad_recombination_R' in par.par['families'] or \
+            'r12_cycloaddition' in par.par['families'] or \
+            'r14_birad_scission' in par.par['families'] or \
+            'R_Addition_MultipleBond' in par.par['families'] or \
+            (par.par['skip_families'] != ['none'] and \
+            ('birad_recombination_R' not in par.par['skip_families'] or \
+            'r12_cycloaddition' not in par.par['skip_families'] or \
+            'r14_birad_scission' not in par.par['skip_families'] or \
+            'R_Addition_MultipleBond' not in par.par['skip_families'])) or \
+            par.par['reaction_search'] == 0:
+        logging.info('Starting MP2 optimization of intial well')
+        qc.qc_opt(well0, well0.geom, mp2=1)
+        err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
+
+    # comparison for barrierless scan
+    if par.par['barrierless_saddle']:
+        logging.info('Optimization of intial well for barrierless at {}/{}'.
+                format(par.par['barrierless_saddle_method'], par.par['barrierless_saddle_basis']))
+        qc.qc_opt(well0, well0.geom, bls=1)
+        err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
 
     # characterize again and look for differences
     well0.characterize(dimer=par.par['dimer'])

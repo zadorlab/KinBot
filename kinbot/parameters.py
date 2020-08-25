@@ -55,6 +55,17 @@ class Parameters:
             # break all single bonds to find the barriers
             # of potential homolytic scissions
             'homolytic_scissions': 0,
+            # perform variational calculations for the homolytic scissions
+            'variational': 0,
+            # break specific bonds in the homolytic search
+            # this is a dictionary written as:
+            # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
+            'barrierless_saddle': {},
+            # starting distance for barrierless_saddle searches, A
+            'barrierless_saddle_start': 2.0,
+            # step size in A
+            'barrierless_saddle_step': 0.2,
+            'homolytic_bonds': [],
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed
             # atom index for break/form bonds starts at 0
@@ -73,6 +84,11 @@ class Parameters:
             'high_level': 0,
             # Do a conformational search
             'conformer_search': 0,
+            # The angular grid for dihedrals, angle = 360 / grid
+            'conf_grid': 3,
+            # Do a semi empirical conformational search and select the lowest conformers
+            # for the L1 conformer search
+            'semi_emp_conformer_search': 0,
             # Do a hindered rotor scan
             'rotor_scan': 0,
             # Number of points along the rotor scan
@@ -88,6 +104,15 @@ class Parameters:
             'max_dihed': 5,
             # Number of random conformers in case no exhaustive search is done
             'random_conf': 500,
+            # Maximum number of diherals for which exhaustive
+            # comformation searches are done at semi empirical level
+            'max_dihed_semi_emp': 5,
+            # Number of random conformers in case no exhaustive search is done
+            # at semi empirical level
+            'random_conf_semi_emp': 500,
+            # threshold of conformers at semi empirical level to take to the L1 level
+            # in kcal/mol
+            'semi_emp_confomer_threshold' : 5,
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions
             'min_bond_break': 2,
@@ -120,12 +145,26 @@ class Parameters:
             'method': 'b3lyp',
             # Basis set to use
             'basis': '6-31G',
+            # Quantum chemistry method to use as L1 for scans
+            'scan_method': 'mp2',
+            # Basis set to use for scans
+            'scan_basis': '6-31G',
+            # Method to scan bonds in barrierless_saddle family
+            'barrierless_saddle_method': 'b3lyp',
+            # Basis set to scan bonds in barrierless_saddle family
+            'barrierless_saddle_basis': '6-31G',
+            # Method to scan bonds in barrierless_saddle family
+            'barrierless_saddle_method_high': 'b3lyp',
+            # Basis set to scan bonds in barrierless_saddle family
+            'barrierless_saddle_basis_high': '6-31G',
             # for Gaussian, request CalcAll for TS optimization
             'calcall_ts': 0,
             # Quantum chemistry method to use for high-level L2
             'high_level_method': 'M062X',
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
+            # method for semi empirical conformer search
+            'semi_emp_method' : 'am1',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
             # Optimization threshold
@@ -142,10 +181,20 @@ class Parameters:
             # If not specified, then the tpl/[single_point_qc].inp is used
             'single_point_template': '',
             # The keyword to be searched for in Molpro for the desired
-            # energy. Compulsory is Molpro energies are used.
-            "single_point_key": '',
+            # energy. Compulsory if Molpro energies are used.
+            'single_point_key': '',
+            # L3 for barrierless template, CASPT2-like molpro is expected
+            'barrierless_saddle_single_point_template': '',
+            # active orbitals
+            'barrierless_saddle_norbital': 0,
+            # number of electrons on them 
+            'barrierless_saddle_nelectron': 0,
+            # number of states
+            'barrierless_saddle_nstate': 0,
+            # single point key for barrierless
+            'barrierless_saddle_single_point_key': '',
             # Command string to be used for single point energy calculation
-            "single_point_command": '',
+            'single_point_command': '',
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -225,6 +274,11 @@ class Parameters:
                 logging.error(err)
                 sys.exit(-1)
                 
+        if self.par['families'] != 'all' and self.par['skip_families'] != ['none']:
+            err = 'Only one of the "families" or "skip_families" parameters can be defined.'
+            logging.error(err)
+            sys.exit(-1)
+
 
     def read_user_input(self):
         """

@@ -1,12 +1,10 @@
 from kinbot.reac_General import GeneralReac
 import numpy as np
-from kinbot.parameters import Parameters
 
 class R12Cycloaddition(GeneralReac):
     scan = 1
     skip = 0
-    par = Parameters()
-    max_step = par.par['scan_step']    
+    mp2 = 1
 
     def get_constraints(self, step, geom):
         fix = []

@@ -65,9 +65,10 @@ class StationaryPoint:
         # Instance of HIR class
         self.hir = None
 
-        # Instance of the Conformers class
+        # Instances of the Conformers class
         self.confs = None
-
+        self.am1_confs = None
+        
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number
         self.sigma_int = []  # internal summetry number around each atom

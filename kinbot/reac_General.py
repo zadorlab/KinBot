@@ -1,3 +1,4 @@
+import numpy as np
 from kinbot import geometry
 
 class GeneralReac:
@@ -24,12 +25,21 @@ class GeneralReac:
         self.instance = instance
         self.instance_name = instance_name
 
+
         if self.scan:
             self.max_step = self.par.par['scan_step']
 
+        self.linear = []
+        linear = self.species.linear
+
+        for i in range(len(instance) - 2):
+            if [instance[i], instance[i + 1], instance[i + 2]] in linear:
+                self.linear.append([instance[i], instance[i + 1], instance[i + 2]])
+            elif [instance[i + 2], instance[i + 1], instance[i]] in linear:
+                self.linear.append([instance[i + 2], instance[i + 1], instance[i]])
+
 
     def clean_constraints(self, change, fix):
-
         for c in change:
             if len(c) == 3:
                 index = -1
@@ -109,6 +119,8 @@ class GeneralReac:
 
 
     def set_dihedrals(self, change, step, cut=0):
+        for lin in self.linear:
+            self.set_angle_single(lin[0], lin[1], lin[2], 170., change)
         new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, self.dihstep)
         for dih in range(len(self.instance) - 3 - cut):
             constraint = []

@@ -14,7 +14,7 @@ class Molpro:
         self.species = species
         self.par = par
 
-    def create_molpro_input(self, bls=0):
+    def create_molpro_input(self, bls=0, name=''):
         """
         Create the input for molpro based on the template,
         which is either the one in the system, or provided
@@ -30,9 +30,7 @@ class Molpro:
         with open(tpl_file) as f:
             file = f.read()
 
-        fname = str(self.species.chemid)
-        if self.species.wellorts:
-            fname = self.species.name
+        fname = self.get_name(name)
 
         geom = ''
         nelectron = 0
@@ -83,7 +81,7 @@ class Molpro:
         return 0
 
 
-    def get_molpro_energy(self, key):
+    def get_molpro_energy(self, key, name=''):
         """
         Verify if there is a molpro output file and if yes, read the energy
         key is the keyword for the energy we want to read
@@ -91,10 +89,7 @@ class Molpro:
         returns 0, -1 if the energy was not there
         A non-object-oriented version is used in pes.py
         """
-        fname = str(self.species.chemid)
-        if self.species.wellorts:
-            fname = self.species.name
-        print("looking at file: {}".format(fname))
+        fname = self.get_name(name)
         status = os.path.exists('molpro/' + fname + '.out')
         if status:
             with open('molpro/' + fname + '.out') as f:
@@ -107,13 +102,11 @@ class Molpro:
             return 0, -1
 
 
-    def create_molpro_submit(self):
+    def create_molpro_submit(self, name=''):
         """
         write a pbs file for the molpro input file
         """
-        fname = str(self.species.chemid)
-        if self.species.wellorts:
-            fname = self.species.name
+        fname = self.get_name(name)
 
         # open the template head and template
         molpro_head = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
@@ -153,3 +146,13 @@ class Molpro:
                 and self.species.mult == 3:
             return 2
         return 1
+
+
+    def get_name(self, name):
+        if name != '':
+            fname = name
+        elif self.species.wellorts:
+            fname = self.species.name
+        else:
+            fname = str(self.species.chemid)
+        return fname

@@ -159,10 +159,7 @@ class Conformers:
         Test whether a conformer has the same bond matrix as the original structure.
         Returns the conformer object and -1 if not yet finished, 0 if same, and 1 if not.
         """
-        if self.species.wellorts:
-            job = 'conf/' + self.species.name + '_r' + str(index).zfill(self.zf) + '_' + str(self.cyc_conf_index[index]).zfill(self.zf)
-        else:
-            job = 'conf/' + str(self.species.chemid) + '_r' + str(index).zfill(self.zf) + '_' + str(self.cyc_conf_index[index]).zfill(self.zf)
+        job = self.get_job_name(index, cyc=1)
 
         status, geom = self.qc.get_qc_geom(job, self.species.natom)
         if status == 1:  # still running
@@ -207,10 +204,7 @@ class Conformers:
                 for ci in range(self.cyc_conf):
                     si = self.cyc_conf_status[ci]
                     if si == 0:  # this is a valid confomer
-                        if self.species.wellorts:
-                            job = 'conf/' + self.species.name + '_r' + str(ci).zfill(self.zf) + '_' + str(self.cyc_conf_index[ci]).zfill(self.zf)
-                        else:
-                            job = 'conf/' + str(self.species.chemid) + '_r' + str(ci).zfill(self.zf) + '_' + str(self.cyc_conf_index[ci]).zfill(self.zf)
+                        job = self.get_job_name(ci, cyc=1)
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         geoms.append(geom)
                         final_geoms.append(geom)
@@ -237,10 +231,7 @@ class Conformers:
         else:
             cycles = self.cyc_conf
 
-        if self.species.wellorts:
-            name = self.species.name
-        else:
-            name = self.species.chemid
+        name = self.get_name()
  
         # what is the value of cycles
         # what is value of all things associated w/ conf generation
@@ -313,10 +304,7 @@ class Conformers:
         add = ''
         if self.semi_emp:
             add = 'semi_emp_'
-        if self.species.wellorts:
-            job = 'conf/' + self.species.name + '_' + add + str(conf).zfill(self.zf)
-        else:
-            job = 'conf/' + str(self.species.chemid) + '_' + add + str(conf).zfill(self.zf)
+        job = self.get_job_name(conf, add=add)
 
         status, geom = self.qc.get_qc_geom(job, self.species.natom)
         if status == 1:  # still running
@@ -324,7 +312,7 @@ class Conformers:
         elif status == -1:  # conformer search failed
             return np.zeros((self.species.natom, 3)), 1
         else:
-            # check if all the bond lenghts are withing 10% or the original bond lengths
+            # check if all the bond lenghts are withing 10% of the original bond lengths
             if geometry.equal_geom(self.species.bond, self.species.geom, geom, 0.10):
                 return geom, 0
             else:
@@ -333,8 +321,8 @@ class Conformers:
     def check_conformers(self, wait=0):
         """
         Check if the conformer optimizations finished.
-        Test them, and submit frequency calculations.
-        Then select the lowest energy one.
+        Test connectivity and frequencies.
+        Then select the lowest energy one (incl zpe).
         returns:
         *status: 0 if still running, 1 if finished
         *geometry of lowest energy conformer
@@ -349,45 +337,69 @@ class Conformers:
 
         while 1:
             # check if conformational search is finished
-            final_geoms = []  # list of all final conformer geometries
-            energies = []
-            if self.species.wellorts:
-                name = self.species.name
-            else:
-                name = self.species.chemid
+            name = self.get_name()
             for i, si in enumerate(status):
                 if si == -1:
                     status[i] = self.test_conformer(i)[1]
             if all([si >= 0 for si in status]):
-                lowest_energy = None
+                lowest_totenergy = 0.
                 lowest_e_geom = self.species.geom
+                final_geoms = []  # list of all final conformer geometries
+                totenergies = []
+
                 for ci in range(self.conf):
                     si = status[ci]
                     if si == 0:  # this is a valid confomer
                         add = ''
                         if self.semi_emp:
                             add = 'semi_emp_'
-                        if self.species.wellorts:
-                            job = 'conf/' + self.species.name + '_' + add + str(ci).zfill(self.zf)
-                        else:
-                            job = 'conf/' + str(self.species.chemid) + '_' + add + str(ci).zfill(self.zf)
+                        job = self.get_job_name(ci, add=add)
                         err, energy = self.qc.get_qc_energy(job)
+                        err, zpe = self.qc.get_qc_zpe(job)
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         final_geoms.append(geom)
-                        energies.append(energy)
-                        if lowest_energy == None:
-                            lowest_energy = energy
-                        if energy < lowest_energy:
-                            lowest_conf = str(ci).zfill(self.zf)
-                            lowest_energy = energy
-                            lowest_e_geom = geom
+                        totenergies.append(energy + zpe)
+                        if lowest_totenergy == 0.:  # likely / hopefully the first sample
+                            if ci != 0:
+                                logging.warning('For {} conformer 0 failed.'.format(name))
+                            err, freq = self.qc.get_qc_freq(job, self.species.natom)
+                            if self.species.natom > 1:
+                                if self.species.wellorts:
+                                    if freq[0] >= 0.:
+                                        err = -1
+                                    if self.species.natom > 2 and freq[1] <= 0.:
+                                        err = -1
+                                else:
+                                    if freq[0] <= 0.:
+                                        err = -1
+                            if err == 0:
+                                lowest_totenergy = energy + zpe
+                                if self.species.wellorts:
+                                    base_imag_freq = freq[0]
+                        if energy + zpe < lowest_totenergy:
+                            err, freq = self.qc.get_qc_freq(job, self.species.natom)
+                            ratio = 0.8
+                            if self.species.wellorts:
+                                if freq[0] / base_imag_freq < ratio:
+                                    err = -1 
+                                if freq[0] / base_imag_freq > 1. / ratio:
+                                    err = -1 
+                                if self.species.natom > 2 and freq[1] <= 0.:
+                                    err = -1
+                            else:
+                                if freq[0] <= 0.:
+                                    err = -1
+                            if err == 0:
+                                lowest_conf = str(ci).zfill(self.zf)
+                                lowest_totenergy = energy + zpe
+                                lowest_e_geom = geom
                     else:
-                        energies.append(0.)
+                        totenergies.append(0.)
                         final_geoms.append(np.zeros((self.species.natom, 3)))
 
-                self.write_profile(status, final_geoms, energies)
+                #self.write_profile(status, final_geoms, energies)
                 
-                return 1, lowest_conf, lowest_e_geom, lowest_energy, final_geoms, energies 
+                return 1, lowest_conf, lowest_e_geom, lowest_totenergy, final_geoms, totenergies 
                 logging.info('Conformer {} is the lowest energy {} conformer'.format(lowest_conf, name))
 
             else:
@@ -398,7 +410,7 @@ class Conformers:
 
     def write_profile(self, status, final_geoms, energies, ring=0):
         """
-        Write a molden-readable file with the CONF analysis (geometries and energies)
+        Write a molden-readable file with the CONF analysis (geometries and total energies)
         """
         r = ''
         if ring:
@@ -416,3 +428,19 @@ class Conformers:
             if st == 0:  # valid conformer:
                 file.write(s)
         file.close()
+
+    def get_name(self):
+        if self.species.wellorts:
+            name = self.species.name
+        else:
+            name = self.species.chemid
+        return name
+
+    def get_job_name(self, idx, cyc=0, add=''):
+        name = str(self.get_name())
+
+        if cyc == 0:
+            job = 'conf/' + name + '_' + add + str(idx).zfill(self.zf)
+        else:
+            job = 'conf/' + name + '_r' + str(idx).zfill(self.zf) + '_' + str(self.cyc_conf_index[idx]).zfill(self.zf)
+        return job

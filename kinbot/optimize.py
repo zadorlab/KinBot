@@ -165,7 +165,6 @@ class Optimize:
                                 if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
                                     if self.par.par['conformer_search'] == 0:
                                         fr_file = self.fr_file_name(0)  # name of the original TS file
-
                                     else:
                                         fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
                                     if self.qc.qc == 'gauss':
@@ -282,9 +281,17 @@ class Optimize:
                 # write the molpro input and read the molpro energy, if available
                 if self.par.par['single_point_qc'] == 'molpro':
                     molp = Molpro(self.species, self.par)
-                    molp.create_molpro_input()
+                    if 'barrierless_saddle' in self.species.name:
+                        blshere = 1
+                        key = self.par.par['barrierless_saddle_single_point_key']
+                    else:
+                        blshere = 0
+                        key = self.par.par['single_point_key']
+                    molp.create_molpro_input(bls=blshere)
                     molp.create_molpro_submit()
-                    status, molpro_energy = molp.get_molpro_energy(self.par.par['single_point_key'])
+                    status, molpro_energy = molp.get_molpro_energy(key)
+
+                    # FIXME this might be wrong here:
                     if status:
                         self.species.energy = molpro_energy
 

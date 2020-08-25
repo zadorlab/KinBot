@@ -454,28 +454,46 @@ def postprocess(par, jobs, task, names, n):
     ts_l3energies = {}
     for reac in reactions:
         if reac[1] != 'barrierless':
-            zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
-         #   status, l3energy = get_l3energy(reac[1], par)
-         #   if not status:
-         #       l3done = 0
-         #   else:
-         #       ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
+            if 'barrierless_saddle' in reac[1]:
+                zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
+                status, l3energy = get_l3energy(reac[1], par, bls=1)
+
+                status_prod1, l3energy_prod1 = get_l3energy(reac[2][0], par)
+                status_prod2, l3energy_prod2 = get_l3energy(reac[2][1], par)
+
+                status_prod, l3energy_prod = get_l3energy(reac[1] + '_prod', par, bls=1)
+
+                if not status * status_prod:
+                    l3done = 0
+                else:
+                    delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
+                    delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
+                    ts_l3energies[reac[1]] = (delta2 - delta1) * constants.AUtoKCAL
+            else:
+                zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
+                status, l3energy = get_l3energy(reac[1], par)
+                if not status:
+                    l3done = 0
+                else:
+                    ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
-    logging.info('Energies in kcal/mol, incl. ZPE')
 
-    if l3done == 1 and len(reactions) > 1:
+    if l3done == 1:
+        logging.info('Energies are updated to L3 in ME and PESViewer.')
         well_energies = well_l3energies
         prod_energies = prod_l3energies
-        for well in wells:
-            logging.info('{}   {2.2f}'.format(well, well_l3energies[well]))
-        for prod in products:
-            logging.info('{}   {2.2f}'.format(prod, prod_l3energies[prod]))
-        for ts in ts_l3energies:
-            logging.info('{}   {2.2f}'.format(ts, ts_l3energies[ts]))
         for reac in reactions:  # swap out the barrier
             reac[3] = ts_l3energies[reac[1]]
-        logging.info('Energies are updated to L3 in ME and PESViewer.')
+
+        logging.info('L3 energies in kcal/mol, incl. ZPE')
+        for well in wells:
+            logging.info('{}   {:.2f}'.format(well, well_l3energies[well]))
+        for prod in products:
+            logging.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
+        for ts in ts_l3energies:
+            logging.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
+
 
     # if L3 was done, everything below is done with that
     # filter according to tasks
@@ -497,8 +515,6 @@ def postprocess(par, jobs, task, names, n):
     #              prod_energies,
     #              highlight)
     # write_mess
-    uq_n = par.par['uq_n']
-    w = len(wells)
 
     barrierless = []
     rxns = []
@@ -525,7 +541,7 @@ def postprocess(par, jobs, task, names, n):
                       well_energies,
                       prod_energies,
                       parent,
-                      uq_n)
+                      par.par['uq_n'])
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -904,9 +920,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
 
     i = 0  # uncertainty counter
-    uq = par.par['uq']
     fi = open('pes.log', 'a')
-    fi.write('{0} {1} {2}'.format("uq value: ", uq, "\n"))
+    fi.write('{0} {1} {2}'.format("uq value: ", par.par['uq'], "\n"))
     fi.close()
     well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
                                                                                products,
@@ -950,7 +965,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         m_well=well0.mass,
                         )
 
-    if uq == 0:
+    if par.par['uq'] == 0:
         fi = open('pes.log', 'a')
         fi.write("\nUncertainty analysis turned off.\n")
         fi.close()
@@ -1039,11 +1054,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             f.write(header)
             f.write('\n'.join(s))
 
-        me = par.par['me']
-        if me == 1:
-            mess.run(uq_n)
+        if par.par['me']:
+            mess.run(1)
 
-    elif uq == 1:
+    else:
         uq_iter = 0
         while(uq_iter < uq_n):
             # list of the strings to write to mess input file
@@ -1161,8 +1175,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 f.write('\n'.join(s))
             uq_iter = uq_iter + 1
 
-        me = par.par['me']
-        if me == 1:
+        if par.par['me'] == 1:
             mess.run(uq_n)
 
 
@@ -1358,18 +1371,23 @@ def get_energy(dir, job, ts, high_level, mp2=0, bls=0):
     return energy
 
 
-def get_l3energy(job, par):
+def get_l3energy(job, par, bls=0):
     """
     Get the L3, single-point energies.
     This is not object oriented.
     """
+
+    if bls:
+        key = par.par['barrierless_saddle_single_point_key']
+    else:
+        key = par.par['single_point_key']
 
     if par.par['single_point_qc'] == 'molpro':
         if os.path.exists('molpro/' + job + '.out'):
             with open('molpro/' + job + '.out', 'r') as f:
                 lines = f.readlines()
                 for index, line in enumerate(reversed(lines)):
-                    if ('SETTING ' + par.par['single_point_key']) in line:
+                    if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found

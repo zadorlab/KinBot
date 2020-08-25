@@ -109,12 +109,14 @@ class StationaryPoint:
                 logging.error('Exiting.')
                 sys.exit()
             if len(parts) == 2:
+                print('blah')
                 self.make_extra_bond(parts, maps)
 
         self.find_conf_dihedral()
         self.find_atom_eqv()
         self.calc_chiral()
         self.calc_mass()
+        self.find_linear()
 
     def calc_mass(self):
         """ Calculate mass """
@@ -821,6 +823,23 @@ class StationaryPoint:
             hand = -1 * mirror
         
         return hand
+
+
+    def find_linear(self):
+        self.linear = []
+        for ati in range(self.natom):
+            for atj in range(self.natom):
+                if self.bonds[0][ati][atj] > 0:
+                    for atk in range(self.natom):
+                        if self.bonds[0][atj][atk] > 0 and atk != ati:
+                            alpha = geometry.calc_angle(self.geom[ati], self.geom[atj], self.geom[atk])
+                            if alpha > 175. * np.pi / 180.:
+                                if ati < atk:
+                                    lin = [ati, atj, atk] 
+                                else:
+                                    lin = [atk, atj, ati] 
+                                if lin not in self.linear:
+                                    self.linear.append(lin)
 
 
 def main():

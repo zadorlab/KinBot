@@ -67,7 +67,9 @@ setup(
         'slurm_molpro.tpl',
         'slurm_mess.tpl',
         'slurm_mesmer.tpl',
-        'slurm_python.tpl']},
+        'slurm_python.tpl'],
+        'reactions':[
+        'reac_Cyclic_Ether_Formation']},
     include_package_data=True,
     entry_points={'console_scripts':[
         'kinbot = kinbot.kb:main',

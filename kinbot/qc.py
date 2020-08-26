@@ -54,7 +54,7 @@ class QuantumChemistry:
         self.username = par.par['username']
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0,
-                         high_level=0, hir=0, start_form_geom=0):
+                         high_level=0, hir=0, start_from_geom=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
@@ -112,7 +112,7 @@ class QuantumChemistry:
                 kwargs['basis'] = self.bls_basis
             if irc is not None:
                 # arguments for the irc calculations
-                if start_form_geom == 0:
+                if start_from_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
                     if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here

@@ -478,7 +478,18 @@ class ReactionGenerator:
             if wr:
                 f_out = open('kinbot_monitor.out', 'w')
                 for index, instance in enumerate(self.species.reac_inst):
-                    f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], self.species.reac_step[index], self.species.reac_obj[index].instance_name))
+                    if self.species.reac_ts_done[index] == -1:
+                        prodstring = []
+                        for pp in self.species.reac_obj[index].products:
+                            prodstring.append(str(pp.chemid))
+                        f_out.write('{}\t{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
+                                                              self.species.reac_step[index], 
+                                                              self.species.reac_obj[index].instance_name,
+                                                              ' '.join(prodstring)))
+                    else:
+                        f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
+                                                          self.species.reac_step[index], 
+                                                          self.species.reac_obj[index].instance_name))
                 f_out.close()
             time.sleep(1)
 

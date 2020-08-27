@@ -358,17 +358,14 @@ class QuantumChemistry:
         # O2
         if species.chemid == "320320000000000000001":
             mult = 3
-            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
         # CH2
         elif species.chemid == "140260020000000000001":
             mult = 3
-            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
-        # others
         else:
             mult = species.mult
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level)
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level)
+        kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
+
         if self.qc == 'gauss':
             kwargs['opt'] = 'CalcFC, Tight'
         if mp2:

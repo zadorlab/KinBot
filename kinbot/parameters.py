@@ -214,9 +214,9 @@ class Parameters:
             # delete intermediate files
             'delete_intermediate_files': 0,
             # Scratch directory
-            'scratch': '/scratch/jzador',
+            'scratch': '',
             # User name
-            'username': 'jzador',
+            'username': '',
             # Max. number of job from user in queue, if negative, ignored
             'queue_job_limit': -1,
 

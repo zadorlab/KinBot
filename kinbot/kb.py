@@ -144,7 +144,7 @@ def main():
 
     # do an MP2 optimization of the reactant,
     # to compare some scan barrier heigths to
-    if par.par['families'] == 'all' or \
+    if par.par['families'] == ['all'] or \
             'birad_recombination_R' in par.par['families'] or \
             'r12_cycloaddition' in par.par['families'] or \
             'r14_birad_scission' in par.par['families'] or \
@@ -159,7 +159,6 @@ def main():
         err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
 
     # comparison for barrierless scan
-    print(bool(par.par['barrierless_saddle']))
     if par.par['barrierless_saddle']:
         logging.info('Optimization of intial well for barrierless at {}/{}'.
                 format(par.par['barrierless_saddle_method'], par.par['barrierless_saddle_basis']))

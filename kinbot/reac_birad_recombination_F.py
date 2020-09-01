@@ -18,7 +18,7 @@ class BiradRecombinationF(GeneralReac):
         if step < self.dihstep:
             self.set_dihedrals(change, step)
 
-        elif step < max_step:
+        elif step < self.max_step:
             self.release_dihedrals(release)
                 
             fval = 2.0

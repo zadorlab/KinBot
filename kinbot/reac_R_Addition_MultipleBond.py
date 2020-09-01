@@ -24,7 +24,7 @@ class RAdditionMultipleBond(GeneralReac):
                         change.append([ni + 1, self.instance[0] + 1, self.instance[1] + 1, self.instance[2] + 1, 90.])
                         break
                 
-        if step < max_step:
+        if step < self.max_step:
             final_dist = 1.42
             if self.species.atom[self.instance[0]] == 'C' and self.species.atom[self.instance[1]] == 'C' and self.species.atom[self.instance[2]] == 'C':
                 final_dist = 2.20

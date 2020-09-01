@@ -84,7 +84,9 @@ class Parameters:
             'high_level': 0,
             # Do a conformational search
             'conformer_search': 0,
-            # Do an semi empirical conformational search and select the lowest conformers
+            # The angular grid for dihedrals, angle = 360 / grid
+            'conf_grid': 3,
+            # Do a semi empirical conformational search and select the lowest conformers
             # for the L1 conformer search
             'semi_emp_conformer_search': 0,
             # Do a hindered rotor scan
@@ -109,7 +111,7 @@ class Parameters:
             # at semi empirical level
             'random_conf_semi_emp': 500,
             # threshold of conformers at semi empirical level to take to the L1 level
-            # in kcal per mol
+            # in kcal/mol
             'semi_emp_confomer_threshold' : 5,
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions
@@ -180,9 +182,9 @@ class Parameters:
             # L3 for barrierless template, CASPT2-like molpro is expected
             'barrierless_saddle_single_point_template': '',
             # active orbitals
-            'barrieless_saddle_norbital': 0,
+            'barrierless_saddle_norbital': 0,
             # number of electrons on them 
-            'barrieless_saddle_nelectron': 0,
+            'barrierless_saddle_nelectron': 0,
             # number of states
             'barrierless_saddle_nstate': 0,
             # single point key for barrierless

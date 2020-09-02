@@ -94,38 +94,9 @@ class Optimize:
                     if status:
                         # ring conf search is finished
                         self.scycconf = 1
-                # do the open chain part of the molecule
-             #    if self.scycconf == 1:
-
-             #        # do open chain part if cyclic part is done
-             #        if self.sconf == -1:
-             #            # open chain part has not started yet
-             #            for geom in self.species.confs.cyc_conf_geoms:
-             #                # take all the geometries from the cyclic part
-             #                # generate the conformers for the current geometry
-             #                self.species.confs.generate_conformers(0, geom)
-             #            # set conf status to running
-             #            self.sconf = 0
-             #        if self.sconf == 0:
-             #            # conformational search is running
-             #            # check if the conformational search is done
-             #            status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
-             #            if status == 1:
-             #                if self.species.wellorts:
-             #                    self.name = self.species.name
-             #                else:
-             #                    self.name = self.species.chemid
-             #                logging.info("lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
-             #                # save lowest energy conformer as species geometry
-             #                self.species.geom = geom
-             #                # save lowest energy conformer energy
-             #                self.species.energy = low_energy
-             #                # set conf status to finished
-             #                self.sconf = 1
-
-                    # first do an semi empirical optimization if requested by the user
+                # first do an semi empirical optimization if requested by the user
                 if self.par.par['semi_emp_conformer_search'] == 1:
-                    logging.info("semi empirical conformer search is starting for {}".format(self.name))
+                    logging.info('semi empirical conformer search is starting for {}'.format(self.name))
                     if self.ssemi_empconf == -1:
                         # semi empirical part has not started yet
                         self.species.semi_emp_confs = Conformers(self.species, self.par, self.qc, semi_emp=1)
@@ -140,13 +111,13 @@ class Optimize:
                             # check if the conformational search is done
                             status, lowest_conf, geom, self.semi_emp_low_energy, self.semi_emp_conformers, self.semi_emp_energies = self.species.semi_emp_confs.check_conformers(wait=self.wait)
                             if status == 1:
-                                logging.info("semi empirical lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
+                                logging.info("semi empirical lowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
                                 # set conf status to finished
                                 self.ssemi_empconf = 1
                 else:
                     self.ssemi_empconf = 1
                 if self.ssemi_empconf == 1:
-                    # do open chain part if cyclic and semi empirical parts are done
+                    # do open chain part if cyclic (if there were any) and semi empirical (if requested) parts are done
                     if self.sconf == -1:
                         # open chain part has not started yet
                         # if semi empirical conformer were searched for, start from those, 
@@ -155,7 +126,9 @@ class Optimize:
                             self.species.confs.nconfs = 1
                             for i, geom in enumerate(self.semi_emp_conformers):
                                 if (self.semi_emp_energies[i] - self.semi_emp_low_energy) * constants.AUtoKCAL < self.par.par['semi_emp_confomer_threshold']:
-                                    self.species.confs.generate_conformers(0, geom)
+                                    self.species.confs.generate_conformers(-999, geom)
+                            logging.info("There are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
+                                         format(i, self.par.par['semi_emp_confomer_threshold'], self.name))
                         else:
                             for geom in self.species.confs.cyc_conf_geoms:
                                 # take all the geometries from the cyclic part
@@ -194,7 +167,7 @@ class Optimize:
                     if self.par.par['high_level'] == 1:
                         if self.shigh == -1:
                             # high level calculation did not start yet
-                            logging.info('\tStarting high level optimization of {}'.format(name))
+                            logging.info('\tStarting high level optimization of {}'.format(self.name))
                             if self.species.wellorts:
                                 # do the high level optimization of a ts
                                 self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)
@@ -217,7 +190,6 @@ class Optimize:
                                 if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
                                     if self.par.par['conformer_search'] == 0:
                                         fr_file = self.fr_file_name(0)  # name of the original TS file
-
                                     else:
                                         fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
                                     if self.qc.qc == 'gauss':
@@ -248,7 +220,6 @@ class Optimize:
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
-                    logging.info("done with conformer search for {}".format(self.species.name))
                     if self.shigh == 1:
                         # do the HIR calculation
                         if self.par.par['rotor_scan'] == 1:
@@ -335,14 +306,16 @@ class Optimize:
                 if self.par.par['single_point_qc'] == 'molpro':
                     molp = Molpro(self.species, self.par)
                     if 'barrierless_saddle' in self.species.name:
-                        molp.create_molpro_input(bls=1)
-                        molp.create_molpro_submit(bls=1)
-                        status, molpro_energy = molp.get_molpro_energy(self.par.par['barrierless_saddle_single_point_key'])
+                        blshere = 1
+                        key = self.par.par['barrierless_saddle_single_point_key']
                     else:
-                        molp.create_molpro_input()
-                        molp.create_molpro_submit()
-                        status, molpro_energy = molp.get_molpro_energy(self.par.par['single_point_key'])
+                        blshere = 0
+                        key = self.par.par['single_point_key']
+                    molp.create_molpro_input(bls=blshere)
+                    molp.create_molpro_submit()
+                    status, molpro_energy = molp.get_molpro_energy(key)
 
+                    # FIXME this might be wrong here:
                     if status:
                         self.species.energy = molpro_energy
 

@@ -5,7 +5,7 @@ from kinbot import geometry
 from kinbot.bmat import B_Mat
 
 
-def get_frequencies(species, hess, geom):
+def get_frequencies(species, hess, geom, checkdist=0):
     """"
     Calculates three sets of frequencies:
 
@@ -15,6 +15,9 @@ def get_frequencies(species, hess, geom):
     3: frequencies when internal rotations are also projected out
 
     The units of the hessian should be: Hartree/Bohr^2
+
+    checkdist: if set to 1, then in the partitioning of the
+    rotating fragments only strongly bonded atoms are included
     """
     atom = species.atom
     natom = species.natom
@@ -111,13 +114,13 @@ def get_frequencies(species, hess, geom):
     # Build set of internal rotation vectors to project out
     R = []
     for rot in species.dihed:
+        # partition the molecule in two parts divided by the rotor bond
+        Ri = np.zeros(3 * natom)
+        l1, l2 = partition(species, rot, natom, checkdist)
         # mass weight the cartesian coordinates
         mgeom = np.zeros((natom, 3))
         for i in range(natom):
             mgeom[i][0:3] += geom[i] * np.sqrt(constants.exact_mass[atom[i]])
-        # partition the molecule in two parts divided by the rotor bond
-        Ri = np.zeros(3*natom)
-        l1, l2 = partition(species, rot, natom)
 
         axis = mgeom[rot[1]] - mgeom[rot[2]]
         axis = axis / np.linalg.norm(axis)
@@ -128,9 +131,12 @@ def get_frequencies(species, hess, geom):
             per = vect - proj
             dist = np.linalg.norm(per)
             if dist > 1e-6:
-                sign = 1
-                if at in l2:
+                if at in l1:
+                    sign = 1
+                elif at in l2:
                     sign = -1
+                else:
+                    sign = 0
                 rot_vect = sign * np.cross(per, axis)
                 Ri[3*at:3*at+3] = rot_vect
         # project the translational, external rotational and previous
@@ -198,21 +204,36 @@ def convert_to_wavenumbers(val):
     return fr
 
 
-def partition(species, rotor, natom):
+def partition(species, rotor, natom, checkdist):
     l1 = [rotor[1]]
     forbidden = [rotor[2]]
     visited = [rotor[1], rotor[2]]
-    get_neighbors(rotor[1], visited, forbidden, l1, species.bond, natom)
-    return l1, [x for x in range(natom) if x not in l1]
+    get_neighbors(rotor[1], visited, forbidden, l1, species, natom, checkdist)
+    if checkdist == 0:
+        return l1, [x for x in range(natom) if x not in l1]
+    else:
+        l2 =[rotor[2]]
+        forbidden = [rotor[1]]
+        visited = [rotor[1], rotor[2]]
+        get_neighbors(rotor[2], visited, forbidden, l2, species, natom, checkdist)
+        print('PARTITIONS', l1, l2)
+        return l1, l2
 
 
-def get_neighbors(ati, visited, forbidden, division, bond, natom):
+def get_neighbors(ati, visited, forbidden, division, species, natom, checkdist):
     for atj in range(natom):
         if atj not in visited and atj not in forbidden:
-            if bond[atj, ati] > 0:
-                division.append(atj)
-                visited.append(atj)
-                get_neighbors(atj, visited, forbidden, division, bond, natom)
+            if species.bond[atj, ati] > 0:
+                if checkdist == 0:
+                    division.append(atj)
+                    visited.append(atj)
+                    get_neighbors(atj, visited, forbidden, division, species, natom, checkdist)
+                else:
+                    cutoff = constants.st_bond[''.join(sorted(species.atom[atj] + species.atom[ati]))]
+                    if species.dist[atj, ati] < cutoff:
+                        division.append(atj)
+                        visited.append(atj)
+                        get_neighbors(atj, visited, forbidden, division, species, natom, checkdist)
 
 
 def curvature(species, hess):

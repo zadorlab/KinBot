@@ -239,6 +239,7 @@ class MESS:
                     ts_freqFactor = uq_obj.calc_freqUQ(freq_uqVal)
                     imagfreqFactor = uq_obj.calc_freqUQ(imagfreq_uqVal)
                     if reaction.instance_name in ts_all:
+                        print("count line 242: {}".format(count))
                         allTS[reaction.instance_name], ts_e, ts_freq, ts_imagFreq = self.write_barrier(reaction,
                                                                                                        uq,
                                                                                                        uq_n,
@@ -248,7 +249,7 @@ class MESS:
                                                                                                        uq_iter,
                                                                                                        qc,
                                                                                                        count)
-
+                        count = count + 1
                     if reaction.instance_name in ts_unique:
                         lenProd = len(reaction.products)
                         ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
@@ -258,7 +259,6 @@ class MESS:
                             ts_e_iter.append(ts_e)
                             ts_imagFreq_iter.append(ts_imagFreq)
                             ts_freq_iter.append(ts_freq)
-                            count = count + 1
                             ts_rxnName.append(reaction.instance_name)
                         if len(reaction.products) == 1:
                             st_pt = reaction.prod_opt[0].species
@@ -350,8 +350,8 @@ class MESS:
             f_out.write('\n!****************************************\nEnd ! end kinetics\n')
             f_out.close()
 
-        uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
-        uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
+        #uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
+        #uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
         # uq_obj.norm_energy(prod_e_iter, "prod", prod_names, uq_n)  # working
         # uq_obj.norm_energy(bimol_e_iter, "bimol", bimol_names, uq_n)
         # uq_obj.norm_energy(termol_e_iter, "termol", termol_names, uq_n)
@@ -1010,6 +1010,7 @@ class MESS:
                     else:
                         energy = (ts.energy + ts.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
                     energies.append(energy)
+            print(energies)
             if uq_iter == 0:
                 barrier_add = 0.0
             else:
@@ -1017,6 +1018,7 @@ class MESS:
             logFile.write("\tBarrier factor: {}\n".format(barrier_adds[count]))
             logFile.write("\t\tOriginal barrier energy: {}\n".format(energies[count]))
             energy = energies[count] + barrier_add
+            print("energy: {}, count: {}".format(energy,count))
             logFile.write("\t\tUpdated barrier energy: {}\n\n".format(energy))
         logFile.close()
         mess_ts = tpl.format(rxn_name=name,

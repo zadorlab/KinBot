@@ -40,18 +40,6 @@ mol.set_calculator(calc)
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer (task optimize)
-    """
-    #read the geometry from the output file
-    outfile = '{label}.log'
-    with open(outfile) as f:
-        lines = f.readlines()
-    for index, line in enumerate(reversed(lines)):
-        if re.search('Input orientation:', line) != None:
-            for n in range(len(mol)):
-                geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
-            break
-    mol.positions = geom
-    """
     #Positions (geom) updated in ase/ases/io/gaussian.py code
     db = connect('{working_dir}/kinbot.db')
     db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})

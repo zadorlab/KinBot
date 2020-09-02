@@ -73,6 +73,6 @@ def carry_out_reaction(rxn, step, command):
     f_out.write(template)
     f_out.close()
     
-    step += rxn.qc.submit_qc(rxn.instance_name, 0)
+    step += rxn.qc.submit_qc(rxn.instance_name, singlejob=0)
 
     return step

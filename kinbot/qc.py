@@ -26,6 +26,8 @@ class QuantumChemistry:
         self.qc = par.par['qc']
         self.method = par.par['method']
         self.basis = par.par['basis']
+        self.scan_method = par.par['scan_method']
+        self.scan_basis = par.par['scan_basis']
         self.bls_method = par.par['barrierless_saddle_method']
         self.bls_basis = par.par['barrierless_saddle_basis']
         self.high_level_method = par.par['high_level_method']
@@ -52,7 +54,7 @@ class QuantumChemistry:
         self.username = par.par['username']
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0,
-                         high_level=0, hir=0, start_form_geom=0):
+                         high_level=0, hir=0, start_from_geom=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
@@ -103,14 +105,14 @@ class QuantumChemistry:
             else:
                 kwargs['freq'] = 'freq'
             if scan or 'R_Addition_MultipleBond' in job:
-                kwargs['method'] = 'mp2'
-                kwargs['basis'] = self.basis
+                kwargs['method'] = self.scan_method 
+                kwargs['basis'] = self.scan_basis
             if 'barrierless_saddle' in job or 'bls' in job:
                 kwargs['method'] = self.bls_method
                 kwargs['basis'] = self.bls_basis
             if irc is not None:
                 # arguments for the irc calculations
-                if start_form_geom == 0:
+                if start_from_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
                     if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here
@@ -355,21 +357,19 @@ class QuantumChemistry:
         # O2
         if species.chemid == "320320000000000000001":
             mult = 3
-            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
         # CH2
         elif species.chemid == "140260020000000000001":
             mult = 3
-            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
-        # others
         else:
             mult = species.mult
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level)
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level)
+        kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
+
         if self.qc == 'gauss':
             kwargs['opt'] = 'CalcFC, Tight'
         if mp2:
-            kwargs['method'] = 'mp2'
+            kwargs['method'] = self.scan_method
+            kwargs['basis'] = self.scan_basis
         if high_level:
             if self.opt:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)

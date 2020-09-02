@@ -12,6 +12,7 @@ from kinbot import cheminfo
 from kinbot.irc import IRC
 from kinbot.optimize import Optimize
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.molpro import Molpro
 
 
 class ReactionGenerator:
@@ -60,7 +61,6 @@ class ReactionGenerator:
         count = 0
         for i in self.species.reac_inst:
             count = count + 1
-        all_unique_prod = []
         frag_unique = []
         nameUnique = []
         stpt_inchis = []
@@ -335,6 +335,7 @@ class ReactionGenerator:
                                          atom=self.species.atom, geom=geom, wellorts=1)
                     err, ts.energy = self.qc.get_qc_energy(instance_name)
                     err, ts.zpe = self.qc.get_qc_zpe(instance_name)  # NEW STOPS HERE
+                    ts.distance_mx()
                     ts.bond = bond_mx
                     ts.find_cycle()
                     ts.find_conf_dihedral()
@@ -476,9 +477,42 @@ class ReactionGenerator:
             if wr:
                 f_out = open('kinbot_monitor.out', 'w')
                 for index, instance in enumerate(self.species.reac_inst):
-                    f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], self.species.reac_step[index], self.species.reac_obj[index].instance_name))
+                    if self.species.reac_ts_done[index] == -1:
+                        prodstring = []
+                        for pp in self.species.reac_obj[index].products:
+                            prodstring.append(str(pp.chemid))
+                        f_out.write('{}\t{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
+                                                              self.species.reac_step[index], 
+                                                              self.species.reac_obj[index].instance_name,
+                                                              ' '.join(prodstring)))
+                    else:
+                        f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
+                                                          self.species.reac_step[index], 
+                                                          self.species.reac_obj[index].instance_name))
                 f_out.close()
             time.sleep(1)
+
+        # Create molpro file for the BLS products
+        for index, instance in enumerate(self.species.reac_inst):
+            if self.species.reac_type[index] == 'barrierless_saddle':
+                obj = self.species.reac_obj[index]
+                if len(obj.products) == 2:
+                    blsprodatom = np.append(obj.products[0].atom, obj.products[1].atom)
+                    blsprodgeom = np.append(obj.products[0].geom, obj.products[1].geom + 20.)
+                    blsprodgeom = np.reshape(blsprodgeom, (-1, 3))
+                    bps = list(zip(blsprodatom, blsprodgeom))
+                    bps1 = [item for sublist in bps for item in sublist]
+                    blsprodstruct = [item for sublist in bps1 for item in sublist]
+                    blsprod = StationaryPoint('blsprod',
+                                              self.par.par['charge'],
+                                              self.par.par['mult'],
+                                              structure=blsprodstruct)
+                    blsprod.characterize()
+                    molp = Molpro(blsprod, self.par)
+                    key = self.par.par['barrierless_saddle_single_point_key']
+                    molpname = '{}_prod'.format(obj.instance_name)
+                    molp.create_molpro_input(bls=1, name=molpname)
+                    molp.create_molpro_submit(name=molpname)
 
         s = []
         for index, instance in enumerate(self.species.reac_inst):

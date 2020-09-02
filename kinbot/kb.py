@@ -153,7 +153,8 @@ def main():
             ('birad_recombination_R' not in par.par['skip_families'] or \
             'r12_cycloaddition' not in par.par['skip_families'] or \
             'r14_birad_scission' not in par.par['skip_families'] or \
-            'R_Addition_MultipleBond' not in par.par['skip_families'])):
+            'R_Addition_MultipleBond' not in par.par['skip_families'])) or \
+            par.par['reaction_search'] == 0:
         logging.info('Starting MP2 optimization of intial well')
         qc.qc_opt(well0, well0.geom, mp2=1)
         err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)

@@ -610,7 +610,9 @@ class StationaryPoint:
         self.conf_dihed = []
         dihed_sideb = []
         dihed_sidec = []
-        
+        self.find_linear()
+
+
         for rotbond in range(len(self.dihed)):
             start = 0
             for i in range(self.natom):
@@ -642,6 +644,19 @@ class StationaryPoint:
         for b in range(len(dihed_sideb)):
             for c in range(len(dihed_sidec)):
                 if dihed_sideb[b] == dihed_sidec[c]: self.conf_dihed.append(dihed_sideb[b][:])
+ 
+        for r, rotbond in enumerate(self.conf_dihed): 
+            print(rotbond)
+            for lin in self.linear:     
+                print(lin)
+                if rotbond[0:3] == lin or rotbond[1:4] == lin:
+                    self.conf_dihed.pop(r)
+                    print('True')
+                    break
+                if rotbond[0:3] == lin[::-1] or rotbond[1:4] == lin[::-1]:
+                    self.conf_dihed.pop(r)
+                    print('True')
+                    break
                 
         return 0
                 

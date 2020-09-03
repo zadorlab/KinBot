@@ -216,7 +216,6 @@ def partition(species, rotor, natom, checkdist):
         forbidden = [rotor[1]]
         visited = [rotor[1], rotor[2]]
         get_neighbors(rotor[2], visited, forbidden, l2, species, natom, checkdist)
-        print('PARTITIONS', l1, l2)
         return l1, l2
 
 
@@ -250,8 +249,5 @@ def curvature(species, hess):
     m = np.dot(np.dot(jacobian.T, hess_ang), jacobian)
 
     eigval, eigvec = np.linalg.eig(m)
-    print(eigval)
-    print(len(bbb.bond), len(bbb.angle), len(bbb.dihed))
-    #print(bbb.dihed)
 
     return 0

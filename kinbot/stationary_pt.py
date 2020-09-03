@@ -109,7 +109,6 @@ class StationaryPoint:
                 logging.error('Exiting.')
                 sys.exit()
             if len(parts) == 2:
-                print('blah')
                 self.make_extra_bond(parts, maps)
 
         self.find_conf_dihedral()
@@ -646,16 +645,12 @@ class StationaryPoint:
                 if dihed_sideb[b] == dihed_sidec[c]: self.conf_dihed.append(dihed_sideb[b][:])
  
         for r, rotbond in enumerate(self.conf_dihed): 
-            print(rotbond)
             for lin in self.linear:     
-                print(lin)
                 if rotbond[0:3] == lin or rotbond[1:4] == lin:
                     self.conf_dihed.pop(r)
-                    print('True')
                     break
                 if rotbond[0:3] == lin[::-1] or rotbond[1:4] == lin[::-1]:
                     self.conf_dihed.pop(r)
-                    print('True')
                     break
                 
         return 0

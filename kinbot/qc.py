@@ -323,7 +323,6 @@ class QuantumChemistry:
         dummy = [d.tolist() for d in dummy]
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
-        print(geom, job)
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,

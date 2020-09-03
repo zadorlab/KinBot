@@ -115,7 +115,6 @@ class StationaryPoint:
         self.find_atom_eqv()
         self.calc_chiral()
         self.calc_mass()
-        self.find_linear()
 
     def calc_mass(self):
         """ Calculate mass """
@@ -309,7 +308,6 @@ class StationaryPoint:
         """
         bond = copy.deepcopy(self.bond)
 
-        max_step = 1000  # this is unused ??
         status = [0 for i in range(self.natom)]  # 1: part of a molecule, 0: not part of a molecule
         atoms = [i for i in range(self.natom)]
         mols = []  # list of stationary_pt objects for the parts 
@@ -606,11 +604,10 @@ class StationaryPoint:
         """
         
         self.find_dihedral()
+        self.find_linear()
         self.conf_dihed = []
         dihed_sideb = []
         dihed_sidec = []
-        self.find_linear()
-
 
         for rotbond in range(len(self.dihed)):
             start = 0

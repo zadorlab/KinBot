@@ -114,6 +114,9 @@ def get_frequencies(species, hess, geom, checkdist=0):
     # Build set of internal rotation vectors to project out
     R = []
     for rot in species.dihed:
+        if skip_rotor(species.name, rot) == 1:
+            continue
+            
         # partition the molecule in two parts divided by the rotor bond
         Ri = np.zeros(3 * natom)
         l1, l2 = partition(species, rot, natom, checkdist)
@@ -251,3 +254,14 @@ def curvature(species, hess):
     eigval, eigvec = np.linalg.eig(m)
 
     return 0
+
+
+def skip_rotor(name, rot):
+    if 'barrierless_saddle' in name:
+        l0 = name.split('_')
+        l = [int(l0[3]) - 1, int(l0[4]) - 1] 
+        if any(rot[i:i+2] == l for i in range(3)):
+            return 1
+        if any(rot[i:i+2] == l[::-1] for i in range(3)):
+            return 1
+        return 0

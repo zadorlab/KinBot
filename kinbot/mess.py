@@ -56,6 +56,16 @@ class MESS:
             self.blbimoltpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_barrier.tpl') as f:
             self.barriertpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_rrho.tpl') as f:
+            self.rrhotpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_core_rr.tpl') as f:
+            self.corerrtpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_pst.tpl') as f:
+            self.psttpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_variational.tpl') as f:
+            self.variationaltpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_2ts.tpl') as f:
+            self.2tstpl = f.read()
 
     def write_header(self):
         """
@@ -402,7 +412,6 @@ class MESS:
 
     def write_termol(self, species_list, reaction, uq, uq_n, energyAdd, freqFactor, bar, uq_iter):
         # Create the dummy MESS block for ter-molecular products.
-        # open the dummy template
         fragments = ''
         termol = ''
 
@@ -465,12 +474,7 @@ class MESS:
 
                     allFreqs = ",".join(str(termolFreq) for termolFreq in termolArrayFreq)
 
-                geom = ''
-                for i, at in enumerate(species.atom):
-                    if i > 0:
-                        geom += '            '
-                    x, y, z = species.geom[i]
-                    geom += '! {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+                geom = self.make_geom(species.geom, species.atom)
 
                 energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
@@ -599,12 +603,7 @@ class MESS:
 
                     allFreqs = ",".join(str(bimolFreq) for bimolFreq in bimolArrayFreq)
 
-                geom = ''
-                for i, at in enumerate(species.atom):
-                    if i > 0:
-                        geom += '            '
-                    x, y, z = species.geom[i]
-                    geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+                geom = self.make_geom(species.geom, species.atom)
 
                 energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
@@ -766,12 +765,7 @@ class MESS:
 
             allWellFreqs = ",".join(str(wellFreq) for wellFreq in wellsArrayFreq)
 
-        geom = ''
-        for i, at in enumerate(species.atom):
-            if i > 0:
-                geom += '            '
-            x, y, z = species.geom[i]
-            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+        geom = self.make_geom(species.geom, species.atom)
 
         if self.par.par['pes']:
             name = '{name}'
@@ -821,7 +815,6 @@ class MESS:
         """
         Create the block for a MESS barrier.
         """
-        #print(reaction, barrier_adds)
         logFile = open('uq.log', 'a')
 
         rotors = []
@@ -882,12 +875,7 @@ class MESS:
 
             allBarrierFreqs = ",".join(str(barrierFreq) for barrierFreq in barrierArrayPosFreq)
 
-        geom = ''
-        for i, at in enumerate(reaction.ts.atom):
-            if i > 0:
-                geom += '            '
-            x, y, z = reaction.ts.geom[i]
-            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+        geom = self.make_geom(reaction.ts.geom, reaction.ts.atom)
 
         for index in range(len(self.species.reac_inst)):
             if self.species.reac_ts_done[index] == -1:
@@ -990,6 +978,11 @@ class MESS:
             energy = energies[count] + barrier_add
             logFile.write("\t\tUpdated barrier energy: {}\n\n".format(energy))
         logFile.close()
+
+        if self.species.reac_type[index] == 'barrierless_saddle':
+            fragment1
+            outerts = self.psttpl.format(    
+
         mess_ts = tpl.format(rxn_name=name,
                              chemid_reac=chemid_reac,
                              chemid_prod=chemid_prod,
@@ -1169,3 +1162,12 @@ class MESS:
                 job_counter = uq_n
 
         return 0
+
+    def make_geom(specgeom, specatom):
+        geom = ''
+        for i, at in enumerate(specatom):
+            if i > 0:
+                geom += '            '
+            x, y, z = specgeom[i]
+            geom += '! {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+        return geom

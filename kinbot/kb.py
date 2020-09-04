@@ -216,8 +216,8 @@ def main():
         logging.info('ME turned off')
 
     # TO DO: CODE UQ into MESMER
-    mesmer = MESMER(par, well0)
-    mesmer.write_input()
+    #mesmer = MESMER(par, well0)
+    #mesmer.write_input()
 
     if par.par['me'] == 1:
         logging.info('Starting Master Equation calculations')
@@ -225,8 +225,8 @@ def main():
             mess.run(uq_n)
 
         # TO DO: FINISH CODING UQ INTO MESMER
-        elif par.par['me_code'] == 'mesmer':
-            mesmer.run()
+        #elif par.par['me_code'] == 'mesmer':
+        #    mesmer.run()
         else:
             logging.error('Cannot recognize me code {}'.format(par.par['me_code']))
 

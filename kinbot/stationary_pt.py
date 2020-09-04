@@ -641,14 +641,18 @@ class StationaryPoint:
             for c in range(len(dihed_sidec)):
                 if dihed_sideb[b] == dihed_sidec[c]: self.conf_dihed.append(dihed_sideb[b][:])
  
-        for r, rotbond in enumerate(self.conf_dihed): 
+        delete_rotor = []  # list of rotors to be deleted because of linearity
+        for rotbond in self.conf_dihed: 
             for lin in self.linear:     
                 if rotbond[0:3] == lin or rotbond[1:4] == lin:
-                    self.conf_dihed.pop(r)
+                    delete_rotor.append(rotbond)
                     break
                 if rotbond[0:3] == lin[::-1] or rotbond[1:4] == lin[::-1]:
-                    self.conf_dihed.pop(r)
+                    delete_rotor.append(rotbond)
                     break
+
+        for delrot in delete_rotor:
+            self.conf_dihed.remove(delrot)
                 
         return 0
                 

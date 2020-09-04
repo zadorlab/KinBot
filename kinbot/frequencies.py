@@ -119,7 +119,7 @@ def get_frequencies(species, hess, geom, checkdist=0):
             
         # partition the molecule in two parts divided by the rotor bond
         Ri = np.zeros(3 * natom)
-        l1, l2 = partition(species, rot, natom, checkdist)
+        l1, l2 = partition(species, rot, natom, checkdist=checkdist)
         # mass weight the cartesian coordinates
         mgeom = np.zeros((natom, 3))
         for i in range(natom):
@@ -207,7 +207,7 @@ def convert_to_wavenumbers(val):
     return fr
 
 
-def partition(species, rotor, natom, checkdist):
+def partition(species, rotor, natom, checkdist=0):
     l1 = [rotor[1]]
     forbidden = [rotor[2]]
     visited = [rotor[1], rotor[2]]

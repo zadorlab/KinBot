@@ -843,7 +843,6 @@ class MESS:
         """
         #print(reaction, barrier_adds)
         logFile = open('uq.log', 'a')
-        tmp = self.ts_names[reaction.instance_name]
         # open the templates
         ts_file = pkg_resources.resource_filename('tpl', 'mess_ts.tpl')
         with open(ts_file) as f:
@@ -858,6 +857,8 @@ class MESS:
         rotors = []
         if self.par.par['rotor_scan']:
             for i, rot in enumerate(reaction.ts.dihed):
+                if frequencies.skip_rotor(self.ts_names[reaction.instance_name], rot) == 1:
+                    continue
                 group = ' '.join([str(pi + 1) for pi in frequencies.partition(reaction.ts, rot, reaction.ts.natom)[0][1:]])
                 axis = '{} {}'.format(str(rot[1] + 1), str(rot[2] + 1))
                 rotorsymm = reaction.ts.sigma_int[rot[1]][rot[2]]

@@ -14,7 +14,7 @@
 {hinderedrotor}
 
         ElectronicLevels[1/cm]      {nelec}
-            {charge}    {mult}
+            0.    {mult}
 
         ZeroEnergy[kcal/mol]        {zeroenergy}
     End

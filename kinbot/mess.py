@@ -34,38 +34,38 @@ class MESS:
         self.termolec_names = {}
         self. barrierless_names = {}
         # read all templates to create mess input
-        with open(pkg_resources.resource_filename('tpl', 'mess_header.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_header.tpl')) as f:
             self.headertpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_dummy.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')) as f:
             self.dummytpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_termol.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_termol.tpl')) as f:
             self.termoltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_fragment.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_fragment.tpl')) as f:
             self.fragmenttpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')) as f:
             self.hinderedrotortpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_atom.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_atom.tpl')) as f:
             self.atomtpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_tunneling.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_tunneling.tpl')) as f:
             self.tunneltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_well.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_well.tpl')) as f:
             self.welltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_bimol.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_bimol.tpl')) as f:
             self.bimoltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_barrierless.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_barrierless.tpl')) as f:
             self.blbimoltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_barrier.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_barrier.tpl')) as f:
             self.barriertpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_rrho.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_rrho.tpl')) as f:
             self.rrhotpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_core_rr.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_core_rr.tpl')) as f:
             self.corerrtpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_pst.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_pst.tpl')) as f:
             self.psttpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_variational.tpl') as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_variational.tpl')) as f:
             self.variationaltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_2ts.tpl') as f:
-            self.2tstpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_2ts.tpl')) as f:
+            self.twotstpl = f.read()
 
     def write_header(self):
         """
@@ -349,47 +349,34 @@ class MESS:
                                 barrierless_name.append(hs_prod_name)
            
             wells = ''
+            divider = '\n!****************************************\n'
             for well in well_blocks:
-                wells += well_blocks[well] + '\n!****************************************\n'
+                wells += well_blocks[well] + divider
             bimols = ''
             for bimol in bimolec_blocks:
-                bimols += bimolec_blocks[bimol] + '\n!****************************************\n'
+                bimols += bimolec_blocks[bimol] + divider
             termols = ''
             for termol in termolec_blocks:
-                termols += termolec_blocks[termol] + '\n!****************************************\n'
+                termols += termolec_blocks[termol] + divider
             tss = ''
             for ts in ts_blocks:
-                tss += ts_blocks[ts] + '\n!****************************************\n'
+                tss += ts_blocks[ts] + divider
             barrierless = ''
             for rxn in barrierless_blocks:
-                barrierless += barrierless_blocks[rxn] + '\n!****************************************\n'
+                barrierless += barrierless_blocks[rxn] + divider
 
             dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
             mess_iter = "{0:04d}".format(uq_iter)
-            f_out = open('me/mess_%s.inp' % mess_iter, 'w')
-            f_out.write(header + '\n!****************************************\n')
-            f_out.write(wells)
-            f_out.write(bimols)
-            f_out.write(tss)
-            f_out.write(termols)
-            f_out.write(barrierless)
-            f_out.write('\n!****************************************\nEnd ! end kinetics\n')
-            f_out.close()
+            with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
+                f_out.write(header + divider)
+                f_out.write(wells)
+                f_out.write(bimols)
+                f_out.write(tss)
+                f_out.write(termols)
+                f_out.write(barrierless)
+                f_out.write(divider + 'End ! end kinetics\n')
 
-        #uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
-        #uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
-        # uq_obj.norm_energy(prod_e_iter, "prod", prod_names, uq_n)  # working
-        # uq_obj.norm_energy(bimol_e_iter, "bimol", bimol_names, uq_n)
-        # uq_obj.norm_energy(termol_e_iter, "termol", termol_names, uq_n)
-        # uq_obj.norm_energy(barrierless_e_iter, "barrierless", barrierless_name, uq_n)
-        # print("wells\n{}\n{}".format(well_e_iter, well_name)) 
-        # print("ts\n{}\n{}".format(ts_e_iter, ts_rxnName))
-        # print("prod\n{}\n{}".format(prod_e_iter, prod_name))
-        # print("bimol\n{}\n{}".format(bimol_e_iter, bimol_names))
-        # print("termol\n{}\n{}".format(termol_e_iter, termol_name))
-        # print("barrierless\n{}\n{}".format(barrierless_e_iter, barrierless_name))
-         
         return 0
 
     def write_barrierless(self, species_list, reaction, uq, uq_n, energyAdd, freqFactor, bar, uq_iter):
@@ -418,23 +405,6 @@ class MESS:
         terPr_name = '_'.join(sorted([str(species.chemid) for species in species_list]))
         for species in species_list:
             if species.natom > 1:
-                rotors = []
-                if self.par.par['rotor_scan']:
-                    for i, rot in enumerate(species.dihed):
-                        group = ' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]])
-                        axis = '{} {}'.format(str(rot[1] + 1), str(rot[2] + 1))
-                        rotorsymm = species.sigma_int[rot[1]][rot[2]]
-                        nrotorpot = species.hir.nrotation // rotorsymm
-                        ens = species.hir.hir_energies[i]
-                        rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
-                        rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
-                        rotors.append(self.hinderedrotortpl.format(group=group,
-                                                                   axis=axis,
-                                                                   rotorsymm=rotorsymm,
-                                                                   nrotorpot=nrotorpot,
-                                                                   rotorpot=rotorpot))
-                rotors = '\n'.join(rotors)
-
                 freq = ''
                 termolArrayFreq = []
                 termolArrayEnergy = []
@@ -474,8 +444,6 @@ class MESS:
 
                     allFreqs = ",".join(str(termolFreq) for termolFreq in termolArrayFreq)
 
-                geom = self.make_geom(species.geom, species.atom)
-
                 energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
                 if self.par.par['pes']:
@@ -487,15 +455,13 @@ class MESS:
                 # molecule template
                 fragments += self.fragmenttpl.format(chemid=name,
                                                      natom=species.natom,
-                                                     geom=geom,
+                                                     geom=self.make_geom(species.geom, species.atom),
                                                      symm=float(species.sigma_ext) / float(species.nopt),
                                                      nfreq=len(species.reduced_freqs),
                                                      freq=freq,
-                                                     hinderedrotor=rotors,
+                                                     hinderedrotor=self.make_rotors(species),
                                                      nelec=1,
-                                                     charge=species.charge,
                                                      mult=species.mult)
-                fragments += '\n'
             else:
                 if self.par.par['pes']:
                     name = 'fr_name_{}'.format(species.chemid)
@@ -507,9 +473,7 @@ class MESS:
                 fragments += self.atomtpl.format(chemid=name,
                                                  element=species.atom[0],
                                                  nelec=1,
-                                                 charge=species.charge,
                                                  mult=species.mult)
-                fragments += '\n'
 
         prod_name = self.termolec_names[terPr_name]
 
@@ -549,22 +513,6 @@ class MESS:
         fragments = ''
         for species in species_list:
             if species.natom > 1:
-                rotors = []
-                if self.par.par['rotor_scan']:
-                    for i, rot in enumerate(species.dihed):
-                        group = ' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]])
-                        axis = '{} {}'.format(str(rot[1] + 1), str(rot[2] + 1))
-                        rotorsymm = species.sigma_int[rot[1]][rot[2]]
-                        nrotorpot = species.hir.nrotation // rotorsymm
-                        ens = species.hir.hir_energies[i]
-                        rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
-                        rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
-                        rotors.append(self.hinderedrotortpl.format(group=group,
-                                                                   axis=axis,
-                                                                   rotorsymm=rotorsymm,
-                                                                   nrotorpot=nrotorpot,
-                                                                   rotorpot=rotorpot))
-                rotors = '\n'.join(rotors)
                 freq = ''
 
                 bimolArrayFreq = []
@@ -603,8 +551,6 @@ class MESS:
 
                     allFreqs = ",".join(str(bimolFreq) for bimolFreq in bimolArrayFreq)
 
-                geom = self.make_geom(species.geom, species.atom)
-
                 energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
                 if self.par.par['pes']:
@@ -616,13 +562,12 @@ class MESS:
                 # molecule template
                 fragments += self.fragmenttpl.format(chemid=name,
                                                     natom=species.natom,
-                                                    geom=geom,
+                                                    geom=self.make_geom(species.geom, species.atom),
                                                     symm=float(species.sigma_ext) / float(species.nopt),
                                                     nfreq=len(species.reduced_freqs),
                                                     freq=freq,
-                                                    hinderedrotor=rotors,
+                                                    hinderedrotor=self.make_rotors(species),
                                                     nelec=1,
-                                                    charge=species.charge,
                                                     mult=species.mult)
                 fragments += '\n'
             else:
@@ -632,11 +577,9 @@ class MESS:
                 else:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
 
-                # atom template
                 fragments += self.atomtpl.format(chemid=name,
                                                  element=species.atom[0],
                                                  nelec=1,
-                                                 charge=species.charge,
                                                  mult=species.mult)
                 fragments += '\n'
 
@@ -647,7 +590,6 @@ class MESS:
         else:
             if bar == 0:
                 name = self.bimolec_names[pr_name] + ' ! ' + pr_name
-
             elif bar == 1:
                 name = self.barrierless_names[pr_name] + '! barrierless'
 
@@ -673,10 +615,9 @@ class MESS:
                                          ground_energy=energy)
 
         elif bar == 1:
-            reac = self.well_names[self.species.chemid]
             index = self.barrierless_names.keys().index(pr_name)
             bimol = self.blbimoltpl.format(barrier='nobar_{}'.format(index),
-                                           reactant=reac,
+                                           reactant=self.well_names[self.species.chemid],
                                            prod=name,
                                            dummy='',
                                            fragments=fragments,
@@ -710,23 +651,6 @@ class MESS:
         well0: reactant on this PES (zero-energy reference)
         """
         logFile = open('uq.log', 'a')
-
-        rotors = []
-        if self.par.par['rotor_scan']:
-            for i, rot in enumerate(species.dihed):
-                group = ' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]])
-                axis = '{} {}'.format(str(rot[1] + 1), str(rot[2] + 1))
-                rotorsymm = species.sigma_int[rot[1]][rot[2]]
-                nrotorpot = species.hir.nrotation // rotorsymm
-                ens = species.hir.hir_energies[i]
-                rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
-                rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
-                rotors.append(self.hinderedrotortpl.format(group=group,
-                                                           axis=axis,
-                                                           rotorsymm=rotorsymm,
-                                                           nrotorpot=nrotorpot,
-                                                           rotorpot=rotorpot))
-        rotors = '\n'.join(rotors)
 
         freq = ''
 
@@ -765,8 +689,6 @@ class MESS:
 
             allWellFreqs = ",".join(str(wellFreq) for wellFreq in wellsArrayFreq)
 
-        geom = self.make_geom(species.geom, species.atom)
-
         if self.par.par['pes']:
             name = '{name}'
             energy = '{zeroenergy}'
@@ -786,13 +708,12 @@ class MESS:
         wellsArrayEnergy.append(energy)
         mess_well = self.welltpl.format(chemid=name,
                                         natom=species.natom,
-                                        geom=geom,
+                                        geom=self.make_geom(species.geom, species.atom),
                                         symm=float(species.sigma_ext) / float(species.nopt),
                                         nfreq=len(species.reduced_freqs),
                                         freq=freq,
-                                        hinderedrotor=rotors,
+                                        hinderedrotor=self.make_rotors(species),
                                         nelec=1,
-                                        charge=species.charge,
                                         mult=species.mult,
                                         zeroenergy=energy)
 
@@ -816,25 +737,6 @@ class MESS:
         Create the block for a MESS barrier.
         """
         logFile = open('uq.log', 'a')
-
-        rotors = []
-        if self.par.par['rotor_scan']:
-            for i, rot in enumerate(reaction.ts.dihed):
-                if frequencies.skip_rotor(self.ts_names[reaction.instance_name], rot) == 1:
-                    continue
-                group = ' '.join([str(pi + 1) for pi in frequencies.partition(reaction.ts, rot, reaction.ts.natom)[0][1:]])
-                axis = '{} {}'.format(str(rot[1] + 1), str(rot[2] + 1))
-                rotorsymm = reaction.ts.sigma_int[rot[1]][rot[2]]
-                nrotorpot = reaction.ts.hir.nrotation // rotorsymm
-                ens = reaction.ts.hir.hir_energies[i]
-                rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
-                rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:reaction.ts.hir.nrotation // rotorsymm]])
-                rotors.append(self.hinderedrotortpl.format(group=group,
-                                                           axis=axis,
-                                                           rotorsymm=rotorsymm,
-                                                           nrotorpot=nrotorpot,
-                                                           rotorpot=rotorpot))
-        rotors = '\n'.join(rotors)
 
         freq = ''
 
@@ -874,8 +776,6 @@ class MESS:
                 logging.error('uq_iter not recognized')
 
             allBarrierFreqs = ",".join(str(barrierFreq) for barrierFreq in barrierArrayPosFreq)
-
-        geom = self.make_geom(reaction.ts.geom, reaction.ts.atom)
 
         for index in range(len(self.species.reac_inst)):
             if self.species.reac_ts_done[index] == -1:
@@ -978,33 +878,60 @@ class MESS:
             energy = energies[count] + barrier_add
             logFile.write("\t\tUpdated barrier energy: {}\n\n".format(energy))
         logFile.close()
-
+    
+        # TODO working here
         if self.species.reac_type[index] == 'barrierless_saddle':
-            fragment1
-            outerts = self.psttpl.format(    
-
-        mess_ts = tpl.format(rxn_name=name,
-                             chemid_reac=chemid_reac,
-                             chemid_prod=chemid_prod,
-                             long_rxn_name=long_rxn_name,
-                             natom=reaction.ts.natom,
-                             geom=geom,
-                             symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
-                             nfreq=len(reaction.ts.reduced_freqs) - 1,
-                             freq=freq,
-                             hinderedrotor=rotors,
-                             tunneling=tun,
-                             nelec=1,
-                             charge=reaction.ts.charge,
-                             mult=reaction.ts.mult,
-                             zeroenergy=energy)
+            outerts = self.psttpl.format(natom1=xxxx,
+                                         geom1=self.make_geom(XXXXXXXXX),
+                                         natom2=xxxx,
+                                         geom2=self.make_geom(YYYYYYYY),
+                                         symm=xxx,
+                                         prefact=prefactor,
+                                         exponent=3.)
+            twotst = self.twotstpl.format(outerts=outerts)
+            corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
+            rrho = self.rrhotpl.format(natom=reaction.ts.natom,
+                                       geom=self.make_geom(reaction.ts.geom, reaction.ts.atom),
+                                       core=corerr,
+                                       nfreq=len(reaction.ts.reduced_freqs)-1,
+                                       freq=freq,
+                                       rotor=self.make_rotors(reactions_ts, norot=self.ts_names[reaction.instance_name]),
+                                       tunneling='',
+                                       nelec=1,
+                                       mult=reaction.ts.mult,
+                                       zeroenergy=energy)
+            variational = self.variationaltpl.format(twotst=twotst,
+                                                     variationalmodel=rrho,
+                                                     tunneling=tun)
+            mess_barrier = self.barriertpl.format(rxn_name=name,
+                                                  chemid_reac=chemid_reac,
+                                                  chemid_prod=chemid_prod,
+                                                  long_rxn_name=long_rxn_name,
+                                                  model=variational)
+        else:
+            corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
+            rrho = self.rrhotpl.format(natom=reaction.ts.natom,
+                                       geom=self.make_geom(reaction.ts.geom, reaction.ts.atom),
+                                       core=corerr,
+                                       nfreq=len(reaction.ts.reduced_freqs)-1,
+                                       freq=freq,
+                                       rotor=self.make_rotors(reactions_ts, norot=self.ts_names[reaction.instance_name]),
+                                       tunneling=tun,
+                                       nelec=1,
+                                       mult=reaction.ts.mult,
+                                       zeroenergy=energy)
+            mess_barrier = self.barriertpl.format(rxn_name=name,
+                                                  chemid_reac=chemid_reac,
+                                                  chemid_prod=chemid_prod,
+                                                  long_rxn_name=long_rxn_name,
+                                                  model=rrho)
 
         if self.par.par['uq'] == 0:
             f = open(reaction.instance_name + '.mess', 'w')
         else:
             mess_iter = "{0:04d}".format(uq_iter)
             f = open(reaction.instance_name + '_' + str(mess_iter) + '.mess', 'w')
-        f.write(mess_ts)
+        f.write(mess_barrier)
         f.close()
         barrierArrayImagfreq.pop(0)
         barrierArrayPosFreq.pop(0)
@@ -1013,7 +940,7 @@ class MESS:
         frPos = barrierArrayPosFreq
         frNeg = barrierArrayImagfreq
 
-        return mess_ts, energy, frPos, frNeg
+        return mess_barrier, energy, frPos, frNeg
 
     def write_high_p_rates(all_rates, well_short_names, bimol_short_names):
         f_out = open('rates.out', 'w')
@@ -1163,7 +1090,7 @@ class MESS:
 
         return 0
 
-    def make_geom(specgeom, specatom):
+    def make_geom(self, specgeom, specatom):
         geom = ''
         for i, at in enumerate(specatom):
             if i > 0:
@@ -1171,3 +1098,34 @@ class MESS:
             x, y, z = specgeom[i]
             geom += '! {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
         return geom
+
+    def make_rotpot(self, species, i):
+        rotorsymm = self.rotorsymm(species)
+        ens = species.hir.hir_energies[i]
+        rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
+        rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
+        return rotorpot
+
+    def rotorsymm(self, species):
+        return species.sigma_int[rot[1]][rot[2]],
+
+    def nrotorpot(self, species): 
+        rotorsymm = self.rotorsymm(species)
+        return species.hir.nrotation // rotorsymm,
+
+    def make_rotors(self, species, norot=None):
+        rotors = []
+        if self.par.par['rotor_scan']:
+            if norot not None:
+                if frequencies.skip_rotor(norot, rot) == 1:
+                    continue
+            for i, rot in enumerate(species.dihed):
+                rotors.append(self.hinderedrotortpl.format(group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
+                                                           axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
+                                                           rotorsymm=self.rotorsymm(species),
+                                                           nrotorpot=self.nrotorpot(species),
+                                                           rotorpot=self.make_rotorpot(species)))
+        rotors = '\n'.join(rotors)
+        return rotors
+
+

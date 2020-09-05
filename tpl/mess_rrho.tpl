@@ -4,7 +4,7 @@
 {core}
         Frequencies[1/cm]             {nfreq}
             {freq}
-{rotor}  
+{rotors}  
 {tunneling}
         ElectronicLevels[1/cm]      {nelec}
             0.    {mult}

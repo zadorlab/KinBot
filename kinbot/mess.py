@@ -881,12 +881,12 @@ class MESS:
     
         # TODO working here
         if self.species.reac_type[index] == 'barrierless_saddle':
-            outerts = self.psttpl.format(natom1=xxxx,
-                                         geom1=self.make_geom(XXXXXXXXX),
-                                         natom2=xxxx,
-                                         geom2=self.make_geom(YYYYYYYY),
-                                         symm=xxx,
-                                         prefact=prefactor,
+            outerts = self.psttpl.format(natom1='xxxx',
+                                         geom1=self.make_geom('XXXXXXXXX'),
+                                         natom2='xxxx',
+                                         geom2=self.make_geom('YYYYYYYY'),
+                                         symm='xxx',
+                                         prefact='prefactor',
                                          exponent=3.)
             twotst = self.twotstpl.format(outerts=outerts)
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))

@@ -455,7 +455,7 @@ class MESS:
                 # molecule template
                 fragments += self.fragmenttpl.format(chemid=name,
                                                      natom=species.natom,
-                                                     geom=self.make_geom(species.geom, species.atom),
+                                                     geom=self.make_geom(species),
                                                      symm=float(species.sigma_ext) / float(species.nopt),
                                                      nfreq=len(species.reduced_freqs),
                                                      freq=freq,
@@ -562,14 +562,13 @@ class MESS:
                 # molecule template
                 fragments += self.fragmenttpl.format(chemid=name,
                                                     natom=species.natom,
-                                                    geom=self.make_geom(species.geom, species.atom),
+                                                    geom=self.make_geom(species),
                                                     symm=float(species.sigma_ext) / float(species.nopt),
                                                     nfreq=len(species.reduced_freqs),
                                                     freq=freq,
                                                     hinderedrotor=self.make_rotors(species),
                                                     nelec=1,
                                                     mult=species.mult)
-                fragments += '\n'
             else:
                 if self.par.par['pes']:
                     name = 'fr_name_{}'.format(species.chemid)
@@ -581,7 +580,6 @@ class MESS:
                                                  element=species.atom[0],
                                                  nelec=1,
                                                  mult=species.mult)
-                fragments += '\n'
 
         pr_name = '_'.join(sorted([str(species.chemid) for species in species_list]))
         if self.par.par['pes']:
@@ -708,7 +706,7 @@ class MESS:
         wellsArrayEnergy.append(energy)
         mess_well = self.welltpl.format(chemid=name,
                                         natom=species.natom,
-                                        geom=self.make_geom(species.geom, species.atom),
+                                        geom=self.make_geom(species),
                                         symm=float(species.sigma_ext) / float(species.nopt),
                                         nfreq=len(species.reduced_freqs),
                                         freq=freq,
@@ -891,7 +889,7 @@ class MESS:
             twotst = self.twotstpl.format(outerts=outerts)
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
-                                       geom=self.make_geom(reaction.ts.geom, reaction.ts.atom),
+                                       geom=self.make_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=freq,
@@ -911,7 +909,7 @@ class MESS:
         else:
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
-                                       geom=self.make_geom(reaction.ts.geom, reaction.ts.atom),
+                                       geom=self.make_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=freq,
@@ -1090,12 +1088,12 @@ class MESS:
 
         return 0
 
-    def make_geom(self, specgeom, specatom):
+    def make_geom(self, species):
         geom = ''
-        for i, at in enumerate(specatom):
+        for i, at in enumerate(species.atom):
             if i > 0:
                 geom += '            '
-            x, y, z = specgeom[i]
+            x, y, z = species.geom[i]
             geom += '! {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
         return geom
 
@@ -1116,10 +1114,10 @@ class MESS:
     def make_rotors(self, species, norot=None):
         rotors = []
         if self.par.par['rotor_scan']:
-            if norot not None:
-                if frequencies.skip_rotor(norot, rot) == 1:
-                    continue
             for i, rot in enumerate(species.dihed):
+                if norot is not None:
+                    if frequencies.skip_rotor(norot, rot) == 1:
+                        continue
                 rotors.append(self.hinderedrotortpl.format(group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
                                                            axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
                                                            rotorsymm=self.rotorsymm(species),
@@ -1127,5 +1125,3 @@ class MESS:
                                                            rotorpot=self.make_rotorpot(species)))
         rotors = '\n'.join(rotors)
         return rotors
-
-

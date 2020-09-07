@@ -80,10 +80,10 @@ class ReactionGenerator:
                 if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
                     if obj.scan == 0:  # don't do a scan of a bond
                         if self.species.reac_step[index] == obj.max_step + 1:
-                            status = self.qc.get_qc_freq(instance_name, self.species.natom)[0]
-                            if status == 0:
+                            status, freq = self.qc.get_qc_freq(instance_name, self.species.natom)
+                            if status == 0 and freq[0] < 0. and freq[1] > 0.:
                                 self.species.reac_ts_done[index] = 1
-                            elif status == -1:
+                            elif status == -1 or freq[0] > 0. or freq[1] < 0.:
                                 logging.info('\tRxn search failed for {}'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else:
@@ -91,10 +91,10 @@ class ReactionGenerator:
 
                     else:  # do a bond scan
                         if self.species.reac_step[index] == self.par.par['scan_step'] + 1:
-                            status = self.qc.get_qc_freq(instance_name, self.species.natom)[0]
-                            if status == 0:
+                            status, freq = self.qc.get_qc_freq(instance_name, self.species.natom)
+                            if status == 0 and freq[0] < 0. and freq[1] > 0.:
                                 self.species.reac_ts_done[index] = 1
-                            elif status == -1:
+                            elif status == -1 or freq[0] > 0. or freq[1] < 0.:
                                 logging.info('\tRxn search using scan failed for {} in TS optimization stage.'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else:
@@ -123,7 +123,6 @@ class ReactionGenerator:
                             else:  # the last step was reached, and no max or inflection was found
                                 logging.info('\tRxn search using scan failed for {}, no saddle guess found.'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
-
 
                 elif self.species.reac_ts_done[index] == 1:
                     status = self.qc.check_qc(instance_name)

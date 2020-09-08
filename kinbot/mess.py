@@ -1058,7 +1058,7 @@ class MESS:
             geom += '! {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
         return geom
 
-    def make_rotorpot(self, species, i):
+    def make_rotorpot(self, species, i, rot):
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
         rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
@@ -1066,11 +1066,11 @@ class MESS:
         return rotorpot
 
     def rotorsymm(self, species, rot):
-        return species.sigma_int[rot[1]][rot[2]],
+        return species.sigma_int[rot[1]][rot[2]]
 
     def nrotorpot(self, species, rot): 
         rotorsymm = self.rotorsymm(species, rot)
-        return species.hir.nrotation // rotorsymm,
+        return species.hir.nrotation // rotorsymm
 
     def make_rotors(self, species, norot=None):
         rotors = []
@@ -1083,6 +1083,6 @@ class MESS:
                                                            axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
                                                            rotorsymm=self.rotorsymm(species, rot),
                                                            nrotorpot=self.nrotorpot(species, rot),
-                                                           rotorpot=self.make_rotorpot(species, rot)))
+                                                           rotorpot=self.make_rotorpot(species, i, rot)))
         rotors = '\n'.join(rotors)
         return rotors

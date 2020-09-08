@@ -64,7 +64,12 @@ class ReactionGenerator:
         frag_unique = []
         nameUnique = []
         stpt_inchis = []
-        pybelErr = 0
+        try:
+            import pybel
+            pybelErr = 0
+        except ImportError:
+            logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
+            pybelErr = 1
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
@@ -273,45 +278,7 @@ class ReactionGenerator:
                         for j, st_pt_j in enumerate(obj.products):
                             if st_pt_i.chemid == st_pt_j.chemid and i < j:
                                 obj.products[j] = obj.products[i]
-                    if pybelErr == 0:
-                        try:
-                            import pybel
-                            # generate and compare inchis
-                            if len(stpt_inchis) == 0:
-                                well0_inchi = cheminfo.create_inchi_from_geom(self.species.atom, self.species.geom)
-                                well0_chemicalFormula = well0_inchi.split('S/')[1].split('/')[0]
-                                well0_stereochem = ''
-                                if "/t" in str(well0_inchi):
-                                    well0_stereochem = well0_inchi.split('/t')[1].split('/')[0]
-                                well0_info = [self.species.chemid, well0_chemicalFormula, well0_inchi, well0_stereochem]
-                                stpt_inchis.append(well0_info)
 
-                            for st_pt in obj.products:
-                                prod_chemid = st_pt.chemid
-                                prod_inchi = cheminfo.create_inchi_from_geom(st_pt.atom, st_pt.geom)
-                                prod_chemicalFormula = prod_inchi.split('S/')[1].split('/')[0]
-                                prod_stereochem = ''
-                                if "/t" in str(prod_inchi):
-                                    prod_stereochem = prod_inchi.split('/t')[1].split('/')[0]
-                                prod_info = [prod_chemid, prod_chemicalFormula, prod_inchi, prod_stereochem]
-                                stpt_inchis.append(prod_info)
-
-                            inchiFile = open('inchis.log', 'w')
-                            well0_chemid = stpt_inchis[0][0]
-                            well0_chemicalFormula = stpt_inchis[0][1]
-                            well0_stereochem = stpt_inchis[0][3]
-                            for inchi in stpt_inchis:
-                                inchiFile.write("{}\t|{}\t|{}\t|{}\n".format(inchi[0], inchi[1], inchi[2], inchi[3]))
-                                prod_chemid = inchi[0]
-                                prod_stereochem = inchi[3]
-                                prod_chemicalFormula = inchi[1]
-                                if well0_chemicalFormula == prod_chemicalFormula:
-                                    if str(well0_stereochem) != str(prod_stereochem):
-                                        logging.warning("\t!WARNING! Stereochemistry for product {} differs from the initial well ({}) for reaction {}".format(prod_chemid, well0_chemid, instance_name))
-                            inchiFile.close()
-                        except ImportError:
-                            logging.error("Could not import pybel, inchi labels not created for stationary points")
-                            pybelErr = 1
                     err = 0
                     for st_pt in obj.products:
                         chemid = st_pt.chemid
@@ -333,6 +300,7 @@ class ReactionGenerator:
                                 if e < 0:
                                     err = -1
                     if err == 0:
+                        self.test_stereochem_pybel(pybelErr, obj)
                         self.species.reac_ts_done[index] = 4
                 elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization
@@ -586,3 +554,32 @@ class ReactionGenerator:
                     os.remove(file)
                 except OSError:
                     pass
+
+    def test_stereochem_pybel(self, pybelErr, obj):
+        """
+        Generate and compare inchis for stereochemistry
+        """
+
+        if pybelErr == 1:
+            return 0
+        
+        well0_stereochem = self.get_stereochemistry(self.species.atom, self.species.geom)
+
+        for prod in obj.products:
+            if len(prod.atom) == len(self.species.atom): 
+                prod_stereochemistry = self.get_stereochemistry(prod.atom, prod.geom)
+                if str(well0_stereochem) != str(prod_stereochem):
+                    logging.warning("\tStereochemistry for product {} differs from the\
+                                    initial well ({}) for reaction {}".format(\
+                                    prod.chemid, self.species.chemid, obj.instance_name))
+            else:
+                continue
+        return 0
+
+    def get_stereochemistry(self, atom, geom):
+        inchi = cheminfo.create_inchi_from_geom(atom, geom)
+        if "/t" in str(inchi):
+            stereochem = inchi.split('/t')[1].split('/')[0]
+        else:
+            stereochem = ''
+        return stereochem

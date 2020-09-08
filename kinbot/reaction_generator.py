@@ -567,11 +567,10 @@ class ReactionGenerator:
 
         for prod in obj.products:
             if len(prod.atom) == len(self.species.atom): 
-                prod_stereochemistry = self.get_stereochemistry(prod.atom, prod.geom)
+                prod_stereochem = self.get_stereochemistry(prod.atom, prod.geom)
                 if str(well0_stereochem) != str(prod_stereochem):
-                    logging.warning("\tStereochemistry for product {} differs from the\
-                                    initial well ({}) for reaction {}".format(\
-                                    prod.chemid, self.species.chemid, obj.instance_name))
+                    logging.warning('Stereochemistry flip for product {} in reaction {}'\
+                                    .format(prod.chemid, obj.instance_name))
             else:
                 continue
         return 0

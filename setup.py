@@ -47,7 +47,7 @@ setup(
         'ase_nwchem_ts_end.tpl.py',
         'ase_nwchem_ts_search.tpl.py',
         'ase_nwchem_ts_search_ase_constraints.tpl.py',
-        'mess_2ts.tpl',
+        'mess_2tst.tpl',
         'mess_atom.tpl',
         'mess_barrier.tpl',
         'mess_barrierless.tpl',

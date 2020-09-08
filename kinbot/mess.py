@@ -64,7 +64,7 @@ class MESS:
             self.psttpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_variational.tpl')) as f:
             self.variationaltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_2ts.tpl')) as f:
+        with open(pkg_resources.resource_filename('tpl', 'mess_2tst.tpl')) as f:
             self.twotstpl = f.read()
 
     def write_header(self):
@@ -1058,18 +1058,18 @@ class MESS:
             geom += '! {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
         return geom
 
-    def make_rotpot(self, species, i):
-        rotorsymm = self.rotorsymm(species)
+    def make_rotorpot(self, species, i):
+        rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
         rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
         rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
         return rotorpot
 
-    def rotorsymm(self, species):
+    def rotorsymm(self, species, rot):
         return species.sigma_int[rot[1]][rot[2]],
 
-    def nrotorpot(self, species): 
-        rotorsymm = self.rotorsymm(species)
+    def nrotorpot(self, species, rot): 
+        rotorsymm = self.rotorsymm(species, rot)
         return species.hir.nrotation // rotorsymm,
 
     def make_rotors(self, species, norot=None):
@@ -1081,8 +1081,8 @@ class MESS:
                         continue
                 rotors.append(self.hinderedrotortpl.format(group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
                                                            axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
-                                                           rotorsymm=self.rotorsymm(species),
-                                                           nrotorpot=self.nrotorpot(species),
-                                                           rotorpot=self.make_rotorpot(species)))
+                                                           rotorsymm=self.rotorsymm(species, rot),
+                                                           nrotorpot=self.nrotorpot(species, rot),
+                                                           rotorpot=self.make_rotorpot(species, rot)))
         rotors = '\n'.join(rotors)
         return rotors

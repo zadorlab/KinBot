@@ -83,7 +83,13 @@ class ReactionGenerator:
                             status, freq = self.qc.get_qc_freq(instance_name, self.species.natom)
                             if status == 0 and freq[0] < 0. and freq[1] > 0.:
                                 self.species.reac_ts_done[index] = 1
-                            elif status == -1 or freq[0] > 0. or freq[1] < 0.:
+                            elif status == 0 and freq[0] > 0.:
+                                logging.info('\tRxn search failed for {}, no imaginary freq.'.format(instance_name))
+                                self.species.reac_ts_done[index] = -999
+                            elif status == 0 and freq[1] < 0.:
+                                logging.info('\tRxn search failed for {}, more than one imaginary freq.'.format(instance_name))
+                                self.species.reac_ts_done[index] = -999
+                            elif status == -1: 
                                 logging.info('\tRxn search failed for {}'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else:

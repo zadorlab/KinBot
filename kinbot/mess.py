@@ -940,45 +940,6 @@ class MESS:
 
         return mess_barrier, energy, frPos, frNeg
 
-    def write_high_p_rates(all_rates, well_short_names, bimol_short_names):
-        f_out = open('rates.out', 'w')
-        if len(all_rates) > 0:
-            f_out.write('temperatures\t\t')
-            f_out.write('\t'.join([str(ti) for ti in all_rates[0].temperatures]))
-            f_out.write('\n')
-
-            for rates in all_rates:
-                true_rxn = 1
-                if rates.reactant in well_short_names.values():
-                    for name in well_short_names:
-                        if well_short_names[name] == rates.reactant:
-                            reac_name = name
-                elif rates.reactant in bimol_short_names.values():
-                    for name in bimol_short_names:
-                        if bimol_short_names[name] == rates.reactant:
-                            reac_name = name
-                else:
-                    true_rxn = 0
-                if rates.product in well_short_names.values():
-                    for name in well_short_names:
-                        if well_short_names[name] == rates.product:
-                            prod_name = name
-                elif rates.product in bimol_short_names.values():
-                    for name in bimol_short_names:
-                        if bimol_short_names[name] == rates.product:
-                            prod_name = name
-                else:
-                    true_rxn = 0
-
-                if true_rxn:
-                    s = reac_name + '\t'
-                    s += prod_name + '\t'
-                    s += '\t'.join([str(ri) for ri in rates.rates[-1]])
-                    s += '\n'
-                    f_out.write(s)
-
-        f_out.close()
-
     def run(self, uq_n):
         """
         write a pbs or slurm file for the me/all.inp mess input file

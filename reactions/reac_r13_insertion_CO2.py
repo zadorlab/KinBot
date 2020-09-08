@@ -30,6 +30,6 @@ class R13InsertionCO2(GeneralReac):
             self.set_bond(2, 3, -999, change, step=step-11, stmax=10, findist=fval[2], geom=geom)
             self.set_bond(3, 0, -999, change, step=step-11, stmax=10, findist=fval[3], geom=geom)
 
-        self.clean_contraints(change, fix)
+        self.clean_constraints(change, fix)
         
         return step, fix, change, release

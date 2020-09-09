@@ -207,7 +207,6 @@ class MESS:
         well_e_iter = []
         prod_e_iter = []
         bimol_e_iter = []
-        termol_e_iter = []
         barrierless_e_iter = []
         
         for uq_iter in range(0, uq_n):
@@ -385,7 +384,7 @@ class MESS:
         # uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
         # uq_obj.norm_energy(prod_e_iter, "prod", prod_names, uq_n)
         # uq_obj.norm_energy(bimol_e_iter, "bimol", bimol_names, uq_n)
-        # uq_obj.norm_energy(termol_e_iter, "termol", termolec_names, uq_n)
+        uq_obj.norm_energy(0, "termol", termolec_names, uq_n)
         # uq_obj.norm_energy(barrierless_e_iter, "barrierless", barrierless_name, uq_n)
         # print("wells\n{}\n{}".format(well_e_iter, well_name)) 
         # print("ts\n{}\n{}".format(ts_e_iter, ts_rxnName))
@@ -393,7 +392,6 @@ class MESS:
         # print("bimol\n{}\n{}".format(bimol_e_iter, bimol_names))
         # print("termol\n{}\n{}".format(termol_e_iter, termol_name))
         # print("barrierless\n{}\n{}".format(barrierless_e_iter, barrierless_name))
-        
         return 0
 
     def write_barrierless(self, species_list, reaction, uq, uq_n, energyAdd, freqFactor, bar, uq_iter):
@@ -416,96 +414,10 @@ class MESS:
 
     def write_termol(self, species_list, reaction, uq, uq_n, energyAdd, freqFactor, bar, uq_iter):
         # Create the dummy MESS block for ter-molecular products.
-        fragments = ''
         termol = ''
-
         terPr_name = '_'.join(sorted([str(species.chemid) for species in species_list]))
-        for species in species_list:
-            if species.natom > 1:
-                freq = ''
-                termolArrayFreq = []
-                termolArrayEnergy = []
-                logFile = open('uq.log', 'a')
-
-                logFile.write("Bimol species: {}\n".format(species.chemid))
-                termolArrayFreq.append(species.chemid)
-                termolArrayEnergy.append(species.chemid)
-                for i, fr in enumerate(species.reduced_freqs):
-                    if uq_iter == 0:
-                        freqFactor = 1.0
-                        logFile.write("\ttermol posFreq factor: {}\n".format(freqFactor))
-                        logFile.write("\t\tOriginal first frequency: {}\n".format(fr))
-                        termolArrayFreq.append(fr)
-                        if i == 0:
-                            logFile.write("\t\tUpdated first frequency: {}.\n\t\t\tFrequency should be unchanged.\n".format(fr))
-                            freq += '! {:.4f}'.format(fr)
-                        elif i > 0 and i % 3 == 0:
-                            freq += '\n !           {:.4f}'.format(fr)
-                        else:
-                            freq += '!    {:.4f}'.format(fr)
-                    elif uq_iter > 0:
-                        if i == 0:
-                            logFile.write("\ttermol posFreq factor: {}\n".format(freqFactor))
-                            logFile.write("\t\tOriginal first frequency: {}\n".format(fr))
-                        fr = fr * freqFactor
-                        termolArrayFreq.append(fr)
-                        if i == 0:
-                            logFile.write("\t\tUpdated first frequency: {}\n".format(fr))
-                            freq += '! {:.4f}'.format(fr)
-                        elif i > 0 and i % 3 == 0:
-                            freq += ' \n !            {:.4f}'.format(fr)
-                        else:
-                            freq += '!    {:.4f}'.format(fr)
-                    else:
-                        logging.error('uq_n is negative')
-
-                    allFreqs = ",".join(str(termolFreq) for termolFreq in termolArrayFreq)
-
-                energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
-
-                if self.par.par['pes']:
-                    name = 'fr_name_{}'.format(species.chemid)
-                    name = '{' + name + '}'
-                    energy = '{ground_energy}'
-                else:
-                    name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
-                # molecule template
-                fragments += self.fragmenttpl.format(chemid=name,
-                                                     natom=species.natom,
-                                                     geom=self.make_geom(species),
-                                                     symm=float(species.sigma_ext) / float(species.nopt),
-                                                     nfreq=len(species.reduced_freqs),
-                                                     freq=freq,
-                                                     hinderedrotor=self.make_rotors(species),
-                                                     nelec=1,
-                                                     mult=species.mult)
-            else:
-                if self.par.par['pes']:
-                    name = 'fr_name_{}'.format(species.chemid)
-                    name = '{' + name + '}'
-                else:
-                    name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
-
-                # atom template
-                fragments += self.atomtpl.format(chemid=name,
-                                                 element=species.atom[0],
-                                                 nelec=1,
-                                                 mult=species.mult)
-
         prod_name = self.termolec_names[terPr_name]
 
-        if bar == 0:
-            rxn_name = self.ts_names[reaction.instance_name]
-            for species in species_list:
-                if self.par.par['pes']:
-                    name = 'fr_name_{}'.format(species.chemid)
-                    name = 't_' + name
-                else:
-                    name = self.termolec_names[terPr_name] + ' ! ' + terPr_name
-        else:
-            rxn_name = 'termol_nobar_' + str(bar)
-        # full termol template in progress need to figure out how to show data without code reading data
-        # termol += tpl.format(product=prod_name,dummy=terPr_name, fragments=fragments, ground_energy=energy)
         termol += self.termoltpl.format(name=prod_name, product=terPr_name)
         if uq == 0:
             f = open(terPr_name + '.mess', 'w')

@@ -109,14 +109,12 @@ class StationaryPoint:
                 logging.error('Exiting.')
                 sys.exit()
             if len(parts) == 2:
-                print('blah')
                 self.make_extra_bond(parts, maps)
 
         self.find_conf_dihedral()
         self.find_atom_eqv()
         self.calc_chiral()
         self.calc_mass()
-        self.find_linear()
 
     def calc_mass(self):
         """ Calculate mass """
@@ -310,7 +308,6 @@ class StationaryPoint:
         """
         bond = copy.deepcopy(self.bond)
 
-        max_step = 1000  # this is unused ??
         status = [0 for i in range(self.natom)]  # 1: part of a molecule, 0: not part of a molecule
         atoms = [i for i in range(self.natom)]
         mols = []  # list of stationary_pt objects for the parts 
@@ -607,10 +604,11 @@ class StationaryPoint:
         """
         
         self.find_dihedral()
+        self.find_linear()
         self.conf_dihed = []
         dihed_sideb = []
         dihed_sidec = []
-        
+
         for rotbond in range(len(self.dihed)):
             start = 0
             for i in range(self.natom):
@@ -642,6 +640,19 @@ class StationaryPoint:
         for b in range(len(dihed_sideb)):
             for c in range(len(dihed_sidec)):
                 if dihed_sideb[b] == dihed_sidec[c]: self.conf_dihed.append(dihed_sideb[b][:])
+ 
+        delete_rotor = []  # list of rotors to be deleted because of linearity
+        for rotbond in self.conf_dihed: 
+            for lin in self.linear:     
+                if rotbond[0:3] == lin or rotbond[1:4] == lin:
+                    delete_rotor.append(rotbond)
+                    break
+                if rotbond[0:3] == lin[::-1] or rotbond[1:4] == lin[::-1]:
+                    delete_rotor.append(rotbond)
+                    break
+
+        for delrot in delete_rotor:
+            self.conf_dihed.remove(delrot)
                 
         return 0
                 

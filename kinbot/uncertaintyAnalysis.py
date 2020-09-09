@@ -28,11 +28,17 @@ class UQ:
         fio = open(fi, 'a')
         fio.write("\n{} UQ Normalization".format(speciesType))
         names = names
-        print(names)
+        print("names: {}".format(names))
         data = energyList
+        print("energy: {}".format(data))
+        if speciesType == 'termol':
+            print("Termol data not included in MESS")
+            fio.write("Termol data not included in MESS")
+            return 0
         if len(names) != 0 and len(energyList) == 0:
             elements = n * len(names)
             energyList = np.zeros(elements)
+          
         if len(energyList) == 0:
             fio.write("\nNo {} data".format(speciesType))
             return 0

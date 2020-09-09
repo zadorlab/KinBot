@@ -93,6 +93,8 @@ class QuantumChemistry:
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
+                    if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                        kwargs['guess'] = 'Read,Mix'
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis

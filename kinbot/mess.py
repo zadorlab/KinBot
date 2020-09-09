@@ -181,8 +181,9 @@ class MESS:
         barrierless_e_iter = []
         
         for uq_iter in range(0, uq_n):
+            
             fi = open('uq.log', 'a')
-            fi.write("uq iteration {}".format(uq_iter))
+            fi.write("uq iteration {}\n".format(uq_iter))
             fi.close()
             # set UQ factors for each i run
             if uq_iter == 0:
@@ -239,7 +240,6 @@ class MESS:
                     ts_freqFactor = uq_obj.calc_freqUQ(freq_uqVal)
                     imagfreqFactor = uq_obj.calc_freqUQ(imagfreq_uqVal)
                     if reaction.instance_name in ts_all:
-                        print("count line 242: {}".format(count))
                         allTS[reaction.instance_name], ts_e, ts_freq, ts_imagFreq = self.write_barrier(reaction,
                                                                                                        uq,
                                                                                                        uq_n,
@@ -249,17 +249,16 @@ class MESS:
                                                                                                        uq_iter,
                                                                                                        qc,
                                                                                                        count)
-                        count = count + 1
                     if reaction.instance_name in ts_unique:
                         lenProd = len(reaction.products)
                         ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                         freqFactor = uq_obj.calc_freqUQ(freq_uqVal)
                         energyAdd = uq_obj.calc_energyUQ(well_uqVal)
-                        if uq_iter == (uq_n - 1):
-                            ts_e_iter.append(ts_e)
-                            ts_imagFreq_iter.append(ts_imagFreq)
-                            ts_freq_iter.append(ts_freq)
-                            ts_rxnName.append(reaction.instance_name)
+                        #if uq_iter == (uq_n - 1):
+                        ts_e_iter.append(ts_e)
+                        ts_imagFreq_iter.append(ts_imagFreq)
+                        ts_freq_iter.append(ts_freq)
+                        ts_rxnName.append(reaction.instance_name)
                         if len(reaction.products) == 1:
                             st_pt = reaction.prod_opt[0].species
                             well_blocks[st_pt.chemid], prod_e, prod_fr = self.write_well(st_pt,
@@ -284,12 +283,14 @@ class MESS:
                             bimol_e_iter.append(bimol_e)
                             bimol_fr_iter.append(bimol_fr)
                             bimol_names.append(bimol_name)
+                            print(bimol_name)
                         else:
                             # termol
                             termolec_ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                             termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                             termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt], reaction, uq, uq_n, energyAdd, freqFactor, 0, uq_iter)
                             termolec_names.append(termol_name)
+                        count = count + 1
                 # Homolytic scission - barrierless reactions
                 barrierless = {}
                 if self.species.homolytic_scissions is not None:
@@ -350,11 +351,14 @@ class MESS:
             f_out.write('\n!****************************************\nEnd ! end kinetics\n')
             f_out.close()
 
-        #uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
-        #uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
-        # uq_obj.norm_energy(prod_e_iter, "prod", prod_names, uq_n)  # working
+        # TO DO:
+        # NORAMALIZATION OF ALL ENERGIES
+        # NORMALIZATION OF ALL FREQUENCIES
+        # uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
+        # uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
+        # uq_obj.norm_energy(prod_e_iter, "prod", prod_names, uq_n)
         # uq_obj.norm_energy(bimol_e_iter, "bimol", bimol_names, uq_n)
-        # uq_obj.norm_energy(termol_e_iter, "termol", termol_names, uq_n)
+        uq_obj.norm_energy(termol_e_iter, "termol", termolec_names, uq_n)
         # uq_obj.norm_energy(barrierless_e_iter, "barrierless", barrierless_name, uq_n)
         # print("wells\n{}\n{}".format(well_e_iter, well_name)) 
         # print("ts\n{}\n{}".format(ts_e_iter, ts_rxnName))
@@ -708,12 +712,9 @@ class MESS:
         joiner = ","
         strBimols = joiner.join(strBimolArray)
 
-        energyVals = bimolArrayEnergy
         freqVals = bimolArrayFreq
-        e = energyVals
         freqVals.pop(0)
-        energyVals.pop(0)
-        e = energyVals
+        e = bimolArrayEnergy[1]
         fr = freqVals
 
         return bimol, e, fr
@@ -829,10 +830,10 @@ class MESS:
             f = open(str(species.chemid) + '_' + str(mess_iter) + '.mess', 'w')
         f.write(mess_well)
         f.close()
+        
 
         wellsArrayFreq.pop(0)
-        wellsArrayEnergy.pop(0)
-        e = wellsArrayEnergy
+        e = wellsArrayEnergy[1]
         fr = wellsArrayFreq
 
         return mess_well, e, fr
@@ -841,7 +842,6 @@ class MESS:
         """
         Create the block for a MESS barrier.
         """
-        #print(reaction, barrier_adds)
         logFile = open('uq.log', 'a')
         tmp = self.ts_names[reaction.instance_name]
         # open the templates
@@ -1010,7 +1010,6 @@ class MESS:
                     else:
                         energy = (ts.energy + ts.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
                     energies.append(energy)
-            print(energies)
             if uq_iter == 0:
                 barrier_add = 0.0
             else:
@@ -1018,7 +1017,6 @@ class MESS:
             logFile.write("\tBarrier factor: {}\n".format(barrier_adds[count]))
             logFile.write("\t\tOriginal barrier energy: {}\n".format(energies[count]))
             energy = energies[count] + barrier_add
-            print("energy: {}, count: {}".format(energy,count))
             logFile.write("\t\tUpdated barrier energy: {}\n\n".format(energy))
         logFile.close()
         mess_ts = tpl.format(rxn_name=name,

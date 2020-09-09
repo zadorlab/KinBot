@@ -224,7 +224,8 @@ def main():
     if par.par['me'] == 1:
         logging.info('Starting Master Equation calculations')
         if par.par['me_code'] == 'mess':
-            mess.run(uq_n)
+            print("mess running turned off currently")
+            #mess.run(uq_n)
 
         # TO DO: FINISH CODING UQ INTO MESMER
         elif par.par['me_code'] == 'mesmer':

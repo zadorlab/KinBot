@@ -377,7 +377,7 @@ class MESS:
                 f_out.write(termols)
                 f_out.write(barrierless)
                 f_out.write(divider + 'End ! end kinetics\n')
-        # TO DO:
+        # TO DO/Testing:
         # NORAMALIZATION OF ALL ENERGIES
         # NORMALIZATION OF ALL FREQUENCIES
         # uq_obj.norm_energy(well_e_iter, "well", well_name, uq_n)  #working
@@ -392,7 +392,6 @@ class MESS:
         # print("bimol\n{}\n{}".format(bimol_e_iter, bimol_names))
         # print("termol\n{}\n{}".format(termol_e_iter, termol_name))
         # print("barrierless\n{}\n{}".format(barrierless_e_iter, barrierless_name))
-         
         return 0
 
     def write_barrierless(self, species_list, reaction, uq, uq_n, energyAdd, freqFactor, bar, uq_iter):

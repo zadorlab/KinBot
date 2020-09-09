@@ -3,5 +3,5 @@
         Name                          {element}
 
         ElectronicLevels[1/cm]      {nelec}
-            {charge}    {mult}
+            0.    {mult}
     End ! end atom

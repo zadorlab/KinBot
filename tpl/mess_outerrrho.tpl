@@ -1,22 +1,10 @@
-    Well       {chemid}
-    Species
-    RRHO
+    OuterRRHO
         Geometry[angstrom]            {natom}
-            {geom}
-
-        Core   RigidRotor
-            SymmetryFactor            {symm}
-        End
-    
+	    {geom}
+{core} 
         Frequencies[1/cm]             {nfreq}
             {freq}
-        
-{hinderedrotor}
-
+{rotors}
         ElectronicLevels[1/cm]      {nelec}
             0.    {mult}
-
         ZeroEnergy[kcal/mol]        {zeroenergy}
-    End
-  End ! end well
-

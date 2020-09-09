@@ -15,7 +15,7 @@ class CpdHMigration(GeneralReac):
             self.fix_bonds(fix)
 
         if step == 0:
-            self.set_angle_single(-2, -1, 0, 70., change)
+            self.set_angle_single(self.instance[-2], self.instance[-1], self.instance[0], 70., change)
 
         if step == 1:
             fval = 1.35

@@ -116,7 +116,7 @@ class Optimize:
                                 self.ssemi_empconf = 1
                 else:
                     self.ssemi_empconf = 1
-                if self.ssemi_empconf == 1:
+                if self.ssemi_empconf == 1 and self.scycconf == 1:
                     # do open chain part if cyclic (if there were any) and semi empirical (if requested) parts are done
                     if self.sconf == -1:
                         # open chain part has not started yet
@@ -158,9 +158,6 @@ class Optimize:
 
                     # perform conformer check at this point
                     filteredConf = [] 
-                    #for conf in conformers:
-                        #print(conf)
-                        #confStPt = StationaryPoint(self.name, self.species.charge, self.species.mult, self.species.natom, self.species.atom, geom, self.species.wellorts)
                         
                 while self.restart < self.max_restart:
                     # do the high level calculations

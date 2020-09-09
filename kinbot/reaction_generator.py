@@ -64,7 +64,12 @@ class ReactionGenerator:
         frag_unique = []
         nameUnique = []
         stpt_inchis = []
-        pybelErr = 0
+        try:
+            import pybel
+            pybelErr = 0
+        except ImportError:
+            logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
+            pybelErr = 1
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
@@ -80,30 +85,45 @@ class ReactionGenerator:
                 if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
                     if obj.scan == 0:  # don't do a scan of a bond
                         if self.species.reac_step[index] == obj.max_step + 1:
-                            status = self.qc.get_qc_freq(instance_name, self.species.natom)[0]
-                            if status == 0:
+                            status, freq = self.qc.get_qc_freq(instance_name, self.species.natom)
+                            if status == 0 and freq[0] < 0. and freq[1] > 0.:
                                 self.species.reac_ts_done[index] = 1
-                            elif status == -1:
+                            elif status == 0 and freq[0] > 0.:
+                                logging.info('\tRxn search failed for {}, no imaginary freq.'.format(instance_name))
+                                self.species.reac_ts_done[index] = -999
+                            elif status == 0 and freq[1] < 0.:
+                                logging.info('\tRxn search failed for {}, more than one imaginary freq.'.format(instance_name))
+                                self.species.reac_ts_done[index] = -999
+                            elif status == -1: 
                                 logging.info('\tRxn search failed for {}'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else:
-                            self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
+                            self.species.reac_step[index] = reac_family.carry_out_reaction(
+                                                            obj, self.species.reac_step[index], self.par.par['qc_command'])
 
                     else:  # do a bond scan
                         if self.species.reac_step[index] == self.par.par['scan_step'] + 1:
-                            status = self.qc.get_qc_freq(instance_name, self.species.natom)[0]
-                            if status == 0:
+                            status, freq = self.qc.get_qc_freq(instance_name, self.species.natom)
+                            if status == 0 and freq[0] < 0. and freq[1] > 0.:
                                 self.species.reac_ts_done[index] = 1
+                            elif status == 0 and freq[0] > 0.:
+                                logging.info('\tRxn search failed for {}, no imaginary freq.'.format(instance_name))
+                                self.species.reac_ts_done[index] = -999
+                            elif status == 0 and freq[1] < 0.:
+                                logging.info('\tRxn search failed for {}, more than one imaginary freq.'.format(instance_name))
+                                self.species.reac_ts_done[index] = -999
                             elif status == -1:
                                 logging.info('\tRxn search using scan failed for {} in TS optimization stage.'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else:
                             if self.species.reac_step[index] == 0:
-                                self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
+                                self.species.reac_step[index] = reac_family.carry_out_reaction(
+                                                                obj, self.species.reac_step[index], self.par.par['qc_command'])
                             elif self.species.reac_step[index] < self.par.par['scan_step']:
                                 status = self.qc.check_qc(instance_name)
                                 if status == 'error' or status == 'killed':
-                                    logging.info('\tRxn search using scan failed for {} in step {}'.format(instance_name, self.species.reac_step[index]))
+                                    logging.info('\tRxn search using scan failed for {} in step {}'
+                                                 .format(instance_name, self.species.reac_step[index]))
                                     self.species.reac_ts_done[index] = -999
                                 else:
                                     err, energy = self.qc.get_qc_energy(instance_name)
@@ -119,11 +139,11 @@ class ReactionGenerator:
                                                     self.species.reac_step[index] = self.par.par['scan_step']  # ending the scan
                                         logging.info('\tScan energies for {}: {}.'.format(instance_name, self.species.reac_scan_energy[index]))
                                         # scan continues, and if reached scan_step, then goes for full optimization
-                                        self.species.reac_step[index] = reac_family.carry_out_reaction(obj, self.species.reac_step[index], self.par.par['qc_command'])
+                                        self.species.reac_step[index] = reac_family.carry_out_reaction(
+                                                                        obj, self.species.reac_step[index], self.par.par['qc_command'])
                             else:  # the last step was reached, and no max or inflection was found
                                 logging.info('\tRxn search using scan failed for {}, no saddle guess found.'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
-
 
                 elif self.species.reac_ts_done[index] == 1:
                     status = self.qc.check_qc(instance_name)
@@ -208,13 +228,16 @@ class ReactionGenerator:
 
                     products.extend([' ', ' ', ' '])
                     barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
-                    logging.info('\tReaction {0} has a barrier of {1:.2f} kcal/mol and leads to products {2} {3} {4}'.format(instance_name, barrier, products[0], products[1], products[2]))
+                    logging.info('\tReaction {0} has a barrier of {1:.2f} kcal/mol' 
+                                 'and leads to products {2} {3} {4}'
+                                 .format(instance_name, barrier, products[0], products[1], products[2]))
 
                     for i, st_pt in enumerate(obj.products_final):
                         chemid = st_pt.chemid
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
-                            logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name, st_pt.chemid))
+                            logging.info('\tProduct optimization failed for {}, product {}'
+                                         .format(instance_name, st_pt.chemid))
                             self.species.reac_ts_done[index] = -999
                             err = -1
                         elif e != 0:
@@ -244,7 +267,12 @@ class ReactionGenerator:
                                     fragChemid.append(" ")
                                 for i, frag in enumerate(newfrags):
                                     products_waiting_status[index][i] = 1
-                                logging.info('\ta) Product optimized to other structure for {}, product {} to {} {}'.format(instance_name, chemid, fragChemid[0], fragChemid[1]))
+
+                                logging.info('\ta) Product optimized to other structure for {}'
+                                             ', product {} to {} {}'
+                                             .format(instance_name, chemid, fragChemid[0], fragChemid[1]))
+
+
                     obj.products = []
                     for prod in obj.products_final:
                         obj.products.append(prod)
@@ -261,51 +289,14 @@ class ReactionGenerator:
                         for j, st_pt_j in enumerate(obj.products):
                             if st_pt_i.chemid == st_pt_j.chemid and i < j:
                                 obj.products[j] = obj.products[i]
-                    if pybelErr == 0:
-                        try:
-                            import pybel
-                            # generate and compare inchis
-                            if len(stpt_inchis) == 0:
-                                well0_inchi = cheminfo.create_inchi_from_geom(self.species.atom, self.species.geom)
-                                well0_chemicalFormula = well0_inchi.split('S/')[1].split('/')[0]
-                                well0_stereochem = ''
-                                if "/t" in str(well0_inchi):
-                                    well0_stereochem = well0_inchi.split('/t')[1].split('/')[0]
-                                well0_info = [self.species.chemid, well0_chemicalFormula, well0_inchi, well0_stereochem]
-                                stpt_inchis.append(well0_info)
 
-                            for st_pt in obj.products:
-                                prod_chemid = st_pt.chemid
-                                prod_inchi = cheminfo.create_inchi_from_geom(st_pt.atom, st_pt.geom)
-                                prod_chemicalFormula = prod_inchi.split('S/')[1].split('/')[0]
-                                prod_stereochem = ''
-                                if "/t" in str(prod_inchi):
-                                    prod_stereochem = prod_inchi.split('/t')[1].split('/')[0]
-                                prod_info = [prod_chemid, prod_chemicalFormula, prod_inchi, prod_stereochem]
-                                stpt_inchis.append(prod_info)
-
-                            inchiFile = open('inchis.log', 'w')
-                            well0_chemid = stpt_inchis[0][0]
-                            well0_chemicalFormula = stpt_inchis[0][1]
-                            well0_stereochem = stpt_inchis[0][3]
-                            for inchi in stpt_inchis:
-                                inchiFile.write("{}\t|{}\t|{}\t|{}\n".format(inchi[0], inchi[1], inchi[2], inchi[3]))
-                                prod_chemid = inchi[0]
-                                prod_stereochem = inchi[3]
-                                prod_chemicalFormula = inchi[1]
-                                if well0_chemicalFormula == prod_chemicalFormula:
-                                    if str(well0_stereochem) != str(prod_stereochem):
-                                        logging.warning("\t!WARNING! Stereochemistry for product {} differs from the initial well ({}) for reaction {}".format(prod_chemid, well0_chemid, instance_name))
-                            inchiFile.close()
-                        except ImportError:
-                            logging.error("Could not import pybel, inchi labels not created for stationary points")
-                            pybelErr = 1
                     err = 0
                     for st_pt in obj.products:
                         chemid = st_pt.chemid
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
-                            logging.info('\tProduct optimization failed for {}, product {}'.format(instance_name, st_pt.chemid))
+                            logging.info('\tProduct optimization failed for {}, product {}'
+                                         .format(instance_name, st_pt.chemid))
                             self.species.reac_ts_done[index] = -999
                             err = -1
                         elif e != 0:
@@ -316,11 +307,14 @@ class ReactionGenerator:
                             st_pt.characterize(dimer=0)  # not allowed to use the dimer option here
                             if chemid != st_pt.chemid:
                                 # product was optimized to another structure, give warning but don't remove reaction
-                                logging.info('\tb) Product optimized to other structure for {}, product {} to {}'.format(instance_name, chemid, st_pt.chemid))
+                                logging.info('\tb) Product optimized to other structure for {}'
+                                             ', product {} to {}'
+                                             .format(instance_name, chemid, st_pt.chemid))
                                 e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                                 if e < 0:
                                     err = -1
                     if err == 0:
+                        self.test_stereochem_pybel(pybelErr, obj)
                         self.species.reac_ts_done[index] = 4
                 elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization
@@ -376,7 +370,8 @@ class ReactionGenerator:
 
                     elog = open("energy.log", 'a')
                     for prod_opt in obj.prod_opt:
-                        elog.write("prod_opt: {} |\tenergy: {}\n".format(prod_opt.species.chemid, prod_opt.species.energy))
+                        elog.write("prod_opt: {} |\tenergy: {}\n"
+                                   .format(prod_opt.species.chemid, prod_opt.species.energy))
                     elog.close()
 
                     self.species.reac_ts_done[index] = 5
@@ -574,3 +569,31 @@ class ReactionGenerator:
                     os.remove(file)
                 except OSError:
                     pass
+
+    def test_stereochem_pybel(self, pybelErr, obj):
+        """
+        Generate and compare inchis for stereochemistry
+        """
+
+        if pybelErr == 1:
+            return 0
+        
+        well0_stereochem = self.get_stereochemistry(self.species.atom, self.species.geom)
+
+        for prod in obj.products:
+            if len(prod.atom) == len(self.species.atom): 
+                prod_stereochem = self.get_stereochemistry(prod.atom, prod.geom)
+                if str(well0_stereochem) != str(prod_stereochem):
+                    logging.warning('Stereochemistry flip for product {} in reaction {}'\
+                                    .format(prod.chemid, obj.instance_name))
+            else:
+                continue
+        return 0
+
+    def get_stereochemistry(self, atom, geom):
+        inchi = cheminfo.create_inchi_from_geom(atom, geom)
+        if "/t" in str(inchi):
+            stereochem = inchi.split('/t')[1].split('/')[0]
+        else:
+            stereochem = ''
+        return stereochem

@@ -113,14 +113,16 @@ class GeneralReac:
 
 
     def set_angle_single(self, a, b, c, val, change):
-        constraint = [self.instance[a] + 1, self.instance[b] + 1, self.instance[c] + 1]
+        constraint = [a + 1, b + 1, c + 1]
         constraint.append(val)
         change.append(constraint)
 
 
     def set_dihedrals(self, change, step, cut=0):
         for lin in self.linear:
-            self.set_angle_single(lin[0], lin[1], lin[2], 170., change)
+            for i in range(len(self.instance)):
+                if all(np.roll(self.instance, i)[0:3] == lin): 
+                    self.set_angle_single(lin[0], lin[1], lin[2], 170., change)
         new_dihs = geometry.new_ring_dihedrals(self.species, self.instance, step, self.dihstep)
         for dih in range(len(self.instance) - 3 - cut):
             constraint = []

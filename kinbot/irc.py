@@ -137,7 +137,7 @@ class IRC:
                                        atom=list(self.rxn.species.atom),
                                        geom=list([list(gi) for gi in geom]),
                                        ppn=self.rxn.qc.ppn,
-                                       qc_command=self.par.par['qc_command'],
+                                       qc_command=self.par['qc_command'],
                                        working_dir=os.getcwd())
 
             f_out = open('{}.py'.format(irc_name), 'w')

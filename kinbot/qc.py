@@ -23,35 +23,35 @@ class QuantumChemistry:
 
     def __init__(self, par):
         self.par = par
-        self.qc = par.par['qc']
-        self.method = par.par['method']
-        self.basis = par.par['basis']
-        self.scan_method = par.par['scan_method']
-        self.scan_basis = par.par['scan_basis']
-        self.bls_method = par.par['barrierless_saddle_method']
-        self.bls_basis = par.par['barrierless_saddle_basis']
-        self.high_level_method = par.par['high_level_method']
-        self.high_level_basis = par.par['high_level_basis']
-        self.bls_high_level_method = par.par['barrierless_saddle_method_high']
-        self.bls_high_level_basis = par.par['barrierless_saddle_basis_high']
-        self.integral = par.par['integral']
-        self.opt = par.par['opt']
-        self.ppn = par.par['ppn']
-        self.queuing = par.par['queuing']
-        self.queue_name = par.par['queue_name']
-        self.slurm_feature = par.par['slurm_feature']
-        self.zf = par.par['zf']
+        self.qc = par['qc']
+        self.method = par['method']
+        self.basis = par['basis']
+        self.scan_method = par['scan_method']
+        self.scan_basis = par['scan_basis']
+        self.bls_method = par['barrierless_saddle_method']
+        self.bls_basis = par['barrierless_saddle_basis']
+        self.high_level_method = par['high_level_method']
+        self.high_level_basis = par['high_level_basis']
+        self.bls_high_level_method = par['barrierless_saddle_method_high']
+        self.bls_high_level_basis = par['barrierless_saddle_basis_high']
+        self.integral = par['integral']
+        self.opt = par['opt']
+        self.ppn = par['ppn']
+        self.queuing = par['queuing']
+        self.queue_name = par['queue_name']
+        self.slurm_feature = par['slurm_feature']
+        self.zf = par['zf']
         self.db = connect('kinbot.db')
         self.job_ids = {}
-        self.irc_maxpoints = par.par['irc_maxpoints']
-        self.irc_stepsize = par.par['irc_stepsize']
-        self.qc_command = par.par['qc_command']
-        if par.par['slurm_feature'] == '':
+        self.irc_maxpoints = par['irc_maxpoints']
+        self.irc_stepsize = par['irc_stepsize']
+        self.qc_command = par['qc_command']
+        if par['slurm_feature'] == '':
             self.slurm_feature = ''
         else:
-            self.slurm_feature = '#SBATCH -C ' + par.par['slurm_feature']
-        self.queue_job_limit = par.par['queue_job_limit']
-        self.username = par.par['username']
+            self.slurm_feature = '#SBATCH -C ' + par['slurm_feature']
+        self.queue_job_limit = par['queue_job_limit']
+        self.username = par['username']
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0,
                          high_level=0, hir=0, start_from_geom=0):
@@ -81,7 +81,7 @@ class QuantumChemistry:
                 'charge': charge,
                 'scf': 'xqc'
             }
-            if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+            if self.par['guessmix'] == 1 or 'barrierless_saddle' in job or 'bls' in job:
                 kwargs['guess'] = 'Mix,Always'
             if ts:
                 # arguments for transition state searches
@@ -93,12 +93,12 @@ class QuantumChemistry:
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
-                    if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                    if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis
-                    if self.par.par['calcall_ts'] == 1:
+                    if self.par['calcall_ts'] == 1:
                         kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'
                         # not sending the frequency calculation for CalcAll
                     else:
@@ -116,7 +116,7 @@ class QuantumChemistry:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
-                    if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                    if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here
                     else:
                         kwargs['guess'] = 'Read'
@@ -140,10 +140,14 @@ class QuantumChemistry:
                     kwargs['integral'] = self.integral
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
-                if (not ts) or (ts and (not self.par.par['calcall_ts'])):
+                if (not ts) or (ts and (not self.par['calcall_ts'])):
                     del kwargs['freq']
                 if ts:
-                    kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest,MaxCycle=999'
+                    if self.par['hir_maxcycle'] is None:
+                        kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest'
+                    else:
+                        kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest,MaxCycle={}'.format(self.par['hir_maxcycle'])
+
             return kwargs
 
         if self.qc == 'nwchem':
@@ -313,7 +317,7 @@ class QuantumChemistry:
 
         del kwargs['chk']
         if semi_emp:
-            kwargs['method'] = self.par.par['semi_emp_method']
+            kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
         atom = copy.deepcopy(species.atom)
 
@@ -505,13 +509,13 @@ class QuantumChemistry:
                 return 0
 
         try:
-            if self.par.par['queue_template'] == '':
+            if self.par['queue_template'] == '':
                 template_head_file = pkg_resources.resource_filename('tpl', self.queuing + '.tpl')
             else:
-                template_head_file = self.par.par['queue_template']
+                template_head_file = self.par['queue_template']
         except OSError:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
-            logging.error('Or no file is found at {}.'.format(self.par.par['queue_template']))
+            logging.error('Or no file is found at {}.'.format(self.par['queue_template']))
             logging.error('Exiting')
             sys.exit()
 

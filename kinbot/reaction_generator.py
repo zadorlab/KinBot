@@ -99,10 +99,10 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                         else:
                             self.species.reac_step[index] = reac_family.carry_out_reaction(
-                                                            obj, self.species.reac_step[index], self.par.par['qc_command'])
+                                                            obj, self.species.reac_step[index], self.par['qc_command'])
 
                     else:  # do a bond scan
-                        if self.species.reac_step[index] == self.par.par['scan_step'] + 1:
+                        if self.species.reac_step[index] == self.par['scan_step'] + 1:
                             status, freq = self.qc.get_qc_freq(instance_name, self.species.natom)
                             if status == 0 and freq[0] < 0. and freq[1] > 0.:
                                 self.species.reac_ts_done[index] = 1
@@ -118,8 +118,8 @@ class ReactionGenerator:
                         else:
                             if self.species.reac_step[index] == 0:
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(
-                                                                obj, self.species.reac_step[index], self.par.par['qc_command'])
-                            elif self.species.reac_step[index] < self.par.par['scan_step']:
+                                                                obj, self.species.reac_step[index], self.par['qc_command'])
+                            elif self.species.reac_step[index] < self.par['scan_step']:
                                 status = self.qc.check_qc(instance_name)
                                 if status == 'error' or status == 'killed':
                                     logging.info('\tRxn search using scan failed for {} in step {}'
@@ -133,14 +133,14 @@ class ReactionGenerator:
                                             # if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:  # old
                                             ediff = np.diff(self.species.reac_scan_energy[index])
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
-                                                self.species.reac_step[index] = self.par.par['scan_step']  # ending the scan
+                                                self.species.reac_step[index] = self.par['scan_step']  # ending the scan
                                             if len(ediff) >=3:
                                                 if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
-                                                    self.species.reac_step[index] = self.par.par['scan_step']  # ending the scan
-                                        logging.info('\tScan energies for {}: {}.'.format(instance_name, self.species.reac_scan_energy[index]))
+                                                    self.species.reac_step[index] = self.par['scan_step']  # ending the scan
+                                        logging.info('\tCurrent raw scan energy for {}: {} Hartree.'.format(instance_name, self.species.reac_scan_energy[index][-1]))
                                         # scan continues, and if reached scan_step, then goes for full optimization
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(
-                                                                        obj, self.species.reac_step[index], self.par.par['qc_command'])
+                                                                        obj, self.species.reac_step[index], self.par['qc_command'])
                             else:  # the last step was reached, and no max or inflection was found
                                 logging.info('\tRxn search using scan failed for {}, no saddle guess found.'.format(instance_name))
                                 self.species.reac_ts_done[index] = -999
@@ -157,10 +157,13 @@ class ReactionGenerator:
                         if self.species.reac_type[index] == 'R_Addition_MultipleBond':
                             sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
                             barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
+                        elif self.species.reac_type[index] == 'barrierless_saddle':
+                            sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well_bls')[1]
+                            barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
                         else:
                             sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well')[1]
                             barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
-                        if barrier > self.par.par['barrier_threshold']:
+                        if barrier > self.par['barrier_threshold']:
                             logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'.format(barrier, instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
@@ -398,14 +401,14 @@ class ReactionGenerator:
                 elif self.species.reac_ts_done[index] == 6:
                     # Finilize the calculations
                     # continue to PES search in case a new well was found
-                    if self.par.par['pes']:
+                    if self.par['pes']:
                         # verify if product is monomolecular, and if it is new
                         if len(obj.products) == 1:
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
                             energy = st_pt.energy
                             well_energy = self.species.energy
-                            new_barrier_threshold = self.par.par['barrier_threshold'] - (energy - well_energy) * constants.AUtoKCAL
+                            new_barrier_threshold = self.par['barrier_threshold'] - (energy - well_energy) * constants.AUtoKCAL
                             dir = os.path.dirname(os.getcwd())
                             jobs = open(dir + '/chemids', 'r').read().split('\n')
                             jobs = [ji for ji in jobs]
@@ -452,7 +455,7 @@ class ReactionGenerator:
                             os.remove('{}_im_extent.txt'.format(self.species.chemid))
                         postprocess.createPESViewerInput(self.species, self.qc, self.par)
                 elif self.species.reac_ts_done[index] == -999:
-                    if self.par.par['delete_intermediate_files'] == 1:
+                    if self.par['delete_intermediate_files'] == 1:
                         if not self.species.reac_obj[index].instance_name in deleted:
                             self.delete_files(self.species.reac_obj[index].instance_name)
                             deleted.append(self.species.reac_obj[index].instance_name)
@@ -497,12 +500,12 @@ class ReactionGenerator:
                     bps1 = [item for sublist in bps for item in sublist]
                     blsprodstruct = [item for sublist in bps1 for item in sublist]
                     blsprod = StationaryPoint('blsprod',
-                                              self.par.par['charge'],
-                                              self.par.par['mult'],
+                                              self.par['charge'],
+                                              self.par['mult'],
                                               structure=blsprodstruct)
                     blsprod.characterize()
                     molp = Molpro(blsprod, self.par)
-                    key = self.par.par['barrierless_saddle_single_point_key']
+                    key = self.par['barrierless_saddle_single_point_key']
                     molpname = '{}_prod'.format(obj.instance_name)
                     molp.create_molpro_input(bls=1, name=molpname)
                     molp.create_molpro_submit(name=molpname)
@@ -549,7 +552,7 @@ class ReactionGenerator:
     def delete_files(self, name):
         # job names
         names = []
-        zf = self.par.par['zf']
+        zf = self.par['zf']
 
         names.append(name)
         names.append(name + '_high')

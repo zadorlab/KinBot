@@ -59,23 +59,23 @@ class ReactionFinder:
         self.species = species
         self.qc = qc
         self.par = par
-        self.families = par.par['families']
-        self.skip_families = par.par['skip_families']
-        self.specific_reaction = par.par['specific_reaction']
-        self.break_bond = par.par['break_bonds']
-        self.form_bond = par.par['form_bonds']
+        self.families = par['families']
+        self.skip_families = par['skip_families']
+        self.specific_reaction = par['specific_reaction']
+        self.break_bond = par['break_bonds']
+        self.form_bond = par['form_bonds']
 
-        self.one_reaction_comb = par.par['one_reaction_comb']
-        self.one_reaction_fam = par.par['one_reaction_fam']
+        self.one_reaction_comb = par['one_reaction_comb']
+        self.one_reaction_fam = par['one_reaction_fam']
         # make a set of frozen sets from the breaking and forming bond lists
         self.reac_bonds = set()
-        for i, bond in enumerate(par.par['break_bonds']):
-            self.reac_bonds.add(frozenset(par.par['break_bonds'][i]))
+        for i, bond in enumerate(par['break_bonds']):
+            self.reac_bonds.add(frozenset(par['break_bonds'][i]))
         self.prod_bonds = set()
-        for i, bond in enumerate(par.par['form_bonds']):
-            self.prod_bonds.add(frozenset(par.par['form_bonds'][i]))
+        for i, bond in enumerate(par['form_bonds']):
+            self.prod_bonds.add(frozenset(par['form_bonds'][i]))
         try:
-            self.barrierless_saddle = par.par['barrierless_saddle'][str(self.species.chemid)]
+            self.barrierless_saddle = par['barrierless_saddle'][str(self.species.chemid)]
         except KeyError:
             self.barrierless_saddle = None
 
@@ -145,8 +145,8 @@ class ReactionFinder:
                 name = 'combinatorial'
                 self.reactions[name] = []
                 
-                self.reac_bonds = self.par.par['break_bonds']
-                self.prod_bonds = self.par.par['form_bonds']
+                self.reac_bonds = self.par['break_bonds']
+                self.prod_bonds = self.par['form_bonds']
                 ts = bond_combinations.generate_ts(self.reac_bonds, self.prod_bonds, self.species.bond)
                 self.reactions[name].append([self.reac_bonds, self.prod_bonds, ts, 1])
                 
@@ -216,7 +216,6 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
-        #comment out so that double bonds & lone pair H mig will always be searched for
         if np.sum(rad) == 0: 
         #find H-migrations over double bonds and to lone pairs
         
@@ -423,16 +422,16 @@ class ReactionFinder:
 
     def search_intra_OH_migration(self, natom, atom, bond, rad):
         """ 
-        This is an RMG class.
+        This is an RMG class extended.
 
         R*~~~~~~~O-OH <==> HOR~~~~~~~O*
 
         Find all unique cases for ring sizes between 3 and 9. 
         The H atom is not counted in the cycle size but has to be there.
+        OH transfer to:
+        radical sites
+        double bonds on closed shell (just forward)
         """
-        
-        
-        if np.sum(rad) == 0: return
         
         name = 'intra_OH_migration'
         
@@ -440,27 +439,41 @@ class ReactionFinder:
             self.reactions[name] = []
 
         rxns = [] #reactions found with the current resonance isomer
-        
-        for ringsize in range(3, 9):
-            instances = []
-            # forward direction
-            motif = ['X' for i in range(ringsize+1)]
-            motif[-1] = 'H'
-            motif[-2] = 'O'
-            motif[-3] = 'O'
-            for rad_site in np.nonzero(rad)[0]:
-                instances += find_motif.start_motif(motif, natom, bond, atom, 
-                                                    rad_site, self.species.atom_eqv)
-            # reverse direction
-            motif = ['X' for i in range(ringsize+1)]
-            motif[-1] = 'H'
-            motif[-2] = 'O'
-            motif[0] = 'O'
-            for rad_site in np.nonzero(rad)[0]:
-                instances += find_motif.start_motif(motif, natom, bond, atom, 
-                                                    rad_site, self.species.atom_eqv)
-            for ins in instances:
-                rxns.append(ins)
+        if np.sum(rad) == 0: 
+        #find OH-migrations over double bonds and to lone pairs
+            for ringsize in range(3, 9):
+                # double bonds 
+                motif = ['X' for i in range(ringsize)]
+                motif[-1] = 'H'
+                motif[-2] = 'O'
+                motif[-3] = 'O'
+                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+           
+                for instance in instances:
+                    if any([bi > 1 for bi in bond[instance[0]]]):
+                        rxns += [instance]
+
+        else: 
+            for ringsize in range(3, 9):
+                instances = []
+                # forward direction
+                motif = ['X' for i in range(ringsize+1)]
+                motif[-1] = 'H'
+                motif[-2] = 'O'
+                motif[-3] = 'O'
+                for rad_site in np.nonzero(rad)[0]:
+                    instances += find_motif.start_motif(motif, natom, bond, atom, 
+                                                        rad_site, self.species.atom_eqv)
+                # reverse direction
+                motif = ['X' for i in range(ringsize+1)]
+                motif[-1] = 'H'
+                motif[-2] = 'O'
+                motif[0] = 'O'
+                for rad_site in np.nonzero(rad)[0]:
+                    instances += find_motif.start_motif(motif, natom, bond, atom, 
+                                                        rad_site, self.species.atom_eqv)
+                for ins in instances:
+                    rxns.append(ins)
 
         for case in range(len(rxns)):
             rxns[case] = rxns[case][:-1] #cut off H

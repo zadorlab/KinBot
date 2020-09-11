@@ -27,7 +27,7 @@ class GeneralReac:
 
 
         if self.scan:
-            self.max_step = self.par.par['scan_step']
+            self.max_step = self.par['scan_step']
 
         self.linear = []
         linear = self.species.linear

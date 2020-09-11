@@ -39,34 +39,34 @@ def generate_all_product_bond_matrices(mol, par):
     reactions = []
     # generate the reactions for closed shell species
     # and for the non-radical part of open shell species
-    if par.par['comb_molec']:
-        nbonds_list = range(par.par['min_bond_break'], par.par['max_bond_break'] + 1)
+    if par['comb_molec']:
+        nbonds_list = range(par['min_bond_break'], par['max_bond_break'] + 1)
         for bond in mol.bonds:
             for nbonds in nbonds_list:
                 rxns = generate_product_bond_matrices(mol, bond, nbonds, par, rad=-1)
                 reactions.extend(rxns)
     # generate the reactions in which radicals participate
-    nbonds_list = range(par.par['min_bond_break'] - 1, par.par['max_bond_break'])
+    nbonds_list = range(par['min_bond_break'] - 1, par['max_bond_break'])
     for i, bond in enumerate(mol.bonds):
         rads = np.nonzero(mol.rads[i])[0]
         for nbonds in nbonds_list:
             # reactions involving a radical atom
             # a bond is formed with that atom, no bond is broken
             # and another atom only has bond breaking, no forming
-            if par.par['comb_rad']:
+            if par['comb_rad']:
                 for rad in rads:
                     rxns = generate_product_bond_matrices(mol, bond,
                                                           nbonds, par, rad=rad)
                     reactions.extend(rxns)
             # reactions involving a pi electron leading to a new lone pair
-            if par.par['comb_pi']:
+            if par['comb_pi']:
                 for i in range(mol.natom):
                     if any(bij == 2 for bij in mol.bond[i]):
                         rxns = generate_product_bond_matrices(mol, bond,
                                                               nbonds, par, rad=i)
                         reactions.extend(rxns)
             # TODO: reactions with lone electron pairs
-            if par.par['comb_lone']:
+            if par['comb_lone']:
                 for i, ai in enumerate(mol.atom):
                     if ai == 'O':
                         rxns = generate_product_bond_matrices(mol, bond,
@@ -114,7 +114,7 @@ def get_product_bonds(bonds, par, rad=-1):
                 # also make a list in which one of the bonds is not formed,
                 # this is needed to break the valence of atoms and form
                 # for example zwitterionic species.
-                if par.par['break_valence']:
+                if par['break_valence']:
                     for i in range(len(prod)):
                         prods.append(prod[:i]+prod[i+1:])
         else:

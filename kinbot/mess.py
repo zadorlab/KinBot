@@ -72,22 +72,22 @@ class MESS:
         Create the header block for MESS
         """
         # Read the header template
-        header = self.headertpl.format(TemperatureList=' '.join([str(ti) for ti in self.par.par['TemperatureList']]),
-                                       PressureList=' '.join([str(pi) for pi in self.par.par['PressureList']]),
-                                       EnergyStepOverTemperature=self.par.par['EnergyStepOverTemperature'],
-                                       ExcessEnergyOverTemperature=self.par.par['ExcessEnergyOverTemperature'],
-                                       ModelEnergyLimit=self.par.par['ModelEnergyLimit'],
-                                       CalculationMethod=self.par.par['CalculationMethod'],
-                                       ChemicalEigenvalueMax=self.par.par['ChemicalEigenvalueMax'],
+        header = self.headertpl.format(TemperatureList=' '.join([str(ti) for ti in self.par['TemperatureList']]),
+                                       PressureList=' '.join([str(pi) for pi in self.par['PressureList']]),
+                                       EnergyStepOverTemperature=self.par['EnergyStepOverTemperature'],
+                                       ExcessEnergyOverTemperature=self.par['ExcessEnergyOverTemperature'],
+                                       ModelEnergyLimit=self.par['ModelEnergyLimit'],
+                                       CalculationMethod=self.par['CalculationMethod'],
+                                       ChemicalEigenvalueMax=self.par['ChemicalEigenvalueMax'],
                                        Reactant=self.well_names[self.species.chemid],
-                                       EnergyRelaxationFactor=self.par.par['EnergyRelaxationFactor'],
-                                       EnergyRelaxationPower=self.par.par['EnergyRelaxationPower'],
-                                       EnergyRelaxationExponentCutoff=self.par.par['EnergyRelaxationExponentCutoff'],
-                                       e_coll=constants.epsilon[self.par.par['collider']],
-                                       s_coll=constants.sigma[self.par.par['collider']],
-                                       m_coll=constants.mass[self.par.par['collider']],
-                                       e_well=self.par.par['epsilon'],
-                                       s_well=self.par.par['sigma'],
+                                       EnergyRelaxationFactor=self.par['EnergyRelaxationFactor'],
+                                       EnergyRelaxationPower=self.par['EnergyRelaxationPower'],
+                                       EnergyRelaxationExponentCutoff=self.par['EnergyRelaxationExponentCutoff'],
+                                       e_coll=constants.epsilon[self.par['collider']],
+                                       s_coll=constants.sigma[self.par['collider']],
+                                       m_coll=constants.mass[self.par['collider']],
+                                       e_well=self.par['epsilon'],
+                                       s_well=self.par['sigma'],
                                        m_well=self.species.mass,
                                        )
         return header
@@ -156,11 +156,10 @@ class MESS:
         """
 
         uq_obj = UQ()
-        well_uqVal = float(self.par.par['well_uq'])
-        barrier_uqVal = float(self.par.par['barrier_uq'])
-        freq_uqVal = float(self.par.par['freq_uq'])
-        imagfreq_uqVal = float(self.par.par['imagfreq_uq'])
-        qc = qc
+        well_uqVal = float(self.par['well_uq'])
+        barrier_uqVal = float(self.par['barrier_uq'])
+        freq_uqVal = float(self.par['freq_uq'])
+        imagfreq_uqVal = float(self.par['imagfreq_uq'])
 
         if uq == 1:
             logging.info("Uncertainty Analysis is turned on, number of mess files being generated = {}".format(uq_n))
@@ -446,7 +445,7 @@ class MESS:
 
                 energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
-                if self.par.par['pes']:
+                if self.par['pes']:
                     name = 'fr_name_{}'.format(species.chemid)
                     name = '{' + name + '}'
                     energy = '{ground_energy}'
@@ -463,7 +462,7 @@ class MESS:
                                                      nelec=1,
                                                      mult=species.mult)
             else:
-                if self.par.par['pes']:
+                if self.par['pes']:
                     name = 'fr_name_{}'.format(species.chemid)
                     name = '{' + name + '}'
                 else:
@@ -480,7 +479,7 @@ class MESS:
         if bar == 0:
             rxn_name = self.ts_names[reaction.instance_name]
             for species in species_list:
-                if self.par.par['pes']:
+                if self.par['pes']:
                     name = 'fr_name_{}'.format(species.chemid)
                     name = 't_' + name
                 else:
@@ -553,7 +552,7 @@ class MESS:
 
                 energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
-                if self.par.par['pes']:
+                if self.par['pes']:
                     name = 'fr_name_{}'.format(species.chemid)
                     name = '{' + name + '}'
                     energy = '{ground_energy}'
@@ -570,7 +569,7 @@ class MESS:
                                                     nelec=1,
                                                     mult=species.mult)
             else:
-                if self.par.par['pes']:
+                if self.par['pes']:
                     name = 'fr_name_{}'.format(species.chemid)
                     name = '{' + name + '}'
                 else:
@@ -582,7 +581,7 @@ class MESS:
                                                  mult=species.mult)
 
         pr_name = '_'.join(sorted([str(species.chemid) for species in species_list]))
-        if self.par.par['pes']:
+        if self.par['pes']:
             name = '{name}'
             energy = '{ground_energy}'
         else:
@@ -621,7 +620,7 @@ class MESS:
                                            fragments=fragments,
                                            ground_energy=energy)
 
-        if self.par.par['uq'] == 0:
+        if self.par['uq'] == 0:
             f = open(pr_name + '.mess', 'w')
         else:
             mess_iter = "{0:04d}".format(uq_iter)
@@ -687,7 +686,7 @@ class MESS:
 
             allWellFreqs = ",".join(str(wellFreq) for wellFreq in wellsArrayFreq)
 
-        if self.par.par['pes']:
+        if self.par['pes']:
             name = '{name}'
             energy = '{zeroenergy}'
         else:
@@ -715,7 +714,7 @@ class MESS:
                                         mult=species.mult,
                                         zeroenergy=energy)
 
-        if self.par.par['uq'] == 0:
+        if self.par['uq'] == 0:
             f = open(str(species.chemid) + '.mess', 'w')
         else:
             mess_iter = "{0:04d}".format(uq_iter)
@@ -775,43 +774,30 @@ class MESS:
 
             allBarrierFreqs = ",".join(str(barrierFreq) for barrierFreq in barrierArrayPosFreq)
 
+        species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
         for index in range(len(self.species.reac_inst)):
             if self.species.reac_ts_done[index] == -1:
                 ts = self.species.reac_obj[index].ts
-                #if self.species.reac_type[index] == 'R_Addition_MultipleBond' and not self.par.par['high_level']:
-                if self.species.reac_obj[index].mp2 == 1 and not self.par.par['high_level']:
-                    mp2_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
-                    mp2_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_mp2')[1]
-                    energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
-                    prod_mp2_energy = 0
-                    prod_mp2_zpe = 0
-                    for opt in reaction.prod_opt:
-                        energy = qc.get_qc_energy(str(opt.species.chemid) + 'well_mp2')[1]
-                        zpe = qc.get_qc_zpe(str(opt.species.chemid) + 'well_mp2')[1]
-                        prod_mp2_energy = prod_mp2_energy + energy
-                        prod_zpe_energy = prod_mp2_zpe + zpe
-                    energy2 = (ts.energy + ts.zpe - prod_mp2_energy - prod_zpe_energy) * constants.AUtoKCAL
-                elif self.species.reac_type[index] == 'barrierless_saddle' and not self.par.par['high_level']:
-                    bls_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_bls')[1]
-                    bls_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_bls')[1]
-                    energy = (ts.energy + ts.zpe - bls_energy - bls_zpe) * constants.AUtoKCAL
-                    prod_bls_energy = 0
-                    prod_bls_zpe = 0
-                    for opt in reaction.prod_opt:
-                        energy = qc.get_qc_energy(str(opt.species.chemid) + 'well_bls')[1]
-                        zpe = qc.get_qc_zpe(str(opt.species.chemid) + 'well_bls')[1]
-                        prod_bls_energy = prod_bls_energy + energy
-                        prod_zpe_energy = prod_bls_zpe + zpe
-                    energy2 = (ts.energy + ts.zpe - prod_bls_energy - prod_zpe_energy) * constants.AUtoKCAL
-                else:
-                    energy = (ts.energy + ts.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
-                    energy2 = (reaction.ts.energy + reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt]) * constants.AUtoKCAL
+                ts_zeroenergy = (ts.energy + ts.zpe) * constants.AUtoKCAL
 
-                barriers = [energy, energy2]
-                # barriers = [
-                #     ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL,
-                #     ((reaction.ts.energy + reaction.ts.zpe) - sum([(opt.species.energy + opt.species.zpe) for opt in reaction.prod_opt])) * constants.AUtoKCAL,
-                # ]
+                if not self.par['high_level'] and self.species.reac_obj[index].mp2 == 1:
+                    jobname = '{}_well_mp2'.format(str(self.species.chemid))
+                    well_zeroenergy = self.get_zeroenergy(jobname, qc)
+                elif not self.par['high_level'] and self.species.reac_type[index] == 'barrierless_saddle':
+                    jobname = '{}_well_bls'.format(str(self.species.chemid))
+                    well_zeroenergy = self.get_zeroenergy(jobname, qc)
+                else:
+                    well_zeroenergy = species_zeroenergy 
+                left_zeroenergy = ts_zeroenergy - well_zeroenergy 
+
+                prod_zeroenergy = 0
+                for opt in reaction.prod_opt:
+                    jobname = '{}_well'.format(str(opt.species.chemid))
+                    prod_zeroenergy += self.get_zeroenergy(jobname, qc)
+                right_zeroenergy = left_zeroenergy - (prod_zeroenergy - well_zeroenergy)
+
+                barriers = [left_zeroenergy, right_zeroenergy]
+               
         if any([bi < 0 for bi in barriers]):
             tun = ''
         else:
@@ -840,7 +826,7 @@ class MESS:
             long_name = '_'.join(sorted([str(pi.chemid) for pi in reaction.products]))
             prod_name = self.termolec_names[long_name]
 
-        if self.par.par['pes']:
+        if self.par['pes']:
             name = '{name}'
             chemid_reac = ''
             chemid_prod = ''
@@ -855,12 +841,12 @@ class MESS:
             for index in range(len(self.species.reac_inst)):
                 if self.species.reac_ts_done[index] == -1:
                     ts = self.species.reac_obj[index].ts
-                    #if self.species.reac_type[index] == 'R_Addition_MultipleBond' and not self.par.par['high_level']:
-                    if self.species.reac_obj[index].mp2 == 1 and not self.par.par['high_level']:
+                    #if self.species.reac_type[index] == 'R_Addition_MultipleBond' and not self.par['high_level']:
+                    if self.species.reac_obj[index].mp2 == 1 and not self.par['high_level']:
                         mp2_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
                         mp2_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_mp2')[1]
                         energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
-                    elif self.species.reac_type[index] == 'barrierless_saddle' and not self.par.par['high_level']:
+                    elif self.species.reac_type[index] == 'barrierless_saddle' and not self.par['high_level']:
                         bls_energy = qc.get_qc_energy(str(self.species.chemid) + '_well_bls')[1]
                         bls_zpe = qc.get_qc_zpe(str(self.species.chemid) + '_well_bls')[1]
                         energy = (ts.energy + ts.zpe - bls_energy - bls_zpe) * constants.AUtoKCAL
@@ -924,13 +910,13 @@ class MESS:
                                                   long_rxn_name=long_rxn_name,
                                                   model=rrho)
 
-        if self.par.par['uq'] == 0:
-            f = open(reaction.instance_name + '.mess', 'w')
+        if self.par['uq'] == 0:
+            with open(reaction.instance_name + '.mess', 'w') as f:
+                f.write(mess_barrier)
         else:
-            mess_iter = "{0:04d}".format(uq_iter)
-            f = open(reaction.instance_name + '_' + str(mess_iter) + '.mess', 'w')
-        f.write(mess_barrier)
-        f.close()
+            with open('{}_{:04d}.mess'.format(reaction.instance_name, uq_iter), 'w') as f:
+                f.write(mess_barrier)
+
         barrierArrayImagfreq.pop(0)
         barrierArrayPosFreq.pop(0)
         barrierArrayEnergy.pop(0)
@@ -949,18 +935,18 @@ class MESS:
 
         # open the the header and the specific templates
 
-        if self.par.par['queue_template'] == '':
-            q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
+        if self.par['queue_template'] == '':
+            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
         else:
-            q_file = self.par.par['queue_template']
+            q_file = self.par['queue_template']
         with open(q_file) as f:
             tpl_head = f.read()
 
-        q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_mess_uq.tpl')
+        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
         with open(q_file) as f:
             tpl = f.read()
-        # queue_name = self.par.par['queuing']
-        submitscript = 'run_mess' + constants.qext[self.par.par['queuing']]
+        # queue_name = self.par['queuing']
+        submitscript = 'run_mess' + constants.qext[self.par['queuing']]
 
         '''
            copy submit script so that new runs can be done from run_mess_n files
@@ -972,9 +958,9 @@ class MESS:
 
         uq_iter = 0  # counter for jobs
         maxRunning = 1
-        if self.par.par['uq'] == 1:
+        if self.par['uq'] == 1:
             # change to same as the other max jobs parameter?
-            maxRunning = self.par.par['uq_max_runs']  # max jobs running at once
+            maxRunning = self.par['uq_max_runs']  # max jobs running at once
         job_counter = maxRunning
         previousLoop = 0  # number of running jobs on previous run so that jobs are not double counted as finishing
         pids = []  # list of job pids
@@ -984,24 +970,24 @@ class MESS:
             while(uq_iter < job_counter):
                 with open(submitscript, 'w') as f:
                     mess_iter = "{0:04d}".format(uq_iter)
-                    if self.par.par['queue_template'] == '':
-                        if self.par.par['queuing'] == 'pbs':
-                            f.write((tpl_head).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
+                    if self.par['queue_template'] == '':
+                        if self.par['queuing'] == 'pbs':
+                            f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'))
                             f.write((tpl).format(n=mess_iter))
-                        elif self.par.par['queuing'] == 'slurm':
-                            f.write((tpl_head).format(name='mess', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature='')
+                        elif self.par['queuing'] == 'slurm':
+                            f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'), slurm_feature='')
                             f.write((tpl).format(n=mess_iter))
                     else:
                         f.write(tpl_head)
                         f.write((tpl).format(n=mess_iter))
 
-                command = [constants.qsubmit[self.par.par['queuing']], submitscript]
+                command = [constants.qsubmit[self.par['queuing']], submitscript]
                 process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
                 out, err = process.communicate()
                 out = out.decode()
-                if self.par.par['queuing'] == 'pbs':
+                if self.par['queuing'] == 'pbs':
                     pid = out.split('\n')[0].split('.')[0]
-                elif self.par.par['queuing'] == 'slurm':
+                elif self.par['queuing'] == 'slurm':
                     pid = out.split('\n')[0].split()[-1]
                 pids.append(pid)
                 time.sleep(5)
@@ -1015,9 +1001,9 @@ class MESS:
                 currentLoop = 0  # number of jobs finished in current loop through pids[]
                 while(currentJob < len(pids)):
                     pid_currentJob = pids[currentJob]
-                    if self.par.par['queuing'] == 'pbs':
+                    if self.par['queuing'] == 'pbs':
                         command = 'qstat -f | grep ' + '"Job Id: ' + pid_currentJob + '"' + ' > /dev/null'
-                    elif self.par.par['queuing'] == 'slurm':
+                    elif self.par['queuing'] == 'slurm':
                         command = 'scontrol show job ' + pid_currentJob + ' | grep "JobId=' + pid_currentJob + '"' + ' > /dev/null'
 
                     stat = int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
@@ -1074,7 +1060,7 @@ class MESS:
 
     def make_rotors(self, species, norot=None):
         rotors = []
-        if self.par.par['rotor_scan']:
+        if self.par['rotor_scan']:
             for i, rot in enumerate(species.dihed):
                 if norot is not None:
                     if frequencies.skip_rotor(norot, rot) == 1:
@@ -1086,3 +1072,8 @@ class MESS:
                                                            rotorpot=self.make_rotorpot(species, i, rot)))
         rotors = '\n'.join(rotors)
         return rotors
+
+    def get_zeroenergy(self, jobname, qc):
+        energy = qc.get_qc_energy(jobname)[1]
+        zpe = qc.get_qc_zpe(jobname)[1]
+        return (energy + zpe) * constants.AUtoKCAL

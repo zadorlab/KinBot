@@ -30,7 +30,7 @@ class Conformers:
         self.scycconf = -1
         self.sconf = -1
 
-        self.grid = par.par['conf_grid']
+        self.grid = par['conf_grid']
 
         # final geometries of the cyclic search
         self.cyc_conf_geoms = []
@@ -53,25 +53,25 @@ class Conformers:
         # -1 (not finished), 0 (successful) or
         # 1 (failed) for each open chain conformer
         self.conf_status = []
-        self.zf = par.par['zf']
+        self.zf = par['zf']
 
         # do semi empirical conformer search?
         self.semi_emp = semi_emp
 
         # Maximum number of diherals for which exhaustive
         # conformation searches are done
-        self.max_dihed = par.par['max_dihed']
+        self.max_dihed = par['max_dihed']
         # Number of random conformers in case no
         # exhaustive search is done
-        self.nconfs = par.par['random_conf']
+        self.nconfs = par['random_conf']
         
         if semi_emp:
             # Maximum number of diherals for which exhaustive
             # conformation searches are done
-            self.max_dihed = par.par['max_dihed_semi_emp']
+            self.max_dihed = par['max_dihed_semi_emp']
             # Number of random conformers in case no
             # exhaustive search is done
-            self.nconfs = par.par['random_conf_semi_emp']
+            self.nconfs = par['random_conf_semi_emp']
 
     def generate_ring_conformers(self, cart):
         """

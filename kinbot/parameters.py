@@ -195,6 +195,8 @@ class Parameters:
             'barrierless_saddle_single_point_key': '',
             # Command string to be used for single point energy calculation
             'single_point_command': '',
+            # Hindered rotor max optimization steps
+            'hir_maxcycle': None,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

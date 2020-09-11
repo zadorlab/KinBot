@@ -72,14 +72,14 @@ class HomolyticScissions:
                         # in alphabetical order
                         bond_elements = sorted([self.species.atom[i], self.species.atom[j]])
                         # check all bonds to be considered, supplied by the user
-                        for user_bond in self.par.par['homolytic_bonds']:
+                        for user_bond in self.par['homolytic_bonds']:
                             if sorted(user_bond) == bond_elements:
                                 # if there is a match between the current bond and a user-defined
                                 # bond, put the add boolean to 1
                                 add = 1
                         # add the bond if the 'add' boolean is 1 or if the user defined list is empty
                         # (in the latter case, all single bonds that are not in a cycle are considered. 
-                        if len(self.par.par['homolytic_bonds']) == 0 or add:
+                        if len(self.par['homolytic_bonds']) == 0 or add:
                             # check if a bond with identical atomids
                             # has been added to the bonds list yet
                             new = 1
@@ -149,7 +149,7 @@ class HomolyticScissions:
                             prod_energy += pr_opt.species.energy
                         barrier = (prod_energy - species_energy)*constants.AUtoKCAL
                         prod_name = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
-                        if barrier > self.par.par['barrier_threshold']:
+                        if barrier > self.par['barrier_threshold']:
                             logging.info("Energy of HS product {} is above the barrier threshold ({:.3} kcal/mol)".format(prod_name, barrier))
                             hs.status = -999
                         else:

@@ -64,12 +64,12 @@ class Optimize:
         # has been restarted in case a lower energy structure has been found
         self.restart = 0
         # maximum restart count
-        self.max_restart = par.par['rotation_restart']
+        self.max_restart = par['rotation_restart']
 
     def do_optimization(self):
         while 1:
             # do the conformational search
-            if self.par.par['conformer_search'] == 1:
+            if self.par['conformer_search'] == 1:
                 if self.scycconf == -1 and self.sconf == -1:
                     # conformational analysis has to be started
                     logging.info('\tStarting conformational search of {}'.format(self.species.chemid))
@@ -95,7 +95,7 @@ class Optimize:
                         # ring conf search is finished
                         self.scycconf = 1
                 # first do an semi empirical optimization if requested by the user
-                if self.par.par['semi_emp_conformer_search'] == 1:
+                if self.par['semi_emp_conformer_search'] == 1:
                     logging.info('semi empirical conformer search is starting for {}'.format(self.name))
                     if self.ssemi_empconf == -1:
                         # semi empirical part has not started yet
@@ -122,13 +122,13 @@ class Optimize:
                         # open chain part has not started yet
                         # if semi empirical conformer were searched for, start from those, 
                         # else start from cyclic conformers
-                        if self.par.par['semi_emp_conformer_search'] == 1:
+                        if self.par['semi_emp_conformer_search'] == 1:
                             self.species.confs.nconfs = 1
                             for i, geom in enumerate(self.semi_emp_conformers):
-                                if (self.semi_emp_energies[i] - self.semi_emp_low_energy) * constants.AUtoKCAL < self.par.par['semi_emp_confomer_threshold']:
+                                if (self.semi_emp_energies[i] - self.semi_emp_low_energy) * constants.AUtoKCAL < self.par['semi_emp_confomer_threshold']:
                                     self.species.confs.generate_conformers(-999, geom)
                             logging.info("There are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
-                                         format(i, self.par.par['semi_emp_confomer_threshold'], self.name))
+                                         format(i, self.par['semi_emp_confomer_threshold'], self.name))
                         else:
                             for geom in self.species.confs.cyc_conf_geoms:
                                 # take all the geometries from the cyclic part
@@ -153,7 +153,7 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                if self.par.par['conformer_search'] == 1:
+                if self.par['conformer_search'] == 1:
                     status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
 
                     # perform conformer check at this point
@@ -161,7 +161,7 @@ class Optimize:
                         
                 while self.restart < self.max_restart:
                     # do the high level calculations
-                    if self.par.par['high_level'] == 1:
+                    if self.par['high_level'] == 1:
                         if self.shigh == -1:
                             # high level calculation did not start yet
                             logging.info('\tStarting high level optimization of {}'.format(self.name))
@@ -185,7 +185,7 @@ class Optimize:
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
 
                                 if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
-                                    if self.par.par['conformer_search'] == 0:
+                                    if self.par['conformer_search'] == 0:
                                         fr_file = self.fr_file_name(0)  # name of the original TS file
                                     else:
                                         fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
@@ -219,7 +219,7 @@ class Optimize:
                         self.shigh = 1
                     if self.shigh == 1:
                         # do the HIR calculation
-                        if self.par.par['rotor_scan'] == 1:
+                        if self.par['rotor_scan'] == 1:
                             if self.shir == -1:
                                 # hir not stated yet
                                 logging.info('\tStarting hindered rotor calculations of {}'.format(self.species.name))
@@ -293,22 +293,21 @@ class Optimize:
                 if not self.species.wellorts:
                     fr_file = str(self.species.chemid)
                     fr_file += '_well'
-                if self.par.par['high_level']:
+                if self.par['high_level']:
                     fr_file += '_high'
-                fr_file = self.fr_file_name(self.par.par['high_level'])
+                fr_file = self.fr_file_name(self.par['high_level'])
                 hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
 
                 # write the molpro input and read the molpro energy, if available
-                if self.par.par['single_point_qc'] == 'molpro':
+                if self.par['single_point_qc'] == 'molpro':
                     molp = Molpro(self.species, self.par)
                     if 'barrierless_saddle' in self.species.name:
-                        blshere = 1
-                        key = self.par.par['barrierless_saddle_single_point_key']
+                        key = self.par['barrierless_saddle_single_point_key']
+                        molp.create_molpro_input(bls=1)
                     else:
-                        blshere = 0
-                        key = self.par.par['single_point_key']
-                    molp.create_molpro_input(bls=blshere)
+                        key = self.par['single_point_key']
+                        molp.create_molpro_input()
                     molp.create_molpro_submit()
                     status, molpro_energy = molp.get_molpro_energy(key)
 
@@ -316,9 +315,7 @@ class Optimize:
                     if status:
                         self.species.energy = molpro_energy
 
-                # delete unnecessary files
-                if self.par.par['delete_intermediate_files'] == 1:
-                    self.delete_files()
+                self.delete_files()
 
             if self.wait:
                 if self.shir == 1 or self.shigh == -999:
@@ -329,9 +326,11 @@ class Optimize:
             
 
     def delete_files(self):
+        if self.par['delete_intermediate_files'] == 0:
+            return 0
         # job names
         names = []
-        zf = self.par.par['zf']
+        zf = self.par['zf']
         if self.species.wellorts:
             names.append(self.species.name)
             names.append(self.species.name + '_high')
@@ -340,11 +339,11 @@ class Optimize:
             names.append(self.species.name + '_IRC_F_prod')
             names.append(self.species.name + '_IRC_R_prod')
 
-            if self.par.par['high_level'] == 1:
+            if self.par['high_level'] == 1:
                 for count in range(self.species.hir.nrotation):
-                    for rot_num in range(self.par.par['nrotation']):
+                    for rot_num in range(self.par['nrotation']):
                         names.append('hir/' + self.species.name + '_hir_' + str(count) + '_' + str(rot_num).zfill(2))
-            if self.par.par['conformer_search'] == 1:
+            if self.par['conformer_search'] == 1:
                 for count in range(self.species.confs.conf):
                     names.append('conf/' + self.species.name + '_' + str(count).zfill(zf))
                 for count in range(self.species.confs.cyc_conf):
@@ -353,11 +352,11 @@ class Optimize:
         else:
             names.append(str(self.species.chemid) + '_well')
             names.append(str(self.species.chemid) + '_well_high')
-            if self.par.par['high_level'] == 1:
+            if self.par['high_level'] == 1:
                 for count in range(self.species.hir.nrotation):
-                    for rot_num in range(self.par.par['nrotation']):
+                    for rot_num in range(self.par['nrotation']):
                         names.append('hir/' + str(self.species.chemid) + '_hir_' + str(count) + '_' + str(rot_num).zfill(2))
-            if self.par.par['conformer_search'] == 1:
+            if self.par['conformer_search'] == 1:
                 for count in range(self.species.confs.conf):
                     names.append('conf/' + str(self.species.chemid) + '_' + str(count).zfill(zf))
                 for count in range(self.species.confs.cyc_conf):
@@ -375,12 +374,14 @@ class Optimize:
                 # except FileNotFoundError:
                 except:
                     pass
+        return 0
+
 
     def fr_file_name(self, high):
         fr_file = self.species.name
         if not self.species.wellorts:
             fr_file += '_well'
-        # if self.par.par['high_level']:
+        # if self.par['high_level']:
         if high:
             fr_file += '_high'
 

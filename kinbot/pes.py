@@ -61,11 +61,11 @@ def main():
     print(license_message.message)
 
     # initialize the parameters
-    par = Parameters(input_file)
+    par = Parameters(input_file).par
 
     # set uncertainty parameters
-    uq_n = par.par['uq_n']
-    uq = par.par['uq']
+    uq_n = par['uq_n']
+    uq = par['uq']
     # set up the logging environment
     logging.basicConfig(filename='pes.log', level=logging.INFO)
 
@@ -73,17 +73,17 @@ def main():
     msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
     logging.info(msg)
 
-    if par.par['pes'] and par.par['specific_reaction']:
+    if par['pes'] and par['specific_reaction']:
         logging.error('Specific reaction cannot be searched in PES mode.')
         return
 
     well0 = StationaryPoint('well0',
-                            par.par['charge'],
-                            par.par['mult'],
-                            smiles=par.par['smiles'],
-                            structure=par.par['structure'])
-    well0.characterize(dimer=par.par['dimer'])
-    write_input(par, well0, par.par['barrier_threshold'], os.getcwd())
+                            par['charge'],
+                            par['mult'],
+                            smiles=par['smiles'],
+                            structure=par['structure'])
+    well0.characterize(dimer=par['dimer'])
+    write_input(input_file, well0, par['barrier_threshold'], os.getcwd())
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
@@ -92,14 +92,14 @@ def main():
     # create a directory for the L3 single point calculations
     # directory has the name of the code, e.g., molpro
     try:
-        os.mkdir(par.par['single_point_qc'])
+        os.mkdir(par['single_point_qc'])
     except OSError:
         pass
 
     # List of chemids to skip KinBot submissions for.
-    skipChemids = par.par['skip_chemids']
+    skipChemids = par['skip_chemids']
     # maximum number of kinbot jobs that run simultaneously
-    max_running = par.par['simultaneous_kinbot']
+    max_running = par['simultaneous_kinbot']
     # jobs that are running
     running = []
     # jobs that are finished
@@ -177,11 +177,11 @@ def main():
                     # write a temporary pes file
                     # remove old xval and im_extent files
                     try:
-                        os.remove('{}_xval.txt'.format(par.par['title']))
+                        os.remove('{}_xval.txt'.format(par['title']))
                     except OSError:
                         pass
                     try:
-                        os.remove('{}_im_extent.txt'.format(par.par['title']))
+                        os.remove('{}_im_extent.txt'.format(par['title']))
                     except OSError:
                         pass
         # remove the finished threads
@@ -268,13 +268,13 @@ def postprocess(par, jobs, task, names, n):
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
-    base_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
+    base_energy = get_energy(jobs[0], jobs[0], 0, par['high_level'])
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
         l3done = 0
     # L2 ZPE
-    base_zpe = get_zpe(jobs[0], jobs[0], 0, par.par['high_level'])
+    base_zpe = get_zpe(jobs[0], jobs[0], 0, par['high_level'])
     # list of lists with four elements
     # 0. reactant chemid
     # 1. reaction name
@@ -313,23 +313,23 @@ def postprocess(par, jobs, task, names, n):
                 # overwrite energies with mp2 energy if needed
                 mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
                         'reac_r12_cycloaddition', 'reac_r14_birad_scission']
-                if (any([mm in ts for mm in mp2_list]) and not par.par['high_level']):
+                if (any([mm in ts for mm in mp2_list]) and not par['high_level']):
                     base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
-                                                 par.par['high_level'], mp2=1)
+                                                 par['high_level'], mp2=1)
                     base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
-                                           par.par['high_level'], mp2=1)
+                                           par['high_level'], mp2=1)
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
-                if 'barrierless_saddle' in ts and not par.par[ 'high_level']:
+                if 'barrierless_saddle' in ts and not par[ 'high_level']:
                     base_energy_bls = get_energy(jobs[0], jobs[0], 0,
-                                                 par.par['high_level'], bls=1)
+                                                 par['high_level'], bls=1)
                     base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
-                                           par.par['high_level'], bls=1)
+                                           par['high_level'], bls=1)
                     barrier = 0. - base_energy_bls - base_zpe_bls
 
-                ts_energy = get_energy(reactant, ts, 1, par.par['high_level'])
-                ts_zpe = get_zpe(reactant, ts, 1, par.par['high_level'])
+                ts_energy = get_energy(reactant, ts, 1, par['high_level'])
+                ts_zpe = get_zpe(reactant, ts, 1, par['high_level'])
                 barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
 
@@ -406,12 +406,12 @@ def postprocess(par, jobs, task, names, n):
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
         # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.
-        copy_from_kinbot(ji, par.par['single_point_qc'])
+        copy_from_kinbot(ji, par['single_point_qc'])
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, products, reactions)
     # create a batch submission for all L3 jobs
     # TODO slurm
-    if par.par['queuing'] == 'pbs':
+    if par['queuing'] == 'pbs':
         batch = 'batch_L3_pbs.sub'
         with open(batch, 'w') as f:
             for well in wells:
@@ -426,8 +426,8 @@ def postprocess(par, jobs, task, names, n):
     well_energies = {}
     well_l3energies = {}
     for well in wells:
-        energy = get_energy(parent[well], well, 0, par.par['high_level'])  # from the db
-        zpe = get_zpe(parent[well], well, 0, par.par['high_level'])
+        energy = get_energy(parent[well], well, 0, par['high_level'])  # from the db
+        zpe = get_zpe(parent[well], well, 0, par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -440,8 +440,8 @@ def postprocess(par, jobs, task, names, n):
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
-            energy += get_energy(parent[prods], pr, 0, par.par['high_level'])
-            zpe = get_zpe(parent[prods], pr, 0, par.par['high_level'])
+            energy += get_energy(parent[prods], pr, 0, par['high_level'])
+            zpe = get_zpe(parent[prods], pr, 0, par['high_level'])
             energy += zpe
             status, l3e = get_l3energy(pr, par)
             if not status:
@@ -455,7 +455,7 @@ def postprocess(par, jobs, task, names, n):
     for reac in reactions:
         if reac[1] != 'barrierless':
             if 'barrierless_saddle' in reac[1]:
-                zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
+                zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
                 status, l3energy = get_l3energy(reac[1], par, bls=1)
 
                 status_prod1, l3energy_prod1 = get_l3energy(reac[2][0], par)
@@ -470,7 +470,7 @@ def postprocess(par, jobs, task, names, n):
                     delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
                     ts_l3energies[reac[1]] = (delta2 - delta1) * constants.AUtoKCAL
             else:
-                zpe = get_zpe(reac[0], reac[1], 1, par.par['high_level'])
+                zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
                 status, l3energy = get_l3energy(reac[1], par)
                 if not status:
                     l3done = 0
@@ -541,7 +541,7 @@ def postprocess(par, jobs, task, names, n):
                       well_energies,
                       prod_energies,
                       parent,
-                      par.par['uq_n'])
+                      par['uq_n'])
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -641,7 +641,7 @@ def filter(par, wells, products, reactions, conn, bars, well_energies, task, nam
     elif task == 'l2threshold':
         filtered_reactions = []
         for rxn in reactions:
-            if rxn[3] < par.par['barrier_threshold']:
+            if rxn[3] < par['barrier_threshold']:
                 filtered_reactions.append(rxn)
     else:
         logging.error('Could not recognize task ' + task)
@@ -921,7 +921,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
     i = 0  # uncertainty counter
     fi = open('pes.log', 'a')
-    fi.write('{0} {1} {2}'.format("uq value: ", par.par['uq'], "\n"))
+    fi.write('{0} {1} {2}'.format("uq value: ", par['uq'], "\n"))
     fi.close()
     well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
                                                                                products,
@@ -933,11 +933,11 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
     # create mess0 label for mess header
     well0 = StationaryPoint('well0',
-                            par.par['charge'],
-                            par.par['mult'],
-                            smiles=par.par['smiles'],
-                            structure=par.par['structure'])
-    well0.characterize(dimer=par.par['dimer'])
+                            par['charge'],
+                            par['mult'],
+                            smiles=par['smiles'],
+                            structure=par['structure'])
+    well0.characterize(dimer=par['dimer'])
 
     """
     Create the header block for MESS
@@ -946,26 +946,26 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
     with open(header_file) as f:
         tpl = f.read()
-    header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par.par['TemperatureList']]),
-                        PressureList=' '.join([str(pi) for pi in par.par['PressureList']]),
-                        EnergyStepOverTemperature=par.par['EnergyStepOverTemperature'],
-                        ExcessEnergyOverTemperature=par.par['ExcessEnergyOverTemperature'],
-                        ModelEnergyLimit=par.par['ModelEnergyLimit'],
-                        CalculationMethod=par.par['CalculationMethod'],
-                        ChemicalEigenvalueMax=par.par['ChemicalEigenvalueMax'],
+    header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par['TemperatureList']]),
+                        PressureList=' '.join([str(pi) for pi in par['PressureList']]),
+                        EnergyStepOverTemperature=par['EnergyStepOverTemperature'],
+                        ExcessEnergyOverTemperature=par['ExcessEnergyOverTemperature'],
+                        ModelEnergyLimit=par['ModelEnergyLimit'],
+                        CalculationMethod=par['CalculationMethod'],
+                        ChemicalEigenvalueMax=par['ChemicalEigenvalueMax'],
                         Reactant=well_short[wells[0]],
-                        EnergyRelaxationFactor=par.par['EnergyRelaxationFactor'],
-                        EnergyRelaxationPower=par.par['EnergyRelaxationPower'],
-                        EnergyRelaxationExponentCutoff=par.par['EnergyRelaxationExponentCutoff'],
-                        e_coll=constants.epsilon[par.par['collider']],
-                        s_coll=constants.sigma[par.par['collider']],
-                        m_coll=constants.mass[par.par['collider']],
-                        e_well=par.par['epsilon'],
-                        s_well=par.par['sigma'],
+                        EnergyRelaxationFactor=par['EnergyRelaxationFactor'],
+                        EnergyRelaxationPower=par['EnergyRelaxationPower'],
+                        EnergyRelaxationExponentCutoff=par['EnergyRelaxationExponentCutoff'],
+                        e_coll=constants.epsilon[par['collider']],
+                        s_coll=constants.sigma[par['collider']],
+                        m_coll=constants.mass[par['collider']],
+                        e_well=par['epsilon'],
+                        s_well=par['sigma'],
                         m_well=well0.mass,
                         )
 
-    if par.par['uq'] == 0:
+    if par['uq'] == 0:
         fi = open('pes.log', 'a')
         fi.write("\nUncertainty analysis turned off.\n")
         fi.close()
@@ -975,10 +975,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
         # create dummy for mess object
         dummy = StationaryPoint('dummy',
-                                par.par['charge'],
-                                par.par['mult'],
-                                smiles=par.par['smiles'],
-                                structure=par.par['structure'])
+                                par['charge'],
+                                par['mult'],
+                                smiles=par['smiles'],
+                                structure=par['structure'])
 
         # mess object
         mess = MESS(par, dummy)
@@ -1054,7 +1054,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             f.write(header)
             f.write('\n'.join(s))
 
-        if par.par['me']:
+        if par['me']:
             mess.run(1)
 
     else:
@@ -1067,17 +1067,17 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
             # create dummy for mess object
             dummy = StationaryPoint('dummy',
-                                    par.par['charge'],
-                                    par.par['mult'],
-                                    smiles=par.par['smiles'],
-                                    structure=par.par['structure'])
+                                    par['charge'],
+                                    par['mult'],
+                                    smiles=par['smiles'],
+                                    structure=par['structure'])
 
             mess = MESS(par, dummy)
             uq_obj = UQ()
-            well_uq = par.par['well_uq']
-            barrier_uq = par.par['barrier_uq']
-            freq_uq = par.par['freq_uq']
-            imagfreq_uq = par.par['imagfreq_uq']
+            well_uq = par['well_uq']
+            barrier_uq = par['barrier_uq']
+            freq_uq = par['freq_uq']
+            imagfreq_uq = par['imagfreq_uq']
 
             # write the wells
             s.append('######################')
@@ -1175,7 +1175,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 f.write('\n'.join(s))
             uq_iter = uq_iter + 1
 
-        if par.par['me'] == 1:
+        if par['me'] == 1:
             mess.run(uq_n)
 
 
@@ -1186,7 +1186,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
     """
     # delete the im_extent and xval files
     try:
-        os.remove('{}_xval.txt'.format(par.par['title']))
+        os.remove('{}_xval.txt'.format(par['title']))
     except OSError:
         pass
     except OSError:
@@ -1243,7 +1243,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
     template_file_path = pkg_resources.resource_filename('tpl', fname + '.tpl')
     with open(template_file_path) as template_file:
         template = template_file.read()
-    template = template.format(id=par.par['title'],
+    template = template.format(id=par['title'],
                                wells=well_lines,
                                bimolecs=bimol_lines,
                                ts=ts_lines,
@@ -1377,11 +1377,11 @@ def get_l3energy(job, par, bls=0):
     """
 
     if bls:
-        key = par.par['barrierless_saddle_single_point_key']
+        key = par['barrierless_saddle_single_point_key']
     else:
-        key = par.par['single_point_key']
+        key = par['single_point_key']
 
-    if par.par['single_point_qc'] == 'molpro':
+    if par['single_point_qc'] == 'molpro':
         if os.path.exists('molpro/' + job + '.out'):
             with open('molpro/' + job + '.out', 'r') as f:
                 lines = f.readlines()
@@ -1448,12 +1448,12 @@ def submit_job(chemid, par):
     except OSError:
         pass
 
-    if par.par['queue_template'] != '':
-        shutil.copyfile('{}'.format(par.par['queue_template']), '{}/{}'.format(chemid, par.par['queue_template']))
-    if par.par['single_point_template'] != '':
-        shutil.copyfile('{}'.format(par.par['single_point_template']), '{}/{}'.format(chemid, par.par['single_point_template']))
-    if par.par['barrierless_saddle_single_point_template'] != '':
-        shutil.copyfile('{}'.format(par.par['barrierless_saddle_single_point_template']), '{}/{}'.format(chemid, par.par['barrierless_saddle_single_point_template']))
+    if par['queue_template'] != '':
+        shutil.copyfile('{}'.format(par['queue_template']), '{}/{}'.format(chemid, par['queue_template']))
+    if par['single_point_template'] != '':
+        shutil.copyfile('{}'.format(par['single_point_template']), '{}/{}'.format(chemid, par['single_point_template']))
+    if par['barrierless_saddle_single_point_template'] != '':
+        shutil.copyfile('{}'.format(par['barrierless_saddle_single_point_template']), '{}/{}'.format(chemid, par['barrierless_saddle_single_point_template']))
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
     process = subprocess.Popen(command,
@@ -1466,33 +1466,33 @@ def submit_job(chemid, par):
     return pid
 
 
-def write_input(par, species, threshold, root):
+def write_input(input_file, species, threshold, root):
     # directory for this particular species
     dir = root + '/' + str(species.chemid) + '/'
     if not os.path.exists(dir):
         os.makedirs(dir)
 
     # make a new parameters instance and overwrite some keys
-    par2 = Parameters(par.input_file)
+    par2 = Parameters(input_file).par
     # overwrite the title
-    par2.par['title'] = str(species.chemid)
+    par2['title'] = str(species.chemid)
     # make a structure vector and overwrite the par structure
     structure = []
     for at in range(species.natom):
         pos = species.geom[at]
         sym = species.atom[at]
         structure += [sym, pos[0], pos[1], pos[2]]
-    par2.par['structure'] = structure
+    par2['structure'] = structure
     # delete the par smiles
-    par2.par['smiles'] = ''
+    par2['smiles'] = ''
     # overwrite the barrier treshold
-    par2.par['barrier_threshold'] = threshold
+    par2['barrier_threshold'] = threshold
     # set the pes option to 1
-    par2.par['pes'] = 1
+    par2['pes'] = 1
 
     file_name = dir + str(species.chemid) + '.json'
     with open(file_name, 'w') as outfile:
-        json.dump(par2.par, outfile, indent=4, sort_keys=True)
+        json.dump(par2, outfile, indent=4, sort_keys=True)
 
 
 if __name__ == "__main__":

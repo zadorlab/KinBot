@@ -13,7 +13,7 @@
 {hinderedrotor}
 
         ElectronicLevels[1/cm]      {nelec}
-            {charge}    {mult}
+            0.    {mult}
 
         ZeroEnergy[kcal/mol]        0.0
     End ! end fragment

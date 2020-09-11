@@ -99,7 +99,37 @@ class Optimize:
                         for geom in self.species.confs.cyc_conf_geoms:
                             # take all the geometries from the cyclic part
                             # generate the conformers for the current geometry
-                            self.species.confs.generate_conformers(0, geom)
+                            self.species.semi_emp_confs.generate_conformers(0, geom)
+                        # set conf status to running
+                        self.ssemi_empconf = 0
+                        if self.ssemi_empconf == 0:
+                            # semi empirical conformational search is running
+                            # check if the conformational search is done
+                            status, lowest_conf, geom, self.semi_emp_low_energy, self.semi_emp_conformers, self.semi_emp_energies = self.species.semi_emp_confs.check_conformers(wait=self.wait)
+                            if status == 1:
+                                logging.info("semi empirical lowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
+                                # set conf status to finished
+                                self.ssemi_empconf = 1
+                else:
+                    self.ssemi_empconf = 1
+                if self.ssemi_empconf == 1 and self.scycconf == 1:
+                    # do open chain part if cyclic (if there were any) and semi empirical (if requested) parts are done
+                    if self.sconf == -1:
+                        # open chain part has not started yet
+                        # if semi empirical conformer were searched for, start from those, 
+                        # else start from cyclic conformers
+                        if self.par.par['semi_emp_conformer_search'] == 1:
+                            self.species.confs.nconfs = 1
+                            for i, geom in enumerate(self.semi_emp_conformers):
+                                if (self.semi_emp_energies[i] - self.semi_emp_low_energy) * constants.AUtoKCAL < self.par.par['semi_emp_confomer_threshold']:
+                                    self.species.confs.generate_conformers(-999, geom)
+                            logging.info("There are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
+                                         format(i, self.par.par['semi_emp_confomer_threshold'], self.name))
+                        else:
+                            for geom in self.species.confs.cyc_conf_geoms:
+                                # take all the geometries from the cyclic part
+                                # generate the conformers for the current geometry
+                                self.species.confs.generate_conformers(0, geom)
                         # set conf status to running
                         self.sconf = 0
                     if self.sconf == 0:
@@ -129,9 +159,6 @@ class Optimize:
 
                     # perform conformer check at this point
                     filteredConf = [] 
-                    #for conf in conformers:
-                        #print(conf)
-                        #confStPt = StationaryPoint(self.name, self.species.charge, self.species.mult, self.species.natom, self.species.atom, geom, self.species.wellorts)
                         
                 while self.restart < self.max_restart:
                     # do the high level calculations

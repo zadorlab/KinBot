@@ -114,9 +114,12 @@ def get_frequencies(species, hess, geom, checkdist=0):
     # Build set of internal rotation vectors to project out
     R = []
     for rot in species.dihed:
+        if skip_rotor(species.name, rot) == 1:
+            continue
+            
         # partition the molecule in two parts divided by the rotor bond
         Ri = np.zeros(3 * natom)
-        l1, l2 = partition(species, rot, natom, checkdist)
+        l1, l2 = partition(species, rot, natom, checkdist=checkdist)
         # mass weight the cartesian coordinates
         mgeom = np.zeros((natom, 3))
         for i in range(natom):
@@ -204,7 +207,7 @@ def convert_to_wavenumbers(val):
     return fr
 
 
-def partition(species, rotor, natom, checkdist):
+def partition(species, rotor, natom, checkdist=0):
     l1 = [rotor[1]]
     forbidden = [rotor[2]]
     visited = [rotor[1], rotor[2]]
@@ -216,7 +219,6 @@ def partition(species, rotor, natom, checkdist):
         forbidden = [rotor[1]]
         visited = [rotor[1], rotor[2]]
         get_neighbors(rotor[2], visited, forbidden, l2, species, natom, checkdist)
-        print('PARTITIONS', l1, l2)
         return l1, l2
 
 
@@ -250,8 +252,16 @@ def curvature(species, hess):
     m = np.dot(np.dot(jacobian.T, hess_ang), jacobian)
 
     eigval, eigvec = np.linalg.eig(m)
-    print(eigval)
-    print(len(bbb.bond), len(bbb.angle), len(bbb.dihed))
-    #print(bbb.dihed)
 
     return 0
+
+
+def skip_rotor(name, rot):
+    if 'barrierless_saddle' in name:
+        l0 = name.split('_')
+        l = [int(l0[3]) - 1, int(l0[4]) - 1] 
+        if any(rot[i:i+2] == l for i in range(3)):
+            return 1
+        if any(rot[i:i+2] == l[::-1] for i in range(3)):
+            return 1
+        return 0

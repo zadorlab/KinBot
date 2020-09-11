@@ -124,7 +124,7 @@ class IRC:
                                                   self.rxn.species.mult,
                                                   self.rxn.species.charge,
                                                   irc=direction.lower(),
-                                                  start_form_geom=start_from_geometry)
+                                                  start_from_geom=start_from_geometry)
             prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge)
             if self.rxn.qc.qc == 'gauss':
                 prod_kwargs['opt'] = 'CalcFC, Tight'

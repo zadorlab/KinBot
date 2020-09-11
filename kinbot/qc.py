@@ -54,7 +54,7 @@ class QuantumChemistry:
         self.username = par.par['username']
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0,
-                         high_level=0, hir=0, start_form_geom=0):
+                         high_level=0, hir=0, start_from_geom=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
@@ -93,6 +93,8 @@ class QuantumChemistry:
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
+                    if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                        kwargs['guess'] = 'Read,Mix'
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis
@@ -112,7 +114,7 @@ class QuantumChemistry:
                 kwargs['basis'] = self.bls_basis
             if irc is not None:
                 # arguments for the irc calculations
-                if start_form_geom == 0:
+                if start_from_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
                     if self.par.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here
@@ -344,31 +346,27 @@ class QuantumChemistry:
         """
         Creates a geometry optimization input and runs it.
         """
-
         job = str(species.chemid) + '_well'
         if high_level:
             job = str(species.chemid) + '_well_high'
         if mp2:
             job = str(species.chemid) + '_well_mp2'
         if bls:
-            job = str(species.chemid) + '_well_bls'
+            job = str(species.chemid) + '_well_ls'
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
         # O2
         if species.chemid == "320320000000000000001":
             mult = 3
-            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
         # CH2
         elif species.chemid == "140260020000000000001":
             mult = 3
-            kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
-        # others
         else:
             mult = species.mult
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level)
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level)
+        kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
+
         if self.qc == 'gauss':
             kwargs['opt'] = 'CalcFC, Tight'
         if mp2:

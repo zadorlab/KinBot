@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from kinbot import constants
 from kinbot import geometry
 from kinbot import zmatrix
+from kinbot.frequencies import skip_rotor
 
 
 class HIR:
@@ -51,6 +52,11 @@ class HIR:
             self.hir_geoms.append([[] for i in range(self.nrotation)])
 
         for rotor in range(len(self.species.dihed)):
+            if skip_rotor(self.species.name, self.species.dihed[rotor]) == 1:
+                self.hir_status[rotor] = [2 for i in range(self.nrotation)]
+                logging.info('For {} rotor {} was skipped in HIR.'.format(self.species.name, rotor))
+                continue
+
             cart = np.asarray(cart)
             zmat_atom, zmat_ref, zmat, zmatorder = zmatrix.make_zmat_from_cart(self.species, rotor, cart, 0)
 
@@ -130,6 +136,8 @@ class HIR:
             # if job finishes status set to 0 or 1, if all done then do the following calculation
             if all([all([test >= 0 for test in status]) for status in self.hir_status]):
                 for rotor in range(len(self.species.dihed)):
+                    if self.hir_status[rotor][0] == 2:  # skipped rotor
+                        continue
                     if self.species.wellorts:
                         job = self.species.name + '_hir_' + str(rotor)
                     else:

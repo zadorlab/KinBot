@@ -270,9 +270,9 @@ def postprocess(par, jobs, task, names, n):
     # base of the energy is the first well, these are L2 energies
     base_energy = get_energy(jobs[0], jobs[0], 0, par.par['high_level'])
     # L3 energies
-    #status, base_l3energy = get_l3energy(jobs[0], par)
-    #if not status:
-    #    l3done = 0
+    status, base_l3energy = get_l3energy(jobs[0], par)
+    if not status:
+        l3done = 0
     # L2 ZPE
     base_zpe = get_zpe(jobs[0], jobs[0], 0, par.par['high_level'])
     # list of lists with four elements
@@ -429,11 +429,11 @@ def postprocess(par, jobs, task, names, n):
         energy = get_energy(parent[well], well, 0, par.par['high_level'])  # from the db
         zpe = get_zpe(parent[well], well, 0, par.par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
-        #status, l3energy = get_l3energy(well, par)
-        #if not status:
-        #    l3done = 0  # not all L3 calculations are done
-        #else:
-        #    well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
+        status, l3energy = get_l3energy(well, par)
+        if not status:
+            l3done = 0  # not all L3 calculations are done
+        else:
+            well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
     prod_energies = {}
     prod_l3energies = {}
     for prods in products:
@@ -443,11 +443,11 @@ def postprocess(par, jobs, task, names, n):
             energy += get_energy(parent[prods], pr, 0, par.par['high_level'])
             zpe = get_zpe(parent[prods], pr, 0, par.par['high_level'])
             energy += zpe
-         #   status, l3e = get_l3energy(pr, par)
-         #   if not status:
-         #       l3done = 0  # not all L3 calculations are done
-         #   else:
-         #       l3energy += l3e + zpe
+            status, l3e = get_l3energy(pr, par)
+            if not status:
+                l3done = 0  # not all L3 calculations are done
+            else:
+                l3energy += l3e + zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
         prod_l3energies[prods] = l3energy * constants.AUtoKCAL
 

@@ -859,11 +859,11 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=freq,
-                                       rotor=self.make_rotors(self.species.reac_obj[index].ts, norot=self.ts_names[reaction.instance_name]),
+                                       rotors=self.make_rotors(self.species.reac_obj[index].ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling='',
                                        nelec=1,
                                        mult=reaction.ts.mult,
-                                       zeroenergy=energy)
+                                       zeroenergy=zeroenergy)
             variational = self.variationaltpl.format(twotst=twotst,
                                                      variationalmodel=rrho,
                                                      tunneling=tun)
@@ -879,11 +879,11 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=freq,
-                                       rotor=self.make_rotors(self.species.reac_obj[index].ts, norot=self.ts_names[reaction.instance_name]),
+                                       rotors=self.make_rotors(self.species.reac_obj[index].ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling=tun,
                                        nelec=1,
                                        mult=reaction.ts.mult,
-                                       zeroenergy=energy)
+                                       zeroenergy=zeroenergy)
             mess_barrier = self.barriertpl.format(rxn_name=name,
                                                   chemid_reac=chemid_reac,
                                                   chemid_prod=chemid_prod,

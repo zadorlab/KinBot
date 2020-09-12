@@ -859,7 +859,7 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=freq,
-                                       rotors=self.make_rotors(self.species.reac_obj[index].ts, norot=self.ts_names[reaction.instance_name]),
+                                       rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling='',
                                        nelec=1,
                                        mult=reaction.ts.mult,
@@ -879,7 +879,7 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=freq,
-                                       rotors=self.make_rotors(self.species.reac_obj[index].ts, norot=self.ts_names[reaction.instance_name]),
+                                       rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling=tun,
                                        nelec=1,
                                        mult=reaction.ts.mult,
@@ -904,7 +904,7 @@ class MESS:
         frPos = barrierArrayPosFreq
         frNeg = barrierArrayImagfreq
 
-        return mess_barrier, energy, frPos, frNeg
+        return mess_barrier, zeroenergy, frPos, frNeg
 
     def run(self, uq_n):
         """

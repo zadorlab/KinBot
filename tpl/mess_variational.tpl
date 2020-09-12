@@ -1,4 +1,4 @@
     Variational
-{outerts} 
+{twotst} 
 {variationalmodel} 
 {tunneling} 

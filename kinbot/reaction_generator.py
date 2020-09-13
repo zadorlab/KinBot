@@ -231,7 +231,7 @@ class ReactionGenerator:
 
                     products.extend([' ', ' ', ' '])
                     barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
-                    logging.info('\tReaction {0} has a barrier of {1:.2f} kcal/mol' 
+                    logging.info('\tReaction {0} has a barrier of {1:.2f} kcal/mol ' 
                                  'and leads to products {2} {3} {4}'
                                  .format(instance_name, barrier, products[0], products[1], products[2]))
 

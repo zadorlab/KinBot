@@ -25,6 +25,8 @@ class Parameters:
         self.input_file = file
 
         self.par = {
+            # User should not set this
+            'input_file': self.input_file,
             # GENERAL INFO
             # title of the current calculations
             'title': '',

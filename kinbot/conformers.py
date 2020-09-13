@@ -239,8 +239,6 @@ class Conformers:
         # what is value of all things associated w/ conf generation
         # what is length of conf_dihed?
         theoretical_confs = np.power(self.grid, len(self.species.conf_dihed)) * cycles
-        if rotor == 0:
-            logging.info('Theoretical number of conformers for open chain is {} for {}.'.format(theoretical_confs, name))
 
         if rotor != -999:
             if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
@@ -251,6 +249,8 @@ class Conformers:
         # retraction from the recursion
         if rotor == len(self.species.conf_dihed) or rotor == -999:
             self.qc.qc_conf(self.species, cart, self.conf, semi_emp=self.semi_emp)
+            if self.conf == 0:
+                logging.info('Theoretical number of conformers for open chain is {} for {}.'.format(theoretical_confs, name))
             self.conf += 1
             return 0
 

@@ -22,9 +22,10 @@ class ReactionGenerator:
     and does IRC calculations
     """
 
-    def __init__(self, species, par, qc):
+    def __init__(self, species, par, qc, input_file):
         self.species = species
         self.par = par
+        self.inp = input_file
         self.qc = qc
 
     def generate(self):
@@ -403,18 +404,18 @@ class ReactionGenerator:
                             energy = st_pt.energy
                             well_energy = self.species.energy
                             new_barrier_threshold = self.par['barrier_threshold'] - (energy - well_energy) * constants.AUtoKCAL
-                            dir = os.path.dirname(os.getcwd())
-                            jobs = open(dir + '/chemids', 'r').read().split('\n')
+                            dirwell = os.path.dirname(os.getcwd())
+                            jobs = open(dirwell + '/chemids', 'r').read().split('\n')
                             jobs = [ji for ji in jobs]
                             if not str(chemid) in jobs:
                                 # this well is new, add it to the jobs
                                 while 1:
+                                    #logging.info('{} {} {} {}'.format(self.par['input_file'], obj.products[0], new_barrier_threshold, dirwell))
                                     try:
                                         # try to open the file and write to it
-                                        pes.write_input(self.par['input_file'], obj.products[0], new_barrier_threshold, dir)
-                                        f = open(dir + '/chemids', 'a')
-                                        f.write('{}\n'.format(chemid))
-                                        f.close()
+                                        pes.write_input(self.inp, obj.products[0], new_barrier_threshold, dirwell)
+                                        with open(dirwell + '/chemids', 'a') as f:
+                                            f.write('{}\n'.format(chemid))
                                         break
                                     except IOError:
                                         # wait a second and try again
@@ -463,9 +464,7 @@ class ReactionGenerator:
                     alldone = 0
 
             # write a small summary while running
-            wr = 1
-            if wr:
-                f_out = open('kinbot_monitor.out', 'w')
+            with open('kinbot_monitor.out', 'w') as f_out:
                 for index, instance in enumerate(self.species.reac_inst):
                     if self.species.reac_ts_done[index] == -1:
                         prodstring = []
@@ -479,7 +478,6 @@ class ReactionGenerator:
                         f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
                                                           self.species.reac_step[index], 
                                                           self.species.reac_obj[index].instance_name))
-                f_out.close()
             time.sleep(1)
 
         # Create molpro file for the BLS products

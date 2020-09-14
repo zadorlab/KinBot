@@ -16,13 +16,13 @@ class Parameters:
     This class initiates all parameters to their defaults and reads in the
     user-defined variables, which overwrite the defaults
     """
-    def __init__(self, file=None):
+    def __init__(self, inpfile=None):
         """
         Initialize all the variable and read the file which is the user input
         file
         """
         # user input file
-        self.input_file = file
+        self.input_file = inpfile
 
         self.par = {
             # User should not set this
@@ -269,7 +269,6 @@ class Parameters:
         }
 
         if self.input_file is not None:
-            # Read the user input and overwrite the user-defined parameters
             self.read_user_input()
 
         if self.par['me'] == 1:

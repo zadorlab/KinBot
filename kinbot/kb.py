@@ -41,7 +41,9 @@ def main():
     print(license_message.message)
 
     # initialize the parameters for this run
-    par = Parameters(input_file).par
+    masterpar = Parameters(input_file)
+    par = masterpar.par
+    input_file = masterpar.input_file
     # set up the logging environment
     if par['verbose']:
         logging.basicConfig(filename='kinbot.log', level=logging.DEBUG)
@@ -190,7 +192,7 @@ def main():
         logging.info('Starting reaction searches of intial well')
         rf = ReactionFinder(well0, par, qc)
         rf.find_reactions()
-        rg = ReactionGenerator(well0, par, qc)
+        rg = ReactionGenerator(well0, par, qc, input_file)
         rg.generate()
     # do the homolytic scission products search
     if par['homolytic_scissions'] == 1:

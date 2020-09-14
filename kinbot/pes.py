@@ -1473,6 +1473,7 @@ def write_input(input_file, species, threshold, root):
         os.makedirs(dir)
 
     # make a new parameters instance and overwrite some keys
+    input_file = '{}'.format(input_file)
     par2 = Parameters(input_file).par
     # overwrite the title
     par2['title'] = str(species.chemid)

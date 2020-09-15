@@ -128,6 +128,7 @@ class Conformers:
                     self.cyc_conf += 1
             else:
                 self.cyc_conf_geoms.append(copy.deepcopy(cart))
+
         for ci in range(self.cyc_conf):
             self.start_ring_conformer_search(ci, copy.deepcopy(self.species.geom))
 
@@ -227,7 +228,7 @@ class Conformers:
         rotor: the rotor number in the order it was discovered
         if -999, then just do a single calculation at the given geometry
         """
-        
+        i = 1
         if self.cyc_conf == 0:
             cycles = 1
         else:

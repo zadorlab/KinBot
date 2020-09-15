@@ -350,14 +350,13 @@ class QuantumChemistry:
         """
         Creates a geometry optimization input and runs it.
         """
-
         job = str(species.chemid) + '_well'
         if high_level:
             job = str(species.chemid) + '_well_high'
         if mp2:
             job = str(species.chemid) + '_well_mp2'
         if bls:
-            job = str(species.chemid) + '_well_bls'
+            job = str(species.chemid) + '_well_ls'
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed

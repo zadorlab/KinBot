@@ -112,10 +112,15 @@ def createSummaryFile(species, qc, par):
     if species.homolytic_scissions is not None:
         for index, hs in enumerate(species.homolytic_scissions.hss):
             if hs.status == -1:
+                print("create summary file, prod name creation")
+                p1 = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
+                p2 = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
+                print("products {} --> prod_opt {}".format(p1, p2))
                 prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
                 if prod_name not in products:
                     energy = 0
                     for prod in hs.products:
+                        print(prod.chemid, prod.energy)
                         energy += prod.energy
                     energy = (energy - species.energy) * constants.AUtoKCAL
                     s.append('HOMOLYTIC_SCISSION\t{energy:.2f}\t{prod}'.format(energy=energy, prod=prod_name))

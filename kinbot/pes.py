@@ -255,7 +255,7 @@ def get_wells(job):
     if len(new_wells) > 0:
         with open('chemids', 'a') as f:
             f.write('\n'.join(new_wells) + '\n')
-
+    
 
 def postprocess(par, jobs, task, names, n):
     """
@@ -384,6 +384,7 @@ def postprocess(par, jobs, task, names, n):
                         wells.append(prod[0])
                 else:
                     prod_name = '_'.join(sorted(prod))
+                    print("pes.py read summary file: prod_name = {}".format(prod_name))
                     if prod_name not in products:
                         if prod_name not in parent:
                             parent[prod_name] = reactant
@@ -437,6 +438,7 @@ def postprocess(par, jobs, task, names, n):
     prod_energies = {}
     prod_l3energies = {}
     for prods in products:
+        print(prods)
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
@@ -533,15 +535,16 @@ def postprocess(par, jobs, task, names, n):
                            well_energies,
                            prod_energies,
                            highlight)
-    create_mess_input(par,
-                      wells,
-                      products,
-                      rxns,
-                      barrierless,
-                      well_energies,
-                      prod_energies,
-                      parent,
-                      par['uq_n'])
+    if par['me'] == 1:
+        create_mess_input(par,
+                          wells,
+                          products,
+                          rxns,
+                          barrierless,
+                          well_energies,
+                          prod_energies,
+                          parent,
+                          par['uq_n'])
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):

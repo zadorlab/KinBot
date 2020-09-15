@@ -410,7 +410,7 @@ class ReactionGenerator:
                             if not str(chemid) in jobs:
                                 # this well is new, add it to the jobs
                                 while 1:
-                                    #logging.info('{} {} {} {}'.format(self.par['input_file'], obj.products[0], new_barrier_threshold, dirwell))
+                                    logging.info('lalala {} {} {} {}'.format(self.par['input_file'], obj.products[0], new_barrier_threshold, dirwell))
                                     try:
                                         # try to open the file and write to it
                                         pes.write_input(self.inp, obj.products[0], new_barrier_threshold, dirwell)

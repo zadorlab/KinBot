@@ -362,7 +362,7 @@ class MESS:
         # uq_obj.norm_energy(ts_e_iter, "ts", ts_rxnName, uq_n)  # working
         # uq_obj.norm_energy(prod_e_iter, "prod", prod_names, uq_n)
         # uq_obj.norm_energy(bimol_e_iter, "bimol", bimol_names, uq_n)
-        uq_obj.norm_energy(0, "termol", termolec_names, uq_n)
+        # uq_obj.norm_energy(0, "termol", termolec_names, uq_n)
         # uq_obj.norm_energy(barrierless_e_iter, "barrierless", barrierless_name, uq_n)
         # print("wells\n{}\n{}".format(well_e_iter, well_name)) 
         # print("ts\n{}\n{}".format(ts_e_iter, ts_rxnName))

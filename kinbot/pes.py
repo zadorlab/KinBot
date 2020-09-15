@@ -965,6 +965,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         m_well=well0.mass,
                         )
 
+    frame = '######################\n' 
+    divider = '!****************************************\n'
     if par['uq'] == 0:
         fi = open('pes.log', 'a')
         fi.write("\nUncertainty analysis turned off.\n")
@@ -984,25 +986,21 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         mess = MESS(par, dummy)
 
         # write the wells
-        s.append('######################')
-        s.append('# WELLS')
-        s.append('######################')
+        s.append(frame +'# WELLS\n' + frame)
         for well in wells:
             name = well_short[well] + ' ! ' + well
             energy = well_energies[well]
             fi = parent[well] + '/' + well + '.mess'
             with open(fi, 'r') as f:
                 s.append(f.read().format(name=name, zeroenergy=energy))
-            s.append('!****************************************')
+            s.append(divider)
 
         slen = len(s)
         w = len(wells)
         ws = len(well_short)
 
         # write the products
-        s.append('######################')
-        s.append('# BIMOLECULAR PRODUCTS')
-        s.append('######################')
+        s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
         for prod in products:
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod]
@@ -1015,12 +1013,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 s.append(f.read().format(name=name,
                                          ground_energy=energy,
                                          **fr_names))
-            s.append('!****************************************')
+            s.append(divider)
 
         # write the barrier
-        s.append('######################')
-        s.append('# BARRIERS')
-        s.append('######################')
+        s.append(frame + '# BARRIERS\n' + frame)
         for rxn in reactions:
             rxFi = open("reactionList.log", 'a')
             rxFi.write('{0} {1}'.format(rxn, "\n"))
@@ -1037,13 +1033,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             try:
                 with open(rxn[0] + "/" + rxn[1] + ".mess") as f:
                     s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
-                s.append('!****************************************')
+                s.append(divider)
             except:
                 fi = open("pes.log", 'a')
                 fi.write('{0} {1} {2} {3} {4}'.format("File ", rxn[0], "/", rxn[1], ".mess was not found.\n"))
                 fi.close()
         # add last end statement
-        s.append('!****************************************')
+        s.append(divider)
         s.append('End ! end kinetics\n')
 
         if not os.path.exists('me'):

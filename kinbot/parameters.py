@@ -282,6 +282,12 @@ class Parameters:
             logging.error(err)
             sys.exit(-1)
 
+        if self.par['pes'] and self.par['specific_reaction']:
+            logging.error('Specific reaction cannot be searched in PES mode.')
+            sys.exit(-1)
+
+        if self.par['uq'] == 0:
+            self.par['uq_n'] = 1
 
     def read_user_input(self):
         """

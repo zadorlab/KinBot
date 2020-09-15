@@ -52,6 +52,9 @@ def main():
 
     # write the license message to the log file
     logging.info(license_message.message)
+    logging.info('Input parameters')
+    for param in par:
+        logging.info('{} {}'.format(param, par[param]))
     # time stamp of the KinBot start
     logging.info('Starting KinBot at {}'.format(datetime.datetime.now()))
 
@@ -76,16 +79,6 @@ def main():
             os.makedirs('perm/conf')
     if not os.path.exists('me'):
         os.mkdir('me')
-
-    if par['pes'] and par['specific_reaction']:
-        logging.error('Specific reaction cannot be searched in PES mode.')
-        return
-
-    uq = par['uq']
-    uq_n = 1
-
-    if uq == 1:
-        uq_n = par['uq_n']
 
     # initialize the reactant
     well0 = StationaryPoint('well0',
@@ -172,7 +165,6 @@ def main():
     well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
 
-    # read the energy and the zpe corrected energy
     err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)
     err, well0.zpe = qc.get_qc_zpe(str(well0.chemid) + '_well', 1)
 
@@ -182,57 +174,29 @@ def main():
         logging.error('Error with high level optimization of initial structure.')
         return
 
-    # Only check for information if PES is turned on
     if par['pes']:
-        # check if the information on this well has to be copied to a database
         filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
-    # do the reaction search using heuristics
     if par['reaction_search'] == 1:
         logging.info('Starting reaction searches of intial well')
         rf = ReactionFinder(well0, par, qc)
         rf.find_reactions()
         rg = ReactionGenerator(well0, par, qc, input_file)
         rg.generate()
-    # do the homolytic scission products search
+
     if par['homolytic_scissions'] == 1:
         logging.info('Starting the search for homolytic scission products')
         well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
         well0.homolytic_scissions.find_homolytic_scissions()
-    # initialize the master equation instance
 
-    # check to see if uq analysis is turned on
     if par['me'] == 1:
-        logging.info('ME turned on')
         mess = MESS(par, well0)
-        mess.write_input(uq, uq_n, qc)
-        if uq == 0:
-            logging.info('uncertainty analysis turned off')
-        elif uq == 1:
-            logging.info('uncertainty analysis turned on')
-            if uq_n < 500:
-                logging.warning('The UQ sample size of {} iterations is too low'.format(uq_n))
-        else:
-            logging.error('Cannot recognize uq code {}'.format(par['uq']))
-    else:
-        logging.info('ME turned off')
+        mess.write_input(qc)
 
-    # TO DO: CODE UQ into MESMER
-    #mesmer = MESMER(par, well0)
-    #mesmer.write_input()
-
-    if par['me'] == 1:
         logging.info('Starting Master Equation calculations')
         if par['me_code'] == 'mess':
-            mess.run(uq_n)
+            mess.run()
 
-        # TO DO: FINISH CODING UQ INTO MESMER
-        #elif par['me_code'] == 'mesmer':
-        #    mesmer.run()
-        else:
-            logging.error('Cannot recognize me code {}'.format(par['me_code']))
-
-    # postprocess the calculations
     postprocess.createSummaryFile(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)

@@ -379,7 +379,6 @@ class MESS:
         terPr_name = '_'.join(sorted([str(species.chemid) for species in species_list]))
         for species in species_list:
             if species.natom > 1:
-                freq = ''
                 termolArrayFreq = []
                 termolArrayEnergy = []
                 logFile = open('uq.log', 'a')
@@ -387,40 +386,10 @@ class MESS:
                 logFile.write("Bimol species: {}\n".format(species.chemid))
                 termolArrayFreq.append(species.chemid)
                 termolArrayEnergy.append(species.chemid)
-                for i, fr in enumerate(species.reduced_freqs):
-                    if uq_iter == 0:
-                        freqFactor = 1.0
-                        logFile.write("\ttermol posFreq factor: {}\n".format(freqFactor))
-                        logFile.write("\t\tOriginal first frequency: {}\n".format(fr))
-                        termolArrayFreq.append(fr)
-                        if i == 0:
-                            logFile.write("\t\tUpdated first frequency: {}.\n\t\t\tFrequency should be unchanged.\n".format(fr))
-                            freq += '! {:.4f}'.format(fr)
-                        elif i > 0 and i % 3 == 0:
-                            freq += '\n !           {:.4f}'.format(fr)
-                        else:
-                            freq += '!    {:.4f}'.format(fr)
-                    else:
-                        if i == 0:
-                            logFile.write("\ttermol posFreq factor: {}\n".format(freqFactor))
-                            logFile.write("\t\tOriginal first frequency: {}\n".format(fr))
-                        fr = fr * freqFactor
-                        termolArrayFreq.append(fr)
-                        if i == 0:
-                            logFile.write("\t\tUpdated first frequency: {}\n".format(fr))
-                            freq += '! {:.4f}'.format(fr)
-                        elif i > 0 and i % 3 == 0:
-                            freq += ' \n !            {:.4f}'.format(fr)
-                        else:
-                            freq += '!    {:.4f}'.format(fr)
-
-                    allFreqs = ",".join(str(termolFreq) for termolFreq in termolArrayFreq)
-
-                energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+                
 
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
-                    energy = '{ground_energy}'
                 else:
                     name = '{} ! {}'.format(self.fragment_names[species.chemid], species.chemid)
                 # molecule template
@@ -429,7 +398,7 @@ class MESS:
                                                      geom=self.make_geom(species),
                                                      symm=float(species.sigma_ext) / float(species.nopt),
                                                      nfreq=len(species.reduced_freqs),
-                                                     freq=freq,
+                                                     freq=self.make_freq(species, freqFactor, termolArrayFreq),
                                                      hinderedrotor=self.make_rotors(species),
                                                      nelec=1,
                                                      mult=species.mult
@@ -484,41 +453,12 @@ class MESS:
         fragments = ''
         for species in prod_list:
             if species.natom > 1:
-                freq = ''
-
                 bimolArrayFreq = []
                 bimolArrayEnergy = []
                 logFile.write("Bimol species: {}\n".format(species.chemid))
                 bimolArrayFreq.append(species.chemid)
                 bimolArrayEnergy.append(species.chemid)
-                for i, fr in enumerate(species.reduced_freqs):
-                    if uq_iter == 0:
-                        freqFactor = 1.0
-                        logFile.write("\tBimol posFreq factor: {}\n".format(freqFactor))
-                        logFile.write("\t\tOriginal first frequency: {}\n".format(fr))
-                        bimolArrayFreq.append(fr)
-                        if i == 0:
-                            logFile.write("\t\tUpdated first frequency: {}.\n\t\t\tFrequency should be unchanged.\n".format(fr))
-                            freq += '{:.4f}'.format(fr)
-                        elif i > 0 and i % 3 == 0:
-                            freq += '\n            {:.4f}'.format(fr)
-                        else:
-                            freq += '    {:.4f}'.format(fr)
-                    else:
-                        if i == 0:
-                            logFile.write("\tBimol posFreq factor: {}\n".format(freqFactor))
-                            logFile.write("\t\tOriginal first frequency: {}\n".format(fr))
-                        fr = fr * freqFactor
-                        bimolArrayFreq.append(fr)
-                        if i == 0:
-                            logFile.write("\t\tUpdated first frequency: {}\n".format(fr))
-                            freq += '{:.4f}'.format(fr)
-                        elif i > 0 and i % 3 == 0:
-                            freq += '\n            {:.4f}'.format(fr)
-                        else:
-                            freq += '    {:.4f}'.format(fr)
-
-                    allFreqs = ",".join(str(bimolFreq) for bimolFreq in bimolArrayFreq)
+                
 
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
@@ -530,7 +470,7 @@ class MESS:
                                                     geom=self.make_geom(species),
                                                     symm=float(species.sigma_ext) / float(species.nopt),
                                                     nfreq=len(species.reduced_freqs),
-                                                    freq=freq,
+                                                    freq=self.make_freq(species, freqFactor, bimolArrayFreq),
                                                     hinderedrotor=self.make_rotors(species),
                                                     nelec=1,
                                                     mult=species.mult)
@@ -614,8 +554,6 @@ class MESS:
         """
         logFile = open('uq.log', 'a')
 
-        freq = ''
-
         wellsArrayEnergy = []
         wellsArrayFreq = []
         wellsArrayEnergy.append(species.chemid)
@@ -623,31 +561,6 @@ class MESS:
         if self.par['uq'] == 1:
             logFile.write("Species: {}\n".format(species.chemid))
             logFile.write("\tWell freqFactor: {}\n".format(freqFactor))
-        for i, fr in enumerate(species.reduced_freqs):
-            if i == 0:
-                logFile.write("\t\tOriginal first frequency: {}\n".format(fr))
-            if uq_iter == 0:
-                freqFactor = 1.0
-                wellsArrayFreq.append(fr)
-                if i == 0:
-                    logFile.write("\t\tUpdated first frequency: {}\n".format(fr))
-                    freq += '{:.4f}'.format(fr)
-                elif i > 0 and i % 3 == 0:
-                    freq += '\n            {:.4f}'.format(fr)
-                else:
-                    freq += '    {:.4f}'.format(fr)
-            else:
-                fr = fr * freqFactor
-                wellsArrayFreq.append(fr)
-                if i == 0:
-                    logFile.write("\t\tUpdated first frequency: {}\n".format(fr))
-                    freq += '{:.4f}'.format(fr)
-                elif i > 0 and i % 3 == 0:
-                    freq += '\n            {:.4f}'.format(fr)
-                else:
-                    freq += '    {:.4f}'.format(fr)
-
-            allWellFreqs = ",".join(str(wellFreq) for wellFreq in wellsArrayFreq)
 
         if self.par['pes']:
             name = '{name}'
@@ -671,7 +584,7 @@ class MESS:
                                         geom=self.make_geom(species),
                                         symm=float(species.sigma_ext) / float(species.nopt),
                                         nfreq=len(species.reduced_freqs),
-                                        freq=freq,
+                                        freq=self.make_freq(species, freqFactor, wellsArrayFreq),
                                         hinderedrotor=self.make_rotors(species),
                                         nelec=1,
                                         mult=species.mult,
@@ -987,11 +900,19 @@ class MESS:
     def make_geom(self, species):
         geom = ''
         for i, at in enumerate(species.atom):
-            if i > 0:
-                geom += '            '
+            geom += '            '
             x, y, z = species.geom[i]
-            geom += '! {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
         return geom
+
+    def make_freq(self, species, factor, myarray):
+        freq = ''
+        for i, fr in enumerate(species.reduced_freqs):
+            myarray.append(fr)
+            freq += '{:.1f} '.format(fr)
+            if i % 3 == 2:
+                freq += '\n         '
+        return(freq)
 
     def make_rotorpot(self, species, i, rot):
         rotorsymm = self.rotorsymm(species, rot)

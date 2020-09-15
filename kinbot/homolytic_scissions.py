@@ -64,7 +64,6 @@ class HomolyticScissions:
                 if j not in cycle:
                     # only consider single bonds for homolytic scissions
                     if self.species.bond[i][j] == 1:
-<<<<<<< HEAD
                         # check if the bond is present in the 'homolytic_bonds' list, or if the list is empty
                         # add is a boolean that tells if the bond needs to be added to the homolytic scissions
                         # to be considered (i.e. the 'bonds' list)
@@ -94,20 +93,6 @@ class HomolyticScissions:
                                 hs.create_geometries()
                                 self.hss.append(hs)
         
-=======
-                        # check if a bond with identical atomids
-                        # has been added to the bonds list yet
-                        new = 1
-                        for bi in bonds:
-                            if sorted([self.species.atomid[at] for at in bi]) == sorted([self.species.atomid[i], self.species.atomid[j]]):
-                                new = 0
-                        if new:
-                            bonds.append([i, j])
-                            hs = HomolyticScission(self.species, self.par,
-                                                   self.qc, [i, j])
-                            hs.create_geometries()
-                            self.hss.append(hs)
->>>>>>> 054b8ff9fcb9de251230b30cba434ba1ca884999
         # optimize the products of the hss
         while not all([hs.status < 0 for hs in self.hss]):
             for index, hs in enumerate(self.hss):
@@ -176,18 +161,4 @@ class HomolyticScissions:
                         else:
                             hs.status = -1
                             name = '_'.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
-<<<<<<< HEAD
                             logging.info('Homolytic scission (asymptote {:.2f} kcal/mol) lead to products {}'.format(barrier, name))
-=======
-                            logging.info('Homolytic scission (barrier {:.2f} kcal/mol) lead to products {}'.format(barrier, name))
-            for prod in hs.products:
-                print(prod.chemid)
-            if all([hs.status < 0 for hs in self.hss]):
-                for hs in self.hss:
-                    if hs.status == -1:
-                        for prod in hs.products:
-                            print(prod)
-                            print(prod.chemid)
-                        prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
-                break
->>>>>>> 054b8ff9fcb9de251230b30cba434ba1ca884999

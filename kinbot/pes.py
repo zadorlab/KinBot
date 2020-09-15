@@ -384,7 +384,6 @@ def postprocess(par, jobs, task, names, n):
                         wells.append(prod[0])
                 else:
                     prod_name = '_'.join(sorted(prod))
-                    print("pes.py read summary file: prod_name = {}".format(prod_name))
                     if prod_name not in products:
                         if prod_name not in parent:
                             parent[prod_name] = reactant
@@ -438,7 +437,6 @@ def postprocess(par, jobs, task, names, n):
     prod_energies = {}
     prod_l3energies = {}
     for prods in products:
-        print(prods)
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):

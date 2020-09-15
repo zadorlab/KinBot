@@ -160,8 +160,6 @@ def main():
                 format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
         qc.qc_opt(well0, well0.geom, bls=1)
         err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
-    else:
-        print("Skipping BLS on well0")
 
     # characterize again and look for differences
     well0.characterize(dimer=par['dimer'])

@@ -228,15 +228,10 @@ class ReactionGenerator:
 
                     products.extend([' ', ' ', ' '])
                     barrier = (self.qc.get_qc_energy(instance_name)[1] - sp_energy) * constants.AUtoKCAL
-<<<<<<< HEAD
-                    logging.info('\tReaction {0} has a barrier of {1:.2f} kcal/mol and leads to products {2} {3} {4}'.format(instance_name, barrier, products[0], products[1], products[2]))
-                    
-=======
                     logging.info('\tReaction {0} has a barrier of {1:.2f} kcal/mol' 
                                  'and leads to products {2} {3} {4}'
                                  .format(instance_name, barrier, products[0], products[1], products[2]))
 
->>>>>>> 054b8ff9fcb9de251230b30cba434ba1ca884999
                     for i, st_pt in enumerate(obj.products_final):
                         chemid = st_pt.chemid
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)

@@ -63,9 +63,6 @@ def main():
     # initialize the parameters
     par = Parameters(input_file).par
 
-    # set uncertainty parameters
-    uq_n = par['uq_n']
-    uq = par['uq']
     # set up the logging environment
     logging.basicConfig(filename='pes.log', level=logging.INFO)
 
@@ -213,7 +210,7 @@ def main():
         except ValueError:
             pass
 
-    postprocess(par, jobs, task, names, uq_n)
+    postprocess(par, jobs, task, names)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission
     # read in the molpro energies for the keys in the above three dicts
@@ -911,7 +908,7 @@ def create_short_names(wells, products, reactions, barrierless):
 
 
 def create_mess_input(par, wells, products, reactions, barrierless,
-                      well_energies, prod_energies, parent, uq_n):
+                      well_energies, prod_energies, parent):
     """
     When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
@@ -969,9 +966,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     frame = '######################\n' 
     divider = '!****************************************\n'
     if par['uq'] == 0:
-        fi = open('pes.log', 'a')
-        fi.write("\nUncertainty analysis turned off.\n")
-        fi.close()
         # list of the strings to write to mess input file
         s = []
         # write the header
@@ -1052,11 +1046,11 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             f.write('\n'.join(s))
 
         if par['me']:
-            mess.run(1)
+            mess.run()
 
     else:
         uq_iter = 0
-        while(uq_iter < uq_n):
+        while(uq_iter < par['uq_n']):
             # list of the strings to write to mess input file
             s = []
             # write the header
@@ -1173,7 +1167,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             uq_iter = uq_iter + 1
 
         if par['me'] == 1:
-            mess.run(uq_n)
+            mess.run()
 
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,

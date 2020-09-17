@@ -289,6 +289,11 @@ class Parameters:
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
 
+        self.par['well_uq'] = float(self.par['well_uq'])
+        self.par['barrier_uq'] = float(self.par['barrier_uq'])
+        self.par['freq_uq'] = float(self.par['freq_uq'])
+        self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
+
     def read_user_input(self):
         """
         Read the user input file and overwrite the default values

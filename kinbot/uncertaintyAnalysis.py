@@ -16,7 +16,6 @@ class UQ:
         self.barUQ = par['barrier_uq']
         self.freqUQ = par['freq_uq']
         self.imagFreqUQ = par['imagfreq_uq']
-        print("UQ init: {} {} {} {}".format(self.wellUQ, self.barUQ, self.freqUQ, self.imagFreqUQ))
 
     def calc_factor(self, propertyType, species, uq_iter):
         if uq_iter == 0:

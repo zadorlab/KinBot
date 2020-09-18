@@ -378,11 +378,9 @@ class ReactionGenerator:
                     fails = 0
                     # check if ts is done
                     if not obj.ts_opt.shir == 1:
-                        print("no break shir {}".format(obj.ts_opt.shir))
                         opts_done = 0
                         obj.ts_opt.do_optimization()
                     if obj.ts_opt.shigh == -999:
-                        print("break shigh -999: {}".format(obj.ts_opt.shigh))
                         logging.info("Reaction {} ts_opt_shigh failure".format(instance_name))
                         fails = 1
                     for pr_opt in obj.prod_opt:
@@ -392,7 +390,6 @@ class ReactionGenerator:
                         if pr_opt.shigh == -999:
                             logging.info("Reaction {} pr_opt_shigh failure".format(instance_name))
                             fails = 1
-                        print("break for loop")
                         break
                     if fails:
                         self.species.reac_ts_done[index] = -999

@@ -31,14 +31,12 @@ class Optimize:
             delattr(self.species, 'cycle_chain')
         except AttributeError:
             logging.info("{} has no cycle_chain attribute to delete".format(self.species.chemid))
-        print("wellorts: {}".format(self.species.wellorts))
         if self.species.wellorts:
             self.species.characterize(bond_mx=self.species.bond)
             self.name = str(self.species.name)
         else:
             self.species.characterize()
             self.name = str(self.species.chemid)
-        print("name = {}".format(self.name))
         self.par = par
         self.qc = qc
         # wait for all calculations to finish before returning
@@ -66,7 +64,6 @@ class Optimize:
         self.max_restart = par['rotation_restart']
 
     def do_optimization(self):
-        #print("start do_opt {}".format(self.species.chemid))
         while 1:
             # do the conformational search
             if self.par['conformer_search'] == 1:
@@ -308,7 +305,6 @@ class Optimize:
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
 
                 # write the molpro input and read the molpro energy, if available
-                print(self.name)
                 if self.par['L3_calc'] == 1:
                     if self.par['single_point_qc'] == 'molpro':
                         molp = Molpro(self.species, self.par)

@@ -123,7 +123,7 @@ class MESS:
                         self.termolec_names[termol_name] = 't_{}'.format(len(self.termolec_names) + 1)
 
         # Barrierless short names
-        try:
+        if self.species.homolytic_scissions.hss is not None:
             for hs in self.species.homolytic_scissions.hss:
                 if hs.status == -1:
                     if len(hs.products) == 1:
@@ -146,8 +146,6 @@ class MESS:
                         if termol_name not in self.termolec_names:
                             self.termolec_names[termol_name] = 't_{}'.format(len(self.termolec_names) + 1)
 
-        except:
-            logging.info("No Homolytic Scission Reactions")
 
     def write_input(self, qc):
         """

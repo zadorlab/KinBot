@@ -111,8 +111,8 @@ class MESMER:
         conditions = ET.SubElement(root, 'me:conditions')
         ET.SubElement(conditions, 'me:bathGas').text = 'He'
         pts = ET.SubElement(conditions, 'me:PTs')
-        for p in self.par.par['PressureList']:
-            for t in self.par.par['TemperatureList']:
+        for p in self.par['PressureList']:
+            for t in self.par['TemperatureList']:
                 ET.SubElement(pts,
                               'me:PTpair',
                               {'units': 'Torr',
@@ -185,7 +185,7 @@ class MESMER:
             ET.SubElement(vibs, 'array', {'units': 'cm-1'}).text = ' '.join([str(fi) for fi in species.reduced_freqs])
 
             # add the rotor potentials
-            if self.par.par['rotor_scan'] and len(species.dihed) > 0:
+            if self.par['rotor_scan'] and len(species.dihed) > 0:
                 qmrotors = ET.SubElement(molecule, 'me:DOSCMethod', {'xsi:type': 'me:QMRotors'})
                 for i, rot in enumerate(species.dihed):
                     hinderedrotor = ET.SubElement(molecule, 'me:ExtraDOSCMethod', {'xsi:type': 'me:HinderedRotorQM1D'})
@@ -276,7 +276,7 @@ class MESMER:
         propertylist = ET.SubElement(molecule, 'propertyList')
 
         # add the zpe
-        if self.par.par['pes']:
+        if self.par['pes']:
             energy = '{zeroenergy}'
         else:
             energy = reaction.ts.energy + reaction.ts.zpe
@@ -300,7 +300,7 @@ class MESMER:
         ET.SubElement(imfreq, 'scalar', {'units': 'cm-1'}).text = str(-reaction.ts.reduced_freqs[0])
 
         # add the rotor potentials
-        if self.par.par['rotor_scan'] and len(reaction.ts.dihed) > 0:
+        if self.par['rotor_scan'] and len(reaction.ts.dihed) > 0:
             qmrotors = ET.SubElement(molecule, 'me:DOSCMethod', {'xsi:type': 'me:QMRotors'})
             for i, rot in enumerate(reaction.ts.dihed):
                 hinderedrotor = ET.SubElement(molecule, 'me:ExtraDOSCMethod', {'xsi:type': 'me:HinderedRotorQM1D'})
@@ -327,40 +327,40 @@ class MESMER:
         """
 
         # open the the header and the specific templates
-        if self.par.par['queue_template'] == '':
-            q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
+        if self.par['queue_template'] == '':
+            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
         else:
-            q_file = self.par.par['queue_template']
+            q_file = self.par['queue_template']
         with open(q_file) as f:
             tpl_head = f.read()
-        q_file = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_mesmer.tpl')
+        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mesmer.tpl')
         with open(q_file) as f:
             tpl = f.read()
-        submitscript = 'run_mesmer' + constants.qext[self.par.par['queuing']] 
+        submitscript = 'run_mesmer' + constants.qext[self.par['queuing']] 
         with open(submitscript, 'a') as qu:
-            if self.par.par['queue_template'] == '':
-                if self.par.par['queuing'] == 'pbs':
-                    qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'))
-                elif self.par.par['queuing'] == 'slurm':
-                    qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par.par['ppn'], queue_name=self.par.par['queue_name'], dir='me'), slurm_feature='')
+            if self.par['queue_template'] == '':
+                if self.par['queuing'] == 'pbs':
+                    qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'))
+                elif self.par['queuing'] == 'slurm':
+                    qu.write((tpl_head + tpl).format(name='mesmer', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'), slurm_feature='')
             else:
                 qu.write(tpl_head)
                 qu.write(tpl)
 
-        command = [constants.qsubmit[self.par.par['queuing']], submitscript]
+        command = [constants.qsubmit[self.par['queuing']], submitscript]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = process.communicate()
         out = out.decode()
-        if self.par.par['queuing'] == 'pbs':
+        if self.par['queuing'] == 'pbs':
             pid = out.split('\n')[0].split('.')[0]
-        elif self.par.par['queuing'] == 'slurm':
+        elif self.par['queuing'] == 'slurm':
             pid = out.split('\n')[0].split()[-1]
 
         while 1:  
             devnull = open(os.devnull, 'w')
-            if self.par.par['queuing'] == 'pbs':
+            if self.par['queuing'] == 'pbs':
                 command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
-            elif self.par.par['queuing'] == 'slurm':
+            elif self.par['queuing'] == 'slurm':
                 command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
                 time.sleep(1)

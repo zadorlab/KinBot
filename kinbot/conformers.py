@@ -28,7 +28,7 @@ class Conformers:
         self.scycconf = -1
         self.sconf = -1
 
-        self.grid = par.par['conf_grid']
+        self.grid = par['conf_grid']
 
         # final geometries of the cyclic search
         self.cyc_conf_geoms = []
@@ -51,25 +51,25 @@ class Conformers:
         # -1 (not finished), 0 (successful) or
         # 1 (failed) for each open chain conformer
         self.conf_status = []
-        self.zf = par.par['zf']
+        self.zf = par['zf']
 
         # do semi empirical conformer search?
         self.semi_emp = semi_emp
 
         # Maximum number of diherals for which exhaustive
         # conformation searches are done
-        self.max_dihed = par.par['max_dihed']
+        self.max_dihed = par['max_dihed']
         # Number of random conformers in case no
         # exhaustive search is done
-        self.nconfs = par.par['random_conf']
+        self.nconfs = par['random_conf']
         
         if semi_emp:
             # Maximum number of diherals for which exhaustive
             # conformation searches are done
-            self.max_dihed = par.par['max_dihed_semi_emp']
+            self.max_dihed = par['max_dihed_semi_emp']
             # Number of random conformers in case no
             # exhaustive search is done
-            self.nconfs = par.par['random_conf_semi_emp']
+            self.nconfs = par['random_conf_semi_emp']
 
     def generate_ring_conformers(self, cart):
         """
@@ -238,8 +238,6 @@ class Conformers:
         # what is value of all things associated w/ conf generation
         # what is length of conf_dihed?
         theoretical_confs = np.power(self.grid, len(self.species.conf_dihed)) * cycles
-        if rotor == 0:
-            logging.info('Theoretical number of conformers for open chain is {} for {}.'.format(theoretical_confs, name))
 
         if rotor != -999:
             if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
@@ -250,6 +248,8 @@ class Conformers:
         # retraction from the recursion
         if rotor == len(self.species.conf_dihed) or rotor == -999:
             self.qc.qc_conf(self.species, cart, self.conf, semi_emp=self.semi_emp)
+            if self.conf == 0:
+                logging.info('Theoretical number of conformers for open chain is {} for {}.'.format(theoretical_confs, name))
             self.conf += 1
             return 0
 

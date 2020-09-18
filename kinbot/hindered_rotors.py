@@ -23,9 +23,9 @@ class HIR:
         self.qc = qc
 
         # number of points along one scan
-        self.nrotation = par.par['nrotation']
+        self.nrotation = par['nrotation']
         # boolean tells if profiles should be plotted
-        self.plot_hir_profiles = par.par['plot_hir_profiles']
+        self.plot_hir_profiles = par['plot_hir_profiles']
 
         # -1 (not finished), 0 (successful) or
         # 1 (failed) for each HIR scan point

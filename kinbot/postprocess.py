@@ -92,7 +92,7 @@ def createSummaryFile(species, qc, par):
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             ts = species.reac_obj[index].ts
-            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par.par['high_level']:
+            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par['high_level']:
                 mp2_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
                 mp2_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
                 energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
@@ -112,16 +112,14 @@ def createSummaryFile(species, qc, par):
     if species.homolytic_scissions is not None:
         for index, hs in enumerate(species.homolytic_scissions.hss):
             if hs.status == -1:
-                print("create summary file, prod name creation")
                 p1 = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
                 p2 = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
-                print("products {} --> prod_opt {}".format(p1, p2))
                 prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
                 if prod_name not in products:
                     energy = 0
                     for prod in hs.products:
-                        energy += prod.energy + prod.zpe
-                    energy = (energy - species.energy - species.zpe) * constants.AUtoKCAL
+                        energy += prod.energy
+                    energy = (energy - species.energy) * constants.AUtoKCAL
                     s.append('HOMOLYTIC_SCISSION\t{energy:.2f}\t{prod}'.format(energy=energy, prod=prod_name))
 
     # make a string out of all the lines
@@ -225,7 +223,7 @@ def createPESViewerInput(species, qc, par):
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             ts = species.reac_obj[index].ts
-            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par.par['high_level']:
+            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par['high_level']:
                 we_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
                 we_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
                 energy = (ts.energy + ts.zpe - we_energy - we_zpe) * constants.AUtoKCAL

@@ -20,13 +20,13 @@ class Molpro:
         which is either the one in the system, or provided
         by the user.
         """
-        if self.par.par['single_point_template'] == '':
+        if self.par['single_point_template'] == '':
             tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
         else:
-            tpl_file = self.par.par['single_point_template']
+            tpl_file = self.par['single_point_template']
 
         if bls == 1:
-            tpl_file = self.par.par['barrierless_saddle_single_point_template']
+            tpl_file = self.par['barrierless_saddle_single_point_template']
         with open(tpl_file) as f:
             file = f.read()
 
@@ -55,7 +55,7 @@ class Molpro:
                                        ))
 
         else:
-            closed = (nelectron - self.par.par['barrierless_saddle_nelectron']) / 2
+            closed = (nelectron - self.par['barrierless_saddle_nelectron']) / 2
             if closed.is_integer() != True:
                 logging.warning("The number of closed orbitals is not an integer,\n\
                              the CASPT2-like calculation will crash, but\n\
@@ -63,7 +63,7 @@ class Molpro:
                              barrierless_saddle_nelectron is incorrect.")
             else:
                 closed = int(closed)
-            occ = closed + self.par.par['barrierless_saddle_norbital'] 
+            occ = closed + self.par['barrierless_saddle_norbital'] 
 
             with open('molpro/' + fname + '.inp', 'w') as outf:
                 outf.write(file.format(name=fname,
@@ -73,7 +73,7 @@ class Molpro:
                                        symm=symm,
                                        spin=spin,
                                        charge=self.species.charge,
-                                       state=self.par.par['barrierless_saddle_nstate'],
+                                       state=self.par['barrierless_saddle_nstate'],
                                        closed=closed,
                                        occ=occ
                                        ))
@@ -109,29 +109,29 @@ class Molpro:
         fname = self.get_name(name)
 
         # open the template head and template
-        molpro_head = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '.tpl')
+        molpro_head = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
         with open(molpro_head) as f:
             tpl_head = f.read()
-        molpro_tpl = pkg_resources.resource_filename('tpl', self.par.par['queuing'] + '_molpro.tpl')
+        molpro_tpl = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_molpro.tpl')
         with open(molpro_tpl) as f:
             tpl = f.read()
         # substitution
-        with open('molpro/' + fname + '.' + self.par.par['queuing'], 'w') as f:
-            if self.par.par['queuing'] == 'pbs':
+        with open('molpro/' + fname + '.' + self.par['queuing'], 'w') as f:
+            if self.par['queuing'] == 'pbs':
                 f.write((tpl_head + tpl).format(
                         name=fname,
-                        ppn=self.par.par['single_point_ppn'],
-                        queue_name=self.par.par['queue_name'],
+                        ppn=self.par['single_point_ppn'],
+                        queue_name=self.par['queue_name'],
                         dir='molpro',
-                        command=self.par.par['single_point_command']))
-            elif self.par.par['queuing'] == 'slurm':
+                        command=self.par['single_point_command']))
+            elif self.par['queuing'] == 'slurm':
                 f.write((tpl_head + tpl).format(
                         name=fname,
-                        ppn=self.par.par['single_point_ppn'],
-                        queue_name=self.par.par['queue_name'],
+                        ppn=self.par['single_point_ppn'],
+                        queue_name=self.par['queue_name'],
                         dir='molpro',
-                        command=self.par.par['single_point_command'],
-                        slurm_feature=self.par.par['slurm_feature']))
+                        command=self.par['single_point_command'],
+                        slurm_feature=self.par['slurm_feature']))
 
         return 0
 

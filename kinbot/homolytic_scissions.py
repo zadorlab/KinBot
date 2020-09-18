@@ -64,20 +64,37 @@ class HomolyticScissions:
                 if j not in cycle:
                     # only consider single bonds for homolytic scissions
                     if self.species.bond[i][j] == 1:
-                        # check if a bond with identical atomids
-                        # has been added to the bonds list yet
-                        new = 1
-                        for bi in bonds:
-                            if sorted([self.species.atomid[at] for at in bi]) == sorted([self.species.atomid[i], self.species.atomid[j]]):
-                                new = 0
-                        if new:
-                            bonds.append([i, j])
-                            hs = HomolyticScission(self.species, self.par,
-                                                   self.qc, [i, j])
-                            hs.create_geometries()
-                            self.hss.append(hs)
+                        # check if the bond is present in the 'homolytic_bonds' list, or if the list is empty
+                        # add is a boolean that tells if the bond needs to be added to the homolytic scissions
+                        # to be considered (i.e. the 'bonds' list)
+                        add = 0
+                        # get the elements of the current bond under consideration, and put them
+                        # in alphabetical order
+                        bond_elements = sorted([self.species.atom[i], self.species.atom[j]])
+                        # check all bonds to be considered, supplied by the user
+                        for user_bond in self.par['homolytic_bonds']:
+                            if sorted(user_bond) == bond_elements:
+                                # if there is a match between the current bond and a user-defined
+                                # bond, put the add boolean to 1
+                                add = 1
+                        # add the bond if the 'add' boolean is 1 or if the user defined list is empty
+                        # (in the latter case, all single bonds that are not in a cycle are considered. 
+                        if len(self.par['homolytic_bonds']) == 0 or add:
+                            # check if a bond with identical atomids
+                            # has been added to the bonds list yet
+                            new = 1
+                            for bi in bonds:
+                                if sorted([self.species.atomid[at] for at in bi]) == sorted([self.species.atomid[i], self.species.atomid[j]]):
+                                    new = 0
+                            if new:
+                                bonds.append([i, j])
+                                hs = HomolyticScission(self.species, self.par,
+                                                       self.qc, [i, j])
+                                hs.create_geometries()
+                                self.hss.append(hs)
+        
         # optimize the products of the hss
-        while 1:
+        while not all([hs.status < 0 for hs in self.hss]):
             for index, hs in enumerate(self.hss):
                 if hs.status == 0:
                     # do the initial optimization
@@ -149,20 +166,10 @@ class HomolyticScissions:
                             prod_energy += pr_opt.species.energy
                         barrier = (prod_energy - species_energy)*constants.AUtoKCAL
                         prod_name = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
-                        if barrier > self.par.par['barrier_threshold']:
+                        if barrier > self.par['barrier_threshold']:
                             logging.info("Energy of HS product {} is above the barrier threshold ({:.3} kcal/mol)".format(prod_name, barrier))
                             hs.status = -999
                         else:
                             hs.status = -1
                             name = '_'.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
-                            logging.info('Homolytic scission (barrier {:.2f} kcal/mol) lead to products {}'.format(barrier, name))
-            for prod in hs.products:
-                print(prod.chemid)
-            if all([hs.status < 0 for hs in self.hss]):
-                for hs in self.hss:
-                    if hs.status == -1:
-                        for prod in hs.products:
-                            print(prod)
-                            print(prod.chemid)
-                        prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
-                break
+                            logging.info('Homolytic scission (asymptote {:.2f} kcal/mol) lead to products {}'.format(barrier, name))

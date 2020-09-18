@@ -41,15 +41,20 @@ def main():
     print(license_message.message)
 
     # initialize the parameters for this run
-    par = Parameters(input_file)
+    masterpar = Parameters(input_file)
+    par = masterpar.par
+    input_file = masterpar.input_file
     # set up the logging environment
-    if par.par['verbose']:
+    if par['verbose']:
         logging.basicConfig(filename='kinbot.log', level=logging.DEBUG)
     else:
         logging.basicConfig(filename='kinbot.log', level=logging.INFO)
 
     # write the license message to the log file
     logging.info(license_message.message)
+    logging.info('Input parameters')
+    for param in par:
+        logging.info('{} {}'.format(param, par[param]))
     # time stamp of the KinBot start
     logging.info('Starting KinBot at {}'.format(datetime.datetime.now()))
 
@@ -58,16 +63,16 @@ def main():
         os.makedirs('perm')
     if not os.path.exists('scratch'):
         os.makedirs('scratch')
-    if not os.path.exists(par.par['single_point_qc']):
-        os.mkdir(par.par['single_point_qc'])
-    if par.par['rotor_scan'] == 1:
+    if not os.path.exists(par['single_point_qc']):
+        os.mkdir(par['single_point_qc'])
+    if par['rotor_scan'] == 1:
         if not os.path.exists('hir'):
             os.mkdir('hir')
         if not os.path.exists('hir_profiles'):
             os.mkdir('hir_profiles')
         if not os.path.exists('perm/hir/'):
             os.makedirs('perm/hir/')
-    if par.par['conformer_search'] == 1:
+    if par['conformer_search'] == 1:
         if not os.path.exists('conf'):
             os.mkdir('conf')
         if not os.path.exists('perm/conf'):
@@ -75,22 +80,12 @@ def main():
     if not os.path.exists('me'):
         os.mkdir('me')
 
-    if par.par['pes'] and par.par['specific_reaction']:
-        logging.error('Specific reaction cannot be searched in PES mode.')
-        return
-
-    uq = par.par['uq']
-    uq_n = 1
-
-    if uq == 1:
-        uq_n = par.par['uq_n']
-
     # initialize the reactant
     well0 = StationaryPoint('well0',
-                            par.par['charge'],
-                            par.par['mult'],
-                            smiles=par.par['smiles'],
-                            structure=par.par['structure'])
+                            par['charge'],
+                            par['mult'],
+                            smiles=par['smiles'],
+                            structure=par['structure'])
     well0.short_name = 'w1'
     # write the initial reactant geometry to a file for visualization
     geom_out = open('geometry.xyz', 'w')
@@ -102,14 +97,14 @@ def main():
     geom_out.close()
 
     # characterize the initial reactant
-    well0.characterize(dimer=par.par['dimer'])
+    well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
     start_name = well0.name
 
     # initialize the qc instance
     qc = QuantumChemistry(par)
     # only run filecopying if PES is turned on
-    # if par.par['pes']:
+    # if par['pes']:
     # check if this well was calcualted before in another directory
     # this flag indicates that this kinbot run
     # should wait for the information from another
@@ -135,7 +130,7 @@ def main():
         return
 
     # characterize again and look for differences
-    well0.characterize(dimer=par.par['dimer'])
+    well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
     if well0.name != start_name:
         logging.error('The first well optimized to a structure different from the input.')
@@ -143,35 +138,32 @@ def main():
 
     # do an MP2 optimization of the reactant,
     # to compare some scan barrier heigths to
-    if par.par['families'] == ['all'] or \
-            'birad_recombination_R' in par.par['families'] or \
-            'r12_cycloaddition' in par.par['families'] or \
-            'r14_birad_scission' in par.par['families'] or \
-            'R_Addition_MultipleBond' in par.par['families'] or \
-            (par.par['skip_families'] != ['none'] and \
-            ('birad_recombination_R' not in par.par['skip_families'] or \
-            'r12_cycloaddition' not in par.par['skip_families'] or \
-            'r14_birad_scission' not in par.par['skip_families'] or \
-            'R_Addition_MultipleBond' not in par.par['skip_families'])) or \
-            par.par['reaction_search'] == 0:
+    if par['families'] == ['all'] or \
+            'birad_recombination_R' in par['families'] or \
+            'r12_cycloaddition' in par['families'] or \
+            'r14_birad_scission' in par['families'] or \
+            'R_Addition_MultipleBond' in par['families'] or \
+            (par['skip_families'] != ['none'] and \
+            ('birad_recombination_R' not in par['skip_families'] or \
+            'r12_cycloaddition' not in par['skip_families'] or \
+            'r14_birad_scission' not in par['skip_families'] or \
+            'R_Addition_MultipleBond' not in par['skip_families'])) or \
+            par['reaction_search'] == 0:
         logging.info('Starting MP2 optimization of intial well')
         qc.qc_opt(well0, well0.geom, mp2=1)
         err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
 
     # comparison for barrierless scan
-    if par.par['barrierless_saddle']:
+    if par['barrierless_saddle']:
         logging.info('Optimization of intial well for barrierless at {}/{}'.
-                format(par.par['barrierless_saddle_method'], par.par['barrierless_saddle_basis']))
+                format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
         qc.qc_opt(well0, well0.geom, bls=1)
         err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
-    else:
-        print("Skipping BLS on well0")
 
     # characterize again and look for differences
-    well0.characterize(dimer=par.par['dimer'])
+    well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
 
-    # read the energy and the zpe corrected energy
     err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)
     err, well0.zpe = qc.get_qc_zpe(str(well0.chemid) + '_well', 1)
 
@@ -181,48 +173,29 @@ def main():
         logging.error('Error with high level optimization of initial structure.')
         return
 
-    # Only check for information if PES is turned on
-    if par.par['pes']:
-        # check if the information on this well has to be copied to a database
+    if par['pes']:
         filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
-    # do the reaction search using heuristics
-    if par.par['reaction_search'] == 1:
+    if par['reaction_search'] == 1:
         logging.info('Starting reaction searches of intial well')
         rf = ReactionFinder(well0, par, qc)
         rf.find_reactions()
-        rg = ReactionGenerator(well0, par, qc)
+        rg = ReactionGenerator(well0, par, qc, input_file)
         rg.generate()
-    # do the homolytic scission products search
-    if par.par['homolytic_scissions'] == 1:
+
+    if par['homolytic_scissions'] == 1:
         logging.info('Starting the search for homolytic scission products')
         well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
         well0.homolytic_scissions.find_homolytic_scissions()
-    # initialize the master equation instance
 
-    # check to see if uq analysis is turned on
-    if par.par['me'] == 1:
-        logging.info('ME turned on')
+    if par['me'] == 1:
         mess = MESS(par, well0)
-        mess.write_input(uq, uq_n, qc)
-        if uq == 0:
-            logging.info('uncertainty analysis turned off')
-        elif uq == 1:
-            logging.info('uncertainty analysis turned on')
-            if uq_n < 500:
-                logging.warning('The UQ sample size of {} iterations is too low'.format(uq_n))
-        else:
-            logging.error('Cannot recognize uq code {}'.format(par.par['uq']))
+        mess.write_input(qc)
 
-        # TO DO: FINISH CODING UQ INTO MESMER
-        # elif par.par['me_code'] == 'mesmer':
-        #    mesmer.run()
-        # else:
-        #    logging.error('Cannot recognize me code {}'.format(par.par['me_code']))
-    else:
-        logging.info('Master Equation calculations turned off, no input files created')
+        logging.info('Starting Master Equation calculations')
+        if par['me_code'] == 'mess':
+            mess.run()
 
-    # postprocess the calculations
     postprocess.createSummaryFile(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)

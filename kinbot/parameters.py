@@ -16,15 +16,17 @@ class Parameters:
     This class initiates all parameters to their defaults and reads in the
     user-defined variables, which overwrite the defaults
     """
-    def __init__(self, file=None):
+    def __init__(self, inpfile=None):
         """
         Initialize all the variable and read the file which is the user input
         file
         """
         # user input file
-        self.input_file = file
+        self.input_file = inpfile
 
         self.par = {
+            # User should not set this
+            'input_file': self.input_file,
             # GENERAL INFO
             # title of the current calculations
             'title': '',
@@ -175,6 +177,8 @@ class Parameters:
             'irc_stepsize': 20,
             # for Gaussian, allow Guess=(Mix,Always)
             'guessmix': 0,
+            # Turn off/on (0/1) molpro L3 calculations
+            'L3_calc' : 0,
             # name of the single point code's name
             'single_point_qc': 'molpro',
             # Name of the template for the single-point calculation (L3)
@@ -195,6 +199,8 @@ class Parameters:
             'barrierless_saddle_single_point_key': '',
             # Command string to be used for single point energy calculation
             'single_point_command': '',
+            # Hindered rotor max optimization steps
+            'hir_maxcycle': None,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -265,7 +271,6 @@ class Parameters:
         }
 
         if self.input_file is not None:
-            # Read the user input and overwrite the user-defined parameters
             self.read_user_input()
 
         if self.par['me'] == 1:
@@ -279,6 +284,17 @@ class Parameters:
             logging.error(err)
             sys.exit(-1)
 
+        if self.par['pes'] and self.par['specific_reaction']:
+            logging.error('Specific reaction cannot be searched in PES mode.')
+            sys.exit(-1)
+
+        if self.par['uq'] == 0:
+            self.par['uq_n'] = 1
+
+        self.par['well_uq'] = float(self.par['well_uq'])
+        self.par['barrier_uq'] = float(self.par['barrier_uq'])
+        self.par['freq_uq'] = float(self.par['freq_uq'])
+        self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
 
     def read_user_input(self):
         """

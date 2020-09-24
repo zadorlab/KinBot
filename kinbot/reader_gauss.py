@@ -1,15 +1,17 @@
 import os
 import re
 import numpy as np
+import copy
 
 """
-Functions to read quantum chemistry output files.
+Functions to read Gaussian output files.
 """
 
 def read_geom(outfile, mol, dummy):
     """
     Read the final geometry from a Gaussian file.
     """
+
     with open(outfile) as f:
         lines = f.readlines()
 
@@ -19,7 +21,7 @@ def read_geom(outfile, mol, dummy):
             for n in range(len(mol)):
                 geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
             break
-
+    # adding back dummy atoms
     for i,d in enumerate(dummy):
         geom[-(i+1)][0:3] = d[0:3]
 
@@ -188,4 +190,38 @@ def read_imag_mode(job, natom):
     return(nmode)
 
 
+def read_all_irc_geoms(outfile):
+    """
+    Read the IRC geometries from a Gaussian 16 log file.
+    Used in sampler code.
+    """
 
+    with open(outfile) as f:
+        lines = f.readlines()
+
+    start = True
+    all_geoms = None
+    atom = None
+    for index, line in enumerate(lines):
+        if 'Charge = ' in line:
+            charge = line.split()[2]
+            mult = line.split()[5]
+        if 'CURRENT STRUCTURE' in line:
+            geom = np.array([])
+            atom = np.array([])
+            natom = 0
+            while True:
+                current_line = lines[index+6+natom]
+                if '-------' in current_line:
+                    geom = np.reshape(geom, (-1, 3))
+                    if start:
+                        all_geoms = np.array([copy.deepcopy(geom)])
+                        start = False
+                    else:
+                        all_geoms = np.vstack((all_geoms, geom[None]))
+                    break
+                atom = np.append(atom, int(current_line.split()[1]))
+                g = np.array(current_line.split()[2:5]).astype(float)
+                geom = np.append(geom, g)
+                natom += 1
+    return atom, all_geoms, charge, mult

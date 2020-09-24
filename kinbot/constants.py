@@ -7,9 +7,11 @@ GHZtoCM = 0.0333564
 EVtoHARTREE = 0.03674932247495664
 MEtoAMU = 1822.8885  # electron mass to atomic mass unit
 BOHRtoCM = 5.2917720859E-9  # value taken from the Gaussian website
+BOHRtoANGSTROM = 0.529177
 SPEEDofLIGHTcms = 2.99792458E10  # in cm per s
 SPEEDofLIGHT = 137.0359996  # in atomic units
 AUtoS = 2.418884326505E-17
+AUtoMDYNE = 8.2387234983  # au of force to mDyne = 1e-8 N
 
 # standard bond lengths, cutoffs, and oxidation numbers
 st_bond = {'CC': 1.5*1.2}

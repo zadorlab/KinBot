@@ -168,6 +168,7 @@ class ReactionGenerator:
                             logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'.format(barrier, instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
+                            logging.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'.format(barrier, instance_name))
                             obj.irc = IRC(obj, self.par)  # TODO: this doesn't seem like a good design
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
@@ -401,9 +402,7 @@ class ReactionGenerator:
                         if len(obj.products) == 1:
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
-                            energy = st_pt.energy
-                            well_energy = self.species.energy
-                            new_barrier_threshold = self.par['barrier_threshold'] - (energy - well_energy) * constants.AUtoKCAL
+                            new_barrier_threshold = self.par['barrier_threshold'] - (st_pt.energy - self.species.energy) * constants.AUtoKCAL
                             dirwell = os.path.dirname(os.getcwd())
                             jobs = open(dirwell + '/chemids', 'r').read().split('\n')
                             jobs = [ji for ji in jobs]

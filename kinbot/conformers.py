@@ -176,7 +176,7 @@ class Conformers:
                 return geom, -1
             else:
                 # check if all the bond lenghts are withing 10% or the original bond lengths
-                if geometry.equal_geom(self.species.bond, self.species.geom, geom, 0.10):
+                if geometry.equal_geom(self.species, geom, 0.10):
                     logging.debug('Successfullly finished conformer {}'.format(job))
                     return geom, 0
                 else:
@@ -316,7 +316,7 @@ class Conformers:
             return np.zeros((self.species.natom, 3)), 1
         else:
             # check if all the bond lenghts are withing 10% of the original bond lengths
-            if geometry.equal_geom(self.species.bond, self.species.geom, geom, 0.10):
+            if geometry.equal_geom(self.species, geom, 0.10):
                 return geom, 0
             else:
                 return np.zeros((self.species.natom, 3)), 1
@@ -364,7 +364,7 @@ class Conformers:
                         totenergies.append(energy + zpe)
                         if lowest_totenergy == 0.:  # likely / hopefully the first sample
                             if ci != 0:
-                                logging.warning('For {} conformer 0 failed.'.format(name))
+                                logging.warning('For {} conformer 0 failed.'.format(name))  # TODO this is printed a million times
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             if self.species.natom > 1:
                                 if self.species.wellorts:

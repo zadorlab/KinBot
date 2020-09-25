@@ -105,8 +105,7 @@ class HIR:
                     else:
                         # check if all the bond lenghts are within
                         # 15% or the original bond lengths
-                        if geometry.equal_geom(self.species.bond,
-                                               self.species.geom,
+                        if geometry.equal_geom(self.species,
                                                geom,
                                                0.15):
                             err, energy = self.qc.get_qc_energy(job)

@@ -195,10 +195,10 @@ class Optimize:
                                     # either geom is roughly same with closely matching imaginary modes, or geometry is very close
                                     # maybe we need to do IRC at the high level as well...
                                     same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
-                                            (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))) \
-                                            or (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.15))
+                                            (geometry.equal_geom(self.species, new_geom, 0.3))) \
+                                            or (geometry.equal_geom(self.species, new_geom, 0.15))
                                 else:
-                                    same_geom = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
+                                    same_geom = geometry.equal_geom(self.species, new_geom, 0.1)
 
                                 if same_geom:
                                     # geometry is as expected and normal modes are the same for TS

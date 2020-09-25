@@ -70,10 +70,6 @@ def main():
     msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
     logging.info(msg)
 
-    if par['pes'] and par['specific_reaction']:
-        logging.error('Specific reaction cannot be searched in PES mode.')
-        return
-
     well0 = StationaryPoint('well0',
                             par['charge'],
                             par['mult'],
@@ -1477,7 +1473,7 @@ def write_input(input_file, species, threshold, root):
     par2['structure'] = structure
     # delete the par smiles
     par2['smiles'] = ''
-    # overwrite the barrier treshold
+    # overwrite the barrier threshold
     par2['barrier_threshold'] = threshold
     # set the pes option to 1
     par2['pes'] = 1

@@ -144,7 +144,7 @@ class ReactionGenerator:
                                                                         obj, self.species.reac_step[index], self.par['qc_command'])
                             else:  # the last step was reached, and no max or inflection was found
                                 logging.info('\tRxn search using scan failed for {}, no saddle guess found.'.format(obj.instance_name))
-                                db = connect('XXX/kinbot.db')
+                                db = connect('{}/kinbot.db'.format(os.getcwd()))
                                 rows = db.select(name=obj.instance_name)
                                 for row in self.reversed_iterator(rows):
                                     row.data['status'] = 'error'

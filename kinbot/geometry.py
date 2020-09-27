@@ -315,7 +315,7 @@ def equal_geom(orig_spec, new_spec, cutoff):
     for b in range(len(orig_spec.bonds) - 1):
         max_bond_orig = np.maximum(max_bond_orig, orig_spec.bonds[b + 1])
  
-    if max_bond_orig != max_bond_new:
+    if max_bond_orig.all() != max_bond_new.all():
         return 0
 
     for i in range(len(orig_spec.bond[0])-1):

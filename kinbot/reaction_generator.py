@@ -454,9 +454,9 @@ class ReactionGenerator:
                         postprocess.createPESViewerInput(self.species, self.qc, self.par)
                 elif self.species.reac_ts_done[index] == -999:
                     if self.par['delete_intermediate_files'] == 1:
-                        if not self.species.reac_obj[index].obj.instance_name in deleted:
-                            self.delete_files(self.species.reac_obj[index].obj.instance_name)
-                            deleted.append(self.species.reac_obj[index].obj.instance_name)
+                        if not self.species.reac_obj[index].instance_name in deleted:
+                            self.delete_files(self.species.reac_obj[index].instance_name)
+                            deleted.append(self.species.reac_obj[index].instance_name)
 
             alldone = 1
             for index, instance in enumerate(self.species.reac_inst):
@@ -475,12 +475,12 @@ class ReactionGenerator:
                             prodstring.append(str(pp.chemid))
                         f_out.write('{}\t{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
                                                               self.species.reac_step[index], 
-                                                              self.species.reac_obj[index].obj.instance_name,
+                                                              self.species.reac_obj[index].instance_name,
                                                               ' '.join(prodstring)))
                     else:
                         f_out.write('{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
                                                           self.species.reac_step[index], 
-                                                          self.species.reac_obj[index].obj.instance_name))
+                                                          self.species.reac_obj[index].instance_name))
             time.sleep(1)
 
         # Create molpro file for the BLS products

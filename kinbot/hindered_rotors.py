@@ -105,8 +105,14 @@ class HIR:
                     else:
                         # check if all the bond lenghts are within
                         # 15% or the original bond lengths
+                        temp = StationaryPoint('temp',
+                                               self.species.charge,
+                                               self.species.mult,
+                                               atom=self.species.atom,
+                                               geom=geom)
+                        temp.bond_mx()
                         if geometry.equal_geom(self.species,
-                                               geom,
+                                               temp,
                                                0.15):
                             err, energy = self.qc.get_qc_energy(job)
                             self.hir_status[rotor][ai] = 0

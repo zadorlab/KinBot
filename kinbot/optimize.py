@@ -181,7 +181,12 @@ class Optimize:
                             if status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
-
+                                temp = StationaryPoint('temp',
+                                                       self.species.charge,
+                                                       self.species.mult,
+                                                       atom=self.species.atom,
+                                                       geom=new_geom)
+                                temp.bond_mx()
                                 if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
                                     if self.par['conformer_search'] == 0:
                                         fr_file = self.fr_file_name(0)  # name of the original TS file
@@ -195,10 +200,10 @@ class Optimize:
                                     # either geom is roughly same with closely matching imaginary modes, or geometry is very close
                                     # maybe we need to do IRC at the high level as well...
                                     same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
-                                            (geometry.equal_geom(self.species, new_geom, 0.3))) \
-                                            or (geometry.equal_geom(self.species, new_geom, 0.15))
+                                            (geometry.equal_geom(self.species, temp, 0.3))) \
+                                            or (geometry.equal_geom(self.species, temp, 0.15))
                                 else:
-                                    same_geom = geometry.equal_geom(self.species, new_geom, 0.1)
+                                    same_geom = geometry.equal_geom(self.species, temp, 0.1)
 
                                 if same_geom:
                                     # geometry is as expected and normal modes are the same for TS

@@ -176,7 +176,13 @@ class Conformers:
                 return geom, -1
             else:
                 # check if all the bond lenghts are withing 10% or the original bond lengths
-                if geometry.equal_geom(self.species, geom, 0.10):
+                temp = StationaryPoint('temp',
+                                       self.species.charge,
+                                       self.species.mult,
+                                       atom=self.species.atom,
+                                       geom=geom)
+                temp.bond_mx()
+                if geometry.equal_geom(self.species, temp, 0.10):
                     logging.debug('Successfullly finished conformer {}'.format(job))
                     return geom, 0
                 else:
@@ -316,7 +322,13 @@ class Conformers:
             return np.zeros((self.species.natom, 3)), 1
         else:
             # check if all the bond lenghts are withing 10% of the original bond lengths
-            if geometry.equal_geom(self.species, geom, 0.10):
+            temp = StationaryPoint('temp',
+                                   self.species.charge,
+                                   self.species.mult,
+                                   atom=self.species.atom,
+                                   geom=geom)
+            temp.bond_mx()
+            if geometry.equal_geom(self.species, temp, 0.10):
                 return geom, 0
             else:
                 return np.zeros((self.species.natom, 3)), 1

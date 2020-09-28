@@ -20,6 +20,10 @@ class UQ:
 
 
     def calc_factor(self, propertyType, species, uq_iter):
+        if self.uq_iter != uq_iter:  # new iteration
+            with open('uqtk.dat', 'a') as f:
+                f.write('')  # new line
+
         if uq_iter == 0:
             if propertyType == 'freq' or propertyType == 'imagfreq':
                 factor = 1

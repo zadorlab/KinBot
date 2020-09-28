@@ -177,7 +177,7 @@ class MESS:
                 for ts in ts_unique:
                     if ts_unique[ts][0] == prod_name:
                         # check for the barrier with the lowest energy
-                        if ts_unique[ts][1] > energy + zpe:
+                        if ts_unique[ts][1] > reaction.ts.energy + reaction.ts.zpe:
                             # remove the current barrier
                             remove.append(ts)
                         else:
@@ -188,8 +188,6 @@ class MESS:
                     ts_unique[reaction.instance_name] = [prod_name, reaction.ts.energy + reaction.ts.zpe]
 
         # write the mess input for the different blocks
-        uq_iter = 0
-
         for uq_iter in range(self.par['uq_n']):
 
             well_blocks = {}
@@ -322,6 +320,7 @@ class MESS:
 
         return 0
 
+
     def write_barrierless(self, species_list, reaction, energyAdd, freqFactor, uq_iter):
 
         if len(reaction.products) == 2:
@@ -346,6 +345,7 @@ class MESS:
             f.write(termol)
 
         return termol
+
 
     def write_bimol(self, prod_list, well_add, freqFactor, uq_iter, bless=0):
         """
@@ -418,6 +418,7 @@ class MESS:
 
         return bimol
 
+
     def write_well(self, species, well_add, freqFactor, uq_iter):
         """
         Create the block for MESS for a well.
@@ -446,7 +447,6 @@ class MESS:
         with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
             f.write(mess_well)
 
-
         return mess_well
 
     def write_barrier(self, reaction, index, left_zeroenergy, right_zeroenergy, barrier_add, freqFactor, imagfreqFactor, uq_iter):
@@ -458,6 +458,11 @@ class MESS:
 
         """
         # get left-right barrier
+        # Amanda, there is some inefficiency here. This left/right barrier calculation will be 
+        # done at each uq iteration. It would be more elegant if it was calculated outside this function,
+        # before the write_barrier is called, and then the left/righ barrier would be sent in here 
+        # as an input
+        # but not very urgent 
         species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
         if self.species.reac_ts_done[index] == -1:
             ts_zeroenergy = (reaction.ts.energy + reaction.ts.zpe) * constants.AUtoKCAL
@@ -484,15 +489,10 @@ class MESS:
         if left_zeroenergy < 0 or right_zeroenergy < 0:
             tun = ''
         else:
-            imagfreq = -reaction.ts.reduced_freqs[0]
-            imagfreqFactor = imagfreqFactor
-            imagfreq = imagfreq * imagfreqFactor
-            left_zeroenergy += barrier_add
-            right_zeroenergy += barrier_add
             tun = self.tunneltpl.format(cutoff=min(left_zeroenergy, right_zeroenergy),
-                                        imfreq=imagfreq,
-                                        welldepth1=left_zeroenergy,
-                                        welldepth2=right_zeroenergy)
+                                        imfreq=-reaction.ts.reduced_freqs[0] * imagfreqFactor,
+                                        welldepth1=left_zeroenergy + barrier_add,
+                                        welldepth2=right_zeroenergy + barrier_add)
 
         # name the product
         if len(reaction.products) == 1:
@@ -571,6 +571,46 @@ class MESS:
             f.write(mess_barrier)
     
         return mess_barrier, zeroenergy 
+
+# Amanda, I modified this function quite a bit. The original version is under this, you'll 
+# need to delete one of them, but I wanted to keep both for you to see.
+    def run(self):
+        """
+        write a pbs or slurm file for the me/all.inp mess input file
+        submit the pbs/slurm file to the queue
+        wait for the mess run to finish
+        """
+
+        # open the the header and the specific templates
+
+        if self.par['queue_template'] == '':
+            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+        else:
+            q_file = self.par['queue_template']
+        with open(q_file) as f:
+            tpl_head = f.read()
+
+        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
+        with open(q_file) as f:
+            tpl = f.read()
+        submitscript = 'run_mess' + constants.qext[self.par['queuing']]
+
+            
+        pids = []  # list of job pids
+
+        for uq_iter < self.par['uq_n']:
+            while len(pids) > self.par['uq_max_runs']:
+                time.sleep(5)
+                for pid in pids:
+                    stat = self.check_running(pid)
+                    if stat = 0:
+                        pids.remove(pid)
+
+            pid = self.submit(tpl_head, tpl, submitscript, uq_iter)
+            pids.append(pid)
+
+        return 0
+
 
     def run(self):
         """
@@ -665,6 +705,9 @@ class MESS:
         return stat
 
 
+        return 0
+
+
     def make_geom(self, species):
         geom = ''
         for i, at in enumerate(species.atom):
@@ -728,3 +771,39 @@ class MESS:
         energy = qc.get_qc_energy(jobname)[1]
         zpe = qc.get_qc_zpe(jobname)[1]
         return (energy + zpe) * constants.AUtoKCAL
+
+
+    def submit(tpl_head, tpl, submitscript, uq_iter):
+        with open(submitscript, 'w') as f:
+            mess_iter = "{0:04d}".format(uq_iter)
+            if self.par['queue_template'] == '':
+                if self.par['queuing'] == 'pbs':
+                    f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'))
+                    f.write((tpl).format(n=mess_iter))
+                elif self.par['queuing'] == 'slurm':
+                    f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'), slurm_feature='')
+                    f.write((tpl).format(n=mess_iter))
+            else:
+                f.write(tpl_head)
+                f.write((tpl).format(n=mess_iter))
+
+        command = [constants.qsubmit[self.par['queuing']], submitscript]
+        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = process.communicate()
+        out = out.decode()
+ 
+        if self.par['queuing'] == 'pbs':
+            return out.split('\n')[0].split('.')[0]
+        elif self.par['queuing'] == 'slurm':
+            return out.split('\n')[0].split()[-1]
+
+
+    def check_running(pid):
+        devnull = open(os.devnull, 'w')
+        if self.par['queuing'] == 'pbs':
+            command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
+        elif self.par['queuing'] == 'slurm':
+            command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
+
+        stat = int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
+        return stat

@@ -149,6 +149,7 @@ class HIR:
                     # write profile to file
                     self.write_profile(rotor, job)
                     # Check to see if HIR failed, job will continue if failed, but warning will be generated
+                    print(job, angles, rotor)
                     A, a = self.fourier_fit(job, angles, rotor)
                     if(a == 0):
                         logging.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
@@ -203,6 +204,7 @@ class HIR:
 
         if(len(ens) > 0):
             a = 1
+            print(X, np.array(ens))
             A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
 
             for i, si in enumerate(status):

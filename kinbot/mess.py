@@ -126,7 +126,7 @@ class MESS:
                         self.termolec_names[termol_name] = 't_{}'.format(len(self.termolec_names) + 1)
 
         # Barrierless short names
-        if self.species.homolytic_scissions.hss is not None:
+        if self.species.homolytic_scissions is not None:
             for hs in self.species.homolytic_scissions.hss:
                 if hs.status == -1:
                     if len(hs.products) == 1:
@@ -155,7 +155,6 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
-
         uq_obj = UQ(self.par)
 
         # create short names for all the species, bimolecular products and barriers
@@ -168,7 +167,7 @@ class MESS:
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
                 rxnProds = []
-                for x in reaction_products:
+                for x in reaction.products:
                     rxnProds.append(x.chemid)
                 rxnProds.sort()
                 prod_name = '_'.join([str(pi) for pi in rxnProds])
@@ -186,7 +185,7 @@ class MESS:
                 for ts in remove:
                     ts_unique.pop(ts, None)
                 if new:
-                    ts_unique[reaction.instance_name] = [prod_name, reaction.ts.energy + reaciton.ts.zpe]
+                    ts_unique[reaction.instance_name] = [prod_name, reaction.ts.energy + reaction.ts.zpe]
 
         # write the mess input for the different blocks
         uq_iter = 0
@@ -200,8 +199,6 @@ class MESS:
             termolec_ts_blocks = {}
             barrierless_blocks = {}
             allTS = {}
-
-            # energy and freq for each iteration of UQ
             # arrays reset at the start of each iteration to hold new values
             written_bimol_names = []
             written_termolec_names = []
@@ -217,11 +214,11 @@ class MESS:
                 if reaction.instance_name in ts_all:
                     barrierAdd = uq_obj.calc_factor('barrier', reaction.instance_name, uq_iter)
                     freqFactor = uq_obj.calc_factor('freq', reaction.instance_name, uq_iter)
-                    imagfreqFactor = uq_obj.calc_factor('imagFreq', reaction.instance_name, uq_iter)
+                    imagfreqFactor = uq_obj.calc_factor('imagfreq', reaction.instance_name, uq_iter)
         
 
         # get left-right barrier
-                    species_zeroenergy = (self.species.energy + self.species..zpe) * constants.AUtoKCAL
+                    species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
                     if self.species.reac_ts_done[index] == -1:
                         ts_zeroenergy = (reaction.ts.energy + reaction.ts.zpe) * constants.AUtoKCAL
                         if not self.par['high_level'] and reaction.mp2 == 1:
@@ -239,16 +236,14 @@ class MESS:
                             prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
                         right_zeroenergy = left_zeroenergy - (prod_zeroenergy - well_zeroenergy)
                             
-
                     allTS[reaction.instance_name], zeroenergy = self.write_barrier(reaction,
                                                                        index,
                                                                        left_zeroenergy,
-                                                                       right_zeroenergy
+                                                                       right_zeroenergy,
                                                                        barrierAdd,
                                                                        freqFactor,
                                                                        imagfreqFactor,
-                                                                       uq_iter,
-                                                                       qc)
+                                                                       uq_iter)
 
                 # Only write products once, stops duplicate product writing
                 if reaction.instance_name in ts_unique:
@@ -295,9 +290,9 @@ class MESS:
                                 barrierless_freqFactor = uq_obj.calc_factor('freq', hs_prod_name, uq_iter)
                                 barrierless_blocks[hs_prod_name] = self.write_barrierless([opt.species for opt in hs.prod_opt],
                                                                                           hs,
-									                  barrierless_energyAdd,
-	                                                                                  barrierless_freqFactor,
-	                                                                                  uq_iter)
+                                                                                          barrierless_energyAdd,
+                                                                                          barrierless_freqFactor,
+                                                                                          uq_iter)
        
             wells = ''
             divider = '\n!****************************************\n'
@@ -322,6 +317,8 @@ class MESS:
 
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
                 f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
+
+        uq_obj.format_uqtk_data() 
 
         return 0
 
@@ -446,13 +443,13 @@ class MESS:
                                         mult=species.mult,
                                         zeroenergy=energy)
 
-            with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
-                f.write(mess_well)
+        with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
+            f.write(mess_well)
 
 
         return mess_well
 
-    def write_barrier(self, reaction, index, left_zeroenergy, right_zeroenergy, barrier_add, freqFactor, imagfreqFactor, uq_iter, qc):
+    def write_barrier(self, reaction, index, left_zeroenergy, right_zeroenergy, barrier_add, freqFactor, imagfreqFactor, uq_iter):
         """
         Create the block for a MESS barrier.
         """
@@ -480,7 +477,6 @@ class MESS:
                 prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
             right_zeroenergy = left_zeroenergy - (prod_zeroenergy - well_zeroenergy)
         """
-
         left_zeroenergy += barrier_add
         right_zeroenergy += barrier_add
 
@@ -573,16 +569,50 @@ class MESS:
 
         with open('{}_{:04d}.mess'.format(reaction.instance_name, uq_iter), 'w') as f:
             f.write(mess_barrier)
-
+    
+        return mess_barrier, zeroenergy 
 
     def run(self):
         """
-        write a pbs or slurm file for the me/all.inp mess input file
-        submit the pbs/slurm file to the queue
+        Submit the pbs/slurm file to the queue
         wait for the mess run to finish
         """
 
-        # open the the header and the specific templates
+
+        submitscript = 'run_mess' + constants.qext[self.par['queuing']]
+
+        pids = []  # list of job pids
+
+        uq_iter = 0
+        pid_stats = []
+        while uq_iter < self.par['uq_n']:
+            self.write_submitscript(submitscript, uq_iter)
+            while len(pids) > self.par['uq_max_runs']:
+                time.sleep(5)
+                for pid in pids:
+                    stat = self.check_running(pid)
+                    if stat == 0:
+                        pids.remove(pid)
+                        pid_stats.append(stat)
+            
+            pid = self.submit(submitscript)
+            pids.append(pid)
+
+            if self.par['uq_n'] < self.par['uq_max_runs']:
+                stat = 1
+                while stat != 0:
+                    stat = self.check_running(pid)
+                    time.sleep(5)
+                pid_stats.append(stat)
+            uq_iter += 1
+  
+        if all(stat == 0 for s in pid_stats):
+            return 0
+
+    def write_submitscript(self, submitscript, uq_iter):
+        """
+        write a pbs or slurm file for the me/all.inp mess input file
+        """
 
         if self.par['queue_template'] == '':
             q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
@@ -592,35 +622,45 @@ class MESS:
             tpl_head = f.read()
 
         q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
+
         with open(q_file) as f:
             tpl = f.read()
-        submitscript = 'run_mess' + constants.qext[self.par['queuing']]
-
-        pids = []  # list of job pids
-
-        for uq_iter < self.par['uq_n']:
-            while len(pids) > self.par['uq_max_runs']:
-                time.sleep(5)
-                for pid in pids:
-                    stat = self.check_running(pid)
-                    if stat == 0:
-                        pids.remove(pid)
-
-        pid = self.submit(tpl_head, tpl, submitscript, uq_iter)
-        pids.append(pid)
- 
+        with open(submitscript, 'w') as f:
+            mess_iter = "{0:04d}".format(uq_iter)
+            if self.par['queue_template'] == '':
+                if self.par['queuing'] == 'pbs':
+                   f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'))
+                   f.write((tpl).format(n=mess_iter))
+                elif self.par['queuing'] == 'slurm':
+                   f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'), slurm_feature='')
+                   f.write((tpl).format(n=mess_iter))
+            else:
+                f.write(tpl_head)
+                f.write((tpl).format(n=mess_iter))
 
         return 0
 
+    def submit(self, submitscript):
 
-    def check_running(pid):
+            command = [constants.qsubmit[self.par['queuing']], submitscript]
+            process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = process.communicate()
+            out = out.decode()
+            if self.par['queuing'] == 'pbs':
+                pid = out.split('\n')[0].split('.')[0]
+            elif self.par['queuing'] == 'slurm':
+                pid = out.split('\n')[0].split()[-1]
+
+            return pid
+
+    def check_running(self, pid):
         devnull = open(os.devnull, 'w')
         if self.par['queuing'] == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
         elif self.par['queuing'] == 'slurm':
             command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
  
-        stat = int(subprocess.call((command, shell=True, stdout=devnull, stderr=devnull))
+        stat = int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
 
         return stat
 

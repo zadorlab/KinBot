@@ -254,7 +254,8 @@ def get_wells(job):
             f.write('\n'.join(new_wells) + '\n')
     
 
-def postprocess(par, jobs, task, names, n):
+def postprocess(par, jobs, task, names):
+
     """
     postprocess a pes search
     par: parameters of the search

@@ -193,8 +193,9 @@ def main():
         mess.write_input(qc)
 
         logging.info('Starting Master Equation calculations')
+        uq_iter = 0
         if par['me_code'] == 'mess':
-            mess.run()
+                mess.run()
 
     postprocess.createSummaryFile(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)

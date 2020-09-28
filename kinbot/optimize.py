@@ -235,7 +235,9 @@ class Optimize:
                             if self.shir == 0:
                                 # hir is running
                                 # check if it is done:
+                                print(self.wait)
                                 status = self.species.hir.check_hir(wait=self.wait)
+                                print(status)
                                 if status:
                                     if len(self.species.hir.hir_energies) > 0:
                                         # check if along the hir potential a structure was found with a lower energy

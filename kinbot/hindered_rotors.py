@@ -151,6 +151,7 @@ class HIR:
                     # Check to see if HIR failed, job will continue if failed, but warning will be generated
                     print(job, angles, rotor)
                     A, a = self.fourier_fit(job, angles, rotor)
+                    print("A: {}, a: {}".format(A, a))
                     if(a == 0):
                         logging.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
                     else:

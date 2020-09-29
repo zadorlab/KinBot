@@ -572,46 +572,6 @@ class MESS:
     
         return mess_barrier, zeroenergy 
 
-# Amanda, I modified this function quite a bit. The original version is under this, you'll 
-# need to delete one of them, but I wanted to keep both for you to see.
-    def run(self):
-        """
-        write a pbs or slurm file for the me/all.inp mess input file
-        submit the pbs/slurm file to the queue
-        wait for the mess run to finish
-        """
-
-        # open the the header and the specific templates
-
-        if self.par['queue_template'] == '':
-            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
-        else:
-            q_file = self.par['queue_template']
-        with open(q_file) as f:
-            tpl_head = f.read()
-
-        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
-        with open(q_file) as f:
-            tpl = f.read()
-        submitscript = 'run_mess' + constants.qext[self.par['queuing']]
-
-            
-        pids = []  # list of job pids
-
-        for uq_iter < self.par['uq_n']:
-            while len(pids) > self.par['uq_max_runs']:
-                time.sleep(5)
-                for pid in pids:
-                    stat = self.check_running(pid)
-                    if stat = 0:
-                        pids.remove(pid)
-
-            pid = self.submit(tpl_head, tpl, submitscript, uq_iter)
-            pids.append(pid)
-
-        return 0
-
-
     def run(self):
         """
         Submit the pbs/slurm file to the queue

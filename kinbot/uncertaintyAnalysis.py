@@ -24,11 +24,11 @@ class UQ:
         return factor
 
     def norm_energy(self, energyList, speciesType, names, n):
-        fi = 'normalizedData.log'
+        fi = 'normalizedData.log' # TODO is this temporary?
         fio = open(fi, 'a')
         fio.write("\n{} UQ Normalization".format(speciesType))
-        names = names
-        print("names: {}".format(names))
+        names = names  # TODO ?
+        print("names: {}".format(names))  # TODO is this temporary, see also more prints 
         data = energyList
         print("energy: {}".format(data))
         if speciesType == 'termol':
@@ -49,10 +49,10 @@ class UQ:
             nCount = 0
             totalSpecies = len(energyList)
             eArray = []
-            while nCount < nSpecies:
+            while nCount < nSpecies:  # TODO why not for loop?
                 eArray.append(energyList[nCount:totalSpecies:nSpecies])
                 nCount += 1
-            for i, species in enumerate(eArray):
+            for i, species in enumerate(eArray):  # TODO this i counter is not really used, but there is another one below
                 norm = []
                 npData = species
                 originalEnergy = npData[0]
@@ -63,14 +63,14 @@ class UQ:
                     norm.append(norm_e)
                 npNormVals = np.array(norm)
                 if len(npNormVals) == n:
-                    i = 0
+                    i = 0 # TODO why are you setting i to zero? it's also the counter for the outer loop
                     print(names)
                     for v, val in enumerate(npNormVals):
                         norm_energy = ('{:.4}'.format(float(npNormVals[v])))
                         en = ('{:.4}'.format(float(npData[v])))
                         x = v % 5
-                        rxn = (names[x])
-                        fio.write("\n{}\t{}\t{}".format(rxn, en, norm_energy))
+                        rxn = (names[x]) # TODO you could just insert v % 5 here and save the above line
+                        fio.write("\n{}\t{}\t{}".format(rxn, en, norm_energy)) # TODO you are preformatting the strings above, you could fo it here right away, but maybe fio won't be used anyway?
                         
         else:
             # stats = []  # originalEnergy, min, max, avg, stDev
@@ -79,7 +79,7 @@ class UQ:
             if len(npData) == 0:
                 norm = []
                 npNormVals = []
-            for i, val_i in enumerate(npData):
+            for i, val_i in enumerate(npData): # TODO i is not used, no need to enumerate
                 norm = []
                 # stats = []
                 originalEnergy = npData[0]
@@ -105,7 +105,7 @@ class UQ:
                     fio.write("\n{}\t{}\t{}".format(names[k], energy, norm_energy))
         return 0
 
-    def norm_imagfreq(self, imagfreqList, n):
+    def norm_imagfreq(self, imagfreqList, n):  #TODO  what are these fns doing? They should not work and the returned value is not defined. ? same below
 
         return norm_imagfreq_vals
 

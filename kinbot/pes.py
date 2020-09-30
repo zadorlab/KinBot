@@ -330,7 +330,6 @@ def postprocess(par, jobs, task, names):
                 ts_zpe = get_zpe(reactant, ts, 1, par['high_level'])
                 barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
-                print(wells, reactant)
                 if reactant not in wells:
                     wells.append(reactant)
                     parent[reactant] = reactant
@@ -878,7 +877,6 @@ def create_short_names(wells, products, reactions, barrierless):
     # key: reaction number
     # value: reaction number
     nobar_short = {}
-    print(wells)
     for well in wells:
         if well not in well_short:
             short_name = 'w_' + str(len(well_short) + 1)
@@ -940,7 +938,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
     Create the header block for MESS
     """
-    print(well_short)
     # Read the header template
     header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
     with open(header_file) as f:
@@ -1332,7 +1329,6 @@ def get_energy(dir, job, ts, high_level, mp2=0, bls=0):
             energy = row.data.get('energy')
     try:
         # ase energies are always in ev, convert to hartree
-        print(energy, constants.EVtoHARTREE)
         energy *= constants.EVtoHARTREE
     except UnboundLocalError:
         # this happens when the job is not found in the database

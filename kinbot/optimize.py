@@ -138,10 +138,6 @@ class Optimize:
                         # check if the conformational search is done
                         status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                         if status == 1:
-                            if self.species.wellorts:
-                                self.name = self.species.name
-                            else:
-                                self.name = self.species.chemid
                             logging.info("lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
                             # save lowest energy conformer as species geometry
                             self.species.geom = geom
@@ -295,7 +291,7 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                fr_file = str(self.name)
+                fr_file = self.name
                 if not self.species.wellorts:
                     fr_file += '_well'
                 if self.par['high_level']:

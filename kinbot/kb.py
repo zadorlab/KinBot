@@ -87,7 +87,6 @@ def main():
                             smiles=par['smiles'],
                             structure=par['structure'])
     well0.short_name = 'w1'
-
     # write the initial reactant geometry to a file for visualization
     geom_out = open('geometry.xyz', 'w')
     geom_out.write('{}\n\n'.format(well0.natom))

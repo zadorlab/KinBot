@@ -120,20 +120,31 @@ class HomolyticScissions:
                         hs.status = 2
                 if hs.status == 2:
                     # Do the product conf search, high level opt and HIR
+                    err = 0
                     for i, prod in enumerate(hs.products):
                         chemid = prod.chemid
                         prod_opt = Optimize(prod, self.par, self.qc)
                         if str(chemid) != str(prod_opt.species.chemid):
                             logging.info("HS product {} changed to {} during optimization.".format(chemid, prod_opt.species.chemid))
                             hs.qc.qc_opt(prod_opt.species, prod_opt.species.geom)
-                            #j = i - 1
-                            #hs.products.pop(i)
-                            #hs.products.insert(j, prod_opt)
-                            #hs.qc.qc_opt(prod, prod.geom)
-                            #prod_opt = Optimize(prod, self.par, self.qc)
+                            j = i - 1
+                            # wait for new opt to finish
+                            er, prod.geom = hs.qc.get_qc_geom(str(prod_opt.species.chemid) + '_well', prod_opt.species.natom)
+                            if er < 0:
+                                # optimization failed
+                                logging.info("HS optimization failed for {}".format(prod_opt.species.chemid))
+                                err = -1
+                            elif er != 0:
+                                err = -1
+                            else:
+                                er2, prod.energy = hs.qc.get_qc_energy(str(prod_opt.species.chemid) + '_well', prod_opt,species.natom)
+                                er2, prod.zpe = hs.qc.get_q_zpe(str(prod_opt.species.chemid) + '_well', prod_opt,species.natom)
+                            hs.products.pop(i)
+                            hs.products.insert(j, prod_opt.species)
                         prod_opt.do_optimization()
                         hs.prod_opt.append(prod_opt)
-                    hs.status = 3
+                    if err == 0:
+                        hs.status = 3
                 if hs.status == 3:
                     # check up on the optimization
                     opts_done = 1

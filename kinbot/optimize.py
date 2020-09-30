@@ -4,7 +4,6 @@ import copy
 import logging
 import time
 
-from kinbot import constants
 from kinbot import frequencies
 from kinbot import geometry
 from kinbot import symmetry
@@ -34,7 +33,7 @@ class Optimize:
             logging.info("{} has no cycle_chain attribute to delete".format(self.species.chemid))
         if self.species.wellorts:
             self.species.characterize(bond_mx=self.species.bond)
-            self.name = self.species.name
+            self.name = str(self.species.name)
         else:
             self.species.characterize()
             self.name = str(self.species.chemid)
@@ -55,7 +54,6 @@ class Optimize:
         # -999:failed
         self.scycconf = -1
         self.sconf = -1
-        self.ssemi_empconf = -1
         self.shigh = -1
         self.shir = -1
 
@@ -147,6 +145,7 @@ class Optimize:
                             self.species.energy = low_energy
                             # set conf status to finished
                             self.sconf = 1
+
             else:
                 # no conf search necessary, set status to finished
                 self.sconf = 1
@@ -161,8 +160,12 @@ class Optimize:
                     # do the high level calculations
                     if self.par['high_level'] == 1:
                         if self.shigh == -1:
+                            if self.species.wellorts:
+                                name = self.species.name
+                            else:
+                                name = self.species.chemid
                             # high level calculation did not start yet
-                            logging.info('\tStarting high level optimization of {}'.format(self.name))
+                            logging.info('\tStarting high level optimization of {}'.format(name))
                             if self.species.wellorts:
                                 # do the high level optimization of a ts
                                 self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)
@@ -178,7 +181,7 @@ class Optimize:
                                 # found an error
                                 logging.info('\tHigh level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
-                            if status == 'normal':
+                            elif status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
                                 temp = StationaryPoint('temp',
@@ -220,6 +223,7 @@ class Optimize:
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
+                    logging.info("done with conformer search for {}".format(self.species.name))
                     if self.shigh == 1:
                         # do the HIR calculation
                         if self.par['rotor_scan'] == 1:
@@ -302,22 +306,23 @@ class Optimize:
                 self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
 
                 # write the molpro input and read the molpro energy, if available
-                if self.par['single_point_qc'] == 'molpro':
-                    molp = Molpro(self.species, self.par)
-                    if 'barrierless_saddle' in self.name:
-                        key = self.par['barrierless_saddle_single_point_key']
-                        molp.create_molpro_input(bls=1)
-                    else:
-                        key = self.par['single_point_key']
-                        molp.create_molpro_input()
-                    molp.create_molpro_submit()
-                    status, molpro_energy = molp.get_molpro_energy(key)
+                if self.par['L3_calc'] == 1:
+                    if self.par['single_point_qc'] == 'molpro':
+                        molp = Molpro(self.species, self.par)
+                        if 'barrierless_saddle' in self.par:
+                            key = self.par['barrierless_saddle_single_point_key']
+                            molp.create_molpro_input(bls=1)
+                        else:
+                            key = self.par['single_point_key']
+                            molp.create_molpro_input()
+                        molp.create_molpro_submit()
+                        status, molpro_energy = molp.get_molpro_energy(key)
 
-                    # FIXME this might be wrong here:
-                    if status:
-                        self.species.energy = molpro_energy
+                        # FIXME this might be wrong here:
+                        if status:
+                            self.species.energy = molpro_energy
 
-                self.delete_files()
+                    self.delete_files()
 
             if self.wait:
                 if self.shir == 1 or self.shigh == -999:
@@ -380,7 +385,7 @@ class Optimize:
 
 
     def fr_file_name(self, high):
-        fr_file = self.name
+        fr_file = str(self.name)
         if not self.species.wellorts:
             fr_file += '_well'
         # if self.par['high_level']:

@@ -327,7 +327,7 @@ class ReactionGenerator:
                 elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization
                     # make a stationary point object of the ts
-                    bond_mx = np.zeros((self.species.natom, self.species.natom))
+                    bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)
                     for i in range(self.species.natom):
                         for j in range(self.species.natom):
                             bond_mx[i][j] = max(self.species.bond[i][j], obj.product_bonds[i][j])
@@ -377,6 +377,7 @@ class ReactionGenerator:
                                         break
 
                     self.species.reac_ts_done[index] = 5
+
                 elif self.species.reac_ts_done[index] == 5:
                     # check up on the TS and product optimizations
                     opts_done = 1
@@ -395,6 +396,7 @@ class ReactionGenerator:
                         if pr_opt.shigh == -999:
                             logging.info("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
                             fails = 1
+                        break
                     if fails:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:

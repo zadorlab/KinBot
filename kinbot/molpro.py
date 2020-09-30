@@ -90,7 +90,6 @@ class Molpro:
         A non-object-oriented version is used in pes.py
         """
         fname = self.get_name(name)
-
         status = os.path.exists('molpro/' + fname + '.out')
         if status:
             with open('molpro/' + fname + '.out') as f:

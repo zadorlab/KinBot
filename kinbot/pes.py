@@ -330,7 +330,7 @@ def postprocess(par, jobs, task, names):
                 ts_zpe = get_zpe(reactant, ts, 1, par['high_level'])
                 barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
-
+                print(wells, reactant)
                 if reactant not in wells:
                     wells.append(reactant)
                     parent[reactant] = reactant
@@ -539,8 +539,7 @@ def postprocess(par, jobs, task, names):
                           barrierless,
                           well_energies,
                           prod_energies,
-                          parent,
-                          par['uq_n'])
+                          parent)
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -879,7 +878,7 @@ def create_short_names(wells, products, reactions, barrierless):
     # key: reaction number
     # value: reaction number
     nobar_short = {}
-
+    print(wells)
     for well in wells:
         if well not in well_short:
             short_name = 'w_' + str(len(well_short) + 1)
@@ -941,6 +940,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
     Create the header block for MESS
     """
+    print(well_short)
     # Read the header template
     header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
     with open(header_file) as f:
@@ -1065,11 +1065,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                                     structure=par['structure'])
 
             mess = MESS(par, dummy)
-            uq_obj = UQ()
-            well_uq = par['well_uq']
-            barrier_uq = par['barrier_uq']
-            freq_uq = par['freq_uq']
-            imagfreq_uq = par['imagfreq_uq']
+            uq_obj = UQ(par)
 
             # write the wells
             s.append('######################')
@@ -1078,17 +1074,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             for well in wells:
                 name = well_short[well] + ' ! ' + well
                 energy = well_energies[well]
-                logFile = open('uq_pes.log', 'a')
-                logFile.write('{0} {1}'.format('Well: ', name))
-                logFile.write('{0} {1}'.format('original energy: ', energy))
-                logFile.close()
-                if uq_iter > 0:
-                    uq_energyAdd = uq_obj.calc_energyUQ(well_uq)
-                    energy = energy + uq_energyAdd
-                    logFile = open('uq_pes.log', 'a')
-                    logFile.write('{0} {1}'.format('uq_energyAdd: ', uq_energyAdd))
-                    logFile.write('{0} {1}'.format('updated energy: ', energy))
-                    logFile.close()
+                uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter)
+                energy = energy + uq_energyAdd
                 mess_iter = "{0:04d}".format(uq_iter)
                 with open(parent[well] + '/' + well + '_' + str(mess_iter) + '.mess') as f:
                     s.append(f.read().format(name=name, zeroenergy=energy))
@@ -1104,9 +1091,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             for prod in products:
                 name = pr_short[prod] + ' ! ' + prod
                 energy = prod_energies[prod]
-                if uq_iter > 0:
-                    uq_energyAdd = uq_obj.calc_energyUQ(well_uq)
-                    energy = energy + uq_energyAdd
+                uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter)
+                energy = energy + uq_energyAdd
                 fr_names = {}
                 for fr in prod.split('_'):
                     key = 'fr_name_{}'.format(fr)
@@ -1133,17 +1119,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 name.append('!')
                 name.append(rxn[1])
                 energy = rxn[3]
-                logFile = open('uq_pes.log', 'a')
-                logFile.write('{0} {1}'.format('Barrier: ', name))
-                logFile.write('{0} {1}'.format('original energy: ', energy))
-                logFile.close()
-                if uq_iter > 0:
-                    uq_energyAdd = uq_obj.calc_energyUQ(well_uq)
-                    energy = energy + uq_energyAdd
-                    logFile = open('uq_pes.log', 'a')
-                    logFile.write('{0} {1}'.format('uq_energyAdd: ', uq_energyAdd))
-                    logFile.write('{0} {1}'.format('updated energy: ', energy))
-                    logFile.close()
+                uq_energyAdd = uq_obj.calc_factor('barrier', ts_short[rxn[1]], uq_iter)
+                energy = energy + uq_energyAdd
                 mess_iter = "{0:04d}".format(uq_iter)
                 try:
                     with open(rxn[0] + '/' + rxn[1] + '_' + str(mess_iter) + '.mess') as f:
@@ -1169,7 +1146,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
         if par['me'] == 1:
             mess.run()
-
+        
+        uq_obj.format_uqtk_data() 
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):
@@ -1354,6 +1332,7 @@ def get_energy(dir, job, ts, high_level, mp2=0, bls=0):
             energy = row.data.get('energy')
     try:
         # ase energies are always in ev, convert to hartree
+        print(energy, constants.EVtoHARTREE)
         energy *= constants.EVtoHARTREE
     except UnboundLocalError:
         # this happens when the job is not found in the database

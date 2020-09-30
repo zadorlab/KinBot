@@ -733,32 +733,7 @@ class MESS:
         return (energy + zpe) * constants.AUtoKCAL
 
 
-    def submit(tpl_head, tpl, submitscript, uq_iter):
-        with open(submitscript, 'w') as f:
-            mess_iter = "{0:04d}".format(uq_iter)
-            if self.par['queue_template'] == '':
-                if self.par['queuing'] == 'pbs':
-                    f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'))
-                    f.write((tpl).format(n=mess_iter))
-                elif self.par['queuing'] == 'slurm':
-                    f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'), slurm_feature='')
-                    f.write((tpl).format(n=mess_iter))
-            else:
-                f.write(tpl_head)
-                f.write((tpl).format(n=mess_iter))
-
-        command = [constants.qsubmit[self.par['queuing']], submitscript]
-        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = process.communicate()
-        out = out.decode()
- 
-        if self.par['queuing'] == 'pbs':
-            return out.split('\n')[0].split('.')[0]
-        elif self.par['queuing'] == 'slurm':
-            return out.split('\n')[0].split()[-1]
-
-
-    def check_running(pid):
+    def check_running(self, pid):
         devnull = open(os.devnull, 'w')
         if self.par['queuing'] == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'

@@ -2,7 +2,6 @@ import time
 import logging
 import numpy as np
 import matplotlib.pyplot as plt
-
 from kinbot import constants
 from kinbot import geometry
 from kinbot import zmatrix

@@ -21,7 +21,7 @@ class UQ:
 
     def calc_factor(self, propertyType, species, uq_iter):
         if self.uq_iter != uq_iter:  # new iteration
-            with open('uqtk.dat', 'a') as f:
+            with open('uqtk.data', 'a') as f:
                 f.write('')  # new line
 
         if uq_iter == 0:

@@ -233,7 +233,6 @@ class Conformers:
         rotor: the rotor number in the order it was discovered
         if -999, then just do a single calculation at the given geometry
         """
-        i = 1
         if self.cyc_conf == 0:
             cycles = 1
         else:

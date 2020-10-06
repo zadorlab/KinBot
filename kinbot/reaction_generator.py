@@ -160,23 +160,25 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                     else:
                         # check the barrier height:
+                        ts_energy = self.qc.get_qc_energy(obj.instance_name)[1]
+                        ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
                         if self.species.reac_type[index] == 'R_Addition_MultipleBond':
-                            sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well_mp2')[1]
-                            barrier = (self.qc.get_qc_energy(obj.instance_name)[1] - sp_energy) * constants.AUtoKCAL
+                            ending = 'well_mp2'
                         elif self.species.reac_type[index] == 'barrierless_saddle':
-                            sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well_bls')[1]
-                            barrier = (self.qc.get_qc_energy(obj.instance_name)[1] - sp_energy) * constants.AUtoKCAL
+                            ending = 'well_bls'
                         else:
-                            sp_energy = self.qc.get_qc_energy(str(self.species.chemid) + '_well')[1]
-                            barrier = (self.qc.get_qc_energy(obj.instance_name)[1] - sp_energy) * constants.AUtoKCAL
+                            ending = 'well'
+                        sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
+                        sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
+                        barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
                         if barrier > self.par['barrier_threshold']:
                             logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'.format(barrier, obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
-                            logging.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'.format(barrier, obj.instance_name))
                             obj.irc = IRC(obj, self.par)  # TODO: this doesn't seem like a good design
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
+                                logging.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'.format(barrier, obj.instance_name))
                                 # No IRC started yet, start the IRC now
                                 logging.info('\tStarting IRC calculations for {}'.format(obj.instance_name))
                                 obj.irc.do_irc_calculations()

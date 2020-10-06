@@ -114,8 +114,8 @@ class HomolyticScissions:
                         elif e != 0:
                             err = -1
                         else:
-                            e2, prod.energy = hs.qc.get_qc_energy(str(prod.chemid) + '_well', prod.natom)
-                            e2, prod.zpe = hs.qc.get_qc_zpe(str(prod.chemid) + '_well', prod.natom)
+                            e2, prod.energy = hs.qc.get_qc_energy(str(prod.chemid) + '_well')
+                            e2, prod.zpe = hs.qc.get_qc_zpe(str(prod.chemid) + '_well')
                     if err == 0:
                         hs.status = 2
                 if hs.status == 2:
@@ -137,8 +137,8 @@ class HomolyticScissions:
                             elif er != 0:
                                 err = -1
                             else:
-                                er2, prod.energy = hs.qc.get_qc_energy(str(prod_opt.species.chemid) + '_well', prod_opt,species.natom)
-                                er2, prod.zpe = hs.qc.get_q_zpe(str(prod_opt.species.chemid) + '_well', prod_opt,species.natom)
+                                er2, prod.energy = hs.qc.get_qc_energy(str(prod_opt.species.chemid) + '_well')
+                                er2, prod.zpe = hs.qc.get_q_zpe(str(prod_opt.species.chemid) + '_well')
                             hs.products.pop(i)
                             hs.products.insert(j, prod_opt.species)
                         prod_opt.do_optimization()

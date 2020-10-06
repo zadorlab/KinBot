@@ -356,7 +356,7 @@ class QuantumChemistry:
         if mp2:
             job = str(species.chemid) + '_well_mp2'
         if bls:
-            job = str(species.chemid) + '_well_ls'
+            job = str(species.chemid) + '_well_bls'
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed

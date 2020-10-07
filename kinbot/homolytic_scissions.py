@@ -138,7 +138,7 @@ class HomolyticScissions:
                                 err = -1
                             else:
                                 er2, prod.energy = hs.qc.get_qc_energy(str(prod_opt.species.chemid) + '_well')
-                                er2, prod.zpe = hs.qc.get_q_zpe(str(prod_opt.species.chemid) + '_well')
+                                er2, prod.zpe = hs.qc.get_qc_zpe(str(prod_opt.species.chemid) + '_well')
                             hs.products.pop(i)
                             hs.products.insert(j, prod_opt.species)
                         prod_opt.do_optimization()

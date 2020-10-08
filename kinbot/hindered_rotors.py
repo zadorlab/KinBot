@@ -6,6 +6,7 @@ from kinbot import constants
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.frequencies import skip_rotor
+from kinbot.stationary_pt import StationaryPoint
 
 
 class HIR:

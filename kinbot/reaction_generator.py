@@ -239,7 +239,7 @@ class ReactionGenerator:
                         products.append(st_pt.chemid)
 
                     products.extend([' ', ' ', ' '])
-                    logging.info('\tReaction {0} leads to products {2} {3} {4}'
+                    logging.info('\tReaction {} leads to products {} {} {}'
                                  .format(obj.instance_name, products[0], products[1], products[2]))
 
                     for i, st_pt in enumerate(obj.products_final):

@@ -920,4 +920,4 @@ class QuantumChemistry:
 
             if len(jobs.split(b'\n')) < self.queue_job_limit:
                 return 0
-            time.sleep(30)
+            time.sleep(1)

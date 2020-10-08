@@ -223,12 +223,12 @@ class Optimize:
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
-                    logging.info("done with conformer search for {}".format(self.species.name))
                     if self.shigh == 1:
                         # do the HIR calculation
                         if self.par['rotor_scan'] == 1:
                             if self.shir == -1:
                                 # hir not stated yet
+                                logging.info("done with conformer search for {}".format(self.species.name))
                                 logging.info('\tStarting hindered rotor calculations of {}'.format(self.name))
                                 self.species.hir = HIR(self.species, self.qc, self.par)
                                 self.species.hir.generate_hir_geoms(copy.deepcopy(self.species.geom))

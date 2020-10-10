@@ -125,12 +125,8 @@ class QuantumChemistry:
                     kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 del kwargs['freq']
             if high_level:
-                if 'barrierless_saddle' in job:
-                    kwargs['method'] = self.bls_high_level_method
-                    kwargs['basis'] = self.bls_high_level_basis
-                else:
-                    kwargs['method'] = self.high_level_method
-                    kwargs['basis'] = self.high_level_basis
+                kwargs['method'] = self.high_level_method
+                kwargs['basis'] = self.high_level_basis
                 if len(self.opt) > 0:
                     kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999,{}'.format(self.opt)  # to overwrite possible CalcAll
                 else:
@@ -138,6 +134,11 @@ class QuantumChemistry:
                 kwargs['freq'] = 'freq'
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral
+                if 'barrierless_saddle' in job:  # completely overwrite normal settings
+                    kwargs['method'] = self.bls_high_level_method
+                    kwargs['basis'] = self.bls_high_level_basis
+                    kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
+                    del kwargs['freq']
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
                 if (not ts) or (ts and (not self.par['calcall_ts'])):

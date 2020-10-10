@@ -201,6 +201,8 @@ class Parameters:
             'single_point_command': '',
             # Hindered rotor max optimization steps
             'hir_maxcycle': None,
+            # Non-rigid or rigid hir
+            'rigid_hir': 0,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

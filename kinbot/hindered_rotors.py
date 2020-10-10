@@ -37,7 +37,7 @@ class HIR:
         # all the geometries of the HIR scan points
         self.hir_geoms = []
 
-    def generate_hir_geoms(self, cart):
+    def generate_hir_geoms(self, cart, rigid):
         """
         Generate the initial geometries of the points along the scans
         """
@@ -69,7 +69,7 @@ class HIR:
                                                    self.species.atom,
                                                    zmatorder)
             fi = [(zi + 1) for zi in zmatorder[:4]]
-            self.qc.qc_hir(self.species, cart_new, rotor, 0, [fi])
+            self.qc.qc_hir(self.species, cart_new, rotor, 0, [fi], rigid)
             for ai in range(1, self.nrotation):
                 ang = 360. / float(self.nrotation)
                 zmat[3][2] += ang
@@ -84,7 +84,7 @@ class HIR:
                                                        self.species.natom,
                                                        self.species.atom,
                                                        zmatorder)
-                self.qc.qc_hir(self.species, cart_new, rotor, ai, [fi])
+                self.qc.qc_hir(self.species, cart_new, rotor, ai, [fi], rigid)
         return 0
 
     def test_hir(self):

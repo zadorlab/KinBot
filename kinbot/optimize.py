@@ -21,8 +21,6 @@ class Optimize:
     2. High level optimization and freq calc of the species
     3. Hindered rotor scans
     4. Repeat steps 2-3 as long as lower energy structures are found
-
-    TODO: find better name for this module and class
     """
 
     def __init__(self, species, par, qc, wait=0):
@@ -209,7 +207,9 @@ class Optimize:
                                     same_geom = geometry.equal_geom(self.species, temp, 0.1)
 
                                 err, fr = self.qc.get_qc_freq(self.job_high, self.species.natom)
-                                if self.species.wellorts == 0 and fr[0] > 0.:
+                                if len(fr) == 1 and fr[0] == 0:
+                                    freq_ok = 0
+                                elif self.species.wellorts == 0 and fr[0] > 0.:
                                     freq_ok = 1
                                 elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
                                     freq_ok = 1
@@ -221,6 +221,7 @@ class Optimize:
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)
                                     err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
                                     err, self.species.zpe = self.qc.get_qc_zpe(self.job_high)
+                                    self.shigh = 1
                                 else:
                                     # geometry diverged to other structure
                                     if not same_geom:
@@ -239,7 +240,7 @@ class Optimize:
                                 # hir not stated yet
                                 logging.info('\tStarting hindered rotor calculations of {}'.format(self.name))
                                 self.species.hir = HIR(self.species, self.qc, self.par)
-                                self.species.hir.generate_hir_geoms(copy.deepcopy(self.species.geom))
+                                self.species.hir.generate_hir_geoms(copy.deepcopy(self.species.geom), self.par['rigid_hir'])
                                 self.shir = 0
                             if self.shir == 0:
                                 # hir is running

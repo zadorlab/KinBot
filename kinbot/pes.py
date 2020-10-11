@@ -1453,6 +1453,8 @@ def write_input(input_file, species, threshold, root):
     par2['barrier_threshold'] = threshold
     # set the pes option to 1
     par2['pes'] = 1
+    # don't do ME for these kinbots
+    par2['me'] = 0
 
     file_name = dir + str(species.chemid) + '.json'
     with open(file_name, 'w') as outfile:

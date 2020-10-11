@@ -208,7 +208,7 @@ class HIR:
 
         if(len(ens) > 0):
             a = 1
-            A = np.linalg.lstsq(X, np.array(ens))[0]
+            A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
 
             for i, si in enumerate(status):
                 if si == 1:

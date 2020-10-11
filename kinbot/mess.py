@@ -12,13 +12,13 @@ from kinbot.uncertaintyAnalysis import UQ
 
 class MESS:
     """
-    Class that read and writes MESS files
+    Class that reads and writes MESS files
     UQ analysis parameter (uq) can be used to generate 'n' number of mess input files
     with the following parameters randomized within the alloted UQ tolerance.
     UQ tolerance is set to the default values as follows
        1. Stationary point energy (E+ZPE, +/- 0.5 kcal/mol)
        2. Barrier (E+ZPE, +/- 1.0 kcal/mol)
-       3. Frequencies (cm-1 +/- 20%)
+       3. Frequencies (cm-1 */ / 1.2)
     Default parameters were chosen/based on the following paper:  Goldsmith, C. F. PCI, 2013, 177-185
     New parameters can be set within the input json file with the following keywords
     See parameters.py file for more information.
@@ -394,10 +394,8 @@ class MESS:
                 name = '{} ! barrierless'.format(self.barrierless_names[pr_name])
 
             energy = (sum([sp.energy for sp in prod_list]) + sum([sp.zpe for sp in prod_list]) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
-
             energy += well_add
         
-
         if bless == 0:
             bimol = self.bimoltpl.format(chemids=name,
                                          fragments=fragments,
@@ -413,8 +411,8 @@ class MESS:
                                            fragments=fragments,
                                            ground_energy=energy)
 
-            with open('{}_{:04d}.mess'.format(pr_name, uq_iter), 'w') as f:
-                f.write(bimol)
+        with open('{}_{:04d}.mess'.format(pr_name, uq_iter), 'w') as f:
+            f.write(bimol)
 
         return bimol
 

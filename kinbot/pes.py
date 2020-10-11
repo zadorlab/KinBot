@@ -979,7 +979,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         for well in wells:
             name = well_short[well] + ' ! ' + well
             energy = well_energies[well]
-            fi = parent[well] + '/' + well + '.mess'
+            fi = parent[well] + '/' + well + '_0000.mess'
             with open(fi, 'r') as f:
                 s.append(f.read().format(name=name, zeroenergy=energy))
             s.append(divider)
@@ -998,7 +998,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 key = 'fr_name_{}'.format(fr)
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
-            with open(parent[prod] + '/' + prod + '.mess') as f:
+            with open(parent[prod] + '/' + prod + '_0000.mess') as f:
                 s.append(f.read().format(name=name,
                                          ground_energy=energy,
                                          **fr_names))
@@ -1020,13 +1020,12 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name.append(rxn[1])
             energy = rxn[3]
             try:
-                with open(rxn[0] + "/" + rxn[1] + ".mess") as f:
+                with open(rxn[0] + "/" + rxn[1] + "_0000.mess") as f:
                     s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
                 s.append(divider)
             except:
-                fi = open("pes.log", 'a')
-                fi.write('{0} {1} {2} {3} {4}'.format("File ", rxn[0], "/", rxn[1], ".mess was not found.\n"))
-                fi.close()
+                with open("pes.log", 'a') as fi:
+                    fi.write('{0} {1} {2} {3} {4}'.format("File ", rxn[0], "/", rxn[1], ".mess was not found.\n"))
         # add last end statement
         s.append(divider)
         s.append('End ! end kinetics\n')

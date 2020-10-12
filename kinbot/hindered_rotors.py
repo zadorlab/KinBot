@@ -6,6 +6,7 @@ from kinbot import constants
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.frequencies import skip_rotor
+from kinbot.stationary_pt import StationaryPoint
 
 
 class HIR:
@@ -36,7 +37,7 @@ class HIR:
         # all the geometries of the HIR scan points
         self.hir_geoms = []
 
-    def generate_hir_geoms(self, cart):
+    def generate_hir_geoms(self, cart, rigid):
         """
         Generate the initial geometries of the points along the scans
         """
@@ -68,7 +69,7 @@ class HIR:
                                                    self.species.atom,
                                                    zmatorder)
             fi = [(zi + 1) for zi in zmatorder[:4]]
-            self.qc.qc_hir(self.species, cart_new, rotor, 0, [fi])
+            self.qc.qc_hir(self.species, cart_new, rotor, 0, [fi], rigid)
             for ai in range(1, self.nrotation):
                 ang = 360. / float(self.nrotation)
                 zmat[3][2] += ang
@@ -83,7 +84,7 @@ class HIR:
                                                        self.species.natom,
                                                        self.species.atom,
                                                        zmatorder)
-                self.qc.qc_hir(self.species, cart_new, rotor, ai, [fi])
+                self.qc.qc_hir(self.species, cart_new, rotor, ai, [fi], rigid)
         return 0
 
     def test_hir(self):
@@ -104,9 +105,14 @@ class HIR:
                     else:
                         # check if all the bond lenghts are within
                         # 15% or the original bond lengths
-                        if geometry.equal_geom(self.species.bond,
-                                               self.species.geom,
-                                               geom,
+                        temp = StationaryPoint('temp',
+                                               self.species.charge,
+                                               self.species.mult,
+                                               atom=self.species.atom,
+                                               geom=geom)
+                        temp.bond_mx()
+                        if geometry.equal_geom(self.species,
+                                               temp,
                                                0.15):
                             err, energy = self.qc.get_qc_energy(job)
                             self.hir_status[rotor][ai] = 0
@@ -202,7 +208,7 @@ class HIR:
 
         if(len(ens) > 0):
             a = 1
-            A = np.linalg.lstsq(X, np.array(ens))[0]
+            A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
 
             for i, si in enumerate(status):
                 if si == 1:

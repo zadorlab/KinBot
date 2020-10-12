@@ -298,12 +298,31 @@ def get_moments_of_inertia(geom, atom):
     return eigvals, eigvecs.transpose()
 
 
-def equal_geom(bond, orig_geom, new_geom, cutoff):
-    for i in range(len(bond)-1):
-        for j in range(i+1, len(bond)):
-            if bond[i][j] > 0:
-                orig_dist = np.linalg.norm(orig_geom[i]-orig_geom[j])
-                new_dist = np.linalg.norm(new_geom[i]-new_geom[j])
+def equal_geom(orig_spec, new_spec, cutoff):
+    """
+    Test if two geometries are the same based on:
+    - bond mx has to be the same
+    - bond lenths have to be within cutoff as a percentage change
+    Only works for structures with unchanged atom order, e.g.,
+    L2 vs L1 or conformers vs base.
+    """
+    
+    max_bond_new = new_spec.bonds[0]
+    for b in range(len(new_spec.bonds) - 1):
+        max_bond_new = np.maximum(max_bond_new, new_spec.bonds[b + 1])
+
+    max_bond_orig = orig_spec.bonds[0]
+    for b in range(len(orig_spec.bonds) - 1):
+        max_bond_orig = np.maximum(max_bond_orig, orig_spec.bonds[b + 1])
+ 
+    if max_bond_orig.all() != max_bond_new.all():
+        return 0
+
+    for i in range(len(orig_spec.bond[0])-1):
+        for j in range(i + 1, len(orig_spec.bond[0])):
+            if orig_spec.bond[i][j] > 0:
+                orig_dist = np.linalg.norm(orig_spec.geom[i] - orig_spec.geom[j])
+                new_dist = np.linalg.norm(new_spec.geom[i] - new_spec.geom[j])
                 if np.abs(new_dist - orig_dist) / orig_dist > cutoff:
                     return 0
     return 1

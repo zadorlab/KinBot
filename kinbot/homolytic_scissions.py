@@ -114,8 +114,8 @@ class HomolyticScissions:
                         elif e != 0:
                             err = -1
                         else:
-                            e2, prod.energy = hs.qc.get_qc_energy(str(prod.chemid) + '_well', prod.natom)
-                            e2, prod.zpe = hs.qc.get_qc_zpe(str(prod.chemid) + '_well', prod.natom)
+                            e2, prod.energy = hs.qc.get_qc_energy(str(prod.chemid) + '_well')
+                            e2, prod.zpe = hs.qc.get_qc_zpe(str(prod.chemid) + '_well')
                     if err == 0:
                         hs.status = 2
                 if hs.status == 2:
@@ -137,8 +137,8 @@ class HomolyticScissions:
                             elif er != 0:
                                 err = -1
                             else:
-                                er2, prod.energy = hs.qc.get_qc_energy(str(prod_opt.species.chemid) + '_well', prod_opt,species.natom)
-                                er2, prod.zpe = hs.qc.get_q_zpe(str(prod_opt.species.chemid) + '_well', prod_opt,species.natom)
+                                er2, prod.energy = hs.qc.get_qc_energy(str(prod_opt.species.chemid) + '_well')
+                                er2, prod.zpe = hs.qc.get_qc_zpe(str(prod_opt.species.chemid) + '_well')
                             hs.products.pop(i)
                             hs.products.insert(j, prod_opt.species)
                         prod_opt.do_optimization()
@@ -160,11 +160,11 @@ class HomolyticScissions:
                     elif opts_done:
                         # check if the energy is higher
                         # than the barrier threshold
-                        species_energy = self.species.energy
-                        prod_energy = 0.
+                        species_zeroenergy = self.species.energy + self.species.zpe
+                        prod_zeroenergy = 0.
                         for pr_opt in hs.prod_opt:
-                            prod_energy += pr_opt.species.energy
-                        barrier = (prod_energy - species_energy)*constants.AUtoKCAL
+                            prod_zeroenergy += pr_opt.species.energy + pr_opt.species.zpe
+                        barrier = (prod_zeroenergy - species_zeroenergy) * constants.AUtoKCAL
                         prod_name = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
                         if barrier > self.par['barrier_threshold']:
                             logging.info("Energy of HS product {} is above the barrier threshold ({:.3} kcal/mol)".format(prod_name, barrier))

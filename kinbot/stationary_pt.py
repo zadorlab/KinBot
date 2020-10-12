@@ -758,7 +758,7 @@ class StationaryPoint:
         # for the >C=C=C< case
         reduced_bond = self.bonds[0]
         for b in range(len(self.bonds) - 1):
-            reduced_bond = np.minimum(self.bonds[b], self.bonds[b + 1])
+            reduced_bond = np.minimum(reduced_bond, self.bonds[b + 1])
         for i in range(self.natom):
             if np.count_nonzero(reduced_bond[i] > 0) == 4:  # exactly 4 neighbors
                 atids = []

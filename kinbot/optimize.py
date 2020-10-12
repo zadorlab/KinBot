@@ -21,8 +21,6 @@ class Optimize:
     2. High level optimization and freq calc of the species
     3. Hindered rotor scans
     4. Repeat steps 2-3 as long as lower energy structures are found
-
-    TODO: find better name for this module and class
     """
 
     def __init__(self, species, par, qc, wait=0):
@@ -184,7 +182,12 @@ class Optimize:
                             elif status == 'normal':
                                 # finished successfully
                                 err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
-
+                                temp = StationaryPoint('temp',
+                                                       self.species.charge,
+                                                       self.species.mult,
+                                                       atom=self.species.atom,
+                                                       geom=new_geom)
+                                temp.bond_mx()
                                 if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
                                     if self.par['conformer_search'] == 0:
                                         fr_file = self.fr_file_name(0)  # name of the original TS file
@@ -198,12 +201,21 @@ class Optimize:
                                     # either geom is roughly same with closely matching imaginary modes, or geometry is very close
                                     # maybe we need to do IRC at the high level as well...
                                     same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
-                                            (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.3))) \
-                                            or (geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.15))
+                                            (geometry.equal_geom(self.species, temp, 0.3))) \
+                                            or (geometry.equal_geom(self.species, temp, 0.15))
                                 else:
-                                    same_geom = geometry.equal_geom(self.species.bond, self.species.geom, new_geom, 0.1)
+                                    same_geom = geometry.equal_geom(self.species, temp, 0.1)
 
-                                if same_geom:
+                                err, fr = self.qc.get_qc_freq(self.job_high, self.species.natom)
+                                if len(fr) == 1 and fr[0] == 0:
+                                    freq_ok = 0
+                                elif self.species.wellorts == 0 and fr[0] > 0.:
+                                    freq_ok = 1
+                                elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
+                                    freq_ok = 1
+                                else:
+                                    freq_ok = 0
+                                if same_geom and freq_ok:
                                     # geometry is as expected and normal modes are the same for TS
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)
@@ -212,13 +224,15 @@ class Optimize:
                                     self.shigh = 1
                                 else:
                                     # geometry diverged to other structure
-                                    logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
+                                    if not same_geom:
+                                        logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
+                                    if not freq_ok:
+                                        logging.info('\tWrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
                                     self.shigh = -999
                               
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
-                    logging.info("done with conformer search for {}".format(self.species.name))
                     if self.shigh == 1:
                         # do the HIR calculation
                         if self.par['rotor_scan'] == 1:
@@ -226,7 +240,7 @@ class Optimize:
                                 # hir not stated yet
                                 logging.info('\tStarting hindered rotor calculations of {}'.format(self.name))
                                 self.species.hir = HIR(self.species, self.qc, self.par)
-                                self.species.hir.generate_hir_geoms(copy.deepcopy(self.species.geom))
+                                self.species.hir.generate_hir_geoms(copy.deepcopy(self.species.geom), self.par['rigid_hir'])
                                 self.shir = 0
                             if self.shir == 0:
                                 # hir is running

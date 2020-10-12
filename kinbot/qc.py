@@ -54,7 +54,7 @@ class QuantumChemistry:
         self.username = par['username']
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0,
-                         high_level=0, hir=0, start_from_geom=0):
+                         high_level=0, hir=0, start_from_geom=0, rigid=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
@@ -125,12 +125,8 @@ class QuantumChemistry:
                     kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 del kwargs['freq']
             if high_level:
-                if 'barrierless_saddle' in job:
-                    kwargs['method'] = self.bls_high_level_method
-                    kwargs['basis'] = self.bls_high_level_basis
-                else:
-                    kwargs['method'] = self.high_level_method
-                    kwargs['basis'] = self.high_level_basis
+                kwargs['method'] = self.high_level_method
+                kwargs['basis'] = self.high_level_basis
                 if len(self.opt) > 0:
                     kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999,{}'.format(self.opt)  # to overwrite possible CalcAll
                 else:
@@ -138,6 +134,11 @@ class QuantumChemistry:
                 kwargs['freq'] = 'freq'
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral
+                if 'barrierless_saddle' in job:  # completely overwrite normal settings
+                    kwargs['method'] = self.bls_high_level_method
+                    kwargs['basis'] = self.bls_high_level_basis
+                    kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
+                    del kwargs['freq']
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
                 if (not ts) or (ts and (not self.par['calcall_ts'])):
@@ -147,7 +148,16 @@ class QuantumChemistry:
                         kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest'
                     else:
                         kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest,MaxCycle={}'.format(self.par['hir_maxcycle'])
-
+                if rigid == 1:
+                    try:
+                        del kwargs['freq']
+                    except KeyError:
+                        pass
+                    try:
+                        del kwargs['opt']
+                    except KeyError:
+                        pass
+    
             return kwargs
 
         if self.qc == 'nwchem':
@@ -190,7 +200,7 @@ class QuantumChemistry:
                 kwargs.update(irc_kwargs)
             return kwargs
 
-    def qc_hir(self, species, geom, rot_index, ang_index, fix):
+    def qc_hir(self, species, geom, rot_index, ang_index, fix, rigid):
         """
         Creates a constrained geometry optimization input and runs it.
         wellorts: 0 for wells and 1 for saddle points
@@ -203,7 +213,7 @@ class QuantumChemistry:
         else:
             job = 'hir/' + str(species.chemid) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=species.wellorts, step=1, max_step=1, high_level=1, hir=1)
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=species.wellorts, step=1, max_step=1, high_level=1, hir=1, rigid=rigid)
         kwargs['fix'] = fix
         del kwargs['chk']
 
@@ -920,4 +930,4 @@ class QuantumChemistry:
 
             if len(jobs.split(b'\n')) < self.queue_job_limit:
                 return 0
-            time.sleep(30)
+            time.sleep(1)

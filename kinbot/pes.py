@@ -118,11 +118,9 @@ def main():
         a = j
         with open('chemids', 'r') as f:
             jobs = f.read().split('\n')
-            jobs = [ji for ji in jobs if ji != '']
-
-        if len(jobs) > j:
-            logging.info('\tPicked up new jobs: ' + ' '.join(jobs[j:]))
-
+        for i, j in enumerate(jobs):
+            if j == '':
+                jobs.pop(i)
         k = len(running)
         l = len(finished)
         if b != k:
@@ -1042,6 +1040,16 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             db = connect(dbfi)
             job = rxn
             rows = db.select(name=job)
+            wellenergy = well_energies[parent[rxn]]
+            name = [ts_short[rxn[1]]]
+            name.append(well_short[rxn[0]])
+            if len(rxn[2]) == 1:
+                name.append(well_short[rxn[2][0]])
+            else:
+                name.append(pr_short['_'.join(sorted(rxn[2]))])
+            name.append('!')
+            name.append(rxn[1])
+            energy = rxn[3]
             freq = row.data.get('frequencies')
             wellenergy = well_energies[parent[rxn]]
             name = [ts_short[rxn[1]]]
@@ -1053,21 +1061,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name.append('!')
             name.append(rxn[1])
             energy = rxn[3]
-            uq_energyAdd = uq_obj.calc_factor('barrier', ts_short[rxn[1]], uq_iter, 0)
-            energy = energy + uq_energyAdd
-
-            reaction_items.append(rxn[1])
-            mess_iter = "{0:04d}".format(uq_iter)
-
-
-        try:
-            with open(rxn[0] + '/' + rxn[1] + '_' + str(mess_iter) + '.mess') as f:
-                s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
-                s.append('!****************************************')
-        except:
-            fi = open("pes.log", 'a')
-            fi.write('{0} {1} {2} {3} {4}'.format(rxn[0], "/", rxn[1], fi, "not found"))
-            fi.close()
+            try:
+                with open(rxn[0] + '/' + rxn[1] + '_' + str(mess_iter) + '.mess') as f:
+                    s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
+                s.append(divider)
+            except:
+                with open("pes.log", 'a') as fi:
+                    fi.write('{0} {1} {2} {3} {4}'.format("File ", rxn[0], "/", rxn[1], ".mess was not found.\n"))
         # add last end statement
         s.append('!****************************************')
         s.append('End ! end kinetics\n')
@@ -1365,6 +1365,7 @@ def submit_job(chemid, par):
     if par['single_point_template'] != '':
         shutil.copyfile('{}'.format(par['single_point_template']), '{}/{}'.format(chemid, par['single_point_template']))
     if par['barrierless_saddle_single_point_template'] != '':
+        print("{}".format(par['barrierless_saddle_single_point_template']), '{}/{}'.format(chemid, par['barrierless_saddle_single_point_template']))
         shutil.copyfile('{}'.format(par['barrierless_saddle_single_point_template']), '{}/{}'.format(chemid, par['barrierless_saddle_single_point_template']))
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')

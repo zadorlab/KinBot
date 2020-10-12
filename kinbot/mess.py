@@ -34,6 +34,7 @@ class MESS:
         self.ts_names = {}
         self.termolec_names = {}
         self. barrierless_names = {}
+        self.pes = self.par['pes']
         # read all templates to create mess input
         with open(pkg_resources.resource_filename('tpl', 'mess_header.tpl')) as f:
             self.headertpl = f.read()
@@ -201,8 +202,8 @@ class MESS:
             written_bimol_names = []
             written_termolec_names = []
 
-            well_energyAdd = uq_obj.calc_factor('energy', self.species.chemid, uq_iter)
-            well_freqFactor = uq_obj.calc_factor('freq', self.species.chemid, uq_iter)
+            well_energyAdd = uq_obj.calc_factor('energy', self.species.chemid, uq_iter, self.pes)
+            well_freqFactor = uq_obj.calc_factor('freq', self.species.chemid, uq_iter, self.pes)
             well_blocks[self.species.chemid] = self.write_well(self.species,
                                                                                 well_energyAdd,
                                                                                 well_freqFactor,
@@ -210,9 +211,9 @@ class MESS:
             
             for index, reaction in enumerate(self.species.reac_obj):
                 if reaction.instance_name in ts_all:
-                    barrierAdd = uq_obj.calc_factor('barrier', reaction.instance_name, uq_iter)
-                    freqFactor = uq_obj.calc_factor('freq', reaction.instance_name, uq_iter)
-                    imagfreqFactor = uq_obj.calc_factor('imagfreq', reaction.instance_name, uq_iter)
+                    barrierAdd = uq_obj.calc_factor('barrier', reaction.instance_name, uq_iter, self.pes)
+                    freqFactor = uq_obj.calc_factor('freq', reaction.instance_name, uq_iter, self.pes)
+                    imagfreqFactor = uq_obj.calc_factor('imagfreq', reaction.instance_name, uq_iter, self.pes)
         
 
         # get left-right barrier
@@ -248,16 +249,17 @@ class MESS:
                     ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                     if len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
-                        energyAdd = uq_obj.calc_factor('energy', st_pt.chemid, uq_iter)
-                        freqFactor = uq_obj.calc_factor('freq', st_pt.chemid, uq_iter)
+                        energyAdd = uq_obj.calc_factor('energy', st_pt.chemid, uq_iter, self.pes)
+                        freqFactor = uq_obj.calc_factor('freq', st_pt.chemid, uq_iter, self.pes)
+
                         well_blocks[st_pt.chemid] = self.write_well(st_pt,
                                                                     energyAdd,
                                                                     freqFactor,
                                                                     uq_iter)
                     elif len(reaction.products) == 2:
                         bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        energyAdd = uq_obj.calc_factor('energy', bimol_name, uq_iter)
-                        freqFactor = uq_obj.calc_factor('freq', bimol_name, uq_iter)
+                        energyAdd = uq_obj.calc_factor('energy', bimol_name, uq_iter, self.pes)
+                        freqFactor = uq_obj.calc_factor('freq', bimol_name, uq_iter, self.pes)
                         bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
                                                                       energyAdd,
                                                                       freqFactor,
@@ -284,8 +286,8 @@ class MESS:
                             if new:
                                 self.barrierless_names[hs_prod_name] = hs_prod_name
                             if new == 1 or uq_iter >= 0:
-                                barrierless_energyAdd = uq_obj.calc_factor('energy', hs_prod_name, uq_iter)
-                                barrierless_freqFactor = uq_obj.calc_factor('freq', hs_prod_name, uq_iter)
+                                barrierless_energyAdd = uq_obj.calc_factor('energy', hs_prod_name, uq_iter, self.pes)
+                                barrierless_freqFactor = uq_obj.calc_factor('freq', hs_prod_name, uq_iter, self.pes)
                                 barrierless_blocks[hs_prod_name] = self.write_barrierless([opt.species for opt in hs.prod_opt],
                                                                                           hs,
                                                                                           barrierless_energyAdd,
@@ -360,15 +362,17 @@ class MESS:
 
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
+                    freq = '{freq}'
                 else:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
+                    freq = self.make_freq(species, freqFactor, 0)
                 # molecule template
                 fragments += self.fragmenttpl.format(chemid=name,
                                                     natom=species.natom,
                                                     geom=self.make_geom(species),
                                                     symm=float(species.sigma_ext) / float(species.nopt),
                                                     nfreq=len(species.reduced_freqs),
-                                                    freq=self.make_freq(species, freqFactor, 0),
+                                                    freq=freq,
                                                     hinderedrotor=self.make_rotors(species),
                                                     nelec=1,
                                                     mult=species.mult)
@@ -428,17 +432,19 @@ class MESS:
         if self.par['pes']:
             name = '{name}'
             energy = '{zeroenergy}'
+            freq = '{freq}'
         else:
             name = self.well_names[species.chemid] + ' ! ' + str(species.chemid)
             energy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
             energy += well_add
+            freq = self.make_freq(species, freqFactor, 0)
 
         mess_well = self.welltpl.format(chemid=name,
                                         natom=species.natom,
                                         geom=self.make_geom(species),
                                         symm=float(species.sigma_ext) / float(species.nopt),
                                         nfreq=len(species.reduced_freqs),
-                                        freq=self.make_freq(species, freqFactor, 0),
+                                        freq=freq,
                                         hinderedrotor=self.make_rotors(species),
                                         nelec=1,
                                         mult=species.mult,
@@ -456,43 +462,27 @@ class MESS:
 
         freq = ''
 
-        """
-        # get left-right barrier
-        # Amanda, there is some inefficiency here. This left/right barrier calculation will be 
-        # done at each uq iteration. It would be more elegant if it was calculated outside this function,
-        # before the write_barrier is called, and then the left/righ barrier would be sent in here 
-        # as an input
-        # but not very urgent 
-        species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
-        if self.species.reac_ts_done[index] == -1:
-            ts_zeroenergy = (reaction.ts.energy + reaction.ts.zpe) * constants.AUtoKCAL
-
-            if not self.par['high_level'] and reaction.mp2 == 1:
-                jobname = '{}_well_mp2'.format(str(self.species.chemid))
-                well_zeroenergy = self.get_zeroenergy(jobname, qc)
-            elif not self.par['high_level'] and self.species.reac_type[index] == 'barrierless_saddle':
-                jobname = '{}_well_bls'.format(str(self.species.chemid))
-                well_zeroenergy = self.get_zeroenergy(jobname, qc)
-            else:
-                well_zeroenergy = species_zeroenergy 
-            left_zeroenergy = ts_zeroenergy - well_zeroenergy 
-
-            prod_zeroenergy = 0
-            for opt in reaction.prod_opt:
-                prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
-            right_zeroenergy = left_zeroenergy - (prod_zeroenergy - well_zeroenergy)
-        """
-        left_zeroenergy += barrier_add
-        right_zeroenergy += barrier_add
-
-        # write tunneling block
+        if self.par['pes'] == 1:
+            imfreq = {'imfreq'}
+            cutoff = {'cutoff'}
+            welldepth1 = {'welldepth1'}
+            welldepth2 = {'welldepth2'}
+        else:
+            left_zeroenergy += barrier_add
+            right_zeroenergy += barrier_add
+            cutoff = min(left_zeroenergy, right_zeroenergy)
+            imfreq = -reaction.ts.reduced_freqs[0] * imagfreqFactor
+            welldepth1 = left_zeroenergy
+            welldepth2 = right_zeroenergy
+ 
+            # write tunneling block
         if left_zeroenergy < 0 or right_zeroenergy < 0:
             tun = ''
         else:
-            tun = self.tunneltpl.format(cutoff=min(left_zeroenergy, right_zeroenergy),
-                                        imfreq=-reaction.ts.reduced_freqs[0] * imagfreqFactor,
-                                        welldepth1=left_zeroenergy + barrier_add,
-                                        welldepth2=right_zeroenergy + barrier_add)
+            tun = self.tunneltpl.format(cutoff=cutoff,
+                                        imfreq=imfreq,
+                                        welldepth1=welldepth1,
+                                        welldepth2=welldepth2)
 
         # name the product
         if len(reaction.products) == 1:
@@ -510,12 +500,14 @@ class MESS:
             chemid_prod = ''
             long_rxn_name = ''
             zeroenergy = '{zeroenergy}'
+            freq = '{freq}'
         else:
             name = self.ts_names[reaction.instance_name]
             chemid_reac = self.well_names[self.species.chemid]
             chemid_prod = prod_name
             long_rxn_name = reaction.instance_name
             zeroenergy = left_zeroenergy + barrier_add
+            freq = self.make_freq(reaction.ts, freqFactor, 0)
     
         # TODO working here
         if self.species.reac_type[index] == 'barrierless_saddle':
@@ -535,7 +527,7 @@ class MESS:
                                        geom=self.make_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
-                                       freq=self.make_freq(reaction.ts, freqFactor, 1),
+                                       freq=freq,
                                        rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling='',
                                        nelec=1,
@@ -555,7 +547,7 @@ class MESS:
                                        geom=self.make_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
-                                       freq=self.make_freq(reaction.ts, freqFactor, 1),
+                                       freq=freq,
                                        rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling=tun,
                                        nelec=1,

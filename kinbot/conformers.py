@@ -377,26 +377,26 @@ class Conformers:
                                 lowest_totenergy = energy + zpe
                                 if self.species.wellorts:
                                     base_imag_freq = freq[0]
-                        if energy + zpe < lowest_totenergy:
-                            err, freq = self.qc.get_qc_freq(job, self.species.natom)
-                            ratio = 0.8
-                            if self.species.wellorts:
-                                if freq[0] / base_imag_freq < ratio:
-                                    err = -1 
-                                if freq[0] / base_imag_freq > 1. / ratio:
-                                    err = -1 
-                                if self.species.natom > 2 and freq[1] <= 0.:
-                                    err = -1
-                            else:
-                                if freq[0] <= 0.:
-                                    err = -1
-                            if err == 0:
-                                lowest_conf = str(ci).zfill(self.zf)
-                                lowest_totenergy = energy + zpe
-                                lowest_e_geom = geom
-                    else:
-                        totenergies.append(0.)
-                        final_geoms.append(np.zeros((self.species.natom, 3)))
+                                if energy + zpe < lowest_totenergy:
+                                    err, freq = self.qc.get_qc_freq(job, self.species.natom)
+                                    ratio = 0.8
+                                    if self.species.wellorts:
+                                        if freq[0] / base_imag_freq < ratio:
+                                            err = -1 
+                                        if freq[0] / base_imag_freq > 1. / ratio:
+                                            err = -1 
+                                        if self.species.natom > 2 and freq[1] <= 0.:
+                                            err = -1
+                                    else:
+                                        if freq[0] <= 0.:
+                                            err = -1
+                                    if err == 0:
+                                        lowest_conf = str(ci).zfill(self.zf)
+                                        lowest_totenergy = energy + zpe
+                                        lowest_e_geom = geom
+                        else:
+                            totenergies.append(0.)
+                            final_geoms.append(np.zeros((self.species.natom, 3)))
 
                 #self.write_profile(status, final_geoms, energies)
                 

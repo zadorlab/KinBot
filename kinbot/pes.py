@@ -916,9 +916,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
 
     i = 0  # uncertainty counter
-    fi = open('pes.log', 'a')
-    fi.write('{0} {1} {2}'.format("uq value: ", par['uq'], "\n"))
-    fi.close()
     well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
                                                                                products,
                                                                                reactions,
@@ -963,11 +960,12 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
     frame = '######################\n' 
     divider = '!****************************************\n'
-    if par['uq'] == 0:
+
+
+    uq_iter = 0
+    while(uq_iter < par['uq_n']):
         # list of the strings to write to mess input file
         s = []
-        # write the header
-
         # create dummy for mess object
         dummy = StationaryPoint('dummy',
                                 par['charge'],
@@ -975,45 +973,77 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                                 smiles=par['smiles'],
                                 structure=par['structure'])
 
-        # mess object
         mess = MESS(par, dummy)
-
+        uq_obj = UQ(par)
+        reaction_items = []  # well, ts, prod pushed to final pes
         # write the wells
-        s.append(frame +'# WELLS\n' + frame)
+        s.append('######################')
+        s.append('# WELLS')
+        s.append('######################')
         for well in wells:
+            # open db file to pull data
+            dbfi = parent[well] + '/kinbot.db'
+            db = connect(dbfi)
+            job = well
+            rows = db.select(name=job)
+            freq = row.data.get('frequencies')
+
             name = well_short[well] + ' ! ' + well
             energy = well_energies[well]
-            fi = parent[well] + '/' + well + '.mess'
-            with open(fi, 'r') as f:
-                s.append(f.read().format(name=name, zeroenergy=energy))
-            s.append(divider)
-
-        slen = len(s)
-        w = len(wells)
-        ws = len(well_short)
+            uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter, 0)
+            energy = energy + uq_energyAdd
+            freq_factor = uq_obj.calc_factor('freq', well_short[well], uq_iter, 0)
+            freq = mess.make_freq(well, freq, freq_factor, 0)
+            mess_iter = "{0:04d}".format(uq_iter)
+            reaction_items.append(well) 
+            with open(parent[well] + '/' + well + '_' + str(mess_iter) + '.mess') as f:
+                s.append(f.read().format(name=name, zeroenergy=energy), freq=freq)
+                s.append('!****************************************')
 
         # write the products
-        s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
+        s.append('######################')
+        s.append('# BIMOLECULAR PRODUCTS')
+        s.append('######################')
         for prod in products:
+            dbfi = parent[prod] + '/kinbot.db'
+            db = connect(dbfi)
+            job = prod
+            rows = db.select(name=job)
+            freq = row.data.get('frequencies')
+
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod]
+            uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter, 0)
+            energy = energy + uq_energyAdd
+            freq_factor = uq_obj.calc_factor('freq', pr_short[prod], uq_iter, 0)
+            freq = self.make_freq(prod, freq, freq_factor, 0)
             fr_names = {}
             for fr in prod.split('_'):
                 key = 'fr_name_{}'.format(fr)
-                value = fr_short[fr] + ' ! ' + fr
+                value = fr_short[fr] + ' ! ' + fri
                 fr_names[key] = value
-            with open(parent[prod] + '/' + prod + '.mess') as f:
+            reaction_items.append(prod)
+            mess_iter = "{0:04d}".format(uq_iter)
+            with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
                 s.append(f.read().format(name=name,
                                          ground_energy=energy,
+                                         freq=freq,
                                          **fr_names))
-            s.append(divider)
+                s.append('!****************************************')
 
+
+        # TO DO - EDIT TS SECTION FOR UQ
         # write the barrier
-        s.append(frame + '# BARRIERS\n' + frame)
+        s.append('######################')
+        s.append('# BARRIERS')
+        s.append('######################')
         for rxn in reactions:
-            rxFi = open("reactionList.log", 'a')
-            rxFi.write('{0} {1}'.format(rxn, "\n"))
-            rxFi.close
+            dbfi = parent[rxn] + '/kinbot.db'
+            db = connect(dbfi)
+            job = rxn
+            rows = db.select(name=job)
+            freq = row.data.get('frequencies')
+            wellenergy = well_energies[parent[rxn]]
             name = [ts_short[rxn[1]]]
             name.append(well_short[rxn[0]])
             if len(rxn[2]) == 1:
@@ -1023,128 +1053,42 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name.append('!')
             name.append(rxn[1])
             energy = rxn[3]
-            try:
-                with open(rxn[0] + "/" + rxn[1] + ".mess") as f:
-                    s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
-                s.append(divider)
-            except:
-                fi = open("pes.log", 'a')
-                fi.write('{0} {1} {2} {3} {4}'.format("File ", rxn[0], "/", rxn[1], ".mess was not found.\n"))
-                fi.close()
-        # add last end statement
-        s.append(divider)
-        s.append('End ! end kinetics\n')
+            uq_energyAdd = uq_obj.calc_factor('barrier', ts_short[rxn[1]], uq_iter, 0)
+            energy = energy + uq_energyAdd
 
+            reaction_items.append(rxn[1])
+            mess_iter = "{0:04d}".format(uq_iter)
+
+
+        try:
+            with open(rxn[0] + '/' + rxn[1] + '_' + str(mess_iter) + '.mess') as f:
+                s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
+                s.append('!****************************************')
+        except:
+            fi = open("pes.log", 'a')
+            fi.write('{0} {1} {2} {3} {4}'.format(rxn[0], "/", rxn[1], fi, "not found"))
+            fi.close()
+        # add last end statement
+        s.append('!****************************************')
+        s.append('End ! end kinetics\n')
+    
         if not os.path.exists('me'):
             os.mkdir('me')
 
         # write everything to a file
-        with open('me/mess_0000.inp', 'w') as f:
+        mess_iter = "{0:04d}".format(uq_iter)
+        with open('me/' + 'mess_' + str(mess_iter) + '.inp', 'a') as f:
             f.write(header)
             f.write('\n'.join(s))
-
-        if par['me']:
-            mess.run()
-
-    else:
-        uq_iter = 0
-        while(uq_iter < par['uq_n']):
-            # list of the strings to write to mess input file
-            s = []
-            # write the header
-            # s.append(write_header(par, well_short[wells[0]]))
-
-            # create dummy for mess object
-            dummy = StationaryPoint('dummy',
-                                    par['charge'],
-                                    par['mult'],
-                                    smiles=par['smiles'],
-                                    structure=par['structure'])
-
-            mess = MESS(par, dummy)
-            uq_obj = UQ(par)
-
-            # write the wells
-            s.append('######################')
-            s.append('# WELLS')
-            s.append('######################')
-            for well in wells:
-                name = well_short[well] + ' ! ' + well
-                energy = well_energies[well]
-                uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter)
-                energy = energy + uq_energyAdd
-                mess_iter = "{0:04d}".format(uq_iter)
-                with open(parent[well] + '/' + well + '_' + str(mess_iter) + '.mess') as f:
-                    s.append(f.read().format(name=name, zeroenergy=energy))
-                s.append('!****************************************')
-            slen = len(s)
-            w = len(wells)
-            ws = len(well_short)
-
-            # write the products
-            s.append('######################')
-            s.append('# BIMOLECULAR PRODUCTS')
-            s.append('######################')
-            for prod in products:
-                name = pr_short[prod] + ' ! ' + prod
-                energy = prod_energies[prod]
-                uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter)
-                energy = energy + uq_energyAdd
-                fr_names = {}
-                for fr in prod.split('_'):
-                    key = 'fr_name_{}'.format(fr)
-                    value = fr_short[fr] + ' ! ' + fr
-                    fr_names[key] = value
-                mess_iter = "{0:04d}".format(uq_iter)
-                with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
-                    s.append(f.read().format(name=name,
-                                             ground_energy=energy,
-                                             **fr_names))
-                s.append('!****************************************')
-
-            # write the barrier
-            s.append('######################')
-            s.append('# BARRIERS')
-            s.append('######################')
-            for rxn in reactions:
-                name = [ts_short[rxn[1]]]
-                name.append(well_short[rxn[0]])
-                if len(rxn[2]) == 1:
-                    name.append(well_short[rxn[2][0]])
-                else:
-                    name.append(pr_short['_'.join(sorted(rxn[2]))])
-                name.append('!')
-                name.append(rxn[1])
-                energy = rxn[3]
-                uq_energyAdd = uq_obj.calc_factor('barrier', ts_short[rxn[1]], uq_iter)
-                energy = energy + uq_energyAdd
-                mess_iter = "{0:04d}".format(uq_iter)
-                try:
-                    with open(rxn[0] + '/' + rxn[1] + '_' + str(mess_iter) + '.mess') as f:
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
-                    s.append('!****************************************')
-                except:
-                    fi = open("pes.log", 'a')
-                    fi.write('{0} {1} {2} {3} {4}'.format(rxn[0], "/", rxn[1], fi, "not found"))
-                    fi.close()
-            # add last end statement
-            s.append('!****************************************')
-            s.append('End ! end kinetics\n')
-            
-            if not os.path.exists('me'):
-                os.mkdir('me')
-
-            # write everything to a file
-            mess_iter = "{0:04d}".format(uq_iter)
-            with open('me/' + 'mess_' + str(mess_iter) + '.inp', 'a') as f:
-                f.write(header)
-                f.write('\n'.join(s))
-            uq_iter = uq_iter + 1
+        uq_iter = uq_iter + 1
 
         if par['me'] == 1:
             mess.run()
-        
-        uq_obj.format_uqtk_data() 
+
+    uq_obj.pes_freq_uqtk_data(parent, reaction_items)
+    uq_obj.format_uqtk_data()
+
+    return 0 
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):
@@ -1463,6 +1407,21 @@ def write_input(input_file, species, threshold, root):
     with open(file_name, 'w') as outfile:
         json.dump(par2, outfile, indent=4, sort_keys=True)
 
+
+def make_freq(self, species, freq, factor, wellorts):
+
+    final_freq = []
+    # wellorts: 0 for wells and 1 for saddle points
+    if wellorts == 0:
+        frequencies = freq
+    else:
+        frequencies = freq[1:]
+    for i, fr in enumerate(frequencies):
+        fr = fr * factor
+        final_freq += '{:.1f} '.format(fr)
+        if i % 3 == 2:
+            final_freq += '\n         '
+    return(final_freq)
 
 if __name__ == "__main__":
     main()

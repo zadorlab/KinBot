@@ -19,10 +19,12 @@ class UQ:
         self.uq_iter = 0
 
 
-    def calc_factor(self, propertyType, species, uq_iter):
+    def calc_factor(self, propertyType, species, uq_iter, pes):
         if self.uq_iter != uq_iter:  # new iteration
             with open('uqtk.data', 'a') as f:
                 f.write('')  # new line
+        if pes == 1:
+            uq_iter = 0
 
         if uq_iter == 0:
             if propertyType == 'freq' or propertyType == 'imagfreq':
@@ -104,3 +106,20 @@ class UQ:
                 f.write('\n')
 
         return 0
+
+
+    def pes_freq_uqtk_data(self, parent, reaction_items):
+        for key in parent:
+            with open(key + '/uqtk.data') as f:
+                for line in f:
+                    print(reaction_items + '\n' + line[0])
+                    if line[0] in reaction_items:
+                        print('{} in rxnitems'.format(line[0]))
+                        print(line[1])
+                        if line[1] == 'freq' or line[1] == 'imagfreq':
+                            uqfi = open('uqtk.data', 'a')
+                            uqfi.write(line)
+                            uqfi.close()
+
+        f.close()
+

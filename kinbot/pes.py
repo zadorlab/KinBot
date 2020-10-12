@@ -1,6 +1,7 @@
 """
 This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
+TEST LINE
 """
 from __future__ import print_function
 from __future__ import absolute_import

@@ -491,7 +491,32 @@ class ReactionGenerator:
                 obj = self.species.reac_obj[index]
                 if len(obj.products) == 2:
                     blsprodatom = np.append(obj.products[0].atom, obj.products[1].atom)
-                    blsprodgeom = np.append(obj.products[0].geom, obj.products[1].geom + 20.)
+                    # vector connecting the centers
+                    # assumed: the two structures are naturally separated at the end of the IRC
+                    x0 = 0
+                    y0 = 0
+                    z0 = 0
+                    for g in obj.products[0].geom:
+                        x0 += g[0]
+                        y0 += g[1]
+                        z0 += g[1]
+                    x0 /= obj.products[0].natom
+                    y0 /= obj.products[0].natom
+                    z0 /= obj.products[0].natom
+
+                    x1 = 0
+                    y1 = 0
+                    z1 = 0
+                    for g in obj.products[1].geom:
+                        x1 += g[0]
+                        y1 += g[1]
+                        z1 += g[1]
+                    x1 /= obj.products[1].natom
+                    y1 /= obj.products[1].natom
+                    z1 /= obj.products[1].natom
+
+                    center_vec = [x1 - x0, y1 - y0, z1- z0]
+                    blsprodgeom = np.append(obj.products[0].geom, obj.products[1].geom)
                     blsprodgeom = np.reshape(blsprodgeom, (-1, 3))
                     bps = list(zip(blsprodatom, blsprodgeom))
                     bps1 = [item for sublist in bps for item in sublist]
@@ -504,7 +529,7 @@ class ReactionGenerator:
                     molp = Molpro(blsprod, self.par)
                     key = self.par['barrierless_saddle_single_point_key']
                     molpname = '{}_prod'.format(obj.instance_name)
-                    molp.create_molpro_input(bls=1, name=molpname)
+                    molp.create_molpro_input(bls=1, name=molpname, shift_vec=center_vec, natom1=len(obj.products[1].geom))
                     molp.create_molpro_submit(name=molpname)
 
         s = []

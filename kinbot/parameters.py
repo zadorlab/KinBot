@@ -189,6 +189,8 @@ class Parameters:
             'single_point_key': '',
             # L3 for barrierless template, CASPT2-like molpro is expected
             'barrierless_saddle_single_point_template': '',
+            # L3 for barrierless template for product, CASPT2-like molpro is expected
+            'barrierless_saddle_prod_single_point_template': '',
             # active orbitals
             'barrierless_saddle_norbital': 0,
             # number of electrons on them 

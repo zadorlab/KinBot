@@ -517,16 +517,25 @@ class MESS:
     
         # TODO working here
         if self.species.reac_type[index] == 'barrierless_saddle':
+            freq = self.make_freq(reaction.prod_opt[0].species, freqFactor, 0) + \
+                   self.make_freq(reaction.prod_opt[1].species, freqFactor, 0) 
+            rotors = self.make_rotors(reaction.prod_opt[0].species) + \
+                     self.make_rotors(reaction.prod_opt[1].species) 
 
-            for opt in reaction.prod_opt:
-                geom1=opt.species.geom
             outerts = self.psttpl.format(natom1=reaction.prod_opt[0].species.natom,
                                          geom1=self.make_geom(reaction.prod_opt[0].species),
                                          natom2=reaction.prod_opt[1].species.natom,
                                          geom2=self.make_geom(reaction.prod_opt[1].species),
                                          symm='xxx',
                                          prefact='prefactor',
-                                         exponent=3.)
+                                         exponent=3.,
+                                         nfreq=len(freq),
+                                         freq=freq,
+                                         hinderedrotor=rotors,
+                                         nelec=1,
+                                         mult=reaction.ts.mult,
+                                         zeroenergy='fragment asymptote energy'
+                                         )
             twotst = self.twotstpl.format(outerts=outerts)
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,

@@ -881,7 +881,7 @@ class QuantumChemistry:
         #     return 'running'
 
         if self.is_in_database(job):
-            for i in range(10):
+            for i in range(1):
 
                 if self.qc == 'gauss':
                     log_file = job + '.log'

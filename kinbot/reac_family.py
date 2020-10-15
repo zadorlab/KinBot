@@ -15,8 +15,8 @@ def carry_out_reaction(rxn, step, command):
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error': return step
   
-    kwargs = rxn.qc.get_qc_arguments(   rxn.instance_name, rxn.species.mult, rxn.species.charge, ts=1,
-                                        step=step, max_step=rxn.max_step, scan=rxn.scan)
+    kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge, ts=1,
+                                     step=step, max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
             if rxn.qc.check_qc(rxn.instance_name) == 'normal': 
@@ -56,10 +56,10 @@ def carry_out_reaction(rxn, step, command):
 
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
-        template = open(template_file,'r').read()
     else:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
-        template = open(template_file,'r').read()
+    
+    template = open(template_file,'r').read()
     
     template = template.format(label=rxn.instance_name, 
                                kwargs=kwargs, 
@@ -67,11 +67,11 @@ def carry_out_reaction(rxn, step, command):
                                geom=list([list(gi) for gi in geom]), 
                                ppn=rxn.qc.ppn,
                                qc_command=command,
-                               working_dir=os.getcwd())
+                               working_dir=os.getcwd(),
+                               scan=scan)
 
-    f_out = open('{}.py'.format(rxn.instance_name),'w')
-    f_out.write(template)
-    f_out.close()
+    with open('{}.py'.format(rxn.instance_name),'w') as f_out:
+        f_out.write(template)
     
     step += rxn.qc.submit_qc(rxn.instance_name, singlejob=0)
 

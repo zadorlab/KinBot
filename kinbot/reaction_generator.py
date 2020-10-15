@@ -64,8 +64,6 @@ class ReactionGenerator:
         for i in self.species.reac_inst:
             count = count + 1
         frag_unique = []
-        nameUnique = []
-        stpt_inchis = []
         try:
             import pybel
             pybelErr = 0
@@ -130,20 +128,22 @@ class ReactionGenerator:
                                     err, energy = self.qc.get_qc_energy(obj.instance_name)
                                     if err == 0:
                                         self.species.reac_scan_energy[index].append(energy)
-                                        if len(self.species.reac_scan_energy[index]) >= 3:  # need at least 3 point for a maximum
-                                            # if self.species.reac_scan_energy[index][-1] < self.species.reac_scan_energy[index][-2]:  # old
+                                        # need at least 3 points for a maximum
+                                        if len(self.species.reac_scan_energy[index]) >= 3:  
                                             ediff = np.diff(self.species.reac_scan_energy[index])
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
                                                 self.species.reac_step[index] = self.par['scan_step']  # ending the scan
-                                            if len(ediff) >=3:
+                                            if len(ediff) >= 3:
                                                 if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
                                                     self.species.reac_step[index] = self.par['scan_step']  # ending the scan
-                                        logging.info('\tCurrent raw scan energy for {}: {} Hartree.'.format(obj.instance_name, self.species.reac_scan_energy[index][-1]))
+                                        logging.info('\tCurrent raw scan energy for {}: {} Hartree.'.
+                                                     format(obj.instance_name, self.species.reac_scan_energy[index][-1]))
                                         # scan continues, and if reached scan_step, then goes for full optimization
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(
                                                                         obj, self.species.reac_step[index], self.par['qc_command'])
                             else:  # the last step was reached, and no max or inflection was found
-                                logging.info('\tRxn search using scan failed for {}, no saddle guess found.'.format(obj.instance_name))
+                                logging.info('\tRxn search using scan failed for {}, no saddle guess found.'
+                                             .format(obj.instance_name))
                                 db = connect('{}/kinbot.db'.format(os.getcwd()))
                                 rows = db.select(name=obj.instance_name)
                                 for row in self.reversed_iterator(rows):
@@ -156,7 +156,8 @@ class ReactionGenerator:
                     if status == 'running':
                         continue
                     elif status == 'error':
-                        logging.info('\tRxn search failed (gaussian error) for {}'.format(obj.instance_name))
+                        logging.info('\tRxn search failed (gaussian error) for {}'
+                                     .format(obj.instance_name))
                         self.species.reac_ts_done[index] = -999
                     else:
                         # check the barrier height:
@@ -172,15 +173,18 @@ class ReactionGenerator:
                         sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
                         barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
                         if barrier > self.par['barrier_threshold']:
-                            logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'.format(barrier, obj.instance_name))
+                            logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'
+                                         .format(barrier, obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
                             obj.irc = IRC(obj, self.par)  # TODO: this doesn't seem like a good design
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
-                                logging.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'.format(barrier, obj.instance_name))
+                                logging.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'
+                                             .format(barrier, obj.instance_name))
                                 # No IRC started yet, start the IRC now
-                                logging.info('\tStarting IRC calculations for {}'.format(obj.instance_name))
+                                logging.info('\tStarting IRC calculations for {}'
+                                             .format(obj.instance_name))
                                 obj.irc.do_irc_calculations()
                             elif irc_status[0] == 'running' or irc_status[1] == 'running':
                                 continue
@@ -527,7 +531,6 @@ class ReactionGenerator:
                                               structure=blsprodstruct)
                     blsprod.characterize()
                     molp = Molpro(blsprod, self.par)
-                    key = self.par['barrierless_saddle_single_point_key']
                     molpname = '{}_prod'.format(obj.instance_name)
                     molp.create_molpro_input(bls=1, name=molpname, shift_vec=center_vec, natom1=len(obj.products[1].geom))
                     molp.create_molpro_submit(name=molpname)
@@ -573,7 +576,6 @@ class ReactionGenerator:
     def delete_files(self, name):
         # job names
         names = []
-        zf = self.par['zf']
 
         names.append(name)
         names.append(name + '_high')
@@ -606,7 +608,7 @@ class ReactionGenerator:
             if len(prod.atom) == len(self.species.atom): 
                 prod_stereochem = self.get_stereochemistry(prod.atom, prod.geom)
                 if str(well0_stereochem) != str(prod_stereochem):
-                    logging.warning('Stereochemistry flip for product {} in reaction {}'\
+                    logging.warning('Stereochemistry flip for product {} in reaction {}'
                                     .format(prod.chemid, obj.instance_name))
             else:
                 continue

@@ -19,7 +19,7 @@ from ase import Atoms
 from ase.calculators.gaussian import Gaussian
 from ase.db import connect
 
-
+scan = {scan} # not used
 label = '{label}'
 kwargs = {kwargs}
 

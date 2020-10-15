@@ -446,7 +446,7 @@ def postprocess(par, jobs, task, names):
 
     ts_l3energies = {}
     for reac in reactions:
-        if reac[1] != 'barrierless':
+        if reac[1] != 'barrierless':  # meaning homolytic scission
             if 'barrierless_saddle' in reac[1]:
                 zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
                 status, l3energy = get_l3energy(reac[1], par, bls=1)
@@ -1353,9 +1353,9 @@ def get_l3energy(job, par, bls=0):
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
-        else:
-            logging.info('L3 for {} is missing.'.format(job))
-            return 0, -1  # job not yet started to run
+    # if no file or no energy found, or it was not molpro
+    logging.info('L3 for {} is missing.'.format(job))
+    return 0, -1  # job not yet started to run
 
 
 def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):
@@ -1416,8 +1416,10 @@ def submit_job(chemid, par):
     if par['single_point_template'] != '':
         shutil.copyfile('{}'.format(par['single_point_template']), '{}/{}'.format(chemid, par['single_point_template']))
     if par['barrierless_saddle_single_point_template'] != '':
-        shutil.copyfile('{}'.format(par['barrierless_saddle_single_point_template']), '{}/{}'.format(chemid, par['barrierless_saddle_single_point_template']))
-        shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'.format(chemid, par['barrierless_saddle_prod_single_point_template']))
+        shutil.copyfile('{}'.format(par['barrierless_saddle_single_point_template']), '{}/{}'
+                        .format(chemid, par['barrierless_saddle_single_point_template']))
+        shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
+                        .format(chemid, par['barrierless_saddle_prod_single_point_template']))
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
     process = subprocess.Popen(command,

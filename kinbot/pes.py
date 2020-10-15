@@ -1417,6 +1417,7 @@ def submit_job(chemid, par):
         shutil.copyfile('{}'.format(par['single_point_template']), '{}/{}'.format(chemid, par['single_point_template']))
     if par['barrierless_saddle_single_point_template'] != '':
         shutil.copyfile('{}'.format(par['barrierless_saddle_single_point_template']), '{}/{}'.format(chemid, par['barrierless_saddle_single_point_template']))
+        shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'.format(chemid, par['barrierless_saddle_prod_single_point_template']))
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
     process = subprocess.Popen(command,

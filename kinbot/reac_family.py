@@ -56,19 +56,27 @@ def carry_out_reaction(rxn, step, command):
 
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
+        template = open(template_file,'r').read()
+        template = template.format(label=rxn.instance_name, 
+                                   kwargs=kwargs, 
+                                   atom=list(rxn.species.atom), 
+                                   geom=list([list(gi) for gi in geom]), 
+                                   ppn=rxn.qc.ppn,
+                                   qc_command=command,
+                                   working_dir=os.getcwd(),
+                                   scan=rxn.scan)
     else:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
+        template = open(template_file,'r').read()
     
-    template = open(template_file,'r').read()
-    
-    template = template.format(label=rxn.instance_name, 
-                               kwargs=kwargs, 
-                               atom=list(rxn.species.atom), 
-                               geom=list([list(gi) for gi in geom]), 
-                               ppn=rxn.qc.ppn,
-                               qc_command=command,
-                               working_dir=os.getcwd(),
-                               scan=scan)
+        template = template.format(label=rxn.instance_name, 
+                                   kwargs=kwargs, 
+                                   atom=list(rxn.species.atom), 
+                                   geom=list([list(gi) for gi in geom]), 
+                                   ppn=rxn.qc.ppn,
+                                   qc_command=command,
+                                   working_dir=os.getcwd())
+                                   
 
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:
         f_out.write(template)

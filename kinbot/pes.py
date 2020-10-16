@@ -106,9 +106,8 @@ def main():
     c = 0
     while 1:
         j = len(jobs)
-        fi = open("pes.log", 'a')
         if j != a:
-            fi.write('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
+            logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
         if j != a:
             logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
         a = j
@@ -214,7 +213,7 @@ def main():
     #      print(key)
     # if all energies are there
     # do something like postprocess, but with new energies
-    # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energyi, conn)
+    # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
 
     # Notify user the search is done
     logging.info('PES search done!')
@@ -912,9 +911,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
 
     i = 0  # uncertainty counter
-    fi = open('pes.log', 'a')
-    fi.write('{0} {1} {2}'.format("uq value: ", par['uq'], "\n"))
-    fi.close()
+    logging.info('{0} {1} {2}'.format("uq value: ", par['uq'], "\n"))
     well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
                                                                                products,
                                                                                reactions,
@@ -1007,9 +1004,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         # write the barrier
         s.append(frame + '# BARRIERS\n' + frame)
         for rxn in reactions:
-            rxFi = open("reactionList.log", 'a')
-            rxFi.write('{0} {1}'.format(rxn, "\n"))
-            rxFi.close
+            with open("reactionList.log", 'a') as rxFi:
+                rxFi.write('{0} {1}'.format(rxn, "\n"))
             name = [ts_short[rxn[1]]]
             name.append(well_short[rxn[0]])
             if len(rxn[2]) == 1:
@@ -1021,11 +1017,14 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             energy = rxn[3]
             try:
                 with open(rxn[0] + "/" + rxn[1] + "_0000.mess") as f:
-                    s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
+                    if 'barrierless_saddle' in rxn[1]:
+                        prodzeroenergy = prod_energies['_'.join(rxn[2])]
+                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy, prodzeroenergy=prodzeroenergy))
+                    else:
+                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
                 s.append(divider)
             except:
-                with open("pes.log", 'a') as fi:
-                    fi.write('{0} {1} {2} {3} {4}'.format("File ", rxn[0], "/", rxn[1], ".mess was not found.\n"))
+                logging.warning('File {}/{}_0000.mess not found.\n'.format(rxn[0], rxn[1]))
         # add last end statement
         s.append(divider)
         s.append('End ! end kinetics\n')
@@ -1119,9 +1118,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
                     s.append('!****************************************')
                 except:
-                    fi = open("pes.log", 'a')
-                    fi.write('{0} {1} {2} {3} {4}'.format(rxn[0], "/", rxn[1], fi, "not found"))
-                    fi.close()
+                    logging.warning('{}/{} not found.\n'.format(rxn[0], rxn[1]))
             # add last end statement
             s.append('!****************************************')
             s.append('End ! end kinetics\n')
@@ -1456,8 +1453,8 @@ def write_input(input_file, species, threshold, root):
     par2['barrier_threshold'] = threshold
     # set the pes option to 1
     par2['pes'] = 1
-    # don't do ME for these kinbots
-    par2['me'] = 0
+    # don't do ME for these kinbots but write the files
+    par2['me'] = 2
 
     file_name = dir + str(species.chemid) + '.json'
     with open(file_name, 'w') as outfile:

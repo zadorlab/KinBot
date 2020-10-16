@@ -1,14 +1,14 @@
     Fragment       {chemid}
     RRHO
         Geometry[angstrom]            {natom}
-	    {geom}
+{geom}
 
         Core   RigidRotor
             SymmetryFactor            {symm}
         End
     
         Frequencies[1/cm]             {nfreq}
-            {freq}
+{freq}
         
 {hinderedrotor}
 

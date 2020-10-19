@@ -502,7 +502,7 @@ class MESS:
             else:
                 prodzeroenergy = ((reaction.prod_opt[0].species.energy + reaction.prod_opt[0].species.zpe + \
                                  reaction.prod_opt[1].species.energy + reaction.prod_opt[1].species.zpe) - \
-                                 (self.species.energy + self.specie.zpe)) * constants.AUtoKCAL
+                                 (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
             outerts = self.psttpl.format(natom1=reaction.prod_opt[0].species.natom,
                                          geom1=self.make_geom(reaction.prod_opt[0].species),

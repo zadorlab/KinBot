@@ -5,6 +5,7 @@ import copy
 import logging
 import numpy as np
 
+from ase.db import connect
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
@@ -71,6 +72,9 @@ class Conformers:
             # Number of random conformers in case no
             # exhaustive search is done
             self.nconfs = par['random_conf_semi_emp']
+
+        # db to be used for skipping conf generation
+        self.db = connect('kinbot.db')
 
     def generate_ring_conformers(self, cart):
         """
@@ -249,14 +253,37 @@ class Conformers:
             if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
                 if rotor == 0:
                     logging.info('Random conformer search is carried out for {}.'.format(name))
+
+                    # skipping generation if done
+                    if self.cyc_conf > 1:
+                        nrandconf = int(round(self.nconfs / self.cyc_conf) + 2)
+                    else:
+                        nrandconf = self.nconfs
+                    rows = self.db.select(name=self.get_job_name(nrandconf - 1))
+                    for row in rows:
+                        self.conf = nrandconf
+                        logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
+                        logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
+                        return 0
+
                 self.generate_conformers_random_sampling(cart)
                 return 0
+
         # retraction from the recursion
         if rotor == len(self.species.conf_dihed) or rotor == -999:
             self.qc.qc_conf(self.species, cart, self.conf, semi_emp=self.semi_emp)
             if self.conf == 0:
-                logging.info('Theoretical number of conformers for open chain is {} for {}.'.format(theoretical_confs, name))
+                logging.info('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
             self.conf += 1
+            return 0
+
+        # skipping generation if done
+        rows = self.db.select(name=self.get_job_name(theoretical_confs - 1))
+        for row in rows:
+            self.conf = theoretical_confs
+            logging.info('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+            logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
+            logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
             return 0
 
         cart = np.asarray(cart)
@@ -281,10 +308,12 @@ class Conformers:
         """
         Generate a random sampling of each dihedral for a number nconfs of conformers
         """
-        self.nconfs_new = self.nconfs
         if self.cyc_conf > 1:
-            self.nconfs_new = int(round(self.nconfs/self.cyc_conf) + 2)
-        for ni in range(self.nconfs_new):
+            nrandconf = int(round(self.nconfs/self.cyc_conf) + 2)
+        else:
+            nrandconf = self.nconfs
+
+        for ni in range(nrandconf):
             cart = copy.deepcopy(ini_cart)
             if ni == 0:
                 sample = [0. for di in self.species.conf_dihed]

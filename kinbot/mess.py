@@ -660,7 +660,6 @@ class MESS:
     def make_geom(self, species):
         geom = ''
         for i, at in enumerate(species.atom):
-            geom += '            '
             x, y, z = species.geom[i]
             geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
         return geom
@@ -679,7 +678,7 @@ class MESS:
             freqarray.append(fr)
             freq += '{:.1f} '.format(fr)
             if i % 3 == 2:
-                freq += '\n         '
+                freq += '\n'
         return(freq)
 
 

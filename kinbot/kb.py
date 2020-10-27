@@ -188,13 +188,14 @@ def main():
         well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
         well0.homolytic_scissions.find_homolytic_scissions()
 
-    if par['me'] == 1:
+    if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
         mess = MESS(par, well0)
         mess.write_input(qc)
 
-        logging.info('Starting Master Equation calculations')
-        if par['me_code'] == 'mess':
-            mess.run()
+        if par['me'] == 1: 
+            logging.info('Starting Master Equation calculations')
+            if par['me_code'] == 'mess':
+                mess.run()
 
     postprocess.createSummaryFile(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)

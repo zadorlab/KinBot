@@ -90,6 +90,7 @@ class HIR:
     def test_hir(self):
         for rotor in range(len(self.species.dihed)):
             for ai in range(self.nrotation):
+                success = None
                 if self.hir_status[rotor][ai] == -1:
                     if self.species.wellorts:
                         job = 'hir/' + self.species.name + '_hir_' + str(rotor) + '_' + str(ai).zfill(2)
@@ -99,9 +100,7 @@ class HIR:
                     if err == 1:  # still running
                         continue
                     elif err == -1:  # failed
-                        self.hir_status[rotor][ai] = 1
-                        self.hir_energies[rotor][ai] = -1
-                        self.hir_geoms[rotor][ai] = geom
+                        success = -1
                     else:
                         # check if all the bond lenghts are within
                         # 15% or the original bond lengths
@@ -115,14 +114,26 @@ class HIR:
                                                temp,
                                                0.15):
                             err, energy = self.qc.get_qc_energy(job)
-                            self.hir_status[rotor][ai] = 0
-                            self.hir_energies[rotor][ai] = energy
-                            self.hir_geoms[rotor][ai] = geom
+                            if ai == 0: 
+                                success = 1
+                            # cut off barriers above 20 kcal/mol to preven the Fourier fit to oscillate
+                            elif (energy - self.hir_energies[rotor][0]) < 20. / constants.AUtoKCAL:
+                                success = 1
+                            else:
+                                success = -1
                         else:
-                            logging.warning("GEOMETRY OPTIMIZATION FAILED - STRUCTURES DIFFER FOR  " + job)
-                            self.hir_status[rotor][ai] = 1
-                            self.hir_energies[rotor][ai] = -1
-                            self.hir_geoms[rotor][ai] = geom
+                            success = -1
+                if success == 1:
+                    err, energy = self.qc.get_qc_energy(job)
+                    self.hir_status[rotor][ai] = 0
+                    self.hir_energies[rotor][ai] = energy
+                    self.hir_geoms[rotor][ai] = geom
+                elif success == -1:
+                    logging.warning("Hindered rotor optimization not successful for {}".format(job))
+                    self.hir_status[rotor][ai] = 1
+                    self.hir_energies[rotor][ai] = -1
+                    self.hir_geoms[rotor][ai] = geom
+
         return 0
 
     def check_hir(self, wait=0):
@@ -136,7 +147,7 @@ class HIR:
                 status = self.hir_status[rotor]
                 energies = self.hir_energies[rotor]
                 # energies taken if status = 0, successful geom check or normal gauss termination
-                ens = [(energies[i] - energies[0])*constants.AUtoKCAL for i in range(len(status)) if status[i] == 0]
+                ens = [(energies[i] - energies[0]) * constants.AUtoKCAL for i in range(len(status)) if status[i] == 0]
 
             # if job finishes status set to 0 or 1, if all done then do the following calculation
             if all([all([test >= 0 for test in status]) for status in self.hir_status]):
@@ -185,7 +196,7 @@ class HIR:
     def fourier_fit(self, job, angles, rotor):
         """
         Create a alternative fourier formulation of a hindered rotor
-        profile, the angles are in radians and the eneries in
+        profile, the angles are in radians and the energies in
         kcal per mol (Vanspeybroeck et al.)
         """
         energies = self.hir_energies[rotor]

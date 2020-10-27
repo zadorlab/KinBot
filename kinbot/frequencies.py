@@ -257,6 +257,7 @@ def curvature(species, hess):
 
 
 def skip_rotor(name, rot):
+    return 0
     if 'barrierless_saddle' in name:
         l0 = name.split('_')
         l = [int(l0[3]) - 1, int(l0[4]) - 1] 

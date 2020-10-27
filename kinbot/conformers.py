@@ -1,11 +1,14 @@
 from __future__ import division
+import os
 import random
 import time
 import copy
 import logging
 import numpy as np
+from shutil import copyfile
 
 from ase.db import connect
+from ase import Atoms
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
@@ -259,12 +262,13 @@ class Conformers:
                         nrandconf = int(round(self.nconfs / self.cyc_conf) + 2)
                     else:
                         nrandconf = self.nconfs
-                    rows = self.db.select(name=self.get_job_name(nrandconf - 1))
-                    for row in rows:
-                        self.conf = nrandconf
-                        logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
-                        logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
-                        return 0
+                    if os.path.exists('{}.log'.format(self.get_job_name(nrandconf - 1))) and os.path.exists('conf/{}_low.log'.format(name)): 
+                        rows = self.db.select(name=self.get_job_name(nrandconf - 1))
+                        for row in rows:
+                            self.conf = nrandconf
+                            logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
+                            logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
+                            return 1
 
                 self.generate_conformers_random_sampling(cart)
                 return 0
@@ -278,13 +282,14 @@ class Conformers:
             return 0
 
         # skipping generation if done
-        rows = self.db.select(name=self.get_job_name(theoretical_confs - 1))
-        for row in rows:
-            self.conf = theoretical_confs
-            logging.info('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
-            logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
-            logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
-            return 0
+        if os.path.exists('{}.log'.format(self.get_job_name(theoretical_confs - 1))) and os.path.exists('conf/{}_low.log'.format(name)): 
+            rows = self.db.select(name=self.get_job_name(theoretical_confs - 1))
+            for row in rows:
+                self.conf = theoretical_confs
+                logging.info('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+                logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
+                logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
+                return 1
 
         cart = np.asarray(cart)
         zmat_atom, zmat_ref, zmat, zmatorder = zmatrix.make_zmat_from_cart(self.species, rotor, cart, 1)
@@ -403,7 +408,7 @@ class Conformers:
                         totenergies.append(energy + zpe)
                         if lowest_totenergy == 0.:  # likely / hopefully the first sample
                             if ci != 0:
-                                logging.warning('For {} conformer 0 failed.'.format(name))  # TODO this is printed a million times
+                                logging.warning('For {} conformer 0 failed.'.format(name)) 
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             if self.species.natom > 1:
                                 if self.species.wellorts:
@@ -432,6 +437,7 @@ class Conformers:
                                 if freq[0] <= 0.:
                                     err = -1
                             if err == 0:
+                                lowest_job = job
                                 lowest_conf = str(ci).zfill(self.zf)
                                 lowest_totenergy = energy + zpe
                                 lowest_e_geom = geom
@@ -440,15 +446,43 @@ class Conformers:
                         final_geoms.append(np.zeros((self.species.natom, 3)))
 
                 #self.write_profile(status, final_geoms, energies)
+               
+                try:
+                    copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
+                    rows = self.db.select(name='{}'.format(lowest_job))
+                    for row in rows:
+                        row_last = row
+                    
+                    mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
+                    self.db.write(mol, name='conf/{}_low'.format(name), 
+                             data={'energy': row_last.data.get('energy'),
+                             'frequencies':row_last.data.get('frequencies'), 
+                             'zpe':row_last.data.get('zpe'), 
+                             'status':row_last.data.get('status')})
+                except UnboundLocalError:
+                    pass
                 
                 return 1, lowest_conf, lowest_e_geom, lowest_totenergy, final_geoms, totenergies 
-                logging.info('Conformer {} is the lowest energy {} conformer'.format(lowest_conf, name))
 
             else:
                 if wait:
                     time.sleep(1)
                 else:
                     return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy, np.zeros((self.species.natom, 3)), np.zeros(1)
+
+    def lowest_conf_info(self):
+        """
+        in case conformer search was successfully skipped on restart, 
+        this reads the energy and geometry of the lowest energy conf directly
+        """
+        name = self.get_name()
+
+        job = 'conf/{}_low'.format(name)
+        err, energy = self.qc.get_qc_energy(job)
+        err, zpe = self.qc.get_qc_zpe(job)
+        err, geom = self.qc.get_qc_geom(job, self.species.natom)
+                
+        return geom, energy + zpe 
 
     def write_profile(self, status, final_geoms, energies, ring=0):
         """

@@ -216,7 +216,9 @@ class Optimize:
                                     same_geom = geometry.equal_geom(self.species, temp, 0.1)
 
                                 err, fr = self.qc.get_qc_freq(self.job_high, self.species.natom)
-                                if len(fr) == 1 and fr[0] == 0:
+                                if self.species.natom == 1:
+                                    freq_ok = 1
+                                elif len(fr) == 1 and fr[0] == 0:
                                     freq_ok = 0
                                 elif self.species.wellorts == 0 and fr[0] > 0.:
                                     freq_ok = 1

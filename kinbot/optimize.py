@@ -147,7 +147,7 @@ class Optimize:
                         elif skip_conf_check == 1:
                             self.species.geom, self.species.energy = self.species.confs.lowest_conf_info()
                             logging.info('Conformers are not checked for {} to speed up calculations.'.format(self.name))
-                            logging.info('They seems to have been done in a previous run.')
+                            logging.info('They seem to have been done in a previous run.')
                             logging.info('Energy and geometry updated based on conf/{}_low file.'.format(self.name))
                             self.sconf = 1
 
@@ -329,7 +329,7 @@ class Optimize:
                 if self.par['L3_calc'] == 1:
                     if self.par['single_point_qc'] == 'molpro':
                         molp = Molpro(self.species, self.par)
-                        if 'barrierless_saddle' in self.par:
+                        if 'barrierless_saddle' in self.name:
                             key = self.par['barrierless_saddle_single_point_key']
                             molp.create_molpro_input(bls=1)
                         else:

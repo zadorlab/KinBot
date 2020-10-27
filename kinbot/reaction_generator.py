@@ -66,12 +66,12 @@ class ReactionGenerator:
         frag_unique = []
         nameUnique = []
         stpt_inchis = []
-        try:
-            import pybel
-            pybelErr = 0
-        except ImportError:
-            logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
-            pybelErr = 1
+        #try:
+        #    import pybel
+        #    pybelErr = 0
+        #except:
+        #    logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
+        #    pybelErr = 1
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
@@ -322,7 +322,7 @@ class ReactionGenerator:
                                 if e < 0:
                                     err = -1
                     if err == 0:
-                        self.test_stereochem_pybel(pybelErr, obj)
+                        #self.test_stereochem_pybel(pybelErr, obj)
                         self.species.reac_ts_done[index] = 4
                 elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization

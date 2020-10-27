@@ -1,7 +1,6 @@
 """
 This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
-TEST LINE
 """
 from __future__ import print_function
 from __future__ import absolute_import
@@ -16,7 +15,7 @@ import subprocess
 import json
 from distutils.dir_util import copy_tree
 import pkg_resources
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
@@ -119,9 +118,11 @@ def main():
         a = j
         with open('chemids', 'r') as f:
             jobs = f.read().split('\n')
-        for i, j in enumerate(jobs):
-            if j == '':
-                jobs.pop(i)
+            jobs = [ji for ji in jobs if ji != '']
+
+        if len(jobs) > j:
+            logging.info('\tPicked up new jobs: ' + ' '.join(jobs[j:]))
+
         k = len(running)
         l = len(finished)
         if b != k:

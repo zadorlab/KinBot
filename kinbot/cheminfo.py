@@ -8,7 +8,7 @@ import logging
 # try to import pybel
 try:
     import pybel
-except ImportError:
+except:
     try:
         from openbabel import pybel
     except:
@@ -81,7 +81,7 @@ def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
     new_im.save('{dir}/{name}.png'.format(dir=dir, name=name))
 
 
-def generate_3d_structure(smi, obabel=1):
+def generate_3d_structure(smi, obabel=0):
     """
     Method to generate the 3D coordinates of a molecule from its smiles
     The default code is OpenBabel, RDKit can also be used.

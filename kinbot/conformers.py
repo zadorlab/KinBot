@@ -244,7 +244,7 @@ class Conformers:
         # what is value of all things associated w/ conf generation
         # what is length of conf_dihed?
         theoretical_confs = np.power(self.grid, len(self.species.conf_dihed)) * cycles
-
+        print("conf error check\n{}\t{}\t{}\t{}".format(self.species.chemid, self.conf, rotor, self.species.conf_dihed))
         if rotor != -999:
             if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
                 if rotor == 0:

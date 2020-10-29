@@ -233,7 +233,7 @@ class Conformers:
                 else:
                     return 0, np.zeros((self.species.natom, 3))
 
-    def generate_conformers(self, rotor, cart):
+    def generate_conformers(self, rotor, cart, print_warning=False):
         """
         Generate guesses for all of the canonical conformers.
         This is a recursive routine to generate them.
@@ -286,9 +286,10 @@ class Conformers:
             rows = self.db.select(name=self.get_job_name(theoretical_confs - 1))
             for row in rows:
                 self.conf = theoretical_confs
-                logging.info('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
-                logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
-                logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
+                if print_warning:
+                    logging.info('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+                    logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
+                    logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
                 return 1
 
         cart = np.asarray(cart)

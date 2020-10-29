@@ -476,7 +476,10 @@ def postprocess(par, jobs, task, names):
         well_energies = well_l3energies
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
-            reac[3] = ts_l3energies[reac[1]]
+            if 'barrierless' not in reac[1]:
+                reac[3] = ts_l3energies[reac[1]]
+            if 'barrierless_saddle' in reac[1]:
+                reac[3] = ts_l3energies[reac[1]]
 
         logging.info('L3 energies in kcal/mol, incl. ZPE')
         for well in wells:

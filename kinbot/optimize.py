@@ -125,10 +125,12 @@ class Optimize:
                             logging.info("There are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
                                          format(i, self.par['semi_emp_confomer_threshold'], self.name))
                         else:
+                            print_warning = True
                             for geom in self.species.confs.cyc_conf_geoms:
                                 # take all the geometries from the cyclic part
                                 # generate the conformers for the current geometry
-                                skip_conf_check = self.species.confs.generate_conformers(0, geom)
+                                skip_conf_check = self.species.confs.generate_conformers(0, geom, print_warning=print_warning)
+                                print_warning = False
                         # set conf status to running
                         self.sconf = 0
                     if self.sconf == 0:

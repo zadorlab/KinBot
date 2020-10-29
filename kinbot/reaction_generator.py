@@ -79,7 +79,8 @@ class ReactionGenerator:
                     # verify after restart if search has failed in previous kinbot run
                     status = self.qc.check_qc(obj.instance_name)
                     if status == 'error' or status == 'killed':
-                        logging.info('\tRxn search failed (error or killed) for {}'.format(obj.instance_name))
+                        logging.info('\tRxn search failed (error or killed) for {}'
+                                     .format(obj.instance_name))
                         self.species.reac_ts_done[index] = -999
                 if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
                     if obj.scan == 0:  # don't do a scan of a bond
@@ -87,14 +88,19 @@ class ReactionGenerator:
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
                             if status == 0 and freq[0] < 0. and freq[1] > 0.:
                                 self.species.reac_ts_done[index] = 1
+                            elif self.species.reac_type[index] == 'hom_sci':  # no matter what, set to 1
+                                self.species.reac_ts_done[index] = 1
                             elif status == 0 and freq[0] > 0.:
-                                logging.info('\tRxn search failed for {}, no imaginary freq.'.format(obj.instance_name))
+                                logging.info('\tRxn search failed for {}, no imaginary freq.'
+                                             .format(obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
                             elif status == 0 and freq[1] < 0.:
-                                logging.info('\tRxn search failed for {}, more than one imaginary freq.'.format(obj.instance_name))
+                                logging.info('\tRxn search failed for {}, more than one imaginary freq.'
+                                             .format(obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
                             elif status == -1: 
-                                logging.info('\tRxn search failed for {}'.format(obj.instance_name))
+                                logging.info('\tRxn search failed for {}'
+                                             .format(obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else:
                             self.species.reac_step[index] = reac_family.carry_out_reaction(

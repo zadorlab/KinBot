@@ -1,3 +1,3 @@
-        Core   RigidRotor
-            SymmetryFactor            {symm}
-        End ! Core
+    Core   RigidRotor
+      SymmetryFactor            {symm}
+    End ! Core

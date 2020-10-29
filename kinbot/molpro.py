@@ -102,21 +102,21 @@ class Molpro:
                         shift += 's{0} = s{0} + {1:.8f}\n'.format(3 * i, shift_vec[0])
                         shift += 's{0} = s{0} + {1:.8f}\n'.format(3 * i + 1, shift_vec[1])
                         shift += 's{0} = s{0} + {1:.8f}\n'.format(3 * i + 2, shift_vec[2])
-                with open('molpro/' + fname + '.inp', 'w') as outf:
-                    outf.write(file.format(name=fname,
-                                           natom=self.species.natom,
-                                           geom=geom0,
-                                           scanstart=scanstart,
-                                           scancoo=scancoo,
-                                           shift=shift,
-                                           nelectron=nelectron,
-                                           symm=symm,
-                                           spin=spin,
-                                           charge=self.species.charge,
-                                           state=self.par['barrierless_saddle_nstate'],
-                                           closed=closed,
-                                           occ=occ
-                                           ))
+                with open('molpro/' + fname + '.inp', 'w') as f:
+                    f.write(file.format(name=fname,
+                                        natom=self.species.natom,
+                                        geom=geom0,
+                                        scanstart=scanstart,
+                                        scancoo=scancoo,
+                                        shift=shift,
+                                        nelectron=nelectron,
+                                        symm=symm,
+                                        spin=spin,
+                                        charge=self.species.charge,
+                                        state=self.par['barrierless_saddle_nstate'],
+                                        closed=closed,
+                                        occ=occ
+                                        ))
         return 0
 
     def get_molpro_energy(self, key, name=''):

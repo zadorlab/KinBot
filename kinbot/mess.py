@@ -661,7 +661,7 @@ class MESS:
         geom = ''
         for i, at in enumerate(species.atom):
             x, y, z = species.geom[i]
-            geom += '{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
+            geom += '        {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
         return geom
 
 
@@ -687,6 +687,7 @@ class MESS:
         ens = species.hir.hir_energies[i]
         rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
         rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
+        rotorpot = '        {}'.format(rotorpot)
         return rotorpot
 
 

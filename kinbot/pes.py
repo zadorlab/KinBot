@@ -1353,6 +1353,16 @@ def get_l3energy(job, par, bls=0):
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
+    if par['single_point_qc'] == 'gaussian':
+        if os.path.exists('gaussian/' + job + '.log'):
+            with open('gaussian/' + job + '.log', 'r') as f:
+                lines = f.readlines()
+                for index, line in enumerate(reversed(lines)):
+                    if ('SCF Done') in line:
+                        e = float(line.split()[4])
+                        logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                        return 1, e  # energy was found
+ 
     # if no file or no energy found, or it was not molpro
     logging.info('L3 for {} is missing.'.format(job))
     return 0, -1  # job not yet started to run

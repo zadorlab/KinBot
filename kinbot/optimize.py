@@ -61,6 +61,8 @@ class Optimize:
         # maximum restart count
         self.max_restart = par['rotation_restart']
 
+        self.skip_conf.check = 0  # initialize
+
     def do_optimization(self):
         while 1:
             # do the conformational search
@@ -129,14 +131,14 @@ class Optimize:
                             for geom in self.species.confs.cyc_conf_geoms:
                                 # take all the geometries from the cyclic part
                                 # generate the conformers for the current geometry
-                                skip_conf_check = self.species.confs.generate_conformers(0, geom, print_warning=print_warning)
+                                self.skip_conf_check = self.species.confs.generate_conformers(0, geom, print_warning=print_warning)
                                 print_warning = False
                         # set conf status to running
                         self.sconf = 0
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        if skip_conf_check == 0:
+                        if self.skip_conf_check == 0:
                             status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                             if status == 1:
                                 logging.info("lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
@@ -146,7 +148,7 @@ class Optimize:
                                 self.species.energy = low_energy
                                 # set conf status to finished
                                 self.sconf = 1
-                        elif skip_conf_check == 1:
+                        elif self.skip_conf_check == 1:
                             self.species.geom, self.species.energy = self.species.confs.lowest_conf_info()
                             logging.info('Conformers are not checked for {} to speed up calculations.'.format(self.name))
                             logging.info('They seem to have been done in a previous run.')

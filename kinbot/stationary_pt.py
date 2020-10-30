@@ -71,7 +71,7 @@ class StationaryPoint:
         
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number
-        self.sigma_int = []  # internal summetry number around each atom
+        self.sigma_int = []  # internal symmetry number around each atom
         self.nopt = -1  # number of optical isomers
 
         # frequencies calculated by kinbot

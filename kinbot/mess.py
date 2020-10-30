@@ -4,6 +4,7 @@ import os
 import subprocess
 import time
 import pkg_resources
+from collections import Counter
 
 from kinbot import constants
 from kinbot import frequencies
@@ -42,6 +43,8 @@ class MESS:
             self.termoltpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_fragment.tpl')) as f:
             self.fragmenttpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_pstfragment.tpl')) as f:
+            self.pstfragmenttpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')) as f:
             self.hinderedrotortpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_atom.tpl')) as f:
@@ -354,7 +357,11 @@ class MESS:
         """
 
         fragments = ''
-        for species in prod_list:
+        if bless == 1:
+            tot_nfreq = 0
+            combined_freq = ''
+            combined_hir = ''
+        for nsp, species in enumerate(prod_list):
             if species.natom > 1:
 
                 if self.par['pes']:
@@ -371,6 +378,28 @@ class MESS:
                                                      hinderedrotor=self.make_rotors(species),
                                                      nelec=1,
                                                      mult=species.mult)
+                if bless == 1:
+                    tot_nfreq += len(species.reduced_freqs)
+                    combined_freq += self.make_freq(species, freqFactor, 0)
+                    combined_hir += self.make_rotors(species)
+
+                    if nsp == 0: 
+                        combined_mult = species.mult
+                        frag1 = self.pstfragmenttpl.format(chemid=name,
+                                                           natom=species.natom,
+                                                           geom=self.make_geom(species))
+                    if nsp == 1: 
+                        if combined_mult == 1 and species.mult == 1:
+                            combined_mult = 1
+                        elif combined_mult == 2 and species.mult == 1:
+                            combined_mult = 2
+                        elif combined_mult == 1 and species.mult == 2:
+                            combined_mult = 2
+                        elif combined_mult == 2 and species.mult == 2:
+                            combined_mult = 1
+                        frag2 = self.pstfragmenttpl.format(chemid=name,
+                                                           natom=species.natom,
+                                                           geom=self.make_geom(species))
             else:
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
@@ -381,6 +410,16 @@ class MESS:
                                                  element=species.atom[0],
                                                  nelec=1,
                                                  mult=species.mult)
+                if bless == 1:
+                    if nsp == 0: 
+                        frag1 = self.pstfragmenttpl.format(chemid=name,
+                                                           natom=species.natom,
+                                                           geom=self.make_geom(species))
+                    if nsp == 1: 
+                        frag2 = self.pstfragmenttpl.format(chemid=name,
+                                                           natom=species.natom,
+                                                           geom=self.make_geom(species))
+ 
 
         pr_name = '_'.join(sorted([str(species.chemid) for species in prod_list]))
         if self.par['pes']:
@@ -404,10 +443,21 @@ class MESS:
         elif bless == 1:
             values = list(self.barrierless_names.values())
             index = values.index(pr_name)
+            stoich = ''
+            el_counter = Counter(self.species.atom)
+            for el in constants.elements:
+                if el_counter[el]:
+                    stoich += '{}{}'.format(el, el_counter[el])
             bimol = self.blbimoltpl.format(barrier='nobar_{}'.format(index),
                                            reactant=self.well_names[self.species.chemid],
                                            prod=name,
-                                           dummy='',
+                                           stoich=stoich,
+                                           frag1=frag1,
+                                           frag2=frag2,
+                                           nfreq=tot_nfreq,
+                                           freq=combined_freq,
+                                           mult=combined_mult,
+                                           hinderedrotor=combined_hir, 
                                            fragments=fragments,
                                            ground_energy=energy)
 
@@ -666,7 +716,7 @@ class MESS:
 
 
     def make_freq(self, species, factor, wellorts):
-        freq = ''
+        freq = '        '
         freqarray = []
         #wellorts: 0 for wells and 1 for saddle points
         if wellorts == 0:
@@ -678,7 +728,7 @@ class MESS:
             freqarray.append(fr)
             freq += '{:.1f} '.format(fr)
             if i % 3 == 2:
-                freq += '\n'
+                freq += '\n        '
         return(freq)
 
 
@@ -692,6 +742,8 @@ class MESS:
 
 
     def rotorsymm(self, species, rot):
+        print(rot)
+        species.sigma_int[rot[1]][rot[2]]
         return species.sigma_int[rot[1]][rot[2]]
 
 
@@ -707,7 +759,9 @@ class MESS:
                 if norot is not None:
                     if frequencies.skip_rotor(norot, rot) == 1:
                         continue
-                rotors.append(self.hinderedrotortpl.format(group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
+                rotors.append(self.hinderedrotortpl.format(geom=self.make_geom(species),
+                                                           natom=species.natom,
+                                                           group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
                                                            axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
                                                            rotorsymm=self.rotorsymm(species, rot),
                                                            nrotorpot=self.nrotorpot(species, rot),

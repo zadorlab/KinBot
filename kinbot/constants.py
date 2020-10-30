@@ -13,6 +13,8 @@ SPEEDofLIGHT = 137.0359996  # in atomic units
 AUtoS = 2.418884326505E-17
 AUtoMDYNE = 8.2387234983  # au of force to mDyne = 1e-8 N
 
+# elements currently in KinBot
+elements = ['C', 'H', 'O', 'N', 'S']
 # standard bond lengths, cutoffs, and oxidation numbers
 st_bond = {'CC': 1.5*1.2}
 # st_bond['CO'] = 1.4*1.2 # 1.4*1.54

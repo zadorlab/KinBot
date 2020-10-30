@@ -61,7 +61,7 @@ class Optimize:
         # maximum restart count
         self.max_restart = par['rotation_restart']
 
-        self.skip_conf.check = 0  # initialize
+        self.skip_conf_check = 0  # initialize
 
     def do_optimization(self):
         while 1:
@@ -202,7 +202,7 @@ class Optimize:
                                     if self.par['conformer_search'] == 0:
                                         fr_file = self.fr_file_name(0)  # name of the original TS file
                                     else:
-                                        if skip_conf_check == 0: 
+                                        if self.skip_conf_check == 0: 
                                             fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
                                         else:
                                             fr_file = 'conf/{}_low'.format(self.fr_file_name(0))

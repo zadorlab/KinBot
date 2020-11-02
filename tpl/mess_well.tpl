@@ -1,4 +1,4 @@
-  Well       {chemid}
+  Well       {chemid} ! {smi}
     Species
     RRHO
       Geometry[angstrom]            {natom}

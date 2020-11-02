@@ -370,6 +370,7 @@ class MESS:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
                 # molecule template
                 fragments += self.fragmenttpl.format(chemid=name,
+                                                     smi=species.smiles,
                                                      natom=species.natom,
                                                      geom=self.make_geom(species),
                                                      symm=float(species.sigma_ext) / float(species.nopt),
@@ -386,6 +387,7 @@ class MESS:
                     if nsp == 0: 
                         combined_mult = species.mult
                         frag1 = self.pstfragmenttpl.format(chemid=name,
+                                                           smi=species.smiles,
                                                            natom=species.natom,
                                                            geom=self.make_geom(species))
                     if nsp == 1: 
@@ -398,6 +400,7 @@ class MESS:
                         elif combined_mult == 2 and species.mult == 2:
                             combined_mult = 1
                         frag2 = self.pstfragmenttpl.format(chemid=name,
+                                                           smi=species.smiles,
                                                            natom=species.natom,
                                                            geom=self.make_geom(species))
             else:
@@ -413,10 +416,12 @@ class MESS:
                 if bless == 1:
                     if nsp == 0: 
                         frag1 = self.pstfragmenttpl.format(chemid=name,
+                                                           smi=species.smiles,
                                                            natom=species.natom,
                                                            geom=self.make_geom(species))
                     if nsp == 1: 
                         frag2 = self.pstfragmenttpl.format(chemid=name,
+                                                           smi=species.smiles,
                                                            natom=species.natom,
                                                            geom=self.make_geom(species))
  
@@ -437,6 +442,7 @@ class MESS:
         
         if bless == 0:
             bimol = self.bimoltpl.format(chemids=name,
+                                         smi=species.smiles,
                                          fragments=fragments,
                                          ground_energy=energy)
 
@@ -482,6 +488,7 @@ class MESS:
             zeroenergy += well_add
 
         mess_well = self.welltpl.format(chemid=name,
+                                        smi=species.smiles,
                                         natom=species.natom,
                                         geom=self.make_geom(species),
                                         symm=float(species.sigma_ext) / float(species.nopt),
@@ -676,21 +683,18 @@ class MESS:
             else:
                 f.write(tpl_head)
                 f.write((tpl).format(n=mess_iter))
-
         return 0
 
     def submit(self, submitscript):
-
-            command = [constants.qsubmit[self.par['queuing']], submitscript]
-            process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-            out, err = process.communicate()
-            out = out.decode()
-            if self.par['queuing'] == 'pbs':
-                pid = out.split('\n')[0].split('.')[0]
-            elif self.par['queuing'] == 'slurm':
-                pid = out.split('\n')[0].split()[-1]
-
-            return pid
+        command = [constants.qsubmit[self.par['queuing']], submitscript]
+        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = process.communicate()
+        out = out.decode()
+        if self.par['queuing'] == 'pbs':
+            pid = out.split('\n')[0].split('.')[0]
+        elif self.par['queuing'] == 'slurm':
+            pid = out.split('\n')[0].split()[-1]
+        return pid
 
     def check_running(self, pid):
         devnull = open(os.devnull, 'w')
@@ -700,20 +704,14 @@ class MESS:
             command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
  
         stat = int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
-
         return stat
-
-
-        return 0
-
 
     def make_geom(self, species):
         geom = ''
         for i, at in enumerate(species.atom):
             x, y, z = species.geom[i]
             geom += '        {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
-        return geom
-
+        return geom[:-1]
 
     def make_freq(self, species, factor, wellorts):
         freq = '        '
@@ -729,7 +727,7 @@ class MESS:
             freq += '{:.1f} '.format(fr)
             if i % 3 == 2:
                 freq += '\n        '
-        return(freq)
+        return(freq[:-1])
 
 
     def make_rotorpot(self, species, i, rot):
@@ -751,7 +749,6 @@ class MESS:
         rotorsymm = self.rotorsymm(species, rot)
         return species.hir.nrotation // rotorsymm
 
-
     def make_rotors(self, species, norot=None):
         rotors = []
         if self.par['rotor_scan']:
@@ -769,12 +766,10 @@ class MESS:
         rotors = '\n'.join(rotors)
         return rotors
 
-
     def get_zeroenergy(self, jobname, qc):
         energy = qc.get_qc_energy(jobname)[1]
         zpe = qc.get_qc_zpe(jobname)[1]
         return (energy + zpe) * constants.AUtoKCAL
-
 
     def check_running(self, pid):
         devnull = open(os.devnull, 'w')

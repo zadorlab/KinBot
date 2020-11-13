@@ -756,9 +756,9 @@ class MESS:
 
 
     def rotorsymm(self, species, rot):
-        #print(species.chemid)
-        #print(species.sigma_int)
-        #print(rot)
+        print(species.chemid)
+        print(species.sigma_int)
+        print(rot)
         return species.sigma_int[rot[1]][rot[2]]
 
 

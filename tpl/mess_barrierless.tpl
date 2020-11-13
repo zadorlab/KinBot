@@ -4,9 +4,9 @@
         Core PhaseSpaceTheory
 {frag1}
 {frag2}
-          SymmetryFactor  1.0 
+          SymmetryFactor  5.0 
           PotentialPrefactor[au] 0.6
-          PotentialPowerExponent 3.0 
+          PotentialPowerExponent 2.01 
         End ! Core
 
       Frequencies[1/cm]             {nfreq}

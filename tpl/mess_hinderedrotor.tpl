@@ -5,7 +5,6 @@
         Group                     {group}
         Axis                      {axis}
         Symmetry                  {rotorsymm}
-        UseQuantumWeight
         Potential[kcal/mol]       {nrotorpot}
 {rotorpot}
       End ! Rotor

@@ -164,7 +164,7 @@ class Optimize:
                 #if self.par['conformer_search'] == 1:
                 #    status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                         
-                while self.restart < self.max_restart:
+                while self.restart <= self.max_restart:
                     # do the high level calculations
                     if self.par['high_level'] == 1:
                         if self.shigh == -1:

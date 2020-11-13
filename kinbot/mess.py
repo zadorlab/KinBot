@@ -43,6 +43,8 @@ class MESS:
             self.termoltpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_fragment.tpl')) as f:
             self.fragmenttpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_fragment_OH.tpl')) as f:
+            self.fragmenttplOH = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_pstfragment.tpl')) as f:
             self.pstfragmenttpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')) as f:
@@ -361,7 +363,9 @@ class MESS:
             tot_nfreq = 0
             combined_freq = ''
             combined_hir = ''
+        smi = []
         for nsp, species in enumerate(prod_list):
+            smi.append(species.smiles)
             if species.natom > 1:
 
                 if self.par['pes']:
@@ -369,16 +373,28 @@ class MESS:
                 else:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
                 # molecule template
-                fragments += self.fragmenttpl.format(chemid=name,
-                                                     smi=species.smiles,
-                                                     natom=species.natom,
-                                                     geom=self.make_geom(species),
-                                                     symm=float(species.sigma_ext) / float(species.nopt),
-                                                     nfreq=len(species.reduced_freqs),
-                                                     freq=self.make_freq(species, freqFactor, 0),
-                                                     hinderedrotor=self.make_rotors(species),
-                                                     nelec=1,
-                                                     mult=species.mult)
+                if species.chemid == 170170000000000000002:  # exception for OH
+                    fragments += self.fragmenttplOH.format(chemid=name,
+                                                         smi=species.smiles,
+                                                         natom=species.natom,
+                                                         geom=self.make_geom(species),
+                                                         symm=float(species.sigma_ext) / float(species.nopt),
+                                                         nfreq=len(species.reduced_freqs),
+                                                         freq=self.make_freq(species, freqFactor, 0),
+                                                         hinderedrotor=self.make_rotors(species),
+                                                         nelec=2,
+                                                         mult=species.mult)
+                else:
+                    fragments += self.fragmenttpl.format(chemid=name,
+                                                         smi=species.smiles,
+                                                         natom=species.natom,
+                                                         geom=self.make_geom(species),
+                                                         symm=float(species.sigma_ext) / float(species.nopt),
+                                                         nfreq=len(species.reduced_freqs),
+                                                         freq=self.make_freq(species, freqFactor, 0),
+                                                         hinderedrotor=self.make_rotors(species),
+                                                         nelec=1,
+                                                         mult=species.mult)
                 if bless == 1:
                     tot_nfreq += len(species.reduced_freqs)
                     combined_freq += self.make_freq(species, freqFactor, 0)
@@ -428,7 +444,7 @@ class MESS:
 
         pr_name = '_'.join(sorted([str(species.chemid) for species in prod_list]))
         if self.par['pes']:
-            name = '{name}'
+            name = '{{name}} ! {} {}'.format(smi[0], smi[1])
             energy = '{ground_energy}'
         else:
             if bless == 0:
@@ -740,8 +756,9 @@ class MESS:
 
 
     def rotorsymm(self, species, rot):
-        print(rot)
-        species.sigma_int[rot[1]][rot[2]]
+        #print(species.chemid)
+        #print(species.sigma_int)
+        #print(rot)
         return species.sigma_int[rot[1]][rot[2]]
 
 

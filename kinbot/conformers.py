@@ -298,9 +298,7 @@ class Conformers:
         rotor += 1
 
         for gr in range(self.grid):
-            print(rotor, zmat[3][2], 'BEFORE')
             zmat[3][2] += 360. / self.grid
-            print(rotor, zmat[3][2], 'lala')
             for i in range(4, self.species.natom):
                 if zmat_ref[i][2] == 4:
                     zmat[i][2] += 360. / self.grid

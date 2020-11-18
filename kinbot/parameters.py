@@ -282,6 +282,10 @@ class Parameters:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
                 logging.error(err)
                 sys.exit(-1)
+            if self.par['rotor_scan'] == 0:
+                err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
+                logging.error(err)
+                sys.exit(-1)
                 
         if self.par['families'] != 'all' and self.par['skip_families'] != ['none']:
             err = 'Only one of the "families" or "skip_families" parameters can be defined.'

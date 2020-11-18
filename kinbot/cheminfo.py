@@ -20,6 +20,8 @@ try:
     from rdkit import Chem
     from rdkit.Chem import AllChem
     from rdkit.Chem import rdMolDescriptors
+    from rdkit import RDLogger
+    RDLogger.DisableLog('rdApp.*')
 except ImportError:
     print('Warning: RDKit could not be imported.')
     print('Certain features or the whole code might not run properly.')

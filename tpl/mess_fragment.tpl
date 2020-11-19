@@ -1,4 +1,4 @@
-  Fragment       {chemid}
+  Fragment       {chemid} ! {smi}
     RRHO
       Geometry[angstrom]            {natom}
 {geom}

@@ -181,7 +181,7 @@ class HomolyticScissions:
                         barrier = (prod_zeroenergy - species_zeroenergy) * constants.AUtoKCAL
                         prod_name = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
                         if barrier > self.par['barrier_threshold']:
-                            logging.info("Energy of HS product {} is above the barrier threshold ({:.3} kcal/mol)".format(prod_name, barrier))
+                            logging.info("Energy of HS product {}, {:.2f} kcal/mol, is too high.".format(prod_name, barrier))
                             hs.status = -999
                         else:
                             hs.status = -1

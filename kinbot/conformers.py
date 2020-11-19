@@ -298,12 +298,12 @@ class Conformers:
         rotor += 1
 
         for gr in range(self.grid):
-            zmat[3][2] += 360. / self.grid * gr
+            zmat[3][2] += 360. / self.grid
             for i in range(4, self.species.natom):
                 if zmat_ref[i][2] == 4:
-                    zmat[i][2] += 360. / self.grid * gr
+                    zmat[i][2] += 360. / self.grid
                 if zmat_ref[i][2] == 1:
-                    zmat[i][2] += 360. / self.grid * gr
+                    zmat[i][2] += 360. / self.grid
             cartmod = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, self.species.natom, self.species.atom, zmatorder)
             self.generate_conformers(rotor, cartmod)
 

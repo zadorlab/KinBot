@@ -71,7 +71,7 @@ class StationaryPoint:
         
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number
-        self.sigma_int = []  # internal summetry number around each atom
+        self.sigma_int = []  # internal symmetry number around each atom
         self.nopt = -1  # number of optical isomers
 
         # frequencies calculated by kinbot
@@ -135,6 +135,7 @@ class StationaryPoint:
     def bond_mx(self):
         """ 
         Create bond matrix 
+        Also create smiles if possible
         """
         self.distance_mx()
         self.bond = np.zeros((self.natom, self.natom), dtype=int)
@@ -257,7 +258,12 @@ class StationaryPoint:
                     if is_unique:
                         self.rads.append(perm_rad[i])
                         self.bonds.append(perm_bond[i])
-
+        if self.smiles == '':
+            try:
+                from kinbot.cheminfo import create_rdkit_mol
+                mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
+            except ImportError:
+                pass
         return 0
 
     def make_extra_bond(self, parts, maps):

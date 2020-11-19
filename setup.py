@@ -55,6 +55,7 @@ setup(
         'mess_core_rr.tpl',
         'mess_dummy.tpl',
         'mess_fragment.tpl',
+        'mess_pstfragment.tpl',
         'mess_header.tpl',
         'mess_hinderedrotor.tpl',
         'mess_outerrrho.tpl',

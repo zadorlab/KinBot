@@ -1,5 +1,4 @@
-  Well       {chemid} ! {smi}
-    Species
+  Fragment       {chemid} ! {smi}
     RRHO
       Geometry[angstrom]            {natom}
 {geom}
@@ -11,9 +10,8 @@
 {freq}
 {hinderedrotor}
       ElectronicLevels[1/cm]        {nelec}
-        0.    {mult}
+            0.    {mult}
+          140.    {mult}
 
-      ZeroEnergy[kcal/mol]          {zeroenergy}
-    End
-  End ! Well
-
+      ZeroEnergy[kcal/mol]        0.0
+  End ! Fragment

@@ -158,6 +158,12 @@ class QuantumChemistry:
                     except KeyError:
                         pass
     
+            if 'hom_sci' in job:
+                try:
+                    del kwargs['opt']
+                except KeyError:
+                    pass
+
             return kwargs
 
         if self.qc == 'nwchem':

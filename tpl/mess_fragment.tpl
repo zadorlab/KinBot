@@ -1,16 +1,16 @@
-    Fragment       {chemid}
+  Fragment       {chemid}
     RRHO
-        Geometry[angstrom]            {natom}
+      Geometry[angstrom]            {natom}
 {geom}
-        Core   RigidRotor
-            SymmetryFactor            {symm}
-        End
+      Core   RigidRotor
+        SymmetryFactor              {symm}
+      End
     
-        Frequencies[1/cm]             {nfreq}
+      Frequencies[1/cm]             {nfreq}
 {freq}
 {hinderedrotor}
-        ElectronicLevels[1/cm]      {nelec}
+      ElectronicLevels[1/cm]        {nelec}
             0.    {mult}
 
-        ZeroEnergy[kcal/mol]        0.0
-    End ! end fragment
+      ZeroEnergy[kcal/mol]        0.0
+  End ! Fragment

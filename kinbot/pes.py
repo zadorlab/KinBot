@@ -480,7 +480,10 @@ def postprocess(par, jobs, task, names):
         well_energies = well_l3energies
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
-            reac[3] = ts_l3energies[reac[1]]
+            if 'barrierless' not in reac[1]:
+                reac[3] = ts_l3energies[reac[1]]
+            if 'barrierless_saddle' in reac[1]:
+                reac[3] = ts_l3energies[reac[1]]
 
         logging.info('L3 energies in kcal/mol, incl. ZPE')
         for well in wells:
@@ -1383,6 +1386,16 @@ def get_l3energy(job, par, bls=0):
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
+    if par['single_point_qc'] == 'gaussian':
+        if os.path.exists('gaussian/' + job + '.log'):
+            with open('gaussian/' + job + '.log', 'r') as f:
+                lines = f.readlines()
+                for index, line in enumerate(reversed(lines)):
+                    if ('SCF Done') in line:
+                        e = float(line.split()[4])
+                        logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                        return 1, e  # energy was found
+ 
     # if no file or no energy found, or it was not molpro
     logging.info('L3 for {} is missing.'.format(job))
     return 0, -1  # job not yet started to run

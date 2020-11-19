@@ -1,4 +1,4 @@
-    Barrier       {barrier} {reactant} {prod} {dummy}
+  Barrier       {barrier} {reactant} {prod} {dummy}
 
 	!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
 	!~      BARRIERLESS REACTIONS      ~!
@@ -6,11 +6,10 @@
 	!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
 
 !****************************************
-   Bimolecular  {prod} {dummy}     
+  Bimolecular  {prod} {dummy}     
 
 {fragments}
 
-        GroundEnergy[kcal/mol]        {ground_energy}
-
+    GroundEnergy[kcal/mol]        {ground_energy}
     
-    End ! end Barrierless
+ End ! Barrierless

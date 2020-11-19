@@ -46,6 +46,7 @@ from reactions.reac_r14_birad_scission import R14BiradScission
 from reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
 from reactions.reac_barrierless_saddle import BarrierlessSaddle
 from reactions.reac_h2_elim import H2Elim
+from reactions.reac_homolytic_scission import HS 
 
 from reactions.reac_combinatorial import Combinatorial
 
@@ -124,6 +125,7 @@ class ReactionFinder:
                           'r13_insertion_RSR': self.search_r13_insertion_RSR, 
                           'beta_delta': self.search_beta_delta, 
                           'h2_elim': self.search_h2_elim,
+                          'hom_sci': self.search_hom_sci,
                           'barrierless_saddle': self.search_barrierless_saddle,
                           }
 
@@ -2140,6 +2142,43 @@ class ReactionFinder:
         return 0
 
 
+    def search_hom_sci(self, natom, atom, bond, rad):
+        """ 
+        This is not an RMG class.
+
+        R-R ==> R + R
+        """
+
+        name = 'hom_sci'
+
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = [] #reactions found with the current resonance isomer
+
+        motif = ['X','X']
+        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        for instance in instances: 
+            rxns += [instance]
+
+        for inst in rxns:
+            new = 1
+            # filter for the same reactions
+            for instance in self.reactions[name]:
+                if inst[0] == instance[1] and inst[1] == instance[0]:
+                    new = 0
+            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
+#                    new = 0
+            if new:
+                self.reactions[name].append(inst)
+
+        return 0
+
+
+
+
     def search_barrierless_saddle(self, natom, atom, bond, rad):
         """ 
         This is not an RMG class.
@@ -2367,6 +2406,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(H2Elim(self.species,self.qc,self.par,reac_list[i],name))
+            elif reac_id == 'hom_sci':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(HS(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'barrierless_saddle':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)

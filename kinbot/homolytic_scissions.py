@@ -71,7 +71,6 @@ class HomolyticScissions:
                         # get the elements of the current bond under consideration, and put them
                         # in alphabetical order
                         bond_elements = sorted([self.species.atom[i], self.species.atom[j]])
-                        print(self.species.atom)
                         b_e = []
                         a = len(self.species.atom)
                         atom1 = 0
@@ -82,27 +81,20 @@ class HomolyticScissions:
                             atom1 += 1
                         # check all bonds to be considered, supplied by the user
                         for user_bond in self.par['homolytic_bonds']:
-                            logging.info("inside homolytic_bond")
                             for be in b_e:
                                 if add == 0:
-                                    logging.info("inside be")
-                                    print(sorted(user_bond), bond_elements)
-                                    print(sorted(user_bond), be)
                                     if sorted(user_bond) == bond_elements:
-                                        logging.info("user_bond == be")
                                     #if sorted(user_bond) == bond_elements:
                                     # if there is a match between the current bond and a user-defined
                                     # bond, put the add boolean to 1
                                         add = 1
                         # add the bond if the 'add' boolean is 1 or if the user defined list is empty
                         # (in the latter case, all single bonds that are not in a cycle are considered.
-                        print("add: {}".format(add))
                         if len(self.par['homolytic_bonds']) == 0 or add:
                             # check if a bond with identical atomids
                             # has been added to the bonds list yet
                             new = 1
                             for bi in bonds:
-                                logging.info("inside bi")
                                 if sorted([self.species.atomid[at] for at in bi]) == sorted([self.species.atomid[i], self.species.atomid[j]]):
                                     new = 0
                             if new:

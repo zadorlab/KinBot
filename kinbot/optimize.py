@@ -61,6 +61,8 @@ class Optimize:
         # maximum restart count
         self.max_restart = par['rotation_restart']
 
+        self.skip_conf_check = 0  # initialize
+
     def do_optimization(self):
         while 1:
             # do the conformational search
@@ -125,23 +127,32 @@ class Optimize:
                             logging.info("There are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
                                          format(i, self.par['semi_emp_confomer_threshold'], self.name))
                         else:
+                            print_warning = True
                             for geom in self.species.confs.cyc_conf_geoms:
                                 # take all the geometries from the cyclic part
                                 # generate the conformers for the current geometry
-                                self.species.confs.generate_conformers(0, geom)
+                                self.skip_conf_check = self.species.confs.generate_conformers(0, geom, print_warning=print_warning)
+                                print_warning = False
                         # set conf status to running
                         self.sconf = 0
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
-                        if status == 1:
-                            logging.info("lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
-                            # save lowest energy conformer as species geometry
-                            self.species.geom = geom
-                            # save lowest energy conformer energy
-                            self.species.energy = low_energy
-                            # set conf status to finished
+                        if self.skip_conf_check == 0:
+                            status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
+                            if status == 1:
+                                logging.info("lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
+                                # save lowest energy conformer as species geometry
+                                self.species.geom = geom
+                                # save lowest energy conformer energy
+                                self.species.energy = low_energy
+                                # set conf status to finished
+                                self.sconf = 1
+                        elif self.skip_conf_check == 1:
+                            self.species.geom, self.species.energy = self.species.confs.lowest_conf_info()
+                            logging.info('Conformers are not checked for {} to speed up calculations.'.format(self.name))
+                            logging.info('They seem to have been done in a previous run.')
+                            logging.info('Energy and geometry updated based on conf/{}_low file.'.format(self.name))
                             self.sconf = 1
 
             else:
@@ -149,10 +160,9 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
+                # not clear what the purpose of these lines were
                 if self.par['conformer_search'] == 1:
                     status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
-                    # perform conformer check at this point
-                    filteredConf = [] 
                         
                 while self.restart < self.max_restart:
                     # do the high level calculations
@@ -192,7 +202,10 @@ class Optimize:
                                     if self.par['conformer_search'] == 0:
                                         fr_file = self.fr_file_name(0)  # name of the original TS file
                                     else:
-                                        fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
+                                        if self.skip_conf_check == 0: 
+                                            fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
+                                        else:
+                                            fr_file = 'conf/{}_low'.format(self.fr_file_name(0))
                                     if self.qc.qc == 'gauss':
                                         imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
                                     fr_file = self.fr_file_name(1)
@@ -207,11 +220,13 @@ class Optimize:
                                     same_geom = geometry.equal_geom(self.species, temp, 0.1)
 
                                 err, fr = self.qc.get_qc_freq(self.job_high, self.species.natom)
-                                if len(fr) == 1 and fr[0] == 0:
-                                    freq_ok = 0
-                                elif self.species.wellorts == 0 and fr[0] > 0.:
+                                if self.species.natom == 1:
                                     freq_ok = 1
-                                elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
+                                elif len(fr) == 1 and float(fr[0]) == 0:
+                                    freq_ok = 0
+                                elif self.species.wellorts == 0 and float(fr[0]) > 0.:
+                                    freq_ok = 1
+                                elif self.species.wellorts == 1 and float(fr[0]) < 0. and float(fr[1]) > 0.:
                                     freq_ok = 1
                                 else:
                                     freq_ok = 0
@@ -318,7 +333,7 @@ class Optimize:
                 if self.par['L3_calc'] == 1:
                     if self.par['single_point_qc'] == 'molpro':
                         molp = Molpro(self.species, self.par)
-                        if 'barrierless_saddle' in self.par:
+                        if 'barrierless_saddle' in self.name:
                             key = self.par['barrierless_saddle_single_point_key']
                             molp.create_molpro_input(bls=1)
                         else:

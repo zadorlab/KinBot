@@ -239,8 +239,8 @@ class Parameters:
             'sigma': 0.0,
             # MESS specific keywords
             'mess_command': 'mess',
-            'TemperatureList': [500 + 100 * i for i in range(16)],
-            'PressureList': [760],
+            'TemperatureList': [300. + 100. * i for i in range(18)],
+            'PressureList': [7.6, 76., 760., 7600., 76000.],
             'EnergyStepOverTemperature': .2,
             'ExcessEnergyOverTemperature': 30,
             'ModelEnergyLimit': 400,

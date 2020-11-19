@@ -1,8 +1,4 @@
-    Bimolecular     {chemids}
-
+  Bimolecular     {chemids}
 {fragments}
-
-        GroundEnergy[kcal/mol]        {ground_energy}
-
-    
-    End ! end bimolecular
+    GroundEnergy[kcal/mol]        {ground_energy}
+  End ! end bimolecular

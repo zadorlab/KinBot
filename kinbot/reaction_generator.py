@@ -64,12 +64,12 @@ class ReactionGenerator:
         for i in self.species.reac_inst:
             count = count + 1
         frag_unique = []
-        try:
-            import pybel
-            pybelErr = 0
-        except ImportError:
-            logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
-            pybelErr = 1
+        #try:
+        #    import pybel
+        #    pybelErr = 0
+        #except ImportError:
+        logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
+        pybelErr = 1
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):

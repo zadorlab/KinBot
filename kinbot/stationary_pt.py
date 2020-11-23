@@ -258,12 +258,20 @@ class StationaryPoint:
                     if is_unique:
                         self.rads.append(perm_rad[i])
                         self.bonds.append(perm_bond[i])
+
         if self.smiles == '':
             try:
-                from kinbot.cheminfo import create_rdkit_mol
-                mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
+                import rdkit
+                try:
+                    from kinbot.cheminfo import create_rdkit_mol
+                    mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
+                except ImportError:
+                    pass
             except ImportError:
+                print('Warning: RDKit could not be imported.')
+                print('Certain features or the whole code might not run properly.')
                 pass
+            
         return 0
 
     def make_extra_bond(self, parts, maps):

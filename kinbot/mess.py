@@ -384,7 +384,7 @@ class MESS:
                                                          geom=self.make_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
                                                          nfreq=len(species.reduced_freqs),
-                                                         freq=self.make_freq(species, freqFactor, 0),
+                                                         freq=freq,
                                                          hinderedrotor=self.make_rotors(species),
                                                          nelec=2,
                                                          mult=species.mult)
@@ -395,7 +395,7 @@ class MESS:
                                                          geom=self.make_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
                                                          nfreq=len(species.reduced_freqs),
-                                                         freq=self.make_freq(species, freqFactor, 0),
+                                                         freq=freq,
                                                          hinderedrotor=self.make_rotors(species),
                                                          nelec=1,
                                                          mult=species.mult)
@@ -513,7 +513,7 @@ class MESS:
                                         geom=self.make_geom(species),
                                         symm=float(species.sigma_ext) / float(species.nopt),
                                         nfreq=len(species.reduced_freqs),
-                                        freq=freq,
+                                        freq=self.make_freq(species, freqFactor, 0),
                                         hinderedrotor=self.make_rotors(species),
                                         nelec=1,
                                         mult=species.mult,
@@ -565,7 +565,10 @@ class MESS:
             chemid_reac = self.well_names[self.species.chemid]
             chemid_prod = prod_name
             long_rxn_name = reaction.instance_name
+            print(reaction.instance_name)
+            freq=self.make_freq(reaction.ts, freqFactor, 1)
             zeroenergy = left_zeroenergy
+            
     
         # TODO working here
         if self.species.reac_type[index] == 'barrierless_saddle':
@@ -590,7 +593,7 @@ class MESS:
                                          prefact='prefactor',
                                          exponent=3.,
                                          nfreq=nfreq,
-                                         freq=freq,
+                                         freq = freq,
                                          hinderedrotor=rotors,
                                          nelec=1,
                                          mult=reaction.ts.mult,
@@ -602,7 +605,7 @@ class MESS:
                                        geom=self.make_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
-                                       freq=freq,
+                                       freq = freq,
                                        rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling='',
                                        nelec=1,
@@ -622,7 +625,7 @@ class MESS:
                                        geom=self.make_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
-                                       freq=freq,
+                                       freq = freq,
                                        rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling=tun,
                                        nelec=1,
@@ -747,7 +750,9 @@ class MESS:
             freqarray.append(fr)
             freq += '{:.1f} '.format(fr)
             if i % 3 == 2:
-                freq += '\n        '
+                freq += '\n       '
+        print(freq)
+        print(freq[:-1])
         return(freq[:-1])
 
 

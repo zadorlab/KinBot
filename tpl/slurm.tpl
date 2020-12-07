@@ -7,3 +7,4 @@
 #SBATCH -e {dir}/{name}.err
 {slurm_feature}
 
+export OMP_NUM_THREADS={ppn}

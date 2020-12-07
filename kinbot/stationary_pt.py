@@ -260,6 +260,7 @@ class StationaryPoint:
                         self.bonds.append(perm_bond[i])
         if self.smiles == '':
             try:
+                from rdkit import Chem  # to quit the try loop if rdkit is not available
                 from kinbot.cheminfo import create_rdkit_mol
                 mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
             except ImportError:

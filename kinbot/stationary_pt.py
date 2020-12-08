@@ -662,30 +662,6 @@ class StationaryPoint:
             self.conf_dihed.remove(delrot)
                 
         return 0
-                
-    def ring_dihedral_small(self):
-        """
-        When a dihedral is smaller than 5 degrees, 
-        that ring section is removed from ring conformer generation.
-        """
-
-        self.find_dihedral()
-        self.cycle_chain()
-
-        delete_ring = [] # list of ring conformers to be deleted
-
-        for ring in self.cycle_chain:
-            for rotbond in self.conf_dihed:
-                if (rotbond[0:3] or rotbond[1:4] <= 5.0) or (rotbond[0:3] or rotbond[1:4]) >= 175.0:
-                    delete_ring.append(rotbond)
-                    break
-                                                                                
-
-        for delring in delete_ring:
-            self.conf_dihed.remove(delring)
-
-        return 0
-
 
     def find_angle(self):
         """

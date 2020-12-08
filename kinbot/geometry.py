@@ -73,6 +73,7 @@ def calc_dihedral(a, b, c, d):
     For collinear or close to collinear structures return a warning.
 
     Returns the value in degrees
+    np.arctan2 returns a value on the [-Pi,+Pi] interval
     """
     collinear_cutoff = 175./180.
     collinear = 0

@@ -83,7 +83,7 @@ class GeneralReac:
 
 
     def fix_angle_single(self, a, b, c, fix):
-        constraint = [self.instance[a] + 1,self.instance[b] + 1, self.instance[c] + 1]
+        constraint = [self.instance[a] + 1, self.instance[b] + 1, self.instance[c] + 1]
         fix.append(constraint)
 
 
@@ -93,6 +93,11 @@ class GeneralReac:
             for i in range(4):
                 f.append(self.instance[dih + i] + 1)
             fix.append(f)
+
+
+    def fix_dihedral_single(self, a, b, c, d, fix):
+        constraint = [a + 1, b + 1, c + 1, d + 1]
+        fix.append(constraint)
 
 
     def set_bond(self, a, b, val, change, step=None, stmax=None, findist=None, geom=None):
@@ -130,6 +135,12 @@ class GeneralReac:
                 constraint.append(self.instance[dih + i] + 1)
             constraint.append(new_dihs[dih])
             change.append(constraint)
+
+
+    def set_dihedral_single(self, a, b, c, d, val, change):
+        constraint = [a + 1, b + 1, c + 1, d + 1]
+        constraint.append(val)
+        change.append(constraint)
 
 
     def release_angles(self, release):

@@ -14,6 +14,7 @@ from reactions.reac_cpd_H_migration import CpdHMigration
 from reactions.reac_intra_H_migration import IntraHMigration
 from reactions.reac_intra_H_migration_suprafacial import IntraHMigrationSuprafacial
 from reactions.reac_intra_OH_migration import IntraOHMigration
+from reactions.reac_intra_OH_migration_Exocyclic_F import IntraOHMigrationExocyclicF
 from reactions.reac_Intra_R_Add_Endocyclic_F import IntraRAddEndocyclicF
 from reactions.reac_Intra_R_Add_Exocyclic_F import IntraRAddExocyclicF
 from reactions.reac_Intra_R_Add_ExoTetCyclic_F import IntraRAddExoTetCyclicF
@@ -96,6 +97,7 @@ class ReactionFinder:
                           'intra_H_migration_suprafacial': self.search_intra_H_migration_suprafacial,
                           'intra_R_migration': self.search_intra_R_migration,
                           'intra_OH_migration': self.search_intra_OH_migration,
+                          'intra_OH_migration_Exocyclic_F': self.search_intra_OH_migration_Exocyclic_F,
                           'cpd_H_migration': self.search_cpd_H_migration, 
                           'Intra_RH_Add_Endocyclic_F': self.search_Intra_RH_Add_Endocyclic_F,
                           'Intra_RH_Add_Endocyclic_R': self.search_Intra_RH_Add_Endocyclic_R,
@@ -2360,6 +2362,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraOHMigration(self.species,self.qc,self.par,reac_list[i],name))
+            elif reac_id == 'intra_OH_migration_Exocyclic_F':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][-2] + 1 + '_' + str(reac_list[i][-1])  # last element is cis/trans (-1, -2)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(IntraOHMigrationExocyclicF(self.species,self.qc,self.par,reac_list[i],name))
             elif reac_id == 'cpd_H_migration':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1) + '_' + str(reac_list[i][-2] + 1)
                 self.species.reac_name.append(name)

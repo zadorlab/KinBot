@@ -205,7 +205,7 @@ class ReactionFinder:
 
         H-R~~~~~~~R* <==> R*~~~~~~~R-H
 
-        Find all unique cases for ring sizes between 3 and 9. Works in both directions.
+        Works in both directions.
         H is moved to
         * radical site
         * multiple bond
@@ -428,7 +428,6 @@ class ReactionFinder:
 
         R*~~~~~~~O-OH <==> HOR~~~~~~~O*
 
-        Find all unique cases for ring sizes between 3 and 9. 
         The H atom is not counted in the cycle size but has to be there.
         OH transfer to:
         radical sites
@@ -496,19 +495,25 @@ class ReactionFinder:
         return 0
 
 
-    def search_intra_OH_migration_dblbnd(self, natom, atom, bond, rad):
+    def search_intra_OH_migration_Exocyclic_F(self, natom, atom, bond, rad):
         """ 
         This is the same as search_intra_OH_migration but for double bonds only
 
-        R*~~~~~~~O-OH <==> HOR~~~~~~~O*
+        R=R~~~~~~~O-OH <==> R=R~~?? + ??~~=O
+                              |
+                              OH
 
-        Find all unique cases for ring sizes between 3 and 9. 
         The H atom is not counted in the cycle size but has to be there.
-        OH transfer to:
-        double bonds on closed shell (just forward)
+        OH transfer to double bonds on closed shell
+        This is just the forward step as the expectation is that
+        the product will fall apart while at least one of the framents 
+        also rearrange, yielding two closed shell products.
+        A special feature is to test both cis and trans transfer, therefore,
+        in addition to testing for the extra H atom (which is deleted from the motif)
+        the double bond is also registered and kept in the motif. 
         """
         
-        name = 'intra_OH_migration_dblbnd'
+        name = 'intra_OH_migration_Exocyclic_F'
         
         if not name in self.reactions:
             self.reactions[name] = []
@@ -524,17 +529,15 @@ class ReactionFinder:
                 instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
            
                 for instance in instances:
-                    if any([bi > 1 for bi in bond[instance[0]]]):
-                        rxns += [instance]
+                    if bond[instance[0]][intance[1]] == 2:
+                        rxns += [instance[:-1], -1]  # cut off H and add a -1 for nominal cis
+                        rxns += [instance[:-1], -2]  # cut off H and add a -1 for nominal trans
 
-        for case in range(len(rxns)):
-            rxns[case] = rxns[case][:-1] #cut off H
-            
         for inst in rxns:
             new = 1
             # filter for the same reactions
             for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
+                if inst[0] == instance[0] and inst[-1] == instance[-1] and inst[-2] == instance[-2]:
                     new = 0
             # filter for specific reaction after this
             if self.one_reaction_fam and new:
@@ -555,8 +558,7 @@ class ReactionFinder:
         H-R~~~~~~~R=R ==> R~~~~~~~R-R
                           |         |
                            ---------
-
-        Find all unique cases for ring sizes between 3 and 9. This is for the forward direction.
+        This is for the forward direction.
         """
         
         if np.sum(rad) != 0: return
@@ -607,8 +609,7 @@ class ReactionFinder:
         H-R~~~~~~~R=R ==> R~~~~~~~R-R
                           |         |
                            ---------
-
-        Find all unique cases for ring sizes between 3 and 9. This is for the forward direction.
+        This is for the forward direction.
         """
         
         if np.sum(rad) != 0: return
@@ -659,8 +660,7 @@ class ReactionFinder:
         R~~~~~~~R-R ==> H-R~~~~~~~R=R
         |         |
          ---------
-
-        Find all unique cases for ring sizes between 3 and 9. This is for the reverse direction.
+        This is for the reverse direction.
         """
         
         if len(self.species.cycle_chain) == 0: return
@@ -709,7 +709,7 @@ class ReactionFinder:
         R*~~~~~~~O-OR ==> R~~~~~~~O + OR
                           |_______|
 
-        Find all unique cases for ring sizes between 3 and 9. The OR groups are not counted in the cycle size but have to be there.
+        The OR groups are not counted in the cycle size but have to be there.
         Only the forward direction is included.
         """
         
@@ -919,7 +919,7 @@ class ReactionFinder:
           |                       |
           R                       R
 
-        Find all unique cases for final ring sizes between 3 and 9. The carbonyl dangling R and the
+        The carbonyl dangling R and the
         tail H are included, but are not counted as the ring size, but these two atoms are kept
         because they are needed in the geometry manipulation step.
         """
@@ -969,7 +969,7 @@ class ReactionFinder:
         H-R~~~~~~~R=R <== R~~~~~~~R-R
                           |_______|
 
-        Find all unique cases for ring sizes between 3 and 9. This is for the reverse direction.
+        This is for the reverse direction.
         """
         
         name = 'Intra_RH_Add_Exocyclic_R'

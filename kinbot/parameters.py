@@ -136,7 +136,7 @@ class Parameters:
             # Search for one specific reaction using family approach
             'one_reaction_fam': 0,
             # For cyclic transition states, look at this ring size range
-            'ringrange': range(3, 9),
+            'ringrange': [3, 9],
 
             # QUANTUM CHEMISTRY INFO
             # Which quantum chemistry code to use

@@ -120,7 +120,7 @@ class Conformers:
                     nd = 1
                 else:
                     nd = n_dih_nonflat - 3
-                random_dihs = list(random.sample(np.array(dihs)[[not f for f in flat_ring_dih]], nd))
+                random_dihs = list(random.sample(list(np.array(dihs)[[not f for f in flat_ring_dih]], nd)))
                 
                 # number of conformers (nc) per ring conformer:
                 # 4, 5, 6 member rings nc = 3 ^ nd

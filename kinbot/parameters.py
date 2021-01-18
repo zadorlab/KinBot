@@ -289,7 +289,7 @@ class Parameters:
                 logging.error(err)
                 sys.exit(-1)
                 
-        if self.par['families'] != 'all' and self.par['skip_families'] != ['none']:
+        if self.par['families'] != ['all'] and self.par['skip_families'] != ['none']:
             err = 'Only one of the "families" or "skip_families" parameters can be defined.'
             logging.error(err)
             sys.exit(-1)

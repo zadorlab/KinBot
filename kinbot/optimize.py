@@ -161,8 +161,8 @@ class Optimize:
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
                 # not clear what the purpose of these lines were
-                #if self.par['conformer_search'] == 1:
-                #    status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
+                if self.par['conformer_search'] == 1:
+                    status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                         
                 while self.restart <= self.max_restart:
                     # do the high level calculations

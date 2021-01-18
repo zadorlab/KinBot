@@ -500,6 +500,7 @@ class ReactionFinder:
         """ 
         This is the same as search_intra_OH_migration but for double bonds only
 
+          0 .....-2-1
         R=R~~~~~~~O-OH <==> R=R~~?? + ??~~=O
                               |
                               OH

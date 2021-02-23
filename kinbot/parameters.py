@@ -144,7 +144,7 @@ class Parameters:
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
-            'qc_command': 'g09',
+            'qc_command': 'g16',
             # Quantum chemistry method to use as L1
             'method': 'b3lyp',
             # Basis set to use

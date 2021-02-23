@@ -177,6 +177,7 @@ class ReactionGenerator:
                             ending = 'well'
                         sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
                         sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
+                        print("tse: {}, tsz: {} spe: {} spz: {}".format(ts_energy, ts_zpe, sp_energy, sp_zpe))
                         barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
                         if barrier > self.par['barrier_threshold']:
                             logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'

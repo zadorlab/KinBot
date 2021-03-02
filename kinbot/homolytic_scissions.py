@@ -98,8 +98,6 @@ class HomolyticScissions:
                                 if sorted([self.species.atomid[at] for at in bi]) == sorted([self.species.atomid[i], self.species.atomid[j]]):
                                     new = 0
                             if new:
-                                print("new block")
-                                print([i,j])
                                 bonds.append([i, j])
                                 hs = HomolyticScission(self.species, self.par,
                                                        self.qc, [i, j])

@@ -19,12 +19,16 @@ class UQ:
         self.uq_iter = 0
 
 
-    def calc_factor(self, propertyType, species, uq_iter, pes):
+    def calc_factor(self, propertyType, species, uq_iter, runUQ):
+        # runUQ = 0, treat all iterations as uq iter = 1
+        # runUQ = 1, treat all interations as uqiter = 0 to n
         if self.uq_iter != uq_iter:  # new iteration
             with open('uqtk.data', 'a') as f:
                 f.write('')  # new line
-        if pes == 1:
+        if self.par['pes'] == 1 and runUQ == 0:
             uq_iter = 0
+        elif self.par['pes'] == 1 and runUQ == 1:
+            uq_iter = uq_iter
 
         if uq_iter == 0:
             if propertyType == 'freq' or propertyType == 'imagfreq':

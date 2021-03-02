@@ -1,15 +1,12 @@
 from __future__ import print_function
-import logging
 import os
 import subprocess
 import time
 import pkg_resources
 from collections import Counter
-
 from kinbot import constants
 from kinbot import frequencies
 from kinbot.uncertaintyAnalysis import UQ
-
 
 class MESS:
     """
@@ -160,6 +157,7 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
+
         uq_obj = UQ(self.par)
 
         # create short names for all the species, bimolecular products and barriers
@@ -315,7 +313,7 @@ class MESS:
             for rxn in barrierless_blocks:
                 barrierless += barrierless_blocks[rxn] + divider
 
-            dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
+            # dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
             mess_iter = "{0:04d}".format(uq_iter)
 
@@ -369,13 +367,14 @@ class MESS:
         for nsp, species in enumerate(prod_list):
             smi.append(species.smiles)
             if species.natom > 1:
-
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
-                    freq = '{freq}'
+                    freq = '{{freq_{}}}'.format(nsp) 
+                    nfreq = '{{nfreq_{}}}'.format(nsp)
                 else:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
                     freq = self.make_freq(species, freqFactor, 0)
+                    nfreq=len(species.reduced_freqs),
                 # molecule template
                 if species.chemid == 170170000000000000002:  # exception for OH
                     fragments += self.fragmenttplOH.format(chemid=name,
@@ -383,7 +382,7 @@ class MESS:
                                                          natom=species.natom,
                                                          geom=self.make_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
-                                                         nfreq=len(species.reduced_freqs),
+                                                         nfreq=nfreq,
                                                          freq=freq,
                                                          hinderedrotor=self.make_rotors(species),
                                                          nelec=2,
@@ -394,7 +393,7 @@ class MESS:
                                                          natom=species.natom,
                                                          geom=self.make_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
-                                                         nfreq=len(species.reduced_freqs),
+                                                         nfreq=nfreq,
                                                          freq=freq,
                                                          hinderedrotor=self.make_rotors(species),
                                                          nelec=1,
@@ -538,7 +537,13 @@ class MESS:
         if left_zeroenergy < 0 or right_zeroenergy < 0:
             tun = ''
         else:
-            tun = self.tunneltpl.format(cutoff=min(left_zeroenergy, right_zeroenergy),
+            if self.par['pes']:
+                tun = self.tunneltpl.format(cutoff='{cutoff}',
+                                        imfreq='{imfreq}',
+                                        welldepth1='{left_zero}',
+                                        welldepth2='{right_zero}')
+            else:
+                tun = self.tunneltpl.format(cutoff=min(left_zeroenergy, right_zeroenergy),
                                         imfreq=-reaction.ts.reduced_freqs[0] * imagfreqFactor,
                                         welldepth1=left_zeroenergy,
                                         welldepth2=right_zeroenergy)

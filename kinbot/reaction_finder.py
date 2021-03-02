@@ -125,7 +125,7 @@ class ReactionFinder:
                           'r13_insertion_RSR': self.search_r13_insertion_RSR, 
                           'beta_delta': self.search_beta_delta, 
                           'h2_elim': self.search_h2_elim,
-                          'hom_sci': self.search_hom_sci,
+                          # 'hom_sci': self.search_hom_sci,
                           'barrierless_saddle': self.search_barrierless_saddle,
                           }
 

@@ -13,9 +13,11 @@ on the PES
 from __future__ import print_function
 import sys
 import os
+from os import path
 import logging
 import datetime
 
+from kinbot import sq
 from kinbot import filecopying
 from kinbot import license_message
 from kinbot import postprocess
@@ -100,6 +102,10 @@ def main():
     well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
     start_name = well0.name
+    
+    # create sql db
+    postprocess.delete_sql_db(well0)
+    postprocess.create_sql_db(well0)
 
     # initialize the qc instance
     qc = QuantumChemistry(par)
@@ -114,6 +120,8 @@ def main():
     #        wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
     #        if wait_for_well:
     #            time.sleep(1)
+
+
 
     # start the initial optimization of the reactant
     logging.info('Starting optimization of intial well')
@@ -167,6 +175,7 @@ def main():
     err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)
     err, well0.zpe = qc.get_qc_zpe(str(well0.chemid) + '_well', 1)
 
+
     well_opt = Optimize(well0, par, qc, wait=1)
     well_opt.do_optimization()
     if well_opt.shigh == -999:
@@ -197,6 +206,7 @@ def main():
             if par['me_code'] == 'mess':
                 mess.run()
 
+    postprocess.create_sql_db_entry(well0, well0, 'None', qc, par, 0)
     postprocess.createSummaryFile(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)

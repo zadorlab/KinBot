@@ -268,8 +268,8 @@ class StationaryPoint:
                 except ImportError:
                     pass
             except ImportError:
-                print('Warning: RDKit could not be imported.')
-                print('Certain features or the whole code might not run properly.')
+                #print('Warning: RDKit could not be imported.')
+                #print('Certain features or the whole code might not run properly.')
                 pass
             
         return 0

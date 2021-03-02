@@ -2,7 +2,6 @@
 This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
 """
-from __future__ import print_function
 from __future__ import absolute_import
 import sys
 import os
@@ -18,7 +17,7 @@ import pkg_resources
 #import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-
+from collections import defaultdict
 from ase.db import connect
 
 from kinbot import constants
@@ -27,7 +26,7 @@ from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
-
+from kinbot import sq
 
 def main():
     try:
@@ -219,7 +218,7 @@ def main():
     # do something like postprocess, but with new energies
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
 
-    # Notify user the search is done
+    # Notify user the search done
     logging.info('PES search done!')
     print('PES search done!')
 
@@ -517,12 +516,12 @@ def postprocess(par, jobs, task, names):
 
     barrierless = []
     rxns = []
+    # rxn = [react, ts, prod(s), barrier]
     for rxn in reactions:
         if rxn[1] == 'barrierless':
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
         else:
             rxns.append([rxn[0], rxn[1], rxn[2], rxn[3]])
-
     # write full pesviewer input
     create_pesviewer_input(par,
                            wells,
@@ -533,14 +532,18 @@ def postprocess(par, jobs, task, names):
                            prod_energies,
                            highlight)
     if par['me'] == 1:
-        create_mess_input(par,
-                          wells,
-                          products,
-                          rxns,
-                          barrierless,
-                          well_energies,
-                          prod_energies,
-                          parent)
+        if len(reactions) > 0:
+            create_mess_input(par,
+                              wells,
+                              products,
+                              rxns,
+                              barrierless,
+                              well_energies,
+                              prod_energies,
+                              parent)
+        else:
+            print("NO REACTIONS GENERATED FOR {}".format(parent))
+            logging.error("NO REACTIONS GENERATED FOR {}".format(parent))
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -917,15 +920,34 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     2. all the zpe corrected energies
     """
 
-    i = 0  # uncertainty counter
+    # testing
+    all_structures = {}
+    for rxn in reactions:
+        pathway = []
+        pathway.append(rxn[0])
+        for prod in rxn[2]:
+            pathway.append(prod)
+        pathway.append(rxn[3])
+    
+    for b in barrierless:
+        pathway.append(b[0])
+        for prod in b[2]:
+           pathway.append(prod)
+        pathway.append(rxn[2])
+    print("reactions: {}".format(reactions))
+    print("barrierless: {}".format(barrierless))
+    if len(reactions) > 0:
+        print("Current Pathway: {}".format(pathway)) 
+    try:
+        all_structures[rxn[1]] = pathway
+    except:
+        pass
+    #logging.info('NO REACTIONS OR BARRIERLESS CHANNELS')
     logging.info('{0} {1} {2}'.format("uq value: ", par['uq'], "\n"))
     well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
                                                                                products,
                                                                                reactions,
                                                                                barrierless)
-
-    # list of the strings to write to mess input file
-    s = []
 
     # create mess0 label for mess header
     well0 = StationaryPoint('well0',
@@ -961,14 +983,15 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         m_well=well0.mass,
                         )
 
-    frame = '######################\n' 
+    frame = '######################\n'
     divider = '!****************************************\n'
-
 
     uq_iter = 0
     while(uq_iter < par['uq_n']):
+        all_energies = {}
+        uq_obj = UQ(par)
         # list of the strings to write to mess input file
-        s = []
+        messStrings = []
         # create dummy for mess object
         dummy = StationaryPoint('dummy',
                                 par['charge'],
@@ -977,72 +1000,120 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                                 structure=par['structure'])
 
         mess = MESS(par, dummy)
-        uq_obj = UQ(par)
         reaction_items = []  # well, ts, prod pushed to final pes
         # write the wells
-        s.append('######################')
-        s.append('# WELLS')
-        s.append('######################')
-        for well in wells:
-            # open db file to pull data
-            dbfi = parent[well] + '/kinbot.db'
-            db = connect(dbfi)
-            job = well
-            rows = db.select(name=job)
-            freq = row.data.get('frequencies')
+        if par['high_level'] == 0:
+            level = ''
+        elif par['high_level'] == 1:
+            level = '_high'
 
+        # TEST SQL DB
+        all_data = []
+        for rxn in reactions:
+            for i, item in enumerate(rxn):
+                initial = rxn[0]
+                if i == 0:
+                    list_data, species, energy, zpe, geom, hess, freq, red_freq, hir, atoms = sq.get_sql_data(initial, item, 1)
+                    all_data.append(list_data)
+                if i == 1:
+                    list_data, species, energy, zpe, geom, hess, freq, red_freq, hir, atoms = sq.get_sql_data(initial, item, 1)
+                    all_data.append(list_data)
+                if i == 2:
+                    for pr in item:
+                        list_data, species, energy, zpe, geom, hess, freq, red_freq, hir, atoms = sq.get_sql_data(initial, pr, 1)
+                        all_data.append(list_data)
+                if i == 3:
+                        pass
+                     
+        # Check all_data
+        #print("!!!!!!!! ALL DATA ARRAY !!!!!!!!!")
+        #for row in all_data:
+        #    print(row[0])
+        #    for col in row[1::]:
+        #        print("\t{}".format(col))
+
+        if par['high_level'] == 0:
+            level = 'L1'
+        elif par['high_level'] == 1:
+            level = 'L2'
+        
+        messStrings.append('######################')
+        messStrings.append('# WELLS')
+        messStrings.append('######################')
+        for well in wells:
+            job = well
+            jobid = job + '_well' +  level
             name = well_short[well] + ' ! ' + well
+            frequencies = sq.get_sql_mess_data(all_data, well, level, 'red_freq') 
             energy = well_energies[well]
-            uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter, 0)
+            print("FROM SQL\n\t{}\n{}".format(well, frequencies))
+            uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter, 1)
             energy = energy + uq_energyAdd
-            freq_factor = uq_obj.calc_factor('freq', well_short[well], uq_iter, 0)
-            freq = mess.make_freq(well, freq, freq_factor, 0)
+            all_energies[well] = energy
+
+            freq_factor = uq_obj.calc_factor('freq', well_short[well], uq_iter, 1)
+            freq = make_freq(well, frequencies, freq_factor, parent[well], 0, par['high_level'])
+
             mess_iter = "{0:04d}".format(uq_iter)
-            reaction_items.append(well) 
+            reaction_items.append(well)
+           
             with open(parent[well] + '/' + well + '_' + str(mess_iter) + '.mess') as f:
-                s.append(f.read().format(name=name, zeroenergy=energy), freq=freq)
-                s.append('!****************************************')
+                messStrings.append(f.read().format(name=name, zeroenergy=energy, freq=freq))
+                messStrings.append('!****************************************')
 
         # write the products
-        s.append('######################')
-        s.append('# BIMOLECULAR PRODUCTS')
-        s.append('######################')
-        for prod in products:
-            dbfi = parent[prod] + '/kinbot.db'
-            db = connect(dbfi)
-            job = prod
-            rows = db.select(name=job)
-            freq = row.data.get('frequencies')
+        # TO DO - INCLUDE BLESS REACTIONS !!!
+        # TO DO - INCLUDE BARRIERLESS REACTIONS !!!
 
+        messStrings.append('######################')
+        messStrings.append('# BIMOLECULAR PRODUCTS')
+        messStrings.append('######################')
+        for prod in products:
+            prods = prod.split('_')
+            for i, p in enumerate(prods):
+                frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq') 
+                freq_factor = uq_obj.calc_factor('freq', pr_short[prod], uq_iter, 1)
+                if i == 0:
+                    freq_0 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
+                elif i == 1:
+                    freq_1 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
+            
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod]
-            uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter, 0)
+            print(prod)
+            print(frequencies)
+            uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter, 1)
             energy = energy + uq_energyAdd
-            freq_factor = uq_obj.calc_factor('freq', pr_short[prod], uq_iter, 0)
-            freq = self.make_freq(prod, freq, freq_factor, 0)
+            all_energies[prod] = energy
+
             fr_names = {}
             for fr in prod.split('_'):
                 key = 'fr_name_{}'.format(fr)
-                value = fr_short[fr] + ' ! ' + fri
+                value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
             reaction_items.append(prod)
             mess_iter = "{0:04d}".format(uq_iter)
             with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
-                s.append(f.read().format(name=name,
+                messStrings.append(f.read().format(name=name,
                                          ground_energy=energy,
-                                         freq=freq,
+                                         nfreq_0=len(freq_0),
+                                         nfreq_1=len(freq_1),
+                                         freq_0=freq_0,
+                                         freq_1=freq_1,
                                          **fr_names))
-                s.append('!****************************************')
+                messStrings.append('!****************************************')
 
 
         # TO DO - EDIT TS SECTION FOR UQ
         # write the barrier
-        s.append('######################')
-        s.append('# BARRIERS')
-        s.append('######################')
+        messStrings.append('######################')
+        messStrings.append('# BARRIERS')
+        messStrings.append('######################')
+        # rxn = well, ts, prod, energy
         for rxn in reactions:
             with open("reactionList.log", 'a') as rxFi:
                 rxFi.write('{0} {1}'.format(rxn, "\n"))
+
             name = [ts_short[rxn[1]]]
             name.append(well_short[rxn[0]])
             if len(rxn[2]) == 1:
@@ -1051,128 +1122,61 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 name.append(pr_short['_'.join(sorted(rxn[2]))])
             name.append('!')
             name.append(rxn[1])
-            energy = rxn[3]
+            well_name = "".join(str(name) for name in rxn[0])
+            well_energy = all_energies.get(well_name)
+            prod_name = "_".join(str(name) for name in rxn[2])
+            prod_energy = all_energies.get(prod_name)
+            job = rxn[1]
+            jobid = job + level
+
+            frequencies = sq.get_sql_mess_data(all_data, job, level, 'red_freq') 
+            print("FROM SQL\n\t{}\n{}".format(job, frequencies))
+ 
+            freq_factor = uq_obj.calc_factor('freq', rxn[1], uq_iter, 1)
+            freq = make_freq(rxn[1], frequencies, freq_factor, rxn[0], 1, par['high_level'])
+            imfreq = frequencies[0] * freq_factor * -1
+            barrier = rxn[3]
+
+            uq_energyAdd = uq_obj.calc_factor('energy', name, uq_iter, 1)
+            forward_barrier = barrier + uq_energyAdd - well_energy
+            backward_barrier = barrier + uq_energyAdd - prod_energy
+            cutoff = min(forward_barrier, backward_barrier)
+            all_structures_values = list(map(list, (ele for ele in all_structures.values())))
             try:
-                with open(rxn[0] + "/" + rxn[1] + "_0000.mess") as f:
+                mess_iter = "{0:04d}".format(uq_iter)
+                with open(rxn[0] + "/" + rxn[1] + "_" + mess_iter + ".mess") as f:
                     if 'barrierless_saddle' in rxn[1]:
                         prodzeroenergy = prod_energies['_'.join(rxn[2])]
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy, prodzeroenergy=prodzeroenergy))
+                        messStrings.append(f.read().format(name=' '.join(name), zeroenergy=energy, prodzeroenergy=prodzeroenergy))
                     else:
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
-                s.append(divider)
+                        messStrings.append(f.read().format(name=' '.join(name), 
+                                                           freq=freq, 
+                                                           cutoff=cutoff,
+                                                           imfreq=imfreq,
+                                                           left_zero=forward_barrier, 
+                                                           right_zero=backward_barrier,
+                                                           zeroenergy=forward_barrier))
+                messStrings.append(divider)
             except:
-                logging.warning('File {}/{}_0000.mess not found.\n'.format(rxn[0], rxn[1]))
+                logging.warning('File {}/{}.mess not found.\n'.format(rxn[0], rxn[1]))
+
         # add last end statement
-        s.append('!****************************************')
-        s.append('End ! end kinetics\n')
-    
+        messStrings.append('!****************************************')
+        messStrings.append('End ! end kinetics\n')
+
         if not os.path.exists('me'):
             os.mkdir('me')
-
         # write everything to a file
         mess_iter = "{0:04d}".format(uq_iter)
         with open('me/' + 'mess_' + str(mess_iter) + '.inp', 'a') as f:
             f.write(header)
-            f.write('\n'.join(s))
+            f.write('\n'.join(messStrings))
         uq_iter = uq_iter + 1
 
         if par['me'] == 1:
             mess.run()
 
-    else:
-        uq_iter = 0
-        while(uq_iter < par['uq_n']):
-            # list of the strings to write to mess input file
-            s = []
-            # write the header
-            # s.append(write_header(par, well_short[wells[0]]))
-
-            # create dummy for mess object
-            dummy = StationaryPoint('dummy',
-                                    par['charge'],
-                                    par['mult'],
-                                    smiles=par['smiles'],
-                                    structure=par['structure'])
-
-            mess = MESS(par, dummy)
-            uq_obj = UQ(par)
-
-            # write the wells
-            s.append('######################')
-            s.append('# WELLS')
-            s.append('######################')
-            for well in wells:
-                name = well_short[well] + ' ! ' + well
-                energy = well_energies[well]
-                uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter)
-                energy = energy + uq_energyAdd
-                mess_iter = "{0:04d}".format(uq_iter)
-                with open(parent[well] + '/' + well + '_' + str(mess_iter) + '.mess') as f:
-                    s.append(f.read().format(name=name, zeroenergy=energy))
-                s.append('!****************************************')
-            slen = len(s)
-            w = len(wells)
-            ws = len(well_short)
-
-            # write the products
-            s.append('######################')
-            s.append('# BIMOLECULAR PRODUCTS')
-            s.append('######################')
-            for prod in products:
-                name = pr_short[prod] + ' ! ' + prod
-                energy = prod_energies[prod]
-                uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter)
-                energy = energy + uq_energyAdd
-                fr_names = {}
-                for fr in prod.split('_'):
-                    key = 'fr_name_{}'.format(fr)
-                    value = fr_short[fr] + ' ! ' + fr
-                    fr_names[key] = value
-                mess_iter = "{0:04d}".format(uq_iter)
-                with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
-                    s.append(f.read().format(name=name,
-                                             ground_energy=energy,
-                                             **fr_names))
-                s.append('!****************************************')
-
-            # write the barrier
-            s.append('######################')
-            s.append('# BARRIERS')
-            s.append('######################')
-            for rxn in reactions:
-                name = [ts_short[rxn[1]]]
-                name.append(well_short[rxn[0]])
-                if len(rxn[2]) == 1:
-                    name.append(well_short[rxn[2][0]])
-                else:
-                    name.append(pr_short['_'.join(sorted(rxn[2]))])
-                name.append('!')
-                name.append(rxn[1])
-                energy = rxn[3]
-                uq_energyAdd = uq_obj.calc_factor('barrier', ts_short[rxn[1]], uq_iter)
-                energy = energy + uq_energyAdd
-                mess_iter = "{0:04d}".format(uq_iter)
-                try:
-                    with open(rxn[0] + '/' + rxn[1] + '_' + str(mess_iter) + '.mess') as f:
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
-                    s.append('!****************************************')
-                except:
-                    logging.warning('{}/{} not found.\n'.format(rxn[0], rxn[1]))
-            # add last end statement
-            s.append('!****************************************')
-            s.append('End ! end kinetics\n')
-            
-            if not os.path.exists('me'):
-                os.mkdir('me')
-
-            # write everything to a file
-            mess_iter = "{0:04d}".format(uq_iter)
-            with open('me/' + 'mess_' + str(mess_iter) + '.inp', 'a') as f:
-                f.write(header)
-                f.write('\n'.join(s))
-            uq_iter = uq_iter + 1
-
-    return 0 
+    return 0
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):
@@ -1516,9 +1520,8 @@ def write_input(input_file, species, threshold, root):
         json.dump(par2, outfile, indent=4, sort_keys=True)
 
 
-def make_freq(self, species, freq, factor, wellorts):
-
-    final_freq = []
+def make_freq(species, freq, factor, parent, wellorts, high):
+    final_freq = ''
     # wellorts: 0 for wells and 1 for saddle points
     if wellorts == 0:
         frequencies = freq
@@ -1526,9 +1529,13 @@ def make_freq(self, species, freq, factor, wellorts):
         frequencies = freq[1:]
     for i, fr in enumerate(frequencies):
         fr = fr * factor
-        final_freq += '{:.1f} '.format(fr)
+        fr = '{:.1f} '.format(fr)
+        if i == 0:
+            final_freq += '\t {}'.format(fr)
+        else:
+            final_freq += ' {}'.format(fr)
         if i % 3 == 2:
-            final_freq += '\n         '
+           final_freq += '\n         '
     return(final_freq)
 
 if __name__ == "__main__":

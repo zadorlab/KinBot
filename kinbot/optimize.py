@@ -222,11 +222,11 @@ class Optimize:
                                 err, fr = self.qc.get_qc_freq(self.job_high, self.species.natom)
                                 if self.species.natom == 1:
                                     freq_ok = 1
-                                elif len(fr) == 1 and fr[0] == 0:
+                                elif len(fr) == 1 and float(fr[0]) == 0:
                                     freq_ok = 0
-                                elif self.species.wellorts == 0 and fr[0] > 0.:
+                                elif self.species.wellorts == 0 and float(fr[0]) > 0.:
                                     freq_ok = 1
-                                elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
+                                elif self.species.wellorts == 1 and float(fr[0]) < 0. and float(fr[1]) > 0.:
                                     freq_ok = 1
                                 else:
                                     freq_ok = 0

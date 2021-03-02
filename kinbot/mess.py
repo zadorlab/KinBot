@@ -1,15 +1,12 @@
 from __future__ import print_function
-import logging
 import os
 import subprocess
 import time
 import pkg_resources
 from collections import Counter
-
 from kinbot import constants
 from kinbot import frequencies
 from kinbot.uncertaintyAnalysis import UQ
-
 
 class MESS:
     """
@@ -34,6 +31,7 @@ class MESS:
         self.ts_names = {}
         self.termolec_names = {}
         self. barrierless_names = {}
+        self.pes = self.par['pes']
         # read all templates to create mess input
         with open(pkg_resources.resource_filename('tpl', 'mess_header.tpl')) as f:
             self.headertpl = f.read()
@@ -159,6 +157,7 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
+
         uq_obj = UQ(self.par)
 
         # create short names for all the species, bimolecular products and barriers
@@ -205,8 +204,8 @@ class MESS:
             written_bimol_names = []
             written_termolec_names = []
 
-            well_energyAdd = uq_obj.calc_factor('energy', self.species.chemid, uq_iter)
-            well_freqFactor = uq_obj.calc_factor('freq', self.species.chemid, uq_iter)
+            well_energyAdd = uq_obj.calc_factor('energy', self.species.chemid, uq_iter, self.pes)
+            well_freqFactor = uq_obj.calc_factor('freq', self.species.chemid, uq_iter, self.pes)
             well_blocks[self.species.chemid] = self.write_well(self.species,
                                                                well_energyAdd,
                                                                well_freqFactor,
@@ -214,9 +213,9 @@ class MESS:
             
             for index, reaction in enumerate(self.species.reac_obj):
                 if reaction.instance_name in ts_all:
-                    barrierAdd = uq_obj.calc_factor('barrier', reaction.instance_name, uq_iter)
-                    freqFactor = uq_obj.calc_factor('freq', reaction.instance_name, uq_iter)
-                    imagfreqFactor = uq_obj.calc_factor('imagfreq', reaction.instance_name, uq_iter)
+                    barrierAdd = uq_obj.calc_factor('barrier', reaction.instance_name, uq_iter, self.pes)
+                    freqFactor = uq_obj.calc_factor('freq', reaction.instance_name, uq_iter, self.pes)
+                    imagfreqFactor = uq_obj.calc_factor('imagfreq', reaction.instance_name, uq_iter, self.pes)
         
 
         # get left-right barrier
@@ -252,16 +251,17 @@ class MESS:
                     ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                     if len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
-                        energyAdd = uq_obj.calc_factor('energy', st_pt.chemid, uq_iter)
-                        freqFactor = uq_obj.calc_factor('freq', st_pt.chemid, uq_iter)
+                        energyAdd = uq_obj.calc_factor('energy', st_pt.chemid, uq_iter, self.pes)
+                        freqFactor = uq_obj.calc_factor('freq', st_pt.chemid, uq_iter, self.pes)
+
                         well_blocks[st_pt.chemid] = self.write_well(st_pt,
                                                                     energyAdd,
                                                                     freqFactor,
                                                                     uq_iter)
                     elif len(reaction.products) == 2:
                         bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        energyAdd = uq_obj.calc_factor('energy', bimol_name, uq_iter)
-                        freqFactor = uq_obj.calc_factor('freq', bimol_name, uq_iter)
+                        energyAdd = uq_obj.calc_factor('energy', bimol_name, uq_iter, self.pes)
+                        freqFactor = uq_obj.calc_factor('freq', bimol_name, uq_iter, self.pes)
                         bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
                                                                       energyAdd,
                                                                       freqFactor,
@@ -288,8 +288,8 @@ class MESS:
                             if new:
                                 self.barrierless_names[hs_prod_name] = hs_prod_name
                             if new == 1 or uq_iter >= 0:
-                                barrierless_energyAdd = uq_obj.calc_factor('energy', hs_prod_name, uq_iter)
-                                barrierless_freqFactor = uq_obj.calc_factor('freq', hs_prod_name, uq_iter)
+                                barrierless_energyAdd = uq_obj.calc_factor('energy', hs_prod_name, uq_iter, self.pes)
+                                barrierless_freqFactor = uq_obj.calc_factor('freq', hs_prod_name, uq_iter, self.pes)
                                 barrierless_blocks[hs_prod_name] = self.write_barrierless([opt.species for opt in hs.prod_opt],
                                                                                           hs,
                                                                                           barrierless_energyAdd,
@@ -313,7 +313,7 @@ class MESS:
             for rxn in barrierless_blocks:
                 barrierless += barrierless_blocks[rxn] + divider
 
-            dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
+            # dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
             mess_iter = "{0:04d}".format(uq_iter)
 
@@ -367,11 +367,14 @@ class MESS:
         for nsp, species in enumerate(prod_list):
             smi.append(species.smiles)
             if species.natom > 1:
-
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
+                    freq = '{{freq_{}}}'.format(nsp) 
+                    nfreq = '{{nfreq_{}}}'.format(nsp)
                 else:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
+                    freq = self.make_freq(species, freqFactor, 0)
+                    nfreq=len(species.reduced_freqs),
                 # molecule template
                 if species.chemid == 170170000000000000002:  # exception for OH
                     fragments += self.fragmenttplOH.format(chemid=name,
@@ -379,8 +382,8 @@ class MESS:
                                                          natom=species.natom,
                                                          geom=self.make_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
-                                                         nfreq=len(species.reduced_freqs),
-                                                         freq=self.make_freq(species, freqFactor, 0),
+                                                         nfreq=nfreq,
+                                                         freq=freq,
                                                          hinderedrotor=self.make_rotors(species),
                                                          nelec=2,
                                                          mult=species.mult)
@@ -390,8 +393,8 @@ class MESS:
                                                          natom=species.natom,
                                                          geom=self.make_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
-                                                         nfreq=len(species.reduced_freqs),
-                                                         freq=self.make_freq(species, freqFactor, 0),
+                                                         nfreq=nfreq,
+                                                         freq=freq,
                                                          hinderedrotor=self.make_rotors(species),
                                                          nelec=1,
                                                          mult=species.mult)
@@ -534,7 +537,13 @@ class MESS:
         if left_zeroenergy < 0 or right_zeroenergy < 0:
             tun = ''
         else:
-            tun = self.tunneltpl.format(cutoff=min(left_zeroenergy, right_zeroenergy),
+            if self.par['pes']:
+                tun = self.tunneltpl.format(cutoff='{cutoff}',
+                                        imfreq='{imfreq}',
+                                        welldepth1='{left_zero}',
+                                        welldepth2='{right_zero}')
+            else:
+                tun = self.tunneltpl.format(cutoff=min(left_zeroenergy, right_zeroenergy),
                                         imfreq=-reaction.ts.reduced_freqs[0] * imagfreqFactor,
                                         welldepth1=left_zeroenergy,
                                         welldepth2=right_zeroenergy)
@@ -555,12 +564,16 @@ class MESS:
             chemid_prod = ''
             long_rxn_name = ''
             zeroenergy = '{zeroenergy}'
+            freq = '{freq}'
         else:
             name = self.ts_names[reaction.instance_name]
             chemid_reac = self.well_names[self.species.chemid]
             chemid_prod = prod_name
             long_rxn_name = reaction.instance_name
+            print(reaction.instance_name)
+            freq=self.make_freq(reaction.ts, freqFactor, 1)
             zeroenergy = left_zeroenergy
+            
     
         # TODO working here
         if self.species.reac_type[index] == 'barrierless_saddle':
@@ -585,7 +598,7 @@ class MESS:
                                          prefact='prefactor',
                                          exponent=3.,
                                          nfreq=nfreq,
-                                         freq=freq,
+                                         freq = freq,
                                          hinderedrotor=rotors,
                                          nelec=1,
                                          mult=reaction.ts.mult,
@@ -597,7 +610,7 @@ class MESS:
                                        geom=self.make_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
-                                       freq=self.make_freq(reaction.ts, freqFactor, 1),
+                                       freq = freq,
                                        rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling='',
                                        nelec=1,
@@ -617,7 +630,7 @@ class MESS:
                                        geom=self.make_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
-                                       freq=self.make_freq(reaction.ts, freqFactor, 1),
+                                       freq = freq,
                                        rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
                                        tunneling=tun,
                                        nelec=1,
@@ -742,7 +755,9 @@ class MESS:
             freqarray.append(fr)
             freq += '{:.1f} '.format(fr)
             if i % 3 == 2:
-                freq += '\n        '
+                freq += '\n       '
+        print(freq)
+        print(freq[:-1])
         return(freq[:-1])
 
 

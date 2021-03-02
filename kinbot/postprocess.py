@@ -10,12 +10,128 @@ import os
 import pkg_resources
 import numpy as np
 
+from os import path
 from kinbot import license_message
 from kinbot import constants
+from kinbot import sq
+from kinbot import qc
+from kinbot import frequencies
 
+def delete_sql_db(species):
+    sqdb = str(species.chemid) + '_sql.db'
+    print("sql db: {}".format(sqdb))
+    exists = path.exists(sqdb)
+    if exists:
+        os.remove(sqdb)
+        print("{} deleted".format(sqdb))
+    else:
+        print("{} does not exist.".format(sqdb))
+
+def create_sql_db(species):
+    db = str(species.chemid) + '_sql.db'
+    conn = sq.create_connection(db)
+    print("creating kinbot table")
+    sq.create_kinbot_table(conn)
+
+def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts):
+    """
+    Create sql db entry for species
+    well = 0
+    prod = 1
+    ts = 2
+    """
+    l1e = 0
+    l2e = 0
+    l3e = 0
+    l1_zpe = 0
+    l2_zpe = 0
+    atoms = []
+    l1_xyz = []
+    l2_xyz = []
+    # symm_factor = 'default'
+    l1_hess = []
+    l2_hess = []
+    l1_freq = []
+    l2_freq = []
+    l1_red_freq = []
+    l2_red_freq = []
+    hir_potentials = []
+    #rotor_groups = []
+    #rotor_axes = []
+    #rotor_symm = 0
+    num_rotors = len(hir_potentials)
+    if well_prod_ts == 2:
+        species_name = reaction.instance_name
+    else:
+        species_name = species.chemid
+
+    atoms = species.atom
+
+    if well_prod_ts == 2:
+        suffix = ''
+    else:
+        suffix = '_well'
+    egl1, l1_xyz = qc.get_qc_geom(str(species_name) + suffix,  species.natom)
+    eel1, l1e = qc.get_qc_energy(str(species_name) + suffix)
+    ezl1, l1_zpe = qc.get_qc_zpe(str(species_name) + suffix)
+    l1_hess = qc.read_qc_hess(str(species_name) + suffix, species.natom)
+    if well_prod_ts == 2:
+        l1_freq, l1_red_freq = frequencies.get_frequencies(species, l1_hess, l1_xyz) 
+    else:
+        l1_freq, l1_red_freq = frequencies.get_frequencies(species, l1_hess, l1_xyz) 
+
+    if par['high_level'] == 1:
+        egl2, l2_xyz = qc.get_qc_geom(str(species_name) + suffix + '_high',  species.natom)
+        eel2, l2e = qc.get_qc_energy(str(species_name) + suffix + '_high')
+        ezl2, l2_zpe = qc.get_qc_zpe(str(species_name) + suffix + '_high')
+        l2_hess = qc.read_qc_hess(str(species_name) + suffix + '_high', species.natom)
+        if well_prod_ts == 2:
+            l2_freq, l2_red_freq = frequencies.get_frequencies(species, l2_hess, l2_xyz)
+        else:
+            l2_freq, l2_red_freq = frequencies.get_frequencies(species, l2_hess, l2_xyz)
+
+    if par['rotor_scan'] == 1 and well_prod_ts < 2:
+        hir_potentials = species.hir.hir_energies
+        num_rotors = len(hir_potentials)
+         
+    # NEED TO DEFINE HOW TO GRAB L3 ENERGY
+    # NEED TO DEFINE SYMM FACTOR - MAY NOT BE NECCESSARY YET
+
+    # convert arrays to np.array form
+    atoms = np.array(atoms)
+    l1_xyz = np.array(l1_xyz)
+    l2_xyz = np.array(l2_xyz)
+    l1_hess = np.array(l1_hess)
+    l2_hess = np.array(l2_hess)
+    l1_freq = np.array(l1_freq)
+    l2_freq = np.array(l2_freq)
+    l1_red_freq = np.array(l1_red_freq)
+    l2_red_freq = np.array(l2_red_freq)
+    hir_potentials = np.array(hir_potentials)
+    # convert arrays to blobs
+    atoms = sq.adapt_array(atoms)
+    l1_xyz = sq.adapt_array(l1_xyz)
+    l2_xyz = sq.adapt_array(l2_xyz)
+    l1_hess = sq.adapt_array(l1_hess)
+    l2_hess = sq.adapt_array(l2_hess)
+    l1_freq = sq.adapt_array(l1_freq)
+    l2_freq = sq.adapt_array(l2_freq)
+    l1_red_freq = sq.adapt_array(l1_red_freq)
+    l2_red_freq = sq.adapt_array(l2_red_freq)
+    hir_potentials = sq.adapt_array(hir_potentials)
+   
+    # create db for kinbot run
+    db = str(parent.chemid) + '_sql.db'
+    print(db)
+    conn = sq.create_connection(db)
+
+    data = (str(species_name), well_prod_ts, l1e, l2e, l3e, l1_zpe, l2_zpe, atoms, l1_xyz, l2_xyz, l1_hess, l2_hess, l1_freq, l2_freq, l1_red_freq, l2_red_freq, hir_potentials)
+    #sq.preamble() 
+    entry = sq.create_kinbot(conn, data)
 
 def creatMLInput(species, qc, par):
     """
+
     Create the files for the input of the Machine Learning tool
     of Ghent University.
     This input consists of the atom vectors and bond matrices of

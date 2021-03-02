@@ -2,6 +2,7 @@
 This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
 """
+
 from __future__ import absolute_import
 import sys
 import os
@@ -14,12 +15,10 @@ import subprocess
 import json
 from distutils.dir_util import copy_tree
 import pkg_resources
-#import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from collections import defaultdict
 from ase.db import connect
-
 from kinbot import constants
 from kinbot import license_message
 from kinbot.parameters import Parameters
@@ -27,6 +26,7 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot import sq
+
 
 def main():
     try:
@@ -250,7 +250,7 @@ def get_wells(job):
     if len(new_wells) > 0:
         with open('chemids', 'a') as f:
             f.write('\n'.join(new_wells) + '\n')
-    
+
 
 def postprocess(par, jobs, task, names):
 
@@ -307,17 +307,17 @@ def postprocess(par, jobs, task, names):
                 barrier = 0. - base_energy - base_zpe
 
                 # overwrite energies with mp2 energy if needed
-                mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
+                mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R',
                         'reac_r12_cycloaddition', 'reac_r14_birad_scission']
                 if (any([mm in ts for mm in mp2_list]) and not par['high_level']):
-                    base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
+                    base_energy_mp2 = get_energy(jobs[0], jobs[0], 0,
                                                  par['high_level'], mp2=1)
-                    base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
+                    base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0,
                                            par['high_level'], mp2=1)
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
-                if 'barrierless_saddle' in ts and not par[ 'high_level']:
+                if 'barrierless_saddle' in ts and not par['high_level']:
                     base_energy_bls = get_energy(jobs[0], jobs[0], 0,
                                                  par['high_level'], bls=1)
                     base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
@@ -462,7 +462,7 @@ def postprocess(par, jobs, task, names):
                     l3done = 0
                 else:
                     delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
-                    delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
+                    delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe)
                     ts_l3energies[reac[1]] = (delta2 - delta1) * constants.AUtoKCAL
             else:
                 zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
@@ -491,7 +491,6 @@ def postprocess(par, jobs, task, names):
             logging.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
         for ts in ts_l3energies:
             logging.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
-
 
     # if L3 was done, everything below is done with that
     # filter according to tasks
@@ -928,21 +927,20 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         for prod in rxn[2]:
             pathway.append(prod)
         pathway.append(rxn[3])
-    
+
     for b in barrierless:
         pathway.append(b[0])
         for prod in b[2]:
-           pathway.append(prod)
+            pathway.append(prod)
         pathway.append(rxn[2])
     print("reactions: {}".format(reactions))
     print("barrierless: {}".format(barrierless))
     if len(reactions) > 0:
-        print("Current Pathway: {}".format(pathway)) 
+        print("Current Pathway: {}".format(pathway))
     try:
         all_structures[rxn[1]] = pathway
     except:
         pass
-    #logging.info('NO REACTIONS OR BARRIERLESS CHANNELS')
     logging.info('{0} {1} {2}'.format("uq value: ", par['uq'], "\n"))
     well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
                                                                                products,
@@ -983,7 +981,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         m_well=well0.mass,
                         )
 
-    frame = '######################\n'
     divider = '!****************************************\n'
 
     uq_iter = 0
@@ -1023,28 +1020,20 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         list_data, species, energy, zpe, geom, hess, freq, red_freq, hir, atoms = sq.get_sql_data(initial, pr, 1)
                         all_data.append(list_data)
                 if i == 3:
-                        pass
-                     
-        # Check all_data
-        #print("!!!!!!!! ALL DATA ARRAY !!!!!!!!!")
-        #for row in all_data:
-        #    print(row[0])
-        #    for col in row[1::]:
-        #        print("\t{}".format(col))
-
+                    pass
+ 
         if par['high_level'] == 0:
             level = 'L1'
         elif par['high_level'] == 1:
             level = 'L2'
-        
+
         messStrings.append('######################')
         messStrings.append('# WELLS')
         messStrings.append('######################')
         for well in wells:
             job = well
-            jobid = job + '_well' +  level
             name = well_short[well] + ' ! ' + well
-            frequencies = sq.get_sql_mess_data(all_data, well, level, 'red_freq') 
+            frequencies = sq.get_sql_mess_data(all_data, well, level, 'red_freq')
             energy = well_energies[well]
             print("FROM SQL\n\t{}\n{}".format(well, frequencies))
             uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter, 1)
@@ -1056,7 +1045,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
             mess_iter = "{0:04d}".format(uq_iter)
             reaction_items.append(well)
-           
+
             with open(parent[well] + '/' + well + '_' + str(mess_iter) + '.mess') as f:
                 messStrings.append(f.read().format(name=name, zeroenergy=energy, freq=freq))
                 messStrings.append('!****************************************')
@@ -1071,13 +1060,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         for prod in products:
             prods = prod.split('_')
             for i, p in enumerate(prods):
-                frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq') 
+                frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq')
                 freq_factor = uq_obj.calc_factor('freq', pr_short[prod], uq_iter, 1)
                 if i == 0:
                     freq_0 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
                 elif i == 1:
                     freq_1 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
-            
+
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod]
             print(prod)
@@ -1103,8 +1092,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                                          **fr_names))
                 messStrings.append('!****************************************')
 
-
-        # TO DO - EDIT TS SECTION FOR UQ
         # write the barrier
         messStrings.append('######################')
         messStrings.append('# BARRIERS')
@@ -1127,11 +1114,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             prod_name = "_".join(str(name) for name in rxn[2])
             prod_energy = all_energies.get(prod_name)
             job = rxn[1]
-            jobid = job + level
-
-            frequencies = sq.get_sql_mess_data(all_data, job, level, 'red_freq') 
+            frequencies = sq.get_sql_mess_data(all_data, job, level, 'red_freq')
             print("FROM SQL\n\t{}\n{}".format(job, frequencies))
- 
             freq_factor = uq_obj.calc_factor('freq', rxn[1], uq_iter, 1)
             freq = make_freq(rxn[1], frequencies, freq_factor, rxn[0], 1, par['high_level'])
             imfreq = frequencies[0] * freq_factor * -1
@@ -1141,7 +1125,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             forward_barrier = barrier + uq_energyAdd - well_energy
             backward_barrier = barrier + uq_energyAdd - prod_energy
             cutoff = min(forward_barrier, backward_barrier)
-            all_structures_values = list(map(list, (ele for ele in all_structures.values())))
             try:
                 mess_iter = "{0:04d}".format(uq_iter)
                 with open(rxn[0] + "/" + rxn[1] + "_" + mess_iter + ".mess") as f:
@@ -1149,11 +1132,11 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         prodzeroenergy = prod_energies['_'.join(rxn[2])]
                         messStrings.append(f.read().format(name=' '.join(name), zeroenergy=energy, prodzeroenergy=prodzeroenergy))
                     else:
-                        messStrings.append(f.read().format(name=' '.join(name), 
-                                                           freq=freq, 
+                        messStrings.append(f.read().format(name=' '.join(name),
+                                                           freq=freq,
                                                            cutoff=cutoff,
                                                            imfreq=imfreq,
-                                                           left_zero=forward_barrier, 
+                                                           left_zero=forward_barrier,
                                                            right_zero=backward_barrier,
                                                            zeroenergy=forward_barrier))
                 messStrings.append(divider)
@@ -1177,6 +1160,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             mess.run()
 
     return 0
+
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):
@@ -1251,6 +1235,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
         f.write(template)
 
 
+# create_graph does not work without matplotlib, which causes errors upon import.
 def create_graph(wells, products, reactions,
                  well_energies, prod_energies, highlight):
     """
@@ -1329,7 +1314,6 @@ def create_graph(wells, products, reactions,
     # position the nodes
     pos = nx.spring_layout(G, scale=1)
 
-    
     # make the matplotlib figure
     plt.figure(figsize=(8, 8))
     nx.draw_networkx_edges(G, pos, edgelist=edges, width=weights)
@@ -1341,7 +1325,7 @@ def create_graph(wells, products, reactions,
     nx.draw_networkx_labels(G, pos, labels, font_size=8)
     plt.axis('off')
     plt.savefig('graph.png')
-    
+
 
 def get_energy(dir, job, ts, high_level, mp2=0, bls=0):
     db = connect(dir + '/kinbot.db')
@@ -1410,7 +1394,7 @@ def get_l3energy(job, par, bls=0):
                     e = float(words[wi].replace('D', 'E'))
                     logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                     return 1, e  # energy was found
- 
+
     # if no file or no energy found
     logging.info('L3 for {} is missing.'.format(job))
     return 0, -1  # job not yet started to run
@@ -1535,8 +1519,9 @@ def make_freq(species, freq, factor, parent, wellorts, high):
         else:
             final_freq += ' {}'.format(fr)
         if i % 3 == 2:
-           final_freq += '\n         '
+            final_freq += '\n         '
     return(final_freq)
+
 
 if __name__ == "__main__":
     main()

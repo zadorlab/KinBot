@@ -135,6 +135,8 @@ class Parameters:
             'one_reaction_comb': 0,
             # Search for one specific reaction using family approach
             'one_reaction_fam': 0,
+            # For cyclic transition states, look at this ring size range
+            'ringrange': [3, 9],
 
             # QUANTUM CHEMISTRY INFO
             # Which quantum chemistry code to use
@@ -142,7 +144,7 @@ class Parameters:
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
-            'qc_command': 'g09',
+            'qc_command': 'g16',
             # Quantum chemistry method to use as L1
             'method': 'b3lyp',
             # Basis set to use
@@ -282,9 +284,12 @@ class Parameters:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
                 logging.error(err)
                 sys.exit(-1)
+            if self.par['rotor_scan'] == 0:
+                err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
+                logging.error(err)
+                sys.exit(-1)
                 
         if self.par['families'] != ['all'] and self.par['skip_families'] != ['none']:
-            print(self.par['families'], self.par['skip_families'])
             err = 'Only one of the "families" or "skip_families" parameters can be defined.'
             logging.error(err)
             sys.exit(-1)

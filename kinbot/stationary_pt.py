@@ -261,12 +261,9 @@ class StationaryPoint:
 
         if self.smiles == '':
             try:
-                import rdkit
-                try:
-                    from kinbot.cheminfo import create_rdkit_mol
-                    mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
-                except ImportError:
-                    pass
+                from rdkit import Chem  # to quit the try loop if rdkit is not available
+                from kinbot.cheminfo import create_rdkit_mol
+                mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
             except ImportError:
                 #print('Warning: RDKit could not be imported.')
                 #print('Certain features or the whole code might not run properly.')
@@ -669,7 +666,7 @@ class StationaryPoint:
             self.conf_dihed.remove(delrot)
                 
         return 0
-                
+
     def find_angle(self):
         """
         Find all angles in a structure.

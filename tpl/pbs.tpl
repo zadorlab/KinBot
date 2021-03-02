@@ -6,3 +6,5 @@
 #PBS -e {dir}/$PBS_JOBNAME.err
 #PBS -m n
 
+export OMP_NUM_THREADS={ppn}
+

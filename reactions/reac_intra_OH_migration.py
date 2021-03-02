@@ -8,7 +8,7 @@ class IntraOHMigration(GeneralReac):
     dihstep = max_step - 2
     
 
-    def get_constraints(self,step, geom):
+    def get_constraints(self, step, geom):
         fix = []
         change = []
         release = []
@@ -27,8 +27,8 @@ class IntraOHMigration(GeneralReac):
             self.release_dihedrals(release)
             
             if self.species.atom[self.instance[0]] == 'C':
-                fval1 = 2.0
-                fval2 = 1.7
+                fval1 = 1.5
+                fval2 = 2.1
             else:
                 fval1 = 1.7 
                 fval2 = 2.0

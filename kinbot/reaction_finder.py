@@ -14,6 +14,7 @@ from reactions.reac_cpd_H_migration import CpdHMigration
 from reactions.reac_intra_H_migration import IntraHMigration
 from reactions.reac_intra_H_migration_suprafacial import IntraHMigrationSuprafacial
 from reactions.reac_intra_OH_migration import IntraOHMigration
+from reactions.reac_intra_OH_migration_Exocyclic_F import IntraOHMigrationExocyclicF
 from reactions.reac_Intra_R_Add_Endocyclic_F import IntraRAddEndocyclicF
 from reactions.reac_Intra_R_Add_Exocyclic_F import IntraRAddExocyclicF
 from reactions.reac_Intra_R_Add_ExoTetCyclic_F import IntraRAddExoTetCyclicF
@@ -65,7 +66,7 @@ class ReactionFinder:
         self.specific_reaction = par['specific_reaction']
         self.break_bond = par['break_bonds']
         self.form_bond = par['form_bonds']
-
+        self.ringrange = range(self.par['ringrange'][0], self.par['ringrange'][1])
         self.one_reaction_comb = par['one_reaction_comb']
         self.one_reaction_fam = par['one_reaction_fam']
         # make a set of frozen sets from the breaking and forming bond lists
@@ -95,6 +96,7 @@ class ReactionFinder:
                           'intra_H_migration_suprafacial': self.search_intra_H_migration_suprafacial,
                           'intra_R_migration': self.search_intra_R_migration,
                           'intra_OH_migration': self.search_intra_OH_migration,
+                          'intra_OH_migration_Exocyclic_F': self.search_intra_OH_migration_Exocyclic_F,
                           'cpd_H_migration': self.search_cpd_H_migration, 
                           'Intra_RH_Add_Endocyclic_F': self.search_Intra_RH_Add_Endocyclic_F,
                           'Intra_RH_Add_Endocyclic_R': self.search_Intra_RH_Add_Endocyclic_R,
@@ -204,7 +206,7 @@ class ReactionFinder:
 
         H-R~~~~~~~R* <==> R*~~~~~~~R-H
 
-        Find all unique cases for ring sizes between 3 and 9. Works in both directions.
+        Works in both directions.
         H is moved to
         * radical site
         * multiple bond
@@ -221,7 +223,7 @@ class ReactionFinder:
         if np.sum(rad) == 0: 
         #find H-migrations over double bonds and to lone pairs
         
-            for ringsize in range(3, 9):
+            for ringsize in self.ringrange:
                 # double bonds 
                 motif = ['X' for i in range(ringsize)]
                 motif[-1] = 'H'
@@ -243,7 +245,7 @@ class ReactionFinder:
 
         else:
             instances = []
-            for ringsize in range(3, 9):
+            for ringsize in self.ringrange:
                 motif = ['X' for i in range(ringsize)]
                 motif[-1] = 'H'
                 for rad_site in np.nonzero(rad)[0]:
@@ -329,7 +331,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
 
         instances = []
-        for ringsize in range(3, 9):
+        for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize)]
             for rad_site in np.nonzero(rad)[0]:
                 instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
@@ -420,7 +422,6 @@ class ReactionFinder:
 
         return 0
         
-    
 
     def search_intra_OH_migration(self, natom, atom, bond, rad):
         """ 
@@ -428,7 +429,6 @@ class ReactionFinder:
 
         R*~~~~~~~O-OH <==> HOR~~~~~~~O*
 
-        Find all unique cases for ring sizes between 3 and 9. 
         The H atom is not counted in the cycle size but has to be there.
         OH transfer to:
         radical sites
@@ -443,7 +443,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         if np.sum(rad) == 0: 
         #find OH-migrations over double bonds and to lone pairs
-            for ringsize in range(3, 9):
+            for ringsize in self.ringrange:
                 # double bonds 
                 motif = ['X' for i in range(ringsize)]
                 motif[-1] = 'H'
@@ -456,7 +456,7 @@ class ReactionFinder:
                         rxns += [instance]
 
         else: 
-            for ringsize in range(3, 9):
+            for ringsize in self.ringrange:
                 instances = []
                 # forward direction
                 motif = ['X' for i in range(ringsize+1)]
@@ -496,6 +496,63 @@ class ReactionFinder:
         return 0
 
 
+    def search_intra_OH_migration_Exocyclic_F(self, natom, atom, bond, rad):
+        """ 
+        This is the same as search_intra_OH_migration but for double bonds only
+
+          0 .....-2-1
+        R=R~~~~~~~O-OH <==> R=R~~?? + ??~~=O
+                              |
+                              OH
+
+        The H atom is not counted in the cycle size but has to be there.
+        OH transfer to double bonds on closed shell
+        This is just the forward step as the expectation is that
+        the product will fall apart while at least one of the framents 
+        also rearrange, yielding two closed shell products.
+        A special feature is to test both cis and trans transfer, therefore,
+        in addition to testing for the extra H atom (which is deleted from the motif)
+        the double bond is also registered and kept in the motif. 
+        """
+        
+        name = 'intra_OH_migration_Exocyclic_F'
+        
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = [] #reactions found with the current resonance isomer
+        if np.sum(rad) == 0: 
+            for ringsize in self.ringrange:
+                # double bonds 
+                motif = ['X' for i in range(ringsize)]
+                motif[-1] = 'H'
+                motif[-2] = 'O'
+                motif[-3] = 'O'
+                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+           
+                for instance in instances:
+                    if bond[instance[0]][instance[1]] == 2:
+                        rxns += [instance[:-1]]  # cut off H and add a -1 for nominal cis
+                        rxns[-1].append(-1)
+                        rxns += [instance[:-1]]  # cut off H and add a -2 for nominal trans
+                        rxns[-1].append(-2)
+
+        for inst in rxns:
+            new = 1
+            # filter for the same reactions
+            for instance in self.reactions[name]:
+                if inst[0] == instance[0] and inst[-1] == instance[-1] and inst[-2] == instance[-2]:
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-3], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
+                    new = 0
+            if new:
+                self.reactions[name].append(inst)
+
+        return 0
+
+
     def search_Intra_RH_Add_Endocyclic_F(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
@@ -505,8 +562,58 @@ class ReactionFinder:
         H-R~~~~~~~R=R ==> R~~~~~~~R-R
                           |         |
                            ---------
+        This is for the forward direction.
+        """
+        
+        if np.sum(rad) != 0: return
+        if len(self.species.cycle_chain) > 0: return
+        
+        name = 'Intra_RH_Add_Endocyclic_F'
+        
+        if not name in self.reactions:
+            self.reactions[name] = []
 
-        Find all unique cases for ring sizes between 3 and 9. This is for the forward direction.
+        rxns = [] #reactions found with the current resonance isomer
+
+        for ringsize in range(5, 9):
+            motif = ['X' for i in range(ringsize + 1)]
+            motif[-1] = 'H'
+            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+
+            bondpattern = ['X' for i in range(ringsize)]
+            bondpattern[0] = 2
+            for instance in instances:
+                if find_motif.bondfilter(instance, bond, bondpattern) == 0:
+                    rxns += [instance] 
+            
+
+        for inst in rxns:
+            new = 1
+            # filter for the same reactions
+            for instance in self.reactions[name]:
+                if inst[0] == instance[0] and inst[-2] == instance[-2] and len(inst) == len(instance):
+                    new = 0
+            # filter for specific reaction after this
+            if self.one_reaction_fam and new:
+                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})}:
+                    new = 0
+            if new:
+                self.reactions[name].append(inst)
+                
+        return 0
+        
+
+
+    def search_Intra_RH_Add_Endocyclic_F(self, natom, atom, bond, rad):
+        """ 
+        This is an RMG class.
+
+                                  H
+                                  | 
+        H-R~~~~~~~R=R ==> R~~~~~~~R-R
+                          |         |
+                           ---------
+        This is for the forward direction.
         """
         
         if np.sum(rad) != 0: return
@@ -557,8 +664,7 @@ class ReactionFinder:
         R~~~~~~~R-R ==> H-R~~~~~~~R=R
         |         |
          ---------
-
-        Find all unique cases for ring sizes between 3 and 9. This is for the reverse direction.
+        This is for the reverse direction.
         """
         
         if len(self.species.cycle_chain) == 0: return
@@ -607,7 +713,7 @@ class ReactionFinder:
         R*~~~~~~~O-OR ==> R~~~~~~~O + OR
                           |_______|
 
-        Find all unique cases for ring sizes between 3 and 9. The OR groups are not counted in the cycle size but have to be there.
+        The OR groups are not counted in the cycle size but have to be there.
         Only the forward direction is included.
         """
         
@@ -666,7 +772,7 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
 
-        for ringsize in range(3, 9):
+        for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize)]
             instances = []
             for rad_site in np.nonzero(rad)[0]:
@@ -716,7 +822,7 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
-        for ringsize in range(3, 9):
+        for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize + 1)]
             for rad_site in np.nonzero(rad)[0]:
                 rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
@@ -755,7 +861,7 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
-        for ringsize in range(3, 9):
+        for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize + 1)]
             instances = []
             for rad_site in np.nonzero(rad)[0]:
@@ -817,7 +923,7 @@ class ReactionFinder:
           |                       |
           R                       R
 
-        Find all unique cases for final ring sizes between 3 and 9. The carbonyl dangling R and the
+        The carbonyl dangling R and the
         tail H are included, but are not counted as the ring size, but these two atoms are kept
         because they are needed in the geometry manipulation step.
         """
@@ -831,7 +937,7 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
-        for ringsize in range(3, 9):
+        for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize+2)]
             motif[-1] = 'H'
 
@@ -867,7 +973,7 @@ class ReactionFinder:
         H-R~~~~~~~R=R <== R~~~~~~~R-R
                           |_______|
 
-        Find all unique cases for ring sizes between 3 and 9. This is for the reverse direction.
+        This is for the reverse direction.
         """
         
         name = 'Intra_RH_Add_Exocyclic_R'
@@ -1447,7 +1553,7 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
-        for ringsize in range(3, 9):  # TODO what is the meaning of these larger rings?
+        for ringsize in self.ringrange:  # TODO what is the meaning of these larger rings?
             motif = ['X' for i in range(ringsize + 4)]
             instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
 
@@ -1909,7 +2015,7 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
 
-        for ringsize in range(3, 9):
+        for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize)]
             instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
            
@@ -2245,179 +2351,183 @@ class ReactionFinder:
             if reac_id == 'intra_H_migration':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraHMigration(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraHMigration(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'intra_H_migration_suprafacial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraHMigrationSuprafacial(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraHMigrationSuprafacial(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'intra_R_migration':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraRMigration(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraRMigration(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'intra_OH_migration':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraOHMigration(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraOHMigration(self.species, self.qc, self.par, reac_list[i], name))
+            elif reac_id == 'intra_OH_migration_Exocyclic_F':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][-2] + 1) + '_' + str(reac_list[i][-1])  # last element is cis/trans (-1, -2)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(IntraOHMigrationExocyclicF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'cpd_H_migration':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1) + '_' + str(reac_list[i][-2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(CpdHMigration(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(CpdHMigration(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Endocyclic_F':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(len(reac_list[i])) + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraRHAddEndoF(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraRHAddEndoF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Endocyclic_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraRHAddEndoR(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraRHAddEndoR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Cyclic_Ether_Formation':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(CyclicEtherFormation(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(CyclicEtherFormation(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Exocyclic_F':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraRHAddExoF(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraRHAddExoF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Exocyclic_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraRHAddExoR(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraRHAddExoR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Retro_Ene':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(RetroEne(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(RetroEne(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_R_Add_Endocyclic_F':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraRAddEndocyclicF(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraRAddEndocyclicF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_R_Add_ExoTetCyclic_F':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraRAddExoTetCyclicF(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraRAddExoTetCyclicF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_R_Add_Exocyclic_F':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraRAddExocyclicF(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraRAddExocyclicF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Korcek_step2_odd':
                 name = str(self.species.chemid) + '_' + reac_id
                 for j in range(len(reac_list[i])):
                     name += '_' + str(reac_list[i][j] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(KorcekStep2Odd(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(KorcekStep2Odd(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Korcek_step2_even':
                 name = str(self.species.chemid) + '_' + reac_id
                 for j in range(len(reac_list[i])):
                     name += '_' + str(reac_list[i][j] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(KorcekStep2Even(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(KorcekStep2Even(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Korcek_step2':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(KorcekStep2(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(KorcekStep2(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r22_cycloaddition':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(R22Cycloaddition(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(R22Cycloaddition(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r12_cycloaddition':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(R12Cycloaddition(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(R12Cycloaddition(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r12_insertion_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(R12Insertion(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(R12Insertion(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r13_insertion_CO2':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(R13InsertionCO2(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(R13InsertionCO2(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r13_insertion_ROR':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(R13InsertionROR(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(R13InsertionROR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r14_birad_scission':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(R14BiradScission(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(R14BiradScission(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r14_cyclic_birad_scission_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(R14CyclicBiradScission(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(R14CyclicBiradScission(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'birad_recombination_F':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(BiradRecombinationF(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(BiradRecombinationF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'birad_recombination_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(BiradRecombinationR(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(BiradRecombinationR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_disproportionation_F':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraDisproportionationF(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraDisproportionationF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_disproportionation_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraDisproportionationR(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraDisproportionationR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Diels_alder_addition':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(DielsAlder(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(DielsAlder(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_Diels_alder_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(IntraDielsAlder(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(IntraDielsAlder(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'ketoenol':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)  + '_' + str(reac_list[i][2] + 1)  + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(KetoEnol(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(KetoEnol(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'HO2_Elimination_from_PeroxyRadical':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(HO2Elimination(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(HO2Elimination(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'R_Addition_COm3_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(RAdditionCO(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(RAdditionCO(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'R_Addition_MultipleBond':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(RAdditionMultipleBond(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(RAdditionMultipleBond(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == '12_shift_S_F':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(S12ShiftF(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(S12ShiftF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == '12_shift_S_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(S12ShiftR(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(S12ShiftR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'R_Addition_CSm_R':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(RAdditionCS(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(RAdditionCS(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r13_insertion_RSR':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(R13InsertionRSR(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(R13InsertionRSR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'beta_delta':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1) + '_' + str(reac_list[i][4] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(BetaDelta(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(BetaDelta(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'h2_elim':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(H2Elim(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(H2Elim(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'hom_sci':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(HS(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(HS(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'barrierless_saddle':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(BarrierlessSaddle(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(BarrierlessSaddle(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)
-                self.species.reac_obj.append(Combinatorial(self.species,self.qc,self.par,reac_list[i],name))
+                self.species.reac_obj.append(Combinatorial(self.species, self.qc, self.par, reac_list[i], name))
             else:
                 self.species.reac_name.append(0)
         return 0

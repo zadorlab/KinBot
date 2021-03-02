@@ -116,7 +116,7 @@ class HIR:
                             err, energy = self.qc.get_qc_energy(job)
                             if ai == 0: 
                                 success = 1
-                            # cut off barriers above 20 kcal/mol to preven the Fourier fit to oscillate
+                            # cut off barriers above 20 kcal/mol to prevent the Fourier fit to oscillate
                             elif (energy - self.hir_energies[rotor][0]) < 20. / constants.AUtoKCAL:
                                 success = 1
                             else:

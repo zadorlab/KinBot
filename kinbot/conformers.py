@@ -95,18 +95,32 @@ class Conformers:
                 # absolute values of the dihedrals along the ring
                 # divided by the number of atoms in the ring
                 cycdih = 0.
+                # list of flat sections of the ring
+                flat_ring_dih = []  
                 for dih in dihs:
                     val = geometry.calc_dihedral(cart[dih[0]], cart[dih[1]],
                                                  cart[dih[2]], cart[dih[3]])[0]
-                    cycdih += np.abs(val)
-                cycdih /= float(len(cyc))
+                    if abs(val) < 5.:
+                        flat_ring_dih.append(True)
+                    else:
+                        flat_ring_dih.append(False)
+                        cycdih += np.abs(val)
+                # only care about flatness for non-flat parts
+                n_dih_nonflat = len(cyc) - np.sum(flat_ring_dih)
+                if n_dih_nonflat > 0:
+                    cycdih /= float(n_dih_nonflat) 
+                else:  # for instance benzene
+                    self.cyc_conf_geoms.append(copy.deepcopy(cart))
+                    continue
 
-                # randomly select N-3 dihedrals,
-                # with N the number of dihedrals in the ring
-                random_dihs = random.sample(dihs, len(dihs) - 3)
-
+                # randomly select at most N-3 dihedrals,
+                # with N the number of non-flat dihedrals in the ring
                 # number of independent dihedrals
-                nd = len(dihs) - 3
+                if n_dih_nonflat < 4:
+                    nd = 1
+                else:
+                    nd = n_dih_nonflat - 3
+                random_dihs = list(random.sample(list(np.array(dihs)[[not f for f in flat_ring_dih]]), nd))
                 
                 # number of conformers (nc) per ring conformer:
                 # 4, 5, 6 member rings nc = 3 ^ nd

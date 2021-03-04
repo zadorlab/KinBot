@@ -206,7 +206,15 @@ def main():
             if par['me_code'] == 'mess':
                 mess.run()
 
-    postprocess.create_sql_db_entry(well0, well0, 'None', qc, par, 0)
+    postprocess.create_sql_db_entry(well0, well0, 'None', qc, par, 0, 0)
+    for index in range(len(well0.reac_inst)):
+        if well0.reac_ts_done[index] == -1:
+            ts = well0.reac_obj[index].ts
+            print("ts: {}".format(ts))
+            postprocess.create_sql_db_entry(well0, well0, ts, qc, par, 2, index)
+            for prod in well0.reac_obj[index].products:
+                print("prod: {}".format(prod))
+                postprocess.create_sql_db_entry(well0, prod, 'None', qc, par, 1, index)
     postprocess.createSummaryFile(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)

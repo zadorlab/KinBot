@@ -570,7 +570,6 @@ class MESS:
             chemid_reac = self.well_names[self.species.chemid]
             chemid_prod = prod_name
             long_rxn_name = reaction.instance_name
-            print(reaction.instance_name)
             freq=self.make_freq(reaction.ts, freqFactor, 1)
             zeroenergy = left_zeroenergy
             
@@ -756,8 +755,6 @@ class MESS:
             freq += '{:.1f} '.format(fr)
             if i % 3 == 2:
                 freq += '\n       '
-        print(freq)
-        print(freq[:-1])
         return(freq[:-1])
 
 
@@ -771,9 +768,6 @@ class MESS:
 
 
     def rotorsymm(self, species, rot):
-        print(species.chemid)
-        print(species.sigma_int)
-        print(rot)
         return species.sigma_int[rot[1]][rot[2]]
 
 

@@ -75,7 +75,6 @@ class ReactionGenerator:
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
-                print(obj.instance_name)
                 # START REACTION SEARCH
                 if self.species.reac_ts_done[index] == 0 and self.species.reac_step[index] == 0:
                     # verify after restart if search has failed in previous kinbot run
@@ -169,6 +168,7 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                     else:
                         # check the barrier height:
+                        print("check: {}".format(obj.instance_name))
                         ts_energy = self.qc.get_qc_energy(obj.instance_name)[1]
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
                         if self.species.reac_type[index] == 'R_Addition_MultipleBond':
@@ -179,7 +179,6 @@ class ReactionGenerator:
                             ending = 'well'
                         sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
                         sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
-                        print(self.species.reac_type[index], ts_energy, ts_zpe, sp_energy, sp_zpe, constants.AUtoKCAL)
                         barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
                         if barrier > self.par['barrier_threshold']:
                             logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'
@@ -466,11 +465,9 @@ class ReactionGenerator:
                             os.remove('{}_xval.txt'.format(self.species.chemid))
                         if os.path.exists('{}_im_extent.txt'.format(self.species.chemid)):
                             os.remove('{}_im_extent.txt'.format(self.species.chemid))
+
                         postprocess.createPESViewerInput(self.species, self.qc, self.par)
 
-                        for st_pt in obj.products:
-                            print("self: {}\nspecies: {}".format(self.species.chemid, st_pt.chemid))
-                            postprocess.create_sql_db_entry(self.species, st_pt, 'None', self.qc, self.par, 1)
                 elif self.species.reac_ts_done[index] == -999:
                     if self.par['delete_intermediate_files'] == 1:
                         if not self.species.reac_obj[index].instance_name in deleted:
@@ -584,8 +581,6 @@ class ReactionGenerator:
             with open('combinatorial.txt', 'w') as f:
                 f.write('\n'.join(s) + '\n')
 
-        print("self: {}\nspecies: {}".format(self.species.chemid, st_pt.chemid))
-        postprocess.create_sql_db_entry(self.species, self.species, obj, self.qc, self.par, 2)
         logging.info("Reaction generation done!")
 
     def delete_files(self, name):

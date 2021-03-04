@@ -29,11 +29,14 @@ def delete_sql_db(species):
 
 def create_sql_db(species):
     db = str(species.chemid) + '_sql.db'
-    conn = sq.create_connection(db)
-    print("creating kinbot table")
-    sq.create_kinbot_table(conn)
+    if path.exists(db):
+        print("Path exists: {}".format(db))
+    else:
+        conn = sq.create_connection(db)
+        print("creating kinbot table")
+        sq.create_kinbot_table(conn)
 
-def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts):
+def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index):
     """
     Create sql db entry for species
     well = 0
@@ -61,20 +64,28 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts):
     #rotor_symm = 0
     num_rotors = len(hir_potentials)
     if well_prod_ts == 2:
-        species_name = reaction.instance_name
+        species_name=parent.reac_name[index]
+        species_name = ''.join(species_name)
+        atoms = parent.atom
     else:
-        species_name = species.chemid
-
-    atoms = species.atom
+        species_name = str(species.chemid)
+        atoms = species.atom
+    print("SPECIES NAME: {}".format(species_name))
 
     if well_prod_ts == 2:
         suffix = ''
     else:
         suffix = '_well'
-    egl1, l1_xyz = qc.get_qc_geom(str(species_name) + suffix,  species.natom)
-    eel1, l1e = qc.get_qc_energy(str(species_name) + suffix)
-    ezl1, l1_zpe = qc.get_qc_zpe(str(species_name) + suffix)
-    l1_hess = qc.read_qc_hess(str(species_name) + suffix, species.natom)
+    
+    print(species_name)
+    print(species_name + suffix)
+    print(species.natom)
+    egl1, l1_xyz = qc.get_qc_geom(species_name + suffix,  species.natom)
+    eel1, l1e = qc.get_qc_energy(species_name + suffix)
+    ezl1, l1_zpe = qc.get_qc_zpe(species_name + suffix)
+    l1_hess = qc.read_qc_hess(species_name + suffix, species.natom)
+    print(l1_xyz)
+    print(l1_hess)
     if well_prod_ts == 2:
         l1_freq, l1_red_freq = frequencies.get_frequencies(species, l1_hess, l1_xyz) 
     else:
@@ -127,6 +138,7 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts):
 
     data = (str(species_name), well_prod_ts, l1e, l2e, l3e, l1_zpe, l2_zpe, atoms, l1_xyz, l2_xyz, l1_hess, l2_hess, l1_freq, l2_freq, l1_red_freq, l2_red_freq, hir_potentials)
     #sq.preamble() 
+    print(data)
     entry = sq.create_kinbot(conn, data)
 
 def creatMLInput(species, qc, par):

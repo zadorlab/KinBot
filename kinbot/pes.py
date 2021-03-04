@@ -933,8 +933,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         for prod in b[2]:
             pathway.append(prod)
         pathway.append(rxn[2])
-    print("reactions: {}".format(reactions))
-    print("barrierless: {}".format(barrierless))
     if len(reactions) > 0:
         print("Current Pathway: {}".format(pathway))
     try:
@@ -1035,7 +1033,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name = well_short[well] + ' ! ' + well
             frequencies = sq.get_sql_mess_data(all_data, well, level, 'red_freq')
             energy = well_energies[well]
-            print("FROM SQL\n\t{}\n{}".format(well, frequencies))
             uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter, 1)
             energy = energy + uq_energyAdd
             all_energies[well] = energy
@@ -1069,8 +1066,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod]
-            print(prod)
-            print(frequencies)
             uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter, 1)
             energy = energy + uq_energyAdd
             all_energies[prod] = energy
@@ -1115,7 +1110,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             prod_energy = all_energies.get(prod_name)
             job = rxn[1]
             frequencies = sq.get_sql_mess_data(all_data, job, level, 'red_freq')
-            print("FROM SQL\n\t{}\n{}".format(job, frequencies))
             freq_factor = uq_obj.calc_factor('freq', rxn[1], uq_iter, 1)
             freq = make_freq(rxn[1], frequencies, freq_factor, rxn[0], 1, par['high_level'])
             imfreq = frequencies[0] * freq_factor * -1

@@ -374,7 +374,7 @@ class MESS:
                 else:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
                     freq = self.make_freq(species, freqFactor, 0)
-                    nfreq=len(species.reduced_freqs),
+                    nfreq=len(species.reduced_freqs)
                 # molecule template
                 if species.chemid == 170170000000000000002:  # exception for OH
                     fragments += self.fragmenttplOH.format(chemid=name,
@@ -789,6 +789,10 @@ class MESS:
                                                            rotorsymm=self.rotorsymm(species, rot),
                                                            nrotorpot=self.nrotorpot(species, rot),
                                                            rotorpot=self.make_rotorpot(species, i, rot)))
+        
+        #if self.par['uq'] == 1:
+        #    for rotor in rotors:
+        #        rotor = rotor * rotor_factor
         rotors = '\n'.join(rotors)
         return rotors
 

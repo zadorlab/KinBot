@@ -168,7 +168,6 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                     else:
                         # check the barrier height:
-                        print("check: {}".format(obj.instance_name))
                         ts_energy = self.qc.get_qc_energy(obj.instance_name)[1]
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
                         if self.species.reac_type[index] == 'R_Addition_MultipleBond':

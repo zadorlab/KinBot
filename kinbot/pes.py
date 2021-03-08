@@ -933,8 +933,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         for prod in b[2]:
             pathway.append(prod)
         pathway.append(rxn[2])
-    if len(reactions) > 0:
-        print("Current Pathway: {}".format(pathway))
+    #if len(reactions) > 0:
+    #    print("Current Pathway: {}".format(pathway))
     try:
         all_structures[rxn[1]] = pathway
     except:
@@ -1058,11 +1058,26 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             prods = prod.split('_')
             for i, p in enumerate(prods):
                 frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq')
+                print("FREQUENCIES")
+                print(p)
+                print(frequencies)
+                print(len(frequencies))
+                print("\n")
                 freq_factor = uq_obj.calc_factor('freq', pr_short[prod], uq_iter, 1)
                 if i == 0:
                     freq_0 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
+                    nfreq_0 = len(frequencies)
+                    print("FREQ_0")
+                    print(freq_0)
+                    print(nfreq_0)
+                    print("\n")
                 elif i == 1:
                     freq_1 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
+                    nfreq_1 = len(frequencies)
+                    print("FREQ_1")
+                    print(freq_1)
+                    print(nfreq_1)
+                    print("\n")
 
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod]
@@ -1080,8 +1095,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
                 messStrings.append(f.read().format(name=name,
                                          ground_energy=energy,
-                                         nfreq_0=len(freq_0),
-                                         nfreq_1=len(freq_1),
+                                         nfreq_0=nfreq_0,
+                                         nfreq_1=nfreq_1,
                                          freq_0=freq_0,
                                          freq_1=freq_1,
                                          **fr_names))

@@ -164,7 +164,7 @@ class ReactionFinder:
             self.reaction_matrix(self.reactions[name], name) 
         
         for index in range(len(self.species.reac_name)-1):
-            if self.species.reac_name[index] in self.species.reac_name[index+1:]:
+            if self.species.reac_name[index] in self.species.reac_name[index + 1:]:
                 logging.error('Found reaction name "{}" more than once'
                                .format(self.species.reac_name[index]))
                 logging.error('Exiting')

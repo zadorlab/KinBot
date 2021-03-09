@@ -1058,27 +1058,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             prods = prod.split('_')
             for i, p in enumerate(prods):
                 frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq')
-                print("FREQUENCIES")
-                print(p)
-                print(frequencies)
-                print(len(frequencies))
-                print("\n")
                 freq_factor = uq_obj.calc_factor('freq', pr_short[prod], uq_iter, 1)
                 if i == 0:
                     freq_0 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
                     nfreq_0 = len(frequencies)
-                    print("FREQ_0")
-                    print(freq_0)
-                    print(nfreq_0)
-                    print("\n")
                 elif i == 1:
                     freq_1 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
                     nfreq_1 = len(frequencies)
-                    print("FREQ_1")
-                    print(freq_1)
-                    print(nfreq_1)
-                    print("\n")
-
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod]
             uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter, 1)
@@ -1092,6 +1078,32 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 fr_names[key] = value
             reaction_items.append(prod)
             mess_iter = "{0:04d}".format(uq_iter)
+            # check to make sure values match
+            for i, p in enumerate(prods):
+                atoms = sq.get_sql_mess_data(all_data, p, level, 'atoms')
+                natoms = len(atoms)
+                frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq')
+                nfreq = len(frequencies)
+                print(i, p, natoms)
+                if i == 0:
+                    if natoms == 1:
+                        nfreq_tmp = nfreq_0
+                        nfreq_0 = nfreq_1
+                        nfreq_1 = nfreq_tmp
+                        freq_tmp = freq_0
+                        freq_0 = freq_1
+                        freq_1 = freq_tmp
+                elif i == 1:
+                    if natoms == 1: 
+                        nfreq_tmp = nfreq_1
+                        nfreq_1 = nfreq_0
+                        nfreq_0 = nfreq_tmp
+                        freq_tmp = freq_1
+                        freq_1 = freq_0
+                        freq_0 = freq_tmp
+            print("POST")
+            print(p, nfreq_0, nfreq_1, freq_0, freq_1)
+                
             with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
                 messStrings.append(f.read().format(name=name,
                                          ground_energy=energy,

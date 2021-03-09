@@ -30,7 +30,7 @@ class UQ:
             uq_iter = uq_iter
 
         if uq_iter == 0:
-            if propertyType == 'freq' or propertyType == 'imagfreq':
+            if propertyType == 'freq' or propertyType == 'imagfreq' or propertyType == 'rotor':
                 factor = 1
                 normfactor = 0
             else:
@@ -54,6 +54,9 @@ class UQ:
             elif propertyType == 'barrier':
                 factor = random.uniform(-self.barUQ, self.barUQ)
                 normfactor = factor / self.barUQ
+            elif propertyType == 'rotor':
+                factor = np.exp(random.uniform(np.log(1./self.freqUQ), np.log(self.freqUQ)))
+                normfactor = np.log(factor) / np.log(self.freqUQ)
 
             self.write_uqtk_header(species, propertyType)
             self.write_uqtk_data(propertyType, normfactor, species, uq_iter)

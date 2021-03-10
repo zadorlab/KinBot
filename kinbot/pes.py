@@ -933,8 +933,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         for prod in b[2]:
             pathway.append(prod)
         pathway.append(rxn[2])
-    #if len(reactions) > 0:
-    #    print("Current Pathway: {}".format(pathway))
     try:
         all_structures[rxn[1]] = pathway
     except:
@@ -1084,7 +1082,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 natoms = len(atoms)
                 frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq')
                 nfreq = len(frequencies)
-                print(i, p, natoms)
                 if i == 0:
                     if natoms == 1:
                         nfreq_tmp = nfreq_0
@@ -1101,8 +1098,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         freq_tmp = freq_1
                         freq_1 = freq_0
                         freq_0 = freq_tmp
-            print("POST")
-            print(p, nfreq_0, nfreq_1, freq_0, freq_1)
                 
             with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
                 messStrings.append(f.read().format(name=name,

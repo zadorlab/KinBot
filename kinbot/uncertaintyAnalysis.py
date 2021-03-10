@@ -16,6 +16,7 @@ class UQ:
         self.barUQ = par['barrier_uq']
         self.freqUQ = par['freq_uq']
         self.imagfreqUQ = par['imagfreq_uq']
+        self.hirUQ = par['hir_uq']
         self.uq_iter = 0
 
     def calc_factor(self, propertyType, species, uq_iter, runUQ):
@@ -45,18 +46,18 @@ class UQ:
             if propertyType == 'energy':
                 factor = random.uniform(-self.wellUQ, self.wellUQ)
                 normfactor = factor / self.wellUQ
+            elif propertyType == 'barrier':
+                factor = random.uniform(-self.barUQ, self.barUQ)
+                normfactor = factor / self.barUQ
             elif propertyType == 'freq':
                 factor = np.exp(random.uniform(np.log(1./self.freqUQ), np.log(self.freqUQ)))
                 normfactor = np.log(factor) / np.log(self.freqUQ)
             elif propertyType == 'imagfreq':
                 factor = np.exp(random.uniform(np.log(1./self.imagfreqUQ), np.log(self.imagfreqUQ)))
                 normfactor = np.log(factor) / np.log(self.imagfreqUQ)
-            elif propertyType == 'barrier':
-                factor = random.uniform(-self.barUQ, self.barUQ)
-                normfactor = factor / self.barUQ
             elif propertyType == 'rotor':
-                factor = np.exp(random.uniform(np.log(1./self.freqUQ), np.log(self.freqUQ)))
-                normfactor = np.log(factor) / np.log(self.freqUQ)
+                factor = np.exp(random.uniform(np.log(1./self.hirUQ), np.log(self.hirUQ)))
+                normfactor = np.log(factor) / np.log(self.hirUQ)
 
             self.write_uqtk_header(species, propertyType)
             self.write_uqtk_data(propertyType, normfactor, species, uq_iter)
@@ -110,10 +111,7 @@ class UQ:
         for key in parent:
             with open(key + '/uqtk.data') as f:
                 for line in f:
-                    #print(reaction_items + '\n' + line[0])
                     if line[0] in reaction_items:
-                        #print('{} in rxnitems'.format(line[0]))
-                        #print(line[1])
                         if line[1] == 'freq' or line[1] == 'imagfreq':
                             uqfi = open('uqtk.data', 'a')
                             uqfi.write(line)

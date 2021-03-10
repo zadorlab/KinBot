@@ -366,8 +366,6 @@ class MESS:
         smi = []
         for nsp, species in enumerate(prod_list):
             smi.append(species.smiles)
-            print(species.chemid)
-            print(species.natom)
             if species.natom > 1:
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
@@ -760,12 +758,13 @@ class MESS:
         return(freq[:-1])
 
 
-    def make_rotorpot(self, species, i, rot):
+    def make_rotorpot(self, species, i, rot, rot_factor):
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
         rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
         if self.par['uq'] == 1:
-            print(rotorpot) 
+            for i, rpot in enumerate(rotorpot):
+                rotorpot[i] = rpot * rot_factor
         rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
         rotorpot = '        {}'.format(rotorpot)
 
@@ -795,7 +794,7 @@ class MESS:
                                                            axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
                                                            rotorsymm=self.rotorsymm(species, rot),
                                                            nrotorpot=self.nrotorpot(species, rot),
-                                                           rotorpot=self.make_rotorpot(species, i, rot)))
+                                                           rotorpot=self.make_rotorpot(species, i, rot, rot_factor)))
         
         rotors = '\n'.join(rotors)
         return rotors

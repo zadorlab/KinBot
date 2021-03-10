@@ -261,17 +261,19 @@ class Parameters:
             'uq_n': 100,
             # Max number of mess calculations running at once
             'uq_max_runs': 5,
-            # Uncertainty in stable intermediate  energy, +/- 0.5 kcal/mol
+            # Uncertainty in stable intermediate  energy, +/- 0.5 kcal/mol by default
             'well_uq': 0.5,
-            # Uncertainty in saddle point (TS) energy, +/- 1.0 kcal/mol
+            # Uncertainty in saddle point (TS) energy, +/- 1.0 kcal/mol by default
             'barrier_uq': 1.0,
-            # Uncertainty in positive frequency values, mult/div by a maximum factor of 1.2.
+            # Uncertainty in positive frequency values, mult/div by a maximum factor of 1.2 by default.
             # factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original frequency
             'freq_uq': 1.2,
-            # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1.
-            # factor of 1.2 corresponds to values ranging from 0.909 to 1.1 times the original frequency
+            # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1 by default.
+            # factor of 1.1 corresponds to values ranging from 0.909 to 1.1 times the original frequency
             'imagfreq_uq': 1.1,
-
+            # Uncertainty in Hindered Rotor Potentials, mult/div by a maximum factor of 1.2 by default.
+            # factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original HR Potential.
+            'hir_uq': 1.2,
             # for development
             'test': 0,
         }

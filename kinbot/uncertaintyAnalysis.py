@@ -20,8 +20,16 @@ class UQ:
         self.uq_iter = 0
 
     def calc_factor(self, propertyType, species, uq_iter, runUQ):
+
         # runUQ = 0, treat all iterations as uq iter = 1
+        #     runUQ = 0 during kinbot procedure for freq, and energies during PES runs
+        #     PES will alter energies, frequencies at a later point.
+
         # runUQ = 1, treat all interations as uqiter = 0 to n
+	#     runUQ = 1 for all energies, freq, HIR during kinbot only runs.
+        #     runUQ = 1 for HIR during PES runs, because they are consistent between kinbot & pes mess files
+        #     TODO: COULD runUQ = 1 for frequencies? during both pes and kinbot runs?
+
         if self.uq_iter != uq_iter:  # new iteration
             with open('uqtk.data', 'a') as f:
                 f.write('')  # new line

@@ -782,7 +782,7 @@ class MESS:
     def make_rotors(self, species, norot=None, uq_iter=0):
         uq_obj = UQ(self.par)
         rotors = []
-        rot_factor = uq_obj.calc_factor('rotor', self.species.chemid, uq_iter, self.pes)
+        rot_factor = uq_obj.calc_factor('rotor', self.species.chemid, uq_iter, 1)
         if self.par['rotor_scan']:
             for i, rot in enumerate(species.dihed):
                 if norot is not None:

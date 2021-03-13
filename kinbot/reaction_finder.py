@@ -2260,7 +2260,7 @@ class ReactionFinder:
         if not name in self.reactions:
             self.reactions[name] = []
 
-        rxns = [] #reactions found with the current resonance isomer
+        rxns = []  # reactions found with the current resonance isomer
 
         motif = ['X','X']
         instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)

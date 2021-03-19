@@ -274,6 +274,17 @@ class Parameters:
             # Uncertainty in Hindered Rotor Potentials, mult/div by a maximum factor of 1.2 by default.
             # factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original HR Potential.
             'hir_uq': 1.2,
+            # MESS HEADER UQ FACTORS
+            # EnergyRelaxationFactor: factor of 50% (1.5) by default, values ranging from 0.667 to 1.5 times the original.
+            'energy_relaxation_factor_uq': 1.5,
+            # EnergyRelaxationPower: +/- 0.15 by default.
+            'energy_relaxation_power_uq': 0.15,
+            # Well Epsilon: factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original.
+            'epsilon_well_uq': 1.2,
+            # Well Sigma: factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original.
+            'sigma_well_uq': 1.2,
+
+
             # for development
             'test': 0,
         }

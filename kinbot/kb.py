@@ -102,7 +102,7 @@ def main():
     start_name = well0.name
 
     # create sql db
-    postprocess.delete_sql_db(well0)
+    # postprocess.delete_sql_db(well0)
     postprocess.create_sql_db(well0)
 
     # initialize the qc instance

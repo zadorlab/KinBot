@@ -28,6 +28,7 @@ def delete_sql_db(species):
 
 
 def create_sql_db(species):
+    delete_sql_db(species)
     db = str(species.chemid) + '_sql.db'
     if path.exists(db):
         print("Path exists: {}".format(db))
@@ -124,7 +125,7 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index)
     db = str(parent.chemid) + '_sql.db'
     conn = sq.create_connection(db)
     data = (str(species_name), well_prod_ts, l1e, l2e, l3e, l1_zpe, l2_zpe, atoms, l1_xyz, l2_xyz, l1_hess, l2_hess, l1_freq, l2_freq, l1_red_freq, l2_red_freq, hir_potentials)
-    entry = sq.create_kinbot(conn, data)
+    entry = sq.create_kinbot_entry(conn, data)
 
     return entry
 

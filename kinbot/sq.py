@@ -103,7 +103,7 @@ def create_kinbot_table(conn):
         print(err)
 
 
-def create_kinbot(conn, kinbot_table):
+def create_kinbot_entry(conn, kinbot_table):
 
     sql = ''' INSERT OR REPLACE INTO kinbot (id, wellorts, l1e, l2e, l3e, l1_zpe, l2_zpe, atoms, l1_xyz, l2_xyz, l1_hess, l2_hess, l1_freq, l2_freq, l1_red_freq, l2_red_freq, hir_potentials)
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) '''
@@ -225,7 +225,7 @@ def main():
     conn = create_connection(database)
     create_kinbot_table(conn)
     kinbot_table = ('well1', 0, 1.025)
-    kinbot = create_kinbot(conn, kinbot_table)
+    kinbot = create_kinbot_entry(conn, kinbot_table)
 
 if __name__ == '__main__':
      main()

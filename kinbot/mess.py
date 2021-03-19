@@ -71,10 +71,31 @@ class MESS:
             self.twotstpl = f.read()
 
 
-    def write_header(self):
+    def write_header(self, uq_iter):
         """
         Create the header block for MESS
         """
+        uq_obj = UQ(self.par)
+        species = 'None'
+
+
+        # UQ for energy relaxation parameters and sigma/epsilon parameters for wells
+        e_well = self.par['epsilon']
+        e_well_factor = uq_obj.calc_factor('e_well', species, uq_iter, 1)
+        e_well = e_well * e_well_factor
+        
+        s_well = self.par['sigma']
+        s_well_factor = uq_obj.calc_factor('s_well', species, uq_iter, 1)
+        s_well = s_well * s_well_factor
+        
+        EnergyRelaxationFactor = self.par['EnergyRelaxationFactor']
+        EnergyRelaxationFactor_factor = uq_obj.calc_factor('relax_factor', species, uq_iter, 1)
+        EnergyRelaxationFactor = EnergyRelaxationFactor * EnergyRelaxationFactor_factor
+        
+        EnergyRelaxationPower = self.par['EnergyRelaxationPower']
+        EnergyRelaxationPower_factor = uq_obj.calc_factor('relax_power', species, uq_iter, 1)
+        EnergyRelaxationPower = EnergyRelaxationPower + EnergyRelaxationPower_factor
+
         # Read the header template
         header = self.headertpl.format(TemperatureList=' '.join([str(ti) for ti in self.par['TemperatureList']]),
                                        PressureList=' '.join([str(pi) for pi in self.par['PressureList']]),
@@ -84,14 +105,14 @@ class MESS:
                                        CalculationMethod=self.par['CalculationMethod'],
                                        ChemicalEigenvalueMax=self.par['ChemicalEigenvalueMax'],
                                        Reactant=self.well_names[self.species.chemid],
-                                       EnergyRelaxationFactor=self.par['EnergyRelaxationFactor'],
-                                       EnergyRelaxationPower=self.par['EnergyRelaxationPower'],
+                                       EnergyRelaxationFactor=EnergyRelaxationFactor,
+                                       EnergyRelaxationPower=EnergyRelaxationPower,
                                        EnergyRelaxationExponentCutoff=self.par['EnergyRelaxationExponentCutoff'],
                                        e_coll=constants.epsilon[self.par['collider']],
                                        s_coll=constants.sigma[self.par['collider']],
                                        m_coll=constants.mass[self.par['collider']],
-                                       e_well=self.par['epsilon'],
-                                       s_well=self.par['sigma'],
+                                       e_well=e_well,
+                                       s_well=s_well,
                                        m_well=self.species.mass,
                                        )
         return header
@@ -162,7 +183,6 @@ class MESS:
 
         # create short names for all the species, bimolecular products and barriers
         self.create_short_names()
-        header = self.write_header()
 
         # filter ts's with the same reactants and products:
         ts_unique = {}  # key: ts name, value: [prod_name, energy]
@@ -192,6 +212,7 @@ class MESS:
 
         # write the mess input for the different blocks
         for uq_iter in range(self.par['uq_n']):
+            header = self.write_header(uq_iter)
 
             well_blocks = {}
             ts_blocks = {}
@@ -320,7 +341,7 @@ class MESS:
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
                 f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
 
-        uq_obj.format_uqtk_data() 
+        #uq_obj.format_uqtk_data() 
 
         return 0
 
@@ -758,16 +779,21 @@ class MESS:
         return(freq[:-1])
 
 
-    def make_rotorpot(self, species, i, rot, rot_factor):
+    def make_rotorpot(self, species, i, rot, rot_factor, uq_iter):
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
-        rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
         if self.par['uq'] == 1:
-            for i, rpot in enumerate(rotorpot):
-                rotorpot[i] = rpot * rot_factor
+            ens_uq = [ei * rot_factor for ei in ens]
+            rotorpot = [(ei - ens_uq[0]) * constants.AUtoKCAL for ei in ens_uq]
+        else:
+            rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
+            
+        for i, ei in enumerate(rotorpot):
+            f=open("rotors_val.txt", "a")
+            f.write("{}\t{}\t{}\t{}\n".format(uq_iter, rot_factor, ens[i], rotorpot[i]))
+            f.close()
         rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
         rotorpot = '        {}'.format(rotorpot)
-
         return rotorpot
 
 
@@ -794,7 +820,7 @@ class MESS:
                                                            axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
                                                            rotorsymm=self.rotorsymm(species, rot),
                                                            nrotorpot=self.nrotorpot(species, rot),
-                                                           rotorpot=self.make_rotorpot(species, i, rot, rot_factor)))
+                                                           rotorpot=self.make_rotorpot(species, i, rot, rot_factor, uq_iter)))
         
         rotors = '\n'.join(rotors)
         return rotors

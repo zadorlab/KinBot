@@ -683,7 +683,7 @@ class MESS:
         with open(q_file) as f:
             tpl_head = f.read()
 
-        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
+        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess.tpl')
 
         with open(q_file) as f:
             tpl = f.read()

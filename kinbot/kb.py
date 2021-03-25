@@ -28,7 +28,7 @@ from kinbot.reaction_finder import ReactionFinder
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.qc import QuantumChemistry
-
+from kinbot.uncertainty_analysis import UQ
 
 def main():
     try:
@@ -211,6 +211,8 @@ def main():
     postprocess.createSummaryFile(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
+    uq_obj = UQ(par)
+    uq_obj.format_uqtk_data()
 
     logging.info('Finished KinBot at {}'.format(datetime.datetime.now()))
     print("Done!")

@@ -6,7 +6,7 @@ import pkg_resources
 from collections import Counter
 from kinbot import constants
 from kinbot import frequencies
-from kinbot.uncertaintyAnalysis import UQ
+from kinbot.uncertainty_analysis import UQ
 
 class MESS:
     """
@@ -405,7 +405,7 @@ class MESS:
                                                          symm=float(species.sigma_ext) / float(species.nopt),
                                                          nfreq=nfreq,
                                                          freq=freq,
-                                                         hinderedrotor=self.make_rotors(species, uq_iter=uq_iter),
+                                                         hinderedrotor=self.make_rotors(species, name, uq_iter=uq_iter),
                                                          nelec=2,
                                                          mult=species.mult)
                 else:
@@ -416,13 +416,13 @@ class MESS:
                                                          symm=float(species.sigma_ext) / float(species.nopt),
                                                          nfreq=nfreq,
                                                          freq=freq,
-                                                         hinderedrotor=self.make_rotors(species, uq_iter=uq_iter),
+                                                         hinderedrotor=self.make_rotors(species, name, uq_iter=uq_iter),
                                                          nelec=1,
                                                          mult=species.mult)
                 if bless == 1:
                     tot_nfreq += len(species.reduced_freqs)
                     combined_freq += self.make_freq(species, freqFactor, 0)
-                    combined_hir += self.make_rotors(species, uq_iter=uq_iter)
+                    combined_hir += self.make_rotors(species, "bless", uq_iter=uq_iter)
 
                     if nsp == 0: 
                         combined_mult = species.mult
@@ -534,7 +534,7 @@ class MESS:
                                         symm=float(species.sigma_ext) / float(species.nopt),
                                         nfreq=len(species.reduced_freqs),
                                         freq=self.make_freq(species, freqFactor, 0),
-                                        hinderedrotor=self.make_rotors(species, uq_iter=uq_iter),
+                                        hinderedrotor=self.make_rotors(species, name, uq_iter=uq_iter),
                                         nelec=1,
                                         mult=species.mult,
                                         zeroenergy=zeroenergy)
@@ -599,8 +599,8 @@ class MESS:
         if self.species.reac_type[index] == 'barrierless_saddle':
             freq = self.make_freq(reaction.prod_opt[0].species, freqFactor, 0) + \
                    self.make_freq(reaction.prod_opt[1].species, freqFactor, 0) 
-            rotors = self.make_rotors(reaction.prod_opt[0].species, uq_iter=uq_iter) + \
-                     self.make_rotors(reaction.prod_opt[1].species, uq_iter=uq_iter) 
+            rotors = self.make_rotors(reaction.prod_opt[0].species, "bless_prod_1", uq_iter=uq_iter) + \
+                     self.make_rotors(reaction.prod_opt[1].species, "bless_prod_2", uq_iter=uq_ite) 
             nfreq = len(reaction.prod_opt[0].species.reduced_freqs) + \
                     len(reaction.prod_opt[1].species.reduced_freqs)
             if self.par['pes']:
@@ -631,7 +631,7 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq = freq,
-                                       rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name], uq_iter=uq_iter),
+                                       rotors=self.make_rotors(reaction.ts, reaction.instance_name, norot=self.ts_names[reaction.instance_name], uq_iter=uq_iter),
                                        tunneling='',
                                        nelec=1,
                                        mult=reaction.ts.mult,
@@ -651,7 +651,7 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq = freq,
-                                       rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name], uq_iter=uq_iter),
+                                       rotors=self.make_rotors(reaction.ts, reaction.instance_name, norot=self.ts_names[reaction.instance_name], uq_iter=uq_iter),
                                        tunneling=tun,
                                        nelec=1,
                                        mult=reaction.ts.mult,
@@ -710,7 +710,7 @@ class MESS:
         """
 
         if self.par['queue_template'] == '':
-            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
         else:
             q_file = self.par['queue_template']
         with open(q_file) as f:
@@ -722,16 +722,19 @@ class MESS:
             tpl = f.read()
         with open(submitscript, 'w') as f:
             mess_iter = "{0:04d}".format(uq_iter)
-            if self.par['queue_template'] == '':
-                if self.par['queuing'] == 'pbs':
-                   f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'))
-                   f.write((tpl).format(n=mess_iter))
-                elif self.par['queuing'] == 'slurm':
+            #if self.par['queue_template'] == '':
+            if self.par['queuing'] == 'pbs':
+               f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'))
+               f.write((tpl).format(n=mess_iter))
+            elif self.par['queuing'] == 'slurm':
+               if self.par['queue_template'] == '':
                    f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'), slurm_feature='')
-                   f.write((tpl).format(n=mess_iter))
-            else:
-                f.write(tpl_head)
-                f.write((tpl).format(n=mess_iter))
+               else:
+                   f.write(tpl_head)
+               f.write((tpl).format(n=mess_iter))
+            #else:
+            #    f.write(tpl_head)
+            #    f.write((tpl).format(n=mess_iter))
         return 0
 
     def submit(self, submitscript):
@@ -805,10 +808,10 @@ class MESS:
         rotorsymm = self.rotorsymm(species, rot)
         return species.hir.nrotation // rotorsymm
 
-    def make_rotors(self, species, norot=None, uq_iter=0):
+    def make_rotors(self, species, name, norot=None, uq_iter=0):
         uq_obj = UQ(self.par)
         rotors = []
-        rot_factor = uq_obj.calc_factor('rotor', self.species.chemid, uq_iter, 1)
+        rot_factor = uq_obj.calc_rotor_factor('rotor', self.species.chemid, uq_iter, 1, name)
         if self.par['rotor_scan']:
             for i, rot in enumerate(species.dihed):
                 if norot is not None:

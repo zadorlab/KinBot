@@ -24,7 +24,7 @@ from kinbot import license_message
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.mess import MESS
-from kinbot.uncertaintyAnalysis import UQ
+from kinbot.uncertainty_analysis import UQ
 from kinbot import sq
 
 

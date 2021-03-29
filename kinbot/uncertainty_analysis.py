@@ -1,5 +1,6 @@
 from __future__ import division
 from __future__ import print_function
+import os
 import random
 import numpy as np
 
@@ -23,6 +24,41 @@ class UQ:
         self.sWellUQ = par['sigma_well_uq']
         self.uq_iter = 0
 
+    def calc_rotor_factor(self, propertyType, species, uq_iter, runUQ, name):
+        string = []
+        for i, char in enumerate(name):
+            string.append(char)
+        string.reverse()
+        stop_parsing = 0
+        name_array = []
+        for char in string:
+            if stop_parsing == 0:
+                if char != " ":
+                    name_array.append(char)
+                elif char == " ":
+                    stop_parsing = 1
+            else:
+                pass
+        name_array.reverse()
+        name_string = ''.join(name_array)
+
+        if uq_iter == 0:
+            factor = 1
+            normfactor = 0
+            self.write_uqtk_data(propertyType, normfactor, name_string, uq_iter)
+
+            return factor
+        else:
+            factor = np.exp(random.uniform(np.log(1./self.hirUQ), np.log(self.hirUQ)))
+            normfactor = np.log(factor) / np.log(self.hirUQ)
+            if normfactor < -1 or normfactor > 1:
+                e = "ERROR"
+            else:
+                e = ''
+            self.write_uqtk_data(propertyType, normfactor, name_string, uq_iter)
+
+        return factor
+
     def calc_factor(self, propertyType, species, uq_iter, runUQ):
 
         # runUQ = 0, treat all iterations as uq iter = 1
@@ -30,19 +66,9 @@ class UQ:
         #     PES will alter energies, frequencies at a later point.
 
         # runUQ = 1, treat all interations as uqiter = 0 to n
-	#     runUQ = 1 for all energies, freq, HIR during kinbot only runs.
+	    # runUQ = 1 for all energies, freq, HIR during kinbot only runs.
         #     runUQ = 1 for HIR during PES runs, because they are consistent between kinbot & pes mess files
         #     TODO: COULD runUQ = 1 for frequencies? during both pes and kinbot runs?
-
-        if self.uq_iter != uq_iter:  # new iteration
-            with open('uqtk.data', 'a') as f:
-                f.write('')  # new line
-        # DO WE NEED THIS IF/ELSE STATEMENT???
-        if self.par['pes'] == 1 and runUQ == 0:
-            uq_iter = 0
-        elif self.par['pes'] == 1 and runUQ == 1:
-            uq_iter = uq_iter
-
 
         if uq_iter == 0:
             if propertyType == 'freq' or propertyType == 'imagfreq' or propertyType == 'rotor' or propertyType == 'relax_factor' or propertyType == 'e_well' or propertyType == 's_well':
@@ -51,9 +77,7 @@ class UQ:
             else:
                 factor = 0
                 normfactor = 0
-                # normfactor = factor / self.wellUQ
 
-            self.write_uqtk_header(species, propertyType, uq_iter)
             self.write_uqtk_data(propertyType, normfactor, species, uq_iter)
 
             return factor
@@ -78,17 +102,6 @@ class UQ:
                 factor = np.exp(random.uniform(np.log(1./self.imagfreqUQ), np.log(self.imagfreqUQ)))
                 normfactor = np.log(factor) / np.log(self.imagfreqUQ)
 
-            elif propertyType == 'rotor':
-                factor = np.exp(random.uniform(np.log(1./self.hirUQ), np.log(self.hirUQ)))
-                normfactor = np.log(factor) / np.log(self.hirUQ)
-                if normfactor < -1 or normfactor > 1:
-                    e = "ERROR"
-                else:
-                    e = ''
-                fi=open("rotors.txt", 'a')
-                fi.write("{}\t{}\t{}\t{}\n".format(e, uq_iter, factor, normfactor))
-                fi.close()
-
             elif propertyType == 'relax_factor':
                 factor = np.exp(random.uniform(np.log(1./self.relaxFactorUQ), np.log(self.relaxFactorUQ)))
                 normfactor = np.log(factor) / np.log(self.relaxFactorUQ)
@@ -101,52 +114,61 @@ class UQ:
                 factor = np.exp(random.uniform(np.log(1./self.eWellUQ), np.log(self.eWellUQ)))
                 normfactor = np.log(factor) / np.log(self.eWellUQ)
 
-            self.write_uqtk_header(species, propertyType, uq_iter)
             self.write_uqtk_data(propertyType, normfactor, species, uq_iter)
 
         return factor
 
-    def write_uqtk_header(self, species, propertyType, uq_iter):
-        with open('uqtk.data', 'a') as fi:
-            fi.write("{} {} {}\n".format(species, propertyType, uq_iter))
-        return 0
-
     def write_uqtk_data(self, propertyType, normfactor, species, uq_iter):
-        with open('uqtk.data', 'a') as fi:
-            fi.write("{}\n".format(normfactor))
+        file = "uq_" + str(species) + "_" + str(propertyType) + ".txt"
+        with open(file, 'a') as fi:
+            fi.write("{} | {}\n".format(uq_iter, normfactor))
+            if uq_iter == self.par["uq_n"] + 1:
+                fi.write("\n")
 
         return 0
 
     def format_uqtk_data(self):
-        with open('uqtk.data', 'r') as fi:
-            data = {}
-            for line in fi:
-                line = line.split(' ')
-                line.pop()
-                data_point = line[0] + ' ' + line[1]
-                if data_point not in data:
-                    data[data_point] = [line[2]]
-                else:
-                    data[data_point].append(line[2])
-
-        uq_n = self.par['uq_n']
-        names = []
-        vals = []
-        uq_counter = 0
-        while uq_counter < uq_n:
-            for item in data.items():
-                names.append(item[0])
-                vals.append(item[1])
-                uq_counter += 1
-
-        vals = np.array(vals)
-        vals = vals.transpose()
-        with open('fuqtk.data', 'w') as f:
-            for item in vals:
-                for i in item:
-                    f.write(i + '\t')
-                f.write('\n')
-
+        normalized_data = []
+        for file in os.listdir("./"):
+            if file.startswith("uq_"):
+                parameters = []
+                name=file
+                parameters.append(name[3:-4:])
+                read_file = open(file, 'r')
+                for i, line in enumerate(read_file):
+                    line_chars = []
+                    for char in line:
+                        line_chars.append(char)
+                    line_chars = line_chars[2::]
+                    truncated_line_chars = []
+                    for i, char in enumerate(line_chars):
+                        if line_chars[i] == ' ':
+                            pass
+                        elif line_chars[i] == '|':
+                            pass
+                        elif line_chars[i] == '\n':
+                            pass
+                        else:
+                            truncated_line_chars.append(char)
+                    final_string = ''.join(truncated_line_chars)
+                    parameters.append(final_string)
+                normalized_data.append(parameters)
+        for x in normalized_data:
+            print(x[0], len(x))
+        normalized_data_cols = len(normalized_data[0])
+        normalized_data_rows = len(normalized_data)
+        print(normalized_data_cols, normalized_data_rows)
+        fi = open("normalization.txt", 'w')
+        row = 0 #i
+        col = 0 #j
+        while col < normalized_data_cols:
+            norm_data = []
+            for i, row in enumerate(normalized_data):
+                norm_data.append(row[col])
+            norm_data_string = " ".join(norm_data)
+            fi.write(norm_data_string)
+            fi.write("\n")
+            col = col + 1
         return 0
 
     def pes_freq_uqtk_data(self, parent, reaction_items):

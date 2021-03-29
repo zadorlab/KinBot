@@ -681,23 +681,31 @@ class MESS:
         uq_iter = 0
         pid_stats = []
         while uq_iter < self.par['uq_n']:
+            print(uq_iter, self.par['uq_n'], self.par['uq_max_runs'])
             self.write_submitscript(submitscript, uq_iter)
             while len(pids) > self.par['uq_max_runs']:
-                time.sleep(5)
+                time.sleep(1)
                 for pid in pids:
+                    # command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
+                    # devnull = open(os.devnull, 'w')
+                    # print(command)
+                    # print(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
                     stat = self.check_running(pid)
-                    if stat == 0:
+                    print("CHECK: {}".format(self.check_running(pid)))
+                    print("{} stat: {}".format(pid, stat))
+                    if stat == 1:
                         pids.remove(pid)
                         pid_stats.append(stat)
-            
             pid = self.submit(submitscript)
+            print("running {}".format(pid)) 
             pids.append(pid)
 
             if self.par['uq_n'] < self.par['uq_max_runs']:
-                stat = 1
-                while stat != 0:
+                stat = 0
+                while stat != 1:
                     stat = self.check_running(pid)
-                    time.sleep(5)
+                    # time.sleep(5)
+                    time.sleep(1)
                 pid_stats.append(stat)
             uq_iter += 1
   
@@ -745,14 +753,20 @@ class MESS:
             pid = out.split('\n')[0].split()[-1]
         return pid
 
+#    def check_running(self, pid):
+#        print("INSIDE CHECK")
+
     def check_running(self, pid):
+        print("INSIDE CHECK")
         devnull = open(os.devnull, 'w')
         if self.par['queuing'] == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
         elif self.par['queuing'] == 'slurm':
             command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
- 
-        stat = int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
+        print(command)
+        stat = subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)
+        print(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
+        devnull.close() 
         return stat
 
     def make_geom(self, species):

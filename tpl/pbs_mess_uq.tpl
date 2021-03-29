@@ -1,2 +1,2 @@
 cd ${{PBS_O_WORKDIR}}/me
-mess mess_{n}.inp
+/usr/local/python3.6.3/bin/mess mess_{n}.inp

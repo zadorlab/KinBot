@@ -169,15 +169,19 @@ class UQ:
             fi.write(norm_data_string)
             fi.write("\n")
             col = col + 1
+        fi.close()
         return 0
 
-    def pes_freq_uqtk_data(self, parent, reaction_items):
+    def pes_freq_uqtk_data(self, parent, pes_reactions):
+    # TO DO
+    # ADD ALL normalization files together and delete columns that don't match pesviewer files?
+        all_reaction = []
         for key in parent:
-            with open(key + '/uqtk.data') as f:
+            with open(key + '/normalization.txt') as f:
                 for line in f:
                     if line[0] in reaction_items:
                         if line[1] == 'freq' or line[1] == 'imagfreq':
-                            uqfi = open('uqtk.data', 'a')
+                            uqfi = open('normalization.txt', 'a')
                             uqfi.write(line)
                             uqfi.close()
 

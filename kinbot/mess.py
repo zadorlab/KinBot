@@ -718,13 +718,13 @@ class MESS:
         """
 
         if self.par['queue_template'] == '':
-            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
+            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
         else:
             q_file = self.par['queue_template']
         with open(q_file) as f:
             tpl_head = f.read()
 
-        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
+        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess.tpl')
 
         with open(q_file) as f:
             tpl = f.read()

@@ -693,7 +693,7 @@ class MESS:
                     stat = self.check_running(pid)
                     print("CHECK: {}".format(self.check_running(pid)))
                     print("{} stat: {}".format(pid, stat))
-                    if stat == 1:
+                    if stat == 0:
                         pids.remove(pid)
                         pid_stats.append(stat)
             pid = self.submit(submitscript)
@@ -701,8 +701,8 @@ class MESS:
             pids.append(pid)
 
             if self.par['uq_n'] < self.par['uq_max_runs']:
-                stat = 0
-                while stat != 1:
+                stat = 1
+                while stat != 0:
                     stat = self.check_running(pid)
                     # time.sleep(5)
                     time.sleep(1)

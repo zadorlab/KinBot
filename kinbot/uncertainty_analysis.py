@@ -153,17 +153,21 @@ class UQ:
                     final_string = ''.join(truncated_line_chars)
                     parameters.append(final_string)
                 normalized_data.append(parameters)
-        for x in normalized_data:
-            print(x[0], len(x))
         normalized_data_cols = len(normalized_data[0])
         normalized_data_rows = len(normalized_data)
-        print(normalized_data_cols, normalized_data_rows)
+        #for x in normalized_data:
+        #    print(x[0])
+        #    #print("\t{}".format(x))
+        #    print("\trows: {} | cols: {}".format(normalized_data_rows, normalized_data_cols))
         fi = open("normalization.txt", 'w')
         row = 0 #i
         col = 0 #j
+        for r in normalized_data:
+            print(r)
         while col < normalized_data_cols:
             norm_data = []
             for i, row in enumerate(normalized_data):
+                print("{} | n_rows: {} | rows: {} | n_cols: {} | cols: {}".format(row[0], len(row), i, normalized_data_cols, col))
                 norm_data.append(row[col])
             norm_data_string = " ".join(norm_data)
             fi.write(norm_data_string)

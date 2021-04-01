@@ -217,7 +217,7 @@ def main():
     # if all energies are there
     # do something like postprocess, but with new energies
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
-
+    
     # Notify user the search done
     logging.info('PES search done!')
     print('PES search done!')
@@ -1174,7 +1174,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
         if par['me'] == 1:
             mess.run()
-
+        uq_obj.format_uqtk_data()
     return 0
 
 

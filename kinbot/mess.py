@@ -81,20 +81,24 @@ class MESS:
 
         # UQ for energy relaxation parameters and sigma/epsilon parameters for wells
         e_well = self.par['epsilon']
-        e_well_factor = uq_obj.calc_factor('e_well', species, uq_iter, 1)
+        e_well_factor, e_well_normfactor = uq_obj.calc_factor('e_well', species, uq_iter, 1)
         e_well = e_well * e_well_factor
-        
+        uq_obj.write_uqtk_data("e_well", e_well_normfactor, species, uq_iter)
+
         s_well = self.par['sigma']
-        s_well_factor = uq_obj.calc_factor('s_well', species, uq_iter, 1)
+        s_well_factor, s_well_normfactor = uq_obj.calc_factor('s_well', species, uq_iter, 1)
         s_well = s_well * s_well_factor
+        uq_obj.write_uqtk_data("s_well", s_well_normfactor, species, uq_iter)
         
         EnergyRelaxationFactor = self.par['EnergyRelaxationFactor']
-        EnergyRelaxationFactor_factor = uq_obj.calc_factor('relax_factor', species, uq_iter, 1)
+        EnergyRelaxationFactor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', species, uq_iter, 1)
         EnergyRelaxationFactor = EnergyRelaxationFactor * EnergyRelaxationFactor_factor
+        uq_obj.write_uqtk_data("relax_factor", relax_factor_normfactor, species, uq_iter)
         
         EnergyRelaxationPower = self.par['EnergyRelaxationPower']
-        EnergyRelaxationPower_factor = uq_obj.calc_factor('relax_power', species, uq_iter, 1)
+        EnergyRelaxationPower_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', species, uq_iter, 1)
         EnergyRelaxationPower = EnergyRelaxationPower + EnergyRelaxationPower_factor
+        uq_obj.write_uqtk_data("relax_power", relax_power_normfactor, species, uq_iter)
 
         # Read the header template
         header = self.headertpl.format(TemperatureList=' '.join([str(ti) for ti in self.par['TemperatureList']]),
@@ -225,19 +229,23 @@ class MESS:
             written_bimol_names = []
             written_termolec_names = []
 
-            well_energyAdd = uq_obj.calc_factor('energy', self.species.chemid, uq_iter, self.pes)
-            well_freqFactor = uq_obj.calc_factor('freq', self.species.chemid, uq_iter, self.pes)
+            well_energyAdd, well_energy_normfactor = uq_obj.calc_factor('energy', self.species.chemid, uq_iter, self.pes)
+            well_freqFactor, well_freq_normfactor = uq_obj.calc_factor('freq', self.species.chemid, uq_iter, self.pes)
             well_blocks[self.species.chemid] = self.write_well(self.species,
                                                                well_energyAdd,
                                                                well_freqFactor,
                                                                uq_iter)
-            
+            uq_obj.write_uqtk_data("energy", well_energy_normfactor, self.species.chemid, uq_iter)
+            uq_obj.write_uqtk_data("freq", well_freq_normfactor, self.species.chemid, uq_iter)
+
             for index, reaction in enumerate(self.species.reac_obj):
                 if reaction.instance_name in ts_all:
-                    barrierAdd = uq_obj.calc_factor('barrier', reaction.instance_name, uq_iter, self.pes)
-                    freqFactor = uq_obj.calc_factor('freq', reaction.instance_name, uq_iter, self.pes)
-                    imagfreqFactor = uq_obj.calc_factor('imagfreq', reaction.instance_name, uq_iter, self.pes)
-        
+                    barrierAdd, barrier_normfactor = uq_obj.calc_factor('barrier', reaction.instance_name, uq_iter, self.pes)
+                    freqFactor, freq_normfactor = uq_obj.calc_factor('freq', reaction.instance_name, uq_iter, self.pes)
+                    imagfreqFactor, imagfreq_normfactor = uq_obj.calc_factor('imagfreq', reaction.instance_name, uq_iter, self.pes)
+                    uq_obj.write_uqtk_data("barrier", barrier_normfactor, reaction.instance_name, uq_iter)       
+                    uq_obj.write_uqtk_data("freq", freq_normfactor, reaction.instance_name, uq_iter)       
+                    uq_obj.write_uqtk_data("imagfreq", imagfreq_normfactor, reaction.instance_name, uq_iter)       
 
         # get left-right barrier
                     species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
@@ -272,8 +280,10 @@ class MESS:
                     ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                     if len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
-                        energyAdd = uq_obj.calc_factor('energy', st_pt.chemid, uq_iter, self.pes)
-                        freqFactor = uq_obj.calc_factor('freq', st_pt.chemid, uq_iter, self.pes)
+                        energyAdd, prod_energy_normfactor = uq_obj.calc_factor('energy', st_pt.chemid, uq_iter, self.pes)
+                        freqFactor, prod_freq_normfactor = uq_obj.calc_factor('freq', st_pt.chemid, uq_iter, self.pes)
+                        uq_obj.write_uqtk_data("energy", prod_energy_normfactor, st_pt.chemid, uq_iter)
+                        uq_obj.write_uqtk_data("freq", prod_freq_normfactor, st_pt.chemid, uq_iter)
 
                         well_blocks[st_pt.chemid] = self.write_well(st_pt,
                                                                     energyAdd,
@@ -281,8 +291,11 @@ class MESS:
                                                                     uq_iter)
                     elif len(reaction.products) == 2:
                         bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        energyAdd = uq_obj.calc_factor('energy', bimol_name, uq_iter, self.pes)
-                        freqFactor = uq_obj.calc_factor('freq', bimol_name, uq_iter, self.pes)
+                        energyAdd, bimol_energy_normfactor = uq_obj.calc_factor('energy', bimol_name, uq_iter, self.pes)
+                        freqFactor, bimol_freq_normfactor = uq_obj.calc_factor('freq', bimol_name, uq_iter, self.pes)
+                        uq_obj.write_uqtk_data("energy", bimol_energy_normfactor, bimol_name, uq_iter)
+                        uq_obj.write_uqtk_data("freq", bimol_freq_normfactor, bimol_name, uq_iter)
+
                         bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
                                                                       energyAdd,
                                                                       freqFactor,
@@ -309,8 +322,11 @@ class MESS:
                             if new:
                                 self.barrierless_names[hs_prod_name] = hs_prod_name
                             if new == 1 or uq_iter >= 0:
-                                barrierless_energyAdd = uq_obj.calc_factor('energy', hs_prod_name, uq_iter, self.pes)
-                                barrierless_freqFactor = uq_obj.calc_factor('freq', hs_prod_name, uq_iter, self.pes)
+                                barrierless_energyAdd, barrierless_energy_normfactor = uq_obj.calc_factor('energy', hs_prod_name, uq_iter, self.pes)
+                                barrierless_freqFactor, barrierless_freq_normfactor = uq_obj.calc_factor('freq', hs_prod_name, uq_iter, self.pes)
+                                uq_obj.write_uqtk_data("energy", barrierless_energy_normfactor, hs_prod_name, uq_iter)
+                                uq_obj.write_uqtk_data("freq", barrierless_freq_normfactor, hs_prod_name, uq_iter)
+
                                 barrierless_blocks[hs_prod_name] = self.write_barrierless([opt.species for opt in hs.prod_opt],
                                                                                           hs,
                                                                                           barrierless_energyAdd,
@@ -645,11 +661,15 @@ class MESS:
                                                   long_rxn_name=long_rxn_name,
                                                   model=variational)
         else:
+            if self.par['pes']:
+                nfreq = '{nfreq}'
+            else:
+                nfreq = len(reaction.ts.reduced_freqs)-1 
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
                                        geom=self.make_geom(reaction.ts),
                                        core=corerr,
-                                       nfreq=len(reaction.ts.reduced_freqs)-1,
+                                       nfreq=nfreq,
                                        freq = freq,
                                        rotors=self.make_rotors(reaction.ts, reaction.instance_name, norot=self.ts_names[reaction.instance_name], uq_iter=uq_iter),
                                        tunneling=tun,
@@ -681,23 +701,15 @@ class MESS:
         uq_iter = 0
         pid_stats = []
         while uq_iter < self.par['uq_n']:
-            print(uq_iter, self.par['uq_n'], self.par['uq_max_runs'])
             self.write_submitscript(submitscript, uq_iter)
             while len(pids) > self.par['uq_max_runs']:
                 time.sleep(1)
                 for pid in pids:
-                    # command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
-                    # devnull = open(os.devnull, 'w')
-                    # print(command)
-                    # print(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
                     stat = self.check_running(pid)
-                    print("CHECK: {}".format(self.check_running(pid)))
-                    print("{} stat: {}".format(pid, stat))
                     if stat == 0:
                         pids.remove(pid)
                         pid_stats.append(stat)
             pid = self.submit(submitscript)
-            print("running {}".format(pid)) 
             pids.append(pid)
 
             if self.par['uq_n'] < self.par['uq_max_runs']:
@@ -756,19 +768,13 @@ class MESS:
             pid = out.split('\n')[0].split()[-1]
         return pid
 
-#    def check_running(self, pid):
-#        print("INSIDE CHECK")
-
     def check_running(self, pid):
-        print("INSIDE CHECK")
         devnull = open(os.devnull, 'w')
         if self.par['queuing'] == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
         elif self.par['queuing'] == 'slurm':
             command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
-        print(command)
         stat = subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)
-        print(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
         devnull.close() 
         return stat
 
@@ -825,7 +831,8 @@ class MESS:
     def make_rotors(self, species, name, norot=None, uq_iter=0):
         uq_obj = UQ(self.par)
         rotors = []
-        rot_factor = uq_obj.calc_rotor_factor('rotor', self.species.chemid, uq_iter, 1, name)
+        rot_factor, rot_normfactor = uq_obj.calc_rotor_factor('rotor', self.species.chemid, uq_iter, 1, name)
+        uq_obj.write_uqtk_data("rotor", rot_normfactor, self.species.chemid, uq_iter)
         if self.par['rotor_scan']:
             for i, rot in enumerate(species.dihed):
                 if norot is not None:

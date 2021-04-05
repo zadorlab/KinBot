@@ -45,9 +45,8 @@ class UQ:
         if uq_iter == 0:
             factor = 1
             normfactor = 0
-            self.write_uqtk_data(propertyType, normfactor, name_string, uq_iter)
 
-            return factor
+            return factor, normfactor
         else:
             factor = np.exp(random.uniform(np.log(1./self.hirUQ), np.log(self.hirUQ)))
             normfactor = np.log(factor) / np.log(self.hirUQ)
@@ -55,9 +54,8 @@ class UQ:
                 e = "ERROR"
             else:
                 e = ''
-            self.write_uqtk_data(propertyType, normfactor, name_string, uq_iter)
 
-        return factor
+        return factor, normfactor
 
     def calc_factor(self, propertyType, species, uq_iter, runUQ):
 
@@ -78,9 +76,7 @@ class UQ:
                 factor = 0
                 normfactor = 0
 
-            self.write_uqtk_data(propertyType, normfactor, species, uq_iter)
-
-            return factor
+            return factor, normfactor
         else:
             if propertyType == 'energy':
                 factor = random.uniform(-self.wellUQ, self.wellUQ)
@@ -114,9 +110,7 @@ class UQ:
                 factor = np.exp(random.uniform(np.log(1./self.eWellUQ), np.log(self.eWellUQ)))
                 normfactor = np.log(factor) / np.log(self.eWellUQ)
 
-            self.write_uqtk_data(propertyType, normfactor, species, uq_iter)
-
-        return factor
+        return factor, normfactor
 
     def write_uqtk_data(self, propertyType, normfactor, species, uq_iter):
         file = "uq_" + str(species) + "_" + str(propertyType) + ".txt"
@@ -155,19 +149,12 @@ class UQ:
                 normalized_data.append(parameters)
         normalized_data_cols = len(normalized_data[0])
         normalized_data_rows = len(normalized_data)
-        #for x in normalized_data:
-        #    print(x[0])
-        #    #print("\t{}".format(x))
-        #    print("\trows: {} | cols: {}".format(normalized_data_rows, normalized_data_cols))
         fi = open("normalization.txt", 'w')
         row = 0 #i
         col = 0 #j
-        for r in normalized_data:
-            print(r)
         while col < normalized_data_cols:
             norm_data = []
             for i, row in enumerate(normalized_data):
-                print("{} | n_rows: {} | rows: {} | n_cols: {} | cols: {}".format(row[0], len(row), i, normalized_data_cols, col))
                 norm_data.append(row[col])
             norm_data_string = " ".join(norm_data)
             fi.write(norm_data_string)

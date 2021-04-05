@@ -7,11 +7,11 @@ from __future__ import absolute_import
 import sys
 import os
 import stat
-import shutil
 import logging
 import datetime
 import time
 import subprocess
+import shutil
 import json
 from distutils.dir_util import copy_tree
 import pkg_resources
@@ -34,7 +34,6 @@ def main():
     except IndexError:
         print('To use the pes script, supply one argument being the input file!')
         sys.exit(-1)
-
     # TODO: write information about the arguments
     # change this to nice argument parsers with
     # dashes etc.
@@ -532,6 +531,7 @@ def postprocess(par, jobs, task, names):
                            highlight)
     if par['me'] == 1:
         if len(reactions) > 0:
+            print("CREATE MESS")
             create_mess_input(par,
                               wells,
                               products,
@@ -918,10 +918,12 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     1. the names of all the wells, bimolecular products and ts's
     2. all the zpe corrected energies
     """
+    uq_obj = UQ(par)
 
     # testing
     all_structures = {}
     for rxn in reactions:
+        print("ALL REACTIONS MESS")
         pathway = []
         pathway.append(rxn[0])
         for prod in rxn[2]:
@@ -954,35 +956,55 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
     Create the header block for MESS
     """
-    # Read the header template
-    header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
-    with open(header_file) as f:
-        tpl = f.read()
-    header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par['TemperatureList']]),
-                        PressureList=' '.join([str(pi) for pi in par['PressureList']]),
-                        EnergyStepOverTemperature=par['EnergyStepOverTemperature'],
-                        ExcessEnergyOverTemperature=par['ExcessEnergyOverTemperature'],
-                        ModelEnergyLimit=par['ModelEnergyLimit'],
-                        CalculationMethod=par['CalculationMethod'],
-                        ChemicalEigenvalueMax=par['ChemicalEigenvalueMax'],
-                        Reactant=well_short[wells[0]],
-                        EnergyRelaxationFactor=par['EnergyRelaxationFactor'],
-                        EnergyRelaxationPower=par['EnergyRelaxationPower'],
-                        EnergyRelaxationExponentCutoff=par['EnergyRelaxationExponentCutoff'],
-                        e_coll=constants.epsilon[par['collider']],
-                        s_coll=constants.sigma[par['collider']],
-                        m_coll=constants.mass[par['collider']],
-                        e_well=par['epsilon'],
-                        s_well=par['sigma'],
-                        m_well=well0.mass,
-                        )
-
-    divider = '!****************************************\n'
-
     uq_iter = 0
     while(uq_iter < par['uq_n']):
+        # UQ for energy relaxation parameters and sigma/epsilon parameters for wells
+        e_well = par['epsilon']
+        e_well_factor, e_well_normfactor = uq_obj.calc_factor('e_well', 'none', uq_iter, 1)
+        e_well = e_well * e_well_factor
+        uq_obj.write_uqtk_data("e_well", e_well_normfactor, 'none', uq_iter)
+
+        s_well = par['sigma']
+        s_well_factor, s_well_normfactor = uq_obj.calc_factor('s_well', 'none', uq_iter, 1)
+        s_well = s_well * s_well_factor
+        uq_obj.write_uqtk_data("s_well", s_well_normfactor, 'none', uq_iter)
+
+        EnergyRelaxationFactor = par['EnergyRelaxationFactor']
+        EnergyRelaxationFactor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', 'none', uq_iter, 1)
+        EnergyRelaxationFactor = EnergyRelaxationFactor * EnergyRelaxationFactor_factor
+        uq_obj.write_uqtk_data("relax_factor", relax_factor_normfactor, 'none', uq_iter)
+
+        EnergyRelaxationPower = par['EnergyRelaxationPower']
+        EnergyRelaxationPower_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', 'none', uq_iter, 1)
+        EnergyRelaxationPower = EnergyRelaxationPower + EnergyRelaxationPower_factor
+        uq_obj.write_uqtk_data("relax_power", relax_power_normfactor, 'none', uq_iter)
+
+        # Read the header template
+        header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
+        with open(header_file) as f:
+            tpl = f.read()
+        header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par['TemperatureList']]),
+                            PressureList=' '.join([str(pi) for pi in par['PressureList']]),
+                            EnergyStepOverTemperature=par['EnergyStepOverTemperature'],
+                            ExcessEnergyOverTemperature=par['ExcessEnergyOverTemperature'],
+                            ModelEnergyLimit=par['ModelEnergyLimit'],
+                            CalculationMethod=par['CalculationMethod'],
+                            ChemicalEigenvalueMax=par['ChemicalEigenvalueMax'],
+                            Reactant=well_short[wells[0]],
+                            EnergyRelaxationFactor=EnergyRelaxationFactor,
+                            EnergyRelaxationPower=EnergyRelaxationPower,
+                            EnergyRelaxationExponentCutoff=par['EnergyRelaxationExponentCutoff'],
+                            e_coll=constants.epsilon[par['collider']],
+                            s_coll=constants.sigma[par['collider']],
+                            m_coll=constants.mass[par['collider']],
+                            e_well=e_well,
+                            s_well=s_well,
+                            m_well=well0.mass,
+                           )
+
+        divider = '!****************************************\n'
+
         all_energies = {}
-        uq_obj = UQ(par)
         # list of the strings to write to mess input file
         messStrings = []
         # create dummy for mess object
@@ -1031,11 +1053,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name = well_short[well] + ' ! ' + well
             frequencies = sq.get_sql_mess_data(all_data, well, level, 'red_freq')
             energy = well_energies[well]
-            uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter, 1)
+            uq_energyAdd, energy_normfactor = uq_obj.calc_factor('energy', well_short[well], uq_iter, 1)
+            uq_obj.write_uqtk_data("energy", energy_normfactor, well, uq_iter)
             energy = energy + uq_energyAdd
             all_energies[well] = energy
 
-            freq_factor = uq_obj.calc_factor('freq', well_short[well], uq_iter, 1)
+            freq_factor, freq_normfactor = uq_obj.calc_factor('freq', well_short[well], uq_iter, 1)
+            uq_obj.write_uqtk_data("freq", freq_normfactor, well, uq_iter)
             freq = make_freq(well, frequencies, freq_factor, parent[well], 0, par['high_level'])
 
             mess_iter = "{0:04d}".format(uq_iter)
@@ -1045,6 +1069,14 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 messStrings.append(f.read().format(name=name, zeroenergy=energy, freq=freq))
                 messStrings.append('!****************************************')
 
+            # check for rotor uq file
+            name = os.getcwd() + '/' + parent[well] + '/uq_' + well + "_rotor.txt"
+            dest = os.getcwd() + '/uq_' + well + "_rotor.txt"
+            try:
+                shutil.copyfile(name, dest)
+            except IOError:
+                pass
+
         # write the products
         # TO DO - INCLUDE BLESS REACTIONS !!!
         # TO DO - INCLUDE BARRIERLESS REACTIONS !!!
@@ -1053,19 +1085,31 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         messStrings.append('# BIMOLECULAR PRODUCTS')
         messStrings.append('######################')
         for prod in products:
+            print("MESS PRODUCTS")
             prods = prod.split('_')
             for i, p in enumerate(prods):
                 frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq')
-                freq_factor = uq_obj.calc_factor('freq', pr_short[prod], uq_iter, 1)
+                freq_factor, freq_normfactor = uq_obj.calc_factor('freq', pr_short[prod], uq_iter, 1)
+                uq_obj.write_uqtk_data("freq", freq_normfactor, p, uq_iter)
                 if i == 0:
                     freq_0 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
                     nfreq_0 = len(frequencies)
                 elif i == 1:
                     freq_1 = make_freq(prod, frequencies, freq_factor, parent[prod], 0, par['high_level'])
                     nfreq_1 = len(frequencies)
+
+                # check for rotor uq file
+                name = os.getcwd() + '/' + parent[prod] + '/uq_' + p + "_rotor.txt"
+                dest = os.getcwd() + '/uq_' + p + "_rotor.txt"
+                try:
+                    shutil.copyfile(name, dest)
+                except IOError:
+                    pass
+
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod]
-            uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter, 1)
+            uq_energyAdd, energy_nromfactor = uq_obj.calc_factor('energy', pr_short[prod], uq_iter, 1)
+            uq_obj.write_uqtk_data("energy", energy_normfactor, prod, uq_iter)
             energy = energy + uq_energyAdd
             all_energies[prod] = energy
 
@@ -1082,6 +1126,11 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 natoms = len(atoms)
                 frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq')
                 nfreq = len(frequencies)
+                # DEBUGGING
+                n = p + "_values.txt"
+                f = open(n, 'w')
+                f.write("p: {}\nfreqs: {}\nnfreq: {}".format(p, frequencies, nfreq))
+                f.write("i: {}\nfreq0: {}\nnfreq0: {}\nfreq1: {}\nnfreq1: {}".format(i, freq_0, nfreq_0, freq_1, nfreq_1))
                 if i == 0:
                     if natoms == 1:
                         nfreq_tmp = nfreq_0
@@ -1098,7 +1147,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         freq_tmp = freq_1
                         freq_1 = freq_0
                         freq_0 = freq_tmp
-                
+                f.close() 
             with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
                 messStrings.append(f.read().format(name=name,
                                          ground_energy=energy,
@@ -1115,6 +1164,14 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         messStrings.append('######################')
         # rxn = well, ts, prod, energy
         for rxn in reactions:
+            # check for rotor uq file
+            name = os.getcwd() + '/' + rxn[0] + '/uq_' + rxn[1] + "_rotor.txt"
+            dest = os.getcwd() + '/uq_' + rxn[1] + "_rotor.txt"
+            try:
+                shutil.copyfile(name, dest)
+            except IOError:
+                pass
+
             with open("reactionList.log", 'a') as rxFi:
                 rxFi.write('{0} {1}'.format(rxn, "\n"))
 
@@ -1132,12 +1189,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             prod_energy = all_energies.get(prod_name)
             job = rxn[1]
             frequencies = sq.get_sql_mess_data(all_data, job, level, 'red_freq')
-            freq_factor = uq_obj.calc_factor('freq', rxn[1], uq_iter, 1)
+            freq_factor, freq_normfactor = uq_obj.calc_factor('freq', rxn[1], uq_iter, 1)
+            uq_obj.write_uqtk_data("freq", freq_normfactor, rxn[1], uq_iter)
             freq = make_freq(rxn[1], frequencies, freq_factor, rxn[0], 1, par['high_level'])
             imfreq = frequencies[0] * freq_factor * -1
             barrier = rxn[3]
-
-            uq_energyAdd = uq_obj.calc_factor('energy', name, uq_iter, 1)
+            uq_energyAdd, energy_normfactor = uq_obj.calc_factor('energy', name, uq_iter, 1)
+            uq_obj.write_uqtk_data("energy", energy_normfactor, rxn[1], uq_iter)
             forward_barrier = barrier + uq_energyAdd - well_energy
             backward_barrier = barrier + uq_energyAdd - prod_energy
             cutoff = min(forward_barrier, backward_barrier)
@@ -1148,8 +1206,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         prodzeroenergy = prod_energies['_'.join(rxn[2])]
                         messStrings.append(f.read().format(name=' '.join(name), zeroenergy=energy, prodzeroenergy=prodzeroenergy))
                     else:
+                        print("{}\n{} | {}\n{}\n{}".format(rxn[1], len(frequencies), len(freq), frequencies, freq))
                         messStrings.append(f.read().format(name=' '.join(name),
                                                            freq=freq,
+                                                           nfreq=len(frequencies)-1,
                                                            cutoff=cutoff,
                                                            imfreq=imfreq,
                                                            left_zero=forward_barrier,
@@ -1174,7 +1234,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
         if par['me'] == 1:
             mess.run()
-        uq_obj.format_uqtk_data()
+    uq_obj.format_uqtk_data()
+
     return 0
 
 

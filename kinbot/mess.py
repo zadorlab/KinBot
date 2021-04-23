@@ -1,6 +1,7 @@
 from __future__ import print_function
 import logging
 import os
+import numpy as np
 import subprocess
 import time
 import pkg_resources
@@ -752,29 +753,31 @@ class MESS:
         rotortype = 'hindered'
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
+        rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
         # solution for 6-fold symmetry, not general enough
         if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
-            fit_angle = 60. * 2. * np.pi / 360. 
-            fit_energy = self.hir.get_fit_value(fit_angle)
-            ens.insert(1, fit_energy)
-        rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
+            fit_angle = 15. * 2. * np.pi / 360. 
+            fit_energy = species.hir.get_fit_value(fit_angle)  # kcal/mol
+            rotorpot.insert(1, fit_energy)
+            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm + 1]])
+        else:
+            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
+        rotorpot = '        {}'.format(rotorpot)
         if max(rotorpot) < self.par['free_rotor_thrs']:
             rotortype = 'free'
-        rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
-        rotorpot = '        {}'.format(rotorpot)
         return rotorpot, rotortype
 
 
     def rotorsymm(self, species, rot):
-        print(species.chemid)
-        print(species.sigma_int)
-        print(rot)
         return species.sigma_int[rot[1]][rot[2]]
 
 
     def nrotorpot(self, species, rot): 
         rotorsymm = self.rotorsymm(species, rot)
-        return species.hir.nrotation // rotorsymm
+        if species.hir.nrotation // rotorsymm > 2:
+            return species.hir.nrotation // rotorsymm
+        else:
+            return species.hir.nrotation // rotorsymm + 1
 
     def make_rotors(self, species, norot=None):
         rotors = []

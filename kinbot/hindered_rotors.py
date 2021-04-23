@@ -34,6 +34,8 @@ class HIR:
         self.hir_energies = []
         # Fourier fit of each scan
         self.hir_fourier = []
+        # number of terms for Fourier
+        self.n_terms = 6
         # all the geometries of the HIR scan points
         self.hir_geoms = []
 
@@ -165,7 +167,7 @@ class HIR:
                     # write profile to file
                     self.write_profile(rotor, job)
                     # Check to see if HIR failed, job will continue if failed, but warning will be generated
-                    A, a = self.fourier_fit(job, angles, rotor)
+                    a = self.fourier_fit(job, angles, rotor)
                     if(a == 0):
                         logging.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
                     else:
@@ -202,8 +204,6 @@ class HIR:
         energies = self.hir_energies[rotor]
         status = self.hir_status[rotor]
 
-        n_terms = 6  # the number of sine and cosine terms
-
         ang = [angles[i] for i in range(len(status)) if status[i] == 0]
         ens = [(energies[i] - energies[0])*constants.AUtoKCAL for i in range(len(status)) if status[i] == 0]
 
@@ -211,41 +211,41 @@ class HIR:
             # more than two points are off
             logging.warning("Hindered rotor potential has more than 2 failures for " + job)
 
-        X = np.zeros((len(ang), 2 * n_terms))
+        X = np.zeros((len(ang), 2 * self.n_terms))
         for i, ai in enumerate(ang):
-            for j in range(n_terms):
+            for j in range(self.n_terms):
                 X[i][j] = (1 - np.cos((j+1) * ai))
-                X[i][j+n_terms] = np.sin((j+1) * ai)
+                X[i][j+self.n_terms] = np.sin((j+1) * ai)
 
         if(len(ens) > 0):
             a = 1
-            A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
+            self.A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
 
             for i, si in enumerate(status):
                 if si == 1:
-                    energies[i] = energies[0] + self.get_fit_value(A, n_terms, angles[i])/constants.AUtoKCAL
+                    energies[i] = energies[0] + self.get_fit_value(angles[i])/constants.AUtoKCAL
             if self.plot_hir_profiles:
                 # fit the plot to a png file
                 plt.plot(ang, ens, 'ro')
                 fit_angles = [i * 2. * np.pi / 360 for i in range(360)]
-                fit_energies = [self.get_fit_value(A, n_terms, ai) for ai in fit_angles]
+                fit_energies = [self.get_fit_value(ai) for ai in fit_angles]
                 plt.plot(fit_angles, fit_energies)
                 plt.xlabel('Dihedral angle [radians]')
                 plt.ylabel('Energy [kcal/mol]')
                 plt.savefig('hir_profiles/{}.png'.format(job))
                 plt.clf()
         else:
-            A = 0
+            self.A = 0
             a = 0
 
-        return A, a
+        return a
 
-    def get_fit_value(self, A, n_terms, ai):
+    def get_fit_value(self, ai):
         """
         Get the fitted energy
         """
         e = 0.
-        for j in range(n_terms):
-            e += A[j] * (1 - np.cos((j+1) * ai))
-            e += A[j+n_terms] * np.sin((j+1) * ai)
+        for j in range(self.n_terms):
+            e += self.A[j] * (1 - np.cos((j+1) * ai))
+            e += self.A[j+self.n_terms] * np.sin((j+1) * ai)
         return e

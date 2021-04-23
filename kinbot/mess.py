@@ -752,6 +752,11 @@ class MESS:
         rotortype = 'hindered'
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
+        # solution for 6-fold symmetry, not general enough
+        if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
+            fit_angle = 60. * 2. * np.pi / 360. 
+            fit_energy = self.hir.get_fit_value(fit_angle)
+            ens.insert(1, fit_energy)
         rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
         if max(rotorpot) < self.par['free_rotor_thrs']:
             rotortype = 'free'

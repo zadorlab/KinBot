@@ -80,7 +80,6 @@ class ReactionFinder:
             self.barrierless_saddle = par['barrierless_saddle'][str(self.species.chemid)]
         except KeyError:
             self.barrierless_saddle = None
-
         #keys: names of the families
         #values: list of instances
         #this dict is used to keep track of the unique reactions found,
@@ -2298,7 +2297,6 @@ class ReactionFinder:
 
         if not name in self.reactions:
             self.reactions[name] = []
-
         if self.barrierless_saddle is not None:
             rxns = self.barrierless_saddle  # defined by the user
         else:

@@ -49,6 +49,8 @@ class MESS:
             self.pstfragmenttpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')) as f:
             self.hinderedrotortpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_freerotor.tpl')) as f:
+            self.freerotortpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_atom.tpl')) as f:
             self.atomtpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_tunneling.tpl')) as f:
@@ -747,12 +749,15 @@ class MESS:
 
 
     def make_rotorpot(self, species, i, rot):
+        rotortype = 'hindered'
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
         rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
+        if max(rotorpot) < self.par['free_rotor_thrs']:
+            rotortype = 'free'
         rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
         rotorpot = '        {}'.format(rotorpot)
-        return rotorpot
+        return rotorpot, rotortype
 
 
     def rotorsymm(self, species, rot):
@@ -773,13 +778,22 @@ class MESS:
                 if norot is not None:
                     if frequencies.skip_rotor(norot, rot) == 1:
                         continue
-                rotors.append(self.hinderedrotortpl.format(geom=self.make_geom(species),
+                rotorpot, rotortype = self.make_rotorpot(species, i, rot)
+                if rotortype == 'hindered':
+                    rotors.append(self.hinderedrotortpl.format(geom=self.make_geom(species),
+                                                               natom=species.natom,
+                                                               group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
+                                                               axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
+                                                               rotorsymm=self.rotorsymm(species, rot),
+                                                               nrotorpot=self.nrotorpot(species, rot),
+                                                               rotorpot=rotorpot))
+                elif rotortype == 'free':
+                    rotors.append(self.freerotortpl.format(geom=self.make_geom(species),
                                                            natom=species.natom,
                                                            group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
                                                            axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
-                                                           rotorsymm=self.rotorsymm(species, rot),
-                                                           nrotorpot=self.nrotorpot(species, rot),
-                                                           rotorpot=self.make_rotorpot(species, i, rot)))
+                                                           ))
+
         rotors = '\n'.join(rotors)
         return rotors
 

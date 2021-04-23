@@ -93,6 +93,8 @@ class Parameters:
             'semi_emp_conformer_search': 0,
             # Do a hindered rotor scan
             'rotor_scan': 0,
+            # Energy threshold for free rotor in kcal/mol
+            'free_rotor_thrs': 0.1,
             # Number of points along the rotor scan
             'nrotation': 12,
             # Make figures of the HIR profiles

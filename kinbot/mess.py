@@ -754,6 +754,7 @@ class MESS:
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
         rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
+        maxen = max(rotorpot)
         # solution for 6-fold symmetry, not general enough
         if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
             fit_angle = 15. * 2. * np.pi / 360. 
@@ -763,7 +764,7 @@ class MESS:
         else:
             rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
         rotorpot = '        {}'.format(rotorpot)
-        if max(rotorpot) < self.par['free_rotor_thrs']:
+        if maxen < self.par['free_rotor_thrs']:
             rotortype = 'free'
         return rotorpot, rotortype
 

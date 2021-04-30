@@ -14,7 +14,7 @@ AUtoS = 2.418884326505E-17
 AUtoMDYNE = 8.2387234983  # au of force to mDyne = 1e-8 N
 
 # elements currently in KinBot
-elements = ['C', 'H', 'O', 'N', 'S', 'F', 'Cl']
+elements = ['C', 'H', 'O', 'N', 'S', 'F', 'Cl', 'Br', 'I']
 
 # standard bond lengths, cutoffs, and oxidation numbers
 st_bond = {'CC': 1.5*1.2}

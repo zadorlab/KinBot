@@ -145,9 +145,6 @@ class StationaryPoint:
                 if i == j: continue
                 atom_pair = [self.atom[i], self.atom[j]]
                 atom_pair = sorted(atom_pair)
-                print(atom_pair)
-                #print("i: {} j: {}".format(self.atom[i], self.atom[j]))
-                #print("joined: {}".format(''.join(sorted(self.atom[i]+self.atom[j]))))
                 #if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
                 if self.dist[i][j] < constants.st_bond[''.join(atom_pair)]:
                     self.bond[i][j] = 1

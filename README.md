@@ -17,9 +17,9 @@ Ruben Van de Vijver, Judit Zádor: KinBot: Automated stationary point search on 
 ## How to Install
 Make sure all dependencies are correctly installed. The dependencies are lister here https://github.com/zadorlab/KinBot/wiki/Setting-Up-KinBot-on-Your-System 
 
-Clone the project to the place where you want to run it. Make sure you switch to the latest version, e.g., 2.0.1:
+Clone the project to the place where you want to run it. Make sure you switch to the latest version, e.g., 2.0.5:
 
-    git branch 2.0.1
+    git branch 2.0.5
 
 You can find the latest stable version's tag if you click on the Branch button above on this page.
 

@@ -38,11 +38,6 @@ Moreover, if you plan to modify the code, you need to install it as:
     python setup.py build
     python setup.py develop --user
 
-Alternatively, you can also install the latest stable version (however, this is currently way behind compared to what is on GitHub, so currently the github installation is preferred) using conda:
-
-    conda install -c rdkit -c openbabel -c zadorlab kinbot
-
-
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:
 

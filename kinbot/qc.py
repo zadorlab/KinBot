@@ -404,6 +404,7 @@ class QuantumChemistry:
                 atom = np.append(atom, ['X'])
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
+
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,

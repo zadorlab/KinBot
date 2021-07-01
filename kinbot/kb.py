@@ -10,12 +10,12 @@ KinBot will search for
 4. call the reac_generator method to search for the reactions
 on the PES
 """
-
 from __future__ import print_function
 import sys
 import os
 import logging
 import datetime
+
 from kinbot import filecopying
 from kinbot import license_message
 from kinbot import postprocess
@@ -100,12 +100,12 @@ def main():
     well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
     start_name = well0.name
+    # for debugging
     f=open("chemid", 'w')
     f.write(str(well0.chemid))
     f.close()
 
     # create sql db
-    # postprocess.delete_sql_db(well0)
     postprocess.create_sql_db(well0)
 
     # initialize the qc instance
@@ -124,6 +124,7 @@ def main():
 
     # start the initial optimization of the reactant
     logging.info('Starting optimization of intial well {}'.format(well0.chemid))
+    # for debugging
     tmp=open("geom0.xyz",'w')
     tmp.write("chemid: {}\natom: {}\nbond: {}\n{}".format(well0.chemid, well0.atom, well0.bond, str(well0.geom)))
     tmp.close()
@@ -138,14 +139,12 @@ def main():
         return
     if any(well0.freq[i] <= 0 for i in range(len(well0.freq))):
         logging.error('Found imaginary frequency for initial structure.')
-        return
 
     # characterize again and look for differences
     well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
-    #if well0.name != start_name:
-    #    logging.error('The first well optimized to a structure different from the input.')
-    #    return
+    if well0.name != start_name:
+       logging.error('The first well optimized to a structure different from the input.')
 
     # do an MP2 optimization of the reactant,
     # to compare some scan barrier heigths to
@@ -219,7 +218,7 @@ def main():
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
     uq_obj = UQ(par)
-    #uq_obj.format_uqtk_data()
+    # uq_obj.format_uqtk_data()  # needs editing
 
     logging.info('Finished KinBot at {}'.format(datetime.datetime.now()))
     print("Done!")

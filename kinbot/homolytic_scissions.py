@@ -84,7 +84,6 @@ class HomolyticScissions:
                             for be in b_e:
                                 if add == 0:
                                     if sorted(user_bond) == bond_elements:
-                                    #if sorted(user_bond) == bond_elements:
                                     # if there is a match between the current bond and a user-defined
                                     # bond, put the add boolean to 1
                                         add = 1
@@ -104,7 +103,6 @@ class HomolyticScissions:
                                 hs.create_geometries()
                                 self.hss.append(hs)
 
-        
         # optimize the products of the hss
         while not all([hs.status < 0 for hs in self.hss]):
             for index, hs in enumerate(self.hss):

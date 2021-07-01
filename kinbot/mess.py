@@ -3,6 +3,7 @@ import os
 import subprocess
 import time
 import pkg_resources
+
 from collections import Counter
 from kinbot import constants
 from kinbot import frequencies
@@ -78,7 +79,6 @@ class MESS:
         uq_obj = UQ(self.par)
         species = 'None'
 
-
         # UQ for energy relaxation parameters and sigma/epsilon parameters for wells
         e_well = self.par['epsilon']
         e_well_factor, e_well_normfactor = uq_obj.calc_factor('e_well', species, uq_iter, 1)
@@ -90,14 +90,14 @@ class MESS:
         s_well = s_well * s_well_factor
         uq_obj.write_uqtk_data("s_well", s_well_normfactor, species, uq_iter)
         
-        EnergyRelaxationFactor = self.par['EnergyRelaxationFactor']
-        EnergyRelaxationFactor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', species, uq_iter, 1)
-        EnergyRelaxationFactor = EnergyRelaxationFactor * EnergyRelaxationFactor_factor
+        energy_relaxation_factor = self.par['EnergyRelaxationFactor']
+        energy_relaxation_factor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', species, uq_iter, 1)
+        energy_relaxation_factor = energy_relaxation_factor * energy_relaxation_factor_factor
         uq_obj.write_uqtk_data("relax_factor", relax_factor_normfactor, species, uq_iter)
         
-        EnergyRelaxationPower = self.par['EnergyRelaxationPower']
-        EnergyRelaxationPower_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', species, uq_iter, 1)
-        EnergyRelaxationPower = EnergyRelaxationPower + EnergyRelaxationPower_factor
+        energy_relaxation_power = self.par['EnergyRelaxationPower']
+        energy_relaxation_power_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', species, uq_iter, 1)
+        energy_relaxation_power = energy_relaxation_power + energy-relaxation_power_factor
         uq_obj.write_uqtk_data("relax_power", relax_power_normfactor, species, uq_iter)
 
         # Read the header template
@@ -109,8 +109,8 @@ class MESS:
                                        CalculationMethod=self.par['CalculationMethod'],
                                        ChemicalEigenvalueMax=self.par['ChemicalEigenvalueMax'],
                                        Reactant=self.well_names[self.species.chemid],
-                                       EnergyRelaxationFactor=EnergyRelaxationFactor,
-                                       EnergyRelaxationPower=EnergyRelaxationPower,
+                                       EnergyRelaxationFactor=energy_relaxation_factor,
+                                       EnergyRelaxationPower=energy_relaxation_power,
                                        EnergyRelaxationExponentCutoff=self.par['EnergyRelaxationExponentCutoff'],
                                        e_coll=constants.epsilon[self.par['collider']],
                                        s_coll=constants.sigma[self.par['collider']],
@@ -182,7 +182,6 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
-
         uq_obj = UQ(self.par)
 
         # create short names for all the species, bimolecular products and barriers
@@ -357,7 +356,7 @@ class MESS:
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
                 f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
 
-        #uq_obj.format_uqtk_data() 
+        # uq_obj.format_uqtk_data()  # needs editing
 
         return 0
 
@@ -401,13 +400,13 @@ class MESS:
             combined_freq = ''
             combined_hir = ''
         smi = []
-        for nsp, species in enumerate(prod_list):
+        for i, species in enumerate(prod_list):
             smi.append(species.smiles)
             if species.natom > 1:
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
-                    freq = '{{freq_{}}}'.format(nsp) 
-                    nfreq = '{{nfreq_{}}}'.format(nsp)
+                    freq = '{{freq_{}}}'.format(i) 
+                    nfreq = '{{nfreq_{}}}'.format(i)
                 else:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
                     freq = self.make_freq(species, freqFactor, 0)

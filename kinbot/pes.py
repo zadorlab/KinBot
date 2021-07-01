@@ -1021,7 +1021,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             level = ''
         elif par['high_level'] == 1:
             level = '_high'
-
+        """
         # TEST SQL DB
         all_data = []
         for rxn in reactions:
@@ -1039,7 +1039,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         all_data.append(list_data)
                 if i == 3:
                     pass
-
+        """
         if par['high_level'] == 0:
             level = 'L1'
         elif par['high_level'] == 1:
@@ -1234,7 +1234,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
         if par['me'] == 1:
             mess.run()
-    uq_obj.format_uqtk_data()
+    #uq_obj.format_uqtk_data()
 
     return 0
 

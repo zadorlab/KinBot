@@ -706,15 +706,18 @@ class MESS:
                 time.sleep(1)
                 for pid in pids:
                     stat = self.check_running(pid)
-                    if stat == 0:
+                    if stat == 1:  # rosalind
+                    # if stat == 0: #  menten
                         pids.remove(pid)
                         pid_stats.append(stat)
             pid = self.submit(submitscript)
             pids.append(pid)
 
             if self.par['uq_n'] < self.par['uq_max_runs']:
-                stat = 1
-                while stat != 0:
+                # stat = 1  # menten
+                stat = 0  #rosalind
+                # while stat != 0:  # menten
+                while stat != 1:  # rosalind
                     stat = self.check_running(pid)
                     # time.sleep(5)
                     time.sleep(1)

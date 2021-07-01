@@ -93,8 +93,11 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index)
             l2_freq, l2_red_freq = frequencies.get_frequencies(species, l2_hess, l2_xyz)
 
     if par['rotor_scan'] == 1 and well_prod_ts < 2:
-        hir_potentials = species.hir.hir_energies
-
+        try:
+            hir_potentials = species.hir.hir_energies
+        except:
+            hir_potentials = 0
+            logging.error("{} Has not HIR POTENTIALS".format(species_name))
     # NEED TO DEFINE HOW TO GRAB L3 ENERGY
     # NEED TO DEFINE SYMM FACTOR - MAY NOT BE NECCESSARY YET
 

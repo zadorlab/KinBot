@@ -385,6 +385,8 @@ class QuantumChemistry:
         else:
             mult = species.mult
 
+        # TEMPORARY FIX FOR CYPOO PROJECT
+
         kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
 
         if self.qc == 'gauss':
@@ -404,7 +406,7 @@ class QuantumChemistry:
                 atom = np.append(atom, ['X'])
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
-
+        print(species.chemid)
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,

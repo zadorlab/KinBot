@@ -100,6 +100,9 @@ def main():
     well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
     start_name = well0.name
+    f=open("chemid", 'w')
+    f.write(str(well0.chemid))
+    f.close()
 
     # create sql db
     # postprocess.delete_sql_db(well0)
@@ -120,7 +123,11 @@ def main():
     #            time.sleep(1)
 
     # start the initial optimization of the reactant
-    logging.info('Starting optimization of intial well')
+    logging.info('Starting optimization of intial well {}'.format(well0.chemid))
+    tmp=open("geom0.xyz",'w')
+    tmp.write("chemid: {}\natom: {}\nbond: {}\n{}".format(well0.chemid, well0.atom, well0.bond, str(well0.geom)))
+    tmp.close()
+
     qc.qc_opt(well0, well0.geom)
     err, well0.geom = qc.get_qc_geom(str(well0.chemid) + '_well',
                                      well0.natom, wait=1)
@@ -136,9 +143,9 @@ def main():
     # characterize again and look for differences
     well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
-    if well0.name != start_name:
-        logging.error('The first well optimized to a structure different from the input.')
-        return
+    #if well0.name != start_name:
+    #    logging.error('The first well optimized to a structure different from the input.')
+    #    return
 
     # do an MP2 optimization of the reactant,
     # to compare some scan barrier heigths to
@@ -153,7 +160,7 @@ def main():
             'r14_birad_scission' not in par['skip_families'] or \
             'R_Addition_MultipleBond' not in par['skip_families'])) or \
             par['reaction_search'] == 0:
-        logging.info('Starting MP2 optimization of intial well')
+        logging.info('Starting MP2 optimization of intial well {}'.format(well0.name))
         qc.qc_opt(well0, well0.geom, mp2=1)
         err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
 
@@ -212,7 +219,7 @@ def main():
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
     uq_obj = UQ(par)
-    uq_obj.format_uqtk_data()
+    #uq_obj.format_uqtk_data()
 
     logging.info('Finished KinBot at {}'.format(datetime.datetime.now()))
     print("Done!")

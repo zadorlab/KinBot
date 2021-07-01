@@ -340,6 +340,7 @@ class Optimize:
                             key = self.par['single_point_key']
                             molp.create_molpro_input()
                         molp.create_molpro_submit()
+                        print(key)
                         status, molpro_energy = molp.get_molpro_energy(key)
 
                         # FIXME this might be wrong here:

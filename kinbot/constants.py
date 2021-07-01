@@ -64,7 +64,7 @@ mass['O'] = 16
 mass['S'] = 32
 mass['F'] = 19
 mass['Cl'] = 35  # isotopes = Cl-35, Cl-37, Cl-36 (3 most stable/common)
-mass['Br'] = 80  # isotopes = Br-79, Br-81, Br-77 (3 most stable/common)
+mass['Br'] = 79  # isotopes = Br-79, Br-81, Br-77 (3 most stable/common)
 mass['I'] = 127  
 
 exact_mass = {'H': 1.00782503207}

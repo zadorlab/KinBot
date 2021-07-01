@@ -9,6 +9,7 @@ from __future__ import with_statement
 import sys
 import json
 import logging
+from ase import units
 
 
 class Parameters:
@@ -93,6 +94,8 @@ class Parameters:
             'semi_emp_conformer_search': 0,
             # Do a hindered rotor scan
             'rotor_scan': 0,
+            # Energy threshold for free rotor in kcal/mol
+            'free_rotor_thrs': 0.1,
             # Number of points along the rotor scan
             'nrotation': 12,
             # Make figures of the HIR profiles
@@ -238,6 +241,7 @@ class Parameters:
             # collision parameters
             'collider': 'He',
             'epsilon': 0.0,
+            'epsilon_unit': 'K',  # can be K or J/mol or cm-1
             'sigma': 0.0,
             # MESS specific keywords
             'mess_command': 'mess',
@@ -299,6 +303,17 @@ class Parameters:
                 sys.exit(-1)
             if self.par['rotor_scan'] == 0:
                 err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
+                logging.error(err)
+                sys.exit(-1)
+            # convert to cm-1 units
+            if self.par['epsilon_unit'] == 'cm-1':  # units in MESS
+                pass
+            elif self.par['epsilon_unit'] == 'K':  # CHEMKIN units, default
+                self.par['epsilon'] *= units.kB / units.invcm
+            elif self.par['epsilon_unit'] == 'J/mol':  # units in RMG
+                self.par['epsilon'] *= units.J / units.mol / units.invcm
+            else:
+                err = 'Unknown unit for epsilon, has to be K, J/mol or cm-1'
                 logging.error(err)
                 sys.exit(-1)
                 

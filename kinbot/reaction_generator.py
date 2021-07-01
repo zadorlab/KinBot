@@ -2,6 +2,7 @@ import numpy as np
 import os
 import time
 import logging
+import copy
 
 from kinbot import constants
 from kinbot import filecopying
@@ -83,13 +84,23 @@ class ReactionGenerator:
                         logging.info('\tRxn search failed (error or killed) for {}'
                                      .format(obj.instance_name))
                         self.species.reac_ts_done[index] = -999
+                if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
+                    # somewhat messy manipulation to force the new bond matrix for hom_sci
+                    obj.products = copy.deepcopy(obj.species)
+                    obj.products.bonds = copy.deepcopy(obj.species.bond)  # plural/non plural!
+                    obj.products.bonds[obj.instance[0]][obj.instance[1]] = 0  # delete bond
+                    obj.products.bonds[obj.instance[1]][obj.instance[0]] = 0  # delete bond
+                    obj.products.bond[obj.instance[0]][obj.instance[1]] = 0  # delete bond
+                    obj.products.bond[obj.instance[1]][obj.instance[0]] = 0  # delete bond
+                    obj.product_bonds = copy.deepcopy(obj.species.bonds[0])  # the first resonance structure
+                    obj.product_bonds[obj.instance[0]][obj.instance[1]] = 0  # delete bond
+                    obj.product_bonds[obj.instance[1]][obj.instance[0]] = 0  # delete bond
+                    self.species.reac_ts_done[index] = 2
                 if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
                     if obj.scan == 0:  # don't do a scan of a bond
                         if self.species.reac_step[index] == obj.max_step + 1:
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
                             if status == 0 and freq[0] < 0. and freq[1] > 0.:
-                                self.species.reac_ts_done[index] = 1
-                            elif self.species.reac_type[index] == 'hom_sci':  # no matter what, set to 1
                                 self.species.reac_ts_done[index] = 1
                             elif status == 0 and freq[0] > 0.:
                                 logging.info('\tRxn search failed for {}, no imaginary freq.'
@@ -343,19 +354,23 @@ class ReactionGenerator:
                         for j in range(self.species.natom):
                             bond_mx[i][j] = max(self.species.bond[i][j], obj.product_bonds[i][j])
 
-                    err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
-                    ts = StationaryPoint(obj.instance_name, self.species.charge, self.species.mult,
-                                         atom=self.species.atom, geom=geom, wellorts=1)
-                    err, ts.energy = self.qc.get_qc_energy(obj.instance_name)
-                    err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)  # NEW STOPS HERE
-                    ts.distance_mx()
-                    ts.bond = bond_mx
-                    ts.find_cycle()
-                    ts.find_conf_dihedral()
-                    obj.ts = ts
-                    # do the ts optimization
-                    obj.ts_opt = Optimize(obj.ts, self.par, self.qc)
-                    obj.ts_opt.do_optimization()
+                    if self.species.reac_type[index] != 'hom_sci':  
+                        err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
+                        ts = StationaryPoint(obj.instance_name, self.species.charge, self.species.mult,
+                                             atom=self.species.atom, geom=geom, wellorts=1)
+                        err, ts.energy = self.qc.get_qc_energy(obj.instance_name)
+                        err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)  # NEW STOPS HERE
+                        ts.distance_mx()
+                        ts.bond = bond_mx
+                        ts.find_cycle()
+                        ts.find_conf_dihedral()
+                        obj.ts = ts
+                        # do the ts optimization
+                        obj.ts_opt = Optimize(obj.ts, self.par, self.qc)
+                        obj.ts_opt.do_optimization()
+                    else:
+                        obj.ts = copy.deepcopy(obj.species)  # the TS will be for now the species itself
+                        obj.ts.wellorts = 1
 
                     # do the products optimizations
                     for st_pt in obj.products:
@@ -394,12 +409,13 @@ class ReactionGenerator:
                     opts_done = 1
                     fails = 0
                     # check if ts is done
-                    if not obj.ts_opt.shir == 1:
-                        opts_done = 0
-                        obj.ts_opt.do_optimization()
-                    if obj.ts_opt.shigh == -999:
-                        logging.info("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
-                        fails = 1
+                    if self.species.reac_type[index] != 'hom_sci':
+                        if not obj.ts_opt.shir == 1:  # last stage in optimize
+                            opts_done = 0
+                            obj.ts_opt.do_optimization()
+                        if obj.ts_opt.shigh == -999:
+                            logging.info("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
+                            fails = 1
                     for pr_opt in obj.prod_opt:
                         if not pr_opt.shir == 1:
                             opts_done = 0

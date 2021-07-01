@@ -8,7 +8,7 @@ import logging
 # try to import pybel
 try:
     import pybel
-except:
+except ImportError:
     try:
         from openbabel import pybel
     except:
@@ -41,6 +41,7 @@ def get_molecular_formula(smi):
         logging.error('RDKit is not installed or loaded correctly.')
         sys.exit()
     return rdMolDescriptors.CalcMolFormula(mol)
+
 
 def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
     """

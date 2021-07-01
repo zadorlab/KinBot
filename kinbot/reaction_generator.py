@@ -66,12 +66,12 @@ class ReactionGenerator:
         for i in self.species.reac_inst:
             count = count + 1
         frag_unique = []
-        #try:
-        #    import pybel
-        #    pybelErr = 0
-        #except ImportError:
-        logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
-        pybelErpr = 1
+        try:
+            import pybel
+            pybelErr = 0
+        except ImportError:
+            logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
+            pybelErr = 1
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
@@ -344,7 +344,7 @@ class ReactionGenerator:
                                 if e < 0:
                                     err = -1
                     if err == 0:
-                        #self.test_stereochem_pybel(pybelErr, obj)
+                        self.test_stereochem_pybel(pybelErr, obj)
                         self.species.reac_ts_done[index] = 4
                 elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization
@@ -625,7 +625,8 @@ class ReactionGenerator:
         """
 
         if pybelErr == 1:
-            return 0
+            logging.info("pybel cannot be imported so stereochemistry is not checked")
+            return 
         
         well0_stereochem = self.get_stereochemistry(self.species.atom, self.species.geom)
 
@@ -637,7 +638,7 @@ class ReactionGenerator:
                                     .format(prod.chemid, obj.instance_name))
             else:
                 continue
-        return 0
+        return
 
     def get_stereochemistry(self, atom, geom):
         inchi = cheminfo.create_inchi_from_geom(atom, geom)

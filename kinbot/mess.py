@@ -1,9 +1,11 @@
 from __future__ import print_function
+import logging
 import os
 import numpy as np
 import subprocess
 import time
 import pkg_resources
+
 from collections import Counter
 from kinbot import constants
 from kinbot import frequencies
@@ -81,7 +83,6 @@ class MESS:
         uq_obj = UQ(self.par)
         species = 'None'
 
-
         # UQ for energy relaxation parameters and sigma/epsilon parameters for wells
         e_well = self.par['epsilon']
         e_well_factor, e_well_normfactor = uq_obj.calc_factor('e_well', species, uq_iter, 1)
@@ -93,14 +94,14 @@ class MESS:
         s_well = s_well * s_well_factor
         uq_obj.write_uqtk_data("s_well", s_well_normfactor, species, uq_iter)
         
-        EnergyRelaxationFactor = self.par['EnergyRelaxationFactor']
-        EnergyRelaxationFactor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', species, uq_iter, 1)
-        EnergyRelaxationFactor = EnergyRelaxationFactor * EnergyRelaxationFactor_factor
+        energy_relaxation_factor = self.par['EnergyRelaxationFactor']
+        energy_relaxation_factor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', species, uq_iter, 1)
+        energy_relaxation_factor = energy_relaxation_factor * energy_relaxation_factor_factor
         uq_obj.write_uqtk_data("relax_factor", relax_factor_normfactor, species, uq_iter)
         
-        EnergyRelaxationPower = self.par['EnergyRelaxationPower']
-        EnergyRelaxationPower_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', species, uq_iter, 1)
-        EnergyRelaxationPower = EnergyRelaxationPower + EnergyRelaxationPower_factor
+        energy_relaxation_power = self.par['EnergyRelaxationPower']
+        energy_relaxation_power_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', species, uq_iter, 1)
+        energy_relaxation_power = energy_relaxation_power + energy-relaxation_power_factor
         uq_obj.write_uqtk_data("relax_power", relax_power_normfactor, species, uq_iter)
 
         # Read the header template
@@ -112,8 +113,8 @@ class MESS:
                                        CalculationMethod=self.par['CalculationMethod'],
                                        ChemicalEigenvalueMax=self.par['ChemicalEigenvalueMax'],
                                        Reactant=self.well_names[self.species.chemid],
-                                       EnergyRelaxationFactor=EnergyRelaxationFactor,
-                                       EnergyRelaxationPower=EnergyRelaxationPower,
+                                       EnergyRelaxationFactor=energy_relaxation_factor,
+                                       EnergyRelaxationPower=energy_relaxation_power,
                                        EnergyRelaxationExponentCutoff=self.par['EnergyRelaxationExponentCutoff'],
                                        e_coll=constants.epsilon[self.par['collider']],
                                        s_coll=constants.sigma[self.par['collider']],
@@ -185,7 +186,6 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
-
         uq_obj = UQ(self.par)
 
         # create short names for all the species, bimolecular products and barriers
@@ -360,7 +360,7 @@ class MESS:
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
                 f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
 
-        #uq_obj.format_uqtk_data() 
+        # uq_obj.format_uqtk_data()  # needs editing
 
         return 0
 
@@ -404,13 +404,13 @@ class MESS:
             combined_freq = ''
             combined_hir = ''
         smi = []
-        for nsp, species in enumerate(prod_list):
+        for i, species in enumerate(prod_list):
             smi.append(species.smiles)
             if species.natom > 1:
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
-                    freq = '{{freq_{}}}'.format(nsp) 
-                    nfreq = '{{nfreq_{}}}'.format(nsp)
+                    freq = '{{freq_{}}}'.format(i) 
+                    nfreq = '{{nfreq_{}}}'.format(i)
                 else:
                     name = self.fragment_names[species.chemid] + ' ! ' + str(species.chemid)
                     freq = self.make_freq(species, freqFactor, 0)
@@ -709,15 +709,18 @@ class MESS:
                 time.sleep(1)
                 for pid in pids:
                     stat = self.check_running(pid)
-                    if stat == 0:
+                    if stat == 1:  # rosalind
+                    # if stat == 0: #  menten
                         pids.remove(pid)
                         pid_stats.append(stat)
             pid = self.submit(submitscript)
             pids.append(pid)
 
             if self.par['uq_n'] < self.par['uq_max_runs']:
-                stat = 1
-                while stat != 0:
+                # stat = 1  # menten
+                stat = 0  #rosalind
+                # while stat != 0:  # menten
+                while stat != 1:  # rosalind
                     stat = self.check_running(pid)
                     # time.sleep(5)
                     time.sleep(1)
@@ -806,7 +809,7 @@ class MESS:
 
 
     def make_rotorpot(self, species, i, rot, rot_factor, uq_iter):
-        rototype = 'hindered'
+        rotortype = 'hindered'
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
         if self.par['uq'] == 1:
@@ -815,6 +818,10 @@ class MESS:
         else:
             rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
         maxen = max(rotorpot)
+        for i, ei in enumerate(rotorpot):
+            f=open("rotors_val.txt", "a")
+            f.write("{}\t{}\t{}\t{}\n".format(uq_iter, rot_factor, ens[i], rotorpot[i]))
+            f.close()
         # solution for 6-fold symmetry, not general enough
         if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
             fit_angle = 15. * 2. * np.pi / 360. 

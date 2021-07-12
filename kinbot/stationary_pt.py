@@ -268,8 +268,8 @@ class StationaryPoint:
                 from kinbot.cheminfo import create_rdkit_mol
                 mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
             except ImportError:
-                #print('Warning: RDKit could not be imported.')
-                #print('Certain features or the whole code might not run properly.')
+                logging.error("Warning: RDKit could not be imported.")
+                logging.errog("Certain features or the whole code might not run properly.")
                 pass
             
         return 0

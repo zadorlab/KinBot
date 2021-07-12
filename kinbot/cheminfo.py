@@ -8,7 +8,7 @@ import logging
 # try to import pybel
 try:
     import pybel
-except:
+except ImportError:
     try:
         from openbabel import pybel
     except:
@@ -31,16 +31,17 @@ num_to_syms = {1: 'H', 6: 'C', 7: 'N', 8: 'O', 16: 'S'}
 syms_to_num = {'H': 1, 'C': 6, 'N': 7, 'O': 8, 'S': 16}
 
 
-"""
 def get_molecular_formula(smi):
+    """
     Return the molecular formula of the molecule corresponding to the smiles
+    """
     try:
         mol = Chem.AddHs(Chem.MolFromSmiles(smi))
     except NameError:
         logging.error('RDKit is not installed or loaded correctly.')
         sys.exit()
     return rdMolDescriptors.CalcMolFormula(mol)
-"""
+
 
 def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
     """

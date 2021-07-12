@@ -217,7 +217,7 @@ def main():
     # do something like postprocess, but with new energies
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
     
-    # Notify user the search done
+    # Notify user the search s done
     logging.info('PES search done!')
     print('PES search done!')
 
@@ -514,7 +514,7 @@ def postprocess(par, jobs, task, names):
 
     barrierless = []
     rxns = []
-    # rxn = [react, ts, prod(s), barrier]
+    # rxn array format = [react, ts, prod(s), barrier]
     for rxn in reactions:
         if rxn[1] == 'barrierless':
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
@@ -531,7 +531,6 @@ def postprocess(par, jobs, task, names):
                            highlight)
     if par['me'] == 1:
         if len(reactions) > 0:
-            print("CREATE MESS")
             create_mess_input(par,
                               wells,
                               products,
@@ -969,14 +968,14 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         s_well = s_well * s_well_factor
         uq_obj.write_uqtk_data("s_well", s_well_normfactor, 'none', uq_iter)
 
-        EnergyRelaxationFactor = par['EnergyRelaxationFactor']
-        EnergyRelaxationFactor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', 'none', uq_iter, 1)
-        EnergyRelaxationFactor = EnergyRelaxationFactor * EnergyRelaxationFactor_factor
+        energy_relaxation_factor = par['EnergyRelaxationFactor']
+        energy_relaxation_factor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', 'none', uq_iter, 1)
+        energy_relaxation_factor = energy_relaxation_factor * energy_relaxation_factor_factor
         uq_obj.write_uqtk_data("relax_factor", relax_factor_normfactor, 'none', uq_iter)
 
-        EnergyRelaxationPower = par['EnergyRelaxationPower']
-        EnergyRelaxationPower_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', 'none', uq_iter, 1)
-        EnergyRelaxationPower = EnergyRelaxationPower + EnergyRelaxationPower_factor
+        energy_relaxation_power = par['EnergyRelaxationPower']
+        energy_relaxation_power_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', 'none', uq_iter, 1)
+        energy_relaxation_power = energy_relaxation_power + energy_relaxation_power_factor
         uq_obj.write_uqtk_data("relax_power", relax_power_normfactor, 'none', uq_iter)
 
         # Read the header template
@@ -991,8 +990,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                             CalculationMethod=par['CalculationMethod'],
                             ChemicalEigenvalueMax=par['ChemicalEigenvalueMax'],
                             Reactant=well_short[wells[0]],
-                            EnergyRelaxationFactor=EnergyRelaxationFactor,
-                            EnergyRelaxationPower=EnergyRelaxationPower,
+                            EnergyRelaxationFactor=energy_relaxation_factor,
+                            EnergyRelaxationPower=energy_relaxation_power,
                             EnergyRelaxationExponentCutoff=par['EnergyRelaxationExponentCutoff'],
                             e_coll=constants.epsilon[par['collider']],
                             s_coll=constants.sigma[par['collider']],
@@ -1021,7 +1020,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             level = ''
         elif par['high_level'] == 1:
             level = '_high'
-
+        """
         # TEST SQL DB
         all_data = []
         for rxn in reactions:
@@ -1039,7 +1038,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         all_data.append(list_data)
                 if i == 3:
                     pass
-
+        """
         if par['high_level'] == 0:
             level = 'L1'
         elif par['high_level'] == 1:
@@ -1234,7 +1233,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
         if par['me'] == 1:
             mess.run()
-    uq_obj.format_uqtk_data()
+    #uq_obj.format_uqtk_data()
 
     return 0
 

@@ -541,7 +541,7 @@ def postprocess(par, jobs, task, names):
                               parent)
         else:
             print("NO REACTIONS GENERATED FOR {}".format(parent))
-            logging.error("NO REACTIONS GENERATED FOR {}".format(parent))
+            logging.error("NO REACTIONS GENERATED FOR {}, check the kinbot.err files".format(parent))
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -907,6 +907,51 @@ def create_short_names(wells, products, reactions, barrierless):
 
     return well_short, pr_short, fr_short, ts_short, nobar_short
 
+def create_mess_header(par, uq_obj, uq_iter):
+    # UQ for energy relaxation parameters and sigma/epsilon parameters for wells
+    e_well = par['epsilon']
+    e_well_factor, e_well_normfactor = uq_obj.calc_factor('e_well', 'none', uq_iter, 1)
+    e_well = e_well * e_well_factor
+    uq_obj.write_uqtk_data("e_well", e_well_normfactor, 'none', uq_iter)
+
+    s_well = par['sigma']
+    s_well_factor, s_well_normfactor = uq_obj.calc_factor('s_well', 'none', uq_iter, 1)
+    s_well = s_well * s_well_factor
+    uq_obj.write_uqtk_data("s_well", s_well_normfactor, 'none', uq_iter)
+
+    energy_relaxation_factor = par['EnergyRelaxationFactor']
+    energy_relaxation_factor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', 'none', uq_iter, 1)
+    energy_relaxation_factor = energy_relaxation_factor * energy_relaxation_factor_factor
+    uq_obj.write_uqtk_data("relax_factor", relax_factor_normfactor, 'none', uq_iter)
+
+    energy_relaxation_power = par['EnergyRelaxationPower']
+    energy_relaxation_power_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', 'none', uq_iter, 1)
+    energy_relaxation_power = energy_relaxation_power + energy_relaxation_power_factor
+    uq_obj.write_uqtk_data("relax_power", relax_power_normfactor, 'none', uq_iter)
+
+    # Read the header template
+    header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
+    with open(header_file) as f:
+        tpl = f.read()
+    header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par['TemperatureList']]),
+                        PressureList=' '.join([str(pi) for pi in par['PressureList']]),
+                        EnergyStepOverTemperature=par['EnergyStepOverTemperature'],
+                        ExcessEnergyOverTemperature=par['ExcessEnergyOverTemperature'],
+                        ModelEnergyLimit=par['ModelEnergyLimit'],
+                        CalculationMethod=par['CalculationMethod'],
+                        ChemicalEigenvalueMax=par['ChemicalEigenvalueMax'],
+                        Reactant=well_short[wells[0]],
+                        EnergyRelaxationFactor=energy_relaxation_factor,
+                        EnergyRelaxationPower=energy_relaxation_power,
+                        EnergyRelaxationExponentCutoff=par['EnergyRelaxationExponentCutoff'],
+                        e_coll=constants.epsilon[par['collider']],
+                        s_coll=constants.sigma[par['collider']],
+                        m_coll=constants.mass[par['collider']],
+                        e_well=e_well,
+                        s_well=s_well,
+                        m_well=well0.mass,
+                        )
+    return header
 
 def create_mess_input(par, wells, products, reactions, barrierless,
                       well_energies, prod_energies, parent):
@@ -952,55 +997,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                             structure=par['structure'])
     well0.characterize(dimer=par['dimer'])
 
-    """
-    Create the header block for MESS
-    """
     uq_iter = 0
     while(uq_iter < par['uq_n']):
-        # UQ for energy relaxation parameters and sigma/epsilon parameters for wells
-        e_well = par['epsilon']
-        e_well_factor, e_well_normfactor = uq_obj.calc_factor('e_well', 'none', uq_iter, 1)
-        e_well = e_well * e_well_factor
-        uq_obj.write_uqtk_data("e_well", e_well_normfactor, 'none', uq_iter)
-
-        s_well = par['sigma']
-        s_well_factor, s_well_normfactor = uq_obj.calc_factor('s_well', 'none', uq_iter, 1)
-        s_well = s_well * s_well_factor
-        uq_obj.write_uqtk_data("s_well", s_well_normfactor, 'none', uq_iter)
-
-        energy_relaxation_factor = par['EnergyRelaxationFactor']
-        energy_relaxation_factor_factor, relax_factor_normfactor = uq_obj.calc_factor('relax_factor', 'none', uq_iter, 1)
-        energy_relaxation_factor = energy_relaxation_factor * energy_relaxation_factor_factor
-        uq_obj.write_uqtk_data("relax_factor", relax_factor_normfactor, 'none', uq_iter)
-
-        energy_relaxation_power = par['EnergyRelaxationPower']
-        energy_relaxation_power_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', 'none', uq_iter, 1)
-        energy_relaxation_power = energy_relaxation_power + energy_relaxation_power_factor
-        uq_obj.write_uqtk_data("relax_power", relax_power_normfactor, 'none', uq_iter)
-
-        # Read the header template
-        header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
-        with open(header_file) as f:
-            tpl = f.read()
-        header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par['TemperatureList']]),
-                            PressureList=' '.join([str(pi) for pi in par['PressureList']]),
-                            EnergyStepOverTemperature=par['EnergyStepOverTemperature'],
-                            ExcessEnergyOverTemperature=par['ExcessEnergyOverTemperature'],
-                            ModelEnergyLimit=par['ModelEnergyLimit'],
-                            CalculationMethod=par['CalculationMethod'],
-                            ChemicalEigenvalueMax=par['ChemicalEigenvalueMax'],
-                            Reactant=well_short[wells[0]],
-                            EnergyRelaxationFactor=energy_relaxation_factor,
-                            EnergyRelaxationPower=energy_relaxation_power,
-                            EnergyRelaxationExponentCutoff=par['EnergyRelaxationExponentCutoff'],
-                            e_coll=constants.epsilon[par['collider']],
-                            s_coll=constants.sigma[par['collider']],
-                            m_coll=constants.mass[par['collider']],
-                            e_well=e_well,
-                            s_well=s_well,
-                            m_well=well0.mass,
-                           )
-
+        # Create the header block for MESS
+        header = create_mess_header(par, uq_iter, uq_obj) 
         divider = '!****************************************\n'
 
         all_energies = {}

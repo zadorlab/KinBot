@@ -261,7 +261,6 @@ class StationaryPoint:
                     if is_unique:
                         self.rads.append(perm_rad[i])
                         self.bonds.append(perm_bond[i])
-
         if self.smiles == '':
             try:
                 from rdkit import Chem  # to quit the try loop if rdkit is not available
@@ -271,7 +270,6 @@ class StationaryPoint:
                 logging.error("Warning: RDKit could not be imported.")
                 logging.errog("Certain features or the whole code might not run properly.")
                 pass
-            
         return 0
 
     def make_extra_bond(self, parts, maps):

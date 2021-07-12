@@ -15,7 +15,6 @@ from kinbot.optimize import Optimize
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.molpro import Molpro
 from ase.db import connect
-from kinbot import sq
 
 class ReactionGenerator:
     """
@@ -480,9 +479,7 @@ class ReactionGenerator:
                             os.remove('{}_xval.txt'.format(self.species.chemid))
                         if os.path.exists('{}_im_extent.txt'.format(self.species.chemid)):
                             os.remove('{}_im_extent.txt'.format(self.species.chemid))
-
                         postprocess.createPESViewerInput(self.species, self.qc, self.par)
-
                 elif self.species.reac_ts_done[index] == -999:
                     if self.par['delete_intermediate_files'] == 1:
                         if not self.species.reac_obj[index].instance_name in deleted:

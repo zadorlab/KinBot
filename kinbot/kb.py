@@ -100,10 +100,6 @@ def main():
     well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
     start_name = well0.name
-    # for debugging
-    f=open("chemid", 'w')
-    f.write(str(well0.chemid))
-    f.close()
 
     # create sql db
     postprocess.create_sql_db(well0)
@@ -124,10 +120,6 @@ def main():
 
     # start the initial optimization of the reactant
     logging.info('Starting optimization of intial well {}'.format(well0.chemid))
-    # for debugging
-    tmp=open("geom0.xyz",'w')
-    tmp.write("chemid: {}\natom: {}\nbond: {}\n{}".format(well0.chemid, well0.atom, well0.bond, str(well0.geom)))
-    tmp.close()
 
     qc.qc_opt(well0, well0.geom)
     err, well0.geom = qc.get_qc_geom(str(well0.chemid) + '_well',
@@ -138,7 +130,7 @@ def main():
         logging.error('Error with initial structure optimization.')
         return
     if any(well0.freq[i] <= 0 for i in range(len(well0.freq))):
-        logging.error('Found imaginary frequency for initial structure.')
+        logging.error('Found imaginary frequency (freq # {}, value = {}) for initial structure.'.format(i, well0.freq[i]))
 
     # characterize again and look for differences
     well0.characterize(dimer=par['dimer'])

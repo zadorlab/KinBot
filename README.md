@@ -1,6 +1,6 @@
 [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/zadorlab/KinBot)
 
-# KinBot: Automated reaction pathway search for gas-phase molecules with C, H, O, N and S atoms
+# KinBot: Automated reaction pathway search for gas-phase molecules
 
 <p>
     <img src="graphics/kinbot_logo_V2.png" width="220" height="240" />
@@ -17,9 +17,9 @@ Ruben Van de Vijver, Judit Zádor: KinBot: Automated stationary point search on 
 ## How to Install
 Make sure all dependencies are correctly installed. The dependencies are lister here https://github.com/zadorlab/KinBot/wiki/Setting-Up-KinBot-on-Your-System 
 
-Clone the project to the place where you want to run it. Make sure you switch to the latest version, e.g., 2.0.1:
+Clone the project to the place where you want to run it. Make sure you switch to the latest version, e.g., 2.0.5:
 
-    git branch 2.0.1
+    git branch 2.0.5
 
 You can find the latest stable version's tag if you click on the Branch button above on this page.
 
@@ -37,11 +37,6 @@ Moreover, if you plan to modify the code, you need to install it as:
 
     python setup.py build
     python setup.py develop --user
-
-Alternatively, you can also install the latest stable version (however, this is currently way behind compared to what is on GitHub, so currently the github installation is preferred) using conda:
-
-    conda install -c rdkit -c openbabel -c zadorlab kinbot
-
 
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:

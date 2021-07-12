@@ -6,6 +6,10 @@ ModelEnergyLimit[kcal/mol]              {ModelEnergyLimit}
 CalculationMethod                       {CalculationMethod}
 ChemicalEigenvalueMax                   {ChemicalEigenvalueMax}
 Reactant                                {Reactant}
+MicroRateOutput micro.out
+MicroEnerMax[kcal/mol] 200.
+MicroEnerMin[kcal/mol] 0.
+MicroEnerStep[kcal/mol] 1.
 Model
   EnergyRelaxation
     Exponential

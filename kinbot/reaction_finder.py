@@ -80,7 +80,6 @@ class ReactionFinder:
             self.barrierless_saddle = par['barrierless_saddle'][str(self.species.chemid)]
         except KeyError:
             self.barrierless_saddle = None
-
         #keys: names of the families
         #values: list of instances
         #this dict is used to keep track of the unique reactions found,
@@ -164,7 +163,7 @@ class ReactionFinder:
             self.reaction_matrix(self.reactions[name], name) 
         
         for index in range(len(self.species.reac_name)-1):
-            if self.species.reac_name[index] in self.species.reac_name[index+1:]:
+            if self.species.reac_name[index] in self.species.reac_name[index + 1:]:
                 logging.error('Found reaction name "{}" more than once'
                                .format(self.species.reac_name[index]))
                 logging.error('Exiting')
@@ -2260,7 +2259,7 @@ class ReactionFinder:
         if not name in self.reactions:
             self.reactions[name] = []
 
-        rxns = [] #reactions found with the current resonance isomer
+        rxns = []  # reactions found with the current resonance isomer
 
         motif = ['X','X']
         instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
@@ -2298,7 +2297,6 @@ class ReactionFinder:
 
         if not name in self.reactions:
             self.reactions[name] = []
-
         if self.barrierless_saddle is not None:
             rxns = self.barrierless_saddle  # defined by the user
         else:

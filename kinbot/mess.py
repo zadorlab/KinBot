@@ -101,7 +101,7 @@ class MESS:
         
         energy_relaxation_power = self.par['EnergyRelaxationPower']
         energy_relaxation_power_factor, relax_power_normfactor = uq_obj.calc_factor('relax_power', species, uq_iter, 1)
-        energy_relaxation_power = energy_relaxation_power + energy-relaxation_power_factor
+        energy_relaxation_power = energy_relaxation_power + energy_relaxation_power_factor
         uq_obj.write_uqtk_data("relax_power", relax_power_normfactor, species, uq_iter)
 
         # Read the header template
@@ -875,7 +875,6 @@ class MESS:
                                                            rotorsymm=self.rotorsymm(species, rot),
                                                            nrotorpot=self.nrotorpot(species, rot),
                                                            rotorpot=self.make_rotorpot(species, i, rot, rot_factor, uq_iter)))
-                                                           ))
         rotors = '\n'.join(rotors)
         return rotors
 

@@ -748,7 +748,6 @@ class MESS:
             tpl = f.read()
         with open(submitscript, 'w') as f:
             mess_iter = "{0:04d}".format(uq_iter)
-            #if self.par['queue_template'] == '':
             if self.par['queuing'] == 'pbs':
                f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'))
                f.write((tpl).format(n=mess_iter))
@@ -758,9 +757,6 @@ class MESS:
                else:
                    f.write(tpl_head)
                f.write((tpl).format(n=mess_iter))
-            #else:
-            #    f.write(tpl_head)
-            #    f.write((tpl).format(n=mess_iter))
         return 0
 
     def submit(self, submitscript):
@@ -818,11 +814,6 @@ class MESS:
         else:
             rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
         maxen = max(rotorpot)
-            
-        for i, ei in enumerate(rotorpot):
-            f=open("rotors_val.txt", "a")
-            f.write("{}\t{}\t{}\t{}\n".format(uq_iter, rot_factor, ens[i], rotorpot[i]))
-            f.close()
         # solution for 6-fold symmetry, not general enough
         if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
             fit_angle = 15. * 2. * np.pi / 360. 
@@ -834,6 +825,10 @@ class MESS:
         rotorpot = '        {}'.format(rotorpot)
         if maxen < self.par['free_rotor_thrs']:
             rotortype = 'free'
+        for i, ei in enumerate(rotorpot):
+            f=open("rotors_val.txt", "a")
+            f.write("{}\t{}\t{}\t{}\n".format(uq_iter, rot_factor, ens[i], rotorpot[i]))
+            f.close()
         return rotorpot, rotortype
 
 

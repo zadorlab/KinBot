@@ -426,14 +426,19 @@ class Conformers:
                                 logging.warning('For {} conformer 0 failed.'.format(name)) 
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             if self.species.natom > 1:
-                                if self.species.wellorts:
-                                    if freq[0] >= 0.:
-                                        err = -1
-                                    if self.species.natom > 2 and freq[1] <= 0.:
-                                        err = -1
+                                # job fails if conformer freq array is empty
+                                if len(freq) > 0:
+                                    if self.species.wellorts:
+                                        if freq[0] >= 0.:
+                                            err = -1
+                                        if self.species.natom > 2 and freq[1] <= 0.:
+                                            err = -1
+                                    else:
+                                        if freq[0] <= 0.:
+                                            err = -1
                                 else:
-                                    if freq[0] <= 0.:
-                                        err = -1
+                                    logging.info("Conformer {} failed due to empty freq array".format(ci))
+                                    err = -1
                             if err == 0:
                                 lowest_totenergy = energy + zpe
                                 if self.species.wellorts:
@@ -441,16 +446,21 @@ class Conformers:
                         if energy + zpe < lowest_totenergy:
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             ratio = 0.8
-                            if self.species.wellorts:
-                                if freq[0] / base_imag_freq < ratio:
-                                    err = -1 
-                                if freq[0] / base_imag_freq > 1. / ratio:
-                                    err = -1 
-                                if self.species.natom > 2 and freq[1] <= 0.:
-                                    err = -1
+                            # job fails if conformers freq array is empty
+                            if len(freq) > 0:
+                                if self.species.wellorts:
+                                    if freq[0] / base_imag_freq < ratio:
+                                        err = -1 
+                                    if freq[0] / base_imag_freq > 1. / ratio:
+                                        err = -1 
+                                    if self.species.natom > 2 and freq[1] <= 0.:
+                                        err = -1
+                                else:
+                                    if freq[0] <= 0.:
+                                        err = -1
                             else:
-                                if freq[0] <= 0.:
-                                    err = -1
+                                logging.info("Conformer {} failed due to empty freq array".format(ci))
+                                err = -1
                             if err == 0:
                                 lowest_job = job
                                 lowest_conf = str(ci).zfill(self.zf)

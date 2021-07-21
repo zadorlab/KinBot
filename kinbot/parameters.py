@@ -258,6 +258,16 @@ class Parameters:
             # MESMER specific keywords
             'mesmer_command': 'mesmer',
 
+            # Barrierless MESS keywords
+            # 0 = no barrierless rxn, 1 == include barrierless rxn templates
+            'barrierless_rxn': '0'
+            # name of template file in your kinbot/pes directory containing the barrierless TS MESS block
+            'barrierless_template': 'barrierless_mess.tpl',
+            # name of the template file in your kinbot/pes directory containing the barrierless product MESS block
+            'barrierless_prod_template': 'barrierless_prod_mess.tpl',
+            # energy associated with the barrierless channel
+            'barrierless_energy': '0',
+
             # UQ KEYWORDS
             # UQ off/on (0/1)
             'uq': 0,

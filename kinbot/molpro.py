@@ -132,9 +132,9 @@ class Molpro:
         if status:
             with open('molpro/' + fname + '.out') as f:
                 lines = f.readlines()
+
             for index, line in enumerate(reversed(lines)):
                 if ('SETTING ' + key) in line:
-                    logging.info("L3 energy line = {}".format(line))
                     return 1, float(line.split()[3])
         else:
             return 0, -1

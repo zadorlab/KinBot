@@ -287,10 +287,6 @@ class Parameters:
             'epsilon_well_uq': 1.2,
             # Well Sigma: factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original.
             'sigma_well_uq': 1.2,
-
-
-            # for development
-            'test': 0,
         }
 
         if self.input_file is not None:

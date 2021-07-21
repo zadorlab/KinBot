@@ -441,14 +441,13 @@ class Conformers:
                                     err = -1
                             if err == 0:
                                 lowest_totenergy = energy + zpe
-                                if self.species.wellorts:
-                                    base_imag_freq = freq[0]
                         if energy + zpe < lowest_totenergy:
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             ratio = 0.8
                             # job fails if conformers freq array is empty
                             if len(freq) > 0:
                                 if self.species.wellorts:
+                                    base_imag_freq = freq[0]
                                     if freq[0] / base_imag_freq < ratio:
                                         err = -1 
                                     if freq[0] / base_imag_freq > 1. / ratio:

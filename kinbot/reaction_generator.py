@@ -16,6 +16,14 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot.molpro import Molpro
 from ase.db import connect
 
+try:
+    import pybel
+    pybelErr = 0
+except ImportError:
+    logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
+    pybelErr = 1
+
+
 class ReactionGenerator:
     """
     This class generates the reactions using the qc codes
@@ -51,7 +59,6 @@ class ReactionGenerator:
         If at any times the calculation fails, reac_ts_done is set to -999.
         If all steps are successful, reac_ts_done is set to -1.
         """
-        
         deleted = []
         if len(self.species.reac_inst) > 0:
             alldone = 1
@@ -65,12 +72,6 @@ class ReactionGenerator:
         for i in self.species.reac_inst:
             count = count + 1
         frag_unique = []
-        try:
-            import pybel
-            pybelErr = 0
-        except ImportError:
-            logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
-            pybelErr = 1
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
@@ -622,7 +623,6 @@ class ReactionGenerator:
         """
 
         if pybelErr == 1:
-            logging.info("pybel cannot be imported so stereochemistry is not checked")
             return 
         
         well0_stereochem = self.get_stereochemistry(self.species.atom, self.species.geom)

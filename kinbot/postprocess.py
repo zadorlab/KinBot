@@ -10,6 +10,7 @@ reactions, including their barrier heights and which products are formed
 import os
 import pkg_resources
 import numpy as np
+import logging
 from os import path
 from kinbot import license_message
 from kinbot import constants

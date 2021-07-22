@@ -74,8 +74,11 @@ class MESS:
             self.variationaltpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_2tst.tpl')) as f:
             self.twotstpl = f.read()
-
-
+        with open('./{}'.format(par['barrierless_template'])) as f:
+            self.barrierless_template = f.read()
+        with open('./{}'.format(par['barrierless_prod_template'])) as f:
+            self.barrierless_prod_template = f.read()
+        
     def write_header(self, uq_iter):
         """
         Create the header block for MESS
@@ -125,6 +128,20 @@ class MESS:
                                        )
         return header
 
+    def create_barrierless_block(self, barrierless_energy, uq_obj, uq_iter):
+        """
+        Create barrierless block for MESS
+        """
+        energy = barrierless_energy
+        if uq_iter > 0:
+            barrierless_energy_factor, barrierless_energy_normfactor = uq_obj.calc_factor('energy', 'barrierless', uq_iter, 1)
+            energy = energy + barrierless_energy_factor
+            uq_obj.write_uqtk_data("barrierless_energy", barrierless_energy_normfactor, 'barrierless', uq_iter)
+            print(energy, barrierless_energy_factor)
+        print(energy)
+        barrierless_block = self.barrierless_template.format(energy=energy, flux_file=self.par['barrierless_states_file'])
+        barrierless_prod_block = self.barrierless_prod_template.format(energy=energy)
+        return barrierless_block, barrierless_prod_block
 
     def create_short_names(self):
         """
@@ -352,13 +369,18 @@ class MESS:
             barrierless = ''
             for rxn in barrierless_blocks:
                 barrierless += barrierless_blocks[rxn] + divider
+            if self.par['barrierless_rxn'] == 1:
+                barrierless_block, barrierless_prod_block = self.create_barrierless_block(self.par['barrierless_energy'], uq_obj, uq_iter)
 
             # dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
             mess_iter = "{0:04d}".format(uq_iter)
 
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
-                f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
+                if self.par['barrierless_rxn'] == 1:
+                    f_out.write(header + divider + wells + bimols + tss + termols + barrierless + barrierless_prod_block + barrierless_block + divider + 'End ! end kinetics\n')
+                else:
+                    f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
 
         # uq_obj.format_uqtk_data()  # needs editing
 

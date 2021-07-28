@@ -37,6 +37,10 @@ Moreover, if you plan to modify the code, you need to install it as:
 
     python setup.py build
     python setup.py develop --user
+    
+Please note that you will need the ase version linked to at https://github.com/zadorlab/ase installed
+and linked to in your path during the installation of KinBot. This version of ase has changes within it that
+are local to KinBot, using any other ase versions will likely result in errors when trying to run reaction searches.
 
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:

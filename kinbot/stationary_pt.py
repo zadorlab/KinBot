@@ -143,7 +143,10 @@ class StationaryPoint:
         for i in range(self.natom):
             for j in range(self.natom):
                 if i == j: continue
-                if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
+                atom_pair = [self.atom[i], self.atom[j]]
+                atom_pair = sorted(atom_pair)
+                #if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
+                if self.dist[i][j] < constants.st_bond[''.join(atom_pair)]:
                     self.bond[i][j] = 1
 
         max_bond = [constants.st_bond[self.atom[i]] for i in range(self.natom)]

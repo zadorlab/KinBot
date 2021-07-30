@@ -253,6 +253,7 @@ class StationaryPoint:
                     #check the uniqueness of the bond matrix
                     is_unique = 1
                     for b in self.bonds:
+                        # TODO this gives an error for hom_sci
                         if all([all([b[j][k] == perm_b[j][k] for k in range(self.natom)]) for j in range(self.natom)]):
                             is_unique = 0
                     if is_unique:

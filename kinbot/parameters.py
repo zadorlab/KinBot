@@ -262,13 +262,13 @@ class Parameters:
             # 0 = no barrierless rxn, 1 == include barrierless rxn templates
             'barrierless_rxn': 0,
             # name of template file in your kinbot/pes directory containing the barrierless TS MESS block
-            'barrierless_template': 'barrierless_mess.tpl',
+            'barrierless_template': '',
             # name of the template file in your kinbot/pes directory containing the barrierless product MESS block
-            'barrierless_prod_template': 'barrierless_prod_mess.tpl',
+            'barrierless_prod_template': '',
             # energy associated with the barrierless channel
             'barrierless_energy': 0.,
             # name of the file containing the number of states of transitional modes for Rotd section in mess
-            'barrierless_states_file': 'mc_flux.out',
+            'barrierless_states_file': '',
 
             # UQ KEYWORDS
             # UQ off/on (0/1)

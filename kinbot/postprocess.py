@@ -100,7 +100,25 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index)
             hir_potentials = 0
             logging.error("{} Has not HIR POTENTIALS".format(species_name))
     # NEED TO DEFINE HOW TO GRAB L3 ENERGY
-    # NEED TO DEFINE SYMM FACTOR - MAY NOT BE NECCESSARY YET
+
+    if par['L3_calc'] == 1:
+        key = par['single_point_key']
+        if par['single_point_qc'] == 'molpro':
+            if os.path.exists('molpro/' + str(species_name) + '.out'):
+                with open('molpro/' + str(species_name) + '.out', 'r') as f:
+                    lines = f.readlines()
+                    for index, line in enumerate(reversed(lines)):
+                        if ('SETTING ' + key) in line:
+                            l3e = float(line.split()[3])
+                        else:
+                            logging.error("Wrong single point key for {}, l3 val set to 0".format(str(species_name)))
+                            l3e = 0
+            else:
+                logging.error("molpro not used for L3 calc.")
+    else:
+        logging.info("L3 calculations turned off")
+
+# NEED TO DEFINE SYMM FACTOR - MAY NOT BE NECCESSARY YET
 
     # convert arrays to np.array form
     atoms = np.array(atoms)

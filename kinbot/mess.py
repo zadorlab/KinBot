@@ -74,10 +74,13 @@ class MESS:
             self.variationaltpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_2tst.tpl')) as f:
             self.twotstpl = f.read()
-        with open('./{}'.format(par['barrierless_template'])) as f:
-            self.barrierless_template = f.read()
-        with open('./{}'.format(par['barrierless_prod_template'])) as f:
-            self.barrierless_prod_template = f.read()
+        if par['barrierless_rxn'] == 1:
+            print(par['barrierless_template'])
+            print(par['barrierless_prod_template'])
+            with open('{}'.format(par['barrierless_template'])) as f:
+                self.barrierless_template = f.read()
+            with open('{}'.format(par['barrierless_prod_template'])) as f:
+                self.barrierless_prod_template = f.read()
         
     def write_header(self, uq_iter):
         """

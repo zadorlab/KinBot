@@ -24,7 +24,7 @@ class UQ:
         self.sWellUQ = par['sigma_well_uq']
         self.uq_iter = 0
 
-    def calc_rotor_factor(self, propertyType, species, uq_iter, runUQ, name):
+    def calc_rotor_factor(self, propertyType, species, uq_iter, create_mess, name):
         string = []
         for i, char in enumerate(name):
             string.append(char)
@@ -57,16 +57,16 @@ class UQ:
 
         return factor, normfactor
 
-    def calc_factor(self, propertyType, species, uq_iter, runUQ):
+    def calc_factor(self, propertyType, species, uq_iter, create_mess):
 
-        # runUQ = 0, treat all iterations as uq iter = 1
-        #     runUQ = 0 during kinbot procedure for freq, and energies during PES runs
+        # create_mess = 0, treat all iterations as uq iter = 1
+        #     create_mess = 0 during kinbot procedure for freq, and energies during PES runs
         #     PES will alter energies, frequencies at a later point.
 
-        # runUQ = 1, treat all interations as uqiter = 0 to n
-	    # runUQ = 1 for all energies, freq, HIR during kinbot only runs.
-        #     runUQ = 1 for HIR during PES runs, because they are consistent between kinbot & pes mess files
-        #     TODO: COULD runUQ = 1 for frequencies? during both pes and kinbot runs?
+        # create_mess = 1, treat all interations as uqiter = 0 to n
+	    # create_mess = 1 for all energies, freq, HIR during kinbot only runs.
+        #     create_mess = 1 for HIR during PES runs, because they are consistent between kinbot & pes mess files
+        #     TODO: COULD create_mess = 1 for frequencies? during both pes and kinbot runs?
 
         if uq_iter == 0:
             if propertyType == 'freq' or propertyType == 'imagfreq' or propertyType == 'rotor' or propertyType == 'relax_factor' or propertyType == 'e_well' or propertyType == 's_well':

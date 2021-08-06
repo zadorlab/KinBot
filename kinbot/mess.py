@@ -75,8 +75,6 @@ class MESS:
         with open(pkg_resources.resource_filename('tpl', 'mess_2tst.tpl')) as f:
             self.twotstpl = f.read()
         if par['barrierless_rxn'] == 1:
-            print(par['barrierless_template'])
-            print(par['barrierless_prod_template'])
             with open('{}'.format(par['barrierless_template'])) as f:
                 self.barrierless_template = f.read()
             with open('{}'.format(par['barrierless_prod_template'])) as f:
@@ -140,8 +138,6 @@ class MESS:
             barrierless_energy_factor, barrierless_energy_normfactor = uq_obj.calc_factor('energy', 'barrierless', uq_iter, 1)
             energy = energy + barrierless_energy_factor
             uq_obj.write_uqtk_data("barrierless_energy", barrierless_energy_normfactor, 'barrierless', uq_iter)
-            print(energy, barrierless_energy_factor)
-        print(energy)
         barrierless_block = self.barrierless_template.format(energy=energy, flux_file=self.par['barrierless_states_file'])
         barrierless_prod_block = self.barrierless_prod_template.format(energy=energy)
         return barrierless_block, barrierless_prod_block
@@ -374,8 +370,6 @@ class MESS:
                 barrierless += barrierless_blocks[rxn] + divider
             if self.par['barrierless_rxn'] == 1:
                 barrierless_block, barrierless_prod_block = self.create_barrierless_block(self.par['barrierless_energy'], uq_obj, uq_iter)
-
-            # dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
             mess_iter = "{0:04d}".format(uq_iter)
 
@@ -690,8 +684,11 @@ class MESS:
                                                   model=variational)
         else:
             if self.par['pes']:
+                freq = '{freq}'
                 nfreq = '{nfreq}'
             else:
+                freq = self.make_freq(reaction.prod_opt[0].species, freqFactor, 0) + \
+                       self.make_freq(reaction.prod_opt[1].species, freqFactor, 0) 
                 nfreq = len(reaction.ts.reduced_freqs)-1 
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,

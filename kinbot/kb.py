@@ -136,8 +136,8 @@ def main():
     well0.characterize(dimer=par['dimer'])
     well0.name = str(well0.chemid)
     if well0.name != start_name:
-       logging.error('The first well optimized to a structure different from the input.')
-
+        logging.error('The first well optimized to a structure different from the input.')
+        return
     # do an MP2 optimization of the reactant,
     # to compare some scan barrier heigths to
     if par['families'] == ['all'] or \
@@ -204,7 +204,6 @@ def main():
         if well0.reac_ts_done[index] == -1:
             ts = well0.reac_obj[index].ts
             postprocess.create_sql_db_entry(well0, well0, ts, qc, par, 2, index)
-            # create combined DB entry for bimol products
             for prod in well0.reac_obj[index].products:
                 postprocess.create_sql_db_entry(well0, prod, 'None', qc, par, 1, index)
                 

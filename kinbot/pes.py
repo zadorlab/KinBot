@@ -217,7 +217,7 @@ def main():
     # do something like postprocess, but with new energies
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
     
-    # Notify user the search s done
+    # Notify user the search is done
     logging.info('PES search done!')
     print('PES search done!')
 
@@ -533,16 +533,16 @@ def postprocess(par, jobs, task, names):
     if par['me'] == 1:
         if len(reactions) > 0:
             create_mess_input(par,
-							  wells,
-							  products,
-							  rxns,
-							  barrierless,
-							  well_energies,
-							  prod_energies,
-							  parent,
-							  well_l3energies,
-							  prod_l3energies,
-							  ts_l3energies)
+                              wells,
+                              products,
+                              rxns,
+                              barrierless,
+                              well_energies,
+                              prod_energies,
+                              parent,
+                              well_l3energies,
+                              prod_l3energies,
+                              ts_l3energies)
 
         else:
             print("NO REACTIONS GENERATED FOR {}".format(parent))
@@ -970,38 +970,12 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
     uq_obj = UQ(par)
 
-    # testing
-    all_structures = {}
-    for rxn in reactions:
-        print("ALL REACTIONS MESS")
-        pathway = []
-        pathway.append(rxn[0])
-        for prod in rxn[2]:
-            pathway.append(prod)
-        pathway.append(rxn[3])
-
-    for b in barrierless:
-        pathway.append(b[0])
-        for prod in b[2]:
-            pathway.append(prod)
-        pathway.append(rxn[2])
-    try:
-        all_structures[rxn[1]] = pathway
-    except:
-        pass
     logging.info('{0} {1} {2}'.format("uq value: ", par['uq'], "\n"))
     well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
                                                                                products,
                                                                                reactions,
                                                                                barrierless)
-
-    fi=open("short_names", "w")
-    fi.write("well: {}, {}".format(len(well_short), well_short))
-    fi.write("well: {}, {}".format(len(pr_short), pr_short))
-    fi.write("well: {}, {}".format(len(fr_short), fr_short))
-    fi.write("well: {}, {}".format(len(ts_short), pr_short))
-    fi.write("well: {}, {}".format(len(nobar_short), nobar_short))
-
+    
     # create mess0 label for mess header
     well0 = StationaryPoint('well0',
                             par['charge'],
@@ -1098,7 +1072,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         messStrings.append('# BIMOLECULAR PRODUCTS')
         messStrings.append('######################')
         for prod in products:
-            print("MESS PRODUCTS")
             prods = prod.split('_')
             for i, p in enumerate(prods):
                 frequencies = sq.get_sql_mess_data(all_data, p, level, 'red_freq')
@@ -1232,7 +1205,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         prodzeroenergy = prod_energies['_'.join(rxn[2])]
                         messStrings.append(f.read().format(name=' '.join(name), zeroenergy=energy, prodzeroenergy=prodzeroenergy))
                     else:
-                        print("{}\n{} | {}\n{}\n{}".format(rxn[1], len(frequencies), len(freq), frequencies, freq))
                         messStrings.append(f.read().format(name=' '.join(name),
                                                            freq=freq,
                                                            nfreq=len(frequencies)-1,
@@ -1250,7 +1222,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             Create barrierless block for MESS
             """
             energy = par['barrierless_energy']
-            print(energy)
             with open('./{}'.format(par['barrierless_template'])) as f:
                 barrierless_template = f.read()
             with open('./{}'.format(par['barrierless_prod_template'])) as f:
@@ -1262,7 +1233,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             
             barrierless_block = barrierless_template.format(energy=energy, flux_file=par['barrierless_states_file'])
             barrierless_prod_block = barrierless_prod_template.format(energy=energy)
-            print(barrierless_block)
             messStrings.append(divider)
             messStrings.append(barrierless_prod_block)
             messStrings.append(barrierless_block)
@@ -1618,7 +1588,7 @@ def write_input(input_file, species, threshold, root):
     par2['structure'] = structure
     # delete the par smiles
     par2['smiles'] = ''
-    # overwrite the barrier treshold
+    # overwrite the barrier threshold
     par2['barrier_threshold'] = threshold
     # set the pes option to 1
     par2['pes'] = 1

@@ -100,7 +100,7 @@ class Parameters:
             'nrotation': 12,
             # Make figures of the HIR profiles
             'plot_hir_profiles': 0,
-            # Do master equation calculations
+            # Do master equation calculations, 1 = run, 0 = skip
             'me': 0,
             # Number of HIR restarts in case a lower energy point gets found
             'rotation_restart': 3,

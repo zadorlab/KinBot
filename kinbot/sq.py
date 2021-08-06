@@ -79,9 +79,9 @@ def create_kinbot_table(conn):
 
                  id text PRIMARY KEY,
                  wellorts integer NOT NULL,
-                 l1e REAL NOT NULL,
-                 l2e REAL,
-                 l3e REAL,
+                 l1_energy REAL NOT NULL,
+                 l2_energy REAL,
+                 l3_energy REAL,
                  l1_zpe REAL NOT NULL,
                  l2_zpe REAL,
                  atoms array,
@@ -105,7 +105,7 @@ def create_kinbot_table(conn):
 
 def create_kinbot_entry(conn, kinbot_table):
 
-    sql = ''' INSERT OR REPLACE INTO kinbot (id, wellorts, l1e, l2e, l3e, l1_zpe, l2_zpe, atoms, l1_xyz, l2_xyz, l1_hess, l2_hess, l1_freq, l2_freq, l1_red_freq, l2_red_freq, hir_potentials)
+    sql = ''' INSERT OR REPLACE INTO kinbot (id, wellorts, l1_energy, l2_energy, l3_energy, l1_zpe, l2_zpe, atoms, l1_xyz, l2_xyz, l1_hess, l2_hess, l1_freq, l2_freq, l1_red_freq, l2_red_freq, hir_potentials)
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) '''
     cur = conn.cursor()
     cur.execute(sql, kinbot_table)
@@ -175,7 +175,7 @@ def get_sql_data(parent, species, level):
         else:
             logging.error("Error reading SQLite Database")
     else:
-        print("{}/{} EMPTY".format(db, row[0]))
+        print("{}/{} EMPTY".format(db))
         return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
     hir = list_data[16]

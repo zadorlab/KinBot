@@ -38,6 +38,31 @@ def create_sql_db(species):
         print("creating kinbot table")
         sq.create_kinbot_table(conn)
 
+def get_l3_for_sql(par, species_name):
+    if par['L3_calc'] == 1:
+        l3_energy = 0
+        key = par['single_point_key']
+        if par['single_point_qc'] == 'molpro':
+            if os.path.exists('molpro/' + str(species_name) + '.out'):
+                with open('molpro/' + str(species_name) + '.out', 'r') as f:
+                    lines = f.readlines()
+                    for index, line in enumerate(reversed(lines)):
+                        logging.info(line, key)
+                        if ('SETTING ' + key) in line:
+                            l3_energy = float(line.split()[3])
+                            return l3_energy
+                    if l3_energy == 0.:
+                        logging.error("no molpro energy found for {}".format(str(species_name)))
+                        return l3_energy
+            else:
+                logging.error("molpro file not found for {}".format(str(species_name)))
+                return l3_energy
+        else:
+            logging.error("molpro not used for L3 calc.")
+            return l3_energy
+    else:
+        logging.info("L3 calculations turned off")
+        return l3_energy
 
 def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index):
     """
@@ -46,9 +71,9 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index)
     prod = 1
     ts = 2
     """
-    l1e = 0
-    l2e = 0
-    l3e = 0
+    l1_energy = 0
+    l2_energy = 0
+    l3_energy = 0
     l1_zpe = 0
     l2_zpe = 0
     atoms = []
@@ -74,9 +99,9 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index)
     else:
         suffix = '_well'
  
-    egl1, l1_xyz = qc.get_qc_geom(species_name + suffix,  species.natom)
-    eel1, l1e = qc.get_qc_energy(species_name + suffix)
-    ezl1, l1_zpe = qc.get_qc_zpe(species_name + suffix)
+    status_l1_xyz, l1_xyz = qc.get_qc_geom(species_name + suffix,  species.natom)
+    status_l1_energy, l1_energy = qc.get_qc_energy(species_name + suffix)
+    status_l1_zpe, l1_zpe = qc.get_qc_zpe(species_name + suffix)
     l1_hess = qc.read_qc_hess(species_name + suffix, species.natom)
     if well_prod_ts == 2:
         l1_freq, l1_red_freq = frequencies.get_frequencies(species, l1_hess, l1_xyz)
@@ -84,9 +109,9 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index)
         l1_freq, l1_red_freq = frequencies.get_frequencies(species, l1_hess, l1_xyz)
 
     if par['high_level'] == 1:
-        egl2, l2_xyz = qc.get_qc_geom(str(species_name) + suffix + '_high',  species.natom)
-        eel2, l2e = qc.get_qc_energy(str(species_name) + suffix + '_high')
-        ezl2, l2_zpe = qc.get_qc_zpe(str(species_name) + suffix + '_high')
+        status_l2_xyz, l2_xyz = qc.get_qc_geom(str(species_name) + suffix + '_high',  species.natom)
+        status_l2_energy, l2_energy = qc.get_qc_energy(str(species_name) + suffix + '_high')
+        status_l2_zpe, l2_zpe = qc.get_qc_zpe(str(species_name) + suffix + '_high')
         l2_hess = qc.read_qc_hess(str(species_name) + suffix + '_high', species.natom)
         if well_prod_ts == 2:
             l2_freq, l2_red_freq = frequencies.get_frequencies(species, l2_hess, l2_xyz)
@@ -99,26 +124,10 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index)
         except:
             hir_potentials = 0
             logging.error("{} Has not HIR POTENTIALS".format(species_name))
-    # NEED TO DEFINE HOW TO GRAB L3 ENERGY
-
-    if par['L3_calc'] == 1:
-        key = par['single_point_key']
-        if par['single_point_qc'] == 'molpro':
-            if os.path.exists('molpro/' + str(species_name) + '.out'):
-                with open('molpro/' + str(species_name) + '.out', 'r') as f:
-                    lines = f.readlines()
-                    for index, line in enumerate(reversed(lines)):
-                        if ('SETTING ' + key) in line:
-                            l3e = float(line.split()[3])
-                        else:
-                            logging.error("Wrong single point key for {}, l3 val set to 0".format(str(species_name)))
-                            l3e = 0
-            else:
-                logging.error("molpro not used for L3 calc.")
-    else:
-        logging.info("L3 calculations turned off")
-
-# NEED TO DEFINE SYMM FACTOR - MAY NOT BE NECCESSARY YET
+    
+    l3_energy = get_l3_for_sql(par, species_name)
+    with open("L3_energies.txt", 'a') as f:
+        f.write("{}: {}\n".format(species_name, l3_energy)) 
 
     # convert arrays to np.array form
     atoms = np.array(atoms)
@@ -146,7 +155,7 @@ def create_sql_db_entry(parent, species, reaction, qc, par, well_prod_ts, index)
     # create db for kinbot run
     db = str(parent.chemid) + '_sql.db'
     conn = sq.create_connection(db)
-    data = (str(species_name), well_prod_ts, l1e, l2e, l3e, l1_zpe, l2_zpe, atoms, l1_xyz, l2_xyz, l1_hess, l2_hess, l1_freq, l2_freq, l1_red_freq, l2_red_freq, hir_potentials)
+    data = (str(species_name), well_prod_ts, l1_energy, l2_energy, l3_energy, l1_zpe, l2_zpe, atoms, l1_xyz, l2_xyz, l1_hess, l2_hess, l1_freq, l2_freq, l1_red_freq, l2_red_freq, hir_potentials)
     entry = sq.create_kinbot_entry(conn, data)
 
     return entry

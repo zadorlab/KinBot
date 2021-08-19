@@ -286,6 +286,7 @@ class MESS:
                         right_zeroenergy = left_zeroenergy - (prod_zeroenergy - well_zeroenergy)
                             
                     allTS[reaction.instance_name], zeroenergy = self.write_barrier(reaction,
+                                                                                   ts_zeroenergy,
                                                                                    index,
                                                                                    left_zeroenergy,
                                                                                    right_zeroenergy,
@@ -582,13 +583,14 @@ class MESS:
 
         return mess_well
 
-    def write_barrier(self, reaction, index, left_zeroenergy, right_zeroenergy, barrier_add, freqFactor, imagfreqFactor, uq_iter):
+    def write_barrier(self, reaction, ts_zeroenergy, index, left_zeroenergy, right_zeroenergy, barrier_add, freqFactor, imagfreqFactor, uq_iter):
         """
         Create the block for a MESS barrier.
         """
 
         freq = ''
 
+        ts_zeroenergy += barrier_add
         left_zeroenergy += barrier_add
         right_zeroenergy += barrier_add
 
@@ -630,8 +632,7 @@ class MESS:
             chemid_prod = prod_name
             long_rxn_name = reaction.instance_name
             freq=self.make_freq(reaction.ts, freqFactor, 1)
-            zeroenergy = left_zeroenergy
-            
+            zeroenergy = ts_zeroenergy 
     
         # TODO working here
         if self.species.reac_type[index] == 'barrierless_saddle':

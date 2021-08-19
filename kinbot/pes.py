@@ -29,6 +29,7 @@ from kinbot import sq
 
 
 def main():
+    print("version: {}\nversion info: {}".format(sys.version, sys.version_info))
     try:
         input_file = sys.argv[1]
     except IndexError:
@@ -1212,7 +1213,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                                                            imfreq=imfreq,
                                                            left_zero=forward_barrier,
                                                            right_zero=backward_barrier,
-                                                           zeroenergy=forward_barrier))
+                                                           zeroenergy=barrier))
                 messStrings.append(divider)
             except:
                 logging.warning('File {}/{}.mess not found.\n'.format(rxn[0], rxn[1]))

@@ -85,6 +85,9 @@ def main():
     with open('chemids', 'w') as f:
         f.write(str(well0.chemid) + '\n')
 
+    # create directories
+    if not os.path.exists('perm'):
+        os.mkdirs('perm')
     # create a directory for the L3 single point calculations
     # directory has the name of the code, e.g., molpro
     try:
@@ -1454,45 +1457,48 @@ def get_l3energy(job, par, bls=0):
     Get the L3, single-point energies.
     This is not object oriented.
     """
-
-    if bls:
-        key = par['barrierless_saddle_single_point_key']
+    if par['L3_calc'] == 0:
+        logging.info("L3 calc turned off")
+        return 0, -1
     else:
-        key = par['single_point_key']
+        if bls:
+            key = par['barrierless_saddle_single_point_key']
+        else:
+            key = par['single_point_key']
+   
+        if par['single_point_qc'] == 'molpro':
+            if os.path.exists('molpro/' + job + '.out'):
+                with open('molpro/' + job + '.out', 'r') as f:
+                    lines = f.readlines()
+                    for index, line in enumerate(reversed(lines)):
+                        if ('SETTING ' + key) in line:
+                            e = float(line.split()[3])
+                            logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                            return 1, e  # energy was found
+        if par['single_point_qc'] == 'gaussian':
+            if os.path.exists('gaussian/' + job + '.log'):
+                gaussname = 'gaussian/' + job + '.log'
+            elif os.path.exists('gaussian/' + job + '_high.log'):
+                gaussname = 'gaussian/' + job + '_high.log'
+            elif os.path.exists('gaussian/' + job + '_well_high.log'):
+                gaussname = 'gaussian/' + job + '_well_high.log'
+            else:
+                logging.info('L3 for {} is missing.'.format(job))
+                return 0, -1  # job not yet started to run
 
-    if par['single_point_qc'] == 'molpro':
-        if os.path.exists('molpro/' + job + '.out'):
-            with open('molpro/' + job + '.out', 'r') as f:
+            with open(gaussname) as f:
                 lines = f.readlines()
-                for index, line in enumerate(reversed(lines)):
-                    if ('SETTING ' + key) in line:
-                        e = float(line.split()[3])
+                for line in reversed(lines):
+                    if (key) in line:
+                        words = line.split()
+                        wi = words.index(key) + 2
+                        e = float(words[wi].replace('D', 'E'))
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
-    if par['single_point_qc'] == 'gaussian':
-        if os.path.exists('gaussian/' + job + '.log'):
-            gaussname = 'gaussian/' + job + '.log'
-        elif os.path.exists('gaussian/' + job + '_high.log'):
-            gaussname = 'gaussian/' + job + '_high.log'
-        elif os.path.exists('gaussian/' + job + '_well_high.log'):
-            gaussname = 'gaussian/' + job + '_well_high.log'
-        else:
-            logging.info('L3 for {} is missing.'.format(job))
-            return 0, -1  # job not yet started to run
 
-        with open(gaussname) as f:
-            lines = f.readlines()
-            for line in reversed(lines):
-                if (key) in line:
-                    words = line.split()
-                    wi = words.index(key) + 2
-                    e = float(words[wi].replace('D', 'E'))
-                    logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
-                    return 1, e  # energy was found
-
-    # if no file or no energy found
-    logging.info('L3 for {} is missing.'.format(job))
-    return 0, -1  # job not yet started to run
+        # if no file or no energy found
+        logging.info('L3 for {} is missing.'.format(job))
+        return 0, -1  # job not yet started to run
 
 
 def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):

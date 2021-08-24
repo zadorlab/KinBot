@@ -307,9 +307,13 @@ class ReactionGenerator:
                     for prod in obj.products_final:
                         obj.products.append(prod)
                     obj.products_final = []
-
-                    if all([pi == 1 for pi in products_waiting_status[index]]):
-                        self.species.reac_ts_done[index] = 3
+                    # products that dissociate into more than 3 fragments generally lead to unproductive pathways.
+                    if len(obj.products) > 3:
+                        logging.info("The product of {} dissociated into more than 3 fragments.".format(obj.instance_name))
+                        self.species.reac_ts_done[index] = -999
+                    else:
+                        if all([pi == 1 for pi in products_waiting_status[index]]):
+                            self.species.reac_ts_done[index] = 3
 
                 elif self.species.reac_ts_done[index] == 3:
                     # wait for the optimization to finish

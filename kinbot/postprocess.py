@@ -39,15 +39,14 @@ def create_sql_db(species):
         sq.create_kinbot_table(conn)
 
 def get_l3_for_sql(par, species_name):
+    l3_energy = 0
     if par['L3_calc'] == 1:
-        l3_energy = 0
         key = par['single_point_key']
         if par['single_point_qc'] == 'molpro':
             if os.path.exists('molpro/' + str(species_name) + '.out'):
                 with open('molpro/' + str(species_name) + '.out', 'r') as f:
                     lines = f.readlines()
                     for index, line in enumerate(reversed(lines)):
-                        logging.info(line, key)
                         if ('SETTING ' + key) in line:
                             l3_energy = float(line.split()[3])
                             return l3_energy

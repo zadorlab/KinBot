@@ -244,20 +244,58 @@ class MESS:
             termolec_ts_blocks = {}
             barrierless_blocks = {}
             allTS = {}
+
+            species_energies = {}
             # arrays reset at the start of each iteration to hold new values
             written_bimol_names = []
             written_termolec_names = []
 
             well_energyAdd, well_energy_normfactor = uq_obj.calc_factor('energy', self.species.chemid, uq_iter, self.pes)
             well_freqFactor, well_freq_normfactor = uq_obj.calc_factor('freq', self.species.chemid, uq_iter, self.pes)
-            well_blocks[self.species.chemid] = self.write_well(self.species,
+            well_blocks[self.species.chemid], well_zeroenergy = self.write_well(self.species,
                                                                well_energyAdd,
                                                                well_freqFactor,
                                                                uq_iter)
             uq_obj.write_uqtk_data("energy", well_energy_normfactor, self.species.chemid, uq_iter)
             uq_obj.write_uqtk_data("freq", well_freq_normfactor, self.species.chemid, uq_iter)
+            species_energies[self.species.chemid] = well_zeroenergy
 
+                # Only write products once, stops duplicate product writing
             for index, reaction in enumerate(self.species.reac_obj):
+                if reaction.instance_name in ts_unique:
+                    if len(reaction.products) == 1:
+                        st_pt = reaction.prod_opt[0].species
+                        energyAdd, prod_energy_normfactor = uq_obj.calc_factor('energy', st_pt.chemid, uq_iter, self.pes)
+                        freqFactor, prod_freq_normfactor = uq_obj.calc_factor('freq', st_pt.chemid, uq_iter, self.pes)
+                        uq_obj.write_uqtk_data("energy", prod_energy_normfactor, st_pt.chemid, uq_iter)
+                        uq_obj.write_uqtk_data("freq", prod_freq_normfactor, st_pt.chemid, uq_iter)
+
+                        well_blocks[st_pt.chemid], well_zeroenergy = self.write_well(st_pt,
+                                                                    energyAdd,
+                                                                    freqFactor,
+                                                                    uq_iter)
+                        species_energies[st_pt.chemid] = well_zeroenergy
+                    elif len(reaction.products) == 2:
+                        bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                        energyAdd, bimol_energy_normfactor = uq_obj.calc_factor('energy', bimol_name, uq_iter, self.pes)
+                        freqFactor, bimol_freq_normfactor = uq_obj.calc_factor('freq', bimol_name, uq_iter, self.pes)
+                        uq_obj.write_uqtk_data("energy", bimol_energy_normfactor, bimol_name, uq_iter)
+                        uq_obj.write_uqtk_data("freq", bimol_freq_normfactor, bimol_name, uq_iter)
+
+                        bimolec_blocks[bimol_name], bimol_zeroenergy = self.write_bimol([opt.species for opt in reaction.prod_opt],
+                                                                      energyAdd,
+                                                                      freqFactor,
+                                                                      uq_iter)
+                        species_energies[bimol_name] = bimol_zeroenergy
+                        written_bimol_names.append(bimol_name)
+                    else:
+                        # termol
+                        termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                        termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt], 
+                                                                         reaction,
+                                                                         uq_iter)
+                        written_termolec_names.append(termol_name)
+
                 if reaction.instance_name in ts_all:
                     barrierAdd, barrier_normfactor = uq_obj.calc_factor('barrier', reaction.instance_name, uq_iter, self.pes)
                     freqFactor, freq_normfactor = uq_obj.calc_factor('freq', reaction.instance_name, uq_iter, self.pes)
@@ -266,69 +304,42 @@ class MESS:
                     uq_obj.write_uqtk_data("freq", freq_normfactor, reaction.instance_name, uq_iter)       
                     uq_obj.write_uqtk_data("imagfreq", imagfreq_normfactor, reaction.instance_name, uq_iter)       
 
-        # get left-right barrier
-                    species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
+                    # get left-right barrier
+                    well_zeroenergy = species_energies[self.species.chemid]
+                    # species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
                     if self.species.reac_ts_done[index] == -1:
-                        ts_zeroenergy = (reaction.ts.energy + reaction.ts.zpe) * constants.AUtoKCAL
-                        if not self.par['high_level'] and reaction.mp2 == 1:
-                            jobname = '{}_well_mp2'.format(str(self.species.chemid))
-                            well_zeroenergy = self.get_zeroenergy(jobname, qc)
-                        elif not self.par['high_level'] and self.species.reac_type[index] == 'barrierless_saddle':
-                            jobname = '{}_well_bls'.format(str(self.species.chemid))
-                            well_zeroenergy = self.get_zeroenergy(jobname, qc)
-                        else:
-                            well_zeroenergy = species_zeroenergy
+                        ts_zeroenergy = ((reaction.ts.energy + reaction.ts.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+                        #if not self.par['high_level'] and reaction.mp2 == 1:
+                        #    jobname = '{}_well_mp2'.format(str(self.species.chemid))
+                        #    well_zeroenergy = self.get_zeroenergy(jobname, qc)
+                        #elif not self.par['high_level'] and self.species.reac_type[index] == 'barrierless_saddle':
+                        #    jobname = '{}_well_bls'.format(str(self.species.chemid))
+                        #    well_zeroenergy = self.get_zeroenergy(jobname, qc)
+                        #else:
+                        #well_zeroenergy = species_zeroenergy
                         left_zeroenergy = ts_zeroenergy - well_zeroenergy
 
-                        prod_zeroenergy = 0
-                        for opt in reaction.prod_opt:
-                            prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
-                        right_zeroenergy = left_zeroenergy - (prod_zeroenergy - well_zeroenergy)
-                            
+                        #prod_zeroenergy = 0
+                        prod_zeroenergy = species_energies["_".join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))]
+                        #for opt in reaction.prod_opt:
+                        # prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
+                        #right_zeroenergy = left_zeroenergy - (prod_zeroenergy - well_zeroenergy)
+                        right_zeroenergy = ts_zeroenergy - prod_zeroenergy
+                    print("well: {} ts: {} prod: {}".format(well_zeroenergy, ts_zeroenergy, prod_zeroenergy))
+                    print("ts: {} left: {} right: {}".format(ts_zeroenergy, left_zeroenergy, right_zeroenergy))
                     allTS[reaction.instance_name], zeroenergy = self.write_barrier(reaction,
                                                                                    ts_zeroenergy,
                                                                                    index,
-                                                                                   left_zeroenergy,
-                                                                                   right_zeroenergy,
+                                                                                   well_zeroenergy,
+                                                                                   prod_zeroenergy,
                                                                                    barrierAdd,
                                                                                    freqFactor,
                                                                                    imagfreqFactor,
                                                                                    uq_iter)
-
-                # Only write products once, stops duplicate product writing
-                if reaction.instance_name in ts_unique:
-                    ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
-                    if len(reaction.products) == 1:
-                        st_pt = reaction.prod_opt[0].species
-                        energyAdd, prod_energy_normfactor = uq_obj.calc_factor('energy', st_pt.chemid, uq_iter, self.pes)
-                        freqFactor, prod_freq_normfactor = uq_obj.calc_factor('freq', st_pt.chemid, uq_iter, self.pes)
-                        uq_obj.write_uqtk_data("energy", prod_energy_normfactor, st_pt.chemid, uq_iter)
-                        uq_obj.write_uqtk_data("freq", prod_freq_normfactor, st_pt.chemid, uq_iter)
-
-                        well_blocks[st_pt.chemid] = self.write_well(st_pt,
-                                                                    energyAdd,
-                                                                    freqFactor,
-                                                                    uq_iter)
-                    elif len(reaction.products) == 2:
-                        bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        energyAdd, bimol_energy_normfactor = uq_obj.calc_factor('energy', bimol_name, uq_iter, self.pes)
-                        freqFactor, bimol_freq_normfactor = uq_obj.calc_factor('freq', bimol_name, uq_iter, self.pes)
-                        uq_obj.write_uqtk_data("energy", bimol_energy_normfactor, bimol_name, uq_iter)
-                        uq_obj.write_uqtk_data("freq", bimol_freq_normfactor, bimol_name, uq_iter)
-
-                        bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
-                                                                      energyAdd,
-                                                                      freqFactor,
-                                                                      uq_iter)
-                        written_bimol_names.append(bimol_name)
-                    else:
-                        # termol
+                    if len(reaction.products) > 2:
                         termolec_ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
-                        termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        termolec_blocks[termol_name] = self.write_termol([opt.species for opt in reaction.prod_opt], 
-                                                                         reaction,
-                                                                         uq_iter)
-                        written_termolec_names.append(termol_name)
+                    else:
+                        ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
 
             # Homolytic scission - barrierless reactions with no TS search
             if self.species.homolytic_scissions is not None:
@@ -388,7 +399,7 @@ class MESS:
     def write_barrierless(self, species_list, reaction, energyAdd, freqFactor, uq_iter):
 
         if len(reaction.products) == 2:
-            barrierless = self.write_bimol(species_list,
+            barrierless, bimol_zeroenergy = self.write_bimol(species_list,
                                            energyAdd,
                                            freqFactor,
                                            uq_iter,
@@ -549,7 +560,7 @@ class MESS:
         with open('{}_{:04d}.mess'.format(pr_name, uq_iter), 'w') as f:
             f.write(bimol)
 
-        return bimol
+        return bimol, energy
 
 
     def write_well(self, species, well_add, freqFactor, uq_iter):
@@ -581,9 +592,9 @@ class MESS:
         with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
             f.write(mess_well)
 
-        return mess_well
+        return mess_well, zeroenergy
 
-    def write_barrier(self, reaction, ts_zeroenergy, index, left_zeroenergy, right_zeroenergy, barrier_add, freqFactor, imagfreqFactor, uq_iter):
+    def write_barrier(self, reaction, ts_zeroenergy, index, well_zeroenergy, prod_zeroenergy, barrier_add, freqFactor, imagfreqFactor, uq_iter):
         """
         Create the block for a MESS barrier.
         """
@@ -591,8 +602,9 @@ class MESS:
         freq = ''
 
         ts_zeroenergy += barrier_add
-        left_zeroenergy += barrier_add
-        right_zeroenergy += barrier_add
+        left_zeroenergy = ts_zeroenergy - well_zeroenergy
+        right_zeroenergy = ts_zeroenergy - prod_zeroenergy
+        print("ts: {} left: {} right: {}".format(ts_zeroenergy, left_zeroenergy, right_zeroenergy))
 
         # write tunneling block
         if left_zeroenergy < 0 or right_zeroenergy < 0:

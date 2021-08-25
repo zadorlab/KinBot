@@ -87,7 +87,7 @@ def main():
 
     # create directories
     if not os.path.exists('perm'):
-        os.mkdirs('perm')
+        os.makedirs('perm')
     # create a directory for the L3 single point calculations
     # directory has the name of the code, e.g., molpro
     try:

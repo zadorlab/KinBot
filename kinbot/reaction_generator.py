@@ -359,6 +359,7 @@ class ReactionGenerator:
                                              atom=self.species.atom, geom=geom, wellorts=1)
                         err, ts.energy = self.qc.get_qc_energy(obj.instance_name)
                         err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)  # NEW STOPS HERE
+                        err, ts.freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom) 
                         ts.distance_mx()
                         ts.bond = bond_mx
                         ts.find_cycle()
@@ -643,7 +644,6 @@ class ReactionGenerator:
         else:
             stereochem = ''
         return stereochem
-
 
     def reversed_iterator(self, iter):
         return reversed(list(iter))

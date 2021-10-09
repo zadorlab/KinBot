@@ -68,7 +68,6 @@ class Optimize:
             # do the conformational search
             if self.par['conformer_search'] == 1:
                 if self.scycconf == -1 and self.sconf == -1:
-                    # conformational analysis has to be started
                     logging.info('\tStarting conformational search of {}'.format(self.name))
                     self.species.confs = Conformers(self.species, self.par, self.qc)
 

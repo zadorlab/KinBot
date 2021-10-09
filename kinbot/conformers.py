@@ -67,6 +67,8 @@ class Conformers:
         # Number of random conformers in case no
         # exhaustive search is done
         self.nconfs = par['random_conf']
+
+        self.info = True
         
         if semi_emp:
             # Maximum number of diherals for which exhaustive
@@ -129,8 +131,7 @@ class Conformers:
                 if len(cyc) < 7:
                     nc = np.power(3, nd)
                 else:
-                    baseConf = 27  # 3 ^ (6-3)
-                    nc = baseConf
+                    nc = 27  # 3 ^ (6-3)
                     exp = 4
                     while exp <= nd:
                         conf_add = np.power(2, exp)
@@ -269,7 +270,9 @@ class Conformers:
         if rotor != -999:
             if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
                 if rotor == 0:
-                    logging.info('Random conformer search is carried out for {}.'.format(name))
+                    if self.info: 
+                        logging.info('Random conformer search is carried out for {}.'.format(name))
+                        self.info = False
 
                     # skipping generation if done
                     if self.cyc_conf > 1:
@@ -403,6 +406,7 @@ class Conformers:
             for i, si in enumerate(status):
                 if si == -1:
                     status[i] = self.test_conformer(i)[1]
+            # problem: if the first sample has 2 imaginary frequencies, what to do then?
             if all([si >= 0 for si in status]):
                 lowest_totenergy = 0.
                 lowest_e_geom = self.species.geom
@@ -421,7 +425,7 @@ class Conformers:
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         final_geoms.append(geom)
                         totenergies.append(energy + zpe)
-                        if lowest_totenergy == 0.:  # likely / hopefully the first sample
+                        if lowest_totenergy == 0.:  # likely / hopefully the first sample was valid
                             if ci != 0:
                                 logging.warning('For {} conformer 0 failed.'.format(name)) 
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
@@ -441,17 +445,15 @@ class Conformers:
                                     err = -1
                             if err == 0:
                                 lowest_totenergy = energy + zpe
-                                if self.species.wellorts:
-                                    base_imag_freq = freq[0]
                         if energy + zpe < lowest_totenergy:
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             ratio = 0.8
                             # job fails if conformers freq array is empty
                             if len(freq) > 0:
                                 if self.species.wellorts:
-                                    if freq[0] / base_imag_freq < ratio:
+                                    if freq[0] / self.species.freq[0] < ratio:
                                         err = -1 
-                                    if freq[0] / base_imag_freq > 1. / ratio:
+                                    if freq[0] / self.species.freq[0] > 1. / ratio:
                                         err = -1 
                                     if self.species.natom > 2 and freq[1] <= 0.:
                                         err = -1

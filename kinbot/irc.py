@@ -45,7 +45,7 @@ class IRC:
             if err == -1:
                 return 0
             if self.problem_in_geom(geom):
-                # this happens seldomly that all the atoms are
+                # this happens seldom that all the atoms are
                 # very close to one another (problem in Gaussian)
                 logging.info('\tProblem with product geometry for {}'.format(instance_name))
                 return 0
@@ -55,13 +55,13 @@ class IRC:
                                    self.rxn.species.mult,
                                    atom=self.rxn.species.atom,
                                    geom=geom)
-            temp.calc_chemid()
+            temp.characterize()
 
             st_pts[i] = temp
-            if temp.chemid == self.rxn.species.chemid:
+            if temp.chemid == self.rxn.species.chemid and all(temp.chiral) == all(self.rxn.species.chiral):
                 ini_well_hits += 1
             else:
-                prod_hit = i
+                prod_hit = i  # this leaves the possibility of a chirality changing reaction
 
         if ini_well_hits == 0:
             logging.info('\tNeither IRC leads to the well for {}'.format(instance_name))

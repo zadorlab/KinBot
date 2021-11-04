@@ -14,6 +14,8 @@ If you are using this tool in scientific publications, please reference this git
 
 Ruben Van de Vijver, Judit Zádor: KinBot: Automated stationary point search on potential energy surfaces, Computer Physics Communication, 2019, 106947 https://doi.org/10.1016/j.cpc.2019.106947
 
+We appreciate if you send us the DOI of your published paper that used KinBot, so we can feature it here below.
+
 ## How to Install
 Make sure all dependencies are correctly installed. The dependencies are lister here https://github.com/zadorlab/KinBot/wiki/Setting-Up-KinBot-on-Your-System 
 

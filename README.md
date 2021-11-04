@@ -65,7 +65,7 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 * Amanda Dewyer (adewyer@sandia.gov)
 
 ## Papers using KinBot
-* Ramasesha, K., Savee, J. D., Zádor, J., Osborn, D. L.: A New Pathway for Intersystem Crossing: Unexpected Products in the O(3P) + Cyclopentene Reaction. J. Phys. Chem. A, **2021**.
+* Ramasesha, K., Savee, J. D., Zádor, J., Osborn, D. L.: A New Pathway for Intersystem Crossing: Unexpected Products in the O(3P) + Cyclopentene Reaction. J. Phys. Chem. A, **2021**, https://doi.org/10.1021/acs.jpca.1c05817.
 * Rogers, C. O, Lockwood, K. S., Nguyen, Q. L. D., Labbe, N. J.: _Diol isomer revealed as a source of methyl ketene from propionic acid unimolecular decomposition._ Int. J. Chem. Kinet., **2021**, https://doi.org/10.1002/kin.21532
 * Lockwood, K. S., Labbe, N. J.: _Insights on keto-hydroperoxide formation from O2 addition to the beta-tetrahydrofuran radical._ Proceedings of the Combustion Institute, **2021**, 38, 1, 533. https://doi.org/10.1016/j.proci.2020.06.357
 * Sheps, L., Dewyer, A. L., Demireva, M., and Zádor, J.: _Quantitative Detection of Products and Radical Intermediates in Low-Temperature Oxidation of Cyclopentane._ J. Phys. Chem. A **2021**, 125, 20, 4467. https://doi.org/10.1021/acs.jpca.1c02001

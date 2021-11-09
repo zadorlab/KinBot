@@ -1374,7 +1374,7 @@ def get_l3energy(job, par, bls=0):
  
     # if no file or no energy found
     logging.info('L3 for {} is missing.'.format(job))
-    return 0, -1  # job not yet started to run
+    return 0, -1  # job not yet started to run or not finished
 
 
 def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):

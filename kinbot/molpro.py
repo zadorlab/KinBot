@@ -124,7 +124,7 @@ class Molpro:
         Verify if there is a molpro output file and if yes, read the energy
         key is the keyword for the energy we want to read
         returns 1, energy if successful
-        returns 0, -1 if the energy was not there
+        returns 0, -1 if the energy or the file was not there
         A non-object-oriented version is used in pes.py
         """
         fname = self.get_name(name)
@@ -132,12 +132,10 @@ class Molpro:
         if status:
             with open('molpro/' + fname + '.out') as f:
                 lines = f.readlines()
-
             for index, line in enumerate(reversed(lines)):
                 if ('SETTING ' + key) in line:
                     return 1, float(line.split()[3])
-        else:
-            return 0, -1
+        return 0, -1
 
     def create_molpro_submit(self, name=''):
         """

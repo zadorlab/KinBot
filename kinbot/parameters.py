@@ -339,8 +339,8 @@ class Parameters:
             if key in self.par:
                 self.par[key] = user_data[key]
             else:
-                err = 'KinBot does not recognize option {} with value {}'
-                logging.error(err.format(key, user_data[key]))
+                msg = f'KinBot does not recognize option {key} with value {user_data[key]}'
+                raise IOError(msg)
 
     def print_parameters(self):
         """

@@ -6,12 +6,11 @@
         SymmetryFactor              {symm}
       End
     
-      Frequencies[1/cm]             {nfreq}
+      Frequencies[1/cm]             1
 {freq}
-{hinderedrotor}
-      ElectronicLevels[1/cm]        {nelec}
-            0.    {mult}
-          140.    {mult}
+      ElectronicLevels[1/cm]        2
+            0.    2
+          140.    2
 
       ZeroEnergy[kcal/mol]        0.0
   End ! Fragment

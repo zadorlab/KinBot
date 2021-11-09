@@ -207,10 +207,6 @@ class HIR:
         ang = [angles[i] for i in range(len(status)) if status[i] == 0]
         ens = [(energies[i] - energies[0])*constants.AUtoKCAL for i in range(len(status)) if status[i] == 0]
 
-        if len(ens) < self.nrotation - 2:
-            # more than two points are off
-            logging.warning("Hindered rotor potential has more than 2 failures for " + job)
-
         X = np.zeros((len(ang), 2 * self.n_terms))
         for i, ai in enumerate(ang):
             for j in range(self.n_terms):

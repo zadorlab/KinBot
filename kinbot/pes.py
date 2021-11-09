@@ -89,10 +89,6 @@ def main():
     except OSError:
         pass
 
-    # List of chemids to skip KinBot submissions for.
-    skipChemids = par['skip_chemids']
-    # maximum number of kinbot jobs that run simultaneously
-    max_running = par['simultaneous_kinbot']
     # jobs that are running
     running = []
     # jobs that are finished
@@ -131,16 +127,16 @@ def main():
             if len(finished) == len(jobs):
                 break
 
-        while (len(running) < max_running and
+        while (len(running) < par['simultaneous_kinbot'] and
                len(running) + len(finished) < len(jobs)):
             # start a new job
             job = jobs[len(running) + len(finished)]
             kb = 1
             logging.info('Job: {}'.format(job))
-            if 'none' in skipChemids:
+            if 'none' in par['skip_chemids']:
                 logging.info('No KinBot runs to be skipped')
             else:
-                if job in skipChemids:
+                if job in par['skip_chemids']:
                     kb = 0
             logging.info('kb: {}'.format(kb))
             if kb == 1:
@@ -199,7 +195,7 @@ def main():
             time.sleep(1)
 
     # delete skipped jobs from the jobs before sending to postprocess
-    for skip in skipChemids:
+    for skip in par['skip_chemids']:
         try:
             jobs.pop(jobs.index(skip))
         except ValueError:
@@ -297,8 +293,10 @@ def postprocess(par, jobs, task, names):
         for line in summary:
             if line.startswith('SUCCESS'):
                 pieces = line.split()
-                reactant = ji
                 ts = pieces[2]  # this is the long specific name of the reaction
+                if ts in par['skip_reactions']:
+                    continue
+                reactant = ji
                 prod = pieces[3:]  # this is the chemid of the product
                 # calculate the barrier based on the new energy base
                 barrier = 0. - base_energy - base_zpe

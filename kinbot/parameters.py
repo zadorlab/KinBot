@@ -34,7 +34,7 @@ class Parameters:
             # verbose log file
             'verbose': 0,
 
-            # INPUT SPECIES INFOR
+            # INPUT SPECIES INFO
             # SMILES of the species
             'smiles': '',
             # geometry of the species
@@ -55,6 +55,8 @@ class Parameters:
             'skip_families': ['none'],
             # Which chemids to skip kinbot runs for during PES calculations
             'skip_chemids': ['none'],
+            # Skip specific reactions, usually makes sense once the search is done
+            'skip_reactions': ['none'],
             # break all single bonds to find the barriers
             # of potential homolytic scissions
             'homolytic_scissions': 0,

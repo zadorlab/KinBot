@@ -380,7 +380,7 @@ class MESS:
                                                          natom=species.natom,
                                                          geom=self.make_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
-                                                         freq=self.make_freq(species, freqFactor, 0))
+                                                         freq=self.make_freq(species, freq_factor, 0))
                 else:
                     fragments += self.fragmenttpl.format(chemid=name,
                                                          smi=species.smiles,

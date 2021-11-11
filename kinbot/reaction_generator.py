@@ -1,5 +1,5 @@
 import numpy as np
-import os
+import os, sys
 import time
 import logging
 import copy
@@ -188,7 +188,11 @@ class ReactionGenerator:
                             ending = 'well'
                         sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
                         sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
-                        barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
+                        try:
+                            barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
+                        except TypeError:
+                            logging.error(f'Faulty calculations, check or delete files for {obj.instance_name}.')
+                            sys.exit(-1)
                         if barrier > self.par['barrier_threshold']:
                             logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'
                                          .format(barrier, obj.instance_name))
@@ -240,6 +244,9 @@ class ReactionGenerator:
                                             a.append(frag)
                                             new = 0
                                             break
+                                if new:
+                                    frag_unique.append(frag)
+                                    break
                                 if new:
                                     frag_unique.append(frag)
                         obj.products_final = []
@@ -644,6 +651,3 @@ class ReactionGenerator:
         else:
             stereochem = ''
         return stereochem
-
-    def reversed_iterator(self, iter):
-        return reversed(list(iter))

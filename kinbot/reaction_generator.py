@@ -246,7 +246,7 @@ class ReactionGenerator:
                                             break
                                 if new:
                                     frag_unique.append(frag)
-                                            break
+                                    break
                                 if new:
                                     frag_unique.append(frag)
                         obj.products_final = []

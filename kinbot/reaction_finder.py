@@ -231,11 +231,11 @@ class ReactionFinder:
                 for instance in instances:
                     if any([bi > 1 for bi in bond[instance[0]]]):
                         rxns += [instance]
+
                 # lone pairs
                 motif = ['X' for i in range(ringsize)]
                 motif[-1] = 'H'
                 instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-           
                 for instance in instances:
                     if (self.species.atom[instance[0]] == 'O' or  
                        self.species.atom[instance[0]] == 'S' or 
@@ -252,19 +252,13 @@ class ReactionFinder:
             for instance in instances: 
                 rxns.append(instance)
         
-        #filter for the same reactions
-        for inst in rxns:
-            new = 1
-            # first filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        instances = self.clean_rigid(instances, 0, -1)
+
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
         
         return 0
 
@@ -291,18 +285,12 @@ class ReactionFinder:
             if bond[instance[0]][instance[1]] == 2:
                 rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # first filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
         
         return 0
 
@@ -339,18 +327,13 @@ class ReactionFinder:
             if not atom[instance[-1]] == 'H':
                 rxns.append(instance)
         
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        instances = self.clean_rigid(instances, 0, -1)
+
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
         
         return 0
 
@@ -405,19 +388,12 @@ class ReactionFinder:
                         instance.append(Hatomi)
                         rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                # TODO need to check if this is correct
-                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                # TODO need to check if this is correct
+#                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
 
         return 0
         
@@ -479,18 +455,13 @@ class ReactionFinder:
         for case in range(len(rxns)):
             rxns[case] = rxns[case][:-1] #cut off H
             
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-3], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        instances = self.clean_rigid(instances, 0, -1)
+
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-3], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
+#                    new = 0
 
         return 0
 
@@ -536,18 +507,11 @@ class ReactionFinder:
                         rxns += [instance[:-1]]  # cut off H and add a -2 for nominal trans
                         rxns[-1].append(-2)
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1] and inst[-2] == instance[-2]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-3], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1, c=-2)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-3], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
+#                    new = 0
 
         return 0
 
@@ -585,22 +549,13 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance] 
             
-
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-2] == instance[-2] and len(inst) == len(instance):
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-2, length=True)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})}:
+#                    new = 0
                 
         return 0
-        
 
 
     def search_Intra_RH_Add_Endocyclic_F(self, natom, atom, bond, rad):
@@ -636,22 +591,13 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance] 
             
-
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-2] == instance[-2] and len(inst) == len(instance):
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-2, length=True)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})}:
+#                    new = 0
                 
         return 0
-        
 
 
     def search_Intra_RH_Add_Endocyclic_R(self, natom, atom, bond, rad):
@@ -687,18 +633,11 @@ class ReactionFinder:
                 if bond[instance[0]][instance[-2]] > 0:
                     rxns += [instance[-4:]]
         
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-3], inst[-4]}), frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[-1], inst[-4]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-3], inst[-4]}), frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[-1], inst[-4]})}:
+#                    new = 0
         
         self.reactions[name]
 
@@ -737,18 +676,11 @@ class ReactionFinder:
         for instance in range(len(rxns)):
             rxns[instance] = rxns[instance][:-2] #cut off OR
             
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-2], inst[-3]})} or self.prod_bonds != {frozenset({inst[0], inst[-3]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-2], inst[-3]})} or self.prod_bonds != {frozenset({inst[0], inst[-3]})}:
+#                    new = 0
         
         return 0
 
@@ -787,18 +719,11 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
                 
         return 0
 
@@ -826,18 +751,11 @@ class ReactionFinder:
             for rad_site in np.nonzero(rad)[0]:
                 rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst) 
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
+#                    new = 0
 
         return 0
 
@@ -877,19 +795,11 @@ class ReactionFinder:
                     rxns += [instance]
 
 
-        #filter for the same reactions
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-2] == instance[-2]: # was -1 originally, fixed bug
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst) 
+        self.new_reaction(rxns, name, a=0, b=-2)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-2]})}:
+#                    new = 0
 
         return 0
 
@@ -947,18 +857,11 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[1], inst[-2]}), frozenset({inst[-1], inst[0]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst) 
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[1], inst[-2]}), frozenset({inst[-1], inst[0]})}:
+#                    new = 0
         
         return 0
 
@@ -997,18 +900,11 @@ class ReactionFinder:
                     rxns += [instance[-4:]]
 
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]}), frozenset({inst[-3], inst[0]})} or self.prod_bonds != {frozenset({inst[-1], inst[0]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]}), frozenset({inst[-3], inst[0]})} or self.prod_bonds != {frozenset({inst[-1], inst[0]})}:
+#                    new = 0
 
         return 0
 
@@ -1041,18 +937,11 @@ class ReactionFinder:
             if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                 rxns += [instance] 
         
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset()}:
+#                    new = 0
         
         return 0
 
@@ -1112,23 +1001,24 @@ class ReactionFinder:
                                 ins_full = ins + [threefrag[1]] + [threefrag[2]] + [at] # H adds to the second atom of this fragment
                                 rxns += [ins_full]
 
-        for n, inst in enumerate(rxns):
-            new = 1
-            #filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst == instance:
-                    new = 0
-            # filter for specific reaction after this # TODO
-            #if self.one_reaction_fam and new:
-            #    if ring_var[n] == 7: 
-            #        if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
-            #            new = 0
-            #    if ring_var[n] == 8: 
-            #        #  TODO this is an incomplete check
-            #        if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
-            #            new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, full=True)
+#        for n, inst in enumerate(rxns):
+#            new = 1
+#            #filter for the same reactions
+#            for instance in self.reactions[name]:
+#                if inst == instance:
+#                    new = 0
+#            # filter for specific reaction after this # TODO
+#            #if self.one_reaction_fam and new:
+#            #    if ring_var[n] == 7: 
+#            #        if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
+#            #            new = 0
+#            #    if ring_var[n] == 8: 
+#            #        #  TODO this is an incomplete check
+#            #        if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
+#            #            new = 0
+#            if new:
+#                self.reactions[name].append(inst)
 
         return 0
 
@@ -1165,23 +1055,24 @@ class ReactionFinder:
                 if bond[ins[0]][ins[-1]] == 1:  # it is a ring
                     rxns += [ins]
 
-        for n, inst in enumerate(rxns):
-            new = 1
-            #filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst == instance:
-                    new = 0
-            # filter for specific reaction after this
-            #if self.one_reaction_fam and new:
-            #    if ring_var[n] == 7: 
-            #        if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
-            #            new = 0
-            #    if ring_var[n] == 8: 
-            #        #  TODO this is an incomplete check
-            #        if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
-            #            new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, full=True)
+#        for n, inst in enumerate(rxns):
+#            new = 1
+#            #filter for the same reactions
+#            for instance in self.reactions[name]:
+#                if inst == instance:
+#                    new = 0
+#            # filter for specific reaction after this
+#            #if self.one_reaction_fam and new:
+#            #    if ring_var[n] == 7: 
+#            #        if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
+#            #            new = 0
+#            #    if ring_var[n] == 8: 
+#            #        #  TODO this is an incomplete check
+#            #        if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
+#            #            new = 0
+#            if new:
+#                self.reactions[name].append(inst)
 
         return 0
 
@@ -1224,23 +1115,17 @@ class ReactionFinder:
                     rxns += [ins]
                     ring_var.append(ringsize)
 
-        for n, inst in enumerate(rxns):
-            new = 1
-            #filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if ring_var[n] == 7: 
-                    if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
-                        new = 0
-                if ring_var[n] == 8: 
-                    #  TODO this is an incomplete check
-                    if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
-                        new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#        for n, inst in enumerate(rxns):
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if ring_var[n] == 7: 
+#                    if (not {frozenset({inst[-2], inst[-3]}), frozenset({inst[0], inst[1]})}.issubset(self.reac_bonds)) or self.prod_bonds != {frozenset()}:
+#                        new = 0
+#                if ring_var[n] == 8: 
+#                    #  TODO this is an incomplete check
+#                    if self.reac_bonds != {frozenset({inst[-2], inst[-3]}), frozenset({inst[-4], inst[-5]}), frozenset({inst[0], inst[1]})}:
+#                        new = 0
         
         return 0
 
@@ -1277,19 +1162,12 @@ class ReactionFinder:
                 rxns += [ring1]
                 rxns += [ring2]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                # TODO need to make sure that these are the bonds that are broken, see the reaction details
-                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                # TODO need to make sure that these are the bonds that are broken, see the reaction details
+#                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset()}:
+#                    new = 0
         
         return 0
 
@@ -1329,19 +1207,12 @@ class ReactionFinder:
                 rxns += ring2
                 rxns += ring3 
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                # TODO need to make sure that these are the bonds that are broken, see the reaction details
-                if self.reac_bonds != {frozenset({inst[0], inst[2]}), frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                # TODO need to make sure that these are the bonds that are broken, see the reaction details
+#                if self.reac_bonds != {frozenset({inst[0], inst[2]}), frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
+#                    new = 0
         
         return 0
 
@@ -1373,18 +1244,11 @@ class ReactionFinder:
             #if all([atom[atomi] != 'H' for atomi in instance]):
             rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[1], inst[2]})}) or self.prod_bonds != {frozenset({inst[0], inst[2]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst) 
+        self.new_reaction(rxns, name, a=0, b=1, c=2)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[1], inst[2]})}) or self.prod_bonds != {frozenset({inst[0], inst[2]})}:
+#                    new = 0
         
         return 0
 
@@ -1418,18 +1282,11 @@ class ReactionFinder:
                         if bond[atomi][instance[1]] == 2:
                             rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
+#                    new = 0
         
         return 0
 
@@ -1454,18 +1311,11 @@ class ReactionFinder:
         motif = ['X','X','X','O']
         rxns = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
         
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst) 
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
+#                    new = 0
         
         return 0
 
@@ -1513,18 +1363,11 @@ class ReactionFinder:
 
                 rxns += [ring] # FIXME only works for 1 cycle
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[2], inst[3]}), frozenset({inst[4], inst[5]})}) or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != set({frozenset({inst[2], inst[3]}), frozenset({inst[4], inst[5]})}) or self.prod_bonds != {frozenset()}:
+#                    new = 0
         
         return 0
 
@@ -1567,18 +1410,11 @@ class ReactionFinder:
                     rxns += [instance] 
      
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
                 
         return 0
 
@@ -1610,19 +1446,11 @@ class ReactionFinder:
             if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                 rxns += [instance]
             
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if (inst[0] == instance[0] and inst[1] == instance[1]
-                    and inst[2] == instance[2] and inst[3] == instance[3]):
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1, c=2, d=3)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[1]})}:
+#                    new = 0
         
         return 0
  
@@ -1650,18 +1478,11 @@ class ReactionFinder:
         motif = ['H', 'X', 'X', 'O', 'O']
         rxns += find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
             
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != {frozenset({inst[0], inst[4]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})}) or self.prod_bonds != {frozenset({inst[0], inst[4]})}:
+#                    new = 0
         
         return 0
         
@@ -1695,18 +1516,11 @@ class ReactionFinder:
                 if rad[instance[1]] == 1:
                     rxns += [instance]
         
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1, c=2)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
+#                    new = 0
 
         return 0
 
@@ -1735,18 +1549,11 @@ class ReactionFinder:
         for rad_site in np.nonzero(rad)[0]:
             rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
     
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1, c=2)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
+#                    new = 0
         
         return 0
 
@@ -1841,18 +1648,11 @@ class ReactionFinder:
         rxns = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
         
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[0], inst[1]})}) or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst) 
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != set({frozenset({inst[0], inst[1]}), frozenset({inst[0], inst[1]})}) or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
+#                    new = 0
         
         return 0
 
@@ -1886,18 +1686,11 @@ class ReactionFinder:
                 if rad[instance[1]] == 1:
                     rxns += [instance]
         
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1, c=2)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
+#                    new = 0
 
         return 0
 
@@ -1931,18 +1724,11 @@ class ReactionFinder:
             if rad[instance[0]] == 1 and rad[instance[-1]] == 1:
                 rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[1] == instance[1] and inst[2] == instance[2]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=1, b=2)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[1], inst[2]})} or self.prod_bonds != {frozenset()}:
+#                    new = 0
         
         return 0
 
@@ -1980,18 +1766,11 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance] 
                     
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
         
         return 0
 
@@ -2022,18 +1801,11 @@ class ReactionFinder:
                 if rad[instance[0]] == 1 and rad[instance[-1]] == 1:
                     rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
         
         return 0
 
@@ -2063,18 +1835,11 @@ class ReactionFinder:
             if instance[0] in self.cycle and instance[1] in self.cycle :
                 rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[0], inst[1]})} or self.prod_bonds != {frozenset()}:
+#                    new = 0
         
         return 0
 
@@ -2105,18 +1870,11 @@ class ReactionFinder:
                 if rad[instance[0]] == 1 and rad[instance[-3]] == 1:
                     rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
         
         return 0
 
@@ -2151,18 +1909,11 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance] 
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
         
         return 0
 
@@ -2190,18 +1941,11 @@ class ReactionFinder:
         for rad_site in np.nonzero(rad)[0]:
             rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[1] == instance[1] and inst[2] == instance[2] and inst[3] == instance[3] and inst[4] == instance[4]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[1], inst[2]}), frozenset({inst[3], inst[4]})} or self.prod_bonds != {frozenset()}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=1, c=2, d=3, e=4)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[1], inst[2]}), frozenset({inst[3], inst[4]})} or self.prod_bonds != {frozenset()}:
+#                    new = 0
 
         return 0
 
@@ -2229,20 +1973,17 @@ class ReactionFinder:
         for instance in instances: 
             rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-                if inst[0] == instance[-1] and inst[-1] == instance[0]:
-                    new = 0
-            # filter for specific reaction after this
-            if self.one_reaction_fam and new:
-                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
-                    new = 0
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1, cross=True)
+#            # filter for the same reactions
+#            for instance in self.reactions[name]:
+#                if inst[0] == instance[0] and inst[-1] == instance[-1]:
+#                    new = 0
+#                if inst[0] == instance[-1] and inst[-1] == instance[0]:
+#                    new = 0
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
+#                    new = 0
 
         return 0
 
@@ -2266,22 +2007,19 @@ class ReactionFinder:
         for instance in instances: 
             rxns += [instance]
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[1] and inst[1] == instance[0]:
-                    new = 0
-            # filter for specific reaction after this
+        self.new_reaction(rxns, name, a=0, b=1, cross=True)
+#        for inst in rxns:
+#            new = 1
+#            # filter for the same reactions
+#            for instance in self.reactions[name]:
+#                if inst[0] == instance[1] and inst[1] == instance[0]:
+#                    new = 0
+#            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
 #                    new = 0
-            if new:
-                self.reactions[name].append(inst)
 
         return 0
-
-
 
 
     def search_barrierless_saddle(self, natom, atom, bond, rad):
@@ -2302,17 +2040,16 @@ class ReactionFinder:
         else:
             return 0
 
-        for inst in rxns:
-            new = 1
-            # filter for the same reactions
-            for instance in self.reactions[name]:
-                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-                    new = 0
-                if inst[0] == instance[-1] and inst[-1] == instance[0]:
-                    new = 0
-            # no filter for specific reaction after this, this is a specific reaction already
-            if new:
-                self.reactions[name].append(inst)
+        self.new_reaction(rxns, name, a=0, b=-1, cross=True)
+#        for inst in rxns:
+#            new = 1
+#            # filter for the same reactions
+#            for instance in self.reactions[name]:
+#                if inst[0] == instance[0] and inst[-1] == instance[-1]:
+#                    new = 0
+#                if inst[0] == instance[-1] and inst[-1] == instance[0]:
+#                    new = 0
+#            # no filter for specific reaction after this, this is a specific reaction already
 
         return 0
 
@@ -2335,7 +2072,6 @@ class ReactionFinder:
         reac_ts_freq: the freqencies of the TS
         reac_name: the base name of the file to run - created for each reaction later
         """
-        
         
         self.species.reac_type += [reac_id for i in range(len(reac_list))]
         self.species.reac_inst += reac_list
@@ -2529,3 +2265,78 @@ class ReactionFinder:
             else:
                 self.species.reac_name.append(0)
         return 0
+
+
+    def clean_rigid(self, instances, pivot1, pivot2):
+        """
+        Getting rid of instances where the rigid structure would not allow the 
+        transfer of atoms, e.g., H transfer across a large rigid ring structure.
+        It is based on the presence of (partial) double bonds along the motif.
+        If the structure is rigid, and the selected pivot atoms are further than a cutoff
+        then the instance will be deleted fro the list.
+        Pivots requires manual determination for each family, where this is important.
+        Not applied to all families.
+        """
+
+        mask = [True] * len(instances)
+        for inst, instance in enumerate(instances):
+            if all(self.species.maxbond[instance[ii]][instance[ii + 1]] > 1 for ii in range(len(instance) - 1)):
+                if np.linalg.norm(self.species.geom[pivot1] - self.species.geom[pivot2]) > 3.:
+                    mask[inst] = False
+
+        return list(np.array(instances)[mask])
+
+
+    def new_reaction(self, rxns, name, a=None, b=None, c=None, d=None, e=None, length=None, full=False, cross=False):
+        """
+        Returns 1 if new, and 0 if not new
+        Checks a variable number of identical elements
+        Also can check full equivalency (full=True), same lenght (length=True), and 
+        equivalency between elements that are interchangeable (cross=True)
+        """
+
+        for inst in rxns:
+            new = True
+            for instance in self.reactions[name]:
+                if cross == True:
+                    if (inst[a] == instance[a] and inst[b] == instance[b]):
+                        new = False
+                        break 
+                    if (inst[a] == instance[b] and inst[b] == instance[a]):
+                        new = False
+                        break 
+                if a is not None:
+                    if inst[a] != instance[a]:
+                        continue
+                if b is not None:
+                    if inst[b] != instance[b]:
+                        continue
+                if c is not None:
+                    if inst[c] != instance[c]:
+                        continue
+                if d is not None:
+                    if inst[d] != instance[d]:
+                        continue
+                if e is not None:
+                    if inst[e] != instance[e]:
+                        continue
+                if length is not None:
+                    if len(inst) != len(instance):
+                        continue
+                if full == True:
+                    if any([inst[i] != instance[i] for i, _ in enumerate(inst)]):
+                        continue
+                new = False
+                continue
+            if new:
+                self.reactions[name].append(inst)
+    
+        return 0
+
+def main():
+    """
+    Find reaction patterns
+    """
+
+    if __name__ == "__main__":
+        main()

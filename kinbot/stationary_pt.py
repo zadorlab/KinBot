@@ -115,6 +115,7 @@ class StationaryPoint:
         self.find_atom_eqv()
         self.calc_chiral()
         self.calc_mass()
+        self.calc_maxbond()
 
     def calc_mass(self):
         """ Calculate mass """
@@ -862,6 +863,21 @@ class StationaryPoint:
                                     lin = [atk, atj, ati] 
                                 if lin not in self.linear:
                                     self.linear.append(lin)
+
+        return
+
+
+    def calc_maxbond(self):
+        """
+        Needed to find rigid segments
+        Takes the maximum of all bond matrices
+        """
+
+        self.maxbond = self.bonds[0]
+        for bb in self.bonds:
+            self.maxbond = np.maximum(self.maxbond, bb)
+
+        return
 
 
 def main():

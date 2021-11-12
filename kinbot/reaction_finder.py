@@ -2285,7 +2285,7 @@ class ReactionFinder:
                 if np.linalg.norm(self.species.geom[instance[pivot1]] - self.species.geom[instance[pivot2]]) > cutoff:
                     mask[inst] = False
                     numbers = [ii + 1 for ii in instance]
-                    logging.info(f'Reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
+                    logging.info(f'{name} reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
         return list(np.array(instances)[mask])
 
 

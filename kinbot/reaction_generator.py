@@ -65,12 +65,6 @@ class ReactionGenerator:
         for i in self.species.reac_inst:
             count = count + 1
         frag_unique = []
-        try:
-            import pybel
-            pybel_err = 0
-        except ImportError:
-            logging.warning("Could not import pybel, stereochemistry not tested based on inchis.")
-            pybel_err = 1
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
@@ -246,9 +240,6 @@ class ReactionGenerator:
                                             break
                                 if new:
                                     frag_unique.append(frag)
-                                    break
-                                if new:
-                                    frag_unique.append(frag)
                         obj.products_final = []
                         for frag in a:
                             self.qc.qc_opt(frag, frag.geom)
@@ -288,7 +279,7 @@ class ReactionGenerator:
                                 obj.products_final.pop(i)
                                 newfrags, newmaps = st_pt.start_multi_molecular()  # newfrags is list of stpt obj
                                 products_waiting_status[index] = [0 for frag in newfrags]
-                                fragChemid = []
+                                frag_chemid = []
                                 for i, newfr in enumerate(newfrags):
                                     newfr.characterize(dimer=0)
                                     for prod in frag_unique:
@@ -300,14 +291,14 @@ class ReactionGenerator:
                                     j = i - 1
                                     obj.products_final.insert(j, newfr)
                                     self.qc.qc_opt(newfr, newfr.geom, 0)
-                                    fragChemid.append(newfr.chemid)
-                                if len(fragChemid) == 1:
-                                    fragChemid.append(" ")
+                                    frag_chemid.append(newfr.chemid)
+                                if len(frag_chemid) == 1:
+                                    frag_chemid.append(" ")
                                 for i, frag in enumerate(newfrags):
                                     products_waiting_status[index][i] = 1
                                 logging.info('\ta) Product optimized to other structure for {}'
                                              ', product {} to {} {}'
-                                             .format(obj.instance_name, chemid, fragChemid[0], fragChemid[1]))
+                                             .format(obj.instance_name, chemid, frag_chemid[0], frag_chemid[1]))
 
                     obj.products = []
                     for prod in obj.products_final:
@@ -350,7 +341,6 @@ class ReactionGenerator:
                                 if e < 0:
                                     err = -1
                     if err == 0:
-                        self.test_stereochem_pybel(pybel_err, obj)
                         self.species.reac_ts_done[index] = 4
                 elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization
@@ -623,26 +613,6 @@ class ReactionGenerator:
                     os.remove(file)
                 except OSError:
                     pass
-
-    def test_stereochem_pybel(self, pybel_err, obj):
-        """
-        Generate and compare inchis for stereochemistry
-        """
-
-        if pybel_err == 1:
-            return 0
-        
-        well0_stereochem = self.get_stereochemistry(self.species.atom, self.species.geom)
-
-        for prod in obj.products:
-            if len(prod.atom) == len(self.species.atom): 
-                prod_stereochem = self.get_stereochemistry(prod.atom, prod.geom)
-                if str(well0_stereochem) != str(prod_stereochem):
-                    logging.warning('Stereochemistry flip for product {} in reaction {}'
-                                    .format(prod.chemid, obj.instance_name))
-            else:
-                continue
-        return 0
 
     def get_stereochemistry(self, atom, geom):
         inchi = cheminfo.create_inchi_from_geom(atom, geom)

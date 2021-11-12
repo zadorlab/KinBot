@@ -252,9 +252,11 @@ class ReactionFinder:
             for instance in instances: 
                 rxns.append(instance)
         
-        instances = self.clean_rigid(instances, 0, -1)
+        print(rxns, 'gaga')
+        #rxns = self.clean_rigid(rxns, 0, -1)
 
         self.new_reaction(rxns, name, a=0, b=-1)
+        print(rxns, 'baba')
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
@@ -327,7 +329,7 @@ class ReactionFinder:
             if not atom[instance[-1]] == 'H':
                 rxns.append(instance)
         
-        instances = self.clean_rigid(instances, 0, -1)
+        rxns = self.clean_rigid(rxns, 0, -1)
 
         self.new_reaction(rxns, name, a=0, b=-1)
 #            # filter for specific reaction after this
@@ -455,7 +457,7 @@ class ReactionFinder:
         for case in range(len(rxns)):
             rxns[case] = rxns[case][:-1] #cut off H
             
-        instances = self.clean_rigid(instances, 0, -1)
+        rxns = self.clean_rigid(rxns, 0, -1)
 
         self.new_reaction(rxns, name, a=0, b=-1)
 #            # filter for specific reaction after this
@@ -2280,10 +2282,15 @@ class ReactionFinder:
 
         mask = [True] * len(instances)
         for inst, instance in enumerate(instances):
-            if all(self.species.maxbond[instance[ii]][instance[ii + 1]] > 1 for ii in range(len(instance) - 1)):
+            print([i+1 for i in instance ], "is")
+            print('COMPARISON', [self.species.maxbond[instance[ii]][instance[ii + 1]] > 1 for ii in range(len(instance) - 2)])
+            if all(self.species.maxbond[instance[ii]][instance[ii + 1]] > 1 for ii in range(len(instance) - 2)):
+                print("almost excluded")
                 if np.linalg.norm(self.species.geom[pivot1] - self.species.geom[pivot2]) > 3.:
                     mask[inst] = False
-
+                    print("excluded")
+        print(list(np.array(instances)))
+        print(list(np.array(instances)[mask]))
         return list(np.array(instances)[mask])
 
 

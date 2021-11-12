@@ -252,7 +252,7 @@ class ReactionFinder:
             for instance in instances: 
                 rxns.append(instance)
         
-        rxns = self.clean_rigid(rxns, 0, -1)
+        rxns = self.clean_rigid(name, rxns, 0, -1)
 
         self.new_reaction(rxns, name, a=0, b=-1)
 #            # filter for specific reaction after this
@@ -327,7 +327,7 @@ class ReactionFinder:
             if not atom[instance[-1]] == 'H':
                 rxns.append(instance)
         
-        rxns = self.clean_rigid(rxns, 0, -1)
+        rxns = self.clean_rigid(name, rxns, 0, -1)
 
         self.new_reaction(rxns, name, a=0, b=-1)
 #            # filter for specific reaction after this
@@ -455,7 +455,7 @@ class ReactionFinder:
         for case in range(len(rxns)):
             rxns[case] = rxns[case][:-1] #cut off H
             
-        rxns = self.clean_rigid(rxns, 0, -1)
+        rxns = self.clean_rigid(name, rxns, 0, -1)
 
         self.new_reaction(rxns, name, a=0, b=-1)
 #            # filter for specific reaction after this
@@ -2267,7 +2267,7 @@ class ReactionFinder:
         return 0
 
 
-    def clean_rigid(self, instances, pivot1, pivot2):
+    def clean_rigid(self, name, instances, pivot1, pivot2):
         """
         Getting rid of instances where the rigid structure would not allow the 
         transfer of atoms, e.g., H transfer across a large rigid ring structure.
@@ -2278,11 +2278,14 @@ class ReactionFinder:
         Not applied to all families.
         """
 
+        cutoff = 3.  # Angstrom
         mask = [True] * len(instances)
         for inst, instance in enumerate(instances):
             if all(self.species.maxbond[instance[ii]][instance[ii + 1]] > 1 for ii in range(len(instance) - 2)):
-                if np.linalg.norm(self.species.geom[pivot1] - self.species.geom[pivot2]) > 3.:
+                if np.linalg.norm(self.species.geom[instance[pivot1]] - self.species.geom[instance[pivot2]]) > cutoff:
                     mask[inst] = False
+                    numbers = [ii + 1 for ii in instance]
+                    logging.info(f'Reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
         return list(np.array(instances)[mask])
 
 

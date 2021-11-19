@@ -251,8 +251,9 @@ class ReactionFinder:
                     instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
             for instance in instances: 
                 rxns.append(instance)
-        
+        print(rxns, instances) 
         instances = self.clean_rigid(instances, 0, -1)
+        print(rxns) 
 
         self.new_reaction(rxns, name, a=0, b=-1)
 #            # filter for specific reaction after this

@@ -680,9 +680,9 @@ class MESS:
             tpl_head = f.read()
 
         q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
-
         with open(q_file) as f:
             tpl = f.read()
+
         with open(submitscript, 'w') as f:
             mess_iter = "{0:04d}".format(uq_iter)
             if self.par['queue_template'] == '':

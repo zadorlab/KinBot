@@ -25,8 +25,8 @@ from ase.constraints import FixInternals
 label = '{label}'
 kwargs = {kwargs}
 
+Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
-calc.command = '{qc_command} < PREFIX.com > PREFIX.log'
 
 atom = {atom}
 geom = {geom}
@@ -70,7 +70,6 @@ if success:
     label = '{label}_prod'
     
     calc = Gaussian(**pr_kwargs)
-    calc.command = '{qc_command} < PREFIX.com > PREFIX.log'
     mol = Atoms(symbols = atom, positions = geom)
     mol.set_calculator(calc)
     try:

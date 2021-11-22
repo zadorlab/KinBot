@@ -23,8 +23,8 @@ from ase.db import connect
 label = '{label}'
 kwargs = {kwargs}
 
+Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
-calc.command = '{qc_command} < PREFIX.com > PREFIX.log'
 
 atom = {atom}
 geom = {geom}

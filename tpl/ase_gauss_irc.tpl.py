@@ -70,6 +70,7 @@ if success:
     label = '{label}_prod'
     
     calc = Gaussian(**pr_kwargs)
+    calc.command = '{qc_command} < PREFIX.com > PREFIX.log'
     mol = Atoms(symbols = atom, positions = geom)
     mol.set_calculator(calc)
     try:

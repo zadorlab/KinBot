@@ -358,6 +358,9 @@ class Optimize:
     def delete_files(self):
         if self.par['delete_intermediate_files'] == 0:
             return 0
+
+        extensions = ['chk', 'py', 'sbatch', 'ase', 'pbs', 'com']
+
         # job names
         names = []
         zf = self.par['zf']
@@ -392,8 +395,6 @@ class Optimize:
                 for count in range(self.species.confs.cyc_conf):
                     for num in range(self.species.confs.cyc_conf_index[count]):
                         names.append('conf/' + self.name + '_r' + str(count).zfill(zf) + '_' + str(num).zfill(zf))
-
-        extensions = ['chk', 'py', 'sbatch']
 
         for name in names:
             for ext in extensions:

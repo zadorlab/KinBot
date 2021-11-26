@@ -60,8 +60,8 @@ class IRC:
             st_pts[i] = temp
             if temp.chemid == self.rxn.species.chemid and all(temp.chiral[at] == self.rxn.species.chiral[at] for at in range(self.rxn.species.natom)):
                 ini_well_hits += 1
-            elif temp.chemid in self.par['skip_chemids']:
-                logging.info('\tReaction {} hit forbidden chemid {}'.format(instance_name, temp.chemid))
+            elif str(temp.chemid) in self.par['skip_chemids']:
+                logging.info('\tReaction {} leads to forbidden chemid {}'.format(instance_name, temp.chemid))
                 return 0
             else:
                 prod_hit = i  # this leaves the possibility of a chirality changing reaction

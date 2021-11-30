@@ -9,8 +9,7 @@ KinBot needs to pass to the template:
 6. The Gaussian command
 """
 
-import os, sys, re
-
+import re
 import numpy as np
 
 import ase
@@ -128,6 +127,5 @@ except RuntimeError:
         db = connect('{working_dir}/kinbot.db')
         db.write(mol, name = label, data = {{'status' : 'error'}})
 
-f = open(label + '.log','a')
-f.write('done\n')
-f.close()
+with open(f'{label}.log','a') as f:
+    f.write('done\n')

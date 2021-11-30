@@ -214,8 +214,25 @@ class Parameters:
             'rigid_hir': 0,
 
             # COMPUTATIONAL ENVIRONEMNT
+            # Using fireworks
+            'fireworks': True,
+            # FW information
+            'fw_host': '',
+            'fw_name': '',
+            'fw_username': '',
+            'fw_passfowrd': '',
+            'fw_port': 27017,
+            'fw_authsource': '',
+            'fw_nodes': 1,
+            'fw_ntasks': 1,
+            'fw_cpus_per_task': 1,
+            'fw_ntasks_per_node': 1,
+            'fw_walltime': "'00:30:00'"
+            'fw_queue': 'debug',
+            'fw_constraint': '',
+            'fw_account': '',
             # Which queuing system to use
-            'queuing': 'pbs',  # or slurm
+            'queuing': 'slurm',  # or pbs
             # Template for queue:
             'queue_template': '',
             # Name of the queue

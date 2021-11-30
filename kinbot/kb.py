@@ -58,6 +58,16 @@ def main():
     # time stamp of the KinBot start
     logging.info('Starting KinBot at {}'.format(datetime.datetime.now()))
 
+    if par['fireworks']:
+        try:
+            import json
+            from fireworks import Firework, Workflow, FWorker, LaunchPad, ScriptTask
+            from fireworks.core.rocket_launcher import rapidfire
+        else:
+            logging.error('Could not import FireWorks modules.')
+            logging.error('Exiting.')
+            sys.exit()
+
     # Make the necessary directories
     if not os.path.exists('perm'):
         os.makedirs('perm')

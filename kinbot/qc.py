@@ -37,6 +37,30 @@ class QuantumChemistry:
         self.integral = par['integral']
         self.opt = par['opt']
         self.ppn = par['ppn']
+        self.fireworks = par['fireworks']
+        if self.fireworks:
+            try:
+                import json
+                from fireworks import Firework, Workflow, FWorker, LaunchPad, ScriptTask
+                from fireworks.core.rocket_launcher import rapidfire
+            else:
+                logging.error('Could not import FireWorks modules.')
+                logging.error('Exiting.')
+                sys.exit()
+        if self.fireworks:
+            self.launchpad = LaunchPad(host=par['fw_host'],
+                                       strm_lvl="INFO",
+                                       name=par['fw_name'],
+                                       username=par['fw_username'],
+                                       password=par['fw_password'],
+                                       port=par['fw_port'],
+                                       authsource=par['fw_authsource'])
+            tpl_file = pkg_resources.resource_filename('tpl', 'my_launchpad.tpl.yaml')
+            with open(tpl_file, 'r') as f:
+                tpl = r.read()
+                tpl = tpl.format() 
+            template_file = pkg_resources.resource_filename('tpl', 'my_qadapter.tpl.yaml')
+
         self.queuing = par['queuing']
         self.queue_name = par['queue_name']
         self.slurm_feature = par['slurm_feature']

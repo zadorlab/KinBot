@@ -66,6 +66,8 @@ setup(
         'mess_tunneling.tpl',
         'mess_variational.tpl',
         'mess_well.tpl',
+        'my_launchpad.tpl.yaml',
+        'my_qadapter.tpl.yaml',
         'molpro.tpl',
         'pbs.tpl',
         'pbs_molpro.tpl',

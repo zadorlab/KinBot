@@ -1,0 +1,36 @@
+#=============================================================================
+# this is the fireworks queue adapter for slurm
+# it includes various desired slurm flags
+# it also includes the rlaunch details of running the jobs
+# thus, with 
+#     rocket_launch: mpirun -n 8 rlaunch rapidfire
+# we are asking to run 8 tasks at a time using multiple nodes, and to keep
+# grabbing more from the launchpad db when runs are finished
+# until there is no more to grab
+# with nodes:2, ntasks:8, cpus_per_task:1, ntasks_per_node:4 this will
+# run on 2 nodes running 4 tasks on each node, one on each core 
+# 
+# Alternatively, use the following: 
+#    rocket_launch: mpirun -n 8 rlaunch rapidfire --nlaunches infinite --sleep 10
+# to run until the queue time-limit is reached, checking every 10sec for newly 
+# added firetasks in the db
+# Of course with the job_id you can see from squeue or sqs, 
+# you can always kill the job with: scancel <job_id>
+#=============================================================================
+_fw_name: CommonAdapter
+_fw_q_type: SLURM
+rocket_launch: mpirun -n {fw_ntasks} rlaunch rapidfire --nlaunches infinite --sleep 10
+nodes: {fw_nodes}
+ntasks: {fw_ntasks}
+cpus_per_task: {fw_cpus_per_task}
+ntasks_per_node: {fw_ntasks_per_node}
+walltime: {fw_walltime}
+queue: {fw_queue}
+constraint: {fw_constraint}
+account: {fw_account}
+job_name: null
+logdir: null
+pre_rocket: null
+post_rocket: null
+#=============================================================================
+

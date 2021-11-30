@@ -1,0 +1,22 @@
+#=============================================================================
+# this file defines the launchpad details
+# it defines the mongodb database to be used, as well as its access details
+#=============================================================================
+authsource: {fw_authsource}
+host: {fw_host}
+logdir: null
+mongoclient_kwargs: {{}}
+name: {fw_name}
+password: {fw_password}
+port: {fw_port}
+ssl: false
+ssl_ca_certs: null
+ssl_certfile: null
+ssl_keyfile: null
+ssl_pem_passphrase: null
+strm_lvl: INFO
+uri_mode: false
+user_indices: []
+username: {fw_username}
+wf_user_indices: []
+#=============================================================================

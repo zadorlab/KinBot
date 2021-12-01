@@ -20,13 +20,11 @@ def read_geom(outfile, mol, dummy):
         if 'Input orientation:' in line:
             for n in range(len(mol)):
                 geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
-            break
-    # adding back dummy atoms
-    for i,d in enumerate(dummy):
-        geom[-(i+1)][0:3] = d[0:3]
-
-    return geom
-
+            # adding back dummy atoms
+            for i,d in enumerate(dummy):
+                geom[-(i+1)][0:3] = d[0:3]
+            return geom
+    return None
 
 def read_zpe(outfile):
     """
@@ -39,8 +37,25 @@ def read_zpe(outfile):
     for line in reversed(lines):
         if 'Zero-point correction=' in line:
             zpe = float(line.split()[2])
+            return zpe
 
-    return zpe
+    return None
+
+
+def read_energy(outfile):
+    """
+    Read the last energy, DFT only
+    """
+
+    with open(outfile) as f:
+        lines = f.readlines()
+
+    for line in reversed(lines):
+        if 'SCF Done' in line:
+            energy = float(line.split()[4])
+            return energy
+
+    return None
 
 
 def read_freq(outfile, atom):
@@ -51,21 +66,24 @@ def read_freq(outfile, atom):
     with open(outfile) as f:
         lines = f.readlines()
 
+    freq = []
     natom = len([at for at in atom if at !='X']) #filter out the dummy atoms
     if natom == 1:
-        freq = []
+        return freq
     else:
-        freq = []
         for line in lines:
             if 'Frequencies' in line:
                 if natom == 2:
                     freq.append(np.array(line.split()[2]).astype(float))
-                    break
+                    return freq
                 else:
                     f = np.array(line.split()[2:5]).astype(float)
                     freq.extend(f)
 
-    return freq
+    if len(freq) == 3 * natom - 6:
+        return freq
+    else:
+        return None
 
 
 def read_convergence(outfile):

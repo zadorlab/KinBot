@@ -34,21 +34,21 @@ except RuntimeError:
             try:
                 mol.positions = read_geom('{label}.log', mol, dummy)
                 del kwargs['opt']  # this is when we give up optimization!!
+                calc = Gaussian(**kwargs)
                 e = mol.get_potential_energy() 
-                db.write(mol, name='{label}', data={{'energy': e,'status' : 'normal'}})
+                db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
             except: 
-                # here is a new exception for scan-type calculations
-                # write final geometry and energy even if all tries failed
                 if scan == 0:
-                    db.write(mol, name = '{label}', data = {{'status' : 'error'}})
+                    db.write(mol, name = '{label}', data = {{'status': 'error'}})
                 elif scan == 1:
+                    # exception for scan-type calculations
+                    # write final geometry and energy even if all tries failed
                     mol.positions = read_geom('{label}.log', mol, dummy)
                     NEED ENERGY READING IN GAUSS READER
-                    AND DUMMY ATOMS!!!
                     if mol.positions is not None and e is not None: 
-                        db.write(mol, name='{label}', data={{'energy': e,'status' : 'normal'}})
+                        db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
                     else:
-                        db.write(mol, name='{label}', data={{'status' : 'error'}})
+                        db.write(mol, name='{label}', data={{'status': 'error'}})
 
-with open(label + '.log', 'a') as f:
+with open(f'{label}.log','a') as f:
     f.write('done\n')

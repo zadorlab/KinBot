@@ -271,13 +271,7 @@ class QuantumChemistry:
         del kwargs['chk']
 
         atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+        dummy = self.add_dummy(atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -323,13 +317,7 @@ class QuantumChemistry:
         kwargs['basis'] = ''
 
         atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+        dummy = self.add_dummy(atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -383,13 +371,7 @@ class QuantumChemistry:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
         atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+        dummy = self.add_dummy(atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -445,12 +427,7 @@ class QuantumChemistry:
         # the integral is set in the get_qc_arguments parts, bad design
 
         atom = copy.deepcopy(species.atom)
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+        dummy = self.add_dummy(atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -487,16 +464,7 @@ class QuantumChemistry:
             kwargs['task'] = 'frequencies'
 
         atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-            # switch on the symmetry of gaussian
-            if 'NoSymm' in kwargs:
-                del kwargs['NoSymm']
-        dummy = [d.tolist() for d in dummy]
+        dummy = self.add_dummy(atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -992,6 +960,18 @@ class QuantumChemistry:
         else:
             logging.debug('job {} is not in database'.format(job))
             return 0
+
+    def add_dummy(self, atom, geom, species.bond)
+        """
+        Add dummy atoms for each close to linear bond
+        """
+        dummy = geometry.is_linear(geom, species.bond)
+        if len(dummy) > 0:  
+            for d in dummy:
+                atom = np.append(atom, ['X'])
+                geom = np.concatenate((geom, [d]), axis=0)
+        dummy = [d.tolist() for d in dummy]
+        return dummy
 
     def limit_jobs(self):
         """

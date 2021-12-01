@@ -47,6 +47,7 @@ class QuantumChemistry:
                 logging.error('Could not import FireWorks modules.')
                 logging.error('Exiting.')
                 sys.exit()
+        # writing my_launchpad and my_qadapter files to the KinBot directory
         if self.fireworks:
             self.launchpad = LaunchPad(host=par['fw_host'],
                                        strm_lvl="INFO",
@@ -58,8 +59,30 @@ class QuantumChemistry:
             tpl_file = pkg_resources.resource_filename('tpl', 'my_launchpad.tpl.yaml')
             with open(tpl_file, 'r') as f:
                 tpl = r.read()
-                tpl = tpl.format() 
-            template_file = pkg_resources.resource_filename('tpl', 'my_qadapter.tpl.yaml')
+            tpl = tpl.format(fw_authsource=par['fw_authsource'],
+                             fw_host=par['fw_host'],
+                             fw_name=par['fw_name'],
+                             fw_password=par['fw_password'],
+                             fw_port=par['fw_port'],
+                             fw_username=par['fw_username'],
+                            ) 
+            with open('my_launchpad.yaml', 'w') as f:
+                f.write(tpl)
+
+            tpl_file = pkg_resources.resource_filename('tpl', 'my_qadapter.tpl.yaml')
+            with open(tpl_file, 'r') as f:
+                tpl = r.read()
+            tpl = tpl.format(fw_ntasks=par['fw_ntasks'],
+                             fw_nodes=par['fw_nodes'],
+                             fw_cpus_per_task=par['fw_cpus_per_tas'],
+                             fw_ntasks_per_node=par['fw_ntasks_per_node'],
+                             fw_walltime=par['fw_walltime'],
+                             fw_queue=par['fw_queue'],
+                             fw_constraint=par['fw_constraint'],
+                             fw_account=par['fw_account'],
+                            )
+            with open('my_qadapter.yaml', 'w') as f:
+                f.write(tpl)
 
         self.queuing = par['queuing']
         self.queue_name = par['queue_name']
@@ -532,12 +555,15 @@ class QuantumChemistry:
         However, if the optional parameter singlejob is set to zero, then
         the job is run only if it has finished earlier with normal termination.
         This is for continuations, when the continuing jobs overwrite each other.
+        In non-FireWorks mode:
         If the number of jobs in the queue is larger than the user-set limit,
         KinBot will park here until resources are freed up.
+        In FireWorks mode this is not needed. 
         """
-        # if the logfile already exists, copy it with another name
-        if self.queue_job_limit > 0:
-            self.limit_jobs()
+
+        if not self.fireworks:
+            if self.queue_job_limit > 0:
+                self.limit_jobs()
 
         check = self.check_qc(job)
         if singlejob == 1:
@@ -547,54 +573,70 @@ class QuantumChemistry:
             if check == 'running':
                 return 0
 
-        try:
-            if self.par['queue_template'] == '':
-                template_head_file = pkg_resources.resource_filename('tpl', self.queuing + '.tpl')
-            else:
-                template_head_file = self.par['queue_template']
-        except OSError:
-            logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
-            logging.error('Or no file is found at {}.'.format(self.par['queue_template']))
-            logging.error('Exiting')
-            sys.exit()
+        if self.fireworks:
+            # define individual FireWork used in the Workflow
+            jobname = job.split('/')[-1]
+            fw_str = f'python /{jobname}.py'
+            fw = Firework(ScriptTask.from_str(fw_str), name=f'{jobname}')
+            wf = Workflow([fw], name=f"{self.par['title']} workflow")
 
-        template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
-        python_file = '{}.py'.format(job)
-        name = job.split('/')[-1]
-        python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
-
-        if self.queuing == 'pbs':
-            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
-                                                        dir='perm', python_file=python_file, arguments='')
-        elif self.queuing == 'slurm':
-            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, dir='perm',
-                                                        slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
+            try:
+                launchpad.add_wf(wf)
+            except:
+                msg = 'Something went wrong when submitting a job\n'
+                msg += 'This is the standard output:\n' + out
+                msg += '\nThis is the standard error:\n' + err
+                print(msg)
+                sys.exit()
         else:
-            logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
-            logging.error('Exiting')
-            sys.exit()
+            try:
+                if self.par['queue_template'] == '':
+                    template_head_file = pkg_resources.resource_filename('tpl', self.queuing + '.tpl')
+                else:
+                    template_head_file = self.par['queue_template']
+            except OSError:
+                logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
+                logging.error('Or no file is found at {}.'.format(self.par['queue_template']))
+                logging.error('Exiting')
+                sys.exit()
 
-        qu_file = '{}{}'.format(job, constants.qext[self.queuing])
-        with open(qu_file, 'w') as f_out_qu:
-            f_out_qu.write(python_template)
+            template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
+            python_file = '{}.py'.format(job)
+            name = job.split('/')[-1]
+            python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 
-        command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
-        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = process.communicate()
-        out = out.decode()
-        err = err.decode()
-        try:
             if self.queuing == 'pbs':
-                pid = out.split('\n')[0].split('.')[0]
+                python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
+                                                            dir='perm', python_file=python_file, arguments='')
             elif self.queuing == 'slurm':
-                pid = out.split('\n')[0].split()[3]
-        except:
-            msg = 'Something went wrong when submitting a job'
-            msg += 'This is the standard output:\n' + out
-            msg += '\nThis is the standard error:\n' + err
-            logging.error(msg)
-            sys.exit()
-        self.job_ids[job] = pid
+                python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, dir='perm',
+                                                            slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
+            else:
+                logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
+                logging.error('Exiting')
+                sys.exit()
+
+            qu_file = '{}{}'.format(job, constants.qext[self.queuing])
+            with open(qu_file, 'w') as f_out_qu:
+                f_out_qu.write(python_template)
+
+            command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
+            process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = process.communicate()
+            out = out.decode()
+            err = err.decode()
+            try:
+                if self.queuing == 'pbs':
+                    pid = out.split('\n')[0].split('.')[0]
+                elif self.queuing == 'slurm':
+                    pid = out.split('\n')[0].split()[3]
+            except:
+                msg = 'Something went wrong when submitting a job'
+                msg += 'This is the standard output:\n' + out
+                msg += '\nThis is the standard error:\n' + err
+                logging.error(msg)
+                sys.exit()
+            self.job_ids[job] = pid
 
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
@@ -880,13 +922,19 @@ class QuantumChemistry:
         """
         logging.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')
-        if self.queuing == 'pbs':
+        if self.fireworks:
+            fwl = json.loads(subprocess.check_output(['lpad', 'get_fws']))
+            for fw in fwl:
+                if fw['name'] == job:
+                    if fw['state'] == "RUNNING":
+                        logging.debug('Job is running')
+                        return 'running'
+        elif self.queuing == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job, '-1') + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
                 logging.debug('Job is running')
                 return 'running'
         elif self.queuing == 'slurm':
-            # command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
             command = 'squeue'
             process = subprocess.Popen(command,
                                        shell=True,
@@ -907,17 +955,17 @@ class QuantumChemistry:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logging.error('Exiting')
             sys.exit()
-        # if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-        #     return 'running'
 
         if self.is_in_database(job):
-            for i in range(1):
-
+            for i in range(3):
                 if self.qc == 'gauss':
                     log_file = job + '.log'
-                elif self.qc == 'nwchem':
+                elif self.qc == 'nwchem' or 'qchem':
                     log_file = job + '.out'
-                log_file_exists = os.path.exists(log_file)
+                if self.fireworks:
+                    log_file_exists = True  # TODO, this is a temporary solution
+                else:
+                    log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     logging.debug('Log file is present after {} iterations'.format(i))
                     # by deleting a log file, you allow restarting a job

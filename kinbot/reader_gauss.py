@@ -38,7 +38,6 @@ def read_zpe(outfile):
         if 'Zero-point correction=' in line:
             zpe = float(line.split()[2])
             return zpe
-
     return None
 
 
@@ -54,7 +53,6 @@ def read_energy(outfile):
         if 'SCF Done' in line:
             energy = float(line.split()[4])
             return energy
-
     return None
 
 
@@ -204,8 +202,7 @@ def read_imag_mode(job, natom):
                 nmode[n][1]= float(mm[3])
                 nmode[n][2]= float(mm[4])
             break
-
-    return(nmode)
+    return nmode 
 
 
 def read_all_irc_geoms(outfile):

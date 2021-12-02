@@ -26,7 +26,7 @@ try:
 
 except RuntimeError: 
     try:
-        mol.positions = read_geom('{label}.log', mol, dummy)
+        mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
         e = mol.get_potential_energy() # use the Gaussian optimizer
         freq = reader_gauss.read_freq('{label}.log', {atom})
         zpe = reader_gauss.read_zpe('{label}.log')

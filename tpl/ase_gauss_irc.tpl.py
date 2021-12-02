@@ -21,8 +21,8 @@ try:
     #Positions (geom) updated in ase/ases/io/gaussian.py code    
     db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
 except:
-    mol.positions = read_geom('{label}.log', mol, dummy)
-    if mol.positions != np.zeros((len(mol), 3)):
+    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
+    if mol.positions is not None:
         db.write(mol, name='{label}', data={{'status': 'normal'}}) #although there is an error, continue from the final geometry
     else:
         db.write(mol, name='{label}', data={{'status': 'error'}})
@@ -37,8 +37,8 @@ try:
     e = mol_prod.get_potential_energy() # use the Gaussian optimizer
     db.write(mol, name='{label}_prod', data={{'energy': e,'status': 'normal'}})
 except RuntimeError: 
-    mol_prod.positions = read_geom('{label}_prod.log', mol_prod, dummy)
-    if mol_prod.positions != np.zeros((len(mol_prod), 3)):
+    mol_prod.positions = reader_gauss.read_geom('{label}_prod.log', mol_prod, dummy)
+    if mol_prod.positions is not None:
         db.write(mol_prod, name='{label}_prod', data={{'status': 'normal'}}) 
     else:
         db.write(mol_prod, name='{label}_prod', data={{'status': 'error'}})

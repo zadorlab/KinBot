@@ -22,17 +22,17 @@ try:
     db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
 except RuntimeError: 
     try:
-        mol.positions = read_geom('{label}.log', mol, dummy)
+        mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
         e = mol.get_potential_energy() # use the Gaussian optimizer
         db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
     except:
         try:
-            mol.positions = read_geom('{label}.log', mol, dummy)
+            mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
             e = mol.get_potential_energy() # use the Gaussian optimizer
             db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
         except:
             try:
-                mol.positions = read_geom('{label}.log', mol, dummy)
+                mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
                 del kwargs['opt']  # this is when we give up optimization!!
                 calc = Gaussian(**kwargs)
                 e = mol.get_potential_energy() 
@@ -43,8 +43,8 @@ except RuntimeError:
                 elif scan == 1:
                     # exception for scan-type calculations
                     # write final geometry and energy even if all tries failed
-                    mol.positions = read_geom('{label}.log', mol, dummy)
-                    NEED ENERGY READING IN GAUSS READER
+                    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
+                    e = reader_gauss.read_energy('{label}.log')
                     if mol.positions is not None and e is not None: 
                         db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
                     else:

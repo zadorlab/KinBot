@@ -530,7 +530,7 @@ class MESS:
         if left_zeroenergy < 0 or right_zeroenergy < 0:
             tun = f'barrier is submerged {left_zeroenergy} {right_zeroenergy}'
         else:
-            tun = self.tunneltpl.format(cutoff=min(left_zeroenergy, right_zeroenergy),
+            tun = self.tunneltpl.format(cutoff=round(min(left_zeroenergy, right_zeroenergy), 2),
                                         imfreq=round(-reaction.ts.reduced_freqs[0] * imagfreq_factor, 2),
                                         welldepth1=round(left_zeroenergy, 2),
                                         welldepth2=round(right_zeroenergy, 2))

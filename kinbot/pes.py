@@ -1304,8 +1304,8 @@ def create_graph(wells, products, reactions,
     plt.savefig('graph.png')
     
 
-def get_energy(dir, job, ts, high_level, mp2=0, bls=0):
-    db = connect(dir + '/kinbot.db')
+def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
+    db = connect(directory + '/kinbot.db')
     if ts:
         j = job
     else:
@@ -1346,7 +1346,7 @@ def get_l3energy(job, par, bls=0):
         if os.path.exists('molpro/' + job + '.out'):
             with open('molpro/' + job + '.out', 'r') as f:
                 lines = f.readlines()
-                for index, line in enumerate(reversed(lines)):
+                for line in reversed(lines):
                     if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))

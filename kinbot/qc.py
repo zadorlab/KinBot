@@ -77,7 +77,8 @@ class QuantumChemistry:
                 'chk': job,
                 'label': job,
                 'NoSymm': 'NoSymm',
-                'multiplicity': mult,
+                'mult': mult,
+                #'multiplicity': mult,
                 'charge': charge,
                 'scf': 'xqc'
             }

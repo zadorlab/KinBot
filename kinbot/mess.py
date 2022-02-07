@@ -452,6 +452,7 @@ class MESS:
             energy = (sum([sp.energy for sp in prod_list]) + sum([sp.zpe for sp in prod_list]) 
                       - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
             energy += well_add
+            energy = round(energy, 2)
         
         if bless == 0:
             bimol = self.bimoltpl.format(chemids=name,

@@ -15,6 +15,7 @@ import sys
 import os
 import logging
 import datetime
+import numpy as np
 
 from kinbot import filecopying
 from kinbot import license_message
@@ -80,113 +81,182 @@ def main():
     if not os.path.exists('me'):
         os.mkdir('me')
 
-    # initialize the reactant
-    well0 = StationaryPoint('well0',
-                            par['charge'],
-                            par['mult'],
-                            smiles=par['smiles'],
-                            structure=par['structure'])
-    well0.short_name = 'w1'
-    # write the initial reactant geometry to a file for visualization
-    geom_out = open('geometry.xyz', 'w')
-    geom_out.write('{}\n\n'.format(well0.natom))
-    for i, at in enumerate(well0.atom):
-        x, y, z = well0.geom[i]
-        geom_out.write('{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z))
-    geom_out.write('\n\n')
-    geom_out.close()
+    if par['bimol'] == 0:
+        # initialize the reactant
+        well0 = StationaryPoint('well0',
+                                par['charge'],
+                                par['mult'],
+                                smiles=par['smiles'],
+                                structure=par['structure'])
+        well0.short_name = 'w1'
+        # write the initial reactant geometry to a file for visualization
+        with open('geometry.xyz', 'w') as geom_out:
+            geom_out.write('{}\n\n'.format(well0.natom))
+            for i, at in enumerate(well0.atom):
+                x, y, z = well0.geom[i]
+                geom_out.write('{} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z))
+            geom_out.write('\n\n')
 
-    # characterize the initial reactant
-    well0.characterize(dimer=par['dimer'])
-    well0.name = str(well0.chemid)
-    start_name = well0.name
+        # characterize the initial reactant
+        well0.characterize()
+        well0.name = str(well0.chemid)
+        start_name = well0.name
 
-    # initialize the qc instance
-    qc = QuantumChemistry(par)
-    # only run filecopying if PES is turned on
-    # if par['pes']:
-    # check if this well was calcualted before in another directory
-    # this flag indicates that this kinbot run
-    # should wait for the information from another
-    # kinbot run to become available and copy the necessary information
-    #    wait_for_well = 1
-    #    while wait_for_well:
-    #        wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
-    #        if wait_for_well:
-    #            time.sleep(1)
+        # initialize the qc instance
+        qc = QuantumChemistry(par)
+        # only run filecopying if PES is turned on
+        # if par['pes']:
+        # check if this well was calcualted before in another directory
+        # this flag indicates that this kinbot run
+        # should wait for the information from another
+        # kinbot run to become available and copy the necessary information
+        #    wait_for_well = 1
+        #    while wait_for_well:
+        #        wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
+        #        if wait_for_well:
+        #            time.sleep(1)
 
-    # start the initial optimization of the reactant
-    logging.info('Starting optimization of intial well')
-    qc.qc_opt(well0, well0.geom)
-    err, well0.geom = qc.get_qc_geom(str(well0.chemid) + '_well',
-                                     well0.natom, wait=1)
-    err, well0.freq = qc.get_qc_freq(str(well0.chemid) + '_well',
-                                     well0.natom, wait=1)
-    if err < 0:
-        logging.error('Error with initial structure optimization.')
-        return
-    if any(well0.freq[i] <= 0 for i in range(len(well0.freq))):
-        logging.error('Found imaginary frequency for initial structure.')
-        return
+        # start the initial optimization of the reactant
+        logging.info('Starting optimization of initial well...')
+        qc.qc_opt(well0, well0.geom)
+        err, well0.geom = qc.get_qc_geom(str(well0.chemid) + '_well',
+                                         well0.natom, wait=1)
+        err, well0.freq = qc.get_qc_freq(str(well0.chemid) + '_well',
+                                         well0.natom, wait=1)
+        if err < 0:
+            logging.error('Error with initial structure optimization.')
+            return
+        if any(well0.freq[i] <= 0 for i in range(len(well0.freq))):
+            logging.error('Found imaginary frequency for initial structure.')
+            return
 
-    # characterize again and look for differences
-    well0.characterize(dimer=par['dimer'])
-    well0.name = str(well0.chemid)
-    if well0.name != start_name:
-        logging.error('The first well optimized to a structure different from the input.')
-        return
+        # characterize again and look for differences
+        well0.characterize()
+        well0.name = str(well0.chemid)
+        if well0.name != start_name:
+            logging.error('The first well optimized to a structure different from the input.')
+            return
 
-    # do an MP2 optimization of the reactant,
-    # to compare some scan barrier heigths to
-    if par['families'] == ['all'] or \
-            'birad_recombination_R' in par['families'] or \
-            'r12_cycloaddition' in par['families'] or \
-            'r14_birad_scission' in par['families'] or \
-            'R_Addition_MultipleBond' in par['families'] or \
-            (par['skip_families'] != ['none'] and \
-            ('birad_recombination_R' not in par['skip_families'] or \
-            'r12_cycloaddition' not in par['skip_families'] or \
-            'r14_birad_scission' not in par['skip_families'] or \
-            'R_Addition_MultipleBond' not in par['skip_families'])) or \
-            par['reaction_search'] == 0:
-        logging.info('Starting MP2 optimization of intial well')
-        qc.qc_opt(well0, well0.geom, mp2=1)
-        err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
+        # do an MP2 optimization of the reactant,
+        # to compare some scan barrier heigths to
+        if par['families'] == ['all'] or \
+                'birad_recombination_R' in par['families'] or \
+                'r12_cycloaddition' in par['families'] or \
+                'r14_birad_scission' in par['families'] or \
+                'R_Addition_MultipleBond' in par['families'] or \
+                (par['skip_families'] != ['none'] and \
+                ('birad_recombination_R' not in par['skip_families'] or \
+                'r12_cycloaddition' not in par['skip_families'] or \
+                'r14_birad_scission' not in par['skip_families'] or \
+                'R_Addition_MultipleBond' not in par['skip_families'])) or \
+                par['reaction_search'] == 0:
+            logging.info('Starting MP2 optimization of initial well...')
+            qc.qc_opt(well0, well0.geom, mp2=1)
+            err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
 
-    # comparison for barrierless scan
-    if par['barrierless_saddle']:
-        logging.info('Optimization of intial well for barrierless at {}/{}'.
-                format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
-        qc.qc_opt(well0, well0.geom, bls=1)
-        err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
+        # comparison for barrierless scan
+        if par['barrierless_saddle']:
+            logging.info('Optimization of intial well for barrierless at {}/{}'.
+                    format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
+            qc.qc_opt(well0, well0.geom, bls=1)
+            err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
 
-    # characterize again and look for differences
-    well0.characterize(dimer=par['dimer'])
-    well0.name = str(well0.chemid)
+        # characterize again and look for differences
+        well0.characterize()
+        well0.name = str(well0.chemid)
 
-    err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)
-    err, well0.zpe = qc.get_qc_zpe(str(well0.chemid) + '_well', 1)
+        err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)
+        err, well0.zpe = qc.get_qc_zpe(str(well0.chemid) + '_well', 1)
 
-    well_opt = Optimize(well0, par, qc, wait=1)
-    well_opt.do_optimization()
-    if well_opt.shigh == -999:
-        logging.error('Error with high level optimization of initial structure.')
-        return
+        well_opt = Optimize(well0, par, qc, wait=1)
+        well_opt.do_optimization()
+        if well_opt.shigh == -999:
+            logging.error('Error with high level optimization of initial structure.')
+            return
 
-    if par['pes']:
-        filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
+        if par['pes']:
+            filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
-    if par['reaction_search'] == 1:
-        logging.info('Starting reaction searches of intial well')
-        rf = ReactionFinder(well0, par, qc)
-        rf.find_reactions()
-        rg = ReactionGenerator(well0, par, qc, input_file)
-        rg.generate()
+        if par['reaction_search'] == 1:
+            logging.info('Starting reaction searches of initial well...')
+            rf = ReactionFinder(well0, par, qc)
+            rf.find_reactions()
+            rg = ReactionGenerator(well0, par, qc, input_file)
+            rg.generate()
 
-    if par['homolytic_scissions'] == 1:
-        logging.info('Starting the search for homolytic scission products')
-        well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
-        well0.homolytic_scissions.find_homolytic_scissions()
+        if par['homolytic_scissions'] == 1:
+            logging.info('Starting the search for homolytic scission products...')
+            well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
+            well0.homolytic_scissions.find_homolytic_scissions()
+
+    # BIMOLECULAR REACTANTS
+    elif par['bimol'] == 1:
+        fragments = {'frag_a': None, 'frag_b': None} 
+        # initialize the reacting fragments
+        charge = 0
+        structure = []
+        for ii, frag in enumerate(fragments):
+            fragments[frag] = StationaryPoint(frag,
+                                              par['charge'][ii],
+                                              par['mult'][ii],
+                                              structure=par['structure'][ii])
+            fragments[frag].characterize()
+            fragments[frag].name = str(fragments[frag].chemid)
+            charge += par['charge'][ii]
+         
+        well0 = StationaryPoint('well0',
+                                par['charge'],
+                                par['mult'][2],
+                                smiles=par['smiles'],
+                                structure=par['structure'])
+        well0.short_name = 'w1'
+        well0.chemid = '_'.join(sorted([fragments['frag_a'].name, fragments['frag_b'].name]))
+ 
+        qc = QuantumChemistry(par)
+
+        logging.info('Starting optimization of fragments...')
+        for frag in fragments.values():
+            qc.qc_opt(frag, frag.geom)
+            err, frag.geom = qc.get_qc_geom(str(frag.chemid) + '_well',
+                                            frag.natom, wait=1)
+            if err < 0:
+                logging.error(f'Error with initial structure optimization of {frag.name}.')
+                return
+            err, frag.freq = qc.get_qc_freq(str(frag.chemid) + '_well',
+                                            frag.natom, wait=1)
+            if any(np.array(frag.freq) <= 0):
+                logging.error(f'Found imaginary frequency for {frag.name}.')
+                return
+            # characterize again and look for differences
+            frag.characterize()
+            if frag.name != str(frag.chemid):
+                logging.error(f'Reactant {frag} optimized to a structure different from the input.')
+                return
+
+        well0.energy = 0.
+        well0.zpe = 0.
+        for frag in fragments.values():
+            err, frag.energy = qc.get_qc_energy(str(frag.chemid) + '_well', 1)
+            err, frag.zpe = qc.get_qc_zpe(str(frag.chemid) + '_well', 1)
+            well0.energy += frag.energy
+            well0.zpe += frag.zpe
+
+            frag_opt = Optimize(frag, par, qc, wait=1)
+            frag_opt.do_optimization()
+            if frag_opt.shigh == -999:
+                logging.error(f'Error with high level optimization for {frag.name}.')
+                return
+
+        #if par['pes']:
+        #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
+
+        if par['reaction_search'] == 1:
+            logging.info('Starting bimolecular reaction search...')
+            rf = ReactionFinder(well0, par, qc)
+            rf.find_reactions()
+            rg = ReactionGenerator(well0, par, qc, input_file)
+            rg.generate()
+
 
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
         mess = MESS(par, well0)

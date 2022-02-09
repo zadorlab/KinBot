@@ -221,7 +221,8 @@ class QuantumChemistry:
             job = 'hir/' + str(species.chemid) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=species.wellorts, step=1, max_step=1, high_level=1, hir=1, rigid=rigid)
-        kwargs['fix'] = fix
+        #kwargs['fix'] = fix  # for old hacked ASE version
+        kwargs['addsec'] = f"{' '.join(str(f) for f in fix[0])} F"
         del kwargs['chk']
 
         atom = copy.deepcopy(species.atom)

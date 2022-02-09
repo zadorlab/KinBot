@@ -43,8 +43,8 @@ class Parameters:
             'charge': 0,
             # Multiplicity of the species
             'mult': 0,
-            # Whether it is a dimer
-            'dimer': 0,
+            # Whether it is a bimolecular reaction
+            'bimol': 0,
 
             # WHICH STEPS TO TAKE
             # Do a reaction search

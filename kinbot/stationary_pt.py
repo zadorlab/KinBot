@@ -91,25 +91,35 @@ class StationaryPoint:
         if len(self.structure) == 0:
             # this will only work if Pybel is installed correctly
             self.obmol, self.structure, self.bond = cheminfo.generate_3d_structure(self.smiles)
-        self.natom = len(self.structure) // 4
-        self.structure = np.reshape(self.structure, (self.natom, 4))
-        self.atom = self.structure[:, 0]
-        self.geom = self.structure[:, 1:4].astype(float)
+        
+        if len(self.structure) == 2:  # should only happend for bimolecular reactions
+            for fr in range(2):
+                center = np.array([0., 0., 0.])
+                natom = len(self.structure[fr]) // 4
+                self.natom += natom
+                self.structure[fr] = np.reshape(self.structure[fr], (natom, 4))
+                np.append(self.atom, self.structure[fr][:, 0])
+                geom = self.structure[fr][:, 1:4].astype(float)
+                for g in geom:
+                    center += g
+                geom -= center 
+                if fr == 0:
+                    self.geom = geom
+                else:
+                    geom += 20.  # push away by 20 Angstrom
+                    self.geom = np.concatenate((self.geom, geom))
+        else:
+            self.natom = len(self.structure) // 4
+            self.structure = np.reshape(self.structure, (self.natom, 4))
+            self.atom = self.structure[:, 0]
+            self.geom = self.structure[:, 1:4].astype(float)
 
-    def characterize(self, bond_mx=None, dimer=0):
+    def characterize(self, bond_mx=None):
         """
         With one call undertake a typical set of structural characterizations.
         """
         if bond_mx is None:
             self.bond_mx()
-        if dimer:
-            parts, maps = self.start_multi_molecular()
-            if len(parts) > 2:
-                logging.error('The dimer has more than two components.')
-                logging.error('Exiting.')
-                sys.exit()
-            if len(parts) == 2:
-                self.make_extra_bond(parts, maps)
 
         self.find_conf_dihedral()
         self.find_atom_eqv()
@@ -353,7 +363,7 @@ class StationaryPoint:
                         delattr(self, 'cycle_chain')
                     except AttributeError:
                         pass
-                    self.characterize(dimer=0)  
+                    self.characterize()  
                     self.name = str(self.chemid)
                     mols.append(self)
                     break
@@ -363,7 +373,7 @@ class StationaryPoint:
                 multi = self.calc_multiplicity(atomi)
                 chargei = self.charge # todo
                 moli = StationaryPoint('prod_%i'%(len(mols)+1), chargei, multi, atom=atomi, natom=natomi, geom=geomi)
-                moli.characterize(dimer=0)  # dimer is not allowed
+                moli.characterize()  
                 moli.calc_chemid()
                 moli.name = str(moli.chemid)
 

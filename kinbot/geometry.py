@@ -204,13 +204,10 @@ def translate_and_rotate(cart, atom, i, j):
 
 
 def get_center_of_mass(geom, atom):
-    list = range(len(atom))
-
     com = [0., 0., 0.]
     tot_mass = 0.
 
-    for i in list:
-        at = atom[i]
+    for i, at in enumerate(atom):
         tot_mass += constants.exact_mass[at]
         com += constants.exact_mass[at] * geom[i]
 

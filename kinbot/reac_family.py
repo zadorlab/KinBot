@@ -50,9 +50,18 @@ def carry_out_reaction(rxn, step, command):
             fix.append(c[:-1])
         change = []
 
-    kwargs['fix'] = fix
-    kwargs['change'] = change
-    kwargs['release'] = release
+# Old ASE hacks
+#    kwargs['fix'] = fix
+#    kwargs['change'] = change
+#    kwargs['release'] = release
+
+    kwargs['addsec'] = ''
+    for fixi in fix:
+        kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
+    for chi in change:
+        kwargs['addsec'] += f"{' '.join(str(ch) for ch in changei)} F\n"
+    for reli in release:
+        kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
 
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))

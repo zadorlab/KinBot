@@ -1,14 +1,8 @@
 """
-This is the main class to run KinBot.
-It includes
-1. Reading the options defined by the user
-2. Optimizing the reactant, including frequency calculations,
-hindered rotor calculations, high-level calculations, according
-to the user input file
-3. call the find_reactions method to find all reactions
-KinBot will search for
-4. call the reac_generator method to search for the reactions
-on the PES
+Drive for KinBot runs.
+1. Reading keywords
+2. Optimizing the reactant
+3. Search for reactions
 """
 from __future__ import print_function
 import sys
@@ -38,7 +32,6 @@ def main():
         print('To use KinBot, supply one argument being the input file!')
         sys.exit(-1)
 
-    # print the license message to the console
     print(license_message.message)
 
     # initialize the parameters for this run
@@ -51,7 +44,7 @@ def main():
     else:
         logging.basicConfig(filename='kinbot.log', level=logging.INFO)
 
-    # write the license message to the log file
+    # write the license message and the parameters to the log file
     logging.info(license_message.message)
     logging.info('Input parameters')
     for param in par:
@@ -204,13 +197,16 @@ def main():
             fragments[frag].name = str(fragments[frag].chemid)
             charge += par['charge'][ii]
          
-        well0 = StationaryPoint('well0',
+        # this is a mock stationary point just to have an object in reaction search
+        well0 = StationaryPoint('bimolecular',
                                 par['charge'],
                                 par['mult'][2],
                                 smiles=par['smiles'],
                                 structure=par['structure'])
+        # no characterization
         well0.short_name = 'w1'
         well0.chemid = '_'.join(sorted([fragments['frag_a'].name, fragments['frag_b'].name]))
+        well0.name = str(well0.chemid)
  
         qc = QuantumChemistry(par)
 
@@ -252,11 +248,10 @@ def main():
 
         if par['reaction_search'] == 1:
             logging.info('Starting bimolecular reaction search...')
-            rf = ReactionFinder(well0, par, qc)
+            rf = ReactionFinder(well0, par, qc, fragments=fragments)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
-
 
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
         mess = MESS(par, well0)

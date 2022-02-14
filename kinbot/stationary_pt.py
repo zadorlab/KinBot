@@ -732,6 +732,7 @@ class StationaryPoint:
                             break
             if new_list:
                 self.atom_eqv.append([atomi])
+        self.atom_uniq = [a[i] for a in self.atom_eqv]  # list of unique atoms
         
         return 0
 

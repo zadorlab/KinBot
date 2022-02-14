@@ -54,7 +54,7 @@ from reactions.reac_combinatorial import Combinatorial
 
 class ReactionFinder:
     """
-    Class to find all the potential reactions starting from a well
+    Class to find all the potential reactions starting from a well.
     """
     
     def __init__(self, species, par, qc):
@@ -80,10 +80,10 @@ class ReactionFinder:
             self.barrierless_saddle = par['barrierless_saddle'][str(self.species.chemid)]
         except KeyError:
             self.barrierless_saddle = None
-        #keys: names of the families
-        #values: list of instances
-        #this dict is used to keep track of the unique reactions found,
-        #and to verify whether a new reaction is indeed unique 
+        # keys: names of the families
+        # values: list of instances
+        # this dict is used to keep track of the unique reactions found,
+        # and to verify whether a new reaction is indeed unique 
         self.reactions = {}
 
     def find_reactions(self):
@@ -136,7 +136,7 @@ class ReactionFinder:
         atom = self.species.atom
         natom = self.species.natom
         
-        for i, bond in enumerate(self.species.bonds):
+        for i, bond in enumerate(self.species.bonds):  # for all resonance structures
             rad = self.species.rads[i]
             
             if self.one_reaction_comb:

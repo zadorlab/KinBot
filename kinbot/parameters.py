@@ -227,7 +227,7 @@ class Parameters:
             'fw_ntasks': 1,
             'fw_cpus_per_task': 1,
             'fw_ntasks_per_node': 1,
-            'fw_walltime': "'00:30:00'"
+            'fw_walltime': "'00:30:00'",
             'fw_queue': 'debug',
             'fw_constraint': '',
             'fw_account': '',

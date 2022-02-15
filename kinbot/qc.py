@@ -43,7 +43,7 @@ class QuantumChemistry:
                 import json
                 from fireworks import Firework, Workflow, FWorker, LaunchPad, ScriptTask
                 from fireworks.core.rocket_launcher import rapidfire
-            else:
+            except ImportError:
                 logging.error('Could not import FireWorks modules.')
                 logging.error('Exiting.')
                 sys.exit()
@@ -961,11 +961,11 @@ class QuantumChemistry:
             logging.debug('job {} is not in database'.format(job))
             return 0
 
-    def add_dummy(self, atom, geom, species.bond)
+    def add_dummy(self, atom, geom, bond):
         """
         Add dummy atoms for each close to linear bond
         """
-        dummy = geometry.is_linear(geom, species.bond)
+        dummy = geometry.is_linear(geom, bond)
         if len(dummy) > 0:  
             for d in dummy:
                 atom = np.append(atom, ['X'])

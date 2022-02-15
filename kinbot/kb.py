@@ -63,7 +63,7 @@ def main():
             import json
             from fireworks import Firework, Workflow, FWorker, LaunchPad, ScriptTask
             from fireworks.core.rocket_launcher import rapidfire
-        else:
+        except ImportError:
             logging.error('Could not import FireWorks modules.')
             logging.error('Exiting.')
             sys.exit()

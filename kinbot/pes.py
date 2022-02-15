@@ -1323,7 +1323,7 @@ def get_energy(dir, job, ts, high_level, mp2=0, bls=0):
     try:
         # ase energies are always in ev, convert to hartree
         energy *= constants.EVtoHARTREE
-    except UnboundLocalError:
+    except (UnboundLocalError, TypeError):
         # this happens when the job is not found in the database
         logging.error('Could not find {} in directory {}'.format(job, dir))
         logging.error('Exiting...')

@@ -43,7 +43,7 @@ except RuntimeError:
     else:
         db.write(mol_prod, name='{label}_prod', data={{'status': 'error'}})
 
-with open('{label}.log', 'a')
+with open('{label}.log', 'a') as f:
     f.write('done\n')
-with open('{label}_prod.log', 'a')
+with open('{label}_prod.log', 'a') as f:
     f.write('done\n')

@@ -9,7 +9,7 @@ db = connect('{working_dir}/kinbot.db')
 
 atom = {atom}
 geom = {geom}
-dummy = {dummy}
+dummy = None
 mol = Atoms(symbols=atom, positions=geom)
 
 kwargs = {kwargs}

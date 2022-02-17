@@ -30,5 +30,5 @@ except RuntimeError:
     except:
         db.write(mol, name='{label}', data={{'status' : 'error'}})
 
-with open('{label}.log', 'a'):
+with open('{label}.log', 'a') as f:
     f.write('done\n')

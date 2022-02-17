@@ -8,7 +8,7 @@ from kinbot import reader_gauss
 
 db = connect('{working_dir}/kinbot.db')
 
-dummy = {dummy}
+dummy = None
 scan = {scan}
 mol = Atoms(symbols={atom}, positions={geom})
 

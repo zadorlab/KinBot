@@ -171,13 +171,11 @@ def init_ring_dihedral(species, instance, geom=None):
         return dihedral_diff
 
 
-def translate_and_rotate(cart, atom, i, j):
+def translate_and_rotate(cart, i, j):
     """
-    translate the molecule as such that the first
-    rotor atom i is the center of rotation and the ij
-    vector is along the z axis
-
-    The atom argument is deprecated
+    translate the molecule such that
+    atom i is the center of rotation and 
+    the ij vector is along the z axis
     """
     # translate the molecule:
     trans = copy.deepcopy(cart[i])

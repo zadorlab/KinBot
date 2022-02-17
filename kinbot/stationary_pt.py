@@ -16,7 +16,7 @@ class StationaryPoint:
     This object contains the properties of wells.
     """
 
-    def __init__(self, name, charge, mult, smiles='', structure=None, natom=0, atom=None, geom=None, wellorts=0):
+    def __init__(self, name, charge, mult, smiles='', structure=None, natom=0, atom=None, geom=None, wellorts=0, fragA=None, fragB=None):
         self.name = name
         self.mult = mult
         self.charge = charge
@@ -38,6 +38,11 @@ class StationaryPoint:
         else:
             self.atom = atom
         self.wellorts = wellorts
+
+        # When it is a bimolecular search
+        if fragA is not None:
+            self.fragA = fragA
+            self.fragB = fragB
 
         self.energy = 0.
         self.zpe = 0.
@@ -92,13 +97,14 @@ class StationaryPoint:
             # this will only work if Pybel is installed correctly
             self.obmol, self.structure, self.bond = cheminfo.generate_3d_structure(self.smiles)
         
-        if len(self.structure) == 2:  # should only happend for bimolecular reactions
+        if len(self.structure) == 2:  # should only happen for bimolecular reactions
+            self.charge = self.charge[0] + self.charge[1]
             for fr in range(2):
                 center = np.array([0., 0., 0.])
                 natom = len(self.structure[fr]) // 4
                 self.natom += natom
                 self.structure[fr] = np.reshape(self.structure[fr], (natom, 4))
-                np.append(self.atom, self.structure[fr][:, 0])
+                self.atom = np.append(self.atom, self.structure[fr][:, 0])
                 geom = self.structure[fr][:, 1:4].astype(float)
                 for g in geom:
                     center += g
@@ -106,7 +112,7 @@ class StationaryPoint:
                 if fr == 0:
                     self.geom = geom
                 else:
-                    geom += 20.  # push away by 20 Angstrom
+                    geom += 1.2 * np.sqrt(3. * np.power(self.fragA.maxdist + self.fragB.maxdist, 2))  # push away 
                     self.geom = np.concatenate((self.geom, geom))
         else:
             self.natom = len(self.structure) // 4
@@ -141,6 +147,7 @@ class StationaryPoint:
         for i in range(self.natom):
             for j in range(self.natom):
                 self.dist[i][j] = np.linalg.norm(self.geom[i] - self.geom[j])
+        self.maxdist = np.max(self.dist)
         return 0 
 
     def bond_mx(self):
@@ -732,7 +739,7 @@ class StationaryPoint:
                             break
             if new_list:
                 self.atom_eqv.append([atomi])
-        self.atom_uniq = [a[i] for a in self.atom_eqv]  # list of unique atoms
+        self.atom_uniq = [a[0] for a in self.atom_eqv]  # list of unique atoms
         
         return 0
 
@@ -821,7 +828,7 @@ class StationaryPoint:
 
         largelig = np.argmax(atomids)
        
-        aligned_geom = geometry.translate_and_rotate(np.concatenate(([center], ligands)), None, 0, largelig + 1)
+        aligned_geom = geometry.translate_and_rotate(np.concatenate(([center], ligands)), 0, largelig + 1)
         if aligned_geom[largelig + 1][2] < 0:
             mirror = -1
         else:

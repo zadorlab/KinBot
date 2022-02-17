@@ -20,6 +20,7 @@ from kinbot.mesmer import MESMER
 from kinbot.mess import MESS
 from kinbot.optimize import Optimize
 from kinbot.reaction_finder import ReactionFinder
+from kinbot.reaction_finder_bimol import ReactionFinderBimol
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.qc import QuantumChemistry
@@ -197,13 +198,16 @@ def main():
             fragments[frag].name = str(fragments[frag].chemid)
             charge += par['charge'][ii]
          
-        # this is a mock stationary point just to have an object in reaction search
+        # this is just formally a well
         well0 = StationaryPoint('bimolecular',
                                 par['charge'],
                                 par['mult'][2],
                                 smiles=par['smiles'],
-                                structure=par['structure'])
-        # no characterization
+                                structure=par['structure'],
+                                fragA=fragments['frag_a'],
+                                fragB=fragments['frag_b'],
+                                )
+        well0.characterize()
         well0.short_name = 'w1'
         well0.chemid = '_'.join(sorted([fragments['frag_a'].name, fragments['frag_b'].name]))
         well0.name = str(well0.chemid)
@@ -248,7 +252,7 @@ def main():
 
         if par['reaction_search'] == 1:
             logging.info('Starting bimolecular reaction search...')
-            rf = ReactionFinder(well0, par, qc, fragments=fragments)
+            rf = ReactionFinderBimol(well0, par, qc)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()

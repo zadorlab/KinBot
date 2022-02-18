@@ -22,8 +22,9 @@ def read_geom(outfile, mol, dummy):
                 geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
             break
     # adding back dummy atoms
-    for i,d in enumerate(dummy):
-        geom[-(i+1)][0:3] = d[0:3]
+    if dummy is not None:
+        for i,d in enumerate(dummy):
+            geom[-(i+1)][0:3] = d[0:3]
 
     return geom
 

@@ -1,114 +1,53 @@
-"""
-Template to run ircs with ase using Gaussian
-KinBot needs to pass to the template: 
-1. A label for the calculation
-2. The number of cores
-3. The kwargs for Gaussian
-4. The atom vector
-5. The geometry
-6. Tha Gaussian command
-"""
-
-import os, sys, re
-
+import re
 from math import pi
 import numpy as np
-
 import ase
 from ase import Atoms
 from ase.calculators.gaussian import Gaussian
-from ase.optimize import BFGS
 from ase.db import connect
-from ase.constraints import FixInternals
+from kinbot import reader_gauss
 
+db = connect('{working_dir}/kinbot.db')
 
-label = '{label}'
+mol = Atoms(symbols={atom}, positions={geom})
+
 kwargs = {kwargs}
-
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
-
-atom = {atom}
-geom = {geom}
-
-mol = Atoms(symbols = atom, positions = geom)
 mol.set_calculator(calc)
 
-success = 1
+success = True
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
     #Positions (geom) updated in ase/ases/io/gaussian.py code    
-    geom = mol.positions
-    db = connect('{working_dir}/kinbot.db')
-    db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
+    db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
 except:
-    #read the geometry from the output file
-    outfile = '{label}.log'
-    with open(outfile) as f:
-        lines = f.readlines()
-    geom = np.zeros((len(mol),3))
-    new_geom = 0
-    for index, line in enumerate(reversed(lines)):
-        if re.search('Input orientation:', line) != None:
-            for n in range(len(mol)):
-                geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
-            new_geom = 1
-            break
-    if new_geom:
-        mol.positions = geom
-        db = connect('{working_dir}/kinbot.db')
-        db.write(mol, name = label, data = {{'status' : 'normal'}}) #although there is an error, continue from the final geometry
+    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
+    if mol.positions is not None:
+        db.write(mol, name='{label}', data={{'status': 'normal'}}) #although there is an error, continue from the final geometry
     else:
-        success = 0
-        db = connect('{working_dir}/kinbot.db')
-        db.write(mol, name = label, data = {{'status' : 'error'}})
+        db.write(mol, name='{label}', data={{'status': 'error'}})
+        success = False
+
+with open('{label}.log', 'a') as f:
+    f.write('done\n')
 
 if success:
     # start the product optimization
-    pr_kwargs = {prod_kwargs}
-    label = '{label}_prod'
-    
-    calc = Gaussian(**pr_kwargs)
-    mol = Atoms(symbols = atom, positions = geom)
-    mol.set_calculator(calc)
+    prod_kwargs = {prod_kwargs}
+    calc_prod = Gaussian(**prod_kwargs)
+    mol_prod = Atoms(symbols={atom}, positions=mol.positions)
+    mol_prod.set_calculator(calc_prod)
     try:
-        e = mol.get_potential_energy() # use the Gaussian optimizer
-        #read the geometry from the output file
-        outfile = '{label}_prod.log'
-        with open(outfile) as f:
-            lines = f.readlines()
-        geom = np.zeros((len(mol),3))
-        for index, line in enumerate(reversed(lines)):
-            if re.search('Input orientation:', line) != None:
-                for n in range(len(mol)):
-                    geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
-                break
-        mol.positions = geom
-        db = connect('{working_dir}/kinbot.db')
-        db.write(mol, name = label, data = {{'energy': e,'status' : 'normal'}})
+        e = mol_prod.get_potential_energy() # use the Gaussian optimizer
+        db.write(mol, name='{label}_prod', data={{'energy': e,'status': 'normal'}})
     except RuntimeError: 
-        #read the geometry from the output file
-        outfile = '{label}_prod.log'
-        with open(outfile) as f:
-            lines = f.readlines()
-        geom = np.zeros((len(mol),3))
-        new_geom = 0
-        for index, line in enumerate(reversed(lines)):
-            if re.search('Input orientation:', line) != None:
-                for n in range(len(mol)):
-                    geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
-                new_geom = 1
-                break
-        if new_geom:
-            mol.positions = geom
-            db = connect('{working_dir}/kinbot.db')
-            db.write(mol, name = label, data = {{'status' : 'normal'}}) #although there is an error, continue from the final geometry
+        mol_prod.positions = reader_gauss.read_geom('{label}_prod.log', mol_prod, dummy)
+        if mol_prod.positions is not None:
+            db.write(mol_prod, name='{label}_prod', data={{'status': 'normal'}}) 
         else:
-            db = connect('{working_dir}/kinbot.db')
-            db.write(mol, name = label, data = {{'status' : 'error'}})
+            db.write(mol_prod, name='{label}_prod', data={{'status': 'error'}})
 
-
-f = open(label + '.log','a')
-f.write('done\n')
-f.close()
+    with open('{label}_prod.log', 'a') as f:
+        f.write('done\n')

@@ -78,7 +78,6 @@ class QuantumChemistry:
                 'label': job,
                 'NoSymm': 'NoSymm',
                 'mult': mult,
-                #'multiplicity': mult,
                 'charge': charge,
                 'scf': 'xqc'
             }
@@ -90,9 +89,15 @@ class QuantumChemistry:
                 kwargs['basis'] = ''
 
                 if step == 0:
-                    kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
+                    if self.par['bimol']:
+                        kwargs['opt'] = 'ModRedun,CalcFC,MaxCycle=999'
+                    else:
+                        kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                 elif step < max_step:
-                    kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
+                    if self.par['bimol']:
+                        kwargs['opt'] = 'ModRedun,CalcFC,MaxCycle=999'
+                    else:
+                        kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
                     if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'
@@ -225,14 +230,7 @@ class QuantumChemistry:
         kwargs['addsec'] = f"{' '.join(str(f) for f in fix[0])} F"
         del kwargs['chk']
 
-        atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -277,14 +275,7 @@ class QuantumChemistry:
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
-        atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -337,14 +328,8 @@ class QuantumChemistry:
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
-        atom = copy.deepcopy(species.atom)
 
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -399,13 +384,7 @@ class QuantumChemistry:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         # the integral is set in the get_qc_arguments parts, bad design
 
-        atom = copy.deepcopy(species.atom)
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -441,17 +420,10 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             kwargs['task'] = 'frequencies'
 
-        atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-            # switch on the symmetry of gaussian
+        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
+        if len(dummy) > 0:
             if 'NoSymm' in kwargs:
                 del kwargs['NoSymm']
-        dummy = [d.tolist() for d in dummy]
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -939,3 +911,17 @@ class QuantumChemistry:
             if len(jobs.split(b'\n')) < self.queue_job_limit:
                 return 0
             time.sleep(1)
+
+    def add_dummy(self, spatom, geom, spbond):
+        """
+        Add a dummy atom for each close to linear angle.
+        """
+        atom = copy.deepcopy(spatom)
+        dummy = geometry.is_linear(geom, spbond)
+        if len(dummy) > 0:  
+            for d in dummy:
+                atom = np.append(atom, ['X'])
+                geom = np.concatenate((geom, [d]), axis=0)
+        dummy = [d.tolist() for d in dummy]
+        return atom, geom, dummy
+

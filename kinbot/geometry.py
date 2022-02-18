@@ -176,6 +176,7 @@ def translate_and_rotate(cart, i, j):
     translate the molecule such that
     atom i is the center of rotation and 
     the ij vector is along the z axis
+    and j is in positive direction
     """
     # translate the molecule:
     trans = copy.deepcopy(cart[i])
@@ -188,15 +189,18 @@ def translate_and_rotate(cart, i, j):
     if angle != 0:
         axis = np.cross(cart[j], end_vec)
         axis = axis/np.linalg.norm(axis)
-        a = np.cos(angle/2)
-        b, c, d = -axis*np.sin(angle/2)
+        a = np.cos(angle/2.)
+        b, c, d = -axis*np.sin(angle/2.)
         aa, bb, cc, dd = a*a, b*b, c*c, d*d
         bc, ad, ac, ab, bd, cd = b*c, a*d, a*c, a*b, b*d, c*d
-        rot_matrix = ([[aa+bb-cc-dd, 2*(bc+ad),   2*(bd-ac)],
-                       [2*(bc-ad),   aa+cc-bb-dd, 2*(cd+ab)],
-                       [2*(bd+ac),   2*(cd-ab),   aa+dd-bb-cc]])
+        rot_matrix = ([[aa+bb-cc-dd, 2.*(bc+ad),   2.*(bd-ac)],
+                       [2.*(bc-ad),   aa+cc-bb-dd, 2.*(cd+ab)],
+                       [2.*(bd+ac),   2.*(cd-ab),   aa+dd-bb-cc]])
         for i in range(len(cart)):
             cart[i] = np.dot(rot_matrix, cart[i])
+            
+        if cart[j][2] < 0:
+                cart *= -1.
 
     return cart
 

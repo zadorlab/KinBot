@@ -108,11 +108,13 @@ class StationaryPoint:
                 geom = self.structure[fr][:, 1:4].astype(float)
                 for g in geom:
                     center += g
+                center /= len(geom)
                 geom -= center 
                 if fr == 0:
                     self.geom = geom
                 else:
-                    geom += 1.2 * np.sqrt(3. * np.power(self.fragA.maxdist + self.fragB.maxdist, 2))  # push away 
+                    #geom[:, 0] += 1.1 * (self.fragA.maxdist + self.fragB.maxdist)  # push away 
+                    geom += 0.55 * (self.fragA.maxdist + self.fragB.maxdist)  # push away 
                     self.geom = np.concatenate((self.geom, geom))
         else:
             self.natom = len(self.structure) // 4

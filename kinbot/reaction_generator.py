@@ -109,7 +109,8 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                         else:
                             self.species.reac_step[index] = reac_family.carry_out_reaction(
-                                                            obj, self.species.reac_step[index], self.par['qc_command'])
+                                                            obj, self.species.reac_step[index], self.par['qc_command'],
+                                                            bimol=self.par['bimol'])
 
                     else:  # do a bond scan
                         if self.species.reac_step[index] == self.par['scan_step'] + 1:

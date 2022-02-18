@@ -7,6 +7,7 @@ class GeneralReac:
     skip = -1
     dihstep = -1
     mp2 = 0
+    family_name = None
 
     def __init__(self, species, qc, par, instance, instance_name):
         self.species = species
@@ -24,7 +25,6 @@ class GeneralReac:
         
         self.instance = instance
         self.instance_name = instance_name
-
 
         if self.scan:
             self.max_step = self.par['scan_step']

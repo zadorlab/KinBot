@@ -35,8 +35,8 @@ class IRC:
         directions = ['Forward', 'Reverse']
 
         ini_well_hits = 0
-        prod_hit = -1
-        st_pts = [-1, -1]
+        prod_hit = None
+        st_pts = [None, None]
         for i, direction in enumerate(directions):
             irc_name = '{}_IRC_{}_prod'.format(instance_name, direction[0])
             err, geom = self.rxn.qc.get_qc_geom(irc_name,
@@ -58,19 +58,38 @@ class IRC:
             temp.characterize()
 
             st_pts[i] = temp
-            if temp.chemid == self.rxn.species.chemid and all(temp.chiral[at] == self.rxn.species.chiral[at] for at in range(self.rxn.species.natom)):
-                ini_well_hits += 1
-            elif str(temp.chemid) in self.par['skip_chemids']:
-                logging.info('\tReaction {} leads to forbidden chemid {}'.format(instance_name, temp.chemid))
-                return 0
+            if self.par['bimol']:
+                fragments, maps = temp.start_multi_molecular()
+                if len(fragments) == 1 or len(fragments) > 2:
+                    prod_hit = i
+                elif len(fragments) == 2:
+                    fragments[0].characterize()
+                    fragments[1].characterize()
+                    if (fragments[0].chemid == self.rxn.species.fragA.chemid and fragments[1].chemid == self.rxn.species.fragB.chemid) or \
+                       (fragments[1].chemid == self.rxn.species.fragA.chemid and fragments[0].chemid == self.rxn.species.fragB.chemid):
+                        ini_well_hits += 1
+                    else:
+                        prod_hit = i
             else:
-                prod_hit = i  # this leaves the possibility of a chirality changing reaction
+                if temp.chemid == self.rxn.species.chemid and all(temp.chiral[at] == self.rxn.species.chiral[at] for at in range(self.rxn.species.natom)):
+                    ini_well_hits += 1
+                elif str(temp.chemid) in self.par['skip_chemids']:
+                    logging.info('\tReaction {} leads to forbidden chemid {}'.format(instance_name, temp.chemid))
+                    return 0
+                else:
+                    prod_hit = i  # this leaves the possibility of a chirality changing reaction
 
         if ini_well_hits == 0:
-            logging.info('\tNeither IRC leads to the well for {}'.format(instance_name))
+            if self.par['bimol']:
+                logging.info('\tNeither IRC leads to the initial reactants for {}'.format(instance_name))
+            else:
+                logging.info('\tNeither IRC leads to the initial well for {}'.format(instance_name))
             return 0
         elif ini_well_hits == 2:
-            logging.info('\tBoth IRCs lead to the well, identical reaction found: {}'.format(instance_name))
+            if self.par['bimol']:
+                logging.info('\tBoth IRCs lead to the initial reactants, identical reaction found: {}'.format(instance_name))
+            else:
+                logging.info('\tBoth IRCs lead to the initial well, identical reaction found: {}'.format(instance_name))
             return 0
         else:
             # ircs OK: well and product found

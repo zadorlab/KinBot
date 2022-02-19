@@ -320,6 +320,12 @@ class Parameters:
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
 
+        if self.par['bimol'] == 1 and self.par['method'] == 'b3lyp':
+            logging.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
+            logging.warning('Choose for instance M06-2X.')
+            print('B3LYP is not recommended as L1 for bimolecular reactions.')
+            print('Choose for instance M06-2X.')
+
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])

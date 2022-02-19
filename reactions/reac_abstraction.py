@@ -6,7 +6,7 @@ from kinbot import geometry
 
 
 class Abstraction(GeneralReac):
-    max_step = 14
+    max_step = 5
     scan = 0
     skip = 0
     family_name = 'abstraction'
@@ -22,7 +22,7 @@ class Abstraction(GeneralReac):
         if step < self.max_step - 1:
             self.fix_angle_single(0, 1, 2, fix)
             if self.species.atom[self.instance[2]] == 'O': fval = 1.35
-            if self.species.atom[self.instance[2]] == 'C': fval = 1.0
+            if self.species.atom[self.instance[2]] == 'C': fval = 1.35
             self.set_bond(0, 1, -999, change, step=step+1, stmax=self.max_step-1, findist=fval, geom=geom)
 
         self.clean_constraints(change, fix)

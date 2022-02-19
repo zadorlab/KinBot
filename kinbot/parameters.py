@@ -326,6 +326,10 @@ class Parameters:
             print('B3LYP is not recommended as L1 for bimolecular reactions.')
             print('Choose for instance M06-2X.')
 
+        if self.par['bimol'] and len(self.par['structure']) != 2:
+            logging.error('For bimolecular reactions two fragments need to be defined.')
+            sys.exit(-1)
+
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])

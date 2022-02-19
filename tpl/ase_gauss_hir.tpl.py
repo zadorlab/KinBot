@@ -16,7 +16,7 @@ mol.set_calculator(calc)
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
-    #Positions (geom) updated in ase/ases/io/gaussian.py code
+    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
     for d in dummy:
         mol.pop()
     db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
@@ -24,6 +24,7 @@ except RuntimeError:
     try:
         mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
         e = mol.get_potential_energy() # use the Gaussian optimizer
+        mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
         for d in dummy:
             mol.pop()
         db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})

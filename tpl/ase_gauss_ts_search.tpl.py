@@ -19,16 +19,19 @@ mol.set_calculator(calc)
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer (task optimize)
+    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
     db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
 except RuntimeError: 
     try:
         mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
         e = mol.get_potential_energy() # use the Gaussian optimizer
+        mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
         db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
     except:
         try:
             mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
             e = mol.get_potential_energy() # use the Gaussian optimizer
+            mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
             db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
         except:
             try:
@@ -36,6 +39,7 @@ except RuntimeError:
                 del kwargs['opt']  # this is when we give up optimization!!
                 calc = Gaussian(**kwargs)
                 e = mol.get_potential_energy() 
+                mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
                 db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
             except: 
                 if scan == 0:
@@ -45,6 +49,7 @@ except RuntimeError:
                     # write final geometry and energy even if all tries failed
                     mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
                     e = reader_gauss.read_energy('{label}.log')
+                    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
                     if mol.positions is not None and e is not None: 
                         db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
                     else:

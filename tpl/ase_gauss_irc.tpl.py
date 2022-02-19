@@ -9,6 +9,7 @@ from kinbot import reader_gauss
 
 db = connect('{working_dir}/kinbot.db')
 
+dummy = None
 mol = Atoms(symbols={atom}, positions={geom})
 
 kwargs = {kwargs}
@@ -20,7 +21,7 @@ success = True
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
-    #Positions (geom) updated in ase/ases/io/gaussian.py code    
+    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
     db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
 except:
     mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
@@ -41,6 +42,7 @@ if success:
     mol_prod.set_calculator(calc_prod)
     try:
         e = mol_prod.get_potential_energy() # use the Gaussian optimizer
+        mol_prod.positions = reader_gauss.read_geom('{label}_prod.log', mol_prod, dummy)
         db.write(mol, name='{label}_prod', data={{'energy': e,'status': 'normal'}})
     except RuntimeError: 
         mol_prod.positions = reader_gauss.read_geom('{label}_prod.log', mol_prod, dummy)

@@ -18,6 +18,7 @@ mol.set_calculator(calc)
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer (task optimize)
+    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
     freq = reader_gauss.read_freq('{label}.log', atom)
     zpe = reader_gauss.read_zpe('{label}.log')
     for d in dummy:

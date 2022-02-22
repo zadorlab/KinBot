@@ -68,11 +68,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
 
 
-    print('##############')
-    print(change)
-    print(fix)
-    print(step, rxn.instance)
-    print(geom)
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
         template = open(template_file,'r').read()

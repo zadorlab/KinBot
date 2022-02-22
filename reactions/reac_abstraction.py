@@ -19,11 +19,11 @@ class Abstraction(GeneralReac):
             self.set_bond(1, 2, 1.2, change)
         if step < self.max_step:
             self.fix_bonds(fix)
-        if step < self.max_step - 1:
+        if step < self.max_step:
             self.fix_angle_single(0, 1, 2, fix)
             if self.species.atom[self.instance[2]] == 'O': fval = 1.35
             if self.species.atom[self.instance[2]] == 'C': fval = 1.35
-            self.set_bond(0, 1, -999, change, step=step+1, stmax=self.max_step-1, findist=fval, geom=geom)
+            self.set_bond(0, 1, -999, change, step=step, stmax=self.max_step, findist=fval, geom=geom)
 
         self.clean_constraints(change, fix)
         

@@ -34,16 +34,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         if bimol:
             if rxn.family_name == 'abstraction':
                 geom = abstraction_align(rxn.species.geom, rxn.instance, rxn.species.fragA.natom)
-#                # align O----H, O is at origin, H is on +Z axis
-#                g0 = copy.deepcopy(geometry.translate_and_rotate(rxn.species.geom, rxn.instance[0], rxn.instance[1]))
-#                H_pos = g0[rxn.instance[1]]  # position of the H atom
-#                # align H-C, H is at origin, C is on +Z axis at an angle
-#                g1 = copy.deepcopy(geometry.translate_and_rotate(rxn.species.geom, rxn.instance[1], rxn.instance[2], setangle=20.))
-#                g1 += H_pos  # shift the whole thing
-#                geom = np.concatenate((g0[:rxn.species.fragA.natom], g1[rxn.species.fragA.natom:]))  # does not work for reverse
-#                for bondmx in rxn.species.bonds:  # add missing bond to detect the need for dummy
-#                    bondmx[rxn.instance[0]][rxn.instance[1]] = 1
-#                    bondmx[rxn.instance[1]][rxn.instance[0]] = 1
 
     elif step == rxn.max_step and rxn.scan:
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1, previous=1)
@@ -77,6 +67,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     for reli in release:
         kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
 
+
+    print('##############')
+    print(change)
+    print(fix)
+    print(step, rxn.instance)
+    print(geom)
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
         template = open(template_file,'r').read()

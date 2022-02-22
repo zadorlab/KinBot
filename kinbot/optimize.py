@@ -184,6 +184,7 @@ class Optimize:
                             # high level calculation is running
                             # check if it is finished
                             status = self.qc.check_qc(self.job_high)
+                            print('BABABA', status)
                             if status == 'error':
                                 # found an error
                                 logging.info('\tHigh level optimization failed for {}'.format(self.name))

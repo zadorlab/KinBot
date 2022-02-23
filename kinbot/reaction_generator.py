@@ -158,7 +158,7 @@ class ReactionGenerator:
                                              .format(obj.instance_name))
                                 db = connect('{}/kinbot.db'.format(os.getcwd()))
                                 rows = db.select(name=obj.instance_name)
-                                for row in reversed(rows):
+                                for row in reversed(list(rows)):
                                     row.data['status'] = 'error'
                                     break # only write error to the last calculation
                                 self.species.reac_ts_done[index] = -999

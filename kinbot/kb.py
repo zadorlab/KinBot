@@ -251,6 +251,11 @@ def main():
 
         well0.fragA = fragments['frag_a']  # update
         well0.fragB = fragments['frag_b']  # update
+        well0.energy = 0.
+        well0.zpe = 0.
+        for frag in fragments.values():
+            well0.energy += frag.energy
+            well0.zpe += frag.zpe
         #if par['pes']:
         #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 

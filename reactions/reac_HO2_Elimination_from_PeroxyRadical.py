@@ -6,6 +6,7 @@ class HO2Elimination(GeneralReac):
     scan = 0
     skip = 0
     dihstep = max_step - 2
+    family_name = 'ho2elimination'
 
 
     def get_constraints(self,step, geom):

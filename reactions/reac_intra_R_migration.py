@@ -7,6 +7,7 @@ class IntraRMigration(GeneralReac):
     scan = 0
     skip = 1
     dihstep = max_step - 2
+    family_name = 'intrarmigration'
    
 
     def get_constraints(self,step, geom):

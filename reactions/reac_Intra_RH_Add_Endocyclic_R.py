@@ -6,6 +6,7 @@ class IntraRHAddEndoR(GeneralReac):
     scan = 0
     skip = 0
     dihstep = 12
+    family_name = 'intrarhaddendor'
     
 
     def get_constraints(self,step, geom):

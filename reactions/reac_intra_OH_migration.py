@@ -6,6 +6,7 @@ class IntraOHMigration(GeneralReac):
     scan = 0
     skip = 1
     dihstep = max_step - 2
+    family_name = 'intraohmigration'
     
 
     def get_constraints(self, step, geom):

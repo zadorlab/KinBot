@@ -5,6 +5,7 @@ class R14BiradScission(GeneralReac):
     scan = 1
     skip = 0
     mp2 = 1
+    family_name = 'r14iradscission'
     
     def get_constraints(self,step, geom):
         fix = []

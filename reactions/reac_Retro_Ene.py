@@ -6,6 +6,7 @@ class RetroEne(GeneralReac):
     scan = 0
     skip = 0
     dihstep = 12
+    family_name = 'retorene'
     
 
     def get_constraints(self,step,geom):

@@ -129,7 +129,8 @@ class ReactionGenerator:
                         else:
                             if self.species.reac_step[index] == 0:
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(
-                                                                obj, self.species.reac_step[index], self.par['qc_command'])
+                                                                obj, self.species.reac_step[index], self.par['qc_command'],
+                                                                bimol=self.par['bimol'])
                             elif self.species.reac_step[index] < self.par['scan_step']:
                                 status = self.qc.check_qc(obj.instance_name)
                                 if status == 'error' or status == 'killed':
@@ -152,7 +153,8 @@ class ReactionGenerator:
                                                      format(obj.instance_name, self.species.reac_scan_energy[index][-1]))
                                         # scan continues, and if reached scan_step, then goes for full optimization
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(
-                                                                        obj, self.species.reac_step[index], self.par['qc_command'])
+                                                                        obj, self.species.reac_step[index], self.par['qc_command'],
+                                                                        bimol=self.par['bimol'])
                             else:  # the last step was reached, and no max or inflection was found
                                 logging.info('\tRxn search using scan failed for {}, no saddle guess found.'
                                              .format(obj.instance_name))

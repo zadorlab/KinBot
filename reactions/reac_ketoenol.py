@@ -5,6 +5,7 @@ class KetoEnol(GeneralReac):
     scan = 0
     skip = 0
     dihstep = max_step - 2
+    family_name = 'ketoenol'
     
 
     def get_constraints(self, step, geom):

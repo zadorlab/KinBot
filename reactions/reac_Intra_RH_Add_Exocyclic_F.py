@@ -6,6 +6,7 @@ class IntraRHAddExoF(GeneralReac):
     scan = 0
     skip = 0
     dihstep = 12
+    family_name = 'intrarhaddexof'
     
 
     def get_constraints(self,step, geom):

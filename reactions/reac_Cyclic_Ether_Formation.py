@@ -7,6 +7,7 @@ class CyclicEtherFormation(GeneralReac):
     scan = 0
     skip = 1
     dihstep = 12
+    family_name = 'cyclicetherformation'
    
 
     def get_constraints(self,step, geom):

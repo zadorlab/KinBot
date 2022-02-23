@@ -6,6 +6,7 @@ class IntraRAddEndocyclicF(GeneralReac):
     scan = 0
     skip = 1
     dihstep = 12
+    family_name = 'intraraddendocyclicf'
 
 
     def get_constraints(self, step, geom):

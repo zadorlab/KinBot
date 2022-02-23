@@ -6,6 +6,7 @@ class KorcekStep2Odd(GeneralReac):
     max_step = 12
     scan = 0
     skip = 0
+    family_name = 'korcekstep2odd'
 
 
     def get_constraints(self, step, geom):

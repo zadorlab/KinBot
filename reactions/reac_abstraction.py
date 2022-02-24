@@ -15,17 +15,13 @@ class Abstraction(GeneralReac):
         fix = []
         change = []
         release = []
-#        if step == 0:
-#            self.set_bond(1, 2, 1.2, change)
-        if step < self.max_step:
-            self.fix_bonds(fix)
-            self.fix_angle_single(0, 1, 2, fix)
-#            if self.species.atom[self.instance[0]] == 'O': fval = 1.35
-#            elif self.species.atom[self.instance[0]] == 'C': fval = 1.2
-#            elif self.species.atom[self.instance[0]] == 'H': fval = 1.0
-#            elif self.species.atom[self.instance[0]] == 'Cl': fval = 1.2
-#            else: fval = 1.35
-#            self.set_bond(0, 1, -999, change, step=step, stmax=self.max_step, findist=fval, geom=geom)
+
+        self.fix_bonds(fix)
+        self.fix_angle_single(0, 1, 2, fix)
+        val = np.linalg.norm(geom[self.instance[0]] - geom[self.instance[2]])
+        self.set_bond(0, 2, val, change)
+        self.fix_angles(fix)
+        if step and step < self.max_step:
             val = np.linalg.norm(geom[self.instance[1]] - geom[self.instance[2]]) + 0.05
             self.set_bond(1, 2, val, change)
 
@@ -49,6 +45,6 @@ def abstraction_align(startgeom, instance, fragnatom):
     g1 = copy.deepcopy(geometry.translate_and_rotate(startgeom, instance[1], instance[2]))
     for i in range(len(g1)):
         g1[i] = geometry.rotate_atom(g1[i], [0, 1, 0], 20. / 180. * np.pi)
-    g1[:, 2] += 2.0  # shift the whole thing in z direction
+    g1[:, 2] += 1.8  # shift the whole thing in z direction
     geom = np.concatenate((g0[:fragnatom], g1[fragnatom:]))  # does not work for reverse
     return geom

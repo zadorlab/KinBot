@@ -145,9 +145,15 @@ class ReactionGenerator:
                                         if len(self.species.reac_scan_energy[index]) >= 3:  
                                             ediff = np.diff(self.species.reac_scan_energy[index])
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
+                                                logging.info(f'Maximum found for {obj.instance_name}.')
+                                                logging.info(f'Energies: {self.species.reac_scan_energy[index]}')
+                                                logging.info(f'Derivatives: {ediff}')
                                                 self.species.reac_step[index] = self.par['scan_step']  # ending the scan
-                                            if len(ediff) >= 3:
+                                            if len(ediff) >= 3 and obj.family_name not in ['abstraction']:  # abstraction needs barrier
                                                 if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
+                                                    logging.info(f'Sudden change in slope for for {obj.instance_name}.')
+                                                    logging.info(f'Energies: {self.species.reac_scan_energy[index]}')
+                                                    logging.info(f'Derivatives: {ediff}')
                                                     self.species.reac_step[index] = self.par['scan_step']  # ending the scan
                                         logging.info('\tCurrent raw scan energy for {}: {} Hartree.'.
                                                      format(obj.instance_name, self.species.reac_scan_energy[index][-1]))

@@ -21,9 +21,9 @@ try:
     zpe = reader_qchem.read_zpe('{label}.log')
     for d in dummy:
         mol.pop()
-    db.write(mol, name='{label}', data={
-        {'energy': e, 'frequencies': np.asarray(freq), 'zpe': zpe,
-         'status': 'normal'}})
+    db.write(mol, name='{label}', data={{'energy': e,
+                                         'frequencies': np.asarray(freq),
+                                         'zpe': zpe, 'status': 'normal'}})
 
 except RuntimeError:
     try:
@@ -33,11 +33,11 @@ except RuntimeError:
         zpe = reader_qchem.read_zpe('{label}.log')
         for d in dummy:
             mol.pop()
-        db.write(mol, name='{label}', data={
-            {'energy': e, 'frequencies': np.asarray(freq), 'zpe': zpe,
-             'status': 'normal'}})
+        db.write(mol, name='{label}', data={{'energy': e,
+                                             'frequencies': np.asarray(freq),
+                                             'zpe': zpe, 'status': 'normal'}})
     except:
         db.write(mol, name='{label}', data={{'status': 'error'}})
 
-with open(f'{label}.log', 'a') as f:
+with open('{label}.log', 'a') as f:
     f.write('done\n')

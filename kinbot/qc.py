@@ -53,8 +53,9 @@ class QuantumChemistry:
         self.queue_job_limit = par['queue_job_limit']
         self.username = par['username']
 
-    def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0, irc=None, scan=0,
-                         high_level=0, hir=0, start_from_geom=0, rigid=0):
+    def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
+                         irc=None, scan=0, high_level=0, hir=0,
+                         start_from_geom=0, rigid=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
@@ -67,6 +68,7 @@ class QuantumChemistry:
         irc: direction of the irc, None if this is not an irc job
         scan: is this calculation part of a scan of a bond length to find a maximum energy
         """
+        kwargs = {}
         if self.qc == 'gauss':
             # arguments for Gaussian
             kwargs = {
@@ -129,9 +131,11 @@ class QuantumChemistry:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
                 if len(self.opt) > 0:
-                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999,{}'.format(self.opt)  # to overwrite possible CalcAll
+                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,' \
+                                    'MaxCycle=999,{}'.format(self.opt)  # to overwrite possible CalcAll
                 else:
-                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
+                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,' \
+                                    'MaxCycle=999'  # to overwrite possible CalcAll
                 kwargs['freq'] = 'freq'
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral
@@ -207,6 +211,30 @@ class QuantumChemistry:
                 kwargs.update(irc_kwargs)
             return kwargs
 
+        if self.qc == 'qchem':
+            # arguments for QChem
+            kwargs = {
+                'label': job,
+                'jobtype': 'opt',
+                'method': self.method,
+                'basis': self.basis,
+                'unrestricted': 'True',
+                'scf_convergence': '8',
+                'scf_algorithm': 'GDM_QLS',
+                'multiplicity': mult,
+                'charge': charge,
+            }
+            if scan or 'R_Addition_MultipleBond' in job:
+                kwargs['method'] = self.scan_method
+                kwargs['basis'] = self.scan_basis
+            if 'barrierless_saddle' in job or 'bls' in job:
+                kwargs['method'] = self.bls_method
+                kwargs['basis'] = self.bls_basis
+            if high_level:
+                kwargs['method'] = self.high_level_method
+                kwargs['basis'] = self.high_level_basis
+        return kwargs
+
     def qc_hir(self, species, geom, rot_index, ang_index, fix, rigid):
         """
         Creates a constrained geometry optimization input and runs it.
@@ -259,7 +287,7 @@ class QuantumChemistry:
         conformational search of cyclic structures and runs it.
         Make use of the ASE optimizer PCOBFGS
 
-        qc: 'gauss' or 'nwchem'
+        qc: 'gauss' or 'nwchem' or 'qchem'
         scan: list of dihedrals to be scanned and their values
         wellorts: 0 for wells and 1 for saddle points
         conf_nr: number of the conformer in the conformer search
@@ -309,7 +337,7 @@ class QuantumChemistry:
     def qc_conf(self, species, geom, index=-1, ring=0, semi_emp=0):
         """
         Creates a geometry optimization input for the conformational search and runs it.
-        qc: 'gauss' or 'nwchem'
+        qc: 'gauss' or 'nwchem' or 'qchem'
         wellorts: 0 for wells and 1 for saddle points
         index: >=0 for sampling, each job will get numbered with index
         """
@@ -387,14 +415,15 @@ class QuantumChemistry:
         else:
             mult = species.mult
 
-        kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
+        kwargs = self.get_qc_arguments(job, mult, species.charge,
+                                       high_level=high_level)
 
         if self.qc == 'gauss':
             kwargs['opt'] = 'CalcFC, Tight'
         if mp2:
             kwargs['method'] = self.scan_method
             kwargs['basis'] = self.scan_basis
-        if high_level:
+        if high_level and self.qc == 'gauss':
             if self.opt:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         # the integral is set in the get_qc_arguments parts, bad design

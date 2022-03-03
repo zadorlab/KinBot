@@ -33,12 +33,18 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         geom = rxn.species.geom
         if bimol:
             if rxn.family_name == 'abstraction':
-                geom = abstraction_align(rxn.species.geom, rxn.instance, rxn.species.fragA.natom)
+                # gives the reactant and product geometry guesses
+                geom, _, _ = abstraction_align(rxn.species.geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
     elif step == rxn.max_step and rxn.scan:
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1, previous=1)
     else:
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
+        if bimol:
+            if rxn.family_name == 'abstraction':
+                # gives the reactant and product geometry guesses
+                _, geom_prod, geom_ts = abstraction_align(geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
+
 
     step, fix, change, release = rxn.get_constraints(step, geom)
 
@@ -60,13 +66,29 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     #atom, geom, dummy = rxn.qc.add_dummy(rxn.species.atom, geom, rxn.species.bond)
 
     kwargs['addsec'] = ''
-    for fixi in fix:
-        kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
-    for chi in change:
-        kwargs['addsec'] += f"{' '.join(str(ch) for ch in changei)} F\n"
-    for reli in release:
-        kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
-
+    if not bimol or step == 0:
+        # here addsec contains the constraints
+        for fixi in fix:
+            kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
+        for chi in change:
+            kwargs['addsec'] += f"{' '.join(str(ch) for ch in changei)} F\n"
+        for reli in release:
+            kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
+    elif bimol and step == 1:
+        kwargs['addsec'] = f'{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
+        # here addsec needs to contain the product and ts geometries and all the rest of the fluff
+        kwargs['addsec'] += f'product geometry guess\n\n{rxn.species.charge} {rxn.species.mult}\n'
+        for ii, at in enumerate(rxn.species.atom):
+            kwargs['addsec'] += f'{at} {geom_prod[ii][0]} {geom_prod[ii][1]} {geom_prod[ii][2]}\n'
+        kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
+        kwargs['addsec'] += f'ts geometry guess\n\n{rxn.species.charge} {rxn.species.mult}\n'
+        for ii, at in enumerate(rxn.species.atom):
+            kwargs['addsec'] += f'{at} {geom_ts[ii][0]} {geom_ts[ii][1]} {geom_ts[ii][2]}\n'
+        kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
+    if not bimol:
+        ntrial = 3
+    else:
+        ntrial = 1
 
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
@@ -77,10 +99,13 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    atom=list(rxn.species.atom),
                                    geom=list([list(gi) for gi in geom]), 
                                    #dummy=dummy,
+                                   bimol=bimol,
                                    ppn=rxn.qc.ppn,
                                    qc_command=command,
                                    working_dir=os.getcwd(),
-                                   scan=rxn.scan)
+                                   scan=rxn.scan,
+                                   ntrial=ntrial,
+                                   )
     else:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
         template = open(template_file,'r').read()

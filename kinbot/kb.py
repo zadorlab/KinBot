@@ -237,6 +237,7 @@ def main():
         well0.zpe = 0.
         well0.fragA = fragments['frag_a']  # update
         well0.fragB = fragments['frag_b']  # update
+        well0.structure = [well0.fragA.structure, well0.fragB.structure]  # update, used in reactions
         for frag in fragments.values():
             err, frag.energy = qc.get_qc_energy(str(frag.chemid) + '_well', 1)
             err, frag.zpe = qc.get_qc_zpe(str(frag.chemid) + '_well', 1)

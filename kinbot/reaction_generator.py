@@ -141,22 +141,27 @@ class ReactionGenerator:
                                     err, energy = self.qc.get_qc_energy(obj.instance_name)
                                     if err == 0:
                                         self.species.reac_scan_energy[index].append(energy)
+                                        logging.info(f'\tScan energy for {obj.instance_name} in step {self.species.reac_step[index]}:')
+                                        logging.info(f'\t\t{self.species.reac_scan_energy[index][-1]} Hartree.')
                                         # need at least 3 points for a maximum
-                                        if len(self.species.reac_scan_energy[index]) >= 3:  
+                                        if len(self.species.reac_scan_energy[index]) >= 3:
                                             ediff = np.diff(self.species.reac_scan_energy[index])
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
                                                 logging.info(f'Maximum found for {obj.instance_name}.')
-                                                logging.info(f'Energies: {self.species.reac_scan_energy[index]}')
+                                                e_in_kcal = [constants.AUtoKCAL * (self.species.reac_scan_energy[index][ii] - 
+                                                               self.species.reac_scan_energy[index][0]) 
+                                                               for ii in range(len(self.species.reac_scan_energy[index]))]
+                                                e_in_kcal = np.round(e_in_kcal, 2)
+                                                logging.info(f'Energies: {e_in_kcal}')
                                                 logging.info(f'Derivatives: {ediff}')
                                                 self.species.reac_step[index] = self.par['scan_step']  # ending the scan
-                                            if len(ediff) >= 3 and obj.family_name not in ['abstraction']:  # abstraction needs barrier
+                                            if len(ediff) >= 3:
                                                 if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
                                                     logging.info(f'Sudden change in slope for for {obj.instance_name}.')
-                                                    logging.info(f'Energies: {self.species.reac_scan_energy[index]}')
+                                                    logging.info(f'Relative energies (kcal/mol): {self.species.reac_scan_energy[index]}')
                                                     logging.info(f'Derivatives: {ediff}')
                                                     self.species.reac_step[index] = self.par['scan_step']  # ending the scan
-                                        logging.info('\tCurrent raw scan energy for {}: {} Hartree.'.
-                                                     format(obj.instance_name, self.species.reac_scan_energy[index][-1]))
+                                     
                                         # scan continues, and if reached scan_step, then goes for full optimization
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(
                                                                         obj, self.species.reac_step[index], self.par['qc_command'],

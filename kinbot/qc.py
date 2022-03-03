@@ -89,18 +89,22 @@ class QuantumChemistry:
                 kwargs['basis'] = ''
 
                 if step == 0:
-                    if self.par['bimol']:
-                        kwargs['opt'] = 'ModRedun,CalcFC,MaxCycle=999'
-                    else:
+                    if not self.par['bimol']:
                         kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
+                    else:
+                        kwargs['opt'] = 'ModRedun,Loose,CalcFC'
+                        kwargs['method'] = self.method
+                        kwargs['basis'] = self.basis
                 elif step < max_step:
-                    if self.par['bimol']:
-                        kwargs['opt'] = 'ModRedun,CalcFC,MaxCycle=999'
-                    else:
-                        kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
+                    kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
                     if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'
+                    if self.par['bimol']:
+                        kwargs['method'] = self.method
+                        kwargs['basis'] = self.basis
+                        kwargs['opt'] = 'QST3,AddRedundant'
+                        del kwargs['guess']
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis

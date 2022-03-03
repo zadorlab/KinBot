@@ -74,6 +74,10 @@ class GeneralReac:
                     fix.append([i + 1, j + 1])
 
 
+    def fix_bond_single(self, a, b, fix):
+        fix.append([self.instance[a] + 1, self.instance[b] + 1])
+
+
     def fix_angles(self, fix):
         for angle in range(len(self.instance) - 2):
             constraint = []

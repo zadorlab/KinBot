@@ -22,17 +22,7 @@ class Abstraction(GeneralReac):
             self.fix_bonds(fix)
             self.fix_bond_single(0, 2, fix)
             self.fix_angles(fix)
-        # in step 1 the QST2 method is used
-
-#        if step and step < self.max_step:
-#            # shorten the O--C (taker--giver, 0--2) distance gradually
-#            # original O->C vector
-#            oc = geom[self.instance[0]] - geom[self.instance[1]]
-#            # new oc vector, added 0.05 Angstrom to it, x, y, z are the added coordinate values
-#            z = np.sign(oc[2]) * 0.05 / np.sqrt((oc[0] * oc[0] + oc[1] * oc[1]) / (oc[2] * oc[2]) + 1)
-#            x = np.sign(oc[0]) * np.abs(z * oc[0] / oc[2])
-#            y = np.sign(oc[1]) * np.abs(z * oc[1] / oc[2])
-#            geom[self.instance[1]] += [x, y, z]
+        # in step 1 the QST3 method is used
 
         self.clean_constraints(change, fix)
         return step, fix, change, release
@@ -56,7 +46,7 @@ def abstraction_align(startgeom, instance, atom, fragnatom):
         #g1[i] = geometry.rotate_atom(g1[i], [0, 1, 0], 20. / 180. * np.pi)
     # C-H distance
     val0 = np.linalg.norm(startgeom[instance[1]] - startgeom[instance[2]])
-    val = 3. - val0
+    val = distance(atom, 0, 2) - val0
     g1[:, 2] += val  # shift the whole thing in z direction
     geom_reac = np.concatenate((g0[:fragnatom], g1[fragnatom:]))  # does not work for reverse
     geom_prod = copy.deepcopy(geom_reac)
@@ -76,21 +66,16 @@ def distance(atom, aa, cc):
     c = atom[cc]
 
     if a == 'O':
-        if c == 'O':
-            return 2.2
-        elif c == 'C':
-            return 2.5
-        else: 
-            print('Provide estimate for distance in abstraction')
-            sys.exit(-1)
+        if c == 'O': return 2.5
+        elif c == 'C': return 3.0
+        else: return 3.
     elif a == 'Cl':
-        if c == 'O':
-            return 2.7
-        elif c == 'C':
-            return 2.7
-        else: 
-            print('Provide estimate for distance in abstraction')
-            sys.exit(-1)
+        if c == 'O': return 3.0
+        elif c == 'C': return 2.8
+        else: return 3.
+    elif a == 'H':
+        if c == 'O': return 2.3
+        elif c == 'C': return 2.3
+        else: return 3.
     else: 
-        print('Provide estimate for distance in abstraction')
-        sys.exit(-1)
+        return 3.

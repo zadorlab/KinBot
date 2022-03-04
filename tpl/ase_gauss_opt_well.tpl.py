@@ -20,6 +20,13 @@ try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
     mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
     freq = reader_gauss.read_freq('{label}.log', {atom})
+    if freq[0] < 0. and freq[0] > -50.:  
+        kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'CalcAll')
+        try:
+            del kwargs['freq']
+        e = mol.get_potential_energy() 
+        mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
+        freq = reader_gauss.read_freq('{label}.log', {atom})
     zpe = reader_gauss.read_zpe('{label}.log')
     for d in dummy:
         mol.pop()

@@ -474,14 +474,15 @@ class ReactionGenerator:
                     neg_freq = 0
                     for st_pt in obj.products:
                         if any([fi < 0. for fi in st_pt.reduced_freqs]):
+                            logging.warning('\tFound negative frequency for a product of' + obj.instance_name)
+                            self.species.reac_ts_done[index] = -999
                             neg_freq = 1
                     if any([fi < 0. for fi in obj.ts.reduced_freqs[1:]]):
+                        logging.warning('\tFound more than one negative frequency for ' + obj.instance_name)
+                        self.species.reac_ts_done[index] = -999
                         neg_freq = 1
 
-                    if neg_freq:
-                        logging.info('\tFound negative frequency for ' + obj.instance_name)
-                        self.species.reac_ts_done[index] = -999
-                    else:
+                    if not neg_freq:
                         # the reaction search is finished
                         self.species.reac_ts_done[index] = -1  # this is the success code
 

@@ -408,45 +408,6 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_freq(self, species, geom, high_level=0):
-        """
-        Creates a frequency input and runs it.
-        """
-
-        job = str(species.chemid) + '_fr'
-        if high_level:
-            job = str(species.chemid) + '_fr_high'
-
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level)
-        if self.qc == 'gauss':
-            kwargs['freq'] = 'freq'
-            kwargs['ioplist'] = ['7/33=1']
-        elif self.qc == 'nwchem':
-            kwargs['task'] = 'frequencies'
-
-        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
-        if len(dummy) > 0:
-            if 'NoSymm' in kwargs:
-                del kwargs['NoSymm']
-
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.tpl.py'.format(qc=self.qc))
-        template = open(template_file, 'r').read()
-        template = template.format(label=job,
-                                   kwargs=kwargs,
-                                   atom=list(atom),
-                                   geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn,
-                                   dummy=dummy,
-                                   qc_command=self.qc_command,
-                                   working_dir=os.getcwd())
-
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
-
-        self.submit_qc(job)
-
-        return 0
 
     def qc_opt_ts(self, species, geom, high_level=0):
         """
@@ -606,58 +567,6 @@ class QuantumChemistry:
             return status, geom
         elif found_entry and previous == 1:
             return status, prev_geom
-        else:
-            return -1, geom
-
-    def get_second_to_last_geom(self, job, natom, wait=0, allow_error=0):
-        """
-        Get the geometry from the ase database file.
-        Returns it, with the following conditions about the status of the job.
-        If wait = 0, return an (1, empty array) when the job is still running (instead of the geometry).
-        If wait = 1, wait for the job to finish.
-        If wait = 2, return the last geometry while the job is still running.
-            This option is to monitor the formation of bimolecular products.
-        If allow_error = 0, do not read the final geometry if the status is not "normal"
-        if allow_error = 1, read the geometry even though there is an error in the output file
-            This option is to read the final IRC geometry when it did not converge
-        """
-
-        geom = np.zeros((natom, 3))
-
-        check = self.check_qc(job)
-        if check == 'error' and not allow_error:
-            return -1, geom
-        status = 0
-        while 1:
-            check = self.check_qc(job)
-            if check == 'running':
-                if wait == 1:
-                    time.sleep(1)
-                elif wait == 2:
-                    status = 2
-                    break
-                else:
-                    return 1, geom
-            else:
-                break
-        if check != 'normal':
-            if not allow_error:
-                if wait != 2:
-                    return -1, geom
-
-        # open the database
-        rows = self.db.select(name=job)
-
-        found_entry = 0
-        geoms = []
-        # take the last entry
-        for row in rows:
-            mol = row.toatoms()
-            geoms.append(mol.positions)
-            found_entry = 1
-
-        if found_entry:
-            return status, geoms[-2]
         else:
             return -1, geom
 

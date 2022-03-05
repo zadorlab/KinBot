@@ -24,6 +24,8 @@ try:
         kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'CalcAll')
         try:
             del kwargs['freq']
+        except:
+            pass
         e = mol.get_potential_energy() 
         mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
         freq = reader_gauss.read_freq('{label}.log', {atom})

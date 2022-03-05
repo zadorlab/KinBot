@@ -2,7 +2,6 @@ import numpy as np
 
 from kinbot import constants
 from kinbot import geometry
-from kinbot.bmat import B_Mat
 
 
 def get_frequencies(species, hess, geom, checkdist=0):
@@ -236,24 +235,6 @@ def get_neighbors(ati, visited, forbidden, division, species, natom, checkdist):
                         division.append(atj)
                         visited.append(atj)
                         get_neighbors(atj, visited, forbidden, division, species, natom, checkdist)
-
-
-def curvature(species, hess):
-    bbb = B_Mat(species)
-    bbb.bond_bij()
-    bbb.angle_bij()
-    bbb.dihedral_bij()
-    bbb.B = np.reshape(bbb.B, (-1, species.natom * 3))
-
-    # convert Hessian to Hartree / A**2
-    hess_ang = hess / constants.BOHRtoCM**2 * 1.e-8**2
-
-    jacobian = np.linalg.pinv(bbb.B)
-    m = np.dot(np.dot(jacobian.T, hess_ang), jacobian)
-
-    eigval, eigvec = np.linalg.eig(m)
-
-    return 0
 
 
 def skip_rotor(name, rot):

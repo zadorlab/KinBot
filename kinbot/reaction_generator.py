@@ -474,6 +474,7 @@ class ReactionGenerator:
                     neg_freq = 0
                     for st_pt in obj.products:
                         if any([fi < 0. for fi in st_pt.reduced_freqs]):
+                            print(st_pt.reduced_freqs)
                             logging.warning('\tFound negative frequency for a product of' + obj.instance_name)
                             self.species.reac_ts_done[index] = -999
                             neg_freq = 1

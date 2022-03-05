@@ -56,7 +56,7 @@ class HIR:
         for rotor in range(len(self.species.dihed)):
             if skip_rotor(self.species.name, self.species.dihed[rotor]) == 1:
                 self.hir_status[rotor] = [2 for i in range(self.nrotation)]
-                logging.info('For {} rotor {} was skipped in HIR.'.format(self.species.name, rotor))
+                logging.info('\tFor {} rotor {} was skipped in HIR.'.format(self.species.name, rotor))
                 continue
 
             cart = np.asarray(cart)
@@ -146,7 +146,7 @@ class HIR:
             # check if all the calculations are finished
             self.test_hir()
             if len(self.species.dihed) == 0:
-                logging.info(f'\tNo hindered rotors for {self.species.name}.')
+                logging.debug(f'No hindered rotors for {self.species.name}.')
             for rotor in range(len(self.species.dihed)):
                 status = self.hir_status[rotor]
                 energies = self.hir_energies[rotor]

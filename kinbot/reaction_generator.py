@@ -141,25 +141,25 @@ class ReactionGenerator:
                                     err, energy = self.qc.get_qc_energy(obj.instance_name)
                                     if err == 0:
                                         self.species.reac_scan_energy[index].append(energy)
-                                        logging.info(f'\tScan energy for {obj.instance_name} in step {self.species.reac_step[index]}:')
-                                        logging.info(f'\t\t{self.species.reac_scan_energy[index][-1]} Hartree.')
+                                        logging.debug(f'Scan energy for {obj.instance_name} in step {self.species.reac_step[index]}:')
+                                        logging.debug(f'{self.species.reac_scan_energy[index][-1]} Hartree.')
                                         # need at least 3 points for a maximum
                                         if len(self.species.reac_scan_energy[index]) >= 3:
                                             ediff = np.diff(self.species.reac_scan_energy[index])
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
-                                                logging.info(f'Maximum found for {obj.instance_name}.')
+                                                logging.info(f'\tMaximum found for {obj.instance_name}.')
                                                 e_in_kcal = [constants.AUtoKCAL * (self.species.reac_scan_energy[index][ii] - 
                                                                self.species.reac_scan_energy[index][0]) 
                                                                for ii in range(len(self.species.reac_scan_energy[index]))]
                                                 e_in_kcal = np.round(e_in_kcal, 2)
-                                                logging.info(f'Energies: {e_in_kcal}')
-                                                logging.info(f'Derivatives: {ediff}')
+                                                logging.info(f'\tEnergies: {e_in_kcal}')
+                                                logging.debug(f'Derivatives: {ediff}')
                                                 self.species.reac_step[index] = self.par['scan_step']  # ending the scan
                                             if len(ediff) >= 3:
                                                 if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
-                                                    logging.info(f'Sudden change in slope for for {obj.instance_name}.')
-                                                    logging.info(f'Relative energies (kcal/mol): {self.species.reac_scan_energy[index]}')
-                                                    logging.info(f'Derivatives: {ediff}')
+                                                    logging.info(f'\tSudden change in slope for for {obj.instance_name}.')
+                                                    logging.info(f'\tRelative energies (kcal/mol): {self.species.reac_scan_energy[index]}')
+                                                    logging.debug(f'Derivatives: {ediff}')
                                                     self.species.reac_step[index] = self.par['scan_step']  # ending the scan
                                      
                                         # scan continues, and if reached scan_step, then goes for full optimization
@@ -223,7 +223,7 @@ class ReactionGenerator:
                                 # verify which of the ircs leads back to the reactant, if any
                                 prod = obj.irc.irc2stationary_pt()
                                 if prod == 0:
-                                    logging.info('\t\tNo product found for {}'.format(obj.instance_name))
+                                    logging.info('\tNo product found for {}'.format(obj.instance_name))
                                     self.species.reac_ts_done[index] = -999
                                 else:
                                     obj.products = prod
@@ -336,7 +336,7 @@ class ReactionGenerator:
                         chemid = st_pt.chemid
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
-                            logging.info('\tProduct optimization failed for {}, product {}'
+                            logging.warning('Product optimization failed for {}, product {}'
                                          .format(obj.instance_name, st_pt.chemid))
                             self.species.reac_ts_done[index] = -999
                             err = -1
@@ -425,14 +425,14 @@ class ReactionGenerator:
                             opts_done = 0
                             obj.ts_opt.do_optimization()
                         if obj.ts_opt.shigh == -999:
-                            logging.info("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
+                            logging.warning("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
                             fails = 1
                     for pr_opt in obj.prod_opt:
                         if not pr_opt.shir == 1:
                             opts_done = 0
                             pr_opt.do_optimization()
                         if pr_opt.shigh == -999:
-                            logging.info("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
+                            logging.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
                             fails = 1
                         break
                     if fails:

@@ -322,7 +322,7 @@ class Parameters:
 
         if self.par['bimol'] == 1 and self.par['method'] == 'b3lyp':
             logging.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
-            logging.warning('Choose for instance M06-2X.')
+            logging.warning('Choose for instance M06-2X or wB97XD.')
             print('B3LYP is not recommended as L1 for bimolecular reactions.')
             print('Choose for instance M06-2X.')
 

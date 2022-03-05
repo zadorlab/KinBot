@@ -132,13 +132,13 @@ def main():
                 'r14_birad_scission' not in par['skip_families'] or \
                 'R_Addition_MultipleBond' not in par['skip_families'])) or \
                 par['reaction_search'] == 0:
-            logging.info('Starting MP2 optimization of initial well...')
+            logging.debug('Starting MP2 optimization of initial well...')
             qc.qc_opt(well0, well0.geom, mp2=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
 
         # comparison for barrierless scan
         if par['barrierless_saddle']:
-            logging.info('Optimization of intial well for barrierless at {}/{}'.
+            logging.debug('Optimization of intial well for barrierless at {}/{}'.
                     format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
             qc.qc_opt(well0, well0.geom, bls=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
@@ -160,14 +160,14 @@ def main():
             filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
-            logging.info('Starting reaction searches of initial well...')
+            logging.info('\tStarting reaction search...')
             rf = ReactionFinder(well0, par, qc)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
 
         if par['homolytic_scissions'] == 1:
-            logging.info('Starting the search for homolytic scission products...')
+            logging.info('\tStarting the search for homolytic scission products...')
             well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
             well0.homolytic_scissions.find_homolytic_scissions()
 
@@ -202,7 +202,7 @@ def main():
  
         qc = QuantumChemistry(par)
 
-        logging.info('Starting optimization of fragments...')
+        logging.info('\tStarting optimization of fragments...')
         for frag in fragments.values():
             qc.qc_opt(frag, frag.geom)
             err, frag.geom = qc.get_qc_geom(str(frag.chemid) + '_well',
@@ -249,7 +249,7 @@ def main():
         #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
-            logging.info('Starting bimolecular reaction search...')
+            logging.info('\tStarting bimolecular reaction search...')
             rf = ReactionFinderBimol(well0, par, qc)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
@@ -260,7 +260,7 @@ def main():
         mess.write_input(qc)
 
         if par['me'] == 1: 
-            logging.info('Starting Master Equation calculations')
+            logging.info('\tStarting Master Equation calculations')
             if par['me_code'] == 'mess':
                 mess.run()
 

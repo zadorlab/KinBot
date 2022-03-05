@@ -47,7 +47,7 @@ class IRC:
             if self.problem_in_geom(geom):
                 # this happens seldom that all the atoms are
                 # very close to one another (problem in Gaussian)
-                logging.info('\tProblem with product geometry for {}'.format(instance_name))
+                logging.warning('Problem with product geometry for {}'.format(instance_name))
                 return 0
 
             temp = StationaryPoint(irc_name,

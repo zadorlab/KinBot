@@ -5,7 +5,7 @@ import logging
 import copy
 
 from kinbot import constants
-from kinbot import filecopying
+#from kinbot import filecopying
 from kinbot import pes
 from kinbot import postprocess
 from kinbot import reac_family
@@ -467,8 +467,8 @@ class ReactionGenerator:
 
                         # copy the files of the species to an upper directory
                         frags = obj.products
-                        for frag in frags:
-                            filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
+                        #for frag in frags:
+                        #    filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
 
                     # check for wrong number of negative frequencies
                     neg_freq = 0

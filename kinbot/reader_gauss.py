@@ -18,7 +18,7 @@ def read_geom(outfile, mol, dummy):
     geom = np.zeros((len(mol), 3))
     for index, line in enumerate(reversed(lines)):
         if 'Input orientation:' in line:
-            for n in range(len(mol)):
+            for n in range(len(mol) - len(dummy)):  # Gaussian only prints the position of the non-dummies
                 geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
             break
     # adding back dummy atoms

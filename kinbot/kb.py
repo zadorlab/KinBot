@@ -103,8 +103,10 @@ def main():
         qc.qc_opt(well0, well0.geom)
         err, well0.geom = qc.get_qc_geom(str(well0.chemid) + '_well',
                                          well0.natom, wait=1)
+        logging.debug(f'Initial well opt error {err}.')
         err, well0.freq = qc.get_qc_freq(str(well0.chemid) + '_well',
                                          well0.natom, wait=1)
+        logging.debug(f'Initial well freq error {err}, frequencies are {well0.freq}.')
         if err < 0:
             logging.error('Error with initial structure optimization.')
             return

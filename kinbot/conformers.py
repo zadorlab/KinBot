@@ -204,7 +204,7 @@ class Conformers:
                                        geom=geom)
                 temp.bond_mx()
                 if geometry.equal_geom(self.species, temp, 0.10):
-                    logging.debug('Successfullly finished conformer {}'.format(job))
+                    logging.debug('Successfully finished conformer {}'.format(job))
                     return geom, 0
                 else:
                     logging.debug('Conformer too far from original structure {}'.format(job))
@@ -271,7 +271,7 @@ class Conformers:
             if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
                 if rotor == 0:
                     if self.info: 
-                        logging.info('Random conformer search is carried out for {}.'.format(name))
+                        logging.info('\tRandom conformer search is carried out for {}.'.format(name))
                         self.info = False
 
                     # skipping generation if done
@@ -283,8 +283,7 @@ class Conformers:
                         rows = self.db.select(name=self.get_job_name(nrandconf - 1))
                         for row in rows:
                             self.conf = nrandconf
-                            logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
-                            logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
+                            logging.info('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
                             return 1
 
                 self.generate_conformers_random_sampling(cart)
@@ -294,7 +293,7 @@ class Conformers:
         if rotor == len(self.species.conf_dihed) or rotor == -999:
             self.qc.qc_conf(self.species, cart, self.conf, semi_emp=self.semi_emp)
             if self.conf == 0:
-                logging.info('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+                logging.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
             self.conf += 1
             return 0
 
@@ -304,9 +303,8 @@ class Conformers:
             for row in rows:
                 self.conf = theoretical_confs
                 if print_warning:
-                    logging.info('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
-                    logging.info('Last conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
-                    logging.info('Make sure the files are correct, you can reactivate calcs by deleting the last log file.')
+                    logging.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+                    logging.info('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
                 return 1
 
         cart = np.asarray(cart)
@@ -441,7 +439,7 @@ class Conformers:
                                         if freq[0] <= 0.:
                                             err = -1
                                 else:
-                                    logging.info("Conformer {} failed due to empty freq array".format(ci))
+                                    logging.warning("Conformer {} failed due to empty freq array".format(ci))
                                     err = -1
                             if err == 0:
                                 lowest_totenergy = energy + zpe
@@ -461,7 +459,7 @@ class Conformers:
                                     if freq[0] <= 0.:
                                         err = -1
                             else:
-                                logging.info("Conformer {} failed due to empty freq array".format(ci))
+                                logging.warning("Conformer {} failed due to empty freq array".format(ci))
                                 err = -1
                             if err == 0:
                                 lowest_job = job

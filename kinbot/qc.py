@@ -240,10 +240,9 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(atom),
+                                   atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
-                                   dummy=dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
@@ -285,12 +284,11 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(atom),
+                                   atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
                                    fix=fix,
                                    change=change,
                                    ppn=self.ppn,
-                                   dummy=dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
@@ -339,10 +337,9 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(atom),
+                                   atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
-                                   dummy=dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
         f_out = open('{}.py'.format(job), 'w')
@@ -394,10 +391,9 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(atom),
+                                   atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
-                                   dummy=dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 

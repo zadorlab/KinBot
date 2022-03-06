@@ -737,12 +737,12 @@ class QuantumChemistry:
         """
         Checks the status of the qc job.
         """
-        logging.debug('Checking job {}'.format(job))
+        #logging.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job, '-1') + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-                logging.debug('Job is running')
+                #logging.debug('Job is running')
                 return 'running'
         elif self.queuing == 'slurm':
             # command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'

@@ -158,8 +158,8 @@ def main():
             logging.error('Error with high level optimization of initial structure.')
             return
 
-        if par['pes']:
-            filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
+        #if par['pes']:
+        #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
             logging.info('\tStarting reaction search...')

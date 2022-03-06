@@ -11,7 +11,6 @@ db = connect('{working_dir}/kinbot.db')
 label = '{label}'
 logfile = '{label}.log'
 
-dummy = None
 mol = Atoms(symbols={atom}, positions={geom})
 
 kwargs = {kwargs}
@@ -23,10 +22,10 @@ success = True
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
-    mol.positions = reader_gauss.read_geom(logfile, mol, dummy)
+    mol.positions = reader_gauss.read_geom(logfile, mol)
     db.write(mol, name=label, data={{'energy': e,'status': 'normal'}})
 except:
-    mol.positions = reader_gauss.read_geom(logfile, mol, dummy)
+    mol.positions = reader_gauss.read_geom(logfile, mol)
     if mol.positions is not None:
         db.write(mol, name=label, data={{'status': 'normal'}}) #although there is an error, continue from the final geometry
     else:
@@ -46,10 +45,10 @@ if success:
     mol_prod.set_calculator(calc_prod)
     try:
         e = mol_prod.get_potential_energy() # use the Gaussian optimizer
-        mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod, dummy)
+        mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
         db.write(mol, name=label, data={{'energy': e,'status': 'normal'}})
     except RuntimeError: 
-        mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod, dummy)
+        mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
         if mol_prod.positions is not None:
             db.write(mol_prod, name=label, data={{'status': 'normal'}}) 
         else:

@@ -9,7 +9,6 @@ db = connect('{working_dir}/kinbot.db')
 
 atom = {atom}
 geom = {geom}
-dummy = None
 mol = Atoms(symbols=atom, positions=geom)
 
 kwargs = {kwargs}
@@ -19,15 +18,15 @@ mol.set_calculator(calc)
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
-    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
+    mol.positions = reader_gauss.read_geom('{label}.log', mol)
     freq = reader_gauss.read_freq('{label}.log', {atom})
     zpe = reader_gauss.read_zpe('{label}.log')
     db.write(mol, name='{label}', data={{'energy': e,'frequencies': np.asarray(freq), 'zpe':zpe, 'status': 'normal'}})
 except RuntimeError: 
     try:
-        mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
+        mol.positions = reader_gauss.read_geom('{label}.log', mol)
         e = mol.get_potential_energy() # use the Gaussian optimizer
-        mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
+        mol.positions = reader_gauss.read_geom('{label}.log', mol)
         freq = reader_gauss.read_freq('{label}.log', {atom})
         zpe = reader_gauss.read_zpe('{label}.log')
         db.write(mol, name='{label}', data={{'energy': e,'frequencies': np.asarray(freq), 'zpe':zpe, 'status': 'normal'}})

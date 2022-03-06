@@ -7,7 +7,7 @@ import copy
 Functions to read Gaussian output files.
 """
 
-def read_geom(outfile, mol, dummy):
+def read_geom(outfile, mol):
     """
     Read the final geometry from a Gaussian file.
     """
@@ -18,13 +18,9 @@ def read_geom(outfile, mol, dummy):
     geom = np.zeros((len(mol), 3))
     for index, line in enumerate(reversed(lines)):
         if 'Input orientation:' in line:
-            for n in range(len(mol) - len(dummy)):  # Gaussian only prints the position of the non-dummies
+            for n in range(len(mol)):
                 geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
             break
-    # adding back dummy atoms
-    if dummy is not None:
-        for i,d in enumerate(dummy):
-            geom[-(i+1)][0:3] = d[0:3]
 
     return geom
 
@@ -52,7 +48,8 @@ def read_freq(outfile, atom):
     with open(outfile) as f:
         lines = f.readlines()
 
-    natom = len([at for at in atom if at !='X']) #filter out the dummy atoms
+    natom = len(atom)
+
     if natom == 1:
         freq = []
     else:

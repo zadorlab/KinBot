@@ -15,6 +15,7 @@ def calc_angle(a, b, c):
 def is_linear(geom, bond):
     """
     Check if all the atoms are linear and if so, add a dummy atom
+    Obsolete.
     """
     dummy = []  # positions of the dummy atoms
     for i, pos in enumerate(geom):

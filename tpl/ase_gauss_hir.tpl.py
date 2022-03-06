@@ -6,7 +6,6 @@ from kinbot import reader_gauss
 
 db = connect('{working_dir}/kinbot.db')
 
-dummy = {dummy}
 mol = Atoms(symbols={atom}, positions={geom})
 
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
@@ -16,17 +15,13 @@ mol.set_calculator(calc)
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
-    mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
-    for d in dummy:
-        mol.pop()
+    mol.positions = reader_gauss.read_geom('{label}.log', mol)
     db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
 except RuntimeError: 
     try:
-        mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
+        mol.positions = reader_gauss.read_geom('{label}.log', mol)
         e = mol.get_potential_energy() # use the Gaussian optimizer
-        mol.positions = reader_gauss.read_geom('{label}.log', mol, dummy)
-        for d in dummy:
-            mol.pop()
+        mol.positions = reader_gauss.read_geom('{label}.log', mol)
         db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
     except:
         db.write(mol, name='{label}', data={{'status' : 'error'}})

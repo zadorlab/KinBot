@@ -234,7 +234,7 @@ class QuantumChemistry:
         kwargs['addsec'] = f"{' '.join(str(f) for f in fix[0])} F"
         del kwargs['chk']
 
-        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
+#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -279,7 +279,7 @@ class QuantumChemistry:
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
-        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
+#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -333,7 +333,7 @@ class QuantumChemistry:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
 
-        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
+#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -388,7 +388,7 @@ class QuantumChemistry:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         # the integral is set in the get_qc_arguments parts, bad design
 
-        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
+#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -833,6 +833,7 @@ class QuantumChemistry:
     def add_dummy(self, spatom, geom, spbond):
         """
         Add a dummy atom for each close to linear angle.
+        Obsolete.
         """
         atom = copy.deepcopy(spatom)
         dummy = geometry.is_linear(geom, spbond)

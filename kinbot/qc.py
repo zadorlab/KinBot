@@ -779,10 +779,14 @@ class QuantumChemistry:
                 log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     with open(log_file, 'r') as f:
-                        last_line = f.readlines()[-1]
-                    if 'done' not in last_line:
-                        logging.debug(f'Log file {log_file} is present, but has no "done" stamp.')
-                        return 0
+                        try:
+                            last_line = f.readlines()[-1]
+                            if 'done' not in last_line:
+                                logging.debug(f'Log file {log_file} is present, but has no "done" stamp.')
+                                return 0
+                        except IndexError:
+                            logging.warning(f'Log file {log_file} is present, but it is empty.')
+                            pass
                     logging.debug('Log file is present after {} iterations'.format(i))
                     # by deleting a log file, you allow restarting a job
                     # open the database

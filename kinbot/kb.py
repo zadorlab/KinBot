@@ -110,8 +110,11 @@ def main():
         if err < 0:
             logging.error('Error with initial structure optimization.')
             return
-        if any(well0.freq[i] <= 0 for i in range(len(well0.freq))):
-            logging.error('Found imaginary frequency for initial structure.')
+        if well0.freq[0] <= 0:
+            logging.warning(f'First frequency is {well0.freq[0]} for initial structure.')
+            well0.freq[0] *= -1.
+        if well0.freq[1] <= 0:
+            logging.error(f'Second frequency is {well0.freq[1]} for initial structure.')
             return
 
         # characterize again and look for differences
@@ -214,8 +217,14 @@ def main():
                 return
             err, frag.freq = qc.get_qc_freq(str(frag.chemid) + '_well',
                                             frag.natom, wait=1)
-            if any(np.array(frag.freq) <= 0):
-                logging.error(f'Found imaginary frequency for {frag.name}.')
+            if frag.freq[0] <= 0. and frag.freq[0] >= -20.:
+                logging.warning(f'Found imaginary frequency {frag.freq[0]} for {frag.name}. It is flipped.')
+                frag.freq[0] *= -1.
+            elif frag.freq[0] < -20.:
+                logging.error(f'Found imaginary frequency {frag.freq[0]} for {frag.name}.')
+                return
+            if frag.freq[1] <= 0:
+                logging.error(f'Found two imaginary frequencies {frag.freq[1]} for {frag.name}.')
                 return
             # characterize again and look for differences
             frag.characterize()

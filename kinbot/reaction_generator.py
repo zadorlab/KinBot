@@ -447,7 +447,9 @@ class ReactionGenerator:
                         if len(obj.products) == 1:
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
-                            new_barrier_threshold = self.par['barrier_threshold'] - (st_pt.energy - self.species.energy) * constants.AUtoKCAL
+                            rel_en = (st_pt.energy + st_pt.zpe - self.species.energy - self.species.zep) * constants.AUtoKCAL
+                            logging.info(f'\tProduct {self.species.chemid} energy is {rel_en} kcal/mol.')
+                            new_barrier_threshold = self.par['barrier_threshold'] - rel_en 
                             dirwell = os.path.dirname(os.getcwd())
                             jobs = open(dirwell + '/chemids', 'r').read().split('\n')
                             jobs = [ji for ji in jobs]
@@ -473,9 +475,11 @@ class ReactionGenerator:
                     # check for wrong number of negative frequencies
                     neg_freq = 0
                     for st_pt in obj.products:
-                        if any([fi < 0. for fi in st_pt.reduced_freqs]):
-                            print(st_pt.reduced_freqs)
-                            logging.warning('\tFound negative frequency for a product of' + obj.instance_name)
+                        if st_pt.reduced_freqs[0] <= 0. and st_pt.reduced_freqs[0] >= -20.:
+                            logging.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}. Flipped.')
+                            st_pt.reduced_freqs[0] *= -1.
+                        elif st_pt.reduced_freqs[0] <-20.:
+                            logging.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}.')
                             self.species.reac_ts_done[index] = -999
                             neg_freq = 1
                     if any([fi < 0. for fi in obj.ts.reduced_freqs[1:]]):

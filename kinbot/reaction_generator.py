@@ -448,7 +448,7 @@ class ReactionGenerator:
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
                             rel_en = (st_pt.energy + st_pt.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
-                            logging.info(f'\tProduct {self.species.chemid} energy is {rel_en} kcal/mol.')
+                            logging.info(f'\tProduct {obj.instance_name} energy is {rel_en} kcal/mol.')
                             new_barrier_threshold = self.par['barrier_threshold'] - rel_en 
                             dirwell = os.path.dirname(os.getcwd())
                             jobs = open(dirwell + '/chemids', 'r').read().split('\n')

@@ -111,7 +111,8 @@ def main():
                 if 'am1' in f.read():
                     delfile = True
             if delfile:
-                os.remove(cc)
+                ll = cc.split('.')[0] + '.log'
+                os.remove(ll)
 
         # start the initial optimization of the reactant
         logging.info('Starting optimization of initial well...')

@@ -98,6 +98,21 @@ def main():
         # initialize the qc instance
         qc = QuantumChemistry(par)
 
+        # delete leftover AM1 calculations
+        files = os.listdir()
+        com = []
+        for ff in files:
+            if 'com' in ff:
+                com.append(ff)
+
+        for cc in com:
+            delfile = False
+            with open(cc, 'r') as f:
+                if 'am1' in f.read():
+                    delfile = True
+            if delfile:
+                os.remove(cc)
+
         # start the initial optimization of the reactant
         logging.info('Starting optimization of initial well...')
         qc.qc_opt(well0, well0.geom)

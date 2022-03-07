@@ -73,8 +73,8 @@ class ReactionGenerator:
                 if self.species.reac_ts_done[index] == 0 and self.species.reac_step[index] == 0:
                     # verify after restart if search has failed in previous kinbot run
                     status = self.qc.check_qc(obj.instance_name)
-                    if status == 'error' or status == 'killed':
-                        logging.info('\tRxn search failed (error or killed) for {}'
+                    if status == 'error':
+                        logging.info('\tRxn search failed for {}'
                                      .format(obj.instance_name))
                         self.species.reac_ts_done[index] = -999
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
@@ -133,7 +133,7 @@ class ReactionGenerator:
                                                                 bimol=self.par['bimol'])
                             elif self.species.reac_step[index] < self.par['scan_step']:
                                 status = self.qc.check_qc(obj.instance_name)
-                                if status == 'error' or status == 'killed':
+                                if status == 'error':
                                     logging.info('\tRxn search using scan failed for {} in step {}'
                                                  .format(obj.instance_name, self.species.reac_step[index]))
                                     self.species.reac_ts_done[index] = -999
@@ -218,7 +218,7 @@ class ReactionGenerator:
                             elif irc_status[0] == 'running' or irc_status[1] == 'running':
                                 continue
                             else:
-                                # IRC's have successfully finished, have an error or were killed, in any case
+                                # IRC's have successfully finished, have an error, in any case
                                 # read the geometries and try to make products out of them
                                 # verify which of the ircs leads back to the reactant, if any
                                 prod = obj.irc.irc2stationary_pt()

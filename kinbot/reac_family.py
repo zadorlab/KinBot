@@ -16,7 +16,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     """
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
-        if status != 'normal' and status != 'error': return step
+        if status != 'normal' and status != 'error': return step  
   
     kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge, ts=1,
                                      step=step, max_step=rxn.max_step, scan=rxn.scan)
@@ -26,7 +26,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 err, freq = rxn.qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
                 if err == 0 and len(freq) > 0.:
                     err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
-                    step = rxn.max_step + 1
+                    step = rxn.max_step + 1  # this shortcuts the search, jumps to the end
                     return step
         if rxn.skip and len(rxn.instance) < 4:
             step = 12

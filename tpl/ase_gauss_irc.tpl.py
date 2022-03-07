@@ -54,5 +54,5 @@ if success:
         else:
             db.write(mol_prod, name=label, data={{'status': 'error'}})
 
-    with open(logifle, 'a') as f:
+    with open(logfile, 'a') as f:
         f.write('done\n')

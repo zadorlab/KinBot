@@ -112,7 +112,10 @@ def main():
                     delfile = True
             if delfile:
                 ll = cc.split('.')[0] + '.log'
-                os.remove(ll)
+                try:
+                    os.remove(ll)
+                except FileNotFoundError:
+                    pass
 
         # delete empty files
         log = []
@@ -123,7 +126,10 @@ def main():
 
         for ll in log:
             if os.path.getsize(ll) < 10:
-                os.remove(ll)
+                try:
+                    os.remove(ll)
+                except FileNotFoundError:
+                    pass
 
         # start the initial optimization of the reactant
         logging.info('Starting optimization of initial well...')

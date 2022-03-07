@@ -114,6 +114,17 @@ def main():
                 ll = cc.split('.')[0] + '.log'
                 os.remove(ll)
 
+        # delete empty files
+        log = []
+        for ff in files:
+            if 'log' in ff:
+                log.append(ff)
+        print(log)
+
+        for ll in log:
+            if os.path.getsize(ll) < 10:
+                os.remove(ll)
+
         # start the initial optimization of the reactant
         logging.info('Starting optimization of initial well...')
         qc.qc_opt(well0, well0.geom)

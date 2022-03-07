@@ -317,6 +317,10 @@ class Parameters:
             logging.error('Specific reaction cannot be searched in PES mode.')
             sys.exit(-1)
 
+        if self.par['high_level'] == 1 and self.par['conformer_search'] == 0:
+            logging.error('Conformer search has to be done before L2.')
+            sys.exit(-1)
+
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
 

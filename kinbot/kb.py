@@ -122,14 +122,13 @@ def main():
         for ff in files:
             if 'log' in ff:
                 log.append(ff)
-        print(log)
 
         for ll in log:
-            if os.path.getsize(ll) < 10:
-                try:
+            try:
+                if os.path.getsize(ll) < 10:
                     os.remove(ll)
-                except FileNotFoundError:
-                    pass
+            except FileNotFoundError:
+                pass
 
         # start the initial optimization of the reactant
         logging.info('Starting optimization of initial well...')

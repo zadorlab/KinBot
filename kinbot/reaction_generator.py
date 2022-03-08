@@ -442,12 +442,13 @@ class ReactionGenerator:
                 elif self.species.reac_ts_done[index] == 6:
                     # Finilize the calculations
                     # continue to PES search in case a new well was found
+                    st_pt = obj.prod_opt[0].species
                     if self.par['pes']:
                         # verify if product is monomolecular, and if it is new
                         if len(obj.products) == 1:
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
-                            rel_en = (st_pt.energy + st_pt.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL
+                            rel_en = (st_pt.energy - self.species.energy) * constants.AUtoKCAL  # energy contains ZPE! check!!
                             logging.info(f'\tProduct {obj.instance_name} energy is {rel_en} kcal/mol.')
                             new_barrier_threshold = self.par['barrier_threshold'] - rel_en 
                             dirwell = os.path.dirname(os.getcwd())

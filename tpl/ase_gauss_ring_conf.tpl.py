@@ -2,13 +2,12 @@ import numpy as np
 import ase
 from ase import Atoms
 from ase.calculators.gaussian import Gaussian
-from ase.optimize.pcobfgs import PCOBFGS
+from ase.optimize import LBFGS
+from ase.constraints import FixInternals
 from ase.db import connect
 
 db = connect('{working_dir}/kinbot.db')
-
 mol = Atoms(symbols={atom}, positions={geom})
-
 kwargs = {kwargs}
 
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
@@ -49,12 +48,10 @@ for ci in change:
         dihed = ci[4] * np.pi / 180
         dihedrals.append([dihed,[ci[0]-1, ci[1]-1, ci[2]-1, ci[3]-1]])
 
-dyn = PCOBFGS(mol,
-              trajectory='{label}.traj',
-              bonds=bonds,
-              angles=angles,
-              dihedrals=dihedrals,
-              force_consistent=False)
+constraints = FixInternals(bonds=bonds, angles=angles, dihedrals=dihedrals)
+mol.set_constraint(constraints)
+
+dyn = LBFGS(atoms=mol, trajectory='ringopt.traj')
 
 try:
     dyn.run(fmax=0.01, steps=400)

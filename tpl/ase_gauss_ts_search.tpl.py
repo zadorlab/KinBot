@@ -15,7 +15,7 @@ mol = Atoms(symbols={atom}, positions={geom})
 kwargs = {kwargs}
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
-mol.set_calculator(calc)
+mol.calc = calc
 
 for tr in range({ntrial}):
     try:

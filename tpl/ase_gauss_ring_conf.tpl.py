@@ -13,7 +13,7 @@ kwargs = {kwargs}
 
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
-mol.set_calculator(calc)
+mol.calc = calc
 
 fix = {fix}
 change = {change}

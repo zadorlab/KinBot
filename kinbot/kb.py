@@ -118,6 +118,15 @@ def main():
                     pass
 
         # delete empty files
+        try:
+            conf_files = os.listdir('conf')
+        except:
+            conf_files = []
+        try:
+            hir_files = os.listdir('hir')
+        except:
+            hir_files = []
+        files = files + conf_files + hir_files
         log = []
         for ff in files:
             if 'log' in ff:

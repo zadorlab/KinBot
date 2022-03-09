@@ -15,7 +15,7 @@ mol = Atoms(symbols={atom}, positions={geom})
 kwargs = {kwargs}
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
-mol.set_calculator(calc)
+mol.calc = calc
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer

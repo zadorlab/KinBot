@@ -16,7 +16,7 @@ mol = Atoms(symbols={atom}, positions={geom})
 kwargs = {kwargs}
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
-mol.set_calculator(calc)
+mol.calc = calc
 
 success = True
 
@@ -42,7 +42,7 @@ if success:
     prod_kwargs = {prod_kwargs}
     calc_prod = Gaussian(**prod_kwargs)
     mol_prod = Atoms(symbols={atom}, positions=mol.positions)
-    mol_prod.set_calculator(calc_prod)
+    mol_prod.calc = calc_prod
     try:
         e = mol_prod.get_potential_energy() # use the Gaussian optimizer
         mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)

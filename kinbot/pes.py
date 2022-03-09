@@ -501,12 +501,13 @@ def postprocess(par, jobs, task, names):
                                                    names)
 
     # draw a graph of the network
-    # create_graph(wells,
-    #              products,
-    #              reactions,
-    #              well_energies,
-    #              prod_energies,
-    #              highlight)
+    create_graph(wells,
+                 products,
+                 reactions,
+                 well_energies,
+                 prod_energies,
+                 highlight)
+
     # write_mess
 
     barrierless = []

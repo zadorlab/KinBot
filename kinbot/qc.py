@@ -216,11 +216,11 @@ class QuantumChemistry:
             kwargs = {
                 'label': job,
                 'jobtype': 'opt',
+                'nt': self.ppn,
                 'method': self.method,
                 'basis': self.basis,
                 'unrestricted': 'True',
                 'scf_convergence': '8',
-                'scf_algorithm': 'GDM_QLS',
                 'multiplicity': mult,
                 'charge': charge,
             }
@@ -236,22 +236,29 @@ class QuantumChemistry:
         return kwargs
 
     def qc_hir(self, species, geom, rot_index, ang_index, fix, rigid):
-        """
-        Creates a constrained geometry optimization input and runs it.
+        """Creates a constrained geometry optimization input and runs it.
         wellorts: 0 for wells and 1 for saddle points
         rot_index: index of the rotor in the molecule
         ang_index: index for the current size of the angle
         fix: four atoms of the dihedral that is currently fixed
         """
+        from kinbot.geometry import calc_dihedral
         if species.wellorts:
             job = 'hir/' + species.name + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
         else:
             job = 'hir/' + str(species.chemid) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=species.wellorts, step=1, max_step=1, high_level=1, hir=1, rigid=rigid)
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=species.wellorts, step=1, max_step=1,
+                                       high_level=1, hir=1, rigid=rigid)
         #kwargs['fix'] = fix  # for old hacked ASE version
-        kwargs['addsec'] = f"{' '.join(str(f) for f in fix[0])} F"
-        del kwargs['chk']
+
+        if self.qc == 'gauss':
+            kwargs['addsec'] = f"{' '.join(str(f) for f in fix[0])} F"
+            del kwargs['chk']
+        elif self.qc == 'qchem':
+            dihedral = calc_dihedral(geom[fix[0][0]-1], geom[fix[0][1]-1], geom[fix[0][2]-1], geom[fix[0][3]-1])[0]
+            kwargs['addsec'] = f"$opt\nCONSTRAINT\ntors {' '.join(str(f) for f in fix[0])} {dihedral}\n" \
+                               f"ENDCONSTRAINT\n$end"
 
         atom = copy.deepcopy(species.atom)
 
@@ -360,8 +367,7 @@ class QuantumChemistry:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
             if self.qc == 'gauss':
                 kwargs['opt'] = 'CalcFC, Tight'
-
-        del kwargs['chk']
+                del kwargs['chk']
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
@@ -454,56 +460,8 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_freq(self, species, geom, high_level=0):
-        """
-        Creates a frequency input and runs it.
-        """
-
-        job = str(species.chemid) + '_fr'
-        if high_level:
-            job = str(species.chemid) + '_fr_high'
-
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, high_level=high_level)
-        if self.qc == 'gauss':
-            kwargs['freq'] = 'freq'
-            kwargs['ioplist'] = ['7/33=1']
-        elif self.qc == 'nwchem':
-            kwargs['task'] = 'frequencies'
-
-        atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-            # switch on the symmetry of gaussian
-            if 'NoSymm' in kwargs:
-                del kwargs['NoSymm']
-        dummy = [d.tolist() for d in dummy]
-
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_freq_well.tpl.py'.format(qc=self.qc))
-        template = open(template_file, 'r').read()
-        template = template.format(label=job,
-                                   kwargs=kwargs,
-                                   atom=list(atom),
-                                   geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn,
-                                   dummy=dummy,
-                                   qc_command=self.qc_command,
-                                   working_dir=os.getcwd())
-
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
-
-        self.submit_qc(job)
-
-        return 0
-
     def qc_opt_ts(self, species, geom, high_level=0):
-        """
-        Creates a ts optimization input and runs it
+        """Creates a ts optimization input and runs it
         """
 
         job = str(species.name)
@@ -924,6 +882,10 @@ class QuantumChemistry:
                     log_file = job + '.log'
                 elif self.qc == 'nwchem':
                     log_file = job + '.out'
+                elif self.qc == 'qchem':
+                    log_file = job + '.out'
+                else:
+                    raise ValueError('Unknown code')
                 log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     logging.debug('Log file is present after {} iterations'.format(i))

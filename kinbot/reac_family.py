@@ -5,6 +5,7 @@ import time
 import pkg_resources
 from kinbot import modify_geom
 
+
 def carry_out_reaction(rxn, step, command):
     """
     Verify what has been done and what needs to be done
@@ -14,12 +15,12 @@ def carry_out_reaction(rxn, step, command):
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error': return step
-  
+
     kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge, ts=1,
                                      step=step, max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
-            if rxn.qc.check_qc(rxn.instance_name) == 'normal': 
+            if rxn.qc.check_qc(rxn.instance_name) == 'normal':
                 err, freq = rxn.qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
                 if err == 0 and len(freq) > 0.:
                     err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
@@ -37,59 +38,71 @@ def carry_out_reaction(rxn, step, command):
 
     if step > rxn.max_step:
         return step
-    
-    #apply the geometry changes here and fix the coordinates that changed
+
+    # apply the geometry changes here and fix the coordinates that changed
     change_starting_zero = []
     for c in change:
         c_new = [ci - 1 for ci in c[:-1]]
         c_new.append(c[-1])
         change_starting_zero.append(c_new)
     if len(change_starting_zero) > 0:
-        success, geom = modify_geom.modify_coordinates(rxn.species, rxn.instance_name, geom, change_starting_zero, rxn.species.bond)
+        success, geom = modify_geom.modify_coordinates(rxn.species, rxn.instance_name, geom, change_starting_zero,
+                                                       rxn.species.bond)
         for c in change:
             fix.append(c[:-1])
         change = []
 
-# Old ASE hacks
-#    kwargs['fix'] = fix
-#    kwargs['change'] = change
-#    kwargs['release'] = release
+    # Old ASE hacks
+    #    kwargs['fix'] = fix
+    #    kwargs['change'] = change
+    #    kwargs['release'] = release
 
     kwargs['addsec'] = ''
     for fixi in fix:
-        kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
+        if rxn.qc.qc == 'gauss':
+            kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
+        elif rxn.qc.qc == 'qchem':
+            dist = np.linalg.norm(geom[fixi[0]-1] - geom[fixi[1]-1])
+            kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} {dist}\n"
     for chi in change:
-        kwargs['addsec'] += f"{' '.join(str(ch) for ch in changei)} F\n"
+        if rxn.qc.qc == 'gauss':
+            kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} F\n"
+        elif rxn.qc.qc == 'qchem':
+            dist = np.linalg.norm(geom[chi[0]-1] - geom[chi[1]-1])
+            kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} {dist}\n"
     for reli in release:
-        kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
+        if rxn.qc.qc == 'gauss':
+            kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
+        elif rxn.qc.qc == 'qchem':
+            dist = np.linalg.norm(geom[reli][0] - geom[reli][1])
+            kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} {dist}\n"
 
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
-        template = open(template_file,'r').read()
-        template = template.format(label=rxn.instance_name, 
-                                   kwargs=kwargs, 
-                                   atom=list(rxn.species.atom), 
-                                   geom=list([list(gi) for gi in geom]), 
+        template = open(template_file, 'r').read()
+        template = template.format(label=rxn.instance_name,
+                                   kwargs=kwargs,
+                                   atom=list(rxn.species.atom),
+                                   geom=list([list(gi) for gi in geom]),
                                    ppn=rxn.qc.ppn,
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    scan=rxn.scan)
     else:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
-        template = open(template_file,'r').read()
-    
-        template = template.format(label=rxn.instance_name, 
-                                   kwargs=kwargs, 
-                                   atom=list(rxn.species.atom), 
-                                   geom=list([list(gi) for gi in geom]), 
+        template = open(template_file, 'r').read()
+
+        template = template.format(label=rxn.instance_name,
+                                   kwargs=kwargs,
+                                   atom=list(rxn.species.atom),
+                                   geom=list([list(gi) for gi in geom]),
                                    ppn=rxn.qc.ppn,
                                    qc_command=command,
                                    working_dir=os.getcwd())
-                                   
 
-    with open('{}.py'.format(rxn.instance_name),'w') as f_out:
+    with open('{}.py'.format(rxn.instance_name), 'w') as f_out:
         f_out.write(template)
-    
+
     step += rxn.qc.submit_qc(rxn.instance_name, singlejob=0)
 
     return step

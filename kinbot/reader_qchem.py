@@ -8,67 +8,64 @@ Functions to read QChem output files.
 """
 
 
-def read_geom(outfile, mol, dummy):  # TODO
+def read_geom(outfile, dummy=False):
+    """Read the final geometry from a QChem output file  file.
     """
-    Read the final geometry from a QChem file.
-    """
-
+    from collections import Iterable
+    from ase import Atoms, Atom
+    read_coords = False
+    mol = Atoms()
     with open(outfile) as f:
-        lines = f.readlines()
+        for line in f:
+            if 'OPTIMIZATION CONVERGED' in line:
+                read_coords = True
+            elif not read_coords or len(line) < 2:
+                continue
+            elif line.split()[0].isdecimal():
+                mol.append(Atom(symbol=line.split()[1],
+                                position=line.split()[2:5]))
+            elif 'Z-matrix' in line:
+                read_coords = False
+            else:
+                continue
+        if isinstance(dummy, Iterable):  # TODO Check
+            for i, d in enumerate(dummy):
+                mol.positions[-(i + 1)] = d[0:3]
+    return mol
 
-    geom = np.zeros((len(mol), 3))
-    for index, line in enumerate(reversed(lines)):
-        if 'Input orientation:' in line:
-            for n in range(len(mol)):
-                geom[n][0:3] = np.array(
-                    lines[-index + 4 + n].split()[3:6]).astype(float)
-            break
-    # adding back dummy atoms
-    if dummy is not None:
-        for i, d in enumerate(dummy):
-            geom[-(i + 1)][0:3] = d[0:3]
 
-    return geom
-
-
-def read_zpe(outfile):  # TODO
+def read_zpe(outfile):
     """
     Read the zpe
     """
 
     with open(outfile) as f:
-        lines = f.readlines()
+        for line in f:
+            if 'Zero point vibrational energy:' in line:
+                zpe = line.split()[4]
 
-    for line in reversed(lines):
-        if 'Zero-point correction=' in line:
-            zpe = float(line.split()[2])
+    try:
+        return float(zpe)
+    except ValueError:
+        pass
+    raise ValueError(f'Zero-Point energy has non-numeric value: {zpe}')
 
-    return zpe
 
 
-def read_freq(outfile, atom):  # TODO
+def read_freq(outfile, atoms):  # TODO
     """
     Read the frequencies
     """
+    freqs = []
+    natom = len([at for at in atoms if at != 'X'])  # filter out the dummy atoms
 
     with open(outfile) as f:
-        lines = f.readlines()
-
-    natom = len([at for at in atom if at != 'X'])  # filter out the dummy atoms
-    if natom == 1:
-        freq = []
-    else:
-        freq = []
-        for line in lines:
-            if 'Frequencies' in line:
+        for line in f:
+            if 'Frequency:' in line:
                 if natom == 2:
-                    freq.append(np.array(line.split()[2]).astype(float))
-                    break
-                else:
-                    f = np.array(line.split()[2:5]).astype(float)
-                    freq.extend(f)
-
-    return freq
+                    return [float(line.split()[1])]
+                freqs.extend([float(fr) for fr in line.split()[1:]])
+    return freqs
 
 
 def read_convergence(outfile):
@@ -233,3 +230,7 @@ def read_all_irc_geoms(outfile):
                 geom = np.append(geom, g)
                 natom += 1
     return atom, all_geoms, charge, mult
+
+
+def write_constraints(inp_file):
+    pass

@@ -2,10 +2,27 @@ import os
 import re
 import numpy as np
 import copy
+from kinbot import constants
 
 """
 Functions to read Gaussian output files.
 """
+
+def read_energy(outfile):
+    """
+    Read the last SCF Done line.
+    """
+
+    with open(outfile) as f:
+        lines = f.readlines()
+
+    energy = 0.
+    for line in reversed(lines):
+        if 'SFC Done' in line:
+            energy = float(line.split()[4]) / constants.EVtoHARTREE
+
+    return energy
+
 
 def read_geom(outfile, mol):
     """
@@ -33,6 +50,7 @@ def read_zpe(outfile):
     with open(outfile) as f:
         lines = f.readlines()
 
+    zpe = 100.
     for line in reversed(lines):
         if 'Zero-point correction=' in line:
             zpe = float(line.split()[2])

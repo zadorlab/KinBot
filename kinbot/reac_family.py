@@ -22,12 +22,18 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                      step=step, max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
-            if rxn.qc.check_qc(rxn.instance_name) == 'normal': 
+            if rxn.qc.check_qc(rxn.instance_name) == 'normal':  # log file is present and is in the db
                 err, freq = rxn.qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
-                if err == 0 and len(freq) > 0.:
+                if err == 0 and len(freq) > 0.:  # only final calculations have frequencies
                     err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
                     step = rxn.max_step + 1  # this shortcuts the search, jumps to the end
                     return step
+            if rxn.qc.check_qc(rxn.instance_name) == 'error':  # log file is present and is in the db
+                err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
+                if np.sum(geom) == 0:
+                    return -1  # we don't want this to be repeated
+
+
         if rxn.skip and len(rxn.instance) < 4:
             step = 12
         geom = rxn.species.geom

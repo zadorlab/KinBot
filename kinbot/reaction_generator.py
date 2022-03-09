@@ -111,6 +111,10 @@ class ReactionGenerator:
                             self.species.reac_step[index] = reac_family.carry_out_reaction(
                                                             obj, self.species.reac_step[index], self.par['qc_command'],
                                                             bimol=self.par['bimol'])
+                            if self.species.reac_step[index] == -1:
+                                self.species.reac_ts_done[index] = -999
+                                logging.info('\tRxn search failed for {} because of 0 0 0 geometry.'
+                                             .format(obj.instance_name))
 
                     else:  # do a bond scan
                         if self.species.reac_step[index] == self.par['scan_step'] + 1:
@@ -131,6 +135,10 @@ class ReactionGenerator:
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(
                                                                 obj, self.species.reac_step[index], self.par['qc_command'],
                                                                 bimol=self.par['bimol'])
+                                if self.species.reac_step[index] == -1:
+                                    self.species.reac_ts_done[index] = -999
+                                    logging.info('\tRxn search failed for {} because of 0 0 0 geometry.'
+                                                 .format(obj.instance_name))
                             elif self.species.reac_step[index] < self.par['scan_step']:
                                 status = self.qc.check_qc(obj.instance_name)
                                 if status == 'error':
@@ -166,6 +174,10 @@ class ReactionGenerator:
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(
                                                                         obj, self.species.reac_step[index], self.par['qc_command'],
                                                                         bimol=self.par['bimol'])
+                                        if self.species.reac_step[index] == -1:
+                                            self.species.reac_ts_done[index] = -999
+                                            logging.info('\tRxn search failed for {} because of 0 0 0 geometry.'
+                                                         .format(obj.instance_name))
                             else:  # the last step was reached, and no max or inflection was found
                                 logging.info('\tRxn search using scan failed for {}, no saddle guess found.'
                                              .format(obj.instance_name))

@@ -6,6 +6,7 @@ class IntraHMigrationSuprafacial(GeneralReac):
     scan = 0
     skip = 1
     dihstep = 12
+    family_name = 'intrahmigrationsuprafacial'
     
 
     def get_constraints(self, step, geom):

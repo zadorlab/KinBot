@@ -51,6 +51,8 @@ class Parameters:
             'reaction_search': 1,
             # Which reaction families to include in the search
             'families': ['all'],
+            # Which reaction families to include in the search bimolecular reactions
+            'bimol_families': ['all'],
             # Which reaction families to skip in the search
             'skip_families': ['none'],
             # Which chemids to skip kinbot runs for during PES calculations
@@ -315,8 +317,22 @@ class Parameters:
             logging.error('Specific reaction cannot be searched in PES mode.')
             sys.exit(-1)
 
+        if self.par['high_level'] == 1 and self.par['conformer_search'] == 0:
+            logging.error('Conformer search has to be done before L2.')
+            sys.exit(-1)
+
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
+
+        if self.par['bimol'] == 1 and self.par['method'] == 'b3lyp':
+            logging.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
+            logging.warning('Choose for instance M06-2X or wB97XD.')
+            print('B3LYP is not recommended as L1 for bimolecular reactions.')
+            print('Choose for instance M06-2X.')
+
+        if self.par['bimol'] and len(self.par['structure']) != 2:
+            logging.error('For bimolecular reactions two fragments need to be defined.')
+            sys.exit(-1)
 
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])

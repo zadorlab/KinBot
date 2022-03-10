@@ -1,5 +1,4 @@
 import os,sys
-import logging
 import numpy as np
 
 from kinbot import geometry

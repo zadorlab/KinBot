@@ -5,6 +5,7 @@ class H2Elim(GeneralReac):
     max_step = 12
     scan = 0
     skip = 0
+    family_name = 'h2elim'
     
     def get_constraints(self, step, geom):
         fix = []

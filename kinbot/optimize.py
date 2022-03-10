@@ -29,7 +29,7 @@ class Optimize:
         try:
             delattr(self.species, 'cycle_chain')
         except AttributeError:
-            logging.info("{} has no cycle_chain attribute to delete".format(self.species.chemid))
+            logging.debug("{} has no cycle_chain attribute to delete".format(self.species.chemid))
         if self.species.wellorts:
             self.species.characterize(bond_mx=self.species.bond)
             self.name = str(self.species.name)
@@ -93,7 +93,7 @@ class Optimize:
                         self.scycconf = 1
                 # first do an semi empirical optimization if requested by the user
                 if self.par['semi_emp_conformer_search'] == 1:
-                    logging.info('semi empirical conformer search is starting for {}'.format(self.name))
+                    logging.info('\tSemi-empirical conformer search is starting for {}'.format(self.name))
                     if self.ssemi_empconf == -1:
                         # semi empirical part has not started yet
                         self.species.semi_emp_confs = Conformers(self.species, self.par, self.qc, semi_emp=1)
@@ -108,7 +108,7 @@ class Optimize:
                             # check if the conformational search is done
                             status, lowest_conf, geom, self.semi_emp_low_energy, self.semi_emp_conformers, self.semi_emp_energies = self.species.semi_emp_confs.check_conformers(wait=self.wait)
                             if status == 1:
-                                logging.info("semi empirical lowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
+                                logging.info("\tSemi- empirical lowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
                                 # set conf status to finished
                                 self.ssemi_empconf = 1
                 else:
@@ -124,7 +124,7 @@ class Optimize:
                             for i, geom in enumerate(self.semi_emp_conformers):
                                 if (self.semi_emp_energies[i] - self.semi_emp_low_energy) * constants.AUtoKCAL < self.par['semi_emp_confomer_threshold']:
                                     self.species.confs.generate_conformers(-999, geom)
-                            logging.info("There are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
+                            logging.info("\tThere are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
                                          format(i, self.par['semi_emp_confomer_threshold'], self.name))
                         else:
                             print_warning = True
@@ -141,7 +141,7 @@ class Optimize:
                         if self.skip_conf_check == 0:
                             status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
                             if status == 1:
-                                logging.info("lowest energy conformer for species: {} is number {}".format(self.name, lowest_conf))
+                                logging.info("\tLowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
                                 # save lowest energy conformer as species geometry
                                 self.species.geom = geom
                                 # save lowest energy conformer energy
@@ -150,9 +150,7 @@ class Optimize:
                                 self.sconf = 1
                         elif self.skip_conf_check == 1:
                             self.species.geom, self.species.energy = self.species.confs.lowest_conf_info()
-                            logging.info('Conformers are not checked for {} to speed up calculations.'.format(self.name))
-                            logging.info('They seem to have been done in a previous run.')
-                            logging.info('Energy and geometry updated based on conf/{}_low file.'.format(self.name))
+                            logging.info('\tEnergy and geometry updated based on conf/{}_low file.'.format(self.name))
                             self.sconf = 1
 
             else:
@@ -187,7 +185,7 @@ class Optimize:
                             status = self.qc.check_qc(self.job_high)
                             if status == 'error':
                                 # found an error
-                                logging.info('\tHigh level optimization failed for {}'.format(self.name))
+                                logging.warning('High level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
                             elif status == 'normal':
                                 # finished successfully
@@ -246,9 +244,9 @@ class Optimize:
                                 else:
                                     # geometry diverged to other structure
                                     if not same_geom:
-                                        logging.info('\tHigh level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
+                                        logging.warning('High level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
                                     if not freq_ok:
-                                        logging.info('\tWrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
+                                        logging.warning('Wrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
                                     self.shigh = -999
                               
                     else:
@@ -270,41 +268,40 @@ class Optimize:
                                 if status:
                                     if len(self.species.hir.hir_energies) > 0:
                                         # check if along the hir potential a structure was found with a lower energy
-                                        min = self.species.hir.hir_energies[0][0]
+                                        min_en = self.species.hir.hir_energies[0][0]
                                         min_rotor = -1
                                         min_ai = -1
                                         for rotor in range(len(self.species.dihed)):
                                             for ai in range(self.species.hir.nrotation):
                                                 # use a 0.1kcal/mol cutoff for numerical noise
-                                                if self.species.hir.hir_energies[rotor][ai] < min - 1.6E-4:
-                                                    min = self.species.hir.hir_energies[rotor][ai]
+                                                if self.species.hir.hir_energies[rotor][ai] < min_en - 1.6E-4:
+                                                    min_en = self.species.hir.hir_energies[rotor][ai]
                                                     min_rotor = rotor
                                                     min_ai = ai
                                         if min_rotor > -1:
                                             self.restart += 1
                                             if self.restart < self.max_restart:
                                                 # lower energy structure found
-                                                logging.info('\t\tLower energy found during hindered rotor scan for {}'.format(self.name))
-                                                logging.info('\t\tRestart number: ' + str(self.restart))
-                                                logging.info('\t\tRotor: ' + str(min_rotor))
-                                                logging.info('\t\tScan point: ' + str(min_ai))
+                                                logging.warning('Lower energy conformer during HIR for {}. Restart #{}'.format(self.name, str(self.restart)))
+                                                logging.debug('Rotor: ' + str(min_rotor))
+                                                logging.debug('Scan point: ' + str(min_ai))
                                                 job = self.job_hir + str(min_rotor) + '_' + str(min_ai).zfill(2)
 
                                                 err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # delete the high_level log file and the hir log files
                                                 if os.path.exists(self.job_high + '.log'):
-                                                    # logging.info("\t\t\tRemoving file " + self.job_high + '.log')
+                                                    logging.debug("Removing file " + self.job_high + '.log')
                                                     os.remove(self.job_high + '.log')
                                                 for rotor in range(len(self.species.dihed)):
                                                     for ai in range(self.species.hir.nrotation):
                                                         if os.path.exists(self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log'):
-                                                            # logging.info("\t\t\tRemoving file " + self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log')
+                                                            logging.debug("Removing file " + self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log')
                                                             os.remove(self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log')
                                                 # set the status of high and hir back to not started
                                                 self.shigh = -1
                                                 self.shir = -1
                                             else:
-                                                logging.info('\t\tLower energy found, but readched max restart for {}'.format(self.name))
+                                                logging.warning('Lower energy conformer, but readched max restart for {}'.format(self.name))
                                                 self.shir = 1
                                         else:
                                             self.shir = 1

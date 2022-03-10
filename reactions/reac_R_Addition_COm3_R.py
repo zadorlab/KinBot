@@ -4,6 +4,7 @@ class RAdditionCO(GeneralReac):
     max_step = 1
     scan = 0
     skip = 0
+    family_name = 'radditionco'
     
 
     def get_constraints(self,step, geom):

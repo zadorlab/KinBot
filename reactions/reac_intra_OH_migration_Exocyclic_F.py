@@ -7,6 +7,7 @@ class IntraOHMigrationExocyclicF(GeneralReac):
     scan = 0
     skip = 1
     dihstep = max_step - 2
+    family_name = 'intraohmigrationexocyclicf'
 
     def __init__(self, species, qc, par, instance, instance_name):  # special
         GeneralReac.__init__(self, species, qc, par, instance, instance_name)

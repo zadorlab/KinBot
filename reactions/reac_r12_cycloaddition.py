@@ -5,6 +5,7 @@ class R12Cycloaddition(GeneralReac):
     scan = 1
     skip = 0
     mp2 = 1
+    family_name = 'r12cycloaddition'
 
     def get_constraints(self, step, geom):
         fix = []

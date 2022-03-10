@@ -6,6 +6,7 @@ class BiradRecombinationF(GeneralReac):
     scan = 0
     skip = 0
     dihstep = 12
+    family_name = 'biradrecombinationf'
     
 
     def get_constraints(self, step, geom):

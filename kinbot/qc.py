@@ -68,7 +68,6 @@ class QuantumChemistry:
         irc: direction of the irc, None if this is not an irc job
         scan: is this calculation part of a scan of a bond length to find a maximum energy
         """
-        kwargs = {}
         if self.qc == 'gauss':
             # arguments for Gaussian
             kwargs = {
@@ -80,7 +79,6 @@ class QuantumChemistry:
                 'label': job,
                 'NoSymm': 'NoSymm',
                 'mult': mult,
-                #'multiplicity': mult,
                 'charge': charge,
                 'scf': 'xqc'
             }
@@ -92,12 +90,22 @@ class QuantumChemistry:
                 kwargs['basis'] = ''
 
                 if step == 0:
-                    kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
+                    if not self.par['bimol']:
+                        kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
+                    else:
+                        kwargs['opt'] = 'ModRedun,Loose,CalcFC'
+                        kwargs['method'] = self.method
+                        kwargs['basis'] = self.basis
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
                     if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'
+                    if self.par['bimol']:
+                        kwargs['method'] = self.method
+                        kwargs['basis'] = self.basis
+                        kwargs['opt'] = 'QST3,AddRedundant'
+                        del kwargs['guess']
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis
@@ -260,23 +268,15 @@ class QuantumChemistry:
             kwargs['addsec'] = f"$opt\nCONSTRAINT\ntors {' '.join(str(f) for f in fix[0])} {dihedral}\n" \
                                f"ENDCONSTRAINT\n$end"
 
-        atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(atom),
+                                   atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
-                                   dummy=dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
@@ -312,25 +312,17 @@ class QuantumChemistry:
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
-        atom = copy.deepcopy(species.atom)
-
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(atom),
+                                   atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
                                    fix=fix,
                                    change=change,
                                    ppn=self.ppn,
-                                   dummy=dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
@@ -371,23 +363,16 @@ class QuantumChemistry:
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
-        atom = copy.deepcopy(species.atom)
 
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(atom),
+                                   atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
-                                   dummy=dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
         f_out = open('{}.py'.format(job), 'w')
@@ -434,22 +419,15 @@ class QuantumChemistry:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         # the integral is set in the get_qc_arguments parts, bad design
 
-        atom = copy.deepcopy(species.atom)
-        dummy = geometry.is_linear(geom, species.bond)
-        if len(dummy) > 0:  # add a dummy atom for each close to linear angle
-            for d in dummy:
-                atom = np.append(atom, ['X'])
-                geom = np.concatenate((geom, [d]), axis=0)
-        dummy = [d.tolist() for d in dummy]
+#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(atom),
+                                   atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
-                                   dummy=dummy,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
@@ -459,6 +437,7 @@ class QuantumChemistry:
 
         self.submit_qc(job)
         return 0
+
 
     def qc_opt_ts(self, species, geom, high_level=0):
         """Creates a ts optimization input and runs it
@@ -561,6 +540,7 @@ class QuantumChemistry:
             sys.exit()
         self.job_ids[job] = pid
 
+        logging.debug(f'SUBMITTED {job}')
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
     def get_qc_geom(self, job, natom, wait=0, allow_error=0, previous=0):
@@ -617,58 +597,6 @@ class QuantumChemistry:
             return status, geom
         elif found_entry and previous == 1:
             return status, prev_geom
-        else:
-            return -1, geom
-
-    def get_second_to_last_geom(self, job, natom, wait=0, allow_error=0):
-        """
-        Get the geometry from the ase database file.
-        Returns it, with the following conditions about the status of the job.
-        If wait = 0, return an (1, empty array) when the job is still running (instead of the geometry).
-        If wait = 1, wait for the job to finish.
-        If wait = 2, return the last geometry while the job is still running.
-            This option is to monitor the formation of bimolecular products.
-        If allow_error = 0, do not read the final geometry if the status is not "normal"
-        if allow_error = 1, read the geometry even though there is an error in the output file
-            This option is to read the final IRC geometry when it did not converge
-        """
-
-        geom = np.zeros((natom, 3))
-
-        check = self.check_qc(job)
-        if check == 'error' and not allow_error:
-            return -1, geom
-        status = 0
-        while 1:
-            check = self.check_qc(job)
-            if check == 'running':
-                if wait == 1:
-                    time.sleep(1)
-                elif wait == 2:
-                    status = 2
-                    break
-                else:
-                    return 1, geom
-            else:
-                break
-        if check != 'normal':
-            if not allow_error:
-                if wait != 2:
-                    return -1, geom
-
-        # open the database
-        rows = self.db.select(name=job)
-
-        found_entry = 0
-        geoms = []
-        # take the last entry
-        for row in rows:
-            mol = row.toatoms()
-            geoms.append(mol.positions)
-            found_entry = 1
-
-        if found_entry:
-            return status, geoms[-2]
         else:
             return -1, geom
 
@@ -842,13 +770,22 @@ class QuantumChemistry:
     def check_qc(self, job):
         """
         Checks the status of the qc job.
+        Possible returns:
+        running - the job is either running or is in the queue
+        status - this can be normal or error, read from the database.
+                 Only happens if log file had a done stamp and it was in te db.
+        0 - job is not in the db or log file is not there with a done stamp or both.
+            ==> this one resets the step number to 0
+        Problem: if a reaction search is cut because of a restart in the middle,
+                 but there is a file with a done stamp e.g., at the AM1 level.
+        Solution:
         """
-        logging.debug('Checking job {}'.format(job))
+        #logging.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job, '-1') + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-                logging.debug('Job is running')
+                #logging.debug('Job is running')
                 return 'running'
         elif self.queuing == 'slurm':
             # command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
@@ -888,6 +825,15 @@ class QuantumChemistry:
                     raise ValueError('Unknown code')
                 log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
+                    with open(log_file, 'r') as f:
+                        try:
+                            last_line = f.readlines()[-1]
+                            if 'done' not in last_line:
+                                logging.debug(f'Log file {log_file} is present, but has no "done" stamp.')
+                                return 0
+                        except IndexError:
+                            logging.warning(f'Log file {log_file} is present, but it is empty.')
+                            pass
                     logging.debug('Log file is present after {} iterations'.format(i))
                     # by deleting a log file, you allow restarting a job
                     # open the database
@@ -930,3 +876,18 @@ class QuantumChemistry:
             if len(jobs.split(b'\n')) < self.queue_job_limit:
                 return 0
             time.sleep(1)
+
+    def add_dummy(self, spatom, geom, spbond):
+        """
+        Add a dummy atom for each close to linear angle.
+        Obsolete.
+        """
+        atom = copy.deepcopy(spatom)
+        dummy = geometry.is_linear(geom, spbond)
+        if len(dummy) > 0:
+            for d in dummy:
+                atom = np.append(atom, ['X'])
+                geom = np.concatenate((geom, [d]), axis=0)
+        dummy = [d.tolist() for d in dummy]
+        return atom, geom, dummy
+

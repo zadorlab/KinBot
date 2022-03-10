@@ -51,9 +51,9 @@ def find_motif(motif, visit, chain, nsteps, current,
         # check if one of the motifs already had an equivalent atom in
         # the same position (that is not the same atom)
         eqv_list = []
-        for list in eqv:
-            if current in list:
-                eqv_list = list[:]
+        for mylist in eqv:
+            if current in mylist:
+                eqv_list = mylist[:]
                 eqv_list.remove(current)
         for m in motifset:
             if m[nsteps] in eqv_list:

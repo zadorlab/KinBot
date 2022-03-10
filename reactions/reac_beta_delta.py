@@ -5,6 +5,7 @@ class BetaDelta(GeneralReac):
     max_step = 12
     scan = 0
     skip = 0
+    family_name = 'betadelta'
    
 
     def get_constraints(self,step, geom):

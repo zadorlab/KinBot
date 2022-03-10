@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import copy
 import logging
 from kinbot import constants
@@ -108,7 +107,7 @@ class HomolyticScissions:
                         e, prod.geom = hs.qc.get_qc_geom(str(prod.chemid) + '_well', prod.natom)
                         if e < 0:
                             # optimizatin failed
-                            logging.info("HS optimization failed for {}".format(prod.chemid))
+                            logging.warning("HS optimization failed for {}".format(prod.chemid))
                             hs.status = -999
                             err = -1
                         elif e != 0:
@@ -125,14 +124,14 @@ class HomolyticScissions:
                         chemid = prod.chemid
                         prod_opt = Optimize(prod, self.par, self.qc)
                         if str(chemid) != str(prod_opt.species.chemid):
-                            logging.info("HS product {} changed to {} during optimization.".format(chemid, prod_opt.species.chemid))
+                            logging.warning("HS product {} changed to {} during optimization.".format(chemid, prod_opt.species.chemid))
                             hs.qc.qc_opt(prod_opt.species, prod_opt.species.geom)
                             j = i - 1
                             # wait for new opt to finish
                             er, prod.geom = hs.qc.get_qc_geom(str(prod_opt.species.chemid) + '_well', prod_opt.species.natom)
                             if er < 0:
                                 # optimization failed
-                                logging.info("HS optimization failed for {}".format(prod_opt.species.chemid))
+                                logging.warning("HS optimization failed for {}".format(prod_opt.species.chemid))
                                 err = -1
                             elif er != 0:
                                 err = -1
@@ -167,9 +166,9 @@ class HomolyticScissions:
                         barrier = (prod_zeroenergy - species_zeroenergy) * constants.AUtoKCAL
                         prod_name = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
                         if barrier > self.par['barrier_threshold']:
-                            logging.info("Energy of HS product {}, {:.2f} kcal/mol, is too high.".format(prod_name, barrier))
+                            logging.info("\tEnergy of HS product {}, {:.2f} kcal/mol, is too high.".format(prod_name, barrier))
                             hs.status = -999
                         else:
                             hs.status = -1
                             name = '_'.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
-                            logging.info('Homolytic scission (asymptote {:.2f} kcal/mol) lead to products {}'.format(barrier, name))
+                            logging.info('\tHomolytic scission (asymptote {:.2f} kcal/mol) lead to products {}'.format(barrier, name))

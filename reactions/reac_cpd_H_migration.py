@@ -5,6 +5,7 @@ class CpdHMigration(GeneralReac):
     max_step = 14
     scan = 0
     skip = 1
+    family_name = 'cpdhmigration'
     
 
     def get_constraints(self, step, geom):

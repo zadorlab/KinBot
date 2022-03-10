@@ -6,6 +6,7 @@ class R13InsertionROR(GeneralReac):
     scan = 0
     skip = 0
     dihstep = 12
+    family_name = 'r13insertionror'
 
 
     def get_constraints(self,step, geom):

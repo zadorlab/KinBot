@@ -4,6 +4,7 @@ class R22Cycloaddition(GeneralReac):
     max_step = 1
     scan = 0
     skip = 0
+    family_name = 'r22cycloaddition'
     
 
     def get_constraints(self,step,geom):

@@ -5,6 +5,7 @@ import numpy as np
 class BarrierlessSaddle(GeneralReac):
     scan = 1
     skip = 0
+    family_name = 'barrierlesssaddle'
     
     def get_constraints(self, step, geom):
         fix = []

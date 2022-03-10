@@ -6,6 +6,7 @@ class R13InsertionCO2(GeneralReac):
     scan = 0
     skip = 0
     dihstep = 12
+    family_name = 'r13insertionco2'
 
     
     def get_constraints(self,step, geom):

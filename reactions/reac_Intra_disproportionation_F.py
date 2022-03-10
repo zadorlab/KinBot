@@ -7,6 +7,7 @@ class IntraDisproportionationF(GeneralReac):
     scan = 0
     skip = 0
     dihstep = 12
+    family_name = 'intradisproportionationf'
     
     def get_constraints(self,step, geom):
         fix = []

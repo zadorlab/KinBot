@@ -7,6 +7,7 @@ class GeneralReac:
     skip = -1
     dihstep = -1
     mp2 = 0
+    family_name = None
 
     def __init__(self, species, qc, par, instance, instance_name):
         self.species = species
@@ -24,7 +25,6 @@ class GeneralReac:
         
         self.instance = instance
         self.instance_name = instance_name
-
 
         if self.scan:
             self.max_step = self.par['scan_step']
@@ -72,6 +72,10 @@ class GeneralReac:
             for j in range(i + 1, self.species.natom):
                 if self.species.bond[i][j] > 0:
                     fix.append([i + 1, j + 1])
+
+
+    def fix_bond_single(self, a, b, fix):
+        fix.append([self.instance[a] + 1, self.instance[b] + 1])
 
 
     def fix_angles(self, fix):

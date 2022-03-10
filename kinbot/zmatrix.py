@@ -792,7 +792,7 @@ def estoktp_zmat(species, fname):
             zmat_copy = copy.deepcopy(zmat)
             zmat_copy[j][2] += float(k * 10)
             cart = make_cart_from_zmat(zmat_copy, zmat_atom, zmat_ref, natom, atom, zmatorder)
-            cart = translate_and_rotate(cart, atom, rotor[1], rotor[2])
+            cart = translate_and_rotate(cart, rotor[1], rotor[2])
 
             f.write(write_cart(cart, atom))
         f.close()

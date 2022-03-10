@@ -1,14 +1,8 @@
 """
-This is the main class to run KinBot.
-It includes
-1. Reading the options defined by the user
-2. Optimizing the reactant, including frequency calculations,
-hindered rotor calculations, high-level calculations, according
-to the user input file
-3. call the find_reactions method to find all reactions
-KinBot will search for
-4. call the reac_generator method to search for the reactions
-on the PES
+Drive for KinBot runs.
+1. Reading keywords
+2. Optimizing the reactant
+3. Search for reactions
 """
 from __future__ import print_function
 import sys
@@ -17,7 +11,6 @@ import logging
 import datetime
 import numpy as np
 
-from kinbot import filecopying
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.homolytic_scissions import HomolyticScissions
@@ -26,6 +19,7 @@ from kinbot.mesmer import MESMER
 from kinbot.mess import MESS
 from kinbot.optimize import Optimize
 from kinbot.reaction_finder import ReactionFinder
+from kinbot.reaction_finder_bimol import ReactionFinderBimol
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.qc import QuantumChemistry
@@ -38,7 +32,6 @@ def main():
         print('To use KinBot, supply one argument being the input file!')
         sys.exit(-1)
 
-    # print the license message to the console
     print(license_message.message)
 
     # initialize the parameters for this run
@@ -51,7 +44,7 @@ def main():
     else:
         logging.basicConfig(filename='kinbot.log', level=logging.INFO)
 
-    # write the license message to the log file
+    # write the license message and the parameters to the log file
     logging.info(license_message.message)
     logging.info('Input parameters')
     for param in par:
@@ -104,30 +97,65 @@ def main():
 
         # initialize the qc instance
         qc = QuantumChemistry(par)
-        # only run filecopying if PES is turned on
-        # if par['pes']:
-        # check if this well was calcualted before in another directory
-        # this flag indicates that this kinbot run
-        # should wait for the information from another
-        # kinbot run to become available and copy the necessary information
-        #    wait_for_well = 1
-        #    while wait_for_well:
-        #        wait_for_well = filecopying.copy_from_database_folder(well0.chemid, well0.chemid, qc)
-        #        if wait_for_well:
-        #            time.sleep(1)
+
+        # delete leftover AM1 calculations
+        files = os.listdir()
+        com = []
+        for ff in files:
+            if 'com' in ff:
+                com.append(ff)
+
+        for cc in com:
+            delfile = False
+            with open(cc, 'r') as f:
+                if 'am1' in f.read():
+                    delfile = True
+            if delfile:
+                ll = cc.split('.')[0] + '.log'
+                try:
+                    os.remove(ll)
+                except FileNotFoundError:
+                    pass
+
+        # delete empty files
+        try:
+            conf_files = os.listdir('conf')
+        except:
+            conf_files = []
+        try:
+            hir_files = os.listdir('hir')
+        except:
+            hir_files = []
+        files = files + conf_files + hir_files
+        log = []
+        for ff in files:
+            if 'log' in ff:
+                log.append(ff)
+
+        for ll in log:
+            try:
+                if os.path.getsize(ll) < 10:
+                    os.remove(ll)
+            except FileNotFoundError:
+                pass
 
         # start the initial optimization of the reactant
         logging.info('Starting optimization of initial well...')
         qc.qc_opt(well0, well0.geom)
         err, well0.geom = qc.get_qc_geom(str(well0.chemid) + '_well',
                                          well0.natom, wait=1)
+        logging.debug(f'Initial well opt error {err}.')
         err, well0.freq = qc.get_qc_freq(str(well0.chemid) + '_well',
                                          well0.natom, wait=1)
+        logging.debug(f'Initial well freq error {err}, frequencies are {well0.freq}.')
         if err < 0:
             logging.error('Error with initial structure optimization.')
             return
-        if any(well0.freq[i] <= 0 for i in range(len(well0.freq))):
-            logging.error('Found imaginary frequency for initial structure.')
+        if well0.freq[0] <= 0:
+            logging.warning(f'First frequency is {well0.freq[0]} for initial structure.')
+            well0.freq[0] *= -1.
+        if well0.freq[1] <= 0:
+            logging.error(f'Second frequency is {well0.freq[1]} for initial structure.')
             return
 
         # characterize again and look for differences
@@ -150,13 +178,13 @@ def main():
                 'r14_birad_scission' not in par['skip_families'] or \
                 'R_Addition_MultipleBond' not in par['skip_families'])) or \
                 par['reaction_search'] == 0:
-            logging.info('Starting MP2 optimization of initial well...')
+            logging.debug('Starting MP2 optimization of initial well...')
             qc.qc_opt(well0, well0.geom, mp2=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)
 
         # comparison for barrierless scan
         if par['barrierless_saddle']:
-            logging.info('Optimization of intial well for barrierless at {}/{}'.
+            logging.debug('Optimization of intial well for barrierless at {}/{}'.
                     format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
             qc.qc_opt(well0, well0.geom, bls=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
@@ -174,18 +202,18 @@ def main():
             logging.error('Error with high level optimization of initial structure.')
             return
 
-        if par['pes']:
-            filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
+        #if par['pes']:
+        #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
-            logging.info('Starting reaction searches of initial well...')
+            logging.info('\tStarting reaction search...')
             rf = ReactionFinder(well0, par, qc)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
 
         if par['homolytic_scissions'] == 1:
-            logging.info('Starting the search for homolytic scission products...')
+            logging.info('\tStarting the search for homolytic scission products...')
             well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
             well0.homolytic_scissions.find_homolytic_scissions()
 
@@ -204,17 +232,23 @@ def main():
             fragments[frag].name = str(fragments[frag].chemid)
             charge += par['charge'][ii]
          
-        well0 = StationaryPoint('well0',
+        # this is just formally a well
+        well0 = StationaryPoint('bimolecular',
                                 par['charge'],
                                 par['mult'][2],
                                 smiles=par['smiles'],
-                                structure=par['structure'])
+                                structure=par['structure'],
+                                fragA=fragments['frag_a'],
+                                fragB=fragments['frag_b'],
+                                )
+        well0.characterize()
         well0.short_name = 'w1'
         well0.chemid = '_'.join(sorted([fragments['frag_a'].name, fragments['frag_b'].name]))
+        well0.name = str(well0.chemid)
  
         qc = QuantumChemistry(par)
 
-        logging.info('Starting optimization of fragments...')
+        logging.info('\tStarting optimization of fragments...')
         for frag in fragments.values():
             qc.qc_opt(frag, frag.geom)
             err, frag.geom = qc.get_qc_geom(str(frag.chemid) + '_well',
@@ -224,8 +258,14 @@ def main():
                 return
             err, frag.freq = qc.get_qc_freq(str(frag.chemid) + '_well',
                                             frag.natom, wait=1)
-            if any(np.array(frag.freq) <= 0):
-                logging.error(f'Found imaginary frequency for {frag.name}.')
+            if frag.freq[0] <= 0. and frag.freq[0] >= -20.:
+                logging.warning(f'Found imaginary frequency {frag.freq[0]} for {frag.name}. It is flipped.')
+                frag.freq[0] *= -1.
+            elif frag.freq[0] < -20.:
+                logging.error(f'Found imaginary frequency {frag.freq[0]} for {frag.name}.')
+                return
+            if frag.freq[1] <= 0:
+                logging.error(f'Found two imaginary frequencies {frag.freq[1]} for {frag.name}.')
                 return
             # characterize again and look for differences
             frag.characterize()
@@ -235,6 +275,9 @@ def main():
 
         well0.energy = 0.
         well0.zpe = 0.
+        well0.fragA = fragments['frag_a']  # update
+        well0.fragB = fragments['frag_b']  # update
+        well0.structure = [well0.fragA.structure, well0.fragB.structure]  # update, used in reactions
         for frag in fragments.values():
             err, frag.energy = qc.get_qc_energy(str(frag.chemid) + '_well', 1)
             err, frag.zpe = qc.get_qc_zpe(str(frag.chemid) + '_well', 1)
@@ -247,23 +290,29 @@ def main():
                 logging.error(f'Error with high level optimization for {frag.name}.')
                 return
 
+        well0.fragA = fragments['frag_a']  # update
+        well0.fragB = fragments['frag_b']  # update
+        well0.energy = 0.
+        well0.zpe = 0.
+        for frag in fragments.values():
+            well0.energy += frag.energy
+            well0.zpe += frag.zpe
         #if par['pes']:
         #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
-            logging.info('Starting bimolecular reaction search...')
-            rf = ReactionFinder(well0, par, qc)
+            logging.info('\tStarting bimolecular reaction search...')
+            rf = ReactionFinderBimol(well0, par, qc)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
-
 
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
         mess = MESS(par, well0)
         mess.write_input(qc)
 
         if par['me'] == 1: 
-            logging.info('Starting Master Equation calculations')
+            logging.info('\tStarting Master Equation calculations')
             if par['me_code'] == 'mess':
                 mess.run()
 

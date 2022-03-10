@@ -228,8 +228,8 @@ class Optimize:
                                     freq_ok = 1
                                 elif self.species.wellorts == 0 and fr[0] > -50:
                                     fr[0] = -fr[0]
-                                    logging.warning("Found a negative frequency smaller than 50 cm-1. Flipping its "
-                                                    "value to be positive.")
+                                    logging.warning("Found a negative frequency with an absolute value smaller than 50 "
+                                                    "cm-1. Flipping its value to be positive.")
 
                                     freq_ok = 1
                                 elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:

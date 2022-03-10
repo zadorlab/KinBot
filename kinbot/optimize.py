@@ -12,6 +12,7 @@ from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
 from kinbot import reader_gauss
 from kinbot.stationary_pt import StationaryPoint
+from kinbot import constants
 
 class Optimize:
     """

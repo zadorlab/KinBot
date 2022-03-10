@@ -12,6 +12,7 @@ SPEEDofLIGHTcms = 2.99792458E10  # in cm per s
 SPEEDofLIGHT = 137.0359996  # in atomic units
 AUtoS = 2.418884326505E-17
 AUtoMDYNE = 8.2387234983  # au of force to mDyne = 1e-8 N
+KCALtoHARTREE = 0.0015936010974213599
 
 # elements currently in KinBot
 elements = ['C', 'H', 'O', 'N', 'S', 'F', 'Cl', 'Br', 'I']

@@ -38,6 +38,7 @@ def read_zpe(outfile):
     """
     Read the zpe
     """
+    from kinbot import constants
 
     with open(outfile) as f:
         for line in f:
@@ -45,7 +46,7 @@ def read_zpe(outfile):
                 zpe = line.split()[4]
 
     try:
-        return float(zpe)
+        return float(zpe) * constants.KCALtoHARTREE
     except ValueError:
         pass
     raise ValueError(f'Zero-Point energy has non-numeric value: {zpe}')

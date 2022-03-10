@@ -5,6 +5,7 @@ from ase.calculators.gaussian import Gaussian
 from ase.optimize import LBFGS
 from ase.constraints import FixInternals
 from ase.db import connect
+from kinbot import reader_gauss
 
 db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom}, positions={geom})
@@ -14,45 +15,11 @@ Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
 mol.calc = calc
 
-fix = {fix}
-change = {change}
-
-bonds = []
-angles = []
-dihedrals = []
-
-for fi in fix:
-    if len(fi) == 2:
-        #careful: atom indices in the fix lists start at 1
-        bondlength = mol.get_distance(fi[0]-1, fi[1]-1)
-        bonds.append([bondlength,[fi[0]-1, fi[1]-1]])
-    if len(fi) == 3:
-        #careful: atom indices in the fix lists start at 1
-        angle = mol.get_angle(fi[0]-1, fi[1]-1, fi[2]-1) * np.pi / 180
-        angles.append([angle,[fi[0]-1, fi[1]-1, fi[2]-1]])
-    if len(fi) == 4:
-        #careful: atom indices in the fix lists start at 1
-        dihed = mol.get_dihedral(fi[0]-1, fi[1]-1, fi[2]-1, fi[3]-1) * np.pi / 180
-        dihedrals.append([dihed,[fi[0]-1, fi[1]-1, fi[2]-1, fi[3]-1]])
-for ci in change:
-    if len(ci) == 3:
-        #careful: atom indices in the fix lists start at 1
-        bondlength = ci[2]
-        bonds.append([bondlength,[ci[0]-1, ci[1]-1]])
-    if len(ci) == 4:
-        #careful: atom indices in the fix lists start at 1
-        angle = ci[3] * np.pi / 180
-        angles.append([angle,[ci[0]-1, ci[1]-1, ci[2]-1]])
-    if len(ci) == 5:
-        #careful: atom indices in the fix lists start at 1
-        dihed = ci[4] * np.pi / 180
-        dihedrals.append([dihed,[ci[0]-1, ci[1]-1, ci[2]-1, ci[3]-1]])
-
-constraints = FixInternals(bonds=bonds, angles=angles, dihedrals=dihedrals)
+bonds, angles, dihedrals = reader_gauss.constraint(mol, {fix}, {change})
+constraints = FixInternals(bonds=bonds, angles_deg=angles, dihedrals_deg=dihedrals)
 mol.set_constraint(constraints)
 
 dyn = LBFGS(atoms=mol, trajectory='ringopt.traj')
-
 try:
     dyn.run(fmax=0.01, steps=400)
     e = mol.get_potential_energy()

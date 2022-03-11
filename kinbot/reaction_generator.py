@@ -489,10 +489,10 @@ class ReactionGenerator:
                     neg_freq = 0
                     for st_pt in obj.products:
                         if len(st_pt.reduced_freqs):
-                            if st_pt.reduced_freqs[0] <= 0. and st_pt.reduced_freqs[0] >= -20.:
+                            if st_pt.reduced_freqs[0] <= 0. and st_pt.reduced_freqs[0] >= -50.:
                                 logging.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}. Flipped.')
                                 st_pt.reduced_freqs[0] *= -1.
-                            elif st_pt.reduced_freqs[0] <-20.:
+                            elif st_pt.reduced_freqs[0] <-50.:
                                 logging.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}.')
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1

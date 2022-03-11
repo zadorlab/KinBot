@@ -423,7 +423,6 @@ class Conformers:
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         final_geoms.append(geom)
                         totenergies.append(energy + zpe)
-                        print(job, totenergies)
                         if lowest_totenergy == 0.:  # likely / hopefully the first sample was valid
                             if ci != 0:
                                 logging.warning('For {} conformer 0 failed.'.format(name)) 
@@ -457,7 +456,7 @@ class Conformers:
                                     if self.species.natom > 2 and freq[1] <= 0.:
                                         err = -1
                                 else:
-                                    if freq[0] <= -20.:  # note that now we allow negative frequencies here as well
+                                    if freq[0] <= -50.:  # note that now we allow negative frequencies here as well
                                         err = -1
                             else:
                                 logging.warning("Conformer {} failed due to empty freq array".format(ci))

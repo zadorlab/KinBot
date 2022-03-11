@@ -221,8 +221,11 @@ class Optimize:
                                     freq_ok = 1
                                 elif len(fr) == 1 and fr[0] == 0:
                                     freq_ok = 0
-                                elif self.species.wellorts == 0 and fr[0] > 0.:
+                                elif self.species.wellorts == 0 and fr[0] > -50.:
                                     freq_ok = 1
+                                    if fr[0] < 0.:
+                                        fr[0] *= -1.
+                                        logging.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
                                 elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
                                     freq_ok = 1
                                 else:

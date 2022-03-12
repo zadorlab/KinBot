@@ -1,5 +1,3 @@
-import numpy as np
-import ase
 from ase import Atoms
 from ase.calculators.gaussian import Gaussian
 from ase.optimize import LBFGS
@@ -27,7 +25,7 @@ try:
 except RuntimeError:
     data = {{'status': 'error'}}
 
-db.write(mol, name='{label}', data=data)
+db.write(mol, name=label, data=data)
 
-with open(f'{label}.log','a') as f:
+with open(logfile,'a') as f:
     f.write('done\n')

@@ -1290,6 +1290,7 @@ def create_graph(wells, products, reactions,
 
     # position the nodes
     pos = nx.spring_layout(G, scale=1)
+    # pos = nx.circular_layout(G, scale=1)
 
     
     # make the matplotlib figure

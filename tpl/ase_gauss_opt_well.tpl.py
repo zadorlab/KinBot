@@ -1,10 +1,9 @@
-import re
 import numpy as np
-import ase
 from ase import Atoms
 from ase.calculators.gaussian import Gaussian
 from ase.db import connect
 from kinbot import reader_gauss
+from kinbot.utils import iowait
 
 db = connect('{working_dir}/kinbot.db')
 label = '{label}'
@@ -19,6 +18,7 @@ mol.calc = calc
 
 try:
     e = mol.get_potential_energy() # use the Gaussian optimizer
+    iowait(logfile, 'gauss')
     mol.positions = reader_gauss.read_geom(logfile, mol)
     freq = reader_gauss.read_freq(logfile, {atom})
     zpe = reader_gauss.read_zpe(logfile)
@@ -28,6 +28,7 @@ except RuntimeError:
     try:
         mol.positions = reader_gauss.read_geom(logfile, mol)
         e = mol.get_potential_energy() # use the Gaussian optimizer
+        iowait(logfile, 'gauss')
         mol.positions = reader_gauss.read_geom(logfile, mol)
         freq = reader_gauss.read_freq(logfile, {atom})
         zpe = reader_gauss.read_zpe(logfile)

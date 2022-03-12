@@ -258,7 +258,7 @@ class QuantumChemistry:
         """
         Creates a constrained geometry optimization input for the
         conformational search of cyclic structures and runs it.
-        Make use of the ASE optimizer PCOBFGS
+        Make use of the ASE optimizer LBFGS
 
         qc: 'gauss' or 'nwchem'
         scan: list of dihedrals to be scanned and their values
@@ -853,4 +853,3 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         return atom, geom, dummy
-

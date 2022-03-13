@@ -6,6 +6,8 @@ from ase.db import connect
 from kinbot import reader_gauss
 
 db = connect('{working_dir}/kinbot.db')
+logfile = '{label}.log'
+
 mol = Atoms(symbols={atom}, positions={geom})
 kwargs = {kwargs}
 
@@ -22,7 +24,7 @@ try:
     dyn.run(fmax=0.01, steps=400)
     e = mol.get_potential_energy()
     data = {{'energy': e, 'status': 'normal'}}
-except RuntimeError:
+except (RuntimeError, ValueError):
     data = {{'status': 'error'}}
 
 db.write(mol, name=label, data=data)

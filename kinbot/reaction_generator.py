@@ -1,5 +1,6 @@
-import numpy as np
 import os, sys
+import numpy as np
+import shutil
 import time
 import logging
 import copy
@@ -186,6 +187,8 @@ class ReactionGenerator:
                                 for row in reversed(list(rows)):
                                     row.data['status'] = 'error'
                                     break # only write error to the last calculation
+                                # this is copied here so that a non-AM1 file is in place
+                                shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
                                 self.species.reac_ts_done[index] = -999
 
                 elif self.species.reac_ts_done[index] == 1:

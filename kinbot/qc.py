@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import re
 import time
+from datetime import datetime
 import copy
 import pkg_resources
 from shutil import copyfile
@@ -507,7 +508,8 @@ class QuantumChemistry:
             sys.exit()
         self.job_ids[job] = pid
 
-        logging.debug(f'SUBMITTED {job}')
+        now = datetime.now()
+        logging.info(f'SUBMITTED {job} on {now.ctime()}')
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
     def get_qc_geom(self, job, natom, wait=0, allow_error=0, previous=0):

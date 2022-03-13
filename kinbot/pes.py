@@ -1289,8 +1289,8 @@ def create_graph(wells, products, reactions,
     weights = [G[u][v]['weight'] for u, v in edges]
 
     # position the nodes
-    pos = nx.spring_layout(G, scale=1)
-    # pos = nx.circular_layout(G, scale=1)
+    #pos = nx.spring_layout(G, scale=1)
+    pos = nx.circular_layout(G)
 
     
     # make the matplotlib figure

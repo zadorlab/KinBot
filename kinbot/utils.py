@@ -45,7 +45,7 @@ def iowait(logfile, qc_code):
         endings = []
     while True:
         logtail = tail(logfile)
-        if any([ee in logtail for ee in endings]i):
+        if any([ee in logtail for ee in endings]):
             break
         clock += 1
         if clock > maxtime:

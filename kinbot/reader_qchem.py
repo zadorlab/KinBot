@@ -1,42 +1,42 @@
-import os
-import re
-import numpy as np
-import copy
-
 """
 Functions to read QChem output files.
 """
+# import logging
+# import os
+# import re
+# import copy
+
+import numpy as np
+from ase import Atoms
 
 
-def read_geom(outfile, dummy=False):
-    """Read the final geometry from a QChem output file  file.
+def read_geom(outfile, mol=Atoms()):
+    """Read the final geometry from a QChem output file.
     """
-    from collections import Iterable
-    from ase import Atoms, Atom
-    read_coords = False
-    mol = Atoms()
+    geom = np.zeros((len(mol), 3))
+    read_coords, done = (False, False)
     with open(outfile) as f:
         for line in f:
-            if 'OPTIMIZATION CONVERGED' in line:
+            if 'ATOM' in line:
                 read_coords = True
             elif not read_coords or len(line) < 2:
                 continue
             elif line.split()[0].isdecimal():
-                mol.append(Atom(symbol=line.split()[1],
-                                position=line.split()[2:5]))
-            elif 'Z-matrix' in line:
-                read_coords = False
+                geom[int(line.split()[0]) - 1] = np.array([float(c) for c in line.split()[2:5]])
+                if int(line.split()[0]) == len(mol):
+                    done = True
+                    read_coords = False
             else:
-                continue
-        if isinstance(dummy, Iterable):  # TODO Check
-            for i, d in enumerate(dummy):
-                mol.positions[-(i + 1)] = d[0:3]
-    return mol
+                raise IndexError('Unrecognised QChem output format')
+    if not done:
+        # 'ATOM' not found, assuming it is a SPE calculation.
+        return mol.positions
+
+    return geom
 
 
 def read_zpe(outfile):
-    """
-    Read the zpe
+    """Read the zpe
     """
     from kinbot import constants
 
@@ -44,7 +44,6 @@ def read_zpe(outfile):
         for line in f:
             if 'Zero point vibrational energy:' in line:
                 zpe = line.split()[4]
-
     try:
         return float(zpe) * constants.KCALtoHARTREE
     except ValueError:
@@ -52,8 +51,7 @@ def read_zpe(outfile):
     raise ValueError(f'Zero-Point energy has non-numeric value: {zpe}')
 
 
-
-def read_freq(outfile, atoms):  # TODO
+def read_freq(outfile, atoms):
     """
     Read the frequencies
     """
@@ -69,31 +67,31 @@ def read_freq(outfile, atoms):  # TODO
     return freqs
 
 
-def read_convergence(outfile):
-    """
-    Check for the four YES.
-    0: did not converge
-    1: forces and displacements converged
-    2: forces converged
-    """
+# def read_convergence(outfile):
+#     """
+#     Check for the four YES.
+#     0: did not converge
+#     1: forces and displacements converged
+#     2: forces converged
+#     """
+#
+#     with open(outfile) as f:
+#         lines = f.readlines()
+#
+#     for n, line in enumerate(lines):
+#         if 'Item               Value     Threshold  Converged?' in line:
+#             if 'YES' in lines[n + 1]:
+#                 if 'YES' in lines[n + 2]:
+#                     if 'YES' in lines[n + 3]:
+#                         if 'YES' in lines[n + 4]:
+#                             return 1
+#                     else:
+#                         return 2
+#
+#     return 0  # will look through the whole file
 
-    with open(outfile) as f:
-        lines = f.readlines()
 
-    for n, line in enumerate(lines):
-        if 'Item               Value     Threshold  Converged?' in line:
-            if 'YES' in lines[n + 1]:
-                if 'YES' in lines[n + 2]:
-                    if 'YES' in lines[n + 3]:
-                        if 'YES' in lines[n + 4]:
-                            return 1
-                    else:
-                        return 2
-
-    return 0  # will look through the whole file
-
-
-def constraint(mol, fix, change):
+def constraint(mol, fix, change):  # TODO
     """
     Convert constraints into PCBFGS constraints.
     """
@@ -135,44 +133,44 @@ def constraint(mol, fix, change):
     return bonds, angles, dihedrals
 
 
-def read_hess(job, natom):
-    """
-    Read the hessian of a QChem chk file
-    """
+# def read_hess(job, natom):
+#     """
+#     Read the hessian of a QChem chk file
+#     """
+#
+#     # initialize Hessian
+#     hess = np.zeros((3 * natom, 3 * natom))
+#
+#     fchk = str(job) + '.fchk'
+#     chk = str(job) + '.chk'
+#     if os.path.exists(chk):
+#         # create the fchk file using formchk
+#         os.system('formchk ' + job + '.chk > /dev/null')
+#
+#     with open(fchk) as f:
+#         lines = f.read().split('\n')
+#
+#     nvals = 3 * natom * (3 * natom + 1) / 2
+#
+#     for index, line in enumerate(reversed(lines)):
+#         if re.search('Cartesian Force Constants', line) != None:
+#             hess_flat = []
+#             n = 0
+#             while len(hess_flat) < nvals:
+#                 hess_flat.extend(
+#                     [float(val) for val in lines[-index + n].split()])
+#                 n += 1
+#             n = 0
+#             for i in range(3 * natom):
+#                 for j in range(i + 1):
+#                     hess[i][j] = hess_flat[n]
+#                     hess[j][i] = hess_flat[n]
+#                     n += 1
+#             break
+#     return hess
 
-    # initialize Hessian
-    hess = np.zeros((3 * natom, 3 * natom))
 
-    fchk = str(job) + '.fchk'
-    chk = str(job) + '.chk'
-    if os.path.exists(chk):
-        # create the fchk file using formchk
-        os.system('formchk ' + job + '.chk > /dev/null')
-
-    with open(fchk) as f:
-        lines = f.read().split('\n')
-
-    nvals = 3 * natom * (3 * natom + 1) / 2
-
-    for index, line in enumerate(reversed(lines)):
-        if re.search('Cartesian Force Constants', line) != None:
-            hess_flat = []
-            n = 0
-            while len(hess_flat) < nvals:
-                hess_flat.extend(
-                    [float(val) for val in lines[-index + n].split()])
-                n += 1
-            n = 0
-            for i in range(3 * natom):
-                for j in range(i + 1):
-                    hess[i][j] = hess_flat[n]
-                    hess[j][i] = hess_flat[n]
-                    n += 1
-            break
-    return hess
-
-
-def read_imag_mode(job, natom):
+def read_imag_mode(job, natom):  # TODO
     """
     Read the imaginary normal mode displacements from a log file.
     Only for saddle points! It will read the firs normal mode
@@ -196,41 +194,41 @@ def read_imag_mode(job, natom):
     return (nmode)
 
 
-def read_all_irc_geoms(outfile):
-    """
-    Read the IRC geometries from a QChem 16 log file.
-    Used in sampler code.
-    """
-
-    with open(outfile) as f:
-        lines = f.readlines()
-
-    start = True
-    all_geoms = None
-    atom = None
-    for index, line in enumerate(lines):
-        if 'Charge = ' in line:
-            charge = line.split()[2]
-            mult = line.split()[5]
-        if 'CURRENT STRUCTURE' in line:
-            geom = np.array([])
-            atom = np.array([])
-            natom = 0
-            while True:
-                current_line = lines[index + 6 + natom]
-                if '-------' in current_line:
-                    geom = np.reshape(geom, (-1, 3))
-                    if start:
-                        all_geoms = np.array([copy.deepcopy(geom)])
-                        start = False
-                    else:
-                        all_geoms = np.vstack((all_geoms, geom[None]))
-                    break
-                atom = np.append(atom, int(current_line.split()[1]))
-                g = np.array(current_line.split()[2:5]).astype(float)
-                geom = np.append(geom, g)
-                natom += 1
-    return atom, all_geoms, charge, mult
+# def read_all_irc_geoms(outfile):
+#     """
+#     Read the IRC geometries from a QChem 16 log file.
+#     Used in sampler code.
+#     """
+#
+#     with open(outfile) as f:
+#         lines = f.readlines()
+#
+#     start = True
+#     all_geoms = None
+#     atom = None
+#     for index, line in enumerate(lines):
+#         if 'Charge = ' in line:
+#             charge = line.split()[2]
+#             mult = line.split()[5]
+#         if 'CURRENT STRUCTURE' in line:
+#             geom = np.array([])
+#             atom = np.array([])
+#             natom = 0
+#             while True:
+#                 current_line = lines[index + 6 + natom]
+#                 if '-------' in current_line:
+#                     geom = np.reshape(geom, (-1, 3))
+#                     if start:
+#                         all_geoms = np.array([copy.deepcopy(geom)])
+#                         start = False
+#                     else:
+#                         all_geoms = np.vstack((all_geoms, geom[None]))
+#                     break
+#                 atom = np.append(atom, int(current_line.split()[1]))
+#                 g = np.array(current_line.split()[2:5]).astype(float)
+#                 geom = np.append(geom, g)
+#                 natom += 1
+#     return atom, all_geoms, charge, mult
 
 
 def write_constraints(inp_file):

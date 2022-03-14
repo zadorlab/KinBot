@@ -509,7 +509,7 @@ class QuantumChemistry:
         self.job_ids[job] = pid
 
         now = datetime.now()
-        logging.info(f'SUBMITTED {job} on {now.ctime()}')
+        logging.debug(f'SUBMITTED {job} on {now.ctime()}')
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
     def get_qc_geom(self, job, natom, wait=0, allow_error=0, previous=0):

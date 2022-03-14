@@ -5,6 +5,7 @@ Functions to read QChem output files.
 # import os
 # import re
 # import copy
+import logging
 
 import numpy as np
 from ase import Atoms
@@ -47,8 +48,8 @@ def read_zpe(outfile):
     try:
         return float(zpe) * constants.KCALtoHARTREE
     except ValueError:
-        pass
-    raise ValueError(f'Zero-Point energy has non-numeric value: {zpe}')
+        logging.warning(f'Non-numeric ZPE: {zpe}')
+        return np.NAN
 
 
 def read_freq(outfile, atoms):
@@ -56,13 +57,13 @@ def read_freq(outfile, atoms):
     Read the frequencies
     """
     freqs = []
-    natom = len([at for at in atoms if at != 'X'])  # filter out the dummy atoms
+    natoms = len(atoms)  # filter out the dummy atoms
+    if natoms == 1:
+        return []
 
     with open(outfile) as f:
         for line in f:
             if 'Frequency:' in line:
-                if natom == 2:
-                    return [float(line.split()[1])]
                 freqs.extend([float(fr) for fr in line.split()[1:]])
     return freqs
 

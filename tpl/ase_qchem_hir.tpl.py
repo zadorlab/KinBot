@@ -5,24 +5,22 @@ from kinbot import reader_qchem
 
 db = connect('{working_dir}/kinbot.db')
 
-dummy = {dummy}
 mol = Atoms(symbols={atom}, positions={geom})
 
+QChem.command = '{qc_command} -nt {ppn} PREFIX.in PREFIX.out PREFIX.sv'
 kwargs = {kwargs}
 calc = QChem(**kwargs)
 mol.calc = calc
 
 try:
-    e = mol.get_potential_energy() # use the QChem optimizer
-    for d in dummy:
-        mol.pop()
-    db.write(mol, name='{label}', data={{'energy': e,'status': 'normal'}})
+    e = mol.get_potential_energy()  # use the QChem optimizer
+    mol.positions = reader_qchem.read_geom('{label}.out', mol)
+    db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
 except RuntimeError: 
     try:
-        mol.positions = reader_qchem.read_geom('{label}.out', mol, dummy)
-        e = mol.get_potential_energy() # use the Gaussian optimizer
-        for d in dummy:
-            mol.pop()
+        mol.positions = reader_qchem.read_geom('{label}.out', mol)
+        e = mol.get_potential_energy()  # use the QChem optimizer
+        mol.positions = reader_qchem.read_geom('{label}.out', mol)
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
     except:
         db.write(mol, name='{label}', data={{'status': 'error'}})

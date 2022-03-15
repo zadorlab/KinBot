@@ -2284,7 +2284,6 @@ class ReactionFinder:
             self.species.maxbond
         except AttributeError:
             self.species.calc_maxbond()
-        if self.species.maxbond
         for inst, instance in enumerate(instances):
             if all(self.species.maxbond[instance[ii]][instance[ii + 1]] > 1 for ii in range(len(instance) - 2)):
                 if np.linalg.norm(self.species.geom[instance[pivot1]] - self.species.geom[instance[pivot2]]) > cutoff:

@@ -10,8 +10,8 @@ bimol = {bimol}
 mol = Atoms(symbols={atom}, positions={geom})
 
 kwargs = {kwargs}
-QChem.command = '{qc_command} -nt {ppn} PREFIX.in PREFIX.out PREFIX.sv'
 calc = QChem(**kwargs)
+calc.command = '{qc_command} -nt {ppn} PREFIX.inp PREFIX.out PREFIX.sv'
 mol.set_calculator(calc)
 
 success = True

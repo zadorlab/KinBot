@@ -72,30 +72,16 @@ def carry_out_reaction(rxn, step, command, bimol=0):
 
     #atom, geom, dummy = rxn.qc.add_dummy(rxn.species.atom, geom, rxn.species.bond)
 
-    kwargs['addsec'] = ''
-    if not bimol or step == 0:
-        for fixi in fix:
-            if rxn.qc.qc == 'gauss':
+    if rxn.qc.qc == 'gauss':
+        kwargs['addsec'] = ''
+        if not bimol or step == 0:
+            for fixi in fix:
                 kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
-            elif rxn.qc.qc == 'qchem':
-                dist = np.linalg.norm(geom[fixi[0] - 1] - geom[fixi[1] - 1])
-                kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} {dist}\n"
-        for chi in change:
-            if rxn.qc.qc == 'gauss':
+            for chi in change:
                 kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} F\n"
-            elif rxn.qc.qc == 'qchem':
-                dist = np.linalg.norm(geom[chi[0] - 1] - geom[chi[1] - 1])
-                kwargs[
-                    'addsec'] += f"{' '.join(str(ch) for ch in chi)} {dist}\n"
-        for reli in release:
-            if rxn.qc.qc == 'gauss':
+            for reli in release:
                 kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
-            elif rxn.qc.qc == 'qchem':
-                dist = np.linalg.norm(geom[reli][0] - geom[reli][1])
-                kwargs[
-                    'addsec'] += f"{' '.join(str(rel) for rel in reli)} {dist}\n"
-    elif bimol and step == 1:  # TODO Implement bimolecular for qchem
-        if rxn.qc.qc == 'gauss':
+        elif bimol and step == 1:
             kwargs['addsec'] = f'{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
             # here addsec needs to contain the product and ts geometries and all the rest of the fluff
             kwargs['addsec'] += f'product geometry guess\n\n{rxn.species.charge} {rxn.species.mult}\n'
@@ -106,6 +92,32 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             for ii, at in enumerate(rxn.species.atom):
                 kwargs['addsec'] += f'{at} {geom_ts[ii][0]} {geom_ts[ii][1]} {geom_ts[ii][2]}\n'
             kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
+
+    elif rxn.qc.qc == 'qchem':
+        if (not bimol or step == 0) and step < rxn.max_step:
+            kwargs['addsec'] = '$opt\nCONSTRAINT\n'
+            for fixi in fix:
+                if len(fixi) == 2:
+                    fix_type = 'stre'
+                    val = np.linalg.norm(geom[fixi[0] - 1] - geom[fixi[1] - 1])
+                elif len(fixi) == 3:
+                    fix_type = 'bend'
+                    val = geometry.calc_angle(geom[fixi[0]-1], geom[fixi[1]-1], geom[fixi[2]-1]) * 180 / np.pi
+                elif len(fixi) == 4:
+                    fix_type = 'tors'
+                    val = geometry.calc_dihedral(geom[fixi[0]-1], geom[fixi[1]-1], geom[fixi[2]-1],
+                                                 geom[fixi[3]-1])[0]
+                kwargs['addsec'] += f"{fix_type} {' '.join(str(f) for f in fixi)} {val}\n"
+            for chi in change:
+                dist = np.linalg.norm(geom[chi[0] - 1] - geom[chi[1] - 1])
+                kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} {dist}\n"
+            for reli in release:
+                dist = np.linalg.norm(geom[reli][0] - geom[reli][1])
+                kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} {dist}\n"
+            kwargs['addsec'] += 'ENDCONSTRAINT\n$end\n'
+        elif bimol and step == 1:
+            raise NotImplementedError('Bimolecular reactions are not yet implemented'
+                                      ' in QChem')
     if not bimol:
         ntrial = 3
     else:
@@ -130,7 +142,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    )
     else:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
-        template = open(template_file,'r').read()
+        template = open(template_file, 'r').read()
     
         template = template.format(label=rxn.instance_name, 
                                    kwargs=kwargs, 

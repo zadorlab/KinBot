@@ -231,7 +231,26 @@ class QuantumChemistry:
                 'scf_convergence': '8',
                 'multiplicity': mult,
                 'charge': charge,
+
             }
+            if ts:
+                kwargs['geom_opt_max_cycles'] = '500'
+                if step < max_step:
+                    kwargs['jobtype'] = 'opt'
+                    if step > 0:
+                        kwargs['scf_guess'] = 'read'
+                    if not scan and 'R_Addition_MultipleBond' not in job:
+                        kwargs['method'] = 'b3lyp'
+                        kwargs['basis'] = 'sto-3g'
+                        kwargs['scf_convergence'] = '4'
+                        kwargs['geom_opt_tol_gradient'] = '1500'
+                        kwargs['geom_opt_tol_displacement'] = '6000'
+                        kwargs['geom_opt_tol_energy'] = '500'
+                else:
+                    kwargs['jobtype'] = 'ts'
+                    kwargs['method'] = self.method
+                    kwargs['basis'] = self.basis
+
             if scan or 'R_Addition_MultipleBond' in job:
                 kwargs['method'] = self.scan_method
                 kwargs['basis'] = self.scan_basis
@@ -241,6 +260,16 @@ class QuantumChemistry:
             if high_level:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
+            if irc is not None:
+                kwargs['jobtype'] = 'rpath'
+                # kwargs['scf_guess'] = 'read'  # TODO Figure out how to properly save wf info.
+                kwargs['rpath_max_stepsize'] = str(self.irc_stepsize * 10)  # QChem units are 0.001 a.u.
+                kwargs['rpath_max_cycles'] = str(self.irc_maxpoints)
+                if irc == 'forward':
+                    kwargs['rpath_direction'] = '1'
+                else:
+                    kwargs['rpath_direction'] = '-1'
+
         return kwargs
 
     def qc_hir(self, species, geom, rot_index, ang_index, fix, rigid):

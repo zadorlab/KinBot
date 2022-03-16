@@ -31,12 +31,12 @@ except RuntimeError:
 
 
 try:
-    opt_mol = reader_qchem.read_geom('{label}.out', mol)
+    mol.positions = reader_qchem.read_geom('{label}.out', mol)
     kwargs['jobtype'] = 'freq'
     kwargs['label'] = kwargs['label'] + '_freq'
     calc = QChem(**kwargs)
-    opt_mol.set_calculator(calc)
-    e = opt_mol.get_potential_energy()  # Compute frequencies
+    mol.set_calculator(calc)
+    e = mol.get_potential_energy()  # Compute frequencies
 except RuntimeError:
     db.write(mol, name='{label}', data={{'status': 'error'}})
 

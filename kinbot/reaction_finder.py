@@ -1377,6 +1377,8 @@ class ReactionFinder:
         """ 
         This is an RMG class.
         TODO it seems like this is the forward reaction, but the naming is confusing.
+        The reaction is a lot more general now, simply requires multiple bonds that can add to each other.
+        No middle double bond is required.
 
                              C
                             / \\
@@ -1401,11 +1403,11 @@ class ReactionFinder:
 
             bondpattern = ['X' for i in range(ringsize + 3)]
             bondpattern[0] = 2
-            bondpattern[2] = 2
+            #bondpattern[2] = 2  # by removing this, this family becomes a lot more general
             bondpattern[-1] = 2
 
             for instance in instances:
-                if find_motif.bondfilter(instance, bond, bondpattern) == 0:
+                if find_motif.bondfilter(instance, bond, bondpattern, atleast=True) == 0:
                     #inst = instance[:4] + instance[-2:]
                     rxns += [instance] 
      

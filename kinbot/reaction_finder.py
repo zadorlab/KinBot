@@ -870,8 +870,8 @@ class ReactionFinder:
         """ 
         This is an RMG class.
 
-                                    H
-                                    | 
+                                    H -1
+                          1       2 | 
         H-R~~~~~~~R=R <== R~~~~~~~R-R
                           |_______|
 
@@ -899,8 +899,9 @@ class ReactionFinder:
                 if bond[instance[0]][instance[-3]] > 0:
                     rxns += [instance[-4:]]
 
-
-        self.new_reaction(rxns, name, a=0, b=-1)
+        print(rxns)
+        self.new_reaction(rxns, name, a=0, b=1, c=-1)
+        print(self.reactions)
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[-1], inst[-2]}), frozenset({inst[-3], inst[0]})} or self.prod_bonds != {frozenset({inst[-1], inst[0]})}:
@@ -2124,7 +2125,7 @@ class ReactionFinder:
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Exocyclic_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1 + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Retro_Ene':

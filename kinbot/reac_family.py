@@ -91,10 +91,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         for ii, at in enumerate(rxn.species.atom):
             kwargs['addsec'] += f'{at} {geom_ts[ii][0]} {geom_ts[ii][1]} {geom_ts[ii][2]}\n'
         kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
-    if not bimol:
-        ntrial = 3
-    else:
-        ntrial = 1
+#     if not bimol:
+#         ntrial = 3
+#     else:
+#         ntrial = 1
 
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
@@ -110,7 +110,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    scan=rxn.scan,
-                                   ntrial=ntrial,
+                                   #ntrial=ntrial,
                                    )
     else:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))

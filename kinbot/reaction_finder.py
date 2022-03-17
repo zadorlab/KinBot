@@ -1398,10 +1398,10 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         for ringsize in self.ringrange:  # TODO what is the meaning of these larger rings?
-            motif = ['X' for i in range(ringsize + 4)]
+            motif = ['X' for i in range(ringsize)]
             instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
 
-            bondpattern = ['X' for i in range(ringsize + 3)]
+            bondpattern = ['X' for i in range(ringsize - 1)]
             bondpattern[0] = 2
             #bondpattern[2] = 2  # by removing this, this family becomes a lot more general
             bondpattern[-1] = 2
@@ -1419,7 +1419,6 @@ class ReactionFinder:
 #                    new = 0
                 
         return 0
-
 
 
     def search_ketoenol(self, natom, atom, bond, rad):

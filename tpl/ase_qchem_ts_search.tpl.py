@@ -15,7 +15,6 @@ mol = Atoms(symbols={atom}, positions={geom})
 
 kwargs = {kwargs}
 calc = QChem(**kwargs)
-calc.command = '{qc_command} -nt {ppn} PREFIX.inp PREFIX.out PREFIX.sv'
 mol.set_calculator(calc)
 
 success = True

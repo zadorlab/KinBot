@@ -10,7 +10,6 @@ logfile = '{label}.out'
 
 mol = Atoms(symbols={atom}, positions={geom})
 
-QChem.command = '{qc_command} -nt {ppn} PREFIX.in PREFIX.out PREFIX.sv'
 kwargs = {kwargs}
 calc = QChem(**kwargs)
 mol.calc = calc

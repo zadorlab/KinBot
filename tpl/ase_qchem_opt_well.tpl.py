@@ -14,7 +14,6 @@ mol = Atoms(symbols={atom}, positions={geom})
 
 # Perform Geometry optimization
 kwargs = {kwargs}
-QChem.command = '{qc_command} -nt {ppn} PREFIX.in PREFIX.out PREFIX.sv'
 calc = QChem(**kwargs)
 mol.calc = calc
 

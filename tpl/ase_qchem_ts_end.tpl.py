@@ -15,7 +15,6 @@ geom = {geom}
 mol = Atoms(symbols=atom, positions=geom)
 
 kwargs = {kwargs}
-QChem.command = '{qc_command} -nt {ppn} PREFIX.in PREFIX.out PREFIX.sv'
 calc = QChem(**kwargs)
 mol.set_calculator(calc)
 
@@ -38,7 +37,6 @@ kwargs['jobtype'] = 'freq'
 kwargs['xc_grid'] = '3'
 kwargs['label'] = kwargs['label'] + '_freq'
 calc = QChem(**kwargs)
-calc.command = '{qc_command} -nt {ppn} PREFIX.in PREFIX.out PREFIX.sv'
 mol.set_calculator(calc)
 
 try:

@@ -110,8 +110,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    scan=rxn.scan,
-                                   #ntrial=ntrial,
                                    )
+                                   #ntrial=ntrial,
     else:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
         template = open(template_file,'r').read()

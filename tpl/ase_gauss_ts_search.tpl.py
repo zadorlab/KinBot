@@ -24,11 +24,11 @@ except RuntimeError:
  
 iowait(logfile, 'gauss')
 mol.positions = reader_gauss.read_geom(logfile, mol)
-if all([ci==0 for mp in mol.positions for ci in mp])):
+if all([ci==0 for mp in mol.positions for ci in mp]):
     mol.positions = {geom}  # reset to the original geometry
 db.write(mol, name=label, data={{'energy': e,'status': 'normal'}})
 
-#for tr in range({ntrial}):
+#for tr in range(ntrial):  # DELETED CURLY BRACKET
 #    try:
 #        success = True
 #        e = mol.get_potential_energy() # use the Gaussian optimizer (task optimize)

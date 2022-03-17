@@ -260,8 +260,10 @@ class QuantumChemistry:
             if high_level:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
+                kwargs['VIBMAN_PRINT'] = '4'
             if irc is not None:
                 kwargs['jobtype'] = 'freq'
+                kwargs['xc_grid'] = '3'
                 kwargs['addsec'] = '@@@\n\n' \
                                    '$molecule\n' \
                                    'READ\n' \
@@ -787,6 +789,8 @@ class QuantumChemistry:
                             hess[j][i] = hess_flat[n]
                             n += 1
                     break
+        elif self.qc == 'qchem':
+            pass
         else:
             raise NotImplementedError()
         return hess

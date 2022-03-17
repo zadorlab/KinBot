@@ -34,6 +34,7 @@ except RuntimeError:
 # Perform a vibrational analysis on the optimized geometry
 mol.positions = reader_qchem.read_geom(logfile, mol)
 kwargs['jobtype'] = 'freq'
+kwargs['xc_grid'] = '3'
 kwargs['label'] = kwargs['label'] + '_freq'
 calc = QChem(**kwargs)
 mol.set_calculator(calc)

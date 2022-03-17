@@ -35,8 +35,10 @@ except RuntimeError:
 # Compute Frequencies on the TS
 mol.positions = reader_qchem.read_geom(logfile, mol)
 kwargs['jobtype'] = 'freq'
+kwargs['xc_grid'] = '3'
 kwargs['label'] = kwargs['label'] + '_freq'
 calc = QChem(**kwargs)
+calc.command = '{qc_command} -nt {ppn} PREFIX.in PREFIX.out PREFIX.sv'
 mol.set_calculator(calc)
 
 try:

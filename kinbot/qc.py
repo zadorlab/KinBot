@@ -787,6 +787,8 @@ class QuantumChemistry:
                             hess[j][i] = hess_flat[n]
                             n += 1
                     break
+        else:
+            raise NotImplementedError()
         return hess
 
     def is_in_database(self, job):

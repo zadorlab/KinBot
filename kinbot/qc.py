@@ -261,14 +261,26 @@ class QuantumChemistry:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
             if irc is not None:
-                kwargs['jobtype'] = 'rpath'
-                # kwargs['scf_guess'] = 'read'  # TODO Figure out how to properly save wf info.
-                kwargs['rpath_max_stepsize'] = str(self.irc_stepsize * 10)  # QChem units are 0.001 a.u.
-                kwargs['rpath_max_cycles'] = str(self.irc_maxpoints)
+                kwargs['jobtype'] = 'freq'
+                kwargs['addsec'] = '@@@\n\n' \
+                                   '$molecule\n' \
+                                   'READ\n' \
+                                   '$end\n\n' \
+                                   '$rem\n' \
+                                   f"METHOD {kwargs['method'].upper()}\n" \
+                                   f"BASIS {kwargs['basis'].upper()}\n" \
+                                   f"SYM_IGNORE TRUE\n" \
+                                   f"JOBTYPE RPATH\n" \
+                                   f"UNRESTRICTED TRUE\n" \
+                                   f"SCF_CONVERGENCE 8\n" \
+                                   f"RPATH_MAX_STEPSIZE {self.irc_stepsize * 10}\n" \
+                                   f"RPATH_MAX_CYCLES {self.irc_maxpoints}\n" \
+                                   f"SCF_GUESS READ\n"
                 if irc == 'forward':
-                    kwargs['rpath_direction'] = '1'
+                    kwargs['addsec'] += 'RPATH_DIRECTION 1\n'
                 else:
-                    kwargs['rpath_direction'] = '-1'
+                    kwargs['addsec'] += 'RPATH_DIRECTION -1\n'
+                kwargs['addsec'] += '$end\n'
 
         return kwargs
 
@@ -752,7 +764,6 @@ class QuantumChemistry:
         hess = np.zeros((3 * natom, 3 * natom))
 
         if self.qc == 'gauss':
-
             fchk = str(job) + '.fchk'
             if not os.path.exists(fchk):
                 # create the fchk file using formchk

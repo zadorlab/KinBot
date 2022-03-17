@@ -28,9 +28,10 @@ class IntraDielsAlder(GeneralReac):
 
             fval = 2.2
             self.set_bond(0, -1, -999, change, step=step-11, stmax=10, findist=fval, geom=geom)
-            
-            fval = 1.8
-            self.set_bond(-2, 3, -999, change, step=step-11, stmax=10, findist=fval, geom=geom)
+           
+            if len(self.instance) == 6:
+                fval = 1.8
+                self.set_bond(2, 3, -999, change, step=step-11, stmax=10, findist=fval, geom=geom)
 
         self.clean_constraints(change, fix)
 

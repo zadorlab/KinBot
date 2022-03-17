@@ -23,6 +23,7 @@ try:
     mol.positions = reader_gauss.read_geom(logfile, mol)
     db.write(mol, name=label, data={{'energy': e,'status': 'normal'}})
 except:
+    iowait(logfile, 'gauss')
     mol.positions = reader_gauss.read_geom(logfile, mol)
     if mol.positions is not None:
         db.write(mol, name=label, data={{'status': 'normal'}}) #although there is an error, continue from the final geometry
@@ -47,6 +48,7 @@ if success:
         mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
         db.write(mol, name=label, data={{'energy': e,'status': 'normal'}})
     except RuntimeError: 
+        iowait(logfile, 'gauss')
         mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
         if mol_prod.positions is not None:
             db.write(mol_prod, name=label, data={{'status': 'normal'}}) 

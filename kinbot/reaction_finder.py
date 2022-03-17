@@ -1377,14 +1377,17 @@ class ReactionFinder:
     def search_Intra_Diels_alder_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
-        TODO it seems like this is the forward reaction, but the naming is confusing.
         The reaction is a lot more general now, simply requires multiple bonds that can add to each other.
         No middle double bond is required.
+        If there is a middle double bond, there will be a just a rearrangement of bonds.
+        If there is no middle double bond, that bond will break up.
+        At the moment the family is only meaningful for 6-mem rings, 
+        behavior for other ring sizes is unknown. Although this is the DA reaction.
 
                              C
                             / \\
-                           C   C
-        C=C-C=C~~~C=C <==  |   |
+        1 2 3 4  -2-1      C   C
+        C=C-C=C~~~C=C ==>  |   |
                            C   C
                             \ //
                               C
@@ -2125,7 +2128,7 @@ class ReactionFinder:
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Exocyclic_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1 + str(reac_list[i][-1] + 1)
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Retro_Ene':

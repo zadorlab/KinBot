@@ -260,7 +260,7 @@ class QuantumChemistry:
             if high_level:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
-                kwargs['VIBMAN_PRINT'] = '4'
+                kwargs['vibman_print'] = '4'
             if irc is not None:
                 kwargs['jobtype'] = 'freq'
                 kwargs['xc_grid'] = '3'
@@ -762,10 +762,8 @@ class QuantumChemistry:
         if check != 'normal':
             return []
 
-        # initialize hessian matrix
-        hess = np.zeros((3 * natom, 3 * natom))
-
         if self.qc == 'gauss':
+            hess = np.zeros((3 * natom, 3 * natom))
             fchk = str(job) + '.fchk'
             if not os.path.exists(fchk):
                 # create the fchk file using formchk
@@ -790,7 +788,19 @@ class QuantumChemistry:
                             n += 1
                     break
         elif self.qc == 'qchem':
-            pass
+            with open(job + '_freq.out') as f:
+                do_read = False
+                hess_flat = []
+                for line in f:
+                    if not do_read and line.startswith(' Mass-Weighted Hessian Matrix:'):
+                        do_read = True
+                    elif do_read and 'Translations and Rotations' in line:
+                        do_read = False
+                    elif do_read and len(line) > 5:
+                        hess_flat.extend([float(val) for val in line.split()])
+                    else:
+                        continue
+            hess = np.reshape(hess_flat, (3 * natom, 3 * natom))
         else:
             raise NotImplementedError()
         return hess

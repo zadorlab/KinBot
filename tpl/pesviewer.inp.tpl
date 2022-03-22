@@ -30,6 +30,7 @@ show_images        1         # boolean tells whether the molecule images should 
 rdkit4depict       1         # boolean that specifies which code was used for the 2D depiction
 axes_size          10        # font size of the axes
 text_size          10        # font size of the energy values on the graph
+graps_edge_color   None      # color of graph edge, if set to 'energy', will be scaled accordingly
 
 > <wells> 
 {wells}

@@ -512,6 +512,8 @@ def postprocess(par, jobs, task, names):
                              products,
                              reactions,
                              par['title'],
+                             well_energies,
+                             prod_energies,
                              )
 
     # write_mess
@@ -1219,7 +1221,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
         f.write(template)
 
 
-def create_interactive_graph(wells, products, reactions, title):
+def create_interactive_graph(wells, products, reactions, title, well_energies, prod_energies):
     """
     Create an interactive plot with pyvis
     """
@@ -1227,12 +1229,12 @@ def create_interactive_graph(wells, products, reactions, title):
         from pyvis import network as net
     except ImportError:
         logging.warning('pyvis cannot be imported, no interactive plot is made.')
-        return(-1)
+        return -1
     try:
         from IPython.core.display import display, HTML
     except ImportError:
         logging.warning('IPython cannot be imported, no interactive plot is made.')
-        return(-1)
+        return -1
 
     # For now we are assuming the all of the 2D depictions
     # are in place, which were created with PESViewer
@@ -1244,9 +1246,11 @@ def create_interactive_graph(wells, products, reactions, title):
 
     g = net.Network(height='800px', width='50%',heading='')
     for i, well in enumerate(wells):
-        g.add_node(i, shape='image', image=f'{os.getcwd()}/{title}/{well}_2d.png')
+        g.add_node(i, label='', borderWidth=3, title=f'{well}: {round(well_energies[well], 1)} kcal/mol', 
+                   shape='image', image=f'{os.getcwd()}/{title}/{well}_2d.png')
     for i, prod in enumerate(products):
-        g.add_node(i + len(wells), shape='image', image=f'{os.getcwd()}/{title}/{prod}_2d.png')
+        g.add_node(i + len(wells), label='', borderWidth=3, title=f'{prod}: {round(prod_energies[prod],1)} kcal/mol', 
+                   shape='image', image=f'{os.getcwd()}/{title}/{prod}_2d.png')
 
     color_min = bars.min()
     color_max = bars.max()
@@ -1257,9 +1261,9 @@ def create_interactive_graph(wells, products, reactions, title):
                 red = round((bars[i, j] - color_min) / color_step) 
                 green = 0
                 blue = round((color_max - bars[i, j]) / color_step)
-                g.add_edge(i, j, width=4, color=f'rgb({red},{green},{blue})')
+                g.add_edge(i, j, title=f'{round(bars[i, j], 1)} kcal/mol', width=4, color=f'rgb({red},{green},{blue})')
     g.show_buttons(filter_=['physics'])
-    g.show(f'{title}.html')
+    g.save_graph(f'{title}.html')
     #display(HTML('example.html'))
     return 0
 

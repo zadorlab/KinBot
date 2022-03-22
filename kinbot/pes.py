@@ -508,6 +508,12 @@ def postprocess(par, jobs, task, names):
                  prod_energies,
                  highlight)
 
+    create_interactive_graph(wells,
+                             products,
+                             reactions,
+                             par['title'],
+                             )
+
     # write_mess
 
     barrierless = []
@@ -1213,6 +1219,51 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
         f.write(template)
 
 
+def create_interactive_graph(wells, products, reactions, title):
+    """
+    Create an interactive plot with pyvis
+    """
+    try:
+        from pyvis import network as net
+    except ImportError:
+        logging.warning('pyvis cannot be imported, no interactive plot is made.')
+        return(-1)
+    try:
+        from IPython.core.display import display, HTML
+    except ImportError:
+        logging.warning('IPython cannot be imported, no interactive plot is made.')
+        return(-1)
+
+    # For now we are assuming the all of the 2D depictions
+    # are in place, which were created with PESViewer
+    # Later we can add those in independently, but
+    # this is not needed, just requires a quick run of
+    # PESViewer
+
+    conn, bars = get_connectivity(wells, products, reactions)
+
+    g = net.Network(height='800px', width='50%',heading='')
+    for i, well in enumerate(wells):
+        g.add_node(i, shape='image', image=f'{os.getcwd()}/{title}/{well}_2d.png')
+    for i, prod in enumerate(products):
+        g.add_node(i + len(wells), shape='image', image=f'{os.getcwd()}/{title}/{prod}_2d.png')
+
+    color_min = bars.min()
+    color_max = bars.max()
+    color_step = (color_max - color_min) / 256.
+    for i, ci in enumerate(conn):
+        for j, cij in enumerate(ci):
+            if cij > 0:
+                red = round((bars[i, j] - color_min) / color_step) 
+                green = 0
+                blue = round((color_max - bars[i, j]) / color_step)
+                g.add_edge(i, j, width=4, color=f'rgb({red},{green},{blue})')
+    g.show_buttons(filter_=['physics'])
+    g.show(f'{title}.html')
+    #display(HTML('example.html'))
+    return 0
+
+
 def create_graph(wells, products, reactions,
                  well_energies, prod_energies, highlight):
     """
@@ -1289,8 +1340,8 @@ def create_graph(wells, products, reactions,
     weights = [G[u][v]['weight'] for u, v in edges]
 
     # position the nodes
-    #pos = nx.spring_layout(G, scale=1)
-    pos = nx.circular_layout(G)
+    pos = nx.spring_layout(G, scale=1)
+    #pos = nx.circular_layout(G)
 
     
     # make the matplotlib figure

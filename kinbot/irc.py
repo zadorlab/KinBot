@@ -149,7 +149,8 @@ class IRC:
                                                   start_from_geom=start_from_geometry)
             prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge)
             if self.rxn.qc.qc == 'gauss':
-                prod_kwargs['opt'] = 'CalcFC, Tight'
+                #prod_kwargs['opt'] = 'CalcFC, Tight'
+                prod_kwargs['opt'] = 'CalcFC'
 
             template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_irc.tpl.py'.format(qc=self.rxn.qc.qc))
             template = open(template_file, 'r').read()

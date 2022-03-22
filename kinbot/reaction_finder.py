@@ -1416,7 +1416,7 @@ class ReactionFinder:
                     rxns += [instance] 
      
 
-        self.new_reaction(rxns, name, a=0, b=-1)
+        self.new_reaction(rxns, name, a=0, b=-1, cross=True)
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:

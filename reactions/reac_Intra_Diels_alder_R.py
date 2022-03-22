@@ -20,13 +20,21 @@ class IntraDielsAlder(GeneralReac):
         elif step < self.max_step:
             self.release_dihedrals(release, start=1)
 
-            first_dih = [self.instance[i] + 1 for i in range(4)]
-            if step < 18: # make sure that the forming double bond stays in trans instead of moving to cis
-                fix.append(first_dih)
-            else:
-                release.append(first_dih)
+            try:
+                first_dih = [self.instance[i] + 1 for i in range(4)]
+                if step < 18: # make sure that the forming double bond stays in trans instead of moving to cis
+                    fix.append(first_dih)
+                else:
+                    release.append(first_dih)
+            except IndexError:
+                pass
 
-            fval = 2.2
+            if len(self.instance) == 4:
+                fval = 2.0
+            elif len(self.instance) == 3:
+                fval = 1.8
+            else:
+                fval = 2.2
             self.set_bond(0, -1, -999, change, step=step-11, stmax=10, findist=fval, geom=geom)
            
             if len(self.instance) == 6:

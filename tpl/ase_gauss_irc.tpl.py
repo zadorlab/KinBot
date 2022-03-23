@@ -46,7 +46,7 @@ if success:
         e = mol_prod.get_potential_energy() # use the Gaussian optimizer
         iowait(logfile, 'gauss')
         mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
-        db.write(mol, name=label, data={{'energy': e,'status': 'normal'}})
+        db.write(mol_prod, name=label, data={{'energy': e,'status': 'normal'}})
     except RuntimeError: 
         iowait(logfile, 'gauss')
         mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)

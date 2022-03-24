@@ -899,9 +899,7 @@ class ReactionFinder:
                 if bond[instance[0]][instance[-3]] > 0:
                     rxns += [instance[-4:]]
 
-        print(rxns)
         self.new_reaction(rxns, name, a=0, b=1, c=-1)
-        print(self.reactions)
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[-1], inst[-2]}), frozenset({inst[-3], inst[0]})} or self.prod_bonds != {frozenset({inst[-1], inst[0]})}:

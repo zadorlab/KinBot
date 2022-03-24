@@ -799,7 +799,7 @@ class QuantumChemistry:
                                 logging.debug(f'Log file {log_file} is present, but has no "done" stamp.')
                                 return 0
                         except IndexError:
-                            logging.warning(f'Log file {log_file} is present, but it is empty.')
+                            logging.debug(f'Log file {log_file} is present, but it is empty.')
                             pass
                     logging.debug('Log file is present after {} iterations'.format(i))
                     # by deleting a log file, you allow restarting a job

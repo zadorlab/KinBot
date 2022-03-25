@@ -423,7 +423,6 @@ class Conformers:
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         final_geoms.append(geom)
                         totenergies.append(energy + zpe)
-                        print(job, totenergies)
                         if lowest_totenergy == 0.:  # likely / hopefully the first sample was valid
                             if ci != 0:
                                 logging.warning('For {} conformer 0 failed.'.format(name)) 

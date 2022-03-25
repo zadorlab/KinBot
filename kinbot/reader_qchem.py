@@ -11,28 +11,29 @@ import numpy as np
 from ase import Atoms
 
 
-def read_geom(outfile, mol=Atoms()):
+def read_geom(outfile, mol=Atoms(), irc=False):
     """Read the final geometry from a QChem output file.
     """
-    geom = np.zeros((len(mol), 3))
-    read_coords, done = (False, False)
+    do_read, done = (False, False)
     with open(outfile) as f:
         for line in f:
-            if 'ATOM' in line:
-                read_coords = True
-            elif not read_coords or len(line) < 2:
+            if 'I     Atom' in line:
+                do_read = True
+                geom = np.zeros((len(mol), 3))
+            elif irc and 'IRC -- convergence criterion reached.' in line:
+                break
+            elif not do_read or '---------' in line:
                 continue
-            elif line.split()[0].isdecimal():
+            elif do_read and line.split()[0].isdecimal():
                 geom[int(line.split()[0]) - 1] = np.array([float(c) for c in line.split()[2:5]])
                 if int(line.split()[0]) == len(mol):
                     done = True
-                    read_coords = False
+                    do_read = False
             else:
                 raise IndexError('Unrecognised QChem output format')
     if not done:
-        # 'ATOM' not found, assuming it is a SPE calculation.
-        return mol.positions
-
+        # Coordinates not found, assuming it is a SPE calculation.
+        raise ValueError(f'Coordinates not found on {outfile}')
     return geom
 
 
@@ -134,65 +135,64 @@ def constraint(mol, fix, change):  # TODO
     return bonds, angles, dihedrals
 
 
-# def read_hess(job, natom):
-#     """
-#     Read the hessian of a QChem chk file
-#     """
-#
-#     # initialize Hessian
-#     hess = np.zeros((3 * natom, 3 * natom))
-#
-#     fchk = str(job) + '.fchk'
-#     chk = str(job) + '.chk'
-#     if os.path.exists(chk):
-#         # create the fchk file using formchk
-#         os.system('formchk ' + job + '.chk > /dev/null')
-#
-#     with open(fchk) as f:
-#         lines = f.read().split('\n')
-#
-#     nvals = 3 * natom * (3 * natom + 1) / 2
-#
-#     for index, line in enumerate(reversed(lines)):
-#         if re.search('Cartesian Force Constants', line) != None:
-#             hess_flat = []
-#             n = 0
-#             while len(hess_flat) < nvals:
-#                 hess_flat.extend(
-#                     [float(val) for val in lines[-index + n].split()])
-#                 n += 1
-#             n = 0
-#             for i in range(3 * natom):
-#                 for j in range(i + 1):
-#                     hess[i][j] = hess_flat[n]
-#                     hess[j][i] = hess_flat[n]
-#                     n += 1
-#             break
-#     return hess
+def read_hess(job, natom):
+    """
+    Read the hessian of a QChem chk file
+    """
+
+    # initialize Hessian
+    hess = np.zeros((3 * natom, 3 * natom))
+
+    fchk = str(job) + '.fchk'
+    chk = str(job) + '.chk'
+    if os.path.exists(chk):
+        # create the fchk file using formchk
+        os.system('formchk ' + job + '.chk > /dev/null')
+
+    with open(fchk) as f:
+        lines = f.read().split('\n')
+
+    nvals = 3 * natom * (3 * natom + 1) / 2
+
+    for index, line in enumerate(reversed(lines)):
+        if re.search('Cartesian Force Constants', line) != None:
+            hess_flat = []
+            n = 0
+            while len(hess_flat) < nvals:
+                hess_flat.extend(
+                    [float(val) for val in lines[-index + n].split()])
+                n += 1
+            n = 0
+            for i in range(3 * natom):
+                for j in range(i + 1):
+                    hess[i][j] = hess_flat[n]
+                    hess[j][i] = hess_flat[n]
+                    n += 1
+            break
+    return hess
 
 
-def read_imag_mode(job, natom):  # TODO
+def read_imag_mode(job, natom):
     """
     Read the imaginary normal mode displacements from a log file.
     Only for saddle points! It will read the firs normal mode
     for a well, but that's not very useful.
     """
-
-    nmode = np.zeros([natom, 3])
-    joblog = '{}.log'.format(job)
+    joblog = '{}_freq.out'.format(job)
+    do_read = False
+    nmode = []
     with open(joblog) as f:
-        lines = f.read().split('\n')
+        for line in f:
+            if '               X' in line:
+                do_read = True
+            elif not do_read:
+                continue
+            elif do_read:
+                if 'TransDip' in line:
+                    break
+                nmode.append([float(val) for val in line.split()[1:4]])
 
-    for l, line in enumerate(lines):
-        if line[:10] == '  Atom  AN':
-            for n in range(natom):
-                mm = lines[l + n + 1].split()
-                nmode[n][0] = float(mm[2])
-                nmode[n][1] = float(mm[3])
-                nmode[n][2] = float(mm[4])
-            break
-
-    return (nmode)
+    return np.array(nmode)
 
 
 # def read_all_irc_geoms(outfile):

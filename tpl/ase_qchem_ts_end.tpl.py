@@ -16,6 +16,7 @@ mol = Atoms(symbols=atom, positions=geom)
 
 kwargs = {kwargs}
 calc = QChem(**kwargs)
+calc.command = '{qc_command} -nt {ppn} PREFIX.inp PREFIX.out'
 mol.set_calculator(calc)
 
 # Perform TS optimization.
@@ -37,6 +38,7 @@ kwargs['jobtype'] = 'freq'
 kwargs['xc_grid'] = '3'
 kwargs['label'] = kwargs['label'] + '_freq'
 calc = QChem(**kwargs)
+calc.command = '{qc_command} -nt {ppn} PREFIX.inp PREFIX.out'
 mol.set_calculator(calc)
 
 try:

@@ -228,28 +228,26 @@ class QuantumChemistry:
                 'method': self.method,
                 'basis': self.basis,
                 'unrestricted': 'True',
-                'scf_convergence': '8',
+                'scf_algorithm': 'diis_gdm',
+                'max_scf_cycles': '100',
+                'geom_opt_max_cycles': '500',
+                # 'geom_opt_coord': '0',  # TODO test
                 'multiplicity': mult,
-                'charge': charge,
+                'charge': charge
 
             }
             if ts:
-                kwargs['geom_opt_max_cycles'] = '500'
-                if step < max_step:
-                    kwargs['jobtype'] = 'opt'
-                    if step > 0:
-                        kwargs['scf_guess'] = 'read'
-                    if not scan and 'R_Addition_MultipleBond' not in job:
+                if 0 < step < max_step:
+                    kwargs['scf_guess'] = 'read'
+                if step >= max_step:
+                    kwargs['jobtype'] = 'ts'
+                elif not scan and 'R_Addition_MultipleBond' not in job:
                         kwargs['method'] = 'b3lyp'
                         kwargs['basis'] = 'sto-3g'
                         kwargs['scf_convergence'] = '4'
                         kwargs['geom_opt_tol_gradient'] = '1500'
                         kwargs['geom_opt_tol_displacement'] = '6000'
                         kwargs['geom_opt_tol_energy'] = '500'
-                else:
-                    kwargs['jobtype'] = 'ts'
-                    kwargs['method'] = self.method
-                    kwargs['basis'] = self.basis
 
             if scan or 'R_Addition_MultipleBond' in job:
                 kwargs['method'] = self.scan_method
@@ -264,25 +262,13 @@ class QuantumChemistry:
             if irc is not None:
                 kwargs['jobtype'] = 'freq'
                 kwargs['xc_grid'] = '3'
-                kwargs['addsec'] = '@@@\n\n' \
-                                   '$molecule\n' \
-                                   'READ\n' \
-                                   '$end\n\n' \
-                                   '$rem\n' \
-                                   f"METHOD {kwargs['method'].upper()}\n" \
-                                   f"BASIS {kwargs['basis'].upper()}\n" \
-                                   f"SYM_IGNORE TRUE\n" \
-                                   f"JOBTYPE RPATH\n" \
-                                   f"UNRESTRICTED TRUE\n" \
-                                   f"SCF_CONVERGENCE 8\n" \
-                                   f"RPATH_MAX_STEPSIZE {self.irc_stepsize * 10}\n" \
-                                   f"RPATH_MAX_CYCLES {self.irc_maxpoints}\n" \
-                                   f"SCF_GUESS READ\n"
+                kwargs['vibman_print'] = '4'
+                kwargs['rpath_max_stepsize'] = str(self.irc_stepsize * 10)
+                kwargs['rpath_max_cycles'] = str(self.irc_maxpoints)
                 if irc == 'forward':
-                    kwargs['addsec'] += 'RPATH_DIRECTION 1\n'
+                    kwargs['rpath_direction'] = '-1'
                 else:
-                    kwargs['addsec'] += 'RPATH_DIRECTION -1\n'
-                kwargs['addsec'] += '$end\n'
+                    kwargs['rpath_direction'] = '1'
 
         return kwargs
 
@@ -751,6 +737,9 @@ class QuantumChemistry:
                 zpe = 0.0
                 logging.warning("{} has no zpe in database. ZPE SET TO 0.0".format(job))
 
+        if zpe is None:
+            zpe = 0.00
+
         return 0, zpe
 
     def read_qc_hess(self, job, natom):
@@ -788,19 +777,28 @@ class QuantumChemistry:
                             n += 1
                     break
         elif self.qc == 'qchem':
+            hess = []
+            row = 0
+            do_read = False
+            if natom == 1:
+                return np.zeros([3, 3])
             with open(job + '_freq.out') as f:
-                do_read = False
-                hess_flat = []
                 for line in f:
-                    if not do_read and line.startswith(' Mass-Weighted Hessian Matrix:'):
+                    if not do_read and line.startswith(' Mass-Weighted Hessian Matrix'):
                         do_read = True
                     elif do_read and 'Translations and Rotations' in line:
                         do_read = False
-                    elif do_read and len(line) > 5:
-                        hess_flat.extend([float(val) for val in line.split()])
+                    elif do_read:
+                        if len(line) > 5:
+                            if len(hess) < 3 * natom:
+                                hess.append([])
+                            hess[row].extend([float(val) for val in line.split()])
+                            row += 1
+                        else:
+                            row = 0
                     else:
                         continue
-            hess = np.reshape(hess_flat, (3 * natom, 3 * natom))
+            hess = np.array(hess)
         else:
             raise NotImplementedError()
         return hess

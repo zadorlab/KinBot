@@ -425,7 +425,7 @@ class Conformers:
                         totenergies.append(energy + zpe)
                         if lowest_totenergy == 0.:  # likely / hopefully the first sample was valid
                             if ci != 0:
-                                logging.warning('For {} conformer 0 failed.'.format(name)) 
+                                logging.debug('For {} conformer 0 failed.'.format(name)) 
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             if self.species.natom > 1:
                                 # job fails if conformer freq array is empty

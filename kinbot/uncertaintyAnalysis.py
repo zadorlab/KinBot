@@ -95,7 +95,7 @@ class UQ:
                 vals.append(item[1])
                 uq_counter += 1
 
-        vals = np.array(vals)
+        vals = np.array(vals, dtype=object)
         vals = vals.transpose()
         with open('fuqtk.data', 'w') as f:
             for item in vals:

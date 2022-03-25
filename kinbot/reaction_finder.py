@@ -2126,7 +2126,7 @@ class ReactionFinder:
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Exocyclic_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + str(reac_list[i][-1] + 1)
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Retro_Ene':
@@ -2293,7 +2293,7 @@ class ReactionFinder:
                     mask[inst] = False
                     numbers = [ii + 1 for ii in instance]
                     logging.debug(f'{name} reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
-        return list(np.array(instances)[mask])
+        return list(np.array(instances, dtype=object)[mask])
 
 
     def new_reaction(self, rxns, name, a=None, b=None, c=None, d=None, e=None, length=None, full=False, cross=False):

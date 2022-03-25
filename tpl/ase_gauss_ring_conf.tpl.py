@@ -4,6 +4,7 @@ from ase.optimize import LBFGS
 from ase.constraints import FixInternals
 from ase.db import connect
 from kinbot import reader_gauss
+from kinbot.utils import iowait
 
 db = connect('{working_dir}/kinbot.db')
 label = '{label}'

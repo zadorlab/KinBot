@@ -63,9 +63,6 @@ class StationaryPoint:
         self.reac_ts_freq = []
         self.reac_scan_energy = []
 
-        # Instance of HomolyticScissions class
-        self.homolytic_scissions = None
-
         # Instance of HIR class
         self.hir = None
 

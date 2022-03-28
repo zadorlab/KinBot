@@ -79,9 +79,6 @@ def createSummaryFile(species, qc, par):
     2. the barrier height
     3. the reaction name
     4. the product identifiers
-    And for each homolytic scission
-    1. the energy height of the products
-    2. the product identifiers
     """
     # list of strings which will be put together for the output
     s = []
@@ -109,18 +106,6 @@ def createSummaryFile(species, qc, par):
                                                                     prod=prod_name))
         else:
             s.append('FAILED\t\t{name}'.format(name=species.reac_name[index]))
-    if species.homolytic_scissions is not None:
-        for index, hs in enumerate(species.homolytic_scissions.hss):
-            if hs.status == -1:
-                p1 = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
-                p2 = ' '.join(sorted([str(prod.species.chemid) for prod in hs.prod_opt]))
-                prod_name = ' '.join(sorted([str(prod.chemid) for prod in hs.products]))
-                if prod_name not in products:
-                    energy = 0
-                    for prod in hs.products:
-                        energy += prod.energy
-                    energy = (energy - species.energy) * constants.AUtoKCAL
-                    s.append('HOMOLYTIC_SCISSION\t{energy:.2f}\t{prod}'.format(energy=energy, prod=prod_name))
 
     # make a string out of all the lines
     s = '\n'.join(s)
@@ -195,25 +180,6 @@ def createPESViewerInput(species, qc, par):
                     bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
                     bimolec_names.append(name)
 
-    # add the bimolecular products form the homolytic scissions
-    if species.homolytic_scissions is not None:
-        for index, hs in enumerate(species.homolytic_scissions.hss):
-            if hs.status == -1:
-                name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-                if name not in bimolec_names:
-                    energy = 0. - well_energy
-                    for st_pt in hs.products:
-                        energy += st_pt.energy + st_pt.zpe
-                    energy = energy * constants.AUtoKCAL
-                    for i, st_pt in enumerate(hs.products):
-                        # make twice the same file but with adifferent name
-                        # TODO: is there no better way?
-                        # first for the pes viewer
-                        make_xyz(st_pt.atom, st_pt.geom, name + str(i + 1), dir_xyz)
-                        # second for the rmg postprocessing
-                        make_xyz(st_pt.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
-                    bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
-
     # list of the lines of the ts's
     tss = []
     # dict keeping track of the ts's
@@ -244,16 +210,6 @@ def createPESViewerInput(species, qc, par):
                                                                      react=species.chemid,
                                                                      prod=prod_name))
 
-    # list of the lines of the homolytic scissions
-    barrierless = []
-    if species.homolytic_scissions is not None:
-        for index, hs in enumerate(species.homolytic_scissions.hss):
-            if hs.status == -1:
-                prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-                if prod_name not in bimolec_names:
-                    barrierless.append('{name} {react} {prod}'.format(name='b_' + str(index),
-                                                                      react=species.chemid,
-                                                                      prod=prod_name))
     # make strings from the different lists
     wells = '\n'.join(wells)
     bimolecs = '\n'.join(bimolecs)

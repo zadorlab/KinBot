@@ -92,14 +92,12 @@ class QuantumChemistry:
                 if step == 0:
                     if not self.par['bimol']:
                         kwargs['opt'] = 'ModRedun,Loose,CalcFC'
-                        #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     else:
                         kwargs['opt'] = 'ModRedun,Loose,CalcFC'
                         kwargs['method'] = self.method
                         kwargs['basis'] = self.basis
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Loose,CalcFC'
-                    #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
                     if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'
@@ -327,7 +325,10 @@ class QuantumChemistry:
         else:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
             if self.qc == 'gauss':
-                kwargs['opt'] = 'CalcFC, Tight'
+                if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                    kwargs['opt'] = 'CalcFC, Tight'
+                else:
+                    kwargs['opt'] = 'CalcFC'
 
         del kwargs['chk']
         if semi_emp:
@@ -379,7 +380,10 @@ class QuantumChemistry:
         kwargs = self.get_qc_arguments(job, mult, species.charge, high_level=high_level)
 
         if self.qc == 'gauss':
-            kwargs['opt'] = 'CalcFC, Tight'
+            if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                kwargs['opt'] = 'CalcFC, Tight'
+            else:
+                kwargs['opt'] = 'CalcFC'
         if mp2:
             kwargs['method'] = self.scan_method
             kwargs['basis'] = self.scan_basis

@@ -89,7 +89,7 @@ znumber['I'] = 53
 
 # collision parameters
 # Jasper & Miller, C&F 161, 101-110 (2014)
-# data is expected in CHEMKING format, where
+# data is expected in CHEMKIN format, where
 # sigma is in Angstrom (no need to convert for MESS)
 # epsilon is in epsilon/kB (K), need to be converted to cm-1
 mass['He'] = 4.0

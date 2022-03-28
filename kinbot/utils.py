@@ -36,6 +36,7 @@ def iowait(logfile, qc_code):
     There is a maxtime.
     """
     maxtime = 10  # s
+    clock = 0
 
     if qc_code == 'gauss':
         endings = ['Normal termination', 'Error termination']

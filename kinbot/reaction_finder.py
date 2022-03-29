@@ -1533,13 +1533,15 @@ class ReactionFinder:
         """ 
         This is an RMG class.
 
-        R=R + R* <== R*-R-R
+        R=R + r* <== R*-R-r 
+                     0  1 2
 
-        N.B.: only the reverse direction is available. 
+        - only the reverse direction is available. 
+        - this is a scan class with 'mp2' level
+        - we are also allowing to form anticipated resonance stabilized species:
+            R=R-R-r ==> [R=R-R <--> R-R=R] + r 
         """
         
-        
-        if np.sum(rad) == 0: return
         
         name = 'R_Addition_MultipleBond'
         
@@ -1548,9 +1550,22 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
+        # simple beta scission for radicals
         motif = ['X', 'X', 'X']
         for rad_site in np.nonzero(rad)[0]:
             rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+
+        # anticipated resonance stabilized radical
+        motif = ['X', 'X', 'X', 'X']
+        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        bondpattern = [2, 'X', 'X', 'X']
+        for instance in instances:
+            if find_motif.bondfilter(instance, bond, bondpattern) == 0:
+                rxns += [instance[1:]]  # cutting off the first atom
+        bondpattern = [3, 'X', 'X', 'X']
+        for instance in instances:
+            if find_motif.bondfilter(instance, bond, bondpattern) == 0:
+                rxns += [instance[1:]]
     
         self.new_reaction(rxns, name, a=0, b=1, c=2)
 #            # filter for specific reaction after this

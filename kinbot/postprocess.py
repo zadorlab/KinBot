@@ -214,7 +214,7 @@ def createPESViewerInput(species, qc, par):
     wells = '\n'.join(wells)
     bimolecs = '\n'.join(bimolecs)
     tss = '\n'.join(tss)
-    barrierless = '\n'.join(barrierless)
+    barrierless = ''
 
     # write everything to a file
     fname = 'pesviewer.inp'

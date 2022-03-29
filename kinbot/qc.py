@@ -531,6 +531,12 @@ class QuantumChemistry:
             logging.error('Exiting')
             sys.exit()
 
+        if self.queuing == 'local':
+            logging.error(f'Output file for job {job} is missing. Unable to '
+                          'carry out calculattions when queuing is set to '
+                          'local.')
+            sys.exit()
+
         template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
         python_file = '{}.py'.format(job)
         name = job.split('/')[-1]
@@ -859,6 +865,8 @@ class QuantumChemistry:
                     if pid == self.job_ids.get(job, '-1'):
                         logging.debug('Job is running')
                         return 'running'
+        elif self.queuing == 'local':
+            pass
         else:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logging.error('Exiting')
@@ -868,7 +876,6 @@ class QuantumChemistry:
 
         if self.is_in_database(job):
             for i in range(1):
-
                 if self.qc == 'gauss':
                     log_file = job + '.log'
                 elif self.qc == 'nwchem':
@@ -925,6 +932,8 @@ class QuantumChemistry:
                 command = ['squeue', '-h', '-u', '{}'.format(self.username)]
             elif self.queuing == 'pbs':
                 command = ['qselect', '-u', '{}'.format(self.username)]
+            elif self.queuing == 'local':
+                command = command = ['echo', '']
             jobs = subprocess.check_output(command)
 
             if len(jobs.split(b'\n')) < self.queue_job_limit:

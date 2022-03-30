@@ -231,7 +231,6 @@ class QuantumChemistry:
                 'scf_algorithm': 'diis_gdm',
                 'max_scf_cycles': '100',
                 'geom_opt_max_cycles': '500',
-                # 'geom_opt_coord': '0',  # TODO test
                 'multiplicity': mult,
                 'charge': charge
 
@@ -466,7 +465,6 @@ class QuantumChemistry:
 
         self.submit_qc(job)
         return 0
-
 
     def qc_opt_ts(self, species, geom, high_level=0):
         """Creates a ts optimization input and runs it

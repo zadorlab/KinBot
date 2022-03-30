@@ -89,6 +89,7 @@ class ReactionGenerator:
                     obj.product_bonds[obj.instance[0]][obj.instance[1]] = 0  # delete bond
                     obj.product_bonds[obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     self.species.reac_ts_done[index] = 2
+
                 if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
                     if obj.scan == 0:  # don't do a scan of a bond
                         if self.species.reac_step[index] == obj.max_step + 1:
@@ -368,6 +369,7 @@ class ReactionGenerator:
                                     err = -1
                     if err == 0:
                         self.species.reac_ts_done[index] = 4
+
                 elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization
                     # make a stationary point object of the ts
@@ -451,6 +453,7 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:
                         self.species.reac_ts_done[index] = 6
+
                 elif self.species.reac_ts_done[index] == 6:
                     # Finilize the calculations
                     # continue to PES search in case a new well was found
@@ -512,6 +515,7 @@ class ReactionGenerator:
                         if os.path.exists('{}_im_extent.txt'.format(self.species.chemid)):
                             os.remove('{}_im_extent.txt'.format(self.species.chemid))
                         postprocess.createPESViewerInput(self.species, self.qc, self.par)
+
                 elif self.species.reac_ts_done[index] == -999:
                     if self.par['delete_intermediate_files'] == 1:
                         if not self.species.reac_obj[index].instance_name in deleted:

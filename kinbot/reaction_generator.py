@@ -1,5 +1,6 @@
-import numpy as np
 import os, sys
+import numpy as np
+import shutil
 import time
 import logging
 import copy
@@ -187,6 +188,8 @@ class ReactionGenerator:
                                 for row in reversed(list(rows)):
                                     row.data['status'] = 'error'
                                     break # only write error to the last calculation
+                                # this is copied here so that a non-AM1 file is in place
+                                shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
                                 self.species.reac_ts_done[index] = -999
 
                 elif self.species.reac_ts_done[index] == 1:
@@ -492,10 +495,10 @@ class ReactionGenerator:
                     neg_freq = 0
                     for st_pt in obj.products:
                         if len(st_pt.reduced_freqs):
-                            if st_pt.reduced_freqs[0] <= 0. and st_pt.reduced_freqs[0] >= -20.:
+                            if st_pt.reduced_freqs[0] <= 0. and st_pt.reduced_freqs[0] >= -50.:
                                 logging.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}. Flipped.')
                                 st_pt.reduced_freqs[0] *= -1.
-                            elif st_pt.reduced_freqs[0] <-20.:
+                            elif st_pt.reduced_freqs[0] <-50.:
                                 logging.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}.')
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1

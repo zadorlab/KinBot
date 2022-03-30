@@ -76,6 +76,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     if rxn.qc.qc == 'gauss':
         kwargs['addsec'] = ''
         if not bimol or step == 0:
+            # here addsec contains the constraints
             for fixi in fix:
                 kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
             for chi in change:
@@ -119,11 +120,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         elif bimol and step == 1:
             raise NotImplementedError('Bimolecular reactions are not yet implemented'
                                       ' in QChem')
-    if not bimol:
-        ntrial = 3
-    else:
-        ntrial = 1
-
+    # if not bimol:
+    #     ntrial = 3
+    # else:
+    #     ntrial = 1
 
     if step < rxn.max_step:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
@@ -139,8 +139,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    scan=rxn.scan,
-                                   ntrial=ntrial,
                                    )
+                                   #ntrial=ntrial,
     else:
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
         template = open(template_file, 'r').read()

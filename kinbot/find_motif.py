@@ -95,15 +95,22 @@ def find_motif(motif, visit, chain, nsteps, current,
     return 0
 
 
-def bondfilter(motif, bond, bondpattern):
+def bondfilter(motif, bond, bondpattern, atleast=False):
     """
     For a given linear sequence of atoms it tests whether
     the bond orders match pattern bondpattern.
     E.g., bondpattern can be 1, 1, 2, 1 for a 5-long motif.
+    X means any bond pattern is accepted
+    atleast: the bond multiplicity is at least as in bondpattern
+    E.g., the above can be 2, 1, 3, 1 as well and will be accepted
     """
     for atomi in range(len(motif)-1):
         if bondpattern[atomi] == 'X':
             continue
-        if bond[motif[atomi]][motif[atomi+1]] != bondpattern[atomi]:
-            return -1
+        if not atleast:
+            if bond[motif[atomi]][motif[atomi+1]] != bondpattern[atomi]:
+                return -1
+        else:
+            if bond[motif[atomi]][motif[atomi+1]] < bondpattern[atomi]:
+                return -1
     return 0

@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import re
 import time
+from datetime import datetime
 import copy
 import pkg_resources
 from shutil import copyfile
@@ -91,13 +92,15 @@ class QuantumChemistry:
 
                 if step == 0:
                     if not self.par['bimol']:
-                        kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
+                        kwargs['opt'] = 'ModRedun,Loose,CalcFC'
+                        #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     else:
                         kwargs['opt'] = 'ModRedun,Loose,CalcFC'
                         kwargs['method'] = self.method
                         kwargs['basis'] = self.basis
                 elif step < max_step:
-                    kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
+                    kwargs['opt'] = 'ModRedun,Loose,CalcFC'
+                    #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
                     if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
                         kwargs['guess'] = 'Read,Mix'
@@ -231,7 +234,6 @@ class QuantumChemistry:
                 'scf_algorithm': 'diis_gdm',
                 'max_scf_cycles': '100',
                 'geom_opt_max_cycles': '500',
-                # 'geom_opt_coord': '0',  # TODO test
                 'multiplicity': mult,
                 'charge': charge
 
@@ -321,7 +323,7 @@ class QuantumChemistry:
         """
         Creates a constrained geometry optimization input for the
         conformational search of cyclic structures and runs it.
-        Make use of the ASE optimizer PCOBFGS
+        Make use of the ASE optimizer LBFGS
 
         qc: 'gauss' or 'nwchem' or 'qchem'
         scan: list of dihedrals to be scanned and their values
@@ -467,7 +469,6 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-
     def qc_opt_ts(self, species, geom, high_level=0):
         """Creates a ts optimization input and runs it
         """
@@ -575,7 +576,8 @@ class QuantumChemistry:
             sys.exit()
         self.job_ids[job] = pid
 
-        logging.debug(f'SUBMITTED {job}')
+        now = datetime.now()
+        logging.debug(f'SUBMITTED {job} on {now.ctime()}')
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
     def get_qc_geom(self, job, natom, wait=0, allow_error=0, previous=0):
@@ -893,7 +895,7 @@ class QuantumChemistry:
                                 logging.debug(f'Log file {log_file} is present, but has no "done" stamp.')
                                 return 0
                         except IndexError:
-                            logging.warning(f'Log file {log_file} is present, but it is empty.')
+                            logging.debug(f'Log file {log_file} is present, but it is empty.')
                             pass
                     logging.debug('Log file is present after {} iterations'.format(i))
                     # by deleting a log file, you allow restarting a job
@@ -953,4 +955,3 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         return atom, geom, dummy
-

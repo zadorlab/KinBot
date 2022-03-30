@@ -114,6 +114,7 @@ def main():
                 ll = cc.split('.')[0] + '.log'
                 try:
                     os.remove(ll)
+                    logging.info(f'Stuck AM1 job {ll} is deleted.')
                 except FileNotFoundError:
                     pass
 
@@ -136,6 +137,7 @@ def main():
             try:
                 if os.path.getsize(ll) < 10:
                     os.remove(ll)
+                    logging.info(f'Empty file {ll} is deleted.')
             except FileNotFoundError:
                 pass
 

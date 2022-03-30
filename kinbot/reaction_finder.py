@@ -870,8 +870,8 @@ class ReactionFinder:
         """ 
         This is an RMG class.
 
-                                    H
-                                    | 
+                                    H -1
+                          1       2 | 
         H-R~~~~~~~R=R <== R~~~~~~~R-R
                           |_______|
 
@@ -899,8 +899,7 @@ class ReactionFinder:
                 if bond[instance[0]][instance[-3]] > 0:
                     rxns += [instance[-4:]]
 
-
-        self.new_reaction(rxns, name, a=0, b=-1)
+        self.new_reaction(rxns, name, a=0, b=1, c=-1)
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[-1], inst[-2]}), frozenset({inst[-3], inst[0]})} or self.prod_bonds != {frozenset({inst[-1], inst[0]})}:
@@ -1376,12 +1375,17 @@ class ReactionFinder:
     def search_Intra_Diels_alder_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
-        TODO it seems like this is the forward reaction, but the naming is confusing.
+        The reaction is a lot more general now, simply requires multiple bonds that can add to each other.
+        No middle double bond is required.
+        If there is a middle double bond, there will be a just a rearrangement of bonds.
+        If there is no middle double bond, that bond will break up.
+        At the moment the family is only meaningful for 6-mem rings, 
+        behavior for other ring sizes is unknown. Although this is the DA reaction.
 
                              C
                             / \\
-                           C   C
-        C=C-C=C~~~C=C <==  |   |
+        1 2 3 4  -2-1      C   C
+        C=C-C=C~~~C=C ==>  |   |
                            C   C
                             \ //
                               C
@@ -1396,28 +1400,27 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         for ringsize in self.ringrange:  # TODO what is the meaning of these larger rings?
-            motif = ['X' for i in range(ringsize + 4)]
+            motif = ['X' for i in range(ringsize)]
             instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
 
-            bondpattern = ['X' for i in range(ringsize + 3)]
+            bondpattern = ['X' for i in range(ringsize - 1)]
             bondpattern[0] = 2
-            bondpattern[2] = 2
+            #bondpattern[2] = 2  # by removing this, this family becomes a lot more general
             bondpattern[-1] = 2
 
             for instance in instances:
-                if find_motif.bondfilter(instance, bond, bondpattern) == 0:
+                if find_motif.bondfilter(instance, bond, bondpattern, atleast=True) == 0:
                     #inst = instance[:4] + instance[-2:]
                     rxns += [instance] 
      
 
-        self.new_reaction(rxns, name, a=0, b=-1)
+        self.new_reaction(rxns, name, a=0, b=-1, cross=True)
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset()} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
 #                    new = 0
                 
         return 0
-
 
 
     def search_ketoenol(self, natom, atom, bond, rad):
@@ -2123,7 +2126,7 @@ class ReactionFinder:
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Exocyclic_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Retro_Ene':
@@ -2280,6 +2283,10 @@ class ReactionFinder:
 
         cutoff = 3.  # Angstrom
         mask = [True] * len(instances)
+        try:
+            self.species.maxbond
+        except AttributeError:
+            self.species.calc_maxbond()
         for inst, instance in enumerate(instances):
             if all(self.species.maxbond[instance[ii]][instance[ii + 1]] > 1 for ii in range(len(instance) - 2)):
                 if np.linalg.norm(self.species.geom[instance[pivot1]] - self.species.geom[instance[pivot2]]) > cutoff:

@@ -10,8 +10,9 @@ from kinbot import symmetry
 from kinbot.conformers import Conformers
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
-from kinbot import reader_gauss
+from kinbot import reader_gauss, reader_qchem
 from kinbot.stationary_pt import StationaryPoint
+from kinbot import constants
 
 class Optimize:
     """
@@ -205,9 +206,13 @@ class Optimize:
                                             fr_file = 'conf/{}_low'.format(self.fr_file_name(0))
                                     if self.qc.qc == 'gauss':
                                         imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+                                    elif self.qc.qc == 'qchem':
+                                        imagmode = reader_qchem.read_imag_mode(fr_file, self.species.natom)
                                     fr_file = self.fr_file_name(1)
                                     if self.qc.qc == 'gauss':
                                         imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+                                    elif self.qc.qc == 'qchem':
+                                        imagmode_high = reader_qchem.read_imag_mode(fr_file, self.species.natom)
                                     # either geom is roughly same with closely matching imaginary modes, or geometry is very close
                                     # maybe we need to do IRC at the high level as well...
                                     same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
@@ -234,7 +239,7 @@ class Optimize:
                                     # geometry is as expected and normal modes are the same for TS
                                     err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
                                     err, self.species.energy = self.qc.get_qc_energy(self.job_high)
-                                    err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
+                                    err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)   # TODO use fr variable
                                     err, self.species.zpe = self.qc.get_qc_zpe(self.job_high)
                                     self.shigh = 1
                                 else:

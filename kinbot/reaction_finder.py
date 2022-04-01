@@ -558,48 +558,6 @@ class ReactionFinder:
         return 0
 
 
-    def search_Intra_RH_Add_Endocyclic_F(self, natom, atom, bond, rad):
-        """ 
-        This is an RMG class.
-
-                                  H
-                                  | 
-        H-R~~~~~~~R=R ==> R~~~~~~~R-R
-                          |         |
-                           ---------
-        This is for the forward direction.
-        """
-        
-        if np.sum(rad) != 0: return
-        if len(self.species.cycle_chain) > 0: return
-        
-        name = 'Intra_RH_Add_Endocyclic_F'
-        
-        if not name in self.reactions:
-            self.reactions[name] = []
-
-        rxns = [] #reactions found with the current resonance isomer
-
-        for ringsize in range(5, 9):
-            motif = ['X' for i in range(ringsize + 1)]
-            motif[-1] = 'H'
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-
-            bondpattern = ['X' for i in range(ringsize)]
-            bondpattern[0] = 2
-            for instance in instances:
-                if find_motif.bondfilter(instance, bond, bondpattern) == 0:
-                    rxns += [instance] 
-            
-        self.new_reaction(rxns, name, a=0, b=-2, length=True)
-#            # filter for specific reaction after this
-#            if self.one_reaction_fam and new:
-#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})}:
-#                    new = 0
-                
-        return 0
-
-
     def search_Intra_RH_Add_Endocyclic_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
@@ -1537,7 +1495,7 @@ class ReactionFinder:
                      0  1 2
 
         - only the reverse direction is available. 
-        - this is a scan class with 'mp2' level
+        - this is not a scan class
         - we are also allowing to form anticipated resonance stabilized species:
             R=R-R-r ==> [R=R-R <--> R-R=R] + r 
         """

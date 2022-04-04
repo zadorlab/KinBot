@@ -470,7 +470,7 @@ class Conformers:
                         totenergies.append(0.)
                         final_geoms.append(np.zeros((self.species.natom, 3)))
 
-                #self.write_profile(status, final_geoms, energies)
+                self.write_profile(status, final_geoms, totenergies)
                
                 try:
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))

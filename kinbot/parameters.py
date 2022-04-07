@@ -277,11 +277,8 @@ class Parameters:
             # factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original frequency
             'freq_uq': 1.2,
             # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1.
-            # factor of 1.2 corresponds to values ranging from 0.909 to 1.1 times the original frequency
+            # factor of 1.1 corresponds to values ranging from 0.909 to 1.1 times the original frequency
             'imagfreq_uq': 1.1,
-
-            # for development
-            'test': 0,
         }
 
         if self.input_file is not None:

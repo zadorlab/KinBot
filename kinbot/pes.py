@@ -921,7 +921,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
 
     i = 0  # uncertainty counter
-    logging.info('{0} {1} {2}'.format("uq value: ", par['uq'], "\n"))
+    logging.info(f"uq value: {par['uq']}")
     well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
                                                                                products,
                                                                                reactions,
@@ -1382,7 +1382,7 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
         energy *= constants.EVtoHARTREE
     except UnboundLocalError:
         # this happens when the job is not found in the database
-        logging.error('Could not find {} in directory {}'.format(job, dir))
+        logging.error('Could not find {} in directory {} database.'.format(job, directory))
         logging.error('Exiting...')
         sys.exit(-1)
     return energy

@@ -481,9 +481,9 @@ class Conformers:
                     mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
                     self.db.write(mol, name='conf/{}_low'.format(name), 
                              data={'energy': row_last.data.get('energy'),
-                             'frequencies':row_last.data.get('frequencies'), 
-                             'zpe':row_last.data.get('zpe'), 
-                             'status':row_last.data.get('status')})
+                             'frequencies': row_last.data.get('frequencies'),
+                             'zpe': row_last.data.get('zpe'),
+                             'status': row_last.data.get('status')})
                 except UnboundLocalError:
                     pass
                 

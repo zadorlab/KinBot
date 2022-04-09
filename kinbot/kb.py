@@ -9,7 +9,6 @@ import sys
 import os
 import logging
 import datetime
-import numpy as np
 
 from kinbot import license_message
 from kinbot import postprocess
@@ -174,10 +173,10 @@ def main():
                 'r12_cycloaddition' in par['families'] or \
                 'r14_birad_scission' in par['families'] or \
                 'R_Addition_MultipleBond' in par['families'] or \
-                (par['skip_families'] != ['none'] and \
-                ('birad_recombination_R' not in par['skip_families'] or \
-                'r12_cycloaddition' not in par['skip_families'] or \
-                'r14_birad_scission' not in par['skip_families'] or \
+                (par['skip_families'] != ['none'] and
+                ('birad_recombination_R' not in par['skip_families'] or
+                'r12_cycloaddition' not in par['skip_families'] or
+                'r14_birad_scission' not in par['skip_families'] or
                 'R_Addition_MultipleBond' not in par['skip_families'])) or \
                 par['reaction_search'] == 0:
             logging.debug('Starting MP2 optimization of initial well...')
@@ -204,7 +203,7 @@ def main():
             logging.error('Error with high level optimization of initial structure.')
             return
 
-        #if par['pes']:
+        # if par['pes']:
         #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
@@ -224,7 +223,6 @@ def main():
         fragments = {'frag_a': None, 'frag_b': None} 
         # initialize the reacting fragments
         charge = 0
-        structure = []
         for ii, frag in enumerate(fragments):
             fragments[frag] = StationaryPoint(frag,
                                               par['charge'][ii],
@@ -299,7 +297,7 @@ def main():
         for frag in fragments.values():
             well0.energy += frag.energy
             well0.zpe += frag.zpe
-        #if par['pes']:
+        # if par['pes']:
         #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:

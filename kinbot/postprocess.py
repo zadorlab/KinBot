@@ -195,7 +195,7 @@ def createPESViewerInput(species, qc, par):
                     bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
                     bimolec_names.append(name)
 
-    # add the bimolecular products form the homolytic scissions
+    # add the bimolecular products from the homolytic scissions
     if species.homolytic_scissions is not None:
         for index, hs in enumerate(species.homolytic_scissions.hss):
             if hs.status == -1:

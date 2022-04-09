@@ -419,18 +419,24 @@ class ReactionGenerator:
                         if new:
                             prod_opt = Optimize(st_pt, self.par, self.qc)
                             prod_opt.do_optimization()
+                            if prod_opt.shigh == -999: 
+                                logging.info('\tRxn search failed for {}, prod_opt shigh fail for {}.'
+                                             .format(obj.instance_name, prod_opt.species.chemid))
+                                self.species.reac_ts_done[index] = -999
+                                break  # breaks so that other species is not looked at
                         obj.prod_opt.append(prod_opt)
 
-                    for st_pt in obj.products:
-                        # section where comparing products in same reaction occurs
-                        if len(obj.prod_opt) > 0:
-                            for j, st_pt_opt in enumerate(obj.prod_opt):
-                                if st_pt.chemid == st_pt_opt.species.chemid:
-                                    if len(obj.prod_opt) > j:
-                                        prod_opt = obj.prod_opt[j]
-                                        break
+                    if self.species.reac_ts_done[index] != -999:  # so we don't reset faulty calculation
+                        for st_pt in obj.products:
+                            # section where comparing products in same reaction occurs
+                            if len(obj.prod_opt) > 0:
+                                for j, st_pt_opt in enumerate(obj.prod_opt):
+                                    if st_pt.chemid == st_pt_opt.species.chemid:
+                                        if len(obj.prod_opt) > j:
+                                            prod_opt = obj.prod_opt[j]
+                                            break
 
-                    self.species.reac_ts_done[index] = 5
+                        self.species.reac_ts_done[index] = 5
 
                 elif self.species.reac_ts_done[index] == 5:
                     # check up on the TS and product optimizations
@@ -448,6 +454,7 @@ class ReactionGenerator:
                         if not pr_opt.shir == 1:
                             opts_done = 0
                             pr_opt.do_optimization()
+                            print(pr_opt.species.chemid, pr_opt.shigh)
                         if pr_opt.shigh == -999:
                             logging.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
                             fails = 1

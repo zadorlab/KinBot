@@ -1,7 +1,5 @@
 import os
 import numpy as np
-import copy
-import time
 import pkg_resources
 from kinbot import modify_geom
 from kinbot import geometry

@@ -78,7 +78,7 @@ class QuantumChemistry:
                 'mem': '700MW',
                 'chk': job,
                 'label': job,
-                'NoSymm': 'NoSymm',
+                'Symm': 'None',
                 'mult': mult,
                 'charge': charge,
                 'scf': 'xqc'

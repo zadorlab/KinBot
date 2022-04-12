@@ -31,7 +31,7 @@ class UQ:
                 
             else:
                 factor = 0
-                normfactor = factor /self.wellUQ
+                normfactor = factor / self.wellUQ
         
             self.write_uqtk_header(species, propertyType)
             self.write_uqtk_data(propertyType, normfactor, species, uq_iter)
@@ -53,6 +53,22 @@ class UQ:
             elif propertyType == 'barrier':
                 factor = random.uniform(-self.barUQ, self.barUQ)
                 normfactor = factor / self.barUQ
+
+            elif propertyType == 'epsilon':
+                factor = random.uniform(-self.epsilonUQ, self.epsilonUQ)
+                normfactor = factor / self.epsilonUQ
+
+            elif propertyType == 'sigma':
+                factor = random.uniform(-self.sigmaUQ, self.sigmaUQ)
+                normfactor = factor / self.sigmaUQ
+
+            elif propertyType == 'dedown':
+                factor = random.uniform(-self.dedownUQ, self.dedownUQ)
+                normfactor = factor / self.dedownUQ
+
+            elif propertyType == 'dedownexp':
+                factor = random.uniform(-self.dedownexpUQ, self.dedownexpUQ)
+                normfactor = factor / self.dedownexpUQ
 
             self.write_uqtk_header(species, propertyType)
             self.write_uqtk_data(propertyType, normfactor, species, uq_iter)

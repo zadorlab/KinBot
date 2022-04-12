@@ -91,10 +91,10 @@ class MESS:
                                        EnergyRelaxationFactor=self.par['EnergyRelaxationFactor'],
                                        EnergyRelaxationPower=self.par['EnergyRelaxationPower'],
                                        EnergyRelaxationExponentCutoff=self.par['EnergyRelaxationExponentCutoff'],
-                                       e_coll=constants.epsilon[self.par['collider']],
+                                       e_coll=round(constants.epsilon[self.par['collider']], 2),
                                        s_coll=constants.sigma[self.par['collider']],
                                        m_coll=constants.mass[self.par['collider']],
-                                       e_well=self.par['epsilon'],
+                                       e_well=round(self.par['epsilon']),
                                        s_well=self.par['sigma'],
                                        m_well=self.species.mass,
                                        )
@@ -727,6 +727,12 @@ class MESS:
         return geom[:-1]
 
     def make_freq(self, species, factor, wellorts):
+        """
+        Frequencies are scaled with factor in UQ.
+        At 100 cm-1 the scaling is applied as is.
+        For lower frequencies the scaling is amplified.
+        For higher frequencies the scaling is dampened.
+        """
         freq = '        '
         #wellorts: 0 for wells and 1 for saddle points
         if wellorts == 0:
@@ -734,7 +740,10 @@ class MESS:
         else:
             frequencies = species.reduced_freqs[1:]
         for i, fr in enumerate(frequencies):
-            fr = fr * factor
+            if factor >= 1:
+                fr = (1 / fr * (factor - 1 ) * 100 + 1)
+            else:
+                fr = 1 / ( 1 / fr * (1 - factor) * 100 + 1)
             freq += '{:.1f} '.format(fr)
             if i % 3 == 2:
                 freq += '\n        '
@@ -744,16 +753,16 @@ class MESS:
         rotortype = 'hindered'
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
-        rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
-        maxen = max(rotorpot)
+        rotorpot_num = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
+        maxen = max(rotorpot_num)
         # solution for 6-fold symmetry, not general enough
         if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
             fit_angle = 15. * 2. * np.pi / 360. 
             fit_energy = species.hir.get_fit_value(fit_angle)  # kcal/mol
-            rotorpot.insert(1, fit_energy)
-            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm + 1]])
+            rotorpot_num.insert(1, fit_energy)
+            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm + 1]])
         else:
-            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
+            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm]])
         rotorpot = '        {}'.format(rotorpot)
         if maxen < self.par['free_rotor_thrs']:
             rotortype = 'free'

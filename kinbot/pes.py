@@ -1454,6 +1454,7 @@ def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):
 
 
 def check_status(job, pid):
+    # note: the -N doesn't work on Mac, so PES cannot run properly
     command = ['ps', '-u', 'root', '-N', '-o', 'pid,s,user,%cpu,%mem,etime,args']
     process = subprocess.Popen(command,
                                shell=False,

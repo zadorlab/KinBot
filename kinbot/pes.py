@@ -201,7 +201,7 @@ def main():
         except ValueError:
             pass
 
-    postprocess(par, jobs, task, names)
+    postprocess(par, jobs, task, names, well0.mass)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission
     # read in the molpro energies for the keys in the above three dicts
@@ -245,7 +245,7 @@ def get_wells(job):
             f.write('\n'.join(new_wells) + '\n')
     
 
-def postprocess(par, jobs, task, names):
+def postprocess(par, jobs, task, names, mass):
 
     """
     postprocess a pes search
@@ -543,7 +543,8 @@ def postprocess(par, jobs, task, names):
                           barrierless,
                           well_energies,
                           prod_energies,
-                          parent)
+                          parent,
+                          mass)
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -911,7 +912,7 @@ def create_short_names(wells, products, reactions, barrierless):
 
 
 def create_mess_input(par, wells, products, reactions, barrierless,
-                      well_energies, prod_energies, parent):
+                      well_energies, prod_energies, parent, mass):
     """
     When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
@@ -931,12 +932,12 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     s = []
 
     # create mess0 label for mess header
-    well0 = StationaryPoint('well0',
-                            par['charge'],
-                            par['mult'],
-                            smiles=par['smiles'],
-                            structure=par['structure'])
-    well0.characterize()
+    #well0 = StationaryPoint('well0',
+    #                        par['charge'],
+    #                        par['mult'],
+    #                        smiles=par['smiles'],
+    #                        structure=par['structure'])
+    #well0.characterize()
 
     """
     Create the header block for MESS
@@ -956,19 +957,19 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         EnergyRelaxationFactor=par['EnergyRelaxationFactor'],
                         EnergyRelaxationPower=par['EnergyRelaxationPower'],
                         EnergyRelaxationExponentCutoff=par['EnergyRelaxationExponentCutoff'],
-                        e_coll=constants.epsilon[par['collider']],
+                        e_coll=round(constants.epsilon[par['collider']], 2),
                         s_coll=constants.sigma[par['collider']],
                         m_coll=constants.mass[par['collider']],
-                        e_well=par['epsilon'],
+                        e_well=round(par['epsilon'], 2),
                         s_well=par['sigma'],
-                        m_well=well0.mass,
+                        m_well=mass,
                         )
 
     frame = '######################\n' 
     divider = '!****************************************\n'
+
     if par['uq'] == 0:
-        # list of the strings to write to mess input file
-        s = []
+        s = []  # sting of entire mess input
         # write the header
 
         # create dummy for mess object
@@ -982,13 +983,13 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         mess = MESS(par, dummy)
 
         # write the wells
-        s.append(frame +'# WELLS\n' + frame)
+        s.append(frame + '# WELLS\n' + frame)
         for well in wells:
             name = well_short[well] + ' ! ' + well
             energy = well_energies[well]
             fi = parent[well] + '/' + well + '_0000.mess'
             with open(fi, 'r') as f:
-                s.append(f.read().format(name=name, zeroenergy=energy))
+                s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
             s.append(divider)
 
         slen = len(s)
@@ -1007,7 +1008,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 fr_names[key] = value
             with open(parent[prod] + '/' + prod + '_0000.mess') as f:
                 s.append(f.read().format(name=name,
-                                         ground_energy=energy,
+                                         ground_energy=round(energy, 2),
                                          **fr_names))
             s.append(divider)
 
@@ -1029,9 +1030,9 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 with open(rxn[0] + "/" + rxn[1] + "_0000.mess") as f:
                     if 'barrierless_saddle' in rxn[1]:
                         prodzeroenergy = prod_energies['_'.join(rxn[2])]
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy, prodzeroenergy=prodzeroenergy))
+                        s.append(f.read().format(name=' '.join(name), zeroenergy=round(energy, 2), prodzeroenergy=prodzeroenergy))
                     else:
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
+                        s.append(f.read().format(name=' '.join(name), zeroenergy=round(energy ,2)))
                 s.append(divider)
             except:
                 logging.warning('File {}/{}_0000.mess not found.\n'.format(rxn[0], rxn[1]))
@@ -1076,7 +1077,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 name = well_short[well] + ' ! ' + well
                 energy = well_energies[well]
                 uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter)
-                energy = energy + uq_energyAdd
+                energy += uq_energyAdd
                 mess_iter = "{0:04d}".format(uq_iter)
                 with open(parent[well] + '/' + well + '_' + str(mess_iter) + '.mess') as f:
                     s.append(f.read().format(name=name, zeroenergy=energy))
@@ -1093,7 +1094,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 name = pr_short[prod] + ' ! ' + prod
                 energy = prod_energies[prod]
                 uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter)
-                energy = energy + uq_energyAdd
+                energy += uq_energyAdd
                 fr_names = {}
                 for fr in prod.split('_'):
                     key = 'fr_name_{}'.format(fr)
@@ -1102,7 +1103,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 mess_iter = "{0:04d}".format(uq_iter)
                 with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
                     s.append(f.read().format(name=name,
-                                             ground_energy=energy,
+                                             ground_energy=round(energy, 2),
                                              **fr_names))
                 s.append('!****************************************')
 
@@ -1121,11 +1122,11 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 name.append(rxn[1])
                 energy = rxn[3]
                 uq_energyAdd = uq_obj.calc_factor('barrier', ts_short[rxn[1]], uq_iter)
-                energy = energy + uq_energyAdd
+                energy += uq_energyAdd
                 mess_iter = "{0:04d}".format(uq_iter)
                 try:
                     with open(rxn[0] + '/' + rxn[1] + '_' + str(mess_iter) + '.mess') as f:
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
+                        s.append(f.read().format(name=' '.join(name), zeroenergy=round(energy, 2)))
                     s.append('!****************************************')
                 except:
                     logging.warning('{}/{} not found.\n'.format(rxn[0], rxn[1]))

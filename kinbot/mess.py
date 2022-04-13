@@ -388,13 +388,13 @@ class MESS:
                                                          symm=float(species.sigma_ext) / float(species.nopt),
                                                          nfreq=len(species.reduced_freqs),
                                                          freq=self.make_freq(species, freq_factor, 0),
-                                                         hinderedrotor=self.make_rotors(species),
+                                                         hinderedrotor=self.make_rotors(species, freq_factor),
                                                          nelec=1,
                                                          mult=species.mult)
                 if bless == 1:
                     tot_nfreq += len(species.reduced_freqs)
                     combined_freq += self.make_freq(species, freq_factor, 0)
-                    combined_hir += self.make_rotors(species)
+                    combined_hir += self.make_rotors(species, freq_factor)
 
                     if nsp == 0: 
                         combined_mult = species.mult
@@ -508,7 +508,7 @@ class MESS:
                                         symm=float(species.sigma_ext) / float(species.nopt),
                                         nfreq=len(species.reduced_freqs),
                                         freq=self.make_freq(species, freq_factor, 0),
-                                        hinderedrotor=self.make_rotors(species),
+                                        hinderedrotor=self.make_rotors(species, freq_factor),
                                         nelec=1,
                                         mult=species.mult,
                                         zeroenergy=zeroenergy)
@@ -567,8 +567,8 @@ class MESS:
         if self.species.reac_type[index] == 'barrierless_saddle':
             freq = self.make_freq(reaction.prod_opt[0].species, freq_factor, 0) + \
                    self.make_freq(reaction.prod_opt[1].species, freq_factor, 0) 
-            rotors = self.make_rotors(reaction.prod_opt[0].species) + \
-                     self.make_rotors(reaction.prod_opt[1].species) 
+            rotors = self.make_rotors(reaction.prod_opt[0].species, freq_factor) + \
+                     self.make_rotors(reaction.prod_opt[1].species, freq_factor) 
             nfreq = len(reaction.prod_opt[0].species.reduced_freqs) + \
                     len(reaction.prod_opt[1].species.reduced_freqs)
             if self.par['pes']:
@@ -599,7 +599,7 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=self.make_freq(reaction.ts, freq_factor, 1),
-                                       rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
+                                       rotors=self.make_rotors(reaction.ts, freq_factor, norot=self.ts_names[reaction.instance_name]),
                                        tunneling='',
                                        nelec=1,
                                        mult=reaction.ts.mult,
@@ -619,7 +619,7 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=self.make_freq(reaction.ts, freq_factor, 1),
-                                       rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
+                                       rotors=self.make_rotors(reaction.ts, freq_factor, norot=self.ts_names[reaction.instance_name]),
                                        tunneling=tun,
                                        nelec=1,
                                        mult=reaction.ts.mult,
@@ -752,7 +752,7 @@ class MESS:
                 freq += '\n        '
         return(freq[:-1])
 
-    def make_rotorpot(self, species, i, rot):
+    def make_rotorpot(self, species, i, rot, freq_factor):
         rotortype = 'hindered'
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
@@ -763,8 +763,10 @@ class MESS:
             fit_angle = 15. * 2. * np.pi / 360. 
             fit_energy = species.hir.get_fit_value(fit_angle)  # kcal/mol
             rotorpot_num.insert(1, fit_energy)
+            rotorpot_num = [freq_factor * rpn for rpn in rotorpot_num]
             rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm + 1]])
         else:
+            rotorpot_num = [freq_factor * rpn for rpn in rotorpot_num]
             rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm]])
         rotorpot = '        {}'.format(rotorpot)
         if maxen < self.par['free_rotor_thrs']:
@@ -781,14 +783,14 @@ class MESS:
         else:
             return species.hir.nrotation // rotorsymm + 1
 
-    def make_rotors(self, species, norot=None):
+    def make_rotors(self, species, freq_factor, norot=None):
         rotors = []
         if self.par['rotor_scan']:
             for i, rot in enumerate(species.dihed):
                 if norot is not None:
                     if frequencies.skip_rotor(norot, rot) == 1:
                         continue
-                rotorpot, rotortype = self.make_rotorpot(species, i, rot)
+                rotorpot, rotortype = self.make_rotorpot(species, i, rot, freq_factor)
                 if rotortype == 'hindered':
                     rotors.append(self.hinderedrotortpl.format(group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
                                                                axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),

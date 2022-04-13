@@ -279,6 +279,12 @@ class Parameters:
             # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1.
             # factor of 1.1 corresponds to values ranging from 0.909 to 1.1 times the original frequency
             'imagfreq_uq': 1.1,
+            # LJ parameters
+            'epsilon_uq': 1.2,
+            'sigma_uq': 1.2,
+            # Collisional parameters
+            'enrelfact_uq': 1.2,
+            'enrelpow_uq': 1.2,
         }
 
         if self.input_file is not None:

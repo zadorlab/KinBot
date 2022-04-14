@@ -12,6 +12,7 @@ from ase import Atoms
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
+from kinbot import constants
 
 class Conformers:
     """
@@ -410,10 +411,10 @@ class Conformers:
                 lowest_e_geom = self.species.geom
                 final_geoms = []  # list of all final conformer geometries
                 totenergies = []
+                frequencies = []
 
                 for ci in range(self.conf):
-                    si = status[ci]
-                    if si == 0:  # this is a valid confomer
+                    if status[ci] == 0:  # this is a valid confomer
                         add = ''
                         if self.semi_emp:
                             add = 'semi_emp_'
@@ -421,8 +422,13 @@ class Conformers:
                         err, energy = self.qc.get_qc_energy(job)
                         err, zpe = self.qc.get_qc_zpe(job)
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
+                        err, freq = self.qc.get_qc_freq(job, self.species.natom)
                         final_geoms.append(geom)
                         totenergies.append(energy + zpe)
+                        if freq != []:
+                            frequencies.append(freq)
+                        else:
+                            frequencies.append(None)
                         if lowest_totenergy == 0.:  # likely / hopefully the first sample was valid
                             if ci != 0:
                                 logging.debug('For {} conformer 0 failed.'.format(name)) 
@@ -466,9 +472,17 @@ class Conformers:
                                 lowest_conf = str(ci).zfill(self.zf)
                                 lowest_totenergy = energy + zpe
                                 lowest_e_geom = geom
+                        if err == -1:
+                            status[ci] = 1  # make it invalid
                     else:
                         totenergies.append(0.)
                         final_geoms.append(np.zeros((self.species.natom, 3)))
+                        if self.species.natom == 1:
+                            frequencies.append(None)
+                        elif:
+                            frequencies.append(np.zeros(self.species.natom * 3 - 5)) 
+                        else:
+                            frequencies.append(np.zeros(self.species.natom * 3 - 6))
 
                 self.write_profile(status, final_geoms, totenergies)
                
@@ -487,13 +501,15 @@ class Conformers:
                 except UnboundLocalError:
                     pass
                 
-                return 1, lowest_conf, lowest_e_geom, lowest_totenergy, final_geoms, totenergies 
+                return 1, lowest_conf, lowest_e_geom, lowest_totenergy, 
+                       final_geoms, totenergies, frequencies, status
 
             else:
                 if wait:
                     time.sleep(1)
                 else:
-                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy, np.zeros((self.species.natom, 3)), np.zeros(1)
+                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy, 
+                           np.zeros((self.species.natom, 3)), np.zeros(1), np.zeros(1), np.zeros(1)
 
     def lowest_conf_info(self):
         """
@@ -508,6 +524,41 @@ class Conformers:
         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                 
         return geom, energy + zpe 
+
+    def find_unique(conformers, energies, frequencies, valid):
+        """
+        Given a set of conformers, finds the set of unique ones.
+        Algorithm:
+        If valid:
+            If energy is close to test energy:
+                If moments of inertia are close to test moi:
+                    If rmsd is small:
+                        They are the same
+        Otherwise unique
+
+        test is all previous structures.
+        """
+
+        conformers_unq = []
+        energies_unq = []
+        frequencies_unq = []
+        for vi, val in enumerate(valid):
+            unique = True
+            if val == 0:
+                for ei, en in enumerate(energies_unq):
+                    if abs(energies[vi] - en) * AUtoKCAL < 0.2:
+                        moi_test = geometry.get_moments_of_inertia(geometries[vi], atoms)
+                        moi_unq = geometry.get_moments_of_inertia(conformers_unq[ei], atoms)
+                        if all(moi_test / moi_unq) < 1.1 and all(moi_test / moi_unq) > 0.9:
+                            if rmsd.calc_rmsd(geometries[vi], conformers_unq[ei], atoms) < 0.01:
+                                unique = False
+                                break
+                if unique:
+                    conformers_unq.append(geometries[vi])
+                    energies_unq.append(energies[vi])
+                    frequencies_unq.append(energies[vi])
+
+        return conformers_unq, energies_unq, frequencies_unq
 
     def write_profile(self, status, final_geoms, energies, ring=0):
         """

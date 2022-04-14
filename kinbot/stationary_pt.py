@@ -72,6 +72,11 @@ class StationaryPoint:
         # Instances of the Conformers class
         self.confs = None
         self.am1_confs = None
+
+        # The list of conformers
+        self.conformer_geom = []
+        self.conformer_energy = []
+        self.conformer_freq = []
         
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number

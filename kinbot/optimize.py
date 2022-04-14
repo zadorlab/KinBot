@@ -138,8 +138,11 @@ class Optimize:
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        if self.skip_conf_check == 0:
-                            status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
+                        if self.skip_conf_check == 0 or self.par['multi_conf_tst']:
+                            status, lowest_conf, geom, low_energy, conformers, energies, frequencies, valid = self.species.confs.check_conformers(wait=self.wait)
+                            if self.par['multi_conf_tst']:
+                                self.species.conformer_geom, self.species.conformer_energy, self.species.conformer_freq = 
+                                                self.species.confs.find_unique(conformers, energies, frequencies, valid)
                             if status == 1:
                                 logging.info("\tLowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
                                 # save lowest energy conformer as species geometry

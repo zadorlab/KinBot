@@ -1,4 +1,4 @@
 *pyc
-build*
-.idea*
-KinBot.egg-info*
+build/*
+.idea/*
+*egg*

@@ -28,7 +28,7 @@ def equivalent_bond(b1, b2, species):
             b2_e1 = i
         if b2[1] in eq:
             b2_e2 = i
-    return (b1_e1 == b2_e1 and b1_e2 == b2_e2)
+    return b1_e1 == b2_e1 and b1_e2 == b2_e2
 
 
 def generate_all_product_bond_matrices(mol, par):

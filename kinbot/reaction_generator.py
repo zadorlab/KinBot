@@ -90,6 +90,7 @@ class ReactionGenerator:
                     obj.product_bonds[obj.instance[0]][obj.instance[1]] = 0  # delete bond
                     obj.product_bonds[obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     self.species.reac_ts_done[index] = 2
+
                 if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
                     if obj.scan == 0:  # don't do a scan of a bond
                         if self.species.reac_step[index] == obj.max_step + 1:
@@ -371,6 +372,7 @@ class ReactionGenerator:
                                     err = -1
                     if err == 0:
                         self.species.reac_ts_done[index] = 4
+
                 elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization
                     # make a stationary point object of the ts
@@ -417,18 +419,24 @@ class ReactionGenerator:
                         if new:
                             prod_opt = Optimize(st_pt, self.par, self.qc)
                             prod_opt.do_optimization()
+                            if prod_opt.shigh == -999: 
+                                logging.info('\tRxn search failed for {}, prod_opt shigh fail for {}.'
+                                             .format(obj.instance_name, prod_opt.species.chemid))
+                                self.species.reac_ts_done[index] = -999
+                                break  # breaks so that other species is not looked at
                         obj.prod_opt.append(prod_opt)
 
-                    for st_pt in obj.products:
-                        # section where comparing products in same reaction occurs
-                        if len(obj.prod_opt) > 0:
-                            for j, st_pt_opt in enumerate(obj.prod_opt):
-                                if st_pt.chemid == st_pt_opt.species.chemid:
-                                    if len(obj.prod_opt) > j:
-                                        prod_opt = obj.prod_opt[j]
-                                        break
+                    if self.species.reac_ts_done[index] != -999:  # so we don't reset faulty calculation
+                        for st_pt in obj.products:
+                            # section where comparing products in same reaction occurs
+                            if len(obj.prod_opt) > 0:
+                                for j, st_pt_opt in enumerate(obj.prod_opt):
+                                    if st_pt.chemid == st_pt_opt.species.chemid:
+                                        if len(obj.prod_opt) > j:
+                                            prod_opt = obj.prod_opt[j]
+                                            break
 
-                    self.species.reac_ts_done[index] = 5
+                        self.species.reac_ts_done[index] = 5
 
                 elif self.species.reac_ts_done[index] == 5:
                     # check up on the TS and product optimizations
@@ -446,6 +454,7 @@ class ReactionGenerator:
                         if not pr_opt.shir == 1:
                             opts_done = 0
                             pr_opt.do_optimization()
+                            print(pr_opt.species.chemid, pr_opt.shigh)
                         if pr_opt.shigh == -999:
                             logging.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
                             fails = 1
@@ -454,6 +463,7 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:
                         self.species.reac_ts_done[index] = 6
+
                 elif self.species.reac_ts_done[index] == 6:
                     # Finilize the calculations
                     # continue to PES search in case a new well was found
@@ -515,6 +525,7 @@ class ReactionGenerator:
                         if os.path.exists('{}_im_extent.txt'.format(self.species.chemid)):
                             os.remove('{}_im_extent.txt'.format(self.species.chemid))
                         postprocess.createPESViewerInput(self.species, self.qc, self.par)
+
                 elif self.species.reac_ts_done[index] == -999:
                     if self.par['delete_intermediate_files'] == 1:
                         if not self.species.reac_obj[index].instance_name in deleted:

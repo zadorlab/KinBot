@@ -121,7 +121,7 @@ class Parameters:
             'random_conf_semi_emp': 500,
             # threshold of conformers at semi empirical level to take to the L1 level
             # in kcal/mol
-            'semi_emp_confomer_threshold' : 5,
+            'semi_emp_confomer_threshold': 5,
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions
             'min_bond_break': 2,
@@ -175,7 +175,7 @@ class Parameters:
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
             # method for semi empirical conformer search
-            'semi_emp_method' : 'am1',
+            'semi_emp_method': 'am1',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
             # Optimization threshold
@@ -187,7 +187,7 @@ class Parameters:
             # for Gaussian, allow Guess=(Mix,Always)
             'guessmix': 0,
             # Turn off/on (0/1) molpro L3 calculations
-            'L3_calc' : 0,
+            'L3_calc': 0,
             # name of the single point code's name
             'single_point_qc': 'molpro',
             # Name of the template for the single-point calculation (L3)
@@ -277,11 +277,14 @@ class Parameters:
             # factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original frequency
             'freq_uq': 1.2,
             # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1.
-            # factor of 1.2 corresponds to values ranging from 0.909 to 1.1 times the original frequency
+            # factor of 1.1 corresponds to values ranging from 0.909 to 1.1 times the original frequency
             'imagfreq_uq': 1.1,
-
-            # for development
-            'test': 0,
+            # LJ parameters
+            'epsilon_uq': 1.2,
+            'sigma_uq': 1.2,
+            # Collisional parameters
+            'enrelfact_uq': 1.2,
+            'enrelpow_uq': 1.2,
         }
 
         if self.input_file is not None:

@@ -1162,7 +1162,7 @@ def get_coordinates_xyz(filename):
     return atoms, V
 
 
-def calc_rmsd(p_all_atoms, p_all, q_all_atoms, q_all, par):
+def calc_rmsd(p_all_atoms, p_all, q_all_atoms, q_all, reorder=True, reorder_method='brute'):
     """
     x_all_atoms: np array of atom symbols
     x_all: np array of coordinates
@@ -1224,8 +1224,8 @@ See https://github.com/charnley/rmsd for citation information
     #    sys.exit(1)
 
     args = parser.parse_args()
-    args.reorder = par['reorder']
-    args.reorder_method = par['reorder_method'] 
+    args.reorder = reorder
+    args.reorder_method = reorder_method 
 
     # As default, load the extension as format
     # Parse pdb.gz and xyz.gz as pdb and xyz formats

@@ -479,7 +479,7 @@ class Conformers:
                         final_geoms.append(np.zeros((self.species.natom, 3)))
                         if self.species.natom == 1:
                             frequencies.append(None)
-                        elif:
+                        elif self.species.natom == 2:
                             frequencies.append(np.zeros(self.species.natom * 3 - 5)) 
                         else:
                             frequencies.append(np.zeros(self.species.natom * 3 - 6))
@@ -501,14 +501,14 @@ class Conformers:
                 except UnboundLocalError:
                     pass
                 
-                return 1, lowest_conf, lowest_e_geom, lowest_totenergy, 
+                return 1, lowest_conf, lowest_e_geom, lowest_totenergy,\
                        final_geoms, totenergies, frequencies, status
 
             else:
                 if wait:
                     time.sleep(1)
                 else:
-                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy, 
+                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy,\
                            np.zeros((self.species.natom, 3)), np.zeros(1), np.zeros(1), np.zeros(1)
 
     def lowest_conf_info(self):
@@ -525,7 +525,7 @@ class Conformers:
                 
         return geom, energy + zpe 
 
-    def find_unique(conformers, energies, frequencies, valid):
+    def find_unique(self, conformers, energies, frequencies, valid):
         """
         Given a set of conformers, finds the set of unique ones.
         Algorithm:
@@ -546,15 +546,16 @@ class Conformers:
             unique = True
             if val == 0:
                 for ei, en in enumerate(energies_unq):
-                    if abs(energies[vi] - en) * AUtoKCAL < 0.2:
-                        moi_test = geometry.get_moments_of_inertia(geometries[vi], atoms)
-                        moi_unq = geometry.get_moments_of_inertia(conformers_unq[ei], atoms)
+                    if abs(energies[vi] - en) * constants.AUtoKCAL < 0.2:
+                        moi_test = geometry.get_moments_of_inertia(conformers[vi], self.species.atoms)
+                        moi_unq = geometry.get_moments_of_inertia(conformers_unq[ei], self.species.atoms)
                         if all(moi_test / moi_unq) < 1.1 and all(moi_test / moi_unq) > 0.9:
-                            if rmsd.calc_rmsd(geometries[vi], conformers_unq[ei], atoms) < 0.01:
+                            if rmsd.calc_rmsd(self.species.atoms, conformers[vi], 
+                                              self.species.atoms, conformers_unq[ei]) < 0.01:
                                 unique = False
                                 break
                 if unique:
-                    conformers_unq.append(geometries[vi])
+                    conformers_unq.append(conformers[vi])
                     energies_unq.append(energies[vi])
                     frequencies_unq.append(energies[vi])
 

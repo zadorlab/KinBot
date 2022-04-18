@@ -139,10 +139,12 @@ class Optimize:
                         # conformational search is running
                         # check if the conformational search is done
                         if self.skip_conf_check == 0 or self.par['multi_conf_tst']:
-                            status, lowest_conf, geom, low_energy, conformers, energies, frequencies, valid = self.species.confs.check_conformers(wait=self.wait)
+                            status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid = self.species.confs.check_conformers(wait=self.wait)
                             if self.par['multi_conf_tst']:
-                                self.species.conformer_geom, self.species.conformer_energy, self.species.conformer_freq = 
-                                                self.species.confs.find_unique(conformers, energies, frequencies, valid)
+                                self.species.conformer_geom, self.species.conformer_energy, self.species.conformer_freq = \
+                                                self.species.confs.find_unique(conformers, energies, frequency_vals, valid)
+                                print(self.species.conformer_energy)
+                                print(self.species.conformer_freq)
                             if status == 1:
                                 logging.info("\tLowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
                                 # save lowest energy conformer as species geometry
@@ -161,9 +163,8 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                # not clear what the purpose of these lines were
                 if self.par['conformer_search'] == 1:
-                    status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
+                    status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid = self.species.confs.check_conformers(wait=self.wait)
                         
                 while self.restart <= self.max_restart:
                     # do the high level calculations
@@ -258,7 +259,7 @@ class Optimize:
                         self.shigh = 1
                     if self.shigh == 1:
                         # do the HIR calculation
-                        if self.par['rotor_scan'] == 1:
+                        if self.par['rotor_scan'] == 1 and self.par['multi_conf_tst'] != 1:
                             if self.shir == -1:
                                 # hir not stated yet
                                 logging.info('\tStarting hindered rotor calculations of {}'.format(self.name))
@@ -314,6 +315,8 @@ class Optimize:
                         else:
                             # no hir calculations necessary, set status to finished
                             self.shir = 1
+                            if self.par['multi_conf_tst'] == 1:
+                                logging.info('No rotor scans performed because multi conformer TST is requested.')
                     if not self.wait or self.shir == 1 or self.shigh == -999:
                         # break the loop if no waiting is required or
                         # if the hir calcs are done or

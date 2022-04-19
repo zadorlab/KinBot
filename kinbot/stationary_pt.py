@@ -77,6 +77,7 @@ class StationaryPoint:
         self.conformer_geom = []
         self.conformer_energy = []
         self.conformer_freq = []
+        self.conformer_index = []
         
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number

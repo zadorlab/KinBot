@@ -526,7 +526,7 @@ class Conformers:
                 
         return geom, energy + zpe 
 
-    def find_unique(self, conformers, energies, frequencies, valid):
+    def find_unique(self, conformers, energies, frequencies, valid, temp=None, boltz=None):
         """
         Given a set of conformers, finds the set of unique ones.
         Algorithm:
@@ -538,11 +538,16 @@ class Conformers:
         Otherwise unique
 
         test is all previous structures.
+
+        temp is temperature, and only exp(-E/RT) > boltz conformers are considered if defined.
+        returns the geometries, total energies, frequencies, and indices (as in the /conf directory)
         """
 
         conformers_unq = []
         energies_unq = []
         frequencies_unq = []
+        indices_unq = []
+        min_conf_en = min(energies)
         for vi, val in enumerate(valid):
             unique = True
             if val == 0:
@@ -556,11 +561,20 @@ class Conformers:
                                 unique = False
                                 break
                 if unique:
-                    conformers_unq.append(conformers[vi])
-                    energies_unq.append(energies[vi])
-                    frequencies_unq.append(frequencies[vi])
+                    if temp is None:
+                        conformers_unq.append(conformers[vi])
+                        energies_unq.append(energies[vi])
+                        frequencies_unq.append(frequencies[vi])
+                        indices_unq.append(vi)
+                    else:
+                        if np.exp(-1000. * constants.AUtoKCAL * (energies[vi] - min_conf_en) /\
+                                  (constants.R / constants.KCALtoJ * temp)) > boltz:
+                            conformers_unq.append(conformers[vi])
+                            energies_unq.append(energies[vi])
+                            frequencies_unq.append(frequencies[vi])
+                            indices_unq.append(vi)
 
-        return conformers_unq, energies_unq, frequencies_unq
+        return conformers_unq, energies_unq, frequencies_unq, indices_unq
 
     def write_profile(self, status, final_geoms, energies, ring=0):
         """

@@ -250,9 +250,9 @@ class Parameters:
             # multi conformer TST
             'multi_conf_tst': 0,
             # temperature in K
-            'multi_conf_tst_temp': 298.0,
+            'multi_conf_tst_temp': 300.0,
             # percent of Boltzmann to include
-            'multi_conf_tst_boltz': 90.0, 
+            'multi_conf_tst_boltz': 0.05, 
             # MESS specific keywords
             'mess_command': 'mess',
             'TemperatureList': [300. + 100. * i for i in range(18)],

@@ -385,7 +385,8 @@ class QuantumChemistry:
                 job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
 
         if species.wellorts:
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1)
+            kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
+                                           ts=1, step=1, max_step=1)
         else:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
             if self.qc == 'gauss':
@@ -414,17 +415,20 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0):
+    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None):
         """
         Creates a geometry optimization input and runs it.
         """
-        job = str(species.chemid) + '_well'
-        if high_level:
-            job = str(species.chemid) + '_well_high'
-        if mp2:
-            job = str(species.chemid) + '_well_mp2'
-        if bls:
-            job = str(species.chemid) + '_well_bls'
+        if ext is None:
+            job = str(species.chemid) + '_well'
+            if high_level:
+                job = str(species.chemid) + '_well_high'
+            if mp2:
+                job = str(species.chemid) + '_well_mp2'
+            if bls:
+                job = str(species.chemid) + '_well_bls'
+        else:
+            job = str(species.chemid) + ext
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -449,8 +453,6 @@ class QuantumChemistry:
             if self.opt:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         # the integral is set in the get_qc_arguments parts, bad design
-
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()

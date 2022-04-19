@@ -143,8 +143,8 @@ class Optimize:
                             if self.par['multi_conf_tst']:
                                 self.species.conformer_geom, self.species.conformer_energy, self.species.conformer_freq = \
                                                 self.species.confs.find_unique(conformers, energies, frequency_vals, valid)
-                                print(self.species.conformer_energy)
-                                print(self.species.conformer_freq)
+                                print('ENERGIES', self.species.conformer_energy)
+                                print('FREQ', self.species.conformer_freq)
                             if status == 1:
                                 logging.info("\tLowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
                                 # save lowest energy conformer as species geometry

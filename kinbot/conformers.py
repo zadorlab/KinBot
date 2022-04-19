@@ -13,6 +13,7 @@ from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
+from kinbot import calc_rmsd
 
 class Conformers:
     """
@@ -547,17 +548,17 @@ class Conformers:
             if val == 0:
                 for ei, en in enumerate(energies_unq):
                     if abs(energies[vi] - en) * constants.AUtoKCAL < 0.2:
-                        moi_test = geometry.get_moments_of_inertia(conformers[vi], self.species.atoms)
-                        moi_unq = geometry.get_moments_of_inertia(conformers_unq[ei], self.species.atoms)
+                        moi_test, _ = geometry.get_moments_of_inertia(conformers[vi], self.species.atom)
+                        moi_unq, _ = geometry.get_moments_of_inertia(conformers_unq[ei], self.species.atom)
                         if all(moi_test / moi_unq) < 1.1 and all(moi_test / moi_unq) > 0.9:
-                            if rmsd.calc_rmsd(self.species.atoms, conformers[vi], 
-                                              self.species.atoms, conformers_unq[ei]) < 0.01:
+                            if calc_rmsd.calc_rmsd(self.species.atom, conformers[vi], 
+                                                   self.species.atom, conformers_unq[ei]) < 0.05:
                                 unique = False
                                 break
                 if unique:
                     conformers_unq.append(conformers[vi])
                     energies_unq.append(energies[vi])
-                    frequencies_unq.append(energies[vi])
+                    frequencies_unq.append(frequencies[vi])
 
         return conformers_unq, energies_unq, frequencies_unq
 

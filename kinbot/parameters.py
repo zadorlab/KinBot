@@ -343,6 +343,10 @@ class Parameters:
             logging.error('For bimolecular reactions two fragments need to be defined.')
             sys.exit(-1)
 
+        if self.par['multi_conf_tst'] and not self.par['conformer_search']:
+            logging.error('For multi conformer tst calculation conformer search needs to be activated.')
+            sys.exit(-1)
+
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])

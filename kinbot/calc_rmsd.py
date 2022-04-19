@@ -1168,8 +1168,8 @@ def calc_rmsd(p_all_atoms, p_all, q_all_atoms, q_all, reorder=True, reorder_meth
     x_all: np array of coordinates
     """
 
-    import argparse
-    import sys
+    #import argparse
+    #import sys
 
     description = __doc__
 
@@ -1183,49 +1183,49 @@ See https://github.com/charnley/rmsd for citation information
 
     epilog = """
 """
-    sys.argv[1] = 'blanka.xyz' 
-    sys.argv[2] = 'blankb.xyz' 
+    #sys.argv[1] = 'blanka.xyz' 
+    #sys.argv[2] = 'blankb.xyz' 
 
-    parser = argparse.ArgumentParser(
-        usage='calculate_rmsd [options] FILE_A FILE_B',
-        description=description,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=epilog)
+    #parser = argparse.ArgumentParser(
+    #    usage='calculate_rmsd [options] FILE_A FILE_B',
+    #    description=description,
+    #    formatter_class=argparse.RawDescriptionHelpFormatter,
+    #    epilog=epilog)
 
 
     # Input structures
-    parser.add_argument('structure_a', metavar='FILE_A', type=str, help='structures in .xyz or .pdb format')
-    parser.add_argument('structure_b', metavar='FILE_B', type=str)
+    #parser.add_argument('structure_a', metavar='FILE_A', type=str, help='structures in .xyz or .pdb format')
+    #parser.add_argument('structure_b', metavar='FILE_B', type=str)
 
     # Admin
-    parser.add_argument('-v', '--version', action='version', version=version_msg)
+    #parser.add_argument('-v', '--version', action='version', version=version_msg)
 
     # Rotation
-    parser.add_argument('-r', '--rotation', action='store', default="kabsch", help='select rotation method. "kabsch" (default), "quaternion" or "none"', metavar="METHOD")
+    #parser.add_argument('-r', '--rotation', action='store', default="kabsch", help='select rotation method. "kabsch" (default), "quaternion" or "none"', metavar="METHOD")
 
     # Reorder arguments
-    parser.add_argument('-e', '--reorder', action='store_true', help='align the atoms of molecules (default: Hungarian)')
-    parser.add_argument('--reorder-method', action='store', default="hungarian", metavar="METHOD", help='select which reorder method to use; hungarian (default), inertia-hungarian, brute, distance')
-    parser.add_argument('--use-reflections', action='store_true', help='scan through reflections in planes (eg Y transformed to -Y -> X, -Y, Z) and axis changes, (eg X and Z coords exchanged -> Z, Y, X). This will affect stereo-chemistry.')
-    parser.add_argument('--use-reflections-keep-stereo', action='store_true', help='scan through reflections in planes (eg Y transformed to -Y -> X, -Y, Z) and axis changes, (eg X and Z coords exchanged -> Z, Y, X). Stereo-chemistry will be kept.')
+    #parser.add_argument('-e', '--reorder', action='store_true', help='align the atoms of molecules (default: Hungarian)')
+    #parser.add_argument('--reorder-method', action='store', default="hungarian", metavar="METHOD", help='select which reorder method to use; hungarian (default), inertia-hungarian, brute, distance')
+    #parser.add_argument('--use-reflections', action='store_true', help='scan through reflections in planes (eg Y transformed to -Y -> X, -Y, Z) and axis changes, (eg X and Z coords exchanged -> Z, Y, X). This will affect stereo-chemistry.')
+    #parser.add_argument('--use-reflections-keep-stereo', action='store_true', help='scan through reflections in planes (eg Y transformed to -Y -> X, -Y, Z) and axis changes, (eg X and Z coords exchanged -> Z, Y, X). Stereo-chemistry will be kept.')
 
     # Filter
-    index_group = parser.add_mutually_exclusive_group()
-    index_group.add_argument('-nh', '--no-hydrogen', action='store_true', help='ignore hydrogens when calculating RMSD')
-    index_group.add_argument('--remove-idx', nargs='+', type=int, help='index list of atoms NOT to consider', metavar='IDX')
-    index_group.add_argument('--add-idx', nargs='+', type=int, help='index list of atoms to consider', metavar='IDX')
+    #index_group = parser.add_mutually_exclusive_group()
+    #index_group.add_argument('-nh', '--no-hydrogen', action='store_true', help='ignore hydrogens when calculating RMSD')
+    #index_group.add_argument('--remove-idx', nargs='+', type=int, help='index list of atoms NOT to consider', metavar='IDX')
+    #index_group.add_argument('--add-idx', nargs='+', type=int, help='index list of atoms to consider', metavar='IDX')
 
     # format and print
-    parser.add_argument('--format', action='store', help='format of input files. valid format are xyz and pdb', metavar='FMT')
-    parser.add_argument('-p', '--output', '--print', action='store_true', help='print out structure B, centered and rotated unto structure A\'s coordinates in XYZ format')
+    #parser.add_argument('--format', action='store', help='format of input files. valid format are xyz and pdb', metavar='FMT')
+    #parser.add_argument('-p', '--output', '--print', action='store_true', help='print out structure B, centered and rotated unto structure A\'s coordinates in XYZ format')
 
     #if len(sys.argv) == 1:
     #    parser.print_help()
     #    sys.exit(1)
 
-    args = parser.parse_args()
-    args.reorder = reorder
-    args.reorder_method = reorder_method 
+    #args = parser.parse_args()
+    #args.reorder = reorder
+    #args.reorder_method = reorder_method 
 
     # As default, load the extension as format
     # Parse pdb.gz and xyz.gz as pdb and xyz formats
@@ -1251,17 +1251,17 @@ See https://github.com/charnley/rmsd for citation information
         print("error: Structures not same size")
         quit()
 
-    if np.count_nonzero(p_all_atoms != q_all_atoms) and not args.reorder:
-        msg = """
-error: Atoms are not in the same order.
-
-Use --reorder to align the atoms (can be expensive for large structures).
-
-Please see --help or documentation for more information or
-https://github.com/charnley/rmsd for further examples.
-"""
-        print(msg)
-        exit()
+#    if np.count_nonzero(p_all_atoms != q_all_atoms) and not args.reorder:
+#        msg = """
+#error: Atoms are not in the same order.
+#
+#Use --reorder to align the atoms (can be expensive for large structures).
+#
+#Please see --help or documentation for more information or
+#https://github.com/charnley/rmsd for further examples.
+#"""
+#        print(msg)
+#        exit()
 
 
     # Set local view
@@ -1269,20 +1269,20 @@ https://github.com/charnley/rmsd for further examples.
     q_view = None
 
 
-    if args.no_hydrogen:
-        p_view = np.where(p_all_atoms != 'H')
-        q_view = np.where(q_all_atoms != 'H')
+#    if args.no_hydrogen:
+#        p_view = np.where(p_all_atoms != 'H')
+#        q_view = np.where(q_all_atoms != 'H')
 
-    elif args.remove_idx:
-        index = range(p_size)
-        index = set(index) - set(args.remove_idx)
-        index = list(index)
-        p_view = index
-        q_view = index
+#    elif args.remove_idx:
+#        index = range(p_size)
+#        index = set(index) - set(args.remove_idx)
+#        index = list(index)
+#        p_view = index
+#        q_view = index
 
-    elif args.add_idx:
-        p_view = args.add_idx
-        q_view = args.add_idx
+#    elif args.add_idx:
+#        p_view = args.add_idx
+#        q_view = args.add_idx
 
 
     # Set local view
@@ -1292,20 +1292,20 @@ https://github.com/charnley/rmsd for further examples.
         p_atoms = copy.deepcopy(p_all_atoms)
         q_atoms = copy.deepcopy(q_all_atoms)
 
-    else:
-
-        if args.reorder and args.output:
-            print("error: Cannot reorder atoms and print structure, when excluding atoms (such as --no-hydrogen)")
-            quit()
-
-        if args.use_reflections and args.output:
-            print("error: Cannot use reflections on atoms and print, when excluding atoms (such as --no-hydrogen)")
-            quit()
-
-        p_coord = copy.deepcopy(p_all[p_view])
-        q_coord = copy.deepcopy(q_all[q_view])
-        p_atoms = copy.deepcopy(p_all_atoms[p_view])
-        q_atoms = copy.deepcopy(q_all_atoms[q_view])
+#    else:
+#
+#        if args.reorder and args.output:
+#            print("error: Cannot reorder atoms and print structure, when excluding atoms (such as --no-hydrogen)")
+#            quit()
+#
+#        if args.use_reflections and args.output:
+#            print("error: Cannot use reflections on atoms and print, when excluding atoms (such as --no-hydrogen)")
+#            quit()
+#
+#        p_coord = copy.deepcopy(p_all[p_view])
+#        q_coord = copy.deepcopy(q_all[q_view])
+#        p_atoms = copy.deepcopy(p_all_atoms[p_view])
+#        q_atoms = copy.deepcopy(q_all_atoms[q_view])
 
 
     # Create the centroid of P and Q which is the geometric center of a
@@ -1318,115 +1318,122 @@ https://github.com/charnley/rmsd for further examples.
 
 
     # set rotation method
-    if args.rotation.lower() == "kabsch":
-        rotation_method = kabsch_rmsd
-
-    elif args.rotation.lower() == "quaternion":
-        rotation_method = quaternion_rmsd
-
-    elif args.rotation.lower() == "none":
-        rotation_method = None
-
-    else:
-        print("error: Unknown rotation method:", args.rotation)
-        quit()
+    rotation_method = kabsch_rmsd
+#    if args.rotation.lower() == "kabsch":
+#        rotation_method = kabsch_rmsd
+#
+#    elif args.rotation.lower() == "quaternion":
+#        rotation_method = quaternion_rmsd
+#
+#    elif args.rotation.lower() == "none":
+#        rotation_method = None
+#
+#    else:
+#        print("error: Unknown rotation method:", args.rotation)
+#        quit()
 
 
     # set reorder method
-    if not args.reorder:
-        reorder_method = None
-
-    if args.reorder_method == "hungarian":
-        reorder_method = reorder_hungarian
-
-    elif args.reorder_method == "inertia-hungarian":
-        reorder_method = reorder_inertia_hungarian
-
-    elif args.reorder_method == "brute":
-        reorder_method = reorder_brute
-
-    elif args.reorder_method == "distance":
-        reorder_method = reorder_distance
-
-    else:
-        print("error: Unknown reorder method:", args.reorder_method)
-        quit()
+    reorder_method = reorder_brute
+    reorder_method = reorder_hungarian
+#    if not args.reorder:
+#        reorder_method = None
+#
+#    if args.reorder_method == "hungarian":
+#        reorder_method = reorder_hungarian
+#
+#    elif args.reorder_method == "inertia-hungarian":
+#        reorder_method = reorder_inertia_hungarian
+#
+#    elif args.reorder_method == "brute":
+#        reorder_method = reorder_brute
+#
+#    elif args.reorder_method == "distance":
+#        reorder_method = reorder_distance
+#
+#    else:
+#        print("error: Unknown reorder method:", args.reorder_method)
+#        quit()
 
 
     # Save the resulting RMSD
     result_rmsd = None
 
-
-    if args.use_reflections:
-
-        result_rmsd, q_swap, q_reflection, q_review = check_reflections(
-            p_atoms,
-            q_atoms,
-            p_coord,
-            q_coord,
-            reorder_method=reorder_method,
-            rotation_method=rotation_method)
-
-    elif args.use_reflections_keep_stereo:
-
-        result_rmsd, q_swap, q_reflection, q_review = check_reflections(
-            p_atoms,
-            q_atoms,
-            p_coord,
-            q_coord,
-            reorder_method=reorder_method,
-            rotation_method=rotation_method,
-            keep_stereo=True)
-
-    elif args.reorder:
-
-        q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
-        q_coord = q_coord[q_review]
-        q_atoms = q_atoms[q_review]
-
-        if not all(p_atoms == q_atoms):
-            print("error: Structure not aligned")
-            quit()
+    # reorder calculation
+    q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
+    q_coord = q_coord[q_review]
+    q_atoms = q_atoms[q_review]
+#    if args.use_reflections:
+#
+#        result_rmsd, q_swap, q_reflection, q_review = check_reflections(
+#            p_atoms,
+#            q_atoms,
+#            p_coord,
+#            q_coord,
+#            reorder_method=reorder_method,
+#            rotation_method=rotation_method)
+#
+#    elif args.use_reflections_keep_stereo:
+#
+#        result_rmsd, q_swap, q_reflection, q_review = check_reflections(
+#            p_atoms,
+#            q_atoms,
+#            p_coord,
+#            q_coord,
+#            reorder_method=reorder_method,
+#            rotation_method=rotation_method,
+#            keep_stereo=True)
+#
+#    elif args.reorder:
+#
+#        q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
+#        q_coord = q_coord[q_review]
+#        q_atoms = q_atoms[q_review]
+#
+#        if not all(p_atoms == q_atoms):
+#            print("error: Structure not aligned")
+#            quit()
 
     # print result
-    if args.output:
-
-        if args.reorder:
-
-            if q_review.shape[0] != q_all.shape[0]:
-                print("error: Reorder length error. Full atom list needed for --print")
-                quit()
-
-            q_all = q_all[q_review]
-            q_all_atoms = q_all_atoms[q_review]
-
-        # Get rotation matrix
-        U = kabsch(q_coord, p_coord)
-
-        # recenter all atoms and rotate all atoms
-        q_all -= q_cent
-        q_all = np.dot(q_all, U)
-
-        # center q on p's original coordinates
-        q_all += p_cent
-
-        # done and done
-        xyz = set_coordinates(q_all_atoms, q_all, title="{} - modified".format(args.structure_b))
-        print(xyz)
-
-    else:
-
-        if result_rmsd:
-            pass
-
-        elif rotation_method is None:
-            result_rmsd = rmsd(p_coord, q_coord)
-
-        else:
-            result_rmsd = rotation_method(p_coord, q_coord)
+#    if args.output:
+#
+#        if args.reorder:
+#
+#            if q_review.shape[0] != q_all.shape[0]:
+#                print("error: Reorder length error. Full atom list needed for --print")
+#                quit()
+#
+#            q_all = q_all[q_review]
+#            q_all_atoms = q_all_atoms[q_review]
+#
+#        # Get rotation matrix
+#        U = kabsch(q_coord, p_coord)
+#
+#        # recenter all atoms and rotate all atoms
+#        q_all -= q_cent
+#        q_all = np.dot(q_all, U)
+#
+#        # center q on p's original coordinates
+#        q_all += p_cent
+#
+#        # done and done
+#        xyz = set_coordinates(q_all_atoms, q_all, title="{} - modified".format(args.structure_b))
+#        print(xyz)
+#
+#    else:
+#
+#        if result_rmsd:
+#            pass
+#
+#        elif rotation_method is None:
+#            result_rmsd = rmsd(p_coord, q_coord)
+#
+#        else:
+#            result_rmsd = rotation_method(p_coord, q_coord)
 
         #print("{0}".format(result_rmsd))
 
+    result_rmsd = rotation_method(p_coord, q_coord)
 
     return result_rmsd
 

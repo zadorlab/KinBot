@@ -12,7 +12,7 @@ from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
-from kinbot import calc_rmsd
+import rmsd
 
 class Conformers:
     """
@@ -555,8 +555,21 @@ class Conformers:
                         moi_test, _ = geometry.get_moments_of_inertia(conformers[vi], self.species.atom)
                         moi_unq, _ = geometry.get_moments_of_inertia(conformers_unq[ei], self.species.atom)
                         if all(moi_test / moi_unq) < 1.1 and all(moi_test / moi_unq) > 0.9:
-                            if calc_rmsd.calc_rmsd(self.species.atom, conformers[vi], 
-                                                   self.species.atom, conformers_unq[ei]) < 0.05:
+                            p_coord = copy.deepcopy(conformers[vi])
+                            q_coord = copy.deepcopy(conformers_unq[ei])
+                            p_atoms = copy.deepcopy(self.species.atom)
+                            q_atoms = copy.deepcopy(self.species.atom)
+                            p_cent = rmsd.centroid(p_coord)
+                            q_cent = rmsd.centroid(q_coord)
+                            p_coord -= p_cent
+                            q_coord -= q_cent
+                            rotation_method = kabsch_rmsd
+                            reorder_method = reorder_hungarian
+                            q_review = rmsd.reorder_method(p_atoms, q_atoms, p_coord, q_coord)
+                            q_coord = q_coord[q_review]
+                            q_atoms = q_atoms[q_review]
+                            result_rmsd = rotation_method(p_coord, q_coord)
+                            if result_rmsd < 0.05:
                                 unique = False
                                 break
                 if unique:

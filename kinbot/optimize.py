@@ -214,70 +214,6 @@ class Optimize:
                                                 self.compare_structures(conf=conindx)
                                         if sum(stati) == len(self.species.conformer_index):
                                             self.shigh = 1
-
-
-#                                # finished successfully
-#                                err, new_geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom, wait=self.wait)
-#                                temp = StationaryPoint('temp',
-#                                                       self.species.charge,
-#                                                       self.species.mult,
-#                                                       atom=self.species.atom,
-#                                                       geom=new_geom)
-#                                temp.bond_mx()
-#                                if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
-#                                    if self.par['conformer_search'] == 0:
-#                                        fr_file = self.log_name(0)  # name of the original TS file
-#                                    else:
-#                                        if self.skip_conf_check == 0: 
-#                                            fr_file = 'conf/{}_{}'.format(self.log_name(0), lowest_conf)
-#                                        else:
-#                                            fr_file = 'conf/{}_low'.format(self.log_name(0))
-#                                    if self.qc.qc == 'gauss':
-#                                        imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-#                                    elif self.qc.qc == 'qchem':
-#                                        imagmode = reader_qchem.read_imag_mode(fr_file, self.species.natom)
-#                                    fr_file = self.log_name(1)
-#                                    if self.qc.qc == 'gauss':
-#                                        imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-#                                    elif self.qc.qc == 'qchem':
-#                                        imagmode_high = reader_qchem.read_imag_mode(fr_file, self.species.natom)
-#                                    # either geom is roughly same with closely matching imaginary modes, or geometry is very close
-#                                    # maybe we need to do IRC at the high level as well...
-#                                    same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
-#                                            (geometry.equal_geom(self.species, temp, 0.3))) \
-#                                            or (geometry.equal_geom(self.species, temp, 0.15))
-#                                else:
-#                                    same_geom = geometry.equal_geom(self.species, temp, 0.1)
-#
-#                                err, fr = self.qc.get_qc_freq(self.log_name(1), self.species.natom)
-#                                if self.species.natom == 1:
-#                                    freq_ok = 1
-#                                elif len(fr) == 1 and fr[0] == 0:
-#                                    freq_ok = 0
-#                                elif self.species.wellorts == 0 and fr[0] > -50.:
-#                                    freq_ok = 1
-#                                    if fr[0] < 0.:
-#                                        fr[0] *= -1.
-#                                        logging.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
-#                                elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
-#                                    freq_ok = 1
-#                                else:
-#                                    freq_ok = 0
-#                                if same_geom and freq_ok:
-#                                    # geometry is as expected and normal modes are the same for TS
-#                                    err, self.species.geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom)
-#                                    err, self.species.energy = self.qc.get_qc_energy(self.log_name(1))
-#                                    err, self.species.freq = self.qc.get_qc_freq(self.log_name(1), self.species.natom)   # TODO use fr variable
-#                                    err, self.species.zpe = self.qc.get_qc_zpe(self.log_name(1))
-#                                    self.shigh = 1
-#                                else:
-#                                    # geometry diverged to other structure
-#                                    if not same_geom:
-#                                        logging.warning('High level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
-#                                    if not freq_ok:
-#                                        logging.warning('Wrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
-#                                    self.shigh = -999
-#                              
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
@@ -354,9 +290,13 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                fr_file = self.log_name(self.par['high_level'])
-                hess = self.qc.read_qc_hess(fr_file, self.species.natom)
-                self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
+                if self.par['multi_conf_tst'] == 0:
+                    fr_file = self.log_name(self.par['high_level'])
+                    hess = self.qc.read_qc_hess(fr_file, self.species.natom)
+                    self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
+                else:
+                    self.species.kinbot_freqs = self.species.freq
+                    self.species.reduced_freqs = self.species.freq
 
                 # write the molpro input and read the molpro energy, if available
                 if self.par['L3_calc'] == 1:
@@ -513,8 +453,8 @@ class Optimize:
         else:
             freq_ok = 0
 
-        # update properties for base structure
         if conf == -1:
+            # update properties for base structure
             if same_geom and freq_ok:
                 err, self.species.geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom)
                 err, self.species.energy = self.qc.get_qc_energy(self.log_name(1))
@@ -532,6 +472,7 @@ class Optimize:
                     logging.warning('Wrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
                 self.shigh = -999
         else:
+            # update property of conformers
             inx = self.species.conformer_index.index(conf) 
             if same_geom and freq_ok:
                 err, self.species.conformer_geom[inx] = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom)
@@ -542,3 +483,5 @@ class Optimize:
             else:
                 self.species.conformer_index[inx] = -999
                 logging.warning(f'High level optimization failed for {self.log_name(1, conf=conf)}')
+
+        return

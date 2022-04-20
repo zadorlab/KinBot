@@ -1,10 +1,3 @@
-"""
-Drive for KinBot runs.
-1. Reading keywords
-2. Optimizing the reactant
-3. Search for reactions
-"""
-from __future__ import print_function
 import sys
 import os
 import logging

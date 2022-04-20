@@ -5,7 +5,6 @@ need to have a new value assigned.
 The optimization is done based on interatomic distances only
 The deviations of the the distances are weighted by the inverse of the distance itself
 """
-from __future__ import division
 import os
 import copy
 import logging

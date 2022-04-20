@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os
 import copy
 import logging
@@ -171,26 +170,26 @@ class Optimize:
                     if self.par['high_level'] == 1:
                         if self.shigh == -1:
                             if self.species.wellorts:
-                                # do the high level optimization of a ts
                                 name = self.species.name
                                 self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)
                                 if self.par['multi_conf_tst']:
-                                    for conindx in self.species.conformer_index:
+                                    for ci, conindx in enumerate(self.species.conformer_index):
                                         self.qc.qc_opt_ts(self.species, 
-                                                          self.species.conformer_geometry[conindx], 
+                                                          self.species.conformer_geom[ci], 
                                                           high_level=1,
-                                                          ext=f'_{str(conindx).zfill(4)}_high')
+                                                          ext=f'_{str(conindx).zfill(4)}_high',
+                                                          )
                             else:
-                                # do the high level optimization of a well
                                 name = self.species.chemid
                                 self.qc.qc_opt(self.species, self.species.geom, high_level=1)
                                 if self.par['multi_conf_tst']:
-                                    for conindx in self.species.conformer_index:
+                                    for ci, conindx in enumerate(self.species.conformer_index):
                                         self.qc.qc_opt(self.species, 
-                                                       self.species.conformer_geom[conindx], 
+                                                       self.species.conformer_geom[ci], 
                                                        high_level=1,
-                                                       ext=f'_{str(conindx).zfill(4)}_high')
-                            logging.info('\tStarting high level optimization of {}'.format(name))
+                                                       ext=f'_{str(conindx).zfill(4)}_high',
+                                                       )
+                            logging.info('\tStarting high level optimization(s) of {}'.format(name))
                             self.shigh = 0  # set the high status to running
                         if self.shigh == 0:
                             # high level calculation is running
@@ -201,68 +200,84 @@ class Optimize:
                                 logging.warning('High level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
                             elif status == 'normal':
-                                # finished successfully
-                                err, new_geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom, wait=self.wait)
-                                temp = StationaryPoint('temp',
-                                                       self.species.charge,
-                                                       self.species.mult,
-                                                       atom=self.species.atom,
-                                                       geom=new_geom)
-                                temp.bond_mx()
-                                if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
-                                    if self.par['conformer_search'] == 0:
-                                        fr_file = self.log_name(0)  # name of the original TS file
-                                    else:
-                                        if self.skip_conf_check == 0: 
-                                            fr_file = 'conf/{}_{}'.format(self.log_name(0), lowest_conf)
-                                        else:
-                                            fr_file = 'conf/{}_low'.format(self.log_name(0))
-                                    if self.qc.qc == 'gauss':
-                                        imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-                                    elif self.qc.qc == 'qchem':
-                                        imagmode = reader_qchem.read_imag_mode(fr_file, self.species.natom)
-                                    fr_file = self.log_name(1)
-                                    if self.qc.qc == 'gauss':
-                                        imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-                                    elif self.qc.qc == 'qchem':
-                                        imagmode_high = reader_qchem.read_imag_mode(fr_file, self.species.natom)
-                                    # either geom is roughly same with closely matching imaginary modes, or geometry is very close
-                                    # maybe we need to do IRC at the high level as well...
-                                    same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
-                                            (geometry.equal_geom(self.species, temp, 0.3))) \
-                                            or (geometry.equal_geom(self.species, temp, 0.15))
-                                else:
-                                    same_geom = geometry.equal_geom(self.species, temp, 0.1)
+                                self.compare_structures()
+                                stati = [0] * len(self.species.conformer_index)
+                                if self.par['multi_conf_tst']:
+                                    if self.shigh == 0.5: # the top one was tested already and was ok
+                                        for ci, conindx in enumerate(self.species.conformer_index):
+                                            status = self.qc.check_qc(self.log_name(1, conf=conindx))
+                                            if status == 'error':
+                                                stati[ci] = 1
+                                                self.species.conformer_index[conindx] = -999
+                                            elif status == 'normal':
+                                                stati[ci] = 1
+                                                self.compare_structures(conf=conindx)
+                                        if sum(stati) == len(self.species.conformer_index):
+                                            self.shigh = 1
 
-                                err, fr = self.qc.get_qc_freq(self.log_name(1), self.species.natom)
-                                if self.species.natom == 1:
-                                    freq_ok = 1
-                                elif len(fr) == 1 and fr[0] == 0:
-                                    freq_ok = 0
-                                elif self.species.wellorts == 0 and fr[0] > -50.:
-                                    freq_ok = 1
-                                    if fr[0] < 0.:
-                                        fr[0] *= -1.
-                                        logging.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
-                                elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
-                                    freq_ok = 1
-                                else:
-                                    freq_ok = 0
-                                if same_geom and freq_ok:
-                                    # geometry is as expected and normal modes are the same for TS
-                                    err, self.species.geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom)
-                                    err, self.species.energy = self.qc.get_qc_energy(self.log_name(1))
-                                    err, self.species.freq = self.qc.get_qc_freq(self.log_name(1), self.species.natom)   # TODO use fr variable
-                                    err, self.species.zpe = self.qc.get_qc_zpe(self.log_name(1))
-                                    self.shigh = 1
-                                else:
-                                    # geometry diverged to other structure
-                                    if not same_geom:
-                                        logging.warning('High level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
-                                    if not freq_ok:
-                                        logging.warning('Wrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
-                                    self.shigh = -999
-                              
+
+#                                # finished successfully
+#                                err, new_geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom, wait=self.wait)
+#                                temp = StationaryPoint('temp',
+#                                                       self.species.charge,
+#                                                       self.species.mult,
+#                                                       atom=self.species.atom,
+#                                                       geom=new_geom)
+#                                temp.bond_mx()
+#                                if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
+#                                    if self.par['conformer_search'] == 0:
+#                                        fr_file = self.log_name(0)  # name of the original TS file
+#                                    else:
+#                                        if self.skip_conf_check == 0: 
+#                                            fr_file = 'conf/{}_{}'.format(self.log_name(0), lowest_conf)
+#                                        else:
+#                                            fr_file = 'conf/{}_low'.format(self.log_name(0))
+#                                    if self.qc.qc == 'gauss':
+#                                        imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+#                                    elif self.qc.qc == 'qchem':
+#                                        imagmode = reader_qchem.read_imag_mode(fr_file, self.species.natom)
+#                                    fr_file = self.log_name(1)
+#                                    if self.qc.qc == 'gauss':
+#                                        imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
+#                                    elif self.qc.qc == 'qchem':
+#                                        imagmode_high = reader_qchem.read_imag_mode(fr_file, self.species.natom)
+#                                    # either geom is roughly same with closely matching imaginary modes, or geometry is very close
+#                                    # maybe we need to do IRC at the high level as well...
+#                                    same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
+#                                            (geometry.equal_geom(self.species, temp, 0.3))) \
+#                                            or (geometry.equal_geom(self.species, temp, 0.15))
+#                                else:
+#                                    same_geom = geometry.equal_geom(self.species, temp, 0.1)
+#
+#                                err, fr = self.qc.get_qc_freq(self.log_name(1), self.species.natom)
+#                                if self.species.natom == 1:
+#                                    freq_ok = 1
+#                                elif len(fr) == 1 and fr[0] == 0:
+#                                    freq_ok = 0
+#                                elif self.species.wellorts == 0 and fr[0] > -50.:
+#                                    freq_ok = 1
+#                                    if fr[0] < 0.:
+#                                        fr[0] *= -1.
+#                                        logging.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
+#                                elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
+#                                    freq_ok = 1
+#                                else:
+#                                    freq_ok = 0
+#                                if same_geom and freq_ok:
+#                                    # geometry is as expected and normal modes are the same for TS
+#                                    err, self.species.geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom)
+#                                    err, self.species.energy = self.qc.get_qc_energy(self.log_name(1))
+#                                    err, self.species.freq = self.qc.get_qc_freq(self.log_name(1), self.species.natom)   # TODO use fr variable
+#                                    err, self.species.zpe = self.qc.get_qc_zpe(self.log_name(1))
+#                                    self.shigh = 1
+#                                else:
+#                                    # geometry diverged to other structure
+#                                    if not same_geom:
+#                                        logging.warning('High level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
+#                                    if not freq_ok:
+#                                        logging.warning('Wrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
+#                                    self.shigh = -999
+#                              
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
@@ -431,7 +446,7 @@ class Optimize:
             return f'hir/{self.name}_hir_{str(r)}_{str(s).zfill(2)}'
 
         if conf >= 0 and high:
-            return f'conf/{self.name}_{str(conf).zfill(4)}_high'
+            return f'{self.name}_{str(conf).zfill(4)}_high'  # running in the main dir
         if conf >= 0:
             return f'conf/{self.name}_{str(conf).zfill(4)}'
 
@@ -505,7 +520,10 @@ class Optimize:
                 err, self.species.energy = self.qc.get_qc_energy(self.log_name(1))
                 err, self.species.freq = self.qc.get_qc_freq(self.log_name(1), self.species.natom)   # TODO use fr variable
                 err, self.species.zpe = self.qc.get_qc_zpe(self.log_name(1))
-                self.shigh = 1
+                if self.par['multi_conf_tst'] == 0:
+                    self.shigh = 1
+                else:
+                    self.shigh = 0.5
             else:
                 # geometry diverged to other structure
                 if not same_geom:
@@ -522,8 +540,5 @@ class Optimize:
                 err, zpe = self.qc.get_qc_zpe(self.log_name(1, conf=conf))
                 self.species.conformer_energy[inx] += zpe
             else:
-                del self.species.conformer_geom[inx]
-                del self.species.conformer_energy[inx]
-                del self.species.conformer_freq[inx]
-                del self.species.conformer_index[inx]
+                self.species.conformer_index[inx] = -999
                 logging.warning(f'High level optimization failed for {self.log_name(1, conf=conf)}')

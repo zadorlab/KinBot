@@ -415,7 +415,7 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None):
+    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, fdir=None):
         """
         Creates a geometry optimization input and runs it.
         """
@@ -429,6 +429,9 @@ class QuantumChemistry:
                 job = str(species.chemid) + '_well_bls'
         else:
             job = str(species.chemid) + ext
+
+        if fdir is not None:
+            job = f'{fdir}/{job}'
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -471,13 +474,19 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_opt_ts(self, species, geom, high_level=0):
+    def qc_opt_ts(self, species, geom, high_level=0, ext=None, fdir=None):
         """Creates a ts optimization input and runs it
         """
 
         job = str(species.name)
-        if high_level:
-            job += '_high'
+        if ext is None:
+            if high_level:
+                job += '_high'
+        else:
+            job += ext
+
+        if fdir is not None:
+            job = f'{fdir}/{job}'
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1, high_level=1)
 

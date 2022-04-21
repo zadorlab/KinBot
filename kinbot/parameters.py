@@ -88,6 +88,8 @@ class Parameters:
             'simultaneous_kinbot': 5,
             # Perform high level optimization and freq calculation (L2)
             'high_level': 0,
+
+            # CONFORMATIONAL SEARCH
             # Do a conformational search
             'conformer_search': 0,
             # The angular grid for dihedrals, angle = 360 / grid
@@ -121,6 +123,15 @@ class Parameters:
             # threshold of conformers at semi empirical level to take to the L1 level
             # in kcal/mol
             'semi_emp_confomer_threshold': 5,
+            # multi conformer TST
+            'multi_conf_tst': 0,
+            # temperature in K
+            'multi_conf_tst_temp': 300.0,
+            # percent of Boltzmann to include
+            'multi_conf_tst_boltz': 0.05, 
+            # force print conformational info, might be slow 
+            'print_conf': 0,
+
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions
             'min_bond_break': 2,
@@ -246,12 +257,6 @@ class Parameters:
             'epsilon': 0.0,
             'epsilon_unit': 'K',  # can be K or J/mol or cm-1
             'sigma': 0.0,
-            # multi conformer TST
-            'multi_conf_tst': 0,
-            # temperature in K
-            'multi_conf_tst_temp': 300.0,
-            # percent of Boltzmann to include
-            'multi_conf_tst_boltz': 0.05, 
             # MESS specific keywords
             'mess_command': 'mess',
             'TemperatureList': [300. + 100. * i for i in range(18)],

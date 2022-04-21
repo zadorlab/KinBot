@@ -134,7 +134,6 @@ class Optimize:
                         # check if the conformational search is done
                         if self.skip_conf_check == 0 or self.par['multi_conf_tst'] or self.par['print_conf']:
                             status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid = self.species.confs.check_conformers(wait=self.wait)
-                            logging.info(f'\tValid conformers for species {self.name} are {valid}')
                             self.species.conformer_geom, self.species.conformer_energy, \
                                     self.species.conformer_freq, self.species.conformer_index = \
                                     self.species.confs.find_unique(conformers, 

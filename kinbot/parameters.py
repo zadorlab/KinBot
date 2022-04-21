@@ -105,8 +105,6 @@ class Parameters:
             'nrotation': 12,
             # Make figures of the HIR profiles
             'plot_hir_profiles': 0,
-            # Do master equation calculations
-            'me': 0,
             # Number of HIR restarts in case a lower energy point gets found
             'rotation_restart': 3,
             # Maximum number of diherals for which exhaustive
@@ -250,6 +248,8 @@ class Parameters:
             'queue_job_limit': -1,
 
             # MASTER EQUATION
+            # Do master equation calculations
+            'me': 0,
             # Which ME code to use:
             'me_code': 'mess',  # or mesmer
             # collision parameters

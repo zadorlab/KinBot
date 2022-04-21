@@ -99,7 +99,7 @@ class IRC:
     def problem_in_geom(self, geom):
         # check if interatomic distances are closer than 0.3 Angstrom
         for i in range(len(geom)):
-            for j in range(i+1, len(geom)):
+            for j in range(i + 1, len(geom)):
                 dist = np.linalg.norm(geom[i] - geom[j])
                 if dist < 0.3:
                     return 1

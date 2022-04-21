@@ -1,5 +1,6 @@
 import time
 
+
 def tail(file_path, lines=10):
     """Returns the specified last number of lines of a file.
 
@@ -41,7 +42,7 @@ def iowait(logfile, qc_code):
     if qc_code == 'gauss':
         endings = ['Normal termination', 'Error termination']
     elif qc_code == 'qchem':
-        endings = []
+        endings = ['Thank you very much for using Q-Chem', 'Please submit a crash report']
     else:
         endings = []
     while True:
@@ -52,5 +53,3 @@ def iowait(logfile, qc_code):
         if clock > maxtime:
             break
         time.sleep(1)
-
-    return

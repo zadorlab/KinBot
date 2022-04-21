@@ -4,9 +4,8 @@ from kinbot import constants
 from kinbot import geometry
 
 
-def get_frequencies(species, hess, geom, checkdist=0):
-    """"
-    Calculates three sets of frequencies:
+def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
+    """"Calculates three sets of frequencies:
 
     1: all the frequencies including translations and rotations
     2: frequencies when translation and external rotations are projected out
@@ -15,9 +14,12 @@ def get_frequencies(species, hess, geom, checkdist=0):
 
     The units of the hessian should be: Hartree/Bohr^2
 
-    checkdist: if set to 1, then in the partitioning of the
-    rotating fragments only strongly bonded atoms are included
+    checkdist: if set to 1, then in the partitioning of the rotating fragments
+        only strongly bonded atoms are included
+    massweighted: whether the hessian is already mass-weighted or not.
     """
+    if species.confs.qc.qc == 'qchem':
+        massweighted = True
     atom = species.atom
     natom = species.natom
 
@@ -30,7 +32,8 @@ def get_frequencies(species, hess, geom, checkdist=0):
     geom = geom - geometry.get_center_of_mass(geom, atom)
 
     # Mass-weight the hessian
-    hess /= np.sqrt(np.outer(masses, masses))
+    if not massweighted:
+        hess /= np.sqrt(np.outer(masses, masses))
 
     # STEP 1: calculate the initial frequencies
     all_eigvals, all_eigvecs = np.linalg.eig(hess)

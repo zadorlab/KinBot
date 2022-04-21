@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os
 import copy
 import logging
@@ -10,8 +9,9 @@ from kinbot import symmetry
 from kinbot.conformers import Conformers
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
-from kinbot import reader_gauss
+from kinbot import reader_gauss, reader_qchem
 from kinbot.stationary_pt import StationaryPoint
+from kinbot import constants
 
 class Optimize:
     """
@@ -39,12 +39,7 @@ class Optimize:
         self.qc = qc
         # wait for all calculations to finish before returning
         self.wait = wait
-        # high level job name
-        if self.species.wellorts:
-            self.job_high = self.name + '_high'
-        else:
-            self.job_high = self.name + '_well_high'
-        self.job_hir = 'hir/' + self.name + '_hir_'
+
         # status of the various parts
         # -1: not yet started
         #  0: running
@@ -137,10 +132,20 @@ class Optimize:
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        if self.skip_conf_check == 0:
-                            status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
+                        if self.skip_conf_check == 0 or self.par['multi_conf_tst'] or self.par['print_conf']:
+                            status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid = self.species.confs.check_conformers(wait=self.wait)
+                            self.species.conformer_geom, self.species.conformer_energy, \
+                                    self.species.conformer_freq, self.species.conformer_index = \
+                                    self.species.confs.find_unique(conformers, 
+                                    energies, 
+                                    frequency_vals, 
+                                    valid,
+                                    self.par['multi_conf_tst_temp'],
+                                    self.par['multi_conf_tst_boltz'])
                             if status == 1:
-                                logging.info("\tLowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
+                                logging.info(f'\tLowest energy conformer for species {self.name} is number {lowest_conf}')
+                                if self.par['multi_conf_tst'] or self.par['print_conf']:
+                                    logging.info(f'\tUnique conformers for species {self.name} are {self.species.conformer_index}')
                                 # save lowest energy conformer as species geometry
                                 self.species.geom = geom
                                 # save lowest energy conformer energy
@@ -157,9 +162,9 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                # not clear what the purpose of these lines were
                 if self.par['conformer_search'] == 1:
-                    status, lowest_conf, geom, low_energy, conformers, energies = self.species.confs.check_conformers(wait=self.wait)
+                    status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid = \
+                        self.species.confs.check_conformers(wait=self.wait)
                         
                 while self.restart <= self.max_restart:
                     # do the high level calculations
@@ -167,90 +172,55 @@ class Optimize:
                         if self.shigh == -1:
                             if self.species.wellorts:
                                 name = self.species.name
+                                self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)
+                                if self.par['multi_conf_tst']:
+                                    for ci, conindx in enumerate(self.species.conformer_index):
+                                        self.qc.qc_opt_ts(self.species, 
+                                                          self.species.conformer_geom[ci], 
+                                                          high_level=1,
+                                                          ext=f'_{str(conindx).zfill(4)}_high',
+                                                          )
                             else:
                                 name = self.species.chemid
-                            # high level calculation did not start yet
-                            logging.info('\tStarting high level optimization of {}'.format(name))
-                            if self.species.wellorts:
-                                # do the high level optimization of a ts
-                                self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)
-                            else:
-                                # do the high level optimization of a well
                                 self.qc.qc_opt(self.species, self.species.geom, high_level=1)
+                                if self.par['multi_conf_tst']:
+                                    for ci, conindx in enumerate(self.species.conformer_index):
+                                        self.qc.qc_opt(self.species, 
+                                                       self.species.conformer_geom[ci], 
+                                                       high_level=1,
+                                                       ext=f'_{str(conindx).zfill(4)}_high',
+                                                       )
+                            logging.info('\tStarting high level optimization(s) of {}'.format(name))
                             self.shigh = 0  # set the high status to running
                         if self.shigh == 0:
                             # high level calculation is running
-                            # check if it is finished
-                            status = self.qc.check_qc(self.job_high)
+                            # check if finished
+                            status = self.qc.check_qc(self.log_name(1))
                             if status == 'error':
                                 # found an error
                                 logging.warning('High level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
                             elif status == 'normal':
-                                # finished successfully
-                                err, new_geom = self.qc.get_qc_geom(self.job_high, self.species.natom, wait=self.wait)
-                                temp = StationaryPoint('temp',
-                                                       self.species.charge,
-                                                       self.species.mult,
-                                                       atom=self.species.atom,
-                                                       geom=new_geom)
-                                temp.bond_mx()
-                                if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
-                                    if self.par['conformer_search'] == 0:
-                                        fr_file = self.fr_file_name(0)  # name of the original TS file
-                                    else:
-                                        if self.skip_conf_check == 0: 
-                                            fr_file = 'conf/{}_{}'.format(self.fr_file_name(0), lowest_conf)
-                                        else:
-                                            fr_file = 'conf/{}_low'.format(self.fr_file_name(0))
-                                    if self.qc.qc == 'gauss':
-                                        imagmode = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-                                    fr_file = self.fr_file_name(1)
-                                    if self.qc.qc == 'gauss':
-                                        imagmode_high = reader_gauss.read_imag_mode(fr_file, self.species.natom)
-                                    # either geom is roughly same with closely matching imaginary modes, or geometry is very close
-                                    # maybe we need to do IRC at the high level as well...
-                                    same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
-                                            (geometry.equal_geom(self.species, temp, 0.3))) \
-                                            or (geometry.equal_geom(self.species, temp, 0.15))
-                                else:
-                                    same_geom = geometry.equal_geom(self.species, temp, 0.1)
-
-                                err, fr = self.qc.get_qc_freq(self.job_high, self.species.natom)
-                                if self.species.natom == 1:
-                                    freq_ok = 1
-                                elif len(fr) == 1 and fr[0] == 0:
-                                    freq_ok = 0
-                                elif self.species.wellorts == 0 and fr[0] > -50.:
-                                    freq_ok = 1
-                                    if fr[0] < 0.:
-                                        fr[0] *= -1.
-                                        logging.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
-                                elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
-                                    freq_ok = 1
-                                else:
-                                    freq_ok = 0
-                                if same_geom and freq_ok:
-                                    # geometry is as expected and normal modes are the same for TS
-                                    err, self.species.geom = self.qc.get_qc_geom(self.job_high, self.species.natom)
-                                    err, self.species.energy = self.qc.get_qc_energy(self.job_high)
-                                    err, self.species.freq = self.qc.get_qc_freq(self.job_high, self.species.natom)
-                                    err, self.species.zpe = self.qc.get_qc_zpe(self.job_high)
-                                    self.shigh = 1
-                                else:
-                                    # geometry diverged to other structure
-                                    if not same_geom:
-                                        logging.warning('High level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
-                                    if not freq_ok:
-                                        logging.warning('Wrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
-                                    self.shigh = -999
-                              
+                                self.compare_structures()
+                                stati = [0] * len(self.species.conformer_index)
+                                if self.par['multi_conf_tst']:
+                                    if self.shigh == 0.5: # the top one was tested already and was ok
+                                        for ci, conindx in enumerate(self.species.conformer_index):
+                                            status = self.qc.check_qc(self.log_name(1, conf=conindx))
+                                            if status == 'error':
+                                                stati[ci] = 1
+                                                self.species.conformer_index[conindx] = -999
+                                            elif status == 'normal':
+                                                stati[ci] = 1
+                                                self.compare_structures(conf=conindx)
+                                        if sum(stati) == len(self.species.conformer_index):
+                                            self.shigh = 1
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
                     if self.shigh == 1:
                         # do the HIR calculation
-                        if self.par['rotor_scan'] == 1:
+                        if self.par['rotor_scan'] == 1 and self.par['multi_conf_tst'] != 1:
                             if self.shir == -1:
                                 # hir not stated yet
                                 logging.info('\tStarting hindered rotor calculations of {}'.format(self.name))
@@ -281,18 +251,18 @@ class Optimize:
                                                 logging.warning('Lower energy conformer during HIR for {}. Restart #{}'.format(self.name, str(self.restart)))
                                                 logging.debug('Rotor: ' + str(min_rotor))
                                                 logging.debug('Scan point: ' + str(min_ai))
-                                                job = self.job_hir + str(min_rotor) + '_' + str(min_ai).zfill(2)
+                                                job = self.log_name(1, hir=1, r=min_rotor, s=min_ai)
 
                                                 err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # delete the high_level log file and the hir log files
-                                                if os.path.exists(self.job_high + '.log'):
-                                                    logging.debug("Removing file " + self.job_high + '.log')
-                                                    os.remove(self.job_high + '.log')
+                                                if os.path.exists(self.log_name(1) + '.log'):
+                                                    logging.debug(f'Removing file {self.log_name(1)}.log')
+                                                    os.remove(self.log_name(1) + '.log')
                                                 for rotor in range(len(self.species.dihed)):
                                                     for ai in range(self.species.hir.nrotation):
-                                                        if os.path.exists(self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log'):
-                                                            logging.debug("Removing file " + self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log')
-                                                            os.remove(self.job_hir + str(rotor) + '_' + str(ai).zfill(2) + '.log')
+                                                        if os.path.exists(self.log_name(1, hir=1, r=rotor, s=ai) + '.log'):
+                                                            logging.debug('Removing file ' + self.log_name(1, hir=1, r=rotor, s=ai) + '.log')
+                                                            os.remove(self.log_name(1, hir=1, r=rotor, s=ai)  + '.log')
                                                 # set the status of high and hir back to not started
                                                 self.shigh = -1
                                                 self.shir = -1
@@ -306,6 +276,8 @@ class Optimize:
                         else:
                             # no hir calculations necessary, set status to finished
                             self.shir = 1
+                            if self.par['multi_conf_tst'] == 1:
+                                logging.info('No rotor scans performed because multi conformer TST is requested.')
                     if not self.wait or self.shir == 1 or self.shigh == -999:
                         # break the loop if no waiting is required or
                         # if the hir calcs are done or
@@ -319,14 +291,13 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                fr_file = self.name
-                if not self.species.wellorts:
-                    fr_file += '_well'
-                if self.par['high_level']:
-                    fr_file += '_high'
-                fr_file = self.fr_file_name(self.par['high_level'])
-                hess = self.qc.read_qc_hess(fr_file, self.species.natom)
-                self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
+                if self.par['multi_conf_tst'] == 0:
+                    fr_file = self.log_name(self.par['high_level'])
+                    hess = self.qc.read_qc_hess(fr_file, self.species.natom)
+                    self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
+                else:
+                    self.species.kinbot_freqs = self.species.freq
+                    self.species.reduced_freqs = self.species.freq
 
                 # write the molpro input and read the molpro energy, if available
                 if self.par['L3_calc'] == 1:
@@ -408,12 +379,110 @@ class Optimize:
         return 0
 
 
-    def fr_file_name(self, high):
-        fr_file = str(self.name)
-        if not self.species.wellorts:
-            fr_file += '_well'
-        # if self.par['high_level']:
-        if high:
-            fr_file += '_high'
+    def log_name(self, high, conf=-1, hir=0, r=None, s=None):
+        """
+        Provide base file names.
+        """
+        if hir == 1:
+            return f'hir/{self.name}_hir_{str(r)}_{str(s).zfill(2)}'
 
-        return(fr_file)
+        if conf >= 0 and high:
+            return f'{self.name}_{str(conf).zfill(4)}_high'  # running in the main dir
+        if conf >= 0:
+            return f'conf/{self.name}_{str(conf).zfill(4)}'
+
+        name = str(self.name)
+        if not self.species.wellorts:
+            name += '_well'
+        if high:
+            name += '_high'
+
+        return(name)
+
+
+    def compare_structures(self, conf=-1):
+        """
+        Function to compare L1 and L2 strctures and decide is high is successful or not.
+        If conf is >= 0, then we are testing for conformer number conf in the conf/ directory.
+        """
+
+        # creating a species for the L2
+        err, new_geom = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom, wait=self.wait)
+        dummy = StationaryPoint('dummy',
+                                self.species.charge,
+                                self.species.mult,
+                                atom=self.species.atom,
+                                geom=new_geom)
+        dummy.bond_mx()
+
+        # comparing L1 and L2 geometries and imaginary mode if TS
+        if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
+            if self.par['conformer_search'] == 0:
+                l1_file = self.log_name(0)  # name of the original L1 TS file
+            elif self.par['multi_conf_tst'] or self.skip_conf_check == 0:
+                l1_file = self.log_name(0, conf=conf)
+            else:
+                l1_file = 'conf/{}_low'.format(self.log_name(0))
+            l2_file = self.log_name(1, conf=conf)
+            if self.qc.qc == 'gauss':
+                imagmode = reader_gauss.read_imag_mode(l1_file, self.species.natom)
+                imagmode_high = reader_gauss.read_imag_mode(l2_file, self.species.natom)
+            elif self.qc.qc == 'qchem':
+                imagmode = reader_qchem.read_imag_mode(l1_file, self.species.natom)
+                imagmode_high = reader_qchem.read_imag_mode(l2_file, self.species.natom)
+            # either geom is roughly same with closely matching imaginary modes, or geometry is very close
+            # maybe we need to do IRC at the high level as well...
+            same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
+                    (geometry.equal_geom(self.species, dummy, 0.3))) \
+                    or (geometry.equal_geom(self.species, dummy, 0.15))
+        else:
+            same_geom = geometry.equal_geom(self.species, dummy, 0.1)
+
+        # checking if L2 frequencies are okay
+        err, fr = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
+        if self.species.natom == 1:
+            freq_ok = 1
+        elif len(fr) == 1 and fr[0] == 0:
+            freq_ok = 0
+        elif self.species.wellorts == 0 and fr[0] > -50.:
+            freq_ok = 1
+            if fr[0] < 0.:
+                fr[0] *= -1.
+                logging.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
+        elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
+            freq_ok = 1
+        else:
+            freq_ok = 0
+
+        if conf == -1:
+            # update properties for base structure
+            if same_geom and freq_ok:
+                err, self.species.geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom)
+                err, self.species.energy = self.qc.get_qc_energy(self.log_name(1))
+                err, self.species.freq = self.qc.get_qc_freq(self.log_name(1), self.species.natom)   # TODO use fr variable
+                err, self.species.zpe = self.qc.get_qc_zpe(self.log_name(1))
+                if self.par['multi_conf_tst'] == 0:
+                    self.shigh = 1
+                else:
+                    self.shigh = 0.5
+            else:
+                # geometry diverged to other structure
+                if not same_geom:
+                    logging.warning('High level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
+                if not freq_ok:
+                    logging.warning('Wrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
+                self.shigh = -999
+        else:
+            # update property of conformers
+            inx = self.species.conformer_index.index(conf) 
+            if same_geom and freq_ok:
+                err, self.species.conformer_geom[inx] = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom)
+                err, self.species.conformer_energy[inx] = self.qc.get_qc_energy(self.log_name(1, conf=conf))
+                err, self.species.conformer_freq[inx] = self.qc.get_qc_freq(self.log_name(1, conf=conf), self.species.natom)   # TODO use fr variable
+                err, zpe = self.qc.get_qc_zpe(self.log_name(1, conf=conf))
+                self.species.conformer_energy[inx] += zpe
+            else:
+                self.species.conformer_index[inx] = -999
+                logging.warning(f'High level optimization failed for {self.log_name(1, conf=conf)}')
+
+        return

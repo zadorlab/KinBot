@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os
 import numpy as np
 import subprocess
@@ -91,10 +90,10 @@ class MESS:
                                        EnergyRelaxationFactor=self.par['EnergyRelaxationFactor'],
                                        EnergyRelaxationPower=self.par['EnergyRelaxationPower'],
                                        EnergyRelaxationExponentCutoff=self.par['EnergyRelaxationExponentCutoff'],
-                                       e_coll=constants.epsilon[self.par['collider']],
+                                       e_coll=round(constants.epsilon[self.par['collider']], 2),
                                        s_coll=constants.sigma[self.par['collider']],
                                        m_coll=constants.mass[self.par['collider']],
-                                       e_well=self.par['epsilon'],
+                                       e_well=round(self.par['epsilon']),
                                        s_well=self.par['sigma'],
                                        m_well=self.species.mass,
                                        )
@@ -137,7 +136,7 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
-        uq_obj = UQ(self.par)
+        uq = UQ(self.par)
 
         # create short names for all the species, bimolecular products and barriers
         self.create_short_names()
@@ -171,7 +170,6 @@ class MESS:
 
         # write the mess input for the different blocks
         for uq_iter in range(self.par['uq_n']):
-
             well_blocks = {}
             ts_blocks = {}
             bimolec_blocks = {}
@@ -183,18 +181,18 @@ class MESS:
             written_bimol_names = []
             written_termolec_names = []
 
-            well_energyAdd = uq_obj.calc_factor('energy', self.species.chemid, uq_iter)
-            well_freq_factor = uq_obj.calc_factor('freq', self.species.chemid, uq_iter)
+            well_energy_add = uq.calc_factor('energy', self.species.chemid, uq_iter)
+            well_freq_factor = uq.calc_factor('freq', self.species.chemid, uq_iter)
             well_blocks[self.species.chemid] = self.write_well(self.species,
-                                                               well_energyAdd,
+                                                               well_energy_add,
                                                                well_freq_factor,
                                                                uq_iter)
             
             for index, reaction in enumerate(self.species.reac_obj):
                 if reaction.instance_name in ts_all:
-                    barrier_add = uq_obj.calc_factor('barrier', reaction.instance_name, uq_iter)
-                    freq_factor = uq_obj.calc_factor('freq', reaction.instance_name, uq_iter)
-                    imagfreq_factor = uq_obj.calc_factor('imagfreq', reaction.instance_name, uq_iter)
+                    barrier_add = uq.calc_factor('barrier', reaction.instance_name, uq_iter)
+                    freq_factor = uq.calc_factor('freq', reaction.instance_name, uq_iter)
+                    imagfreq_factor = uq.calc_factor('imagfreq', reaction.instance_name, uq_iter)
         
         # get left-right barrier
                     species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
@@ -229,18 +227,18 @@ class MESS:
                     ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                     if len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
-                        energyAdd = uq_obj.calc_factor('energy', st_pt.chemid, uq_iter)
-                        freq_factor = uq_obj.calc_factor('freq', st_pt.chemid, uq_iter)
+                        energy_add = uq.calc_factor('energy', st_pt.chemid, uq_iter)
+                        freq_factor = uq.calc_factor('freq', st_pt.chemid, uq_iter)
                         well_blocks[st_pt.chemid] = self.write_well(st_pt,
-                                                                    energyAdd,
+                                                                    energy_add,
                                                                     freq_factor,
                                                                     uq_iter)
                     elif len(reaction.products) == 2:
                         bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        energyAdd = uq_obj.calc_factor('energy', bimol_name, uq_iter)
-                        freq_factor = uq_obj.calc_factor('freq', bimol_name, uq_iter)
+                        energy_add = uq.calc_factor('energy', bimol_name, uq_iter)
+                        freq_factor = uq.calc_factor('freq', bimol_name, uq_iter)
                         bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
-                                                                      energyAdd,
+                                                                      energy_add,
                                                                       freq_factor,
                                                                       uq_iter)
                         written_bimol_names.append(bimol_name)
@@ -277,16 +275,16 @@ class MESS:
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
                 f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
 
-        uq_obj.format_uqtk_data() 
+        uq.format_uqtk_data() 
 
         return 0
 
 
-    def write_barrierless(self, species_list, reaction, energyAdd, freq_factor, uq_iter):
+    def write_barrierless(self, species_list, reaction, energy_add, freq_factor, uq_iter):
 
         if len(reaction.products) == 2:
             barrierless = self.write_bimol(species_list,
-                                           energyAdd,
+                                           energy_add,
                                            freq_factor,
                                            uq_iter,
                                            bless=1)
@@ -345,13 +343,13 @@ class MESS:
                                                          symm=float(species.sigma_ext) / float(species.nopt),
                                                          nfreq=len(species.reduced_freqs),
                                                          freq=self.make_freq(species, freq_factor, 0),
-                                                         hinderedrotor=self.make_rotors(species),
+                                                         hinderedrotor=self.make_rotors(species, freq_factor),
                                                          nelec=1,
                                                          mult=species.mult)
                 if bless == 1:
                     tot_nfreq += len(species.reduced_freqs)
                     combined_freq += self.make_freq(species, freq_factor, 0)
-                    combined_hir += self.make_rotors(species)
+                    combined_hir += self.make_rotors(species, freq_factor)
 
                     if nsp == 0: 
                         combined_mult = species.mult
@@ -465,7 +463,7 @@ class MESS:
                                         symm=float(species.sigma_ext) / float(species.nopt),
                                         nfreq=len(species.reduced_freqs),
                                         freq=self.make_freq(species, freq_factor, 0),
-                                        hinderedrotor=self.make_rotors(species),
+                                        hinderedrotor=self.make_rotors(species, freq_factor),
                                         nelec=1,
                                         mult=species.mult,
                                         zeroenergy=zeroenergy)
@@ -485,12 +483,17 @@ class MESS:
 
         # write tunneling block
         if left_zeroenergy < 0 or right_zeroenergy < 0:
-            tun = f'barrier is submerged {left_zeroenergy} {right_zeroenergy}'
-        else:
+            tun = f'! barrier is submerged {left_zeroenergy} {right_zeroenergy}'
+        elif self.par['pes'] == 0:
             tun = self.tunneltpl.format(cutoff=round(min(left_zeroenergy, right_zeroenergy), 2),
                                         imfreq=round(-reaction.ts.reduced_freqs[0] * imagfreq_factor, 2),
                                         welldepth1=round(left_zeroenergy, 2),
                                         welldepth2=round(right_zeroenergy, 2))
+        else: 
+            tun = self.tunneltpl.format(cutoff='{cutoff}',
+                                        imfreq=round(-reaction.ts.reduced_freqs[0] * imagfreq_factor, 2),
+                                        welldepth1='{welldepth1}',
+                                        welldepth2='{welldepth2}')
 
         # name the product
         if len(reaction.products) == 1:
@@ -513,15 +516,14 @@ class MESS:
             chemid_reac = self.well_names[self.species.chemid]
             chemid_prod = prod_name
             long_rxn_name = reaction.instance_name
-            zeroenergy = left_zeroenergy
-            zeroenergy = round(zeroenergy, 2)
+            zeroenergy = round(left_zeroenergy, 2)
     
         # TODO working here
         if self.species.reac_type[index] == 'barrierless_saddle':
             freq = self.make_freq(reaction.prod_opt[0].species, freq_factor, 0) + \
                    self.make_freq(reaction.prod_opt[1].species, freq_factor, 0) 
-            rotors = self.make_rotors(reaction.prod_opt[0].species) + \
-                     self.make_rotors(reaction.prod_opt[1].species) 
+            rotors = self.make_rotors(reaction.prod_opt[0].species, freq_factor) + \
+                     self.make_rotors(reaction.prod_opt[1].species, freq_factor) 
             nfreq = len(reaction.prod_opt[0].species.reduced_freqs) + \
                     len(reaction.prod_opt[1].species.reduced_freqs)
             if self.par['pes']:
@@ -552,7 +554,7 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=self.make_freq(reaction.ts, freq_factor, 1),
-                                       rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
+                                       rotors=self.make_rotors(reaction.ts, freq_factor, norot=self.ts_names[reaction.instance_name]),
                                        tunneling='',
                                        nelec=1,
                                        mult=reaction.ts.mult,
@@ -572,7 +574,7 @@ class MESS:
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=self.make_freq(reaction.ts, freq_factor, 1),
-                                       rotors=self.make_rotors(reaction.ts, norot=self.ts_names[reaction.instance_name]),
+                                       rotors=self.make_rotors(reaction.ts, freq_factor, norot=self.ts_names[reaction.instance_name]),
                                        tunneling=tun,
                                        nelec=1,
                                        mult=reaction.ts.mult,
@@ -683,6 +685,12 @@ class MESS:
         return geom[:-1]
 
     def make_freq(self, species, factor, wellorts):
+        """
+        Frequencies are scaled with factor in UQ.
+        At 100 cm-1 the scaling is applied as is.
+        For lower frequencies the scaling is amplified.
+        For higher frequencies the scaling is dampened.
+        """
         freq = '        '
         #wellorts: 0 for wells and 1 for saddle points
         if wellorts == 0:
@@ -690,26 +698,31 @@ class MESS:
         else:
             frequencies = species.reduced_freqs[1:]
         for i, fr in enumerate(frequencies):
-            fr = fr * factor
+            if factor >= 1:
+                fr = fr * (1 / fr * (factor - 1 ) * 100 + 1)
+            else:
+                fr = fr / ( 1 / fr * (1 - factor) * 100 + 1)
             freq += '{:.1f} '.format(fr)
             if i % 3 == 2:
                 freq += '\n        '
         return(freq[:-1])
 
-    def make_rotorpot(self, species, i, rot):
+    def make_rotorpot(self, species, i, rot, freq_factor):
         rotortype = 'hindered'
         rotorsymm = self.rotorsymm(species, rot)
         ens = species.hir.hir_energies[i]
-        rotorpot = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
-        maxen = max(rotorpot)
+        rotorpot_num = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
+        maxen = max(rotorpot_num)
         # solution for 6-fold symmetry, not general enough
         if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
             fit_angle = 15. * 2. * np.pi / 360. 
             fit_energy = species.hir.get_fit_value(fit_angle)  # kcal/mol
-            rotorpot.insert(1, fit_energy)
-            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm + 1]])
+            rotorpot_num.insert(1, fit_energy)
+            rotorpot_num = [freq_factor * rpn for rpn in rotorpot_num]
+            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm + 1]])
         else:
-            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot[:species.hir.nrotation // rotorsymm]])
+            rotorpot_num = [freq_factor * rpn for rpn in rotorpot_num]
+            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm]])
         rotorpot = '        {}'.format(rotorpot)
         if maxen < self.par['free_rotor_thrs']:
             rotortype = 'free'
@@ -725,14 +738,14 @@ class MESS:
         else:
             return species.hir.nrotation // rotorsymm + 1
 
-    def make_rotors(self, species, norot=None):
+    def make_rotors(self, species, freq_factor, norot=None):
         rotors = []
         if self.par['rotor_scan']:
             for i, rot in enumerate(species.dihed):
                 if norot is not None:
                     if frequencies.skip_rotor(norot, rot) == 1:
                         continue
-                rotorpot, rotortype = self.make_rotorpot(species, i, rot)
+                rotorpot, rotortype = self.make_rotorpot(species, i, rot, freq_factor)
                 if rotortype == 'hindered':
                     rotors.append(self.hinderedrotortpl.format(group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
                                                                axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),

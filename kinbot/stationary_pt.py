@@ -1,4 +1,3 @@
-from __future__ import print_function, division
 import sys
 import numpy as np
 import copy
@@ -70,6 +69,12 @@ class StationaryPoint:
         # Instances of the Conformers class
         self.confs = None
         self.am1_confs = None
+
+        # The list of conformers
+        self.conformer_geom = []
+        self.conformer_energy = []
+        self.conformer_freq = []
+        self.conformer_index = []
         
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number

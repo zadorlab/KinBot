@@ -438,7 +438,7 @@ class Optimize:
         else:
             same_geom = geometry.equal_geom(self.species, dummy, 0.1)
 
-        # checking ig L2 frequencies are okay
+        # checking if L2 frequencies are okay
         err, fr = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
         if self.species.natom == 1:
             freq_ok = 1

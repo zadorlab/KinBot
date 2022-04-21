@@ -389,9 +389,9 @@ class QuantumChemistry:
                                            ts=1, step=1, max_step=1)
         else:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
-        if self.qc == 'gauss':
-            kwargs['opt'] = 'CalcFC, Tight'
-            del kwargs['chk']
+            if self.qc == 'gauss':
+                kwargs['opt'] = 'CalcFC, Tight'
+        del kwargs['chk']
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''

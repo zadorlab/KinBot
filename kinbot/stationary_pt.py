@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import copy
 import math
+import itertools
 
 from kinbot import cheminfo
 from kinbot import constants
@@ -61,9 +62,6 @@ class StationaryPoint:
         self.reac_ts_geom = []
         self.reac_ts_freq = []
         self.reac_scan_energy = []
-
-        # Instance of HomolyticScissions class
-        self.homolytic_scissions = None
 
         # Instance of HIR class
         self.hir = None
@@ -181,7 +179,7 @@ class StationaryPoint:
 
         # create all the permutations of the heavy atoms
         rad_atoms = [i for i in range(self.natom) if self.rad[i] > 0]
-        all_permutations = False 
+        all_permutations = False
         if all_permutations:  # use all the permutations (slow for more than 6 atoms in conjugated system)
             perms = list(itertools.permutations(rad_atoms))
         else:  # use the same atom ordering but a different starting atoms and searching directions

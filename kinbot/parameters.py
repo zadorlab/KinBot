@@ -58,9 +58,6 @@ class Parameters:
             'skip_chemids': ['none'],
             # Skip specific reactions, usually makes sense once the search is done
             'skip_reactions': ['none'],
-            # break all single bonds to find the barriers
-            # of potential homolytic scissions
-            'homolytic_scissions': 0,
             # perform variational calculations for the homolytic scissions
             'variational': 0,
             # break specific bonds in the homolytic search

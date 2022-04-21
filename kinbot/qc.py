@@ -83,7 +83,10 @@ class QuantumChemistry:
                 'charge': charge,
                 'scf': 'xqc'
             }
-            if self.par['guessmix'] == 1 or 'barrierless_saddle' in job or 'bls' in job:
+            if self.par['guessmix'] == 1 or \
+                'barrierless_saddle' in job or \
+                'bls' in job or \
+                (mult == 1 and 'R_Addition_MultipleBond' in job):
                 kwargs['guess'] = 'Mix,Always'
             if ts:
                 # arguments for transition state searches
@@ -93,16 +96,16 @@ class QuantumChemistry:
                 if step == 0:
                     if not self.par['bimol']:
                         kwargs['opt'] = 'ModRedun,Loose,CalcFC'
-                        #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     else:
                         kwargs['opt'] = 'ModRedun,Loose,CalcFC'
                         kwargs['method'] = self.method
                         kwargs['basis'] = self.basis
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Loose,CalcFC'
-                    #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
-                    if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                    if self.par['guessmix'] == 1 or \
+                        'barrierless_saddle' in job or \
+                        (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'
                     if self.par['bimol']:
                         kwargs['method'] = self.method
@@ -130,7 +133,9 @@ class QuantumChemistry:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
-                    if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                    if self.par['guessmix'] == 1 or \
+                        'barrierless_saddle' in job or \
+                        (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here
                     else:
                         kwargs['guess'] = 'Read'
@@ -390,7 +395,10 @@ class QuantumChemistry:
         else:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
             if self.qc == 'gauss':
-                kwargs['opt'] = 'CalcFC, Tight'
+                if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                    kwargs['opt'] = 'CalcFC, Tight'
+                else:
+                    kwargs['opt'] = 'CalcFC'
         del kwargs['chk']
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
@@ -448,7 +456,10 @@ class QuantumChemistry:
                                        high_level=high_level)
 
         if self.qc == 'gauss':
-            kwargs['opt'] = 'CalcFC, Tight'
+            if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                kwargs['opt'] = 'CalcFC, Tight'
+            else:
+                kwargs['opt'] = 'CalcFC'
         if mp2:
             kwargs['method'] = self.scan_method
             kwargs['basis'] = self.scan_basis

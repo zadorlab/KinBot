@@ -346,6 +346,10 @@ class Parameters:
             logging.error('For multi conformer tst calculation conformer search needs to be activated.')
             sys.exit(-1)
 
+        if not self.par['multi_conf_tst']:
+            self.par['multi_conf_tst_temp'] = None
+            self.par['multi_conf_tst_boltz'] = 0.05 
+
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])

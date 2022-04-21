@@ -845,12 +845,9 @@ class QuantumChemistry:
         Possible returns:
         running - the job is either running or is in the queue
         status - this can be normal or error, read from the database.
-                 Only happens if log file had a done stamp and it was in te db.
+                 Only happens if log file had a done stamp and it was in the db.
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
-        Problem: if a reaction search is cut because of a restart in the middle,
-                 but there is a file with a done stamp e.g., at the AM1 level.
-        Solution:
         """
         #logging.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')

@@ -134,17 +134,17 @@ class Optimize:
                         # check if the conformational search is done
                         if self.skip_conf_check == 0 or self.par['multi_conf_tst']:
                             status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid = self.species.confs.check_conformers(wait=self.wait)
-                            if self.par['multi_conf_tst']:
-                                self.species.conformer_geom, self.species.conformer_energy, \
-                                        self.species.conformer_freq, self.species.conformer_index = \
-                                        self.species.confs.find_unique(conformers, 
-                                        energies, 
-                                        frequency_vals, 
-                                        valid,
-                                        self.par['multi_conf_tst_temp'],
-                                        self.par['multi_conf_tst_boltz'])
+                            self.species.conformer_geom, self.species.conformer_energy, \
+                                    self.species.conformer_freq, self.species.conformer_index = \
+                                    self.species.confs.find_unique(conformers, 
+                                    energies, 
+                                    frequency_vals, 
+                                    valid,
+                                    self.par['multi_conf_tst_temp'],
+                                    self.par['multi_conf_tst_boltz'])
                             if status == 1:
-                                logging.info("\tLowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
+                                logging.info(f'\tLowest energy conformer for species {self.name} is number {lowest_conf}')
+                                logging.info(f'\tUnique conformers for species {self.name} are {self.species.conformer_index}')
                                 # save lowest energy conformer as species geometry
                                 self.species.geom = geom
                                 # save lowest energy conformer energy
@@ -250,7 +250,7 @@ class Optimize:
                                                 logging.warning('Lower energy conformer during HIR for {}. Restart #{}'.format(self.name, str(self.restart)))
                                                 logging.debug('Rotor: ' + str(min_rotor))
                                                 logging.debug('Scan point: ' + str(min_ai))
-                                                job = self.log_name(hir=1, r=min_rotor, s=min_ai)
+                                                job = self.log_name(1, hir=1, r=min_rotor, s=min_ai)
 
                                                 err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # delete the high_level log file and the hir log files
@@ -259,9 +259,9 @@ class Optimize:
                                                     os.remove(self.log_name(1) + '.log')
                                                 for rotor in range(len(self.species.dihed)):
                                                     for ai in range(self.species.hir.nrotation):
-                                                        if os.path.exists(self.log_name(hir=1, r=rotor, s=ai) + '.log'):
-                                                            logging.debug('Removing file ' + self.log_name(hir=1, r=rotor, s=ai) + '.log')
-                                                            os.remove(self.log_name(hir=1, r=rotor, s=ai)  + '.log')
+                                                        if os.path.exists(self.log_name(1, hir=1, r=rotor, s=ai) + '.log'):
+                                                            logging.debug('Removing file ' + self.log_name(1, hir=1, r=rotor, s=ai) + '.log')
+                                                            os.remove(self.log_name(1, hir=1, r=rotor, s=ai)  + '.log')
                                                 # set the status of high and hir back to not started
                                                 self.shigh = -1
                                                 self.shir = -1

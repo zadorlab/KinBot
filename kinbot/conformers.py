@@ -8,6 +8,8 @@ from shutil import copyfile
 
 from ase.db import connect
 from ase import Atoms
+from ase.units import invcm, Hartree, kcal, mol
+from ase.thermochemistry import IdealGasThermo
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
@@ -546,7 +548,24 @@ class Conformers:
         energies_unq = []
         frequencies_unq = []
         indices_unq = []
-        min_conf_en = min(energies)
+
+        if temp is not None:
+            # calculate the Gibbs free energy for all conformers
+            # at T = temp, P = 101325 Pa
+            gibbs = []
+            for vi, val in enumerate(valid):
+                vib_energies = [ff * invcm for ff in frequencies[vi]]  # convert to eV
+                potentialenergy = energies[vi] * Hartree  # convert to eV
+                atoms = Atoms(symbols=self.species.atom, positions=conformers[vi])
+                thermo = IdealGasThermo(vib_energies=vib_energies,
+                                        potentialenergy=potentialenergy,
+                                        atoms=atoms,
+                                        geometry='nonlinear',
+                                        symmetrynumber=1, spin=(self.species.mult-1)/2)
+                gibbs.append(thermo.get_gibbs_energy(temperature=temp, pressure=101325., verbose=False))
+            print(gibbs)
+            print((gibbs[vi] - min(gibbs)) / (kcal / mol))
+
         for vi, val in enumerate(valid):
             unique = True
             if val == 0:
@@ -579,8 +598,8 @@ class Conformers:
                         frequencies_unq.append(frequencies[vi])
                         indices_unq.append(vi)
                     else:
-                        if np.exp(-1000. * constants.AUtoKCAL * (energies[vi] - min_conf_en) /\
-                                  (constants.R / constants.KCALtoJ * temp)) > boltz:
+                        if np.exp(-1000. * (gibbs[vi] - min(gibbs)) / (kcal / mol) /\
+                                  (constants.R / constants.CALtoJ * temp)) > boltz:
                             conformers_unq.append(conformers[vi])
                             energies_unq.append(energies[vi])
                             frequencies_unq.append(frequencies[vi])

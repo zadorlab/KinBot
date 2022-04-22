@@ -13,11 +13,10 @@ def load_launchpad(lpad_file, **kwargs):  # TODO build a LaunchPad from kinbot p
         lpad_file = "my_launchpad.yaml"
     else:
         err_msg = "When using fireworks, either 'my_launchpad.yaml' should " \
-                  "be present in the currrent working directory."
-        #           " or a path " \
-        #           "to the launchpad .yaml file must be provided as value of " \
-        #           "the fireworks keyword in the .json input file. " \
-        #           "(eg. \"fireworks\" : \"/home/my_user/my_new_launchpad.yaml)"
+                  "be present in the currrent working directory or the path " \
+                  "to the launchpad .yaml file must be specified with the " \
+                  "'lpad_file' keyword.\n" \
+                  "(eg. \"lpad_file\": \"/home/my_user/my_new_launchpad.yaml\")"
         logging.error(err_msg)
         raise FileNotFoundError(err_msg)
 
@@ -38,7 +37,8 @@ def load_launchpad(lpad_file, **kwargs):  # TODO build a LaunchPad from kinbot p
         logging.error(err_msg)
         raise ValueError(err_msg)
 
-    lpad.reset(str(date.today()))
+    if kwargs['reset']:
+        lpad.reset(str(date.today()))   # TODO Implement a pid-specific reset.
 
     return lpad
 
@@ -70,17 +70,21 @@ def place_job(lpad, cmd, name="KinBot workflow"):
     lpad.add_wf(workflow)
 
 
-def setup_fireworks(lpad_file='my_launchpad.yaml', fworker_file='my_fworker.yaml', qadapter_file='my_qadapter.yaml',
+def setup_fireworks(lpad_file='my_launchpad.yaml',
+                    fworker_file='my_fworker.yaml',
+                    qadapter_file='my_qadapter.yaml',
                     **kwargs):
     from subprocess import Popen
     import time
 
     if 'num_jobs' not in kwargs:
         num_jobs = 1
+    elif 'num_jobs' == -1:
+        num_jobs = 1
     else:
         num_jobs = int(kwargs['num_jobs'])
 
-    lpad = load_launchpad(lpad_file)
+    lpad = load_launchpad(lpad_file, **kwargs)
     fworker = load_fworker(fworker_file)  # Not used now
     # qadapter = load_qadapter(qadapter_file)
 

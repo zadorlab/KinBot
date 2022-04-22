@@ -99,7 +99,12 @@ def main():
         qc = QuantumChemistry(par)
 
         if par['queuing'] == "fireworks":
-            qc.lpad = setup_fireworks(par['lpad_file'], par['fworker_file'], par['qadapter_file'],
+            if not par['pes']:
+                reset_lpad = True
+            else:
+                reset_lpad = False
+            qc.lpad = setup_fireworks(par['lpad_file'], par['fworker_file'], 
+                                      par['qadapter_file'], reset=reset_lpad,
                                       num_jobs=par['queue_job_limit'])
 
         # delete leftover AM1 calculations

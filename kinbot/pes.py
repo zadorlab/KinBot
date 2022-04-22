@@ -28,6 +28,7 @@ from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
+from kinbot.fireworks_setup import setup_fireworks
 
 
 def main():
@@ -70,6 +71,11 @@ def main():
     logging.info(license_message.message)
     msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
     logging.info(msg)
+
+    if par['queuing'] == "fireworks":
+        _ = setup_fireworks(par['lpad_file'], par['fworker_file'],
+                            par['qadapter_file'], reset=True,
+                            num_jobs=par['queue_job_limit'])
 
     well0 = StationaryPoint('well0',
                             par['charge'],
@@ -1399,8 +1405,12 @@ def submit_job(chemid, par):
         shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
                         .format(chemid, par['barrierless_saddle_prod_single_point_template']))
     if par['queuing'] == 'fireworks':
-        shutil.copyfile(par.get('lpad_file', 'my_launchpad.yaml'),
-                        f'{chemid}/my_launchpad.yaml')
+        shutil.copyfile(par['lpad_file'], f'{chemid}/my_launchpad.yaml')
+        try:
+            shutil.copyfile(par['fworker_file'], f'{chemid}/my_fworker.yaml')
+        except FileNotFoundError:
+            pass
+
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
     process = subprocess.Popen(command,

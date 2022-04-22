@@ -1398,6 +1398,9 @@ def submit_job(chemid, par):
                         .format(chemid, par['barrierless_saddle_single_point_template']))
         shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
                         .format(chemid, par['barrierless_saddle_prod_single_point_template']))
+    if par['queuing'] == 'fireworks':
+        shutil.copyfile(par.get('lpad_file', 'my_launchpad.yaml'),
+                        f'{chemid}/my_launchpad.yaml')
     outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
     errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
     process = subprocess.Popen(command,

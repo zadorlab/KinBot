@@ -74,7 +74,7 @@ def main():
 
     if par['queuing'] == "fireworks":
         _ = setup_fireworks(par['lpad_file'], par['fworker_file'],
-                            par['qadapter_file'], reset=True,
+                            par['queue_template'], reset=True,
                             num_jobs=par['queue_job_limit'])
 
     well0 = StationaryPoint('well0',

@@ -241,7 +241,6 @@ class Parameters:
             # Fireworks configuration files
             'lpad_file': 'my_launchpad.yaml',
             'fworker_file': 'my_fworker.yaml',
-            'qadapter_file': 'my_qadapter.yaml',
 
             # MASTER EQUATION
             # Which ME code to use:

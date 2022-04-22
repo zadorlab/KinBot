@@ -104,7 +104,7 @@ def main():
             else:
                 reset_lpad = False
             qc.lpad = setup_fireworks(par['lpad_file'], par['fworker_file'], 
-                                      par['qadapter_file'], reset=reset_lpad,
+                                      par['queue_template'], reset=reset_lpad,
                                       num_jobs=par['queue_job_limit'])
 
         # delete leftover AM1 calculations

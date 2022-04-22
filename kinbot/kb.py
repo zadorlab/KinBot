@@ -22,6 +22,7 @@ from kinbot.reaction_finder_bimol import ReactionFinderBimol
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.qc import QuantumChemistry
+from kinbot.fireworks_setup import setup_fireworks
 
 
 def main():
@@ -96,6 +97,10 @@ def main():
 
         # initialize the qc instance
         qc = QuantumChemistry(par)
+
+        if par['queuing'] == "fireworks":
+            qc.lpad = setup_fireworks(par['lpad_file'], par['fworker_file'], par['qadapter_file'],
+                                      num_jobs=par['queue_job_limit'])
 
         # delete leftover AM1 calculations
         files = os.listdir()

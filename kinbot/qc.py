@@ -509,6 +509,14 @@ class QuantumChemistry:
         If the number of jobs in the queue is larger than the user-set limit,
         KinBot will park here until resources are freed up.
         """
+        try:
+            from kinbot.fireworks_setup import place_job
+        except ModuleNotFoundError as e:
+            if self.queuing == 'fireworks':
+                raise e
+            else:
+                pass
+
         # if the logfile already exists, copy it with another name
         if self.queue_job_limit > 0:
             self.limit_jobs()
@@ -521,26 +529,28 @@ class QuantumChemistry:
             if check == 'running':
                 return 0
 
-        try:
-            if self.par['queue_template'] == '':
-                template_head_file = pkg_resources.resource_filename('tpl', self.queuing + '.tpl')
-            else:
-                template_head_file = self.par['queue_template']
-        except OSError:
-            logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
-            logging.error('Or no file is found at {}.'.format(self.par['queue_template']))
-            logging.error('Exiting')
-            sys.exit()
+        if self.queuing != 'fireworks':
+            try:
+                if self.par['queue_template'] == '':
+                    template_head_file = pkg_resources.resource_filename('tpl', self.queuing + '.tpl')
+                else:
+                    template_head_file = self.par['queue_template']
+            except OSError:
+                logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
+                logging.error('Or no file is found at {}.'.format(self.par['queue_template']))
+                logging.error('Exiting')
+                sys.exit()
 
-        if self.queuing == 'local':
-            logging.error(f'Output file for job {job} is missing. Unable to '
-                          'carry out calculations when queuing is \'local\'.')
-            sys.exit()
+            if self.queuing == 'local':
+                logging.error(f'Output file for job {job} is missing. Unable to '
+                              'carry out calculations when queuing is \'local\'.')
+                sys.exit()
 
-        template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
+            template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
+            name = job.split('/')[-1]
+            python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
+
         python_file = '{}.py'.format(job)
-        name = job.split('/')[-1]
-        python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 
         if self.queuing == 'pbs':
             python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
@@ -548,25 +558,33 @@ class QuantumChemistry:
         elif self.queuing == 'slurm':
             python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, dir='perm',
                                                         slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
+        elif self.queuing == 'fireworks':
+            python_template = f'python {python_file}'
         else:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logging.error('Exiting')
             sys.exit()
 
-        qu_file = '{}{}'.format(job, constants.qext[self.queuing])
-        with open(qu_file, 'w') as f_out_qu:
-            f_out_qu.write(python_template)
+        if self.queuing == 'fireworks':
+            place_job(self.lpad, python_template, job)
+        else:
+            qu_file = '{}{}'.format(job, constants.qext[self.queuing])
+            with open(qu_file, 'w') as f_out_qu:
+                f_out_qu.write(python_template)
 
-        command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
-        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = process.communicate()
-        out = out.decode()
-        err = err.decode()
+            command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
+            process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = process.communicate()
+            out = out.decode()
+            err = err.decode()
+
         try:
             if self.queuing == 'pbs':
                 pid = out.split('\n')[0].split('.')[0]
             elif self.queuing == 'slurm':
                 pid = out.split('\n')[0].split()[3]
+            elif self.queuing == 'fireworks':
+                pid = None
         except:
             msg = 'Something went wrong when submitting a job'
             msg += 'This is the standard output:\n' + out
@@ -866,6 +884,12 @@ class QuantumChemistry:
                     if pid == self.job_ids.get(job, '-1'):
                         logging.debug('Job is running')
                         return 'running'
+        elif self.queuing == 'fireworks':
+            for fw_id in self.lpad.get_fw_ids():  # Each wf has only one fw
+                wf = self.lpad.get_wf_by_fw_id(fw_id)
+                if wf.name == job and wf.state.lower() in ['running', 'ready']:
+                    return 'running'
+
         elif self.queuing == 'local':
             pass
 
@@ -935,6 +959,8 @@ class QuantumChemistry:
                 command = ['squeue', '-h', '-u', '{}'.format(self.username)]
             elif self.queuing == 'pbs':
                 command = ['qselect', '-u', '{}'.format(self.username)]
+            elif self.queuing == 'fireworks':
+                return 0
             elif self.queuing == 'local':
                 command = command = ['echo', '']
             jobs = subprocess.check_output(command)

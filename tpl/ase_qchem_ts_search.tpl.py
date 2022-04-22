@@ -19,15 +19,14 @@ calc.command = '{qc_command} -nt {ppn} -save PREFIX.inp PREFIX.out PREFIX.sv'
 mol.set_calculator(calc)
 
 success = True
-for tr in range({ntrial}):
-    try:
-        e = mol.get_potential_energy()  # use the QChem optimizer
-        iowait(logfile, 'qchem')
-        mol.positions = reader_qchem.read_geom(logfile, mol)
-        db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
-        break
-    except RuntimeError:
-        success = False
+try:
+    e = mol.get_potential_energy()  # use the QChem optimizer
+    iowait(logfile, 'qchem')
+    mol.positions = reader_qchem.read_geom(logfile, mol)
+    db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
+    break
+except RuntimeError:
+    success = False
 
 if not success:
     if not bimol:

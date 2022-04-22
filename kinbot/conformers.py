@@ -563,9 +563,9 @@ class Conformers:
                             q_cent = rmsd.centroid(q_coord)
                             p_coord -= p_cent
                             q_coord -= q_cent
-                            rotation_method = kabsch_rmsd
-                            reorder_method = reorder_hungarian
-                            q_review = rmsd.reorder_method(p_atoms, q_atoms, p_coord, q_coord)
+                            rotation_method = rmsd.kabsch_rmsd
+                            reorder_method = rmsd.reorder_hungarian
+                            q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
                             q_coord = q_coord[q_review]
                             q_atoms = q_atoms[q_review]
                             result_rmsd = rotation_method(p_coord, q_coord)

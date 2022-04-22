@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os
 import numpy as np
 import subprocess
@@ -131,30 +130,6 @@ class MESS:
                     if termol_name not in self.termolec_names:
                         self.termolec_names[termol_name] = 't_{}'.format(len(self.termolec_names) + 1)
 
-        # Barrierless short names
-        if self.species.homolytic_scissions is not None:
-            for hs in self.species.homolytic_scissions.hss:
-                if hs.status == -1:
-                    if len(hs.products) == 1:
-                        st_pt = hs.products[0]
-                        if st_pt.chemid not in self.well_names:
-                            self.well_names[st_pt.chemid] = 'w_{}'.format(len(self.well_names) + 1)
-                    elif len(hs.products) == 2:
-                        for st_pt in hs.products:
-                            if st_pt.chemid not in self.fragment_names:
-                                self.fragment_names[st_pt.chemid] = 'fr_{}'.format(len(self.fragment_names) + 1)
-                    bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in hs.products]))
-                    if bimol_name not in self.bimolec_names:
-                        self.bimolec_names[bimol_name] = 'b_{}'.format(len(self.bimolec_names) + 1)
-                    else:
-                        # TER MOLECULAR
-                        for st_pt in hs.products:
-                            if st_pt.chemid not in self.fragment_names:
-                                self.fragment_names[st_pt.chemid] = 'fr_{}'.format(len(self.fragment_names) + 1)
-                        termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in hs.products]))
-                        if termol_name not in self.termolec_names:
-                            self.termolec_names[termol_name] = 't_{}'.format(len(self.termolec_names) + 1)
-
 
     def write_input(self, qc):
         """
@@ -276,26 +251,6 @@ class MESS:
                                                                          uq_iter)
                         written_termolec_names.append(termol_name)
 
-            # Homolytic scission - barrierless reactions with no TS search
-            if self.species.homolytic_scissions is not None:
-                for hs in self.species.homolytic_scissions.hss:
-                    new = 1
-                    if hs.status == -1:
-                        hs_prod_name = '_'.join(sorted([str(prod.chemid) for prod in hs.products]))
-                        if hs_prod_name not in written_bimol_names and hs_prod_name not in written_termolec_names:
-                            if hs_prod_name in self.barrierless_names:
-                                new = 0
-                            if new:
-                                self.barrierless_names[hs_prod_name] = hs_prod_name
-                            if new == 1 or uq_iter >= 0:
-                                barrierless_energy_add = uq.calc_factor('energy', hs_prod_name, uq_iter)
-                                barrierless_freq_factor = uq.calc_factor('freq', hs_prod_name, uq_iter)
-                                barrierless_blocks[hs_prod_name] = self.write_barrierless([opt.species for opt in hs.prod_opt],
-                                                                                          hs,
-                                                                                          barrierless_energy_add,
-                                                                                          barrierless_freq_factor,
-                                                                                          uq_iter)
-       
             wells = ''
             divider = '\n!****************************************\n'
             for well in well_blocks:
@@ -501,17 +456,38 @@ class MESS:
             zeroenergy += well_add
             zeroenergy = round(zeroenergy, 2)
 
-        mess_well = self.welltpl.format(chemid=name,
-                                        smi=species.smiles,
-                                        natom=species.natom,
-                                        geom=self.make_geom(species),
-                                        symm=float(species.sigma_ext) / float(species.nopt),
-                                        nfreq=len(species.reduced_freqs),
-                                        freq=self.make_freq(species, freq_factor, 0),
-                                        hinderedrotor=self.make_rotors(species, freq_factor),
-                                        nelec=1,
-                                        mult=species.mult,
-                                        zeroenergy=zeroenergy)
+        nunq_confs = 0  # number of unique conformers
+        for co in self.species.conformer_index:
+            if co >= 0:
+                nunq_confs += 1
+
+        if not self.par['multi_conf_tst'] or nunq_confs == 1: 
+            mess_well = self.welltpl.format(chemid=name,
+                                            smi=species.smiles,
+                                            natom=species.natom,
+                                            geom=self.make_geom(species),
+                                            symm=float(species.sigma_ext) / float(species.nopt),
+                                            nfreq=len(species.reduced_freqs),
+                                            freq=self.make_freq(species, freq_factor, 0),
+                                            hinderedrotor=self.make_rotors(species, freq_factor),
+                                            nelec=1,
+                                            mult=species.mult,
+                                            zeroenergy=zeroenergy)
+        else:
+            rrho = ''
+            for ci, co in enumerate(self.species.conformer_index):
+                corerr = self.corerrtpl.format(symm=float(species.sigma_ext) / float(species.nopt))
+                rrho += self.rrhotpl.format(natom=species.natom,
+                                            geom=self.make_geom(species),
+                                            core=corerr,
+                                            nfreq=len(species.kinbot_freqs),
+                                            freq=self.make_freq(species, freq_factor, 0),
+                                            rotors=self.make_rotors(species, freq_factor),
+                                            tunneling='',
+                                            nelec=1,
+                                            mult=species.mult,
+                                            zeroenergy=zeroenergy)
+ 
 
         with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
             f.write(mess_well)

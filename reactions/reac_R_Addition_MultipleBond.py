@@ -1,3 +1,4 @@
+import numpy as np
 from kinbot.reac_General import GeneralReac
 from kinbot import geometry
 
@@ -14,18 +15,29 @@ class RAdditionMultipleBond(GeneralReac):
         release = []
 
         self.fix_bonds(fix)
+        self.fix_angles(fix)
+        self.fix_dihedrals(fix)
 
-        if step == 0:
-            # verify if the radical atom has more than one neighbor and 
-            # change the dihedral to 90 degrees in that case
+        if step < self.max_step:
+#            # verify if anchor atoms have more than one neighbor and 
+#            # change the dihedral to 90 degrees in that case
             neigh = [i for i, ni in enumerate(self.species.bond[self.instance[0]]) if ni > 0]
             if len(neigh) > 1:
                 for ni in neigh:
                     if not ni in self.instance:
                         change.append([ni + 1, self.instance[0] + 1, self.instance[1] + 1, self.instance[2] + 1, 90.])
                         break
-                
-        if step < self.max_step:
+            # anchors for middle atom, improper dihedral
+            neigh = [i for i, ni in enumerate(self.species.bond[self.instance[1]]) if ni > 0]
+            if len(neigh) > 2:
+                for ni in neigh:
+                    if not ni in self.instance:
+                        change.append([ni + 1, self.instance[1] + 1, self.instance[0] + 1, self.instance[2] + 1, 90.])
+                        self.set_angle_single(ni, self.instance[1], self.instance[2], 90., change)
+                        break
+
+            self.set_angle_single(self.instance[0], self.instance[1], self.instance[2], 90., change)
+
             final_dist = 1.42
             if self.species.atom[self.instance[0]] == 'C' and self.species.atom[self.instance[1]] == 'C' and self.species.atom[self.instance[2]] == 'C':
                 final_dist = 2.20

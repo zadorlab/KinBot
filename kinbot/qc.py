@@ -83,7 +83,10 @@ class QuantumChemistry:
                 'charge': charge,
                 'scf': 'xqc'
             }
-            if self.par['guessmix'] == 1 or 'barrierless_saddle' in job or 'bls' in job:
+            if self.par['guessmix'] == 1 or \
+                'barrierless_saddle' in job or \
+                'bls' in job or \
+                (mult == 1 and 'R_Addition_MultipleBond' in job):
                 kwargs['guess'] = 'Mix,Always'
             if ts:
                 # arguments for transition state searches
@@ -93,16 +96,16 @@ class QuantumChemistry:
                 if step == 0:
                     if not self.par['bimol']:
                         kwargs['opt'] = 'ModRedun,Loose,CalcFC'
-                        #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     else:
                         kwargs['opt'] = 'ModRedun,Loose,CalcFC'
                         kwargs['method'] = self.method
                         kwargs['basis'] = self.basis
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Loose,CalcFC'
-                    #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
-                    if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                    if self.par['guessmix'] == 1 or \
+                        'barrierless_saddle' in job or \
+                        (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'
                     if self.par['bimol']:
                         kwargs['method'] = self.method
@@ -130,7 +133,9 @@ class QuantumChemistry:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
-                    if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                    if self.par['guessmix'] == 1 or \
+                        'barrierless_saddle' in job or \
+                        (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here
                     else:
                         kwargs['guess'] = 'Read'
@@ -385,12 +390,16 @@ class QuantumChemistry:
                 job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
 
         if species.wellorts:
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1)
+            kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
+                                           ts=1, step=1, max_step=1)
         else:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
             if self.qc == 'gauss':
-                kwargs['opt'] = 'CalcFC, Tight'
-                del kwargs['chk']
+                if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                    kwargs['opt'] = 'CalcFC, Tight'
+                else:
+                    kwargs['opt'] = 'CalcFC'
+        del kwargs['chk']
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
@@ -414,17 +423,23 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0):
+    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, fdir=None):
         """
         Creates a geometry optimization input and runs it.
         """
-        job = str(species.chemid) + '_well'
-        if high_level:
-            job = str(species.chemid) + '_well_high'
-        if mp2:
-            job = str(species.chemid) + '_well_mp2'
-        if bls:
-            job = str(species.chemid) + '_well_bls'
+        if ext is None:
+            job = str(species.chemid) + '_well'
+            if high_level:
+                job = str(species.chemid) + '_well_high'
+            if mp2:
+                job = str(species.chemid) + '_well_mp2'
+            if bls:
+                job = str(species.chemid) + '_well_bls'
+        else:
+            job = str(species.chemid) + ext
+
+        if fdir is not None:
+            job = f'{fdir}/{job}'
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -441,7 +456,10 @@ class QuantumChemistry:
                                        high_level=high_level)
 
         if self.qc == 'gauss':
-            kwargs['opt'] = 'CalcFC, Tight'
+            if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                kwargs['opt'] = 'CalcFC, Tight'
+            else:
+                kwargs['opt'] = 'CalcFC'
         if mp2:
             kwargs['method'] = self.scan_method
             kwargs['basis'] = self.scan_basis
@@ -449,8 +467,6 @@ class QuantumChemistry:
             if self.opt:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         # the integral is set in the get_qc_arguments parts, bad design
-
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -469,13 +485,19 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_opt_ts(self, species, geom, high_level=0):
+    def qc_opt_ts(self, species, geom, high_level=0, ext=None, fdir=None):
         """Creates a ts optimization input and runs it
         """
 
         job = str(species.name)
-        if high_level:
-            job += '_high'
+        if ext is None:
+            if high_level:
+                job += '_high'
+        else:
+            job += ext
+
+        if fdir is not None:
+            job = f'{fdir}/{job}'
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1, high_level=1)
 
@@ -852,12 +874,9 @@ class QuantumChemistry:
         Possible returns:
         running - the job is either running or is in the queue
         status - this can be normal or error, read from the database.
-                 Only happens if log file had a done stamp and it was in te db.
+                 Only happens if log file had a done stamp and it was in the db.
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
-        Problem: if a reaction search is cut because of a restart in the middle,
-                 but there is a file with a done stamp e.g., at the AM1 level.
-        Solution:
         """
         #logging.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')

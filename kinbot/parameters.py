@@ -5,7 +5,6 @@ The defaults are listed in this file and the user defined parameters
 are defined in a json file that needs to be given as an argument to the
 initializer.
 """
-from __future__ import with_statement
 import sys
 import json
 import logging
@@ -59,9 +58,6 @@ class Parameters:
             'skip_chemids': ['none'],
             # Skip specific reactions, usually makes sense once the search is done
             'skip_reactions': ['none'],
-            # break all single bonds to find the barriers
-            # of potential homolytic scissions
-            'homolytic_scissions': 0,
             # perform variational calculations for the homolytic scissions
             'variational': 0,
             # break specific bonds in the homolytic search
@@ -89,6 +85,8 @@ class Parameters:
             'simultaneous_kinbot': 5,
             # Perform high level optimization and freq calculation (L2)
             'high_level': 0,
+
+            # CONFORMATIONAL SEARCH
             # Do a conformational search
             'conformer_search': 0,
             # The angular grid for dihedrals, angle = 360 / grid
@@ -104,8 +102,6 @@ class Parameters:
             'nrotation': 12,
             # Make figures of the HIR profiles
             'plot_hir_profiles': 0,
-            # Do master equation calculations
-            'me': 0,
             # Number of HIR restarts in case a lower energy point gets found
             'rotation_restart': 3,
             # Maximum number of diherals for which exhaustive
@@ -122,6 +118,15 @@ class Parameters:
             # threshold of conformers at semi empirical level to take to the L1 level
             # in kcal/mol
             'semi_emp_confomer_threshold': 5,
+            # multi conformer TST
+            'multi_conf_tst': 0,
+            # temperature in K
+            'multi_conf_tst_temp': 300.0,
+            # percent of Boltzmann to include
+            'multi_conf_tst_boltz': 0.05, 
+            # force print conformational info, might be slow 
+            'print_conf': 0,
+
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions
             'min_bond_break': 2,
@@ -243,6 +248,8 @@ class Parameters:
             'fworker_file': 'my_fworker.yaml',
 
             # MASTER EQUATION
+            # Do master equation calculations
+            'me': 0,
             # Which ME code to use:
             'me_code': 'mess',  # or mesmer
             # collision parameters
@@ -339,6 +346,14 @@ class Parameters:
         if self.par['bimol'] and len(self.par['structure']) != 2:
             logging.error('For bimolecular reactions two fragments need to be defined.')
             sys.exit(-1)
+
+        if self.par['multi_conf_tst'] and not self.par['conformer_search']:
+            logging.error('For multi conformer tst calculation conformer search needs to be activated.')
+            sys.exit(-1)
+
+        if not self.par['multi_conf_tst']:
+            self.par['multi_conf_tst_temp'] = None
+            self.par['multi_conf_tst_boltz'] = 0.05 
 
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])

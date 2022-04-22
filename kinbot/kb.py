@@ -1,10 +1,3 @@
-"""
-Drive for KinBot runs.
-1. Reading keywords
-2. Optimizing the reactant
-3. Search for reactions
-"""
-from __future__ import print_function
 import sys
 import os
 import logging
@@ -12,7 +5,6 @@ import datetime
 
 from kinbot import license_message
 from kinbot import postprocess
-from kinbot.homolytic_scissions import HomolyticScissions
 from kinbot.parameters import Parameters
 from kinbot.mesmer import MESMER
 from kinbot.mess import MESS
@@ -222,11 +214,6 @@ def main():
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
-
-        if par['homolytic_scissions'] == 1:
-            logging.info('\tStarting the search for homolytic scission products...')
-            well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
-            well0.homolytic_scissions.find_homolytic_scissions()
 
     # BIMOLECULAR REACTANTS
     elif par['bimol'] == 1:

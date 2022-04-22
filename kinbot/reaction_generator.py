@@ -81,9 +81,9 @@ class ReactionGenerator:
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
                     # somewhat messy manipulation to force the new bond matrix for hom_sci
                     obj.products = copy.deepcopy(obj.species)
-                    obj.products.bonds = copy.deepcopy(obj.species.bond)  # plural/non plural!
-                    obj.products.bonds[obj.instance[0]][obj.instance[1]] = 0  # delete bond
-                    obj.products.bonds[obj.instance[1]][obj.instance[0]] = 0  # delete bond
+                    obj.products.bonds = [copy.deepcopy(obj.species.bond)]  # plural/non plural! 
+                    obj.products.bonds[0][obj.instance[0]][obj.instance[1]] = 0  # delete bond
+                    obj.products.bonds[0][obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     obj.products.bond[obj.instance[0]][obj.instance[1]] = 0  # delete bond
                     obj.products.bond[obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     obj.product_bonds = copy.deepcopy(obj.species.bonds[0])  # the first resonance structure

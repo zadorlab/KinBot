@@ -18,8 +18,7 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
         only strongly bonded atoms are included
     massweighted: whether the hessian is already mass-weighted or not.
     """
-    if species.confs.qc.qc == 'qchem':
-        massweighted = True
+
     atom = species.atom
     natom = species.natom
 

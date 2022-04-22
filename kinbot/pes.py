@@ -2,8 +2,6 @@
 This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
 """
-from __future__ import print_function
-from __future__ import absolute_import
 import sys
 import os
 import stat
@@ -1293,6 +1291,9 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
         logging.error('Could not find {} in directory {} database.'.format(job, directory))
         logging.error('Exiting...')
         sys.exit(-1)
+    except TypeError:
+        logging.warning('Could not find {} in directory {}'.format(job, directory))
+        energy = 0.
     return energy
 
 
@@ -1342,8 +1343,8 @@ def get_l3energy(job, par, bls=0):
     return 0, -1  # job not yet started to run or not finished
 
 
-def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):
-    db = connect(dir + '/kinbot.db')
+def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
+    db = connect(jobdir + '/kinbot.db')
     if ts:
         j = job
     else:
@@ -1355,9 +1356,13 @@ def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):
     if high_level:
         j += '_high'
     rows = db.select(name=j)
+    zpe = None 
     for row in rows:
         if hasattr(row, 'data'):
             zpe = row.data.get('zpe')
+    if zpe == None: 
+        logging.warning('Could not find zpe for {} in directory {}'.format(job, jobdir))
+        zpe = 1.  # a large value
     return zpe
 
 

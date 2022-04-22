@@ -294,7 +294,7 @@ class Optimize:
                 if self.par['multi_conf_tst'] == 0:
                     fr_file = self.log_name(self.par['high_level'])
                     hess = self.qc.read_qc_hess(fr_file, self.species.natom)
-                    if self.qc == 'qchem':
+                    if self.qc.qc == 'qchem':
                         massweighted = True
                     else:
                         massweighted = False

@@ -277,7 +277,7 @@ class Optimize:
                             # no hir calculations necessary, set status to finished
                             self.shir = 1
                             if self.par['multi_conf_tst'] == 1:
-                                logging.info('No rotor scans performed because multi conformer TST is requested.')
+                                logging.debug('No rotor scans performed because multi conformer TST is requested.')
                     if not self.wait or self.shir == 1 or self.shigh == -999:
                         # break the loop if no waiting is required or
                         # if the hir calcs are done or

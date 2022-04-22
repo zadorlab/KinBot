@@ -284,7 +284,7 @@ class Conformers:
                         rows = self.db.select(name=self.get_job_name(nrandconf - 1))
                         for row in rows:
                             self.conf = nrandconf
-                            logging.info('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
+                            logging.debug('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
                             return 1
 
                 self.generate_conformers_random_sampling(cart)

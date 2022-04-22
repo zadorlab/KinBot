@@ -294,7 +294,14 @@ class Optimize:
                 if self.par['multi_conf_tst'] == 0:
                     fr_file = self.log_name(self.par['high_level'])
                     hess = self.qc.read_qc_hess(fr_file, self.species.natom)
-                    self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, hess, self.species.geom)
+                    if self.qc.qc == 'qchem':
+                        massweighted = True
+                    else:
+                        massweighted = False
+                    self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, 
+                                                                                                        hess, 
+                                                                                                        self.species.geom, 
+                                                                                                        massweighted=massweighted)
                 else:
                     self.species.kinbot_freqs = self.species.freq
                     self.species.reduced_freqs = self.species.freq

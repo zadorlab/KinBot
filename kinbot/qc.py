@@ -399,7 +399,8 @@ class QuantumChemistry:
                     kwargs['opt'] = 'CalcFC, Tight'
                 else:
                     kwargs['opt'] = 'CalcFC'
-        del kwargs['chk']
+        if self.qc == 'gauss':
+            del kwargs['chk']
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''

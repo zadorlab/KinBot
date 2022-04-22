@@ -456,17 +456,38 @@ class MESS:
             zeroenergy += well_add
             zeroenergy = round(zeroenergy, 2)
 
-        mess_well = self.welltpl.format(chemid=name,
-                                        smi=species.smiles,
-                                        natom=species.natom,
-                                        geom=self.make_geom(species),
-                                        symm=float(species.sigma_ext) / float(species.nopt),
-                                        nfreq=len(species.reduced_freqs),
-                                        freq=self.make_freq(species, freq_factor, 0),
-                                        hinderedrotor=self.make_rotors(species, freq_factor),
-                                        nelec=1,
-                                        mult=species.mult,
-                                        zeroenergy=zeroenergy)
+        nunq_confs = 0  # number of unique conformers
+        for co in self.species.conformer_index:
+            if co >= 0:
+                nunq_confs += 1
+
+        if not self.par['multi_conf_tst'] or nunq_confs == 1: 
+            mess_well = self.welltpl.format(chemid=name,
+                                            smi=species.smiles,
+                                            natom=species.natom,
+                                            geom=self.make_geom(species),
+                                            symm=float(species.sigma_ext) / float(species.nopt),
+                                            nfreq=len(species.reduced_freqs),
+                                            freq=self.make_freq(species, freq_factor, 0),
+                                            hinderedrotor=self.make_rotors(species, freq_factor),
+                                            nelec=1,
+                                            mult=species.mult,
+                                            zeroenergy=zeroenergy)
+        else:
+            rrho = ''
+            for ci, co in enumerate(self.species.conformer_index):
+                corerr = self.corerrtpl.format(symm=float(species.sigma_ext) / float(species.nopt))
+                rrho += self.rrhotpl.format(natom=species.natom,
+                                            geom=self.make_geom(species),
+                                            core=corerr,
+                                            nfreq=len(species.kinbot_freqs),
+                                            freq=self.make_freq(species, freq_factor, 0),
+                                            rotors=self.make_rotors(species, freq_factor),
+                                            tunneling='',
+                                            nelec=1,
+                                            mult=species.mult,
+                                            zeroenergy=zeroenergy)
+ 
 
         with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
             f.write(mess_well)

@@ -167,7 +167,6 @@ class StationaryPoint:
                 if i == j: continue
                 atom_pair = [self.atom[i], self.atom[j]]
                 atom_pair = sorted(atom_pair)
-                #if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
                 if self.dist[i][j] < constants.st_bond[''.join(atom_pair)]:
                     self.bond[i][j] = 1
 
@@ -278,7 +277,6 @@ class StationaryPoint:
                     #check the uniqueness of the bond matrix
                     is_unique = 1
                     for b in self.bonds:
-                        # TODO this gives an error for hom_sci
                         if all([all([b[j][k] == perm_b[j][k] for k in range(self.natom)]) for j in range(self.natom)]):
                             is_unique = 0
                     if is_unique:

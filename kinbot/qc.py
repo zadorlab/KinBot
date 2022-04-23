@@ -343,10 +343,19 @@ class QuantumChemistry:
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=species.wellorts, step=1, max_step=1, hir=1)
 
-        del kwargs['opt']
-        del kwargs['chk']
-        kwargs['method'] = 'am1'
-        kwargs['basis'] = ''
+        if self.qc == 'gauss':
+            del kwargs['opt']
+            del kwargs['chk']
+            kwargs['method'] = 'am1'
+            kwargs['basis'] = ''
+        elif self.qc == 'qchem':
+            kwargs['method'] = 'b3lyp'
+            kwargs['basis'] = 'sto-3g'
+            kwargs['scf_convergence'] = '4'
+            kwargs['jobtype'] = 'sp'
+        else:
+            raise NotImplementedError('Search of cyclic conformers is not '
+                                      f'implemented for {self.qc}')
 
 #        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
@@ -390,12 +399,12 @@ class QuantumChemistry:
                 job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
 
         if species.wellorts:
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
+            kwargs = self.get_qc_arguments(job, species.mult, species.charge,
                                            ts=1, step=1, max_step=1)
         else:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
             if self.qc == 'gauss':
-                if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                if self.par['opt'].casefold() == 'Tight'.casefold():
                     kwargs['opt'] = 'CalcFC, Tight'
                 else:
                     kwargs['opt'] = 'CalcFC'
@@ -456,7 +465,7 @@ class QuantumChemistry:
                                        high_level=high_level)
 
         if self.qc == 'gauss':
-            if self.par['opt'].casefold() == 'Tight'.casefold(): 
+            if self.par['opt'].casefold() == 'Tight'.casefold():
                 kwargs['opt'] = 'CalcFC, Tight'
             else:
                 kwargs['opt'] = 'CalcFC'
@@ -921,7 +930,6 @@ class QuantumChemistry:
 
         if self.is_in_database(job):
             for i in range(1):
-
                 if self.qc == 'gauss':
                     log_file = job + '.log'
                 elif self.qc == 'nwchem':

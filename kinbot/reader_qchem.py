@@ -1,9 +1,8 @@
 """
 Functions to read QChem output files.
 """
-# import logging
-# import os
-# import re
+import os
+import re
 # import copy
 import logging
 
@@ -139,7 +138,6 @@ def read_hess(job, natom):
     """
     Read the hessian of a QChem chk file
     """
-
     # initialize Hessian
     hess = np.zeros((3 * natom, 3 * natom))
 

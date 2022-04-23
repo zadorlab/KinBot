@@ -563,8 +563,6 @@ class Conformers:
                                         geometry='nonlinear',
                                         symmetrynumber=1, spin=(self.species.mult-1)/2)
                 gibbs.append(thermo.get_gibbs_energy(temperature=temp, pressure=101325., verbose=False))
-            print(gibbs)
-            print((gibbs[vi] - min(gibbs)) / (kcal / mol))
 
         for vi, val in enumerate(valid):
             unique = True

@@ -348,8 +348,6 @@ class QuantumChemistry:
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
-
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,

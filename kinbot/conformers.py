@@ -540,7 +540,7 @@ class Conformers:
 
         test is all previous structures.
 
-        temp is temperature, and only exp(-E/RT) > boltz conformers are considered if defined.
+        temp is temperature, and only exp(-G/RT) > boltz conformers are considered if defined.
         returns the geometries, total energies, frequencies, and indices (as in the /conf directory)
         """
 
@@ -554,7 +554,10 @@ class Conformers:
             # at T = temp, P = 101325 Pa
             gibbs = []
             for vi, val in enumerate(valid):
-                vib_energies = [ff * invcm for ff in frequencies[vi]]  # convert to eV
+                if frequencies[vi][0] > 0:
+                    vib_energies = [ff * invcm for ff in frequencies[vi]]  # convert to eV
+                else:
+                    vib_energies = [ff * invcm for ff in frequencies[vi][1:]]  # convert to eV
                 potentialenergy = energies[vi] * Hartree  # convert to eV
                 atoms = Atoms(symbols=self.species.atom, positions=conformers[vi])
                 thermo = IdealGasThermo(vib_energies=vib_energies,

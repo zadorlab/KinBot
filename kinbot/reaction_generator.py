@@ -81,9 +81,9 @@ class ReactionGenerator:
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
                     # somewhat messy manipulation to force the new bond matrix for hom_sci
                     obj.products = copy.deepcopy(obj.species)
-                    obj.products.bonds = copy.deepcopy(obj.species.bond)  # plural/non plural!
-                    obj.products.bonds[obj.instance[0]][obj.instance[1]] = 0  # delete bond
-                    obj.products.bonds[obj.instance[1]][obj.instance[0]] = 0  # delete bond
+                    obj.products.bonds = [copy.deepcopy(obj.species.bond)]  # plural/non plural! 
+                    obj.products.bonds[0][obj.instance[0]][obj.instance[1]] = 0  # delete bond
+                    obj.products.bonds[0][obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     obj.products.bond[obj.instance[0]][obj.instance[1]] = 0  # delete bond
                     obj.products.bond[obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     obj.product_bonds = copy.deepcopy(obj.species.bonds[0])  # the first resonance structure
@@ -419,18 +419,24 @@ class ReactionGenerator:
                         if new:
                             prod_opt = Optimize(st_pt, self.par, self.qc)
                             prod_opt.do_optimization()
+                            if prod_opt.shigh == -999: 
+                                logging.info('\tRxn search failed for {}, prod_opt shigh fail for {}.'
+                                             .format(obj.instance_name, prod_opt.species.chemid))
+                                self.species.reac_ts_done[index] = -999
+                                break  # breaks so that other species is not looked at
                         obj.prod_opt.append(prod_opt)
 
-                    for st_pt in obj.products:
-                        # section where comparing products in same reaction occurs
-                        if len(obj.prod_opt) > 0:
-                            for j, st_pt_opt in enumerate(obj.prod_opt):
-                                if st_pt.chemid == st_pt_opt.species.chemid:
-                                    if len(obj.prod_opt) > j:
-                                        prod_opt = obj.prod_opt[j]
-                                        break
+                    if self.species.reac_ts_done[index] != -999:  # so we don't reset faulty calculation
+                        for st_pt in obj.products:
+                            # section where comparing products in same reaction occurs
+                            if len(obj.prod_opt) > 0:
+                                for j, st_pt_opt in enumerate(obj.prod_opt):
+                                    if st_pt.chemid == st_pt_opt.species.chemid:
+                                        if len(obj.prod_opt) > j:
+                                            prod_opt = obj.prod_opt[j]
+                                            break
 
-                    self.species.reac_ts_done[index] = 5
+                        self.species.reac_ts_done[index] = 5
 
                 elif self.species.reac_ts_done[index] == 5:
                     # check up on the TS and product optimizations
@@ -448,6 +454,7 @@ class ReactionGenerator:
                         if not pr_opt.shir == 1:
                             opts_done = 0
                             pr_opt.do_optimization()
+                            print(pr_opt.species.chemid, pr_opt.shigh)
                         if pr_opt.shigh == -999:
                             logging.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
                             fails = 1
@@ -467,7 +474,7 @@ class ReactionGenerator:
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
                             rel_en = (st_pt.energy - self.species.energy) * constants.AUtoKCAL  # energy contains ZPE! check!!
-                            logging.info(f'\tProduct {obj.instance_name} energy is {rel_en} kcal/mol.')
+                            logging.info(f'\tProduct {obj.instance_name} energy is {np.round(rel_en, 2)} kcal/mol.')
                             new_barrier_threshold = self.par['barrier_threshold'] - rel_en 
                             dirwell = os.path.dirname(os.getcwd())
                             jobs = open(dirwell + '/chemids', 'r').read().split('\n')

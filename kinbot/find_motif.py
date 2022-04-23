@@ -3,8 +3,8 @@ def start_motif(motif, natom, bond, atom, allover, eqv):
     Initialize the motif search.
     If allover is >0, that atom is used as a starting point.
     """
-    visit = [0 for i in range(natom)]
-    chain = [-999 for i in range(natom)]
+    visit = [0] * natom
+    chain = [-999] * natom
     nsteps = -1
     motifset = []
     find_motif(motif, visit, chain, nsteps, 0, -1,
@@ -35,13 +35,13 @@ def find_motif(motif, visit, chain, nsteps, current,
         if allover < 0:
             for i in range(natom):
                 current = i
-                visit = [0 for i in range(natom)]
-                chain = [-999 for i in range(natom)]
+                visit = [0] * natom
+                chain = [-999] * natom
                 find_motif(motif, visit, chain, nsteps, current, previous,
                            motifset, allover, natom, bond, atom, eqv)
         else:
             current = allover
-            visit = [0 for i in range(natom)]
+            visit = [0] * natom
             find_motif(motif, visit, chain, nsteps, current, previous,
                        motifset, allover, natom, bond, atom, eqv)
 

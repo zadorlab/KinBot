@@ -13,6 +13,8 @@ SPEEDofLIGHT = 137.0359996  # in atomic units
 AUtoS = 2.418884326505E-17
 AUtoMDYNE = 8.2387234983  # au of force to mDyne = 1e-8 N
 KCALtoHARTREE = 0.0015936010974213599
+R = 8.31446261815324 # J K−1 mol−1
+KCALtoJ = 4.184
 
 # elements currently in KinBot
 elements = ['C', 'H', 'O', 'N', 'S', 'F', 'Cl', 'Br', 'I']
@@ -90,7 +92,7 @@ znumber['I'] = 53
 
 # collision parameters
 # Jasper & Miller, C&F 161, 101-110 (2014)
-# data is expected in CHEMKING format, where
+# data is expected in CHEMKIN format, where
 # sigma is in Angstrom (no need to convert for MESS)
 # epsilon is in epsilon/kB (K), need to be converted to cm-1
 mass['He'] = 4.0

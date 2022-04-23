@@ -1,8 +1,8 @@
-from __future__ import print_function, division
 import sys
 import numpy as np
 import copy
 import math
+import itertools
 
 from kinbot import cheminfo
 from kinbot import constants
@@ -63,15 +63,18 @@ class StationaryPoint:
         self.reac_ts_freq = []
         self.reac_scan_energy = []
 
-        # Instance of HomolyticScissions class
-        self.homolytic_scissions = None
-
         # Instance of HIR class
         self.hir = None
 
         # Instances of the Conformers class
         self.confs = None
         self.am1_confs = None
+
+        # The list of conformers
+        self.conformer_geom = []
+        self.conformer_energy = []
+        self.conformer_freq = []
+        self.conformer_index = []
         
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number
@@ -164,7 +167,6 @@ class StationaryPoint:
                 if i == j: continue
                 atom_pair = [self.atom[i], self.atom[j]]
                 atom_pair = sorted(atom_pair)
-                #if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
                 if self.dist[i][j] < constants.st_bond[''.join(atom_pair)]:
                     self.bond[i][j] = 1
 
@@ -176,7 +178,7 @@ class StationaryPoint:
 
         # create all the permutations of the heavy atoms
         rad_atoms = [i for i in range(self.natom) if self.rad[i] > 0]
-        all_permutations = False 
+        all_permutations = False
         if all_permutations:  # use all the permutations (slow for more than 6 atoms in conjugated system)
             perms = list(itertools.permutations(rad_atoms))
         else:  # use the same atom ordering but a different starting atoms and searching directions
@@ -275,7 +277,6 @@ class StationaryPoint:
                     #check the uniqueness of the bond matrix
                     is_unique = 1
                     for b in self.bonds:
-                        # TODO this gives an error for hom_sci
                         if all([all([b[j][k] == perm_b[j][k] for k in range(self.natom)]) for j in range(self.natom)]):
                             is_unique = 0
                     if is_unique:

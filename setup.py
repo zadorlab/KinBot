@@ -84,7 +84,7 @@ setup(
         'kinbot = kinbot.kb:main',
         'pes = kinbot.pes:main',
         ]},
-    install_requires=['ase','numpy','networkx'],
+    install_requires=['ase','numpy','networkx','rmsd'],
     
     author="Judit Zador and Ruben Van de Vijver",
     author_email = "jzador@sandia.gov",

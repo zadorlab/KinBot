@@ -5,7 +5,6 @@ The defaults are listed in this file and the user defined parameters
 are defined in a json file that needs to be given as an argument to the
 initializer.
 """
-from __future__ import with_statement
 import sys
 import json
 import logging
@@ -59,9 +58,6 @@ class Parameters:
             'skip_chemids': ['none'],
             # Skip specific reactions, usually makes sense once the search is done
             'skip_reactions': ['none'],
-            # break all single bonds to find the barriers
-            # of potential homolytic scissions
-            'homolytic_scissions': 0,
             # perform variational calculations for the homolytic scissions
             'variational': 0,
             # break specific bonds in the homolytic search
@@ -89,6 +85,8 @@ class Parameters:
             'simultaneous_kinbot': 5,
             # Perform high level optimization and freq calculation (L2)
             'high_level': 0,
+
+            # CONFORMATIONAL SEARCH
             # Do a conformational search
             'conformer_search': 0,
             # The angular grid for dihedrals, angle = 360 / grid
@@ -104,8 +102,6 @@ class Parameters:
             'nrotation': 12,
             # Make figures of the HIR profiles
             'plot_hir_profiles': 0,
-            # Do master equation calculations
-            'me': 0,
             # Number of HIR restarts in case a lower energy point gets found
             'rotation_restart': 3,
             # Maximum number of diherals for which exhaustive
@@ -121,7 +117,16 @@ class Parameters:
             'random_conf_semi_emp': 500,
             # threshold of conformers at semi empirical level to take to the L1 level
             # in kcal/mol
-            'semi_emp_confomer_threshold' : 5,
+            'semi_emp_confomer_threshold': 5,
+            # multi conformer TST
+            'multi_conf_tst': 0,
+            # temperature in K
+            'multi_conf_tst_temp': 300.0,
+            # percent of Boltzmann to include
+            'multi_conf_tst_boltz': 0.05, 
+            # force print conformational info, might be slow 
+            'print_conf': 0,
+
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions
             'min_bond_break': 2,
@@ -175,7 +180,7 @@ class Parameters:
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
             # method for semi empirical conformer search
-            'semi_emp_method' : 'am1',
+            'semi_emp_method': 'am1',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
             # Optimization threshold
@@ -187,7 +192,7 @@ class Parameters:
             # for Gaussian, allow Guess=(Mix,Always)
             'guessmix': 0,
             # Turn off/on (0/1) molpro L3 calculations
-            'L3_calc' : 0,
+            'L3_calc': 0,
             # name of the single point code's name
             'single_point_qc': 'molpro',
             # Name of the template for the single-point calculation (L3)
@@ -240,6 +245,8 @@ class Parameters:
             'queue_job_limit': -1,
 
             # MASTER EQUATION
+            # Do master equation calculations
+            'me': 0,
             # Which ME code to use:
             'me_code': 'mess',  # or mesmer
             # collision parameters
@@ -277,11 +284,14 @@ class Parameters:
             # factor of 1.2 corresponds to values ranging from 0.833 to 1.2 times the original frequency
             'freq_uq': 1.2,
             # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1.
-            # factor of 1.2 corresponds to values ranging from 0.909 to 1.1 times the original frequency
+            # factor of 1.1 corresponds to values ranging from 0.909 to 1.1 times the original frequency
             'imagfreq_uq': 1.1,
-
-            # for development
-            'test': 0,
+            # LJ parameters
+            'epsilon_uq': 1.2,
+            'sigma_uq': 1.2,
+            # Collisional parameters
+            'enrelfact_uq': 1.2,
+            'enrelpow_uq': 1.2,
         }
 
         if self.input_file is not None:
@@ -333,6 +343,14 @@ class Parameters:
         if self.par['bimol'] and len(self.par['structure']) != 2:
             logging.error('For bimolecular reactions two fragments need to be defined.')
             sys.exit(-1)
+
+        if self.par['multi_conf_tst'] and not self.par['conformer_search']:
+            logging.error('For multi conformer tst calculation conformer search needs to be activated.')
+            sys.exit(-1)
+
+        if not self.par['multi_conf_tst']:
+            self.par['multi_conf_tst_temp'] = None
+            self.par['multi_conf_tst_boltz'] = 0.05 
 
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])

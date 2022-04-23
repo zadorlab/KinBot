@@ -343,10 +343,19 @@ class QuantumChemistry:
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=species.wellorts, step=1, max_step=1, hir=1)
 
-        del kwargs['opt']
-        del kwargs['chk']
-        kwargs['method'] = 'am1'
-        kwargs['basis'] = ''
+        if self.qc == 'gauss':
+            del kwargs['opt']
+            del kwargs['chk']
+            kwargs['method'] = 'am1'
+            kwargs['basis'] = ''
+        elif self.qc == 'qchem':
+            kwargs['method'] = 'b3lyp'
+            kwargs['basis'] = 'sto-3g'
+            kwargs['scf_convergence'] = '4'
+            kwargs['jobtype'] = 'sp'
+        else:
+            raise NotImplementedError('Search of cyclic conformers is not '
+                                      f'implemented for {self.qc}')
 
 #        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 

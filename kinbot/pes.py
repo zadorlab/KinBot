@@ -75,7 +75,7 @@ def main():
                             smiles=par['smiles'],
                             structure=par['structure'])
     well0.characterize()
-    write_input(input_file, well0, par['barrier_threshold'], os.getcwd())
+    write_input(input_file, well0, par['barrier_threshold'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
@@ -1415,7 +1415,7 @@ def submit_job(chemid, par):
     return pid
 
 
-def write_input(input_file, species, threshold, root):
+def write_input(input_file, species, threshold, root, me):
     # directory for this particular species
     dir = root + '/' + str(species.chemid) + '/'
     if not os.path.exists(dir):
@@ -1440,7 +1440,8 @@ def write_input(input_file, species, threshold, root):
     # set the pes option to 1
     par2['pes'] = 1
     # don't do ME for these kinbots but write the files
-    par2['me'] = 2
+    if me:
+        par2['me'] = 2
 
     file_name = dir + str(species.chemid) + '.json'
     with open(file_name, 'w') as outfile:

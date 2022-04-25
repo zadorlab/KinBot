@@ -275,7 +275,7 @@ class MESS:
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
                 f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
 
-        uq.format_uqtk_data() 
+        #uq.format_uqtk_data() 
 
         return 0
 
@@ -488,11 +488,11 @@ class MESS:
                                             mult=species.mult,
                                             zeroenergy=zeroenergy)
  
+# TODO for multi
+#        with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
+#            f.write(mess_well)
 
-        with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
-            f.write(mess_well)
-
-        return mess_well
+        return #mess_well
 
     def write_barrier(self, reaction, index, left_zeroenergy, right_zeroenergy, barrier_add, freq_factor, imagfreq_factor, uq_iter):
         """

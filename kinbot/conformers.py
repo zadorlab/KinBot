@@ -616,9 +616,9 @@ class Conformers:
         if ring:
             r = 'r'
         if self.species.wellorts:
-            file = open('conf/' + self.species.name + r + '.xyz', 'w')
+            ff = open('conf/' + self.species.name + r + '.xyz', 'w')
         else:
-            file = open('conf/' + str(self.species.chemid) + r + '.xyz', 'w')
+            ff = open('conf/' + str(self.species.chemid) + r + '.xyz', 'w')
         for i, st in enumerate(status):
             s = str(self.species.natom) + '\n'
             s += 'energy = ' + str(energies[i]) + '\n'
@@ -626,8 +626,8 @@ class Conformers:
                 x, y, z = final_geoms[i][j]
                 s += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
             if st == 0:  # valid conformer:
-                file.write(s)
-        file.close()
+                ff.write(s)
+        ff.close()
 
     def get_name(self):
         if self.species.wellorts:

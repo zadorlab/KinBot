@@ -166,9 +166,8 @@ def createPESViewerInput(species, qc, par):
 
                 for i, prod_opt in enumerate(species.reac_obj[index].prod_opt):
                     st_pt = prod_opt.species
-                    pesdata = open("pesviewer_data.txt", 'a')
-                    pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}\n".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
-                    pesdata.close()
+                    with open("pesviewer_data.txt", 'a') as pesdata:
+                        pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}\n".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
                     # make twice the same file but with adifferent name
                     # TODO: is there no better way?
                     # this is for the pes viewer

@@ -184,13 +184,12 @@ def create_rdkit_mol(bond, atom):
 
 def create_inchi_from_geom(atom, geom):
     xyz_file = 'temp.xyz'
-    f = open(xyz_file, 'w')
-    f.write(str(len(atom)) + '\n\n')
-    for i, at in enumerate(atom):
-        x, y, z = geom[i]
-        f.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
-    f.write('\n\n')
-    f.close()
+    with open(xyz_file, 'w') as f:
+        f.write(str(len(atom)) + '\n\n')
+        for i, at in enumerate(atom):
+            x, y, z = geom[i]
+            f.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
+        f.write('\n\n')
     inchi = create_inchi('', '', xyz_file=xyz_file)
     # remove temp file
     os.remove(xyz_file)

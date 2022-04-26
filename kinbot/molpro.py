@@ -144,7 +144,10 @@ class Molpro:
         fname = self.get_name(name)
 
         # open the template head and template
-        molpro_head = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+        if par['queue_template'] == '':
+            molpro_head = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+        else:
+            molpro_head = par['queue_template'] 
         with open(molpro_head) as f:
             tpl_head = f.read()
         molpro_tpl = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_molpro.tpl')
@@ -157,14 +160,14 @@ class Molpro:
                         name=fname,
                         ppn=self.par['single_point_ppn'],
                         queue_name=self.par['queue_name'],
-                        wdir='molpro',
+                        errdir='molpro',
                         command=self.par['single_point_command']))
             elif self.par['queuing'] == 'slurm':
                 f.write((tpl_head + tpl).format(
                         name=fname,
                         ppn=self.par['single_point_ppn'],
                         queue_name=self.par['queue_name'],
-                        wdir='molpro',
+                        errdir='molpro',
                         command=self.par['single_point_command'],
                         slurm_feature=self.par['slurm_feature']))
 

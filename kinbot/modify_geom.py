@@ -288,18 +288,16 @@ def write_zmat(zmat_atom, zmat_ref, zmat, geom, atom):
         i += 1
         zmat_file = 'zmatrix_' + str(i) + '.zmat'
 
-    file = open(zmat_file, 'w')
-    zmatrix.write_zmat_molden(file, zmat_atom, zmat_ref, zmat)
-    file.close()
+    with open(zmat_file, 'w') as ff:
+        zmatrix.write_zmat_molden(ff, zmat_atom, zmat_ref, zmat)
 
     cart_file = zmat_file.replace('.zmat', '.xyz')
-    file = open(cart_file, 'w')
-    file.write(str(len(atom)) + '\n\n')
-    for i, at in enumerate(atom):
-        x, y, z = geom[i]
-        file.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
-    file.write('\n')
-    file.close()
+    with open(cart_file, 'w') as ff:
+        ff.write(str(len(atom)) + '\n\n')
+        for i, at in enumerate(atom):
+            x, y, z = geom[i]
+            ff.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
+        ff.write('\n')
 
 
 def get_coords(species, bond, geom, changes, mode):

@@ -765,16 +765,15 @@ def estoktp_zmat(species, fname):
     if not os.path.exists('rotors'):
         os.mkdir('rotors')
     zmat_atom, zmat_ref, zmat, zmatorder = make_zmat_from_cart_all_dihedrals(species.bond, species.cycle, species.dihed, species.conf_dihed, natom, atom, species.geom, 0)
-    zfile = open('rotors/' + fname + '.zmat', 'w')
-    write_zmat_molden(zfile, zmat_atom, zmat_ref, zmat)
-    zfile.write('// All dihedrals\n')
-    for dih in species.dihed:
-        zfile.write('// {}\n'.format(' '.join([str(zmatorder.index(di) + 1) for di in dih])))
-    zfile.write('\n// Dihedrals for conformational scan\n')
-    for dih in species.conf_dihed:
-        zfile.write('// {}\n'.format(' '.join([str(zmatorder.index(di) + 1) for di in dih])))
-    zfile.write('\n\n')
-    zfile.close()
+    with open('rotors/' + fname + '.zmat', 'w') as zfile:
+        write_zmat_molden(zfile, zmat_atom, zmat_ref, zmat)
+        zfile.write('// All dihedrals\n')
+        for dih in species.dihed:
+            zfile.write('// {}\n'.format(' '.join([str(zmatorder.index(di) + 1) for di in dih])))
+        zfile.write('\n// Dihedrals for conformational scan\n')
+        for dih in species.conf_dihed:
+            zfile.write('// {}\n'.format(' '.join([str(zmatorder.index(di) + 1) for di in dih])))
+        zfile.write('\n\n')
 
     for i, rotor in enumerate(species.dihed):
         # write a geometry file
@@ -784,17 +783,16 @@ def estoktp_zmat(species, fname):
             if indices == rotor or indices == rotor[::-1]:
                 break
 
-        file = 'rotors/' + fname + '_' + str(i) + '.xyz'
-        f = open(file, 'w')
-        # do 36 iterations of 10 degrees
-        for k in range(36):
-            zmat_copy = copy.deepcopy(zmat)
-            zmat_copy[j][2] += float(k * 10)
-            cart = make_cart_from_zmat(zmat_copy, zmat_atom, zmat_ref, natom, atom, zmatorder)
-            cart = translate_and_rotate(cart, rotor[1], rotor[2])
+        fname = 'rotors/' + fname + '_' + str(i) + '.xyz'
+        with open(fname, 'w') as f:
+            # do 36 iterations of 10 degrees
+            for k in range(36):
+                zmat_copy = copy.deepcopy(zmat)
+                zmat_copy[j][2] += float(k * 10)
+                cart = make_cart_from_zmat(zmat_copy, zmat_atom, zmat_ref, natom, atom, zmatorder)
+                cart = translate_and_rotate(cart, rotor[1], rotor[2])
 
-            f.write(write_cart(cart, atom))
-        f.close()
+                f.write(write_cart(cart, atom))
 
     return 0
 

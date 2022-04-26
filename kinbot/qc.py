@@ -406,7 +406,8 @@ class QuantumChemistry:
                     kwargs['opt'] = 'CalcFC, Tight'
                 else:
                     kwargs['opt'] = 'CalcFC'
-        del kwargs['chk']
+        if self.qc == 'gauss':
+            del kwargs['chk']
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
@@ -988,6 +989,9 @@ class QuantumChemistry:
                 return 0
             elif self.queuing == 'local':
                 command = command = ['echo', '']
+            else:
+                raise NotImplementedError(f"Kinbot is not yet compatible with "
+                                          f"{self.queuing} scheduler.")
             jobs = subprocess.check_output(command)
 
             if len(jobs.split(b'\n')) < self.queue_job_limit:

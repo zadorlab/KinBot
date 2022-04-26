@@ -2,6 +2,22 @@ import os
 import logging
 
 
+def reset_lpad(lpad):
+    import json
+    pids = []
+    if os.path.isfile('pids'):
+        with open('pids', 'r') as pids_fh:
+            pids = [int(pid) for pid in pids_fh]
+    elif os.path.isfile('FW.json'):
+        with open('FW.json', 'r') as json_fh:
+            fw_dict = json.load(json_fh)
+            pids = [fw_dict['name']]
+    for fw_id in lpad.get_fw_ids():
+        fw = lpad.get_fw_by_id(fw_id)
+        if fw.name in pids:
+            lpad.delete_fws([fw_id])
+
+
 def load_launchpad(lpad_file, **kwargs):  # TODO build a LaunchPad from kinbot parameters
     """Load a launchpad from a .yaml file and remove all its workflows."""
     from datetime import date
@@ -38,7 +54,8 @@ def load_launchpad(lpad_file, **kwargs):  # TODO build a LaunchPad from kinbot p
         raise ValueError(err_msg)
 
     if kwargs['reset']:
-        lpad.reset(str(date.today()))   # TODO Implement a pid-specific reset.
+        reset_lpad(lpad)
+        # lpad.reset(str(date.today()))  # Old way
 
     return lpad
 

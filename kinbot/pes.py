@@ -148,6 +148,8 @@ def main():
                 pid = 0
                 if not no_kinbot:
                     pid = submit_job(job, par)  # kinbot is submitted here
+                    with open("pids", 'a') as pids_fh:
+                        pids_fh.write(f"{pid}\n")
                 else:
                     get_wells(job)
                 pids[job] = pid

@@ -8,7 +8,7 @@ from kinbot.utils import iowait
 
 db = connect('{working_dir}/kinbot.db')
 label = '{label}'
-logfile = '{label}.log'
+logfile = '{label}.out'
 
 mol = Atoms(symbols={atom}, positions={geom})
 kwargs = {kwargs}

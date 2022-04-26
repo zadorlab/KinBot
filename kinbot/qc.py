@@ -350,9 +350,7 @@ class QuantumChemistry:
             kwargs['basis'] = ''
         elif self.qc == 'qchem':
             kwargs['method'] = 'b3lyp'
-            kwargs['basis'] = 'sto-3g'
-            kwargs['scf_convergence'] = '4'
-            kwargs['jobtype'] = 'sp'
+            kwargs['jobtype'] = 'force'
         else:
             raise NotImplementedError('Search of cyclic conformers is not '
                                       f'implemented for {self.qc}')

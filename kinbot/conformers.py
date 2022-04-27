@@ -267,6 +267,13 @@ class Conformers:
         # what is value of all things associated w/ conf generation
         # what is length of conf_dihed?
         theoretical_confs = np.power(self.grid, len(self.species.conf_dihed)) * cycles
+        if self.qc.qc == 'gauss':
+            ext = 'log'
+        elif self.qc.qc == 'qchem':
+            ext = 'out'
+        else:
+            raise NotImplementedError(f'The {self.qc} code is not yet supported '
+                                      f'to be used with KinBot.')
 
         if rotor != -999:
             if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
@@ -280,7 +287,7 @@ class Conformers:
                         nrandconf = int(round(self.nconfs / self.cyc_conf) + 2)
                     else:
                         nrandconf = self.nconfs
-                    if os.path.exists('{}.log'.format(self.get_job_name(nrandconf - 1))) and os.path.exists('conf/{}_low.log'.format(name)): 
+                    if os.path.exists('{}.{}'.format(self.get_job_name(nrandconf - 1), ext)) and os.path.exists('conf/{}_low.{}'.format(name, ext)):
                         rows = self.db.select(name=self.get_job_name(nrandconf - 1))
                         for row in rows:
                             self.conf = nrandconf
@@ -299,7 +306,7 @@ class Conformers:
             return 0
 
         # skipping generation if done
-        if os.path.exists('{}.log'.format(self.get_job_name(theoretical_confs - 1))) and os.path.exists('conf/{}_low.log'.format(name)): 
+        if os.path.exists('{}.{}'.format(self.get_job_name(theoretical_confs - 1), ext)) and os.path.exists('conf/{}_low.{}'.format(name, ext)):
             rows = self.db.select(name=self.get_job_name(theoretical_confs - 1))
             for row in rows:
                 self.conf = theoretical_confs
@@ -399,6 +406,15 @@ class Conformers:
 
         lowest_conf = str(0).zfill(self.zf)  # the index of the lowest conf, to be updated as we go
 
+        if self.qc.qc == 'gauss':
+            ext = 'log'
+        elif self.qc.qc == 'qchem':
+            ext = 'out'
+        else:
+            raise NotImplementedError(f'The {self.qc} code is not yet supported '
+                                      f'to be used with KinBot.')
+
+
         while 1:
             # check if conformational search is finished
             name = self.get_name()
@@ -487,7 +503,7 @@ class Conformers:
                 self.write_profile(status, final_geoms, totenergies)
                
                 try:
-                    copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
+                    copyfile('{}.{}'.format(lowest_job, ext), 'conf/{}_low.{}'.format(name, ext))
                     rows = self.db.select(name='{}'.format(lowest_job))
                     for row in rows:
                         row_last = row

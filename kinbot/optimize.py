@@ -59,6 +59,13 @@ class Optimize:
         self.skip_conf_check = 0  # initialize
 
     def do_optimization(self):
+        if self.qc.qc == 'gauss':
+            ext = 'log'
+        elif self.qc.qc == 'qchem':
+            ext = 'out'
+        else:
+            raise NotImplementedError(f'Kinbot does not support yet {self.qc.qc}.')
+
         while 1:
             # do the conformational search
             if self.par['conformer_search'] == 1:
@@ -255,14 +262,14 @@ class Optimize:
 
                                                 err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # delete the high_level log file and the hir log files
-                                                if os.path.exists(self.log_name(1) + '.log'):
-                                                    logging.debug(f'Removing file {self.log_name(1)}.log')
-                                                    os.remove(self.log_name(1) + '.log')
+                                                if os.path.exists(self.log_name(1) + f'.{ext}'):
+                                                    logging.debug(f'Removing file {self.log_name(1)}.{ext}')
+                                                    os.remove(self.log_name(1) + f'.{ext}')
                                                 for rotor in range(len(self.species.dihed)):
                                                     for ai in range(self.species.hir.nrotation):
-                                                        if os.path.exists(self.log_name(1, hir=1, r=rotor, s=ai) + '.log'):
-                                                            logging.debug('Removing file ' + self.log_name(1, hir=1, r=rotor, s=ai) + '.log')
-                                                            os.remove(self.log_name(1, hir=1, r=rotor, s=ai)  + '.log')
+                                                        if os.path.exists(self.log_name(1, hir=1, r=rotor, s=ai) + f'.{ext}'):
+                                                            logging.debug('Removing file ' + self.log_name(1, hir=1, r=rotor, s=ai) + f'.{ext}')
+                                                            os.remove(self.log_name(1, hir=1, r=rotor, s=ai) + f'.{ext}')
                                                 # set the status of high and hir back to not started
                                                 self.shigh = -1
                                                 self.shir = -1

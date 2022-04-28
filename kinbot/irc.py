@@ -163,9 +163,8 @@ class IRC:
                                        qc_command=self.par['qc_command'],
                                        working_dir=os.getcwd())
 
-            f_out = open('{}.py'.format(irc_name), 'w')
-            f_out.write(template)
-            f_out.close()
+            with open('{}.py'.format(irc_name), 'w') as f:
+                f.write(template)
 
             self.rxn.qc.submit_qc(irc_name, singlejob=0)
 

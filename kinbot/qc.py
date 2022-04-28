@@ -316,9 +316,8 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
 
@@ -355,8 +354,6 @@ class QuantumChemistry:
             raise NotImplementedError('Search of cyclic conformers is not '
                                       f'implemented for {self.qc}')
 
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
-
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,
@@ -369,9 +366,8 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as d:
+            f.write(template)
 
         self.submit_qc(job)
         return 0
@@ -423,9 +419,9 @@ class QuantumChemistry:
                                    ppn=self.ppn,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        
+        with open(f'{job}.py', 'w') as d:
+            f.write(template)
 
         self.submit_qc(job)
 
@@ -486,9 +482,8 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as d:
+            f.write(template)
 
         self.submit_qc(job)
         return 0
@@ -519,9 +514,8 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as d:
+            f.write(template)
 
         self.submit_qc(job)
 
@@ -584,9 +578,9 @@ class QuantumChemistry:
 
         if self.queuing == 'pbs':
             python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
-                                                        dir='perm', python_file=python_file, arguments='')
+                                                        errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
-            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, dir='perm',
+            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, errdir='perm',
                                                         slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
         elif self.queuing == 'fireworks':
             python_template = f'python {python_file}'

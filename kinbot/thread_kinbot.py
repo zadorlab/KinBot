@@ -35,21 +35,19 @@ def run_threads(jobs, name, max_running=10, pes=0):
             if job in running:
                 running.remove(job)
         
-        f = open('%s_thread_summary.txt'%name,'w+')
-        f.write('Total\t\t%i\n'%len(jobs))
-        f.write('Running\t\t%i\n'%len(running))
-        f.write('Finished\t%i\n\n'%len(finished))
-        
-        
-        f.write('Running:\n')
-        for job in running:
-            f.write('\t%s\n'%job)
+        with open('%s_thread_summary.txt'%name,'w+') as f:
+            f.write('Total\t\t%i\n'%len(jobs))
+            f.write('Running\t\t%i\n'%len(running))
+            f.write('Finished\t%i\n\n'%len(finished))
             
-        f.write('\nFinished:\n')
-        for job in finished: 
-            f.write('\t%s\n'%job)
-        
-        f.close()
+            
+            f.write('Running:\n')
+            for job in running:
+                f.write('\t%s\n'%job)
+                
+            f.write('\nFinished:\n')
+            for job in finished: 
+                f.write('\t%s\n'%job)
 
         time.sleep(1)
 

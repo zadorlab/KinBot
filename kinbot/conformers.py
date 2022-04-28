@@ -8,6 +8,8 @@ from shutil import copyfile
 
 from ase.db import connect
 from ase import Atoms
+from ase.units import invcm, Hartree, kcal, mol
+from ase.thermochemistry import IdealGasThermo
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
@@ -554,7 +556,7 @@ class Conformers:
 
         test is all previous structures.
 
-        temp is temperature, and only exp(-E/RT) > boltz conformers are considered if defined.
+        temp is temperature, and only exp(-G/RT) > boltz conformers are considered if defined.
         returns the geometries, total energies, frequencies, and indices (as in the /conf directory)
         """
 
@@ -562,7 +564,25 @@ class Conformers:
         energies_unq = []
         frequencies_unq = []
         indices_unq = []
-        min_conf_en = min(energies)
+
+        if temp is not None:
+            # calculate the Gibbs free energy for all conformers
+            # at T = temp, P = 101325 Pa
+            gibbs = []
+            for vi, val in enumerate(valid):
+                if frequencies[vi][0] > 0:
+                    vib_energies = [ff * invcm for ff in frequencies[vi]]  # convert to eV
+                else:
+                    vib_energies = [ff * invcm for ff in frequencies[vi][1:]]  # convert to eV
+                potentialenergy = energies[vi] * Hartree  # convert to eV
+                atoms = Atoms(symbols=self.species.atom, positions=conformers[vi])
+                thermo = IdealGasThermo(vib_energies=vib_energies,
+                                        potentialenergy=potentialenergy,
+                                        atoms=atoms,
+                                        geometry='nonlinear',
+                                        symmetrynumber=1, spin=(self.species.mult-1)/2)
+                gibbs.append(thermo.get_gibbs_energy(temperature=temp, pressure=101325., verbose=False))
+
         for vi, val in enumerate(valid):
             unique = True
             if val == 0:
@@ -595,8 +615,8 @@ class Conformers:
                         frequencies_unq.append(frequencies[vi])
                         indices_unq.append(vi)
                     else:
-                        if np.exp(-1000. * constants.AUtoKCAL * (energies[vi] - min_conf_en) /\
-                                  (constants.R / constants.KCALtoJ * temp)) > boltz:
+                        if np.exp(-1000. * (gibbs[vi] - min(gibbs)) / (kcal / mol) /\
+                                  (constants.R / constants.CALtoJ * temp)) > boltz:
                             conformers_unq.append(conformers[vi])
                             energies_unq.append(energies[vi])
                             frequencies_unq.append(frequencies[vi])
@@ -612,9 +632,9 @@ class Conformers:
         if ring:
             r = 'r'
         if self.species.wellorts:
-            file = open('conf/' + self.species.name + r + '.xyz', 'w')
+            ff = open('conf/' + self.species.name + r + '.xyz', 'w')
         else:
-            file = open('conf/' + str(self.species.chemid) + r + '.xyz', 'w')
+            ff = open('conf/' + str(self.species.chemid) + r + '.xyz', 'w')
         for i, st in enumerate(status):
             s = str(self.species.natom) + '\n'
             s += 'energy = ' + str(energies[i]) + '\n'
@@ -622,8 +642,8 @@ class Conformers:
                 x, y, z = final_geoms[i][j]
                 s += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
             if st == 0:  # valid conformer:
-                file.write(s)
-        file.close()
+                ff.write(s)
+        ff.close()
 
     def get_name(self):
         if self.species.wellorts:

@@ -43,7 +43,7 @@ def get_molecular_formula(smi):
     return rdMolDescriptors.CalcMolFormula(mol)
 
 
-def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
+def create_rxn_depiction(react_smiles, prod_smiles, cdir, name):
     """
     Create a 2D depiction of a chemical reaction,
     react smiles: smiles of the reactants
@@ -51,8 +51,8 @@ def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
     dir: directory where to save the reaction depiction
     name: name of the depiction files
     """
-    react_png = '{dir}/react.png'.format(dir=dir)
-    prod_png = '{dir}/prod.png'.format(dir=dir)
+    react_png = f'{cdir}/react.png'
+    prod_png = f'{cdir}/prod.png'
 
     try:
         obmol = pybel.readstring("smi", react_smiles)
@@ -80,7 +80,7 @@ def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
         new_im.paste(im, (x, y))
         x += im.size[0]
 
-    new_im.save('{dir}/{name}.png'.format(dir=dir, name=name))
+    new_im.save(f'{cdir}/{name}.png')
 
 
 def generate_3d_structure(smi, obabel=1):
@@ -184,13 +184,12 @@ def create_rdkit_mol(bond, atom):
 
 def create_inchi_from_geom(atom, geom):
     xyz_file = 'temp.xyz'
-    f = open(xyz_file, 'w')
-    f.write(str(len(atom)) + '\n\n')
-    for i, at in enumerate(atom):
-        x, y, z = geom[i]
-        f.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
-    f.write('\n\n')
-    f.close()
+    with open(xyz_file, 'w') as f:
+        f.write(str(len(atom)) + '\n\n')
+        for i, at in enumerate(atom):
+            x, y, z = geom[i]
+            f.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
+        f.write('\n\n')
     inchi = create_inchi('', '', xyz_file=xyz_file)
     # remove temp file
     os.remove(xyz_file)

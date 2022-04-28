@@ -359,7 +359,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -412,7 +412,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
         
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -474,7 +474,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -506,7 +506,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)

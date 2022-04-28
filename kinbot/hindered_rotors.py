@@ -187,12 +187,12 @@ class HIR:
         HIR scan (geometries and energies)
         """
         with open('hir/' + job + '.xyz', 'w') as ff:
-        for i in range(self.nrotation):
-            s = str(self.species.natom) + '\n'
-            s += 'energy = ' + str(self.hir_energies[rotor][i]) + '\n'
-            for j, at in enumerate(self.species.atom):
-                x, y, z = self.hir_geoms[rotor][i][j]
-                s += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
+            for i in range(self.nrotation):
+                s = str(self.species.natom) + '\n'
+                s += 'energy = ' + str(self.hir_energies[rotor][i]) + '\n'
+                for j, at in enumerate(self.species.atom):
+                    x, y, z = self.hir_geoms[rotor][i][j]
+                    s += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
             ff.write(s)
         return
 

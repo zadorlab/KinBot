@@ -144,10 +144,10 @@ class Molpro:
         fname = self.get_name(name)
 
         # open the template head and template
-        if par['queue_template'] == '':
+        if self.par['queue_template'] == '':
             molpro_head = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
         else:
-            molpro_head = par['queue_template'] 
+            molpro_head = self.par['queue_template'] 
         with open(molpro_head) as f:
             tpl_head = f.read()
         molpro_tpl = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_molpro.tpl')

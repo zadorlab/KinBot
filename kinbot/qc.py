@@ -359,7 +359,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -412,7 +412,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
         
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -474,7 +474,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -506,7 +506,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -554,7 +554,7 @@ class QuantumChemistry:
             sys.exit()
 
         template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
-        python_file = '{}.py'.format(job)
+        python_file = f'{job}.py'
         name = job.split('/')[-1]
         python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 

@@ -193,7 +193,7 @@ class HIR:
                 for j, at in enumerate(self.species.atom):
                     x, y, z = self.hir_geoms[rotor][i][j]
                     s += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
-                ff.write(s)
+            ff.write(s)
         return
 
     def fourier_fit(self, job, angles, rotor):

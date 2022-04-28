@@ -112,7 +112,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 dist = np.linalg.norm(geom[chi[0] - 1] - geom[chi[1] - 1])
                 kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} {dist}\n"
             for reli in release:
-                dist = np.linalg.norm(geom[reli][0] - geom[reli][1])
+                dist = np.linalg.norm(geom[reli[0] - 1] - geom[reli[1] - 1])
                 kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} {dist}\n"
             kwargs['addsec'] += 'ENDCONSTRAINT\n$end\n'
         elif bimol and step == 1:

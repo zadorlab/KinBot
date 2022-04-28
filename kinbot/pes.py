@@ -538,16 +538,16 @@ def postprocess(par, jobs, task, names, mass):
                            well_energies,
                            prod_energies,
                            highlight)
-
-    create_mess_input(par,
-                      wells,
-                      products,
-                      rxns,
-                      barrierless,
-                      well_energies,
-                      prod_energies,
-                      parent,
-                      mass)
+    if par['me']:
+        create_mess_input(par,
+                          wells,
+                          products,
+                          rxns,
+                          barrierless,
+                          well_energies,
+                          prod_energies,
+                          parent,
+                          mass)
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):

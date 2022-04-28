@@ -8,7 +8,6 @@ import time
 from datetime import datetime
 import copy
 import pkg_resources
-from shutil import copyfile
 
 from ase.db import connect
 from kinbot import constants
@@ -366,7 +365,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -420,7 +419,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
         
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -482,7 +481,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
@@ -514,7 +513,7 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        with open(f'{job}.py', 'w') as d:
+        with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)

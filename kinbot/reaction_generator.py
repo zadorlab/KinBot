@@ -80,10 +80,10 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
                     # somewhat messy manipulation to force the new bond matrix for hom_sci
-                    obj.products = copy.deepcopy(obj.species)
-                    obj.products.bonds = copy.deepcopy(obj.species.bond)  # plural/non plural!
-                    obj.products.bonds[obj.instance[0]][obj.instance[1]] = 0  # delete bond
-                    obj.products.bonds[obj.instance[1]][obj.instance[0]] = 0  # delete bond
+                    obj.products = copy.copy(obj.species)  # deep copy raises "TypeError: cannot pickle '_io.BufferedWriter' object" error
+                    obj.products.bonds = [copy.deepcopy(obj.species.bond)]  # plural/non plural! 
+                    obj.products.bonds[0][obj.instance[0]][obj.instance[1]] = 0  # delete bond
+                    obj.products.bonds[0][obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     obj.products.bond[obj.instance[0]][obj.instance[1]] = 0  # delete bond
                     obj.products.bond[obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     obj.product_bonds = copy.deepcopy(obj.species.bonds[0])  # the first resonance structure
@@ -484,7 +484,7 @@ class ReactionGenerator:
                                 while 1:
                                     try:
                                         # try to open the file and write to it
-                                        pes.write_input(self.inp, obj.products[0], new_barrier_threshold, dirwell)
+                                        pes.write_input(self.inp, obj.products[0], new_barrier_threshold, dirwell, self.par['me'])
                                         with open(dirwell + '/chemids', 'a') as f:
                                             f.write('{}\n'.format(chemid))
                                         break

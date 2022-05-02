@@ -22,16 +22,16 @@ def creatMLInput(species, qc, par):
     the reactant and all the products, and the transition state
     bond distances
     """
-    dir = 'ml_input/'
-    if not os.path.exists(dir):
-        os.mkdir(dir)
+    directory = 'ml_input/'
+    if not os.path.exists(directory):
+        os.mkdir(directory)
 
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             obj = species.reac_obj[index]
             name = species.reac_name[index]
-            if not os.path.exists(dir + name):
-                os.mkdir(dir + name)
+            if not os.path.exists(directory + name):
+                os.mkdir(directory + name)
             # make the reactant file
             s = ['{}'.format(species.natom)]
             s.append(' '.join(species.atom))
@@ -46,7 +46,7 @@ def creatMLInput(species, qc, par):
                     row.append('{:.2f}'.format(d))
                 s.append(' '.join(row))
             s.append('\n')
-            with open(dir + name + '/reactant.txt', 'w') as f:
+            with open(directory + name + '/reactant.txt', 'w') as f:
                 f.write('\n'.join(s))
             # make the product file
             s = ['{}'.format(species.natom)]
@@ -55,7 +55,7 @@ def creatMLInput(species, qc, par):
             for bi in obj.product_bonds:
                 s.append(' '.join([str(bij) for bij in bi]))
             s.append('\n')
-            with open(dir + name + '/product.txt', 'w') as f:
+            with open(directory + name + '/product.txt', 'w') as f:
                 f.write('\n'.join(s))
             # write the ts key distances
             s = []
@@ -68,7 +68,7 @@ def creatMLInput(species, qc, par):
                     row.append('{:.2f}'.format(d))
                 s.append(' '.join(row))
             s.append('\n')
-            with open(dir + name + '/ts.txt', 'w') as f:
+            with open(directory + name + '/ts.txt', 'w') as f:
                 f.write('\n'.join(s))
 
 
@@ -166,9 +166,8 @@ def createPESViewerInput(species, qc, par):
 
                 for i, prod_opt in enumerate(species.reac_obj[index].prod_opt):
                     st_pt = prod_opt.species
-                    pesdata = open("pesviewer_data.txt", 'a')
-                    pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}\n".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
-                    pesdata.close()
+                    with open("pesviewer_data.txt", 'a') as pesdata:
+                        pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}\n".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
                     # make twice the same file but with adifferent name
                     # TODO: is there no better way?
                     # this is for the pes viewer
@@ -226,10 +225,10 @@ def createPESViewerInput(species, qc, par):
         f.write(template)
 
 
-def make_xyz(atoms, geom, name, dir):
+def make_xyz(atoms, geom, name, directory):
     s = []
     s.append('%i\n' % len(geom))
     for index in range(len(geom)):
         s.append('%s %.6f %.6f %.6f' % (atoms[index], geom[index][0], geom[index][1], geom[index][2]))
-    with open(dir + '/' + name + '.xyz', 'w') as f:
+    with open(directory + '/' + name + '.xyz', 'w') as f:
         f.write('\n'.join(s))

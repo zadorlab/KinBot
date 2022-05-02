@@ -75,7 +75,7 @@ def main():
                             smiles=par['smiles'],
                             structure=par['structure'])
     well0.characterize()
-    write_input(input_file, well0, par['barrier_threshold'], os.getcwd())
+    write_input(input_file, well0, par['barrier_threshold'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
@@ -400,17 +400,23 @@ def postprocess(par, jobs, task, names, mass):
     conn, bars = get_connectivity(wells, products, reactions)
     # create a batch submission for all L3 jobs
     # TODO slurm
+    batch = 'batch_L3_pbs.sub'
     if par['queuing'] == 'pbs':
-        batch = 'batch_L3_pbs.sub'
-        with open(batch, 'w') as f:
-            for well in wells:
-                f.write('qsub molpro/' + well + '.pbs' + '\n')
-            for prod in products:
-                for frag in prod.split('_'):
-                    f.write('qsub molpro/' + frag + '.pbs' + '\n')
-            for reac in reactions:
-                f.write('qsub molpro/' + reac[1] + '.pbs' + '\n')
-        os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
+        cmd = 'qsub'
+        ext = 'pbs'
+    elif par['queuing'] == 'slurm':
+        cmd = 'sbatch'
+        ext = 'slurm'
+
+    with open(batch, 'w') as f:
+        for well in wells:
+            f.write(f'{cmd} molpro/{well}.{ext}\n')
+        for prod in products:
+            for frag in prod.split('_'):
+                f.write(f'{cmd} molpro/{frag}.{ext}\n')
+        for reac in reactions:
+            f.write(f'{cmd} molpro/{reac[1]}.{ext}\n')
+    os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
 
     well_energies = {}
     well_l3energies = {}
@@ -532,16 +538,16 @@ def postprocess(par, jobs, task, names, mass):
                            well_energies,
                            prod_energies,
                            highlight)
-
-    create_mess_input(par,
-                      wells,
-                      products,
-                      rxns,
-                      barrierless,
-                      well_energies,
-                      prod_energies,
-                      parent,
-                      mass)
+    if par['me']:
+        create_mess_input(par,
+                          wells,
+                          products,
+                          rxns,
+                          barrierless,
+                          well_energies,
+                          prod_energies,
+                          parent,
+                          mass)
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -1386,11 +1392,11 @@ def submit_job(chemid, par):
     # everything is done
     # relevant if jobs are killed
     try:
-        os.system('rm -f {dir}/summary_*.out'.format(dir=chemid))
+        os.system(f'rm -f {chemid}/summary_*.out')
     except OSError:
         pass
     try:
-        os.system('rm -f {dir}/kinbot_monitor.out'.format(dir=chemid))
+        os.system(f'rm -f {chemid}/kinbot_monitor.out')
     except OSError:
         pass
 
@@ -1403,8 +1409,8 @@ def submit_job(chemid, par):
                         .format(chemid, par['barrierless_saddle_single_point_template']))
         shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
                         .format(chemid, par['barrierless_saddle_prod_single_point_template']))
-    outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
-    errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
+    outfile = open(f'{chemid}/kinbot.out', 'w')
+    errfile = open(f'{chemid}/kinbot.err', 'w')
     process = subprocess.Popen(command,
                                cwd=chemid,
                                stdout=outfile,
@@ -1415,11 +1421,11 @@ def submit_job(chemid, par):
     return pid
 
 
-def write_input(input_file, species, threshold, root):
+def write_input(input_file, species, threshold, root, me):
     # directory for this particular species
-    dir = root + '/' + str(species.chemid) + '/'
-    if not os.path.exists(dir):
-        os.makedirs(dir)
+    directory = root + '/' + str(species.chemid) + '/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
@@ -1440,9 +1446,10 @@ def write_input(input_file, species, threshold, root):
     # set the pes option to 1
     par2['pes'] = 1
     # don't do ME for these kinbots but write the files
-    par2['me'] = 2
+    if me:
+        par2['me'] = 2
 
-    file_name = dir + str(species.chemid) + '.json'
+    file_name = directory + str(species.chemid) + '.json'
     with open(file_name, 'w') as outfile:
         json.dump(par2, outfile, indent=4, sort_keys=True)
 

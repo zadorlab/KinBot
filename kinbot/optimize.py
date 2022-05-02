@@ -201,20 +201,19 @@ class Optimize:
                                 logging.warning('High level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
                             elif status == 'normal':
-                                self.compare_structures()
-                                stati = [0] * len(self.species.conformer_index)
-                                if self.par['multi_conf_tst']:
-                                    if self.shigh == 0.5: # the top one was tested already and was ok
-                                        for ci, conindx in enumerate(self.species.conformer_index):
-                                            status = self.qc.check_qc(self.log_name(1, conf=conindx))
-                                            if status == 'error':
-                                                stati[ci] = 1
-                                                self.species.conformer_index[conindx] = -999
-                                            elif status == 'normal':
-                                                stati[ci] = 1
-                                                self.compare_structures(conf=conindx)
-                                        if sum(stati) == len(self.species.conformer_index):
-                                            self.shigh = 1
+                                self.compare_structures()  # this switches shigh to 0.5 or 1
+                        if self.shigh == 0.5:  # the top one was tested already and was ok
+                            stati = [0] * len(self.species.conformer_index)
+                            for ci, conindx in enumerate(self.species.conformer_index):
+                                status = self.qc.check_qc(self.log_name(1, conf=conindx))
+                                if status == 'error':
+                                    stati[ci] = 1
+                                    self.species.conformer_index[conindx] = -999
+                                elif status == 'normal':
+                                    stati[ci] = 1
+                                    self.compare_structures(conf=conindx)
+                            if sum(stati) == len(self.species.conformer_index):
+                                self.shigh = 1
                     else:
                         # no high-level calculations necessary, set status to finished
                         self.shigh = 1
@@ -319,7 +318,6 @@ class Optimize:
                         molp.create_molpro_submit()
                         status, molpro_energy = molp.get_molpro_energy(key)
 
-                        # FIXME this might be wrong here:
                         if status:
                             self.species.energy = molpro_energy
 

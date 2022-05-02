@@ -316,9 +316,8 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
 
@@ -348,8 +347,6 @@ class QuantumChemistry:
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
-
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,
@@ -362,9 +359,8 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
         return 0
@@ -416,9 +412,9 @@ class QuantumChemistry:
                                    ppn=self.ppn,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
 
@@ -479,9 +475,8 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
         return 0
@@ -512,9 +507,8 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
 
@@ -561,15 +555,15 @@ class QuantumChemistry:
             sys.exit()
 
         template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
-        python_file = '{}.py'.format(job)
+        python_file = f'{job}.py'
         name = job.split('/')[-1]
         python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 
         if self.queuing == 'pbs':
             python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
-                                                        dir='perm', python_file=python_file, arguments='')
+                                                        errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
-            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, dir='perm',
+            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, errdir='perm',
                                                         slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
         else:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))

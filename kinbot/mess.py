@@ -275,7 +275,7 @@ class MESS:
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
                 f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
 
-        uq.format_uqtk_data() 
+        #uq.format_uqtk_data() 
 
         return 0
 
@@ -456,22 +456,43 @@ class MESS:
             zeroenergy += well_add
             zeroenergy = round(zeroenergy, 2)
 
-        mess_well = self.welltpl.format(chemid=name,
-                                        smi=species.smiles,
-                                        natom=species.natom,
-                                        geom=self.make_geom(species),
-                                        symm=float(species.sigma_ext) / float(species.nopt),
-                                        nfreq=len(species.reduced_freqs),
-                                        freq=self.make_freq(species, freq_factor, 0),
-                                        hinderedrotor=self.make_rotors(species, freq_factor),
-                                        nelec=1,
-                                        mult=species.mult,
-                                        zeroenergy=zeroenergy)
+        nunq_confs = 0  # number of unique conformers
+        for co in self.species.conformer_index:
+            if co >= 0:
+                nunq_confs += 1
 
-        with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
-            f.write(mess_well)
+        if not self.par['multi_conf_tst'] or nunq_confs == 1: 
+            mess_well = self.welltpl.format(chemid=name,
+                                            smi=species.smiles,
+                                            natom=species.natom,
+                                            geom=self.make_geom(species),
+                                            symm=float(species.sigma_ext) / float(species.nopt),
+                                            nfreq=len(species.reduced_freqs),
+                                            freq=self.make_freq(species, freq_factor, 0),
+                                            hinderedrotor=self.make_rotors(species, freq_factor),
+                                            nelec=1,
+                                            mult=species.mult,
+                                            zeroenergy=zeroenergy)
+        else:
+            rrho = ''
+            for ci, co in enumerate(self.species.conformer_index):
+                corerr = self.corerrtpl.format(symm=float(species.sigma_ext) / float(species.nopt))
+                rrho += self.rrhotpl.format(natom=species.natom,
+                                            geom=self.make_geom(species),
+                                            core=corerr,
+                                            nfreq=len(species.kinbot_freqs),
+                                            freq=self.make_freq(species, freq_factor, 0),
+                                            rotors=self.make_rotors(species, freq_factor),
+                                            tunneling='',
+                                            nelec=1,
+                                            mult=species.mult,
+                                            zeroenergy=zeroenergy)
+ 
+# TODO for multi
+#        with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
+#            f.write(mess_well)
 
-        return mess_well
+        return #mess_well
 
     def write_barrier(self, reaction, index, left_zeroenergy, right_zeroenergy, barrier_add, freq_factor, imagfreq_factor, uq_iter):
         """
@@ -646,10 +667,10 @@ class MESS:
             mess_iter = "{0:04d}".format(uq_iter)
             if self.par['queue_template'] == '':
                 if self.par['queuing'] == 'pbs':
-                   f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'))
+                   f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='perm'))
                    f.write((tpl).format(n=mess_iter))
                 elif self.par['queuing'] == 'slurm':
-                   f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], dir='me'), slurm_feature='')
+                   f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='perm'), slurm_feature='')
                    f.write((tpl).format(n=mess_iter))
             else:
                 f.write(tpl_head)

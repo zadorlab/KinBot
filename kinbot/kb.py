@@ -2,6 +2,7 @@ import sys
 import os
 import logging
 import datetime
+import copy
 
 from kinbot import license_message
 from kinbot import postprocess
@@ -154,8 +155,13 @@ def main():
             return
 
         # characterize again and look for differences
-        well0.bonds = []
-        well0.characterize(bond_mx=None)
+        well0 = StationaryPoint('well0',
+                                par['charge'],
+                                par['mult'],
+                                atom=copy.deepcopy(well0.atom),
+                                geom=copy.deepcopy(well0.geom))
+        well0.short_name = 'w1'
+        well0.characterize()
         well0.name = str(well0.chemid)
         if well0.name != start_name:
             logging.error('The first well optimized to a structure different from the input.')
@@ -186,8 +192,7 @@ def main():
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
 
         # characterize again and look for differences
-        well0.bonds = []
-        well0.characterize(bond_mx=None)
+        well0.characterize()
         well0.name = str(well0.chemid)
 
         err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)

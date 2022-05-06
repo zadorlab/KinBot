@@ -92,6 +92,8 @@ def main():
     running = []
     # jobs that are finished
     finished = []
+    # jobs that are waiting 
+    waiting = []
     # list of all jobs
     jobs = []
     # dict of the pid's for all jobs
@@ -101,8 +103,6 @@ def main():
     c = 0
     while 1:
         j = len(jobs)
-        if j != a:
-            logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
         if j != a:
             logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
         a = j
@@ -188,6 +188,11 @@ def main():
             summary_lines.append('')
             summary_lines.append('Finished:')
             for job in finished:
+                summary_lines.append('\t{}'.format(job))
+            waiting = jobs[len(running) + len(finished):]
+            summary_lines.append('')
+            summary_lines.append('Waiting:')
+            for job in waiting:
                 summary_lines.append('\t{}'.format(job))
             with open('pes_summary.txt', 'w') as f:
                 f.write('\n'.join(summary_lines))

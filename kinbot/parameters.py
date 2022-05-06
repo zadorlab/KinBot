@@ -77,6 +77,7 @@ class Parameters:
             'form_bonds': [],
             # Threshold above which barriers are deemed unimportant
             'barrier_threshold': 100.,
+            'barrier_threshold_mp2': None,
             # Number of 0.1 Angstrom steps in bond scans
             'scan_step': 30,
             # Do a full PES scan instead of one well
@@ -296,6 +297,10 @@ class Parameters:
 
         if self.input_file is not None:
             self.read_user_input()
+
+
+        if self.par['barrier_threshold_mp2'] is None:
+            self.par['barrier_threshold_mp2'] = self.par['barrier_threshold']
 
         if self.par['me'] == 1:
             if self.par['epsilon'] == 0. or self.par['sigma'] == 0.:

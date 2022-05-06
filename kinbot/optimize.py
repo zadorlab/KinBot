@@ -458,9 +458,9 @@ class Optimize:
             result_rmsd = rotation_method(p_coord, q_coord)
             if result_rmsd > 0.15:
                 same_geom = 0
-            logging.info(f'\t{self.name} high level rmsd: {result_rmsd},'\
-                         f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)},'\
-                         f'corr: {geometry.matrix_corr(imagmode, imagmode_high)},'\
+            logging.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
+                         f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
+                         f'corr: {geometry.matrix_corr(imagmode, imagmode_high)}, '\
                          f'same: {same_geom}')
         else:
             same_geom = geometry.equal_geom(self.species, dummy, 0.1)

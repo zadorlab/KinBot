@@ -112,10 +112,12 @@ def main():
         # delete empty files
         try:
             conf_files = os.listdir('conf')
+            conf_files = [f'conf/{ff}' for ff in conf_files]
         except:
             conf_files = []
         try:
             hir_files = os.listdir('hir')
+            hir_files = [f'hir/{ff}' for ff in hir_files]
         except:
             hir_files = []
         files = files + conf_files + hir_files

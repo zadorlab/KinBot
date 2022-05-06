@@ -206,10 +206,13 @@ class ReactionGenerator:
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
                         if self.species.reac_type[index] == 'R_Addition_MultipleBond':
                             ending = 'well_mp2'
+                            thresh = self.par['barrier_threshold_mp2']
                         elif self.species.reac_type[index] == 'barrierless_saddle':
                             ending = 'well_bls'
+                            thresh = self.par['barrier_threshold']
                         else:
                             ending = 'well'
+                            thresh = self.par['barrier_threshold']
                         sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
                         sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
                         try:
@@ -217,7 +220,7 @@ class ReactionGenerator:
                         except TypeError:
                             logging.error(f'Faulty calculations, check or delete files for {obj.instance_name}.')
                             sys.exit(-1)
-                        if barrier > self.par['barrier_threshold']:
+                        if barrier > thresh:
                             logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'
                                          .format(barrier, obj.instance_name))
                             self.species.reac_ts_done[index] = -999

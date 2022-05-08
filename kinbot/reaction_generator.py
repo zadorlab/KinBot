@@ -206,7 +206,7 @@ class ReactionGenerator:
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
                         if self.species.reac_type[index] == 'R_Addition_MultipleBond':
                             ending = 'well_mp2'
-                            thresh = self.par['barrier_threshold_mp2']
+                            thresh = self.par['barrier_threshold']  # need to fix for mp2 specific
                         elif self.species.reac_type[index] == 'barrierless_saddle':
                             ending = 'well_bls'
                             thresh = self.par['barrier_threshold']

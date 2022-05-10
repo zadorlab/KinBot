@@ -457,7 +457,6 @@ class ReactionGenerator:
                         if not pr_opt.shir == 1:
                             opts_done = 0
                             pr_opt.do_optimization()
-                            print(pr_opt.species.chemid, pr_opt.shigh)
                         if pr_opt.shigh == -999:
                             logging.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
                             fails = 1

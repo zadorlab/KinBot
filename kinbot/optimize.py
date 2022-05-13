@@ -137,6 +137,7 @@ class Optimize:
                         if self.skip_conf_check == 0 or self.par['multi_conf_tst'] or self.par['print_conf']:
                             status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid = self.species.confs.check_conformers(wait=self.wait)
                             self.species.conformer_geom, self.species.conformer_energy, \
+                                    self.species.conformer_zeroenergy, \
                                     self.species.conformer_freq, self.species.conformer_index = \
                                     self.species.confs.find_unique(conformers, 
                                     energies, 
@@ -507,7 +508,7 @@ class Optimize:
                 err, self.species.conformer_energy[inx] = self.qc.get_qc_energy(self.log_name(1, conf=conf))
                 err, self.species.conformer_freq[inx] = self.qc.get_qc_freq(self.log_name(1, conf=conf), self.species.natom)   # TODO use fr variable
                 err, zpe = self.qc.get_qc_zpe(self.log_name(1, conf=conf))
-                self.species.conformer_energy[inx] += zpe
+                self.species.conformer_zeroenergy[inx] = self.species.conformer_energy[inx] + zpe
             else:
                 self.species.conformer_index[inx] = -999
                 logging.warning(f'High level optimization failed for {self.log_name(1, conf=conf)}')

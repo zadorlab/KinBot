@@ -73,6 +73,7 @@ class StationaryPoint:
         # The list of conformers
         self.conformer_geom = []
         self.conformer_energy = []
+        self.conformer_zeroenergy = []
         self.conformer_freq = []
         self.conformer_index = []
         

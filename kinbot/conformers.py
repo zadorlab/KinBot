@@ -546,6 +546,7 @@ class Conformers:
 
         conformers_unq = []
         energies_unq = []
+        zeroenergies_unq = []
         frequencies_unq = []
         indices_unq = []
 
@@ -606,7 +607,8 @@ class Conformers:
                             frequencies_unq.append(frequencies[vi])
                             indices_unq.append(vi)
 
-        return conformers_unq, energies_unq, frequencies_unq, indices_unq
+        zeroenergies_unq = [0.] * len(energies_unq)
+        return conformers_unq, energies_unq, zeroenergies_unq, frequencies_unq, indices_unq
 
     def write_profile(self, status, final_geoms, energies, ring=0):
         """

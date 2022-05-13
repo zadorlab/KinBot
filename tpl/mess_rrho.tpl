@@ -8,5 +8,5 @@
 {tunneling}
     ElectronicLevels[1/cm]        {nelec}
       0.    {mult}
-    ZeroEnergy[kcal/mol]          {zeroenergy}
+    ZeroEnergy[kcal/mol]          {zeroenergy} ! {shift}
   End ! RRHO

@@ -302,7 +302,7 @@ class Parameters:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
                 logging.error(err)
                 sys.exit(-1)
-            if self.par['rotor_scan'] == 0:
+            if self.par['rotor_scan'] == 0 and self.par['multi_conf_tst'] == 0:
                 err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
                 logging.error(err)
                 sys.exit(-1)

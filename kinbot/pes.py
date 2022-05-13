@@ -1320,13 +1320,13 @@ def get_l3energy(job, par, bls=0):
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
-    if par['single_point_qc'] == 'gaussian':
-        if os.path.exists('gaussian/' + job + '.log'):
-            gaussname = 'gaussian/' + job + '.log'
-        elif os.path.exists('gaussian/' + job + '_high.log'):
-            gaussname = 'gaussian/' + job + '_high.log'
-        elif os.path.exists('gaussian/' + job + '_well_high.log'):
-            gaussname = 'gaussian/' + job + '_well_high.log'
+    if par['single_point_qc'] == 'gauss':
+        if os.path.exists('gauss/' + job + '.log'):
+            gaussname = 'gauss/' + job + '.log'
+        elif os.path.exists('gauss/' + job + '_high.log'):
+            gaussname = 'gauss/' + job + '_high.log'
+        elif os.path.exists('gauss/' + job + '_well_high.log'):
+            gaussname = 'gauss/' + job + '_well_high.log'
         else:
             logging.info('L3 for {} is missing.'.format(job))
             return 0, -1  # job not yet started to run

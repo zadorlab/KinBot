@@ -56,12 +56,16 @@ class MESS:
             self.tunneltpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_well.tpl')) as f:
             self.welltpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_well_union.tpl')) as f:
+            self.welluniontpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_bimol.tpl')) as f:
             self.bimoltpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_barrierless.tpl')) as f:
             self.blbimoltpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_barrier.tpl')) as f:
             self.barriertpl = f.read()
+        with open(pkg_resources.resource_filename('tpl', 'mess_barrier_union.tpl')) as f:
+            self.barrieruniontpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_rrho.tpl')) as f:
             self.rrhotpl = f.read()
         with open(pkg_resources.resource_filename('tpl', 'mess_core_rr.tpl')) as f:
@@ -474,7 +478,7 @@ class MESS:
                                             mult=species.mult,
                                             zeroenergy=zeroenergy)
         else:
-            rrho = ''
+            rrho = 'Union\n'
             for ci, co in enumerate(self.species.conformer_index):
                 corerr = self.corerrtpl.format(symm=float(species.sigma_ext) / float(species.nopt))
                 rrho += self.rrhotpl.format(natom=species.natom,
@@ -489,10 +493,10 @@ class MESS:
                                             zeroenergy=zeroenergy)
  
 # TODO for multi
-#        with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
-#            f.write(mess_well)
+        with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
+            f.write(mess_well)
 
-        return #mess_well
+        return mess_well
 
     def write_barrier(self, reaction, index, left_zeroenergy, right_zeroenergy, barrier_add, freq_factor, imagfreq_factor, uq_iter):
         """

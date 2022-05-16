@@ -443,22 +443,25 @@ class Optimize:
             same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
                     (geometry.equal_geom(self.species, dummy, 0.3))) \
                     or (geometry.equal_geom(self.species, dummy, 0.15))
-            p_coord = copy.deepcopy(self.species.geom)
-            q_coord = copy.deepcopy(dummy.geom)
-            p_atoms = self.species.atom
-            q_atoms = self.species.atom
-            p_cent = rmsd.centroid(p_coord)
-            q_cent = rmsd.centroid(q_coord)
-            p_coord -= p_cent
-            q_coord -= q_cent
-            rotation_method = rmsd.kabsch_rmsd
-            reorder_method = rmsd.reorder_hungarian
-            q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
-            q_coord = q_coord[q_review]
-            q_atoms = q_atoms[q_review]
-            result_rmsd = rotation_method(p_coord, q_coord)
-            if result_rmsd > 0.15:
-                same_geom = 0
+            if self.par['multi_conf_tst'] != 1:  # for now skipping this
+                p_coord = copy.deepcopy(self.species.geom)
+                q_coord = copy.deepcopy(dummy.geom)
+                p_atoms = self.species.atom
+                q_atoms = self.species.atom
+                p_cent = rmsd.centroid(p_coord)
+                q_cent = rmsd.centroid(q_coord)
+                p_coord -= p_cent
+                q_coord -= q_cent
+                rotation_method = rmsd.kabsch_rmsd
+                reorder_method = rmsd.reorder_hungarian
+                q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
+                q_coord = q_coord[q_review]
+                q_atoms = q_atoms[q_review]
+                result_rmsd = rotation_method(p_coord, q_coord)
+                if result_rmsd > 0.15:
+                    same_geom = 0
+            else:
+                result_rmsd = 'not done'
             logging.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
                          f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
                          f'corr: {geometry.matrix_corr(imagmode, imagmode_high)}, '\

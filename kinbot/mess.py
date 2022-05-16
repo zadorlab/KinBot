@@ -492,11 +492,13 @@ class MESS:
                                             nelec=1,
                                             mult=species.mult,
                                             zeroenergy=zeroenergy,
-                                            shift=constants.AUtoKCAL*(species.conformer_zeroenergy[ci]-base_zeroen)
+                                            shift=constants.AUtoKCAL*(species.conformer_zeroenergy[ci]-base_zeroen),
+                                            imfreq='',
                                            )
             rrho = '      '.join(rrho.splitlines(True))  # indent
             mess_well = self.welluniontpl.format(chemid=name,
                                                  smi=species.smiles,
+                                                 nunion=nunq_confs,
                                                  rrho=rrho)
  
         with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
@@ -516,6 +518,8 @@ class MESS:
         for co in reaction.ts.conformer_index:
             if co >= 0:
                 nunq_confs += 1
+
+        print(reaction.ts.conformer_index)
 
         # write tunneling block
         if left_zeroenergy < 0 or right_zeroenergy < 0:
@@ -594,7 +598,9 @@ class MESS:
                                        nelec=1,
                                        mult=reaction.ts.mult,
                                        zeroenergy=zeroenergy,
-                                       shift=0)
+                                       shift='',
+                                       imfreq='',
+                                      )
             variational = self.variationaltpl.format(twotst=twotst,
                                                      variationalmodel=rrho,
                                                      tunneling=tun)
@@ -606,7 +612,7 @@ class MESS:
         elif not self.par['multi_conf_tst'] or nunq_confs == 1: 
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
-                                       geom=self.make_geom(reaction.ts.geom, reactions.ts.atom),
+                                       geom=self.make_geom(reaction.ts.geom, reaction.ts.atom),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=self.make_freq(reaction.ts.reduced_freqs, freq_factor, 1),
@@ -615,7 +621,9 @@ class MESS:
                                        nelec=1,
                                        mult=reaction.ts.mult,
                                        zeroenergy=zeroenergy,
-                                       shift=0)
+                                       shift='',
+                                       imfreq='',
+                                      )
             mess_barrier = self.barriertpl.format(rxn_name=name,
                                                   chemid_reac=chemid_reac,
                                                   chemid_prod=chemid_prod,
@@ -627,21 +635,25 @@ class MESS:
             for ci, co in enumerate(reaction.ts.conformer_index):
                 corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
                 rrho += self.rrhotpl.format(natom=reaction.ts.natom,
-                                            geom=self.make_geom_multi(reaction.ts.conformer_geom[ci], reaction.ts.atom),
+                                            geom=self.make_geom(reaction.ts.conformer_geom[ci], reaction.ts.atom),
                                             core=corerr,
                                             nfreq=len(reaction.ts.conformer_freq[ci]),
-                                            freq=self.make_freq(reaction.ts.conformer_freq[ci], freq_factor, 0),
+                                            freq=self.make_freq(reaction.ts.conformer_freq[ci], freq_factor, 1),
                                             rotors='',
                                             tunneling=tun,
                                             nelec=1,
-                                            mult=species.mult,
+                                            mult=reaction.ts.mult,
                                             zeroenergy=zeroenergy,
-                                            shift=constants.AUtoKCAL*(reaction.ts.conformer_zeroenergy[ci]-base_zeroen)
-                                           )
+                                            shift=constants.AUtoKCAL*(reaction.ts.conformer_zeroenergy[ci]-base_zeroen),
+                                            imfreq=reaction.ts.conformer_freq[ci][0],
+                                           )  
             rrho = '      '.join(rrho.splitlines(True))  # indent
-            mess_well = self.welluniontpl.format(chemid=name,
-                                                 smi=species.smiles,
-                                                 rrho=rrho)
+            mess_barrier = self.barrieruniontpl.format(rxn_name=name,
+                                                       chemid_reac=chemid_reac,
+                                                       chemid_prod=chemid_prod,
+                                                       long_rxn_name=long_rxn_name,
+                                                       nunion=nunq_confs,
+                                                       model=rrho)
 
         with open('{}_{:04d}.mess'.format(reaction.instance_name, uq_iter), 'w') as f:
             f.write(mess_barrier)

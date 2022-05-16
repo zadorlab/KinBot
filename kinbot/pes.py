@@ -400,7 +400,10 @@ def postprocess(par, jobs, task, names, mass):
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
         # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.
-        copy_from_kinbot(ji, par['single_point_qc'])
+        try:
+            copy_from_kinbot(ji, par['single_point_qc'])
+        except:
+            logging.warning(f'L3 calculations were not copied from {ji}')
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, products, reactions)
     # create a batch submission for all L3 jobs
@@ -925,6 +928,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     Two things per file need to be updated
     1. the names of all the wells, bimolecular products and ts's
     2. all the zpe corrected energies
+    If it is a multi_conf_tst calculation, then the ZeroEnergies and
+    ImaginaryFrequency values need to be also changed for each species in the Union.
+    The lowest energy species has L3 energies (if calculated), while the 
+    others are corrected with their DeltaL2 energies.
     """
 
     logging.info(f"uq value: {par['uq']}")
@@ -1049,9 +1056,25 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         if not os.path.exists('me'):
             os.mkdir('me')
 
-        with open('me/' + 'mess_' + mess_iter + '.inp', 'w') as f:
+        with open(f'me/mess_{mess_iter}.inp', 'w') as f:
             f.write(header)
             f.write('\n'.join(s))
+
+        if par['multi_conf_tst']:
+            with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
+                with open(f'me/mess_{mess_iter}.inp', 'r') as f:
+                    lines = f.read().split('\n')
+                    for line in lines:
+                        if 'ZeroEnergy' in line:
+                            words = line.split()
+                            if len(words) > 3:
+                                ecorr = str(float(words[1]) + float(words[3]))
+                                words[1] = ecorr
+                            newline = ' '.join(words)
+                            fcorr.write(newline)
+                        else:
+                            fcorr.write(line)
+                        fcorr.write('\n')
 
         if par['me']:
             mess.run()

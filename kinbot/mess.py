@@ -493,7 +493,6 @@ class MESS:
                                             mult=species.mult,
                                             zeroenergy=zeroenergy,
                                             shift=constants.AUtoKCAL*(species.conformer_zeroenergy[ci]-base_zeroen),
-                                            imfreq='',
                                            )
             rrho = '      '.join(rrho.splitlines(True))  # indent
             mess_well = self.welluniontpl.format(chemid=name,
@@ -518,8 +517,6 @@ class MESS:
         for co in reaction.ts.conformer_index:
             if co >= 0:
                 nunq_confs += 1
-
-        print(reaction.ts.conformer_index)
 
         # write tunneling block
         if left_zeroenergy < 0 or right_zeroenergy < 0:
@@ -599,7 +596,6 @@ class MESS:
                                        mult=reaction.ts.mult,
                                        zeroenergy=zeroenergy,
                                        shift='',
-                                       imfreq='',
                                       )
             variational = self.variationaltpl.format(twotst=twotst,
                                                      variationalmodel=rrho,
@@ -622,7 +618,6 @@ class MESS:
                                        mult=reaction.ts.mult,
                                        zeroenergy=zeroenergy,
                                        shift='',
-                                       imfreq='',
                                       )
             mess_barrier = self.barriertpl.format(rxn_name=name,
                                                   chemid_reac=chemid_reac,
@@ -634,18 +629,23 @@ class MESS:
             base_zeroen = min(reaction.ts.conformer_zeroenergy)
             for ci, co in enumerate(reaction.ts.conformer_index):
                 corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
+                tun_conf = tun.split('\n')
+                try:
+                    tun_conf[1] += f' ! {reaction.ts.conformer_freq[ci][0]}'
+                    tun_conf = '\n'.join(tun_conf)
+                except IndexError:  # happens for submerged barrier
+                    tun_conf = tun
                 rrho += self.rrhotpl.format(natom=reaction.ts.natom,
                                             geom=self.make_geom(reaction.ts.conformer_geom[ci], reaction.ts.atom),
                                             core=corerr,
                                             nfreq=len(reaction.ts.conformer_freq[ci]),
                                             freq=self.make_freq(reaction.ts.conformer_freq[ci], freq_factor, 1),
                                             rotors='',
-                                            tunneling=tun,
+                                            tunneling=tun_conf,
                                             nelec=1,
                                             mult=reaction.ts.mult,
                                             zeroenergy=zeroenergy,
                                             shift=constants.AUtoKCAL*(reaction.ts.conformer_zeroenergy[ci]-base_zeroen),
-                                            imfreq=reaction.ts.conformer_freq[ci][0],
                                            )  
             rrho = '      '.join(rrho.splitlines(True))  # indent
             mess_barrier = self.barrieruniontpl.format(rxn_name=name,

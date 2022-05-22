@@ -1978,10 +1978,17 @@ class ReactionFinder:
 
         rxns = []  # reactions found with the current resonance isomer
 
-        motif = ['X','X']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-        for instance in instances: 
-            rxns += [instance]
+        if self.par['homolytic_bonds'] == {}:
+            motif = ['X','X']
+            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            for instance in instances: 
+                rxns += [instance]
+        else: 
+            try:
+                rxns = self.par['homolytic_bonds'][str(self.species.chemid)]
+            except KeyError:
+                pass
+                
 
         self.new_reaction(rxns, name, a=0, b=1, cross=True)
 #        for inst in rxns:

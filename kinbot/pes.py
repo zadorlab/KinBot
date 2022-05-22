@@ -295,7 +295,7 @@ def postprocess(par, jobs, task, names, mass):
             continue
         # read the summary file
         for line in summary:
-            if line.startswith('SUCCESS'):
+            if line.startswith('SUCCESS') and 'hom_sci' not in line:
                 pieces = line.split()
                 ts = pieces[2]  # this is the long specific name of the reaction
                 if ts in par['skip_reactions']:
@@ -361,11 +361,11 @@ def postprocess(par, jobs, task, names, mass):
                         reactions.pop(temp)
                         reactions.append([reactant, ts, prod, barrier])
 
-            elif line.startswith('HOMOLYTIC_SCISSION'):
+            elif line.startswith('SUCCESS') and 'hom_sci' in line:
                 pieces = line.split()
                 reactant = ji
-                energy = pieces[1]  # energy from summary
-                prod = pieces[2:]   # this is the chemid of the product
+                energy = float(pieces[1])  # energy from summary
+                prod = pieces[3:]   # these are the chemids of the products
 
                 if reactant not in wells:
                     wells.append(reactant)
@@ -1067,14 +1067,23 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                     for line in lines:
                         if 'ZeroEnergy' in line:
                             words = line.split()
-                            if len(words) > 3:
+                            if len(words) == 4:
                                 ecorr = str(float(words[1]) + float(words[3]))
                                 words[1] = ecorr
+                            newline = ' '.join(words)
+                            fcorr.write(newline)
+                        if 'ImaginaryFrequency' in line:
+                            words = line.split()
+                            if len(words) == 4:
+                                words[1] = words[3]
                             newline = ' '.join(words)
                             fcorr.write(newline)
                         else:
                             fcorr.write(line)
                         fcorr.write('\n')
+
+        shutil.copyfile('me/mess_{mess_iter}_corr.inp', 'me/mess_{mess_iter}.inp')
+        os.remove('me/mess_{mess_iter}_corr.inp')
 
         if par['me']:
             mess.run()

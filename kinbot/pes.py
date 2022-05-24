@@ -914,7 +914,8 @@ def create_short_names(wells, products, reactions, barrierless):
     n = 1
     for rxn in barrierless:
         nobar_name = 'nobar_' + str(n)
-        nobar_short[nobar_name] = nobar_name
+        key = f'{rxn[0]}_{rxn[2][0]}_{rxn[2][1]}'
+        nobar_short[key] = nobar_name
         n = n + 1
 
     return well_short, pr_short, fr_short, ts_short, nobar_short
@@ -1004,7 +1005,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
             s.append(divider)
 
-        # write the products
+        # write the products and barrierless reactions
         s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
         for prod in products:
             name = pr_short[prod] + ' ! ' + prod
@@ -1012,13 +1013,31 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             prod_energies_current[prod] = energy
             fr_names = {}
             for fr in prod.split('_'):
-                key = 'fr_name_{}'.format(fr)
+                key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
+            # check if barrrieless
+            bless = 0
+            for bl in barrierless:
+                bl_prod = f'{bl[2][0]}_{bl[2][1]}'
+                print(bl_prod)
+                print(prod)
+                print()
+                if prod == bl_prod:
+                    bless = 1
+                    break
             with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                s.append(f.read().format(name=name,
-                                         ground_energy=round(energy, 2),
-                                         **fr_names))
+                if not bless:
+                    s.append(f.read().format(name=name,
+                                             ground_energy=round(energy, 2),
+                                             **fr_names))
+                else:
+                    s.append(f.read().format(name=name,
+                                             blessname=nobar_short[f'{parent[prod]}_{bl_prod}'],
+                                             wellname=well_short[parent[prod]],
+                                             prodname=pr_short[prod],
+                                             ground_energy=round(energy, 2),
+                                             **fr_names))
             s.append(divider)
 
         # write the barrier

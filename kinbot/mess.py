@@ -126,7 +126,7 @@ class MESS:
                     if bimol_name not in self.bimolec_names:
                         self.bimolec_names[bimol_name] = 'b_{}'.format(len(self.bimolec_names) + 1)
                 else:
-                    # TER MOLECULAR
+                    # TERMOLECULAR
                     for st_pt in reaction.products:
                         if st_pt.chemid not in self.fragment_names:
                             self.fragment_names[st_pt.chemid] = 'fr_{}'.format(len(self.fragment_names) + 1)
@@ -241,10 +241,15 @@ class MESS:
                         bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                         energy_add = uq.calc_factor('energy', bimol_name, uq_iter)
                         freq_factor = uq.calc_factor('freq', bimol_name, uq_iter)
+                        if 'hom_sci' not in reaction.instance_name:
+                            bless = 0
+                        else:
+                            bless = 1
                         bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
                                                                       energy_add,
                                                                       freq_factor,
-                                                                      uq_iter)
+                                                                      uq_iter,
+                                                                      bless=bless)
                         written_bimol_names.append(bimol_name)
                     else:
                         # termol
@@ -284,19 +289,6 @@ class MESS:
         return 0
 
 
-    def write_barrierless(self, species_list, reaction, energy_add, freq_factor, uq_iter):
-
-        if len(reaction.products) == 2:
-            barrierless = self.write_bimol(species_list,
-                                           energy_add,
-                                           freq_factor,
-                                           uq_iter,
-                                           bless=1)
-        else:
-            barrierless = self.write_termol(species_list, reaction, uq_iter, bless=1)
-
-        return barrierless
-
     def write_termol(self, species_list, reaction, uq_iter, bless=0):
         # Create the dummy MESS block for ter-molecular products.
         termol = ''
@@ -313,6 +305,7 @@ class MESS:
     def write_bimol(self, prod_list, well_add, freq_factor, uq_iter, bless=0):
         """
         Create the block for MESS for a bimolecular product.
+        In case of a barrierless reaction (bless=1) also add a phase-space theory barrier.
         well0: reactant on this PES (zeroenergy reference)
         uq_n = number of uncertainty runs
         """
@@ -402,11 +395,7 @@ class MESS:
             name = '{{name}} ! {} {}'.format(smi[0], smi[1])
             energy = '{ground_energy}'
         else:
-            if bless == 0:
-                name = '{} ! {}'.format(self.bimolec_names[pr_name], pr_name)
-            elif bless == 1:
-                name = '{} ! barrierless'.format(self.barrierless_names[pr_name])
-
+            name = '{} ! {}'.format(self.bimolec_names[pr_name], pr_name)
             energy = (sum([sp.energy for sp in prod_list]) + sum([sp.zpe for sp in prod_list]) 
                       - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
             energy += well_add
@@ -419,14 +408,12 @@ class MESS:
                                          ground_energy=energy)
 
         elif bless == 1:
-            values = list(self.barrierless_names.values())
-            index = values.index(pr_name)
             stoich = ''
             el_counter = Counter(self.species.atom)
             for el in constants.elements:
                 if el_counter[el]:
                     stoich += '{}{}'.format(el, el_counter[el])
-            bimol = self.blbimoltpl.format(barrier='nobar_{}'.format(index),
+            bimol = self.blbimoltpl.format(barrier=name,
                                            reactant=self.well_names[self.species.chemid],
                                            prod=name,
                                            stoich=stoich,
@@ -575,7 +562,7 @@ class MESS:
                                          geom2=self.make_geom(reaction.prod_opt[1].species.geom, reaction.prod_opt[1].species.atom),
                                          symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
                                          prefact='prefactor',
-                                         exponent=3.,
+                                         exponent=6,
                                          nfreq=nfreq,
                                          freq=freq,
                                          hinderedrotor=rotors,
@@ -638,7 +625,7 @@ class MESS:
                 rrho += self.rrhotpl.format(natom=reaction.ts.natom,
                                             geom=self.make_geom(reaction.ts.conformer_geom[ci], reaction.ts.atom),
                                             core=corerr,
-                                            nfreq=len(reaction.ts.conformer_freq[ci]),
+                                            nfreq=len(reaction.ts.conformer_freq[ci])-1,
                                             freq=self.make_freq(reaction.ts.conformer_freq[ci], freq_factor, 1),
                                             rotors='',
                                             tunneling=tun_conf,

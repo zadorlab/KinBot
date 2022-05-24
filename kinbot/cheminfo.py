@@ -236,3 +236,8 @@ def create_smiles(inchi):
         sys.exit()
 
     return obmol.write("smi").split()[0]
+
+
+def create_smi_from_geom(atom, geom):
+    inchi = create_inchi_from_geom(atom, geom)
+    return create_smiles(inchi)

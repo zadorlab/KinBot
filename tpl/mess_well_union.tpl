@@ -2,5 +2,6 @@
     Species
       Union ! number of species in union is {nunion}
 {rrho}  
-  End ! Well
+      End ! Union
+    End ! Species
 

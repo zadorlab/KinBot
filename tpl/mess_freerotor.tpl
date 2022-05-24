@@ -1,7 +1,7 @@
       Rotor     Free
-      Geometry[angstrom]          {natom}
+        Geometry[angstrom]          {natom}
 {geom}
-        ThermalPowerMax         50.
-        Group                     {group}
-        Axis                      {axis}
+          ThermalPowerMax         50.
+          Group                     {group}
+          Axis                      {axis}
       End ! Rotor

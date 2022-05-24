@@ -1061,29 +1061,48 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             f.write('\n'.join(s))
 
         if par['multi_conf_tst']:
+            logging.info('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
             with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
                 with open(f'me/mess_{mess_iter}.inp', 'r') as f:
                     lines = f.read().split('\n')
                     for line in lines:
+                        words = line.split()
                         if 'ZeroEnergy' in line:
-                            words = line.split()
                             if len(words) == 4:
-                                ecorr = str(float(words[1]) + float(words[3]))
-                                words[1] = ecorr
-                            newline = ' '.join(words)
+                                space = ' ' * (len(line) - len(line.lstrip(' ')))
+                                ecorr = float(words[3])
+                                words[1] = str(round(float(words[1]) + ecorr, 2))
+                                newline = ' '.join(words)
+                                newline = space + newline
+                            else:
+                                newline = line
                             fcorr.write(newline)
-                        if 'ImaginaryFrequency' in line:
-                            words = line.split()
-                            if len(words) == 4:
-                                words[1] = words[3]
+                        elif 'End ! RRHO' in line:
+                            ecorr = None  # reset correction at the end of block
+                            fcorr.write(line)
+                        elif len(words) == 0:
+                            continue
+                        elif ('CutoffEnergy' in line or 'WellDepth' in line) and ecorr is not None:
+                            space = ' ' * (len(line) - len(line.lstrip(' ')))
+                            words[1] = str(round(float(words[1]) + ecorr, 2))
                             newline = ' '.join(words)
+                            newline = space + newline
+                            fcorr.write(newline)
+                        elif 'ImaginaryFrequency' in line:
+                            if len(words) == 4:
+                                space = ' ' * (len(line) - len(line.lstrip(' ')))
+                                words[1] = words[3][1:]  # cutting off - sign
+                                newline = ' '.join(words)
+                                newline = space + newline
+                            else:
+                                newline = line
                             fcorr.write(newline)
                         else:
                             fcorr.write(line)
                         fcorr.write('\n')
 
-        shutil.copyfile('me/mess_{mess_iter}_corr.inp', 'me/mess_{mess_iter}.inp')
-        os.remove('me/mess_{mess_iter}_corr.inp')
+        shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
+        os.remove(f'me/mess_{mess_iter}_corr.inp')
 
         if par['me']:
             mess.run()

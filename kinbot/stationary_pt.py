@@ -289,7 +289,10 @@ class StationaryPoint:
                 from kinbot.cheminfo import create_rdkit_mol
                 mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
             except ImportError:
-                pass
+                try:
+                    self.smiles = cheminfo.create_smi_from_geom(self.atom, self.geom)
+                except:
+                    pass
         return 0
 
     def make_extra_bond(self, parts, maps):

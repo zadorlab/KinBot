@@ -413,9 +413,9 @@ class MESS:
             for el in constants.elements:
                 if el_counter[el]:
                     stoich += '{}{}'.format(el, el_counter[el])
-            bimol = self.blbimoltpl.format(barrier='{{blessname}}',
-                                           reactant='{{iwellname}}',
-                                           prod='{{prodname}}',
+            bimol = self.blbimoltpl.format(barrier='{blessname}',
+                                           reactant='{wellname}',
+                                           prod='{prodname}',
                                            stoich=stoich,
                                            frag1=frag1,
                                            frag2=frag2,

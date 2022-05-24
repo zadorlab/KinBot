@@ -1020,9 +1020,6 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
-                print(bl_prod)
-                print(prod)
-                print()
                 if prod == bl_prod:
                     bless = 1
                     break

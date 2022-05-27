@@ -35,7 +35,8 @@ class Orca:
         with open(f'orca/{fname}.inp', 'w') as outf:
             outf.write(tpl.format(geom=geom,
                                   mult=self.species.mult,
-                                  charge=self.species.charge
+                                  charge=self.species.charge,
+                                  ppn=self.par['single_point_ppn'],
                                   ))
 
         return 0
@@ -75,7 +76,7 @@ class Orca:
         with open(orca_tpl) as f:
             tpl = f.read()
         # substitution
-        with open(f'orca/{fname}.{self.par['queuing']}', 'w') as f:
+        with open(f"orca/{fname}.{self.par['queuing']}", 'w') as f:
             if self.par['queuing'] == 'pbs':
                 f.write((tpl_head + tpl).format(
                         name=fname,

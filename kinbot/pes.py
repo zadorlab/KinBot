@@ -425,7 +425,10 @@ def postprocess(par, jobs, task, names, mass):
         status, l3energy = get_l3energy(well, par)
         if not status:
             l3done = 0  # not all L3 calculations are done
-            batch_submit += f'{cmd} molpro/{well}.{ext}\n'
+            if par['single_point_qc'] == 'molpro':
+                batch_submit += f'{cmd} molpro/{well}.{ext}\n'
+            elif par['single_point_qc'] == 'orca':
+                batch_submit += f'{cmd} orca/{well}.{ext}\n'
         else:
             well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
     prod_energies = {}
@@ -440,7 +443,10 @@ def postprocess(par, jobs, task, names, mass):
             status, l3e = get_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
-                batch_submit += f'{cmd} molpro/{pr}.{ext}\n'
+                if par['single_point_qc'] == 'molpro':
+                    batch_submit += f'{cmd} molpro/{pr}.{ext}\n'
+                elif par['single_point_qc'] == 'orca':
+                    batch_submit += f'{cmd} orca/{pr}.{ext}\n'
             else:
                 l3energy += l3e + zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
@@ -460,7 +466,10 @@ def postprocess(par, jobs, task, names, mass):
 
                 if not status * status_prod:
                     l3done = 0
-                    batch_submit += f'{cmd} molpro/{reac[1]}.{ext}\n'
+                    if par['single_point_qc'] == 'molpro':
+                        batch_submit += f'{cmd} molpro/{reac[1]}.{ext}\n'
+                    elif par['single_point_qc'] == 'orca':
+                        batch_submit += f'{cmd} orca/{reac[1]}.{ext}\n'
                 else:
                     delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
                     delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
@@ -470,7 +479,10 @@ def postprocess(par, jobs, task, names, mass):
                 status, l3energy = get_l3energy(reac[1], par)
                 if not status:
                     l3done = 0
-                    batch_submit += f'{cmd} molpro/{reac[1]}.{ext}\n'
+                    if par['single_point_qc'] == 'molpro':
+                        batch_submit += f'{cmd} molpro/{reac[1]}.{ext}\n'
+                    elif par['single_point_qc'] == 'orca':
+                        batch_submit += f'{cmd} orca/{reac[1]}.{ext}\n'
                 else:
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
@@ -1379,15 +1391,24 @@ def get_l3energy(job, par, bls=0):
         key = par['single_point_key']
 
     if par['single_point_qc'] == 'molpro':
-        if os.path.exists('molpro/' + job + '.out'):
-            with open('molpro/' + job + '.out', 'r') as f:
+        if os.path.exists(f'molpro/{job}.out'):
+            with open(f'molpro/{job}.out', 'r') as f:
                 lines = f.readlines()
                 for line in reversed(lines):
                     if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
-    if par['single_point_qc'] == 'gauss':
+    elif par['single_point_qc'] == 'orca':
+        if os.path.exists(f'orca/{job}.out'):
+            with open(f'orca/{job}.out', 'r') as f:
+                lines = f.readlines()
+                for line in reversed(lines):
+                    if ('SETTING ' + key) in line:
+                        e = float(line.split()[3])
+                        logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                        return 1, e  # energy was found
+    elif par['single_point_qc'] == 'gauss':
         if os.path.exists('gauss/' + job + '.log'):
             gaussname = 'gauss/' + job + '.log'
         elif os.path.exists('gauss/' + job + '_high.log'):

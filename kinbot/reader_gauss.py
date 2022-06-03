@@ -238,3 +238,19 @@ def read_all_irc_geoms(outfile):
                 geom = np.append(geom, g)
                 natom += 1
     return atom, all_geoms, charge, mult
+
+
+def correct_kwargs(outfile, kwargs):
+    """Function to correct errors by modifying the kwargs of the ase calculator.
+
+    @param outfile: Output file of gaussian (.log file)
+    @param kwargs: Original keyword arguments.
+    @return kwargs: New keyword arguments.
+    """
+    from kinbot.utils import tail
+    outf_end = tail(outfile, 10)
+    # Use cartesian coordinates when internal ones fail.
+    if 'Error in internal coordinate system' in outf_end:
+        kwargs['opt'] += ',cartesian'
+
+    return kwargs

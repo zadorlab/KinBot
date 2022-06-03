@@ -4,6 +4,7 @@ from ase.calculators.gaussian import Gaussian
 from ase.db import connect
 from kinbot import reader_gauss
 from kinbot.utils import iowait
+from kinbot.reader_gauss import correct_kwargs
 
 db = connect('{working_dir}/kinbot.db')
 label = '{label}'
@@ -17,7 +18,7 @@ calc = Gaussian(**kwargs)
 mol.calc = calc
 
 try:
-    e = mol.get_potential_energy() # use the Gaussian optimizer
+    e = mol.get_potential_energy()  # use the Gaussian optimizer
     iowait(logfile, 'gauss')
     mol.positions = reader_gauss.read_geom(logfile, mol)
     freq = reader_gauss.read_freq(logfile, {atom})
@@ -28,7 +29,9 @@ except RuntimeError:
     try:
         iowait(logfile, 'gauss')
         mol.positions = reader_gauss.read_geom(logfile, mol)
-        e = mol.get_potential_energy() # use the Gaussian optimizer
+        kwargs = correct_kwargs(logfile, kwargs)
+        mol.calc = Gaussian(**kwargs)
+        e = mol.get_potential_energy()  # use the Gaussian optimizer
         iowait(logfile, 'gauss')
         mol.positions = reader_gauss.read_geom(logfile, mol)
         freq = reader_gauss.read_freq(logfile, {atom})

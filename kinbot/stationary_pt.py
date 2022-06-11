@@ -777,7 +777,7 @@ class StationaryPoint:
                         elif 2 in self.bond[at]:
                             double_neigh = [i for i, x in enumerate(self.bond[at]) if x == 2]
                             for neigh in double_neigh:
-                                if sum(self.bond[neigh]) > 2:  # atom has at least on other neighbor
+                                if sum(self.bond[neigh]) > 2:  # atom has at least one other neighbor
                                     return 1
                     return 0
 

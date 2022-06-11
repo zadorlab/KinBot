@@ -50,13 +50,17 @@ class Orca:
         A non-object-oriented version is used in pes.py
         """
         fname = self.get_name(name)
-        status = os.path.exists(f'orca/{fname}.out')
+        status = os.path.exists(f'orca/{fname}_property.txt')
         if status:
-            with open(f'orca/{fname}.out') as f:
+            with open(f'orca/{fname}_property.txt') as f:
                 lines = f.readlines()
             for index, line in enumerate(reversed(lines)):
-                if ('SETTING ' + key) in line:
-                    return 1, float(line.split()[3])
+                # in log file
+                # E(CCSD(T))                                 ...    -75.637732066
+                # in property file (used)
+                # Total MDCI Energy:                                                -75.6377320661
+                if (key) in line:
+                    return 1, float(line.split()[-1])
         return 0, -1
 
     def create_orca_submit(self, name=''):

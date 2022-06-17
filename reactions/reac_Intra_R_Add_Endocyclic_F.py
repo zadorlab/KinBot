@@ -7,6 +7,7 @@ class IntraRAddEndocyclicF(GeneralReac):
     skip = 1
     dihstep = 13
     family_name = 'intraraddendocyclicf'
+    invert = None
 
 
     def get_constraints(self, step, geom):
@@ -18,7 +19,6 @@ class IntraRAddEndocyclicF(GeneralReac):
             self.fix_bonds(fix)
 
         if step == 0:
-            self.invert = None
             hatom = -999  # the atom that is in the way
             head = -999  # the head atom
             axis = -999  # the other axis atom

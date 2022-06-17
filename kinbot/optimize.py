@@ -213,7 +213,7 @@ class Optimize:
                                 status = self.qc.check_qc(self.log_name(1, conf=conindx))
                                 if status == 'error':
                                     stati[ci] = 1
-                                    self.species.conformer_index[conindx] = -999
+                                    self.species.conformer_index[ci] = -999
                                 elif status == 'normal':
                                     stati[ci] = 1
                                     self.compare_structures(conf=conindx)

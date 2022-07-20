@@ -752,7 +752,6 @@ class ReactionFinder:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance]
 
-
         self.new_reaction(rxns, name, a=0, b=-2)
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
@@ -1978,10 +1977,17 @@ class ReactionFinder:
 
         rxns = []  # reactions found with the current resonance isomer
 
-        motif = ['X','X']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-        for instance in instances: 
-            rxns += [instance]
+        if self.par['homolytic_bonds'] == {}:
+            motif = ['X','X']
+            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            for instance in instances: 
+                rxns += [instance]
+        else: 
+            try:
+                rxns = self.par['homolytic_bonds'][str(self.species.chemid)]
+            except KeyError:
+                pass
+                
 
         self.new_reaction(rxns, name, a=0, b=1, cross=True)
 #        for inst in rxns:
@@ -2035,7 +2041,7 @@ class ReactionFinder:
         Create arrays to store all reactions for species.
         input: 
         reac_list: atom motifs from individual searches
-        reac_id: reaction name (e.g., HO2_Elimination_from_PeroxyRadical) from individual searc functions
+        reac_id: reaction name (e.g., HO2_Elimination_from_PeroxyRadical) from individual search functions
         Every reaction type just makes the below arrays longer, generated as reactions are found.
 
         generated:
@@ -2249,7 +2255,7 @@ class ReactionFinder:
         transfer of atoms, e.g., H transfer across a large rigid ring structure.
         It is based on the presence of (partial) double bonds along the motif.
         If the structure is rigid, and the selected pivot atoms are further than a cutoff
-        then the instance will be deleted fro the list.
+        then the instance will be deleted from the list.
         Pivots requires manual determination for each family, where this is important.
         Not applied to all families.
         """

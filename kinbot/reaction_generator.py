@@ -355,7 +355,7 @@ class ReactionGenerator:
                         chemid = st_pt.chemid
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
-                            logging.warning('Product optimization failed for {}, product {}'
+                            logging.warning('Product optimization failed for {}, product {}...'
                                          .format(obj.instance_name, st_pt.chemid))
                             self.species.reac_ts_done[index] = -999
                             err = -1
@@ -400,7 +400,7 @@ class ReactionGenerator:
                         obj.ts_opt = Optimize(obj.ts, self.par, self.qc)
                         obj.ts_opt.do_optimization()
                     else:
-                        obj.ts = copy.deepcopy(obj.species)  # the TS will be for now the species itself
+                        obj.ts = copy.copy(obj.species)  # the TS will be for now the species itself
                         obj.ts.wellorts = 1
 
                     # do the products optimizations

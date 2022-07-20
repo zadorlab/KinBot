@@ -8,14 +8,10 @@
         PotentialPrefactor[au] {prefact}
         PotentialPowerExponent {exponent}
       End ! Core
-
       Frequencies[1/cm]             {nfreq}
 {freq}
-        
 {hinderedrotor}
       ElectronicLevels[1/cm]      {nelec}
         0.    {mult}
-
       ZeroEnergy[kcal/mol]        {prodzeroenergy}
- 
-    End ! OuterRRHO
+    End ! RRHO

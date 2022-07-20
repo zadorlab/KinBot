@@ -5,8 +5,8 @@
     Frequencies[1/cm]             {nfreq}
 {freq}
 {rotors}  
-{tunneling}
     ElectronicLevels[1/cm]        {nelec}
       0.    {mult}
-    ZeroEnergy[kcal/mol]          {zeroenergy}
+    ZeroEnergy[kcal/mol]          {zeroenergy} ! {shift}
+{tunneling}
   End ! RRHO

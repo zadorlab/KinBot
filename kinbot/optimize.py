@@ -11,6 +11,7 @@ from kinbot import symmetry
 from kinbot.conformers import Conformers
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
+from kinbot.orca import Orca
 from kinbot import reader_gauss, reader_qchem
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
@@ -135,16 +136,18 @@ class Optimize:
                         # conformational search is running
                         # check if the conformational search is done
                         if self.skip_conf_check == 0 or self.par['multi_conf_tst'] or self.par['print_conf']:
-                            status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid = self.species.confs.check_conformers(wait=self.wait)
-                            self.species.conformer_geom, self.species.conformer_energy, \
-                                    self.species.conformer_freq, self.species.conformer_index = \
-                                    self.species.confs.find_unique(conformers, 
-                                    energies, 
-                                    frequency_vals, 
-                                    valid,
-                                    self.par['multi_conf_tst_temp'],
-                                    self.par['multi_conf_tst_boltz'])
+                            status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid =\
+                                    self.species.confs.check_conformers(wait=self.wait)
                             if status == 1:
+                                self.species.conformer_geom, self.species.conformer_energy, \
+                                        self.species.conformer_zeroenergy, \
+                                        self.species.conformer_freq, self.species.conformer_index = \
+                                        self.species.confs.find_unique(conformers, 
+                                        energies, 
+                                        frequency_vals, 
+                                        valid,
+                                        self.par['multi_conf_tst_temp'],
+                                        self.par['multi_conf_tst_boltz'])
                                 logging.info(f'\tLowest energy conformer for species {self.name} is number {lowest_conf}')
                                 if self.par['multi_conf_tst'] or self.par['print_conf']:
                                     logging.info(f'\tUnique conformers for species {self.name} are {self.species.conformer_index}')
@@ -307,7 +310,7 @@ class Optimize:
                     self.species.kinbot_freqs = self.species.freq
                     self.species.reduced_freqs = self.species.freq
 
-                # write the molpro input and read the molpro energy, if available
+                # write the L3 input and read the L3 energy, if available
                 if self.par['L3_calc'] == 1:
                     if self.par['single_point_qc'] == 'molpro':
                         molp = Molpro(self.species, self.par)
@@ -321,6 +324,15 @@ class Optimize:
                         status, molpro_energy = molp.get_molpro_energy(key)
                         if status:
                             self.species.energy = molpro_energy
+
+                    if self.par['single_point_qc'] == 'orca':
+                        orca = Orca(self.species, self.par)
+                        key = self.par['single_point_key']
+                        orca.create_orca_input()
+                        orca.create_orca_submit()
+                        status, orca_energy = orca.get_orca_energy(key)
+                        if status:
+                            self.species.energy = orca_energy
 
                     self.delete_files()
 
@@ -441,22 +453,25 @@ class Optimize:
             same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
                     (geometry.equal_geom(self.species, dummy, 0.3))) \
                     or (geometry.equal_geom(self.species, dummy, 0.15))
-            p_coord = copy.deepcopy(self.species.geom)
-            q_coord = copy.deepcopy(dummy.geom)
-            p_atoms = self.species.atom
-            q_atoms = self.species.atom
-            p_cent = rmsd.centroid(p_coord)
-            q_cent = rmsd.centroid(q_coord)
-            p_coord -= p_cent
-            q_coord -= q_cent
-            rotation_method = rmsd.kabsch_rmsd
-            reorder_method = rmsd.reorder_hungarian
-            q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
-            q_coord = q_coord[q_review]
-            q_atoms = q_atoms[q_review]
-            result_rmsd = rotation_method(p_coord, q_coord)
-            if result_rmsd > 0.15:
-                same_geom = 0
+            if self.par['multi_conf_tst'] != 1:  # for now skipping this
+                p_coord = copy.deepcopy(self.species.geom)
+                q_coord = copy.deepcopy(dummy.geom)
+                p_atoms = self.species.atom
+                q_atoms = self.species.atom
+                p_cent = rmsd.centroid(p_coord)
+                q_cent = rmsd.centroid(q_coord)
+                p_coord -= p_cent
+                q_coord -= q_cent
+                rotation_method = rmsd.kabsch_rmsd
+                reorder_method = rmsd.reorder_hungarian
+                q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
+                q_coord = q_coord[q_review]
+                q_atoms = q_atoms[q_review]
+                result_rmsd = rotation_method(p_coord, q_coord)
+                if result_rmsd > 0.15:
+                    same_geom = 0
+            else:
+                result_rmsd = 'not done'
             logging.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
                          f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
                          f'corr: {geometry.matrix_corr(imagmode, imagmode_high)}, '\
@@ -506,7 +521,7 @@ class Optimize:
                 err, self.species.conformer_energy[inx] = self.qc.get_qc_energy(self.log_name(1, conf=conf))
                 err, self.species.conformer_freq[inx] = self.qc.get_qc_freq(self.log_name(1, conf=conf), self.species.natom)   # TODO use fr variable
                 err, zpe = self.qc.get_qc_zpe(self.log_name(1, conf=conf))
-                self.species.conformer_energy[inx] += zpe
+                self.species.conformer_zeroenergy[inx] = self.species.conformer_energy[inx] + zpe
             else:
                 self.species.conformer_index[inx] = -999
                 logging.warning(f'High level optimization failed for {self.log_name(1, conf=conf)}')

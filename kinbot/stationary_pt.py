@@ -73,6 +73,7 @@ class StationaryPoint:
         # The list of conformers
         self.conformer_geom = []
         self.conformer_energy = []
+        self.conformer_zeroenergy = []
         self.conformer_freq = []
         self.conformer_index = []
         
@@ -288,7 +289,10 @@ class StationaryPoint:
                 from kinbot.cheminfo import create_rdkit_mol
                 mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
             except ImportError:
-                pass
+                try:
+                    self.smiles = cheminfo.create_smi_from_geom(self.atom, self.geom)
+                except:
+                    pass
         return 0
 
     def make_extra_bond(self, parts, maps):
@@ -773,7 +777,7 @@ class StationaryPoint:
                         elif 2 in self.bond[at]:
                             double_neigh = [i for i, x in enumerate(self.bond[at]) if x == 2]
                             for neigh in double_neigh:
-                                if sum(self.bond[neigh]) > 2:  # atom has at least on other neighbor
+                                if sum(self.bond[neigh]) > 2:  # atom has at least one other neighbor
                                     return 1
                     return 0
 

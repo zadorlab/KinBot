@@ -139,7 +139,7 @@ class Molpro:
 
     def create_molpro_submit(self, name=''):
         """
-        write a pbs file for the molpro input file
+        write a pbs or slurm file for the molpro input file
         """
         fname = self.get_name(name)
 
@@ -154,7 +154,7 @@ class Molpro:
         with open(molpro_tpl) as f:
             tpl = f.read()
         # substitution
-        with open('molpro/' + fname + '.' + self.par['queuing'], 'w') as f:
+        with open(f'molpro/{fname}.{self.par["queuing"]}', 'w') as f:
             if self.par['queuing'] == 'pbs':
                 f.write((tpl_head + tpl).format(
                         name=fname,
@@ -170,7 +170,6 @@ class Molpro:
                         errdir='molpro',
                         command=self.par['single_point_command'],
                         slurm_feature=self.par['slurm_feature']))
-
         return 0
 
     def molpro_symm(self):

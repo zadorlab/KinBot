@@ -319,7 +319,6 @@ class Optimize:
                             molp.create_molpro_input()
                         molp.create_molpro_submit()
                         status, molpro_energy = molp.get_molpro_energy(key)
-
                         if status:
                             self.species.energy = molpro_energy
 

@@ -59,6 +59,12 @@ class RAdditionMultipleBond(GeneralReac):
                 final_dist = 2.04 #TODO: verify if this value is OK
             if self.species.atom[self.instance[0]] == 'O' and self.species.atom[self.instance[1]] == 'O' and self.species.atom[self.instance[2]] == 'C':
                 final_dist = 2.04 #TODO: verify if this value is OK
+            if self.species.atom[self.instance[0]] == 'N' and self.species.atom[self.instance[1]] == 'O' and self.species.atom[self.instance[2]] == 'O':
+                final_dist = 1.8
+            if self.species.atom[self.instance[0]] == 'N' and self.species.atom[self.instance[1]] == 'C' and self.species.atom[self.instance[2]] == 'H':
+                final_dist = 1.8
+            if self.species.atom[self.instance[0]] == 'O' and self.species.atom[self.instance[1]] == 'O' and self.species.atom[self.instance[2]] == 'N':
+                final_dist = 2.0 #TODO: verify if this value is OK
             
             self.set_bond(1, 2, -999, change, step=step, stmax=self.max_step, findist=final_dist, geom=geom)
 

@@ -810,7 +810,7 @@ class MESS:
                                                                nrotorpot=self.nrotorpot(species, rot),
                                                                rotorpot=rotorpot))
                 elif rotortype == 'free':
-                    rotors.append(self.freerotortpl.format(geom=self.make_geom(species),
+                    rotors.append(self.freerotortpl.format(geom=self.make_geom(species.geom, species.atom),
                                                            natom=species.natom,
                                                            group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
                                                            axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),

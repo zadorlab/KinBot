@@ -312,7 +312,7 @@ def main():
             if par['me_code'] == 'mess':
                 mess.run()
 
-    postprocess.createSummaryFile(well0, qc, par)
+    postprocess.create_summary_file(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
 

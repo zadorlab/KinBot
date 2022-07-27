@@ -1117,8 +1117,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                             fcorr.write(line)
                         fcorr.write('\n')
 
-        shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
-        os.remove(f'me/mess_{mess_iter}_corr.inp')
+            shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
+            os.remove(f'me/mess_{mess_iter}_corr.inp')
 
         if par['me']:
             mess.run()

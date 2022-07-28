@@ -703,13 +703,13 @@ class MESS:
             mess_iter = "{0:04d}".format(uq_iter)
             if self.par['queue_template'] == '':
                 if self.par['queuing'] == 'pbs':
-                   f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='perm'))
-                   f.write((tpl).format(n=mess_iter))
+                    f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me'))
+                    f.write((tpl).format(n=mess_iter))
                 elif self.par['queuing'] == 'slurm':
-                   f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='perm'), slurm_feature='')
-                   f.write((tpl).format(n=mess_iter))
+                    f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
+                    f.write((tpl).format(n=mess_iter))
             else:
-                f.write(tpl_head)
+                f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
                 f.write((tpl).format(n=mess_iter))
         return 0
 

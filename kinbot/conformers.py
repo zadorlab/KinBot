@@ -536,7 +536,7 @@ class Conformers:
                         They are the same
         Otherwise unique
 
-        test is all previous structures.
+        test all previous structures.
 
         temp is temperature, and only exp(-G/RT) > boltz conformers are considered if defined.
         returns the geometries, total energies, frequencies, and indices (as in the /conf directory)

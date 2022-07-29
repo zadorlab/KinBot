@@ -1130,6 +1130,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         with open(f'me/mess_{mess_iter}_temp.inp', 'w') as ftemp:
             with open(f'me/mess_{mess_iter}.inp', 'r') as f:
                 lines = f.read().split('\n')
+                submerged = -1
                 for ll, line in enumerate(lines):
                     words = line.split()
                     if 'Tunneling' in line:
@@ -1137,7 +1138,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         words = lines[ll + 2].split()
                         if float(words[1]) <= 0:
                             submerged = 0
-                        ftemp.write('! submerged barrier')
+                            ftemp.write('! submerged barrier\n')
                     elif submerged <= 5 and submerged >= 0:
                         submerged += 1
                     else: 

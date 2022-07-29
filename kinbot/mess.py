@@ -215,7 +215,8 @@ class MESS:
                         prod_zeroenergy = 0
                         for opt in reaction.prod_opt:
                             prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
-                        right_zeroenergy = left_zeroenergy - (prod_zeroenergy - well_zeroenergy)
+                        print(well_zeroenergy, ts_zeroenergy, prod_zeroenergy) 
+                        right_zeroenergy = ts_zeroenergy - prod_zeroenergy
 
                     allTS[reaction.instance_name], zeroenergy = self.write_barrier(reaction,
                                                                                    index,

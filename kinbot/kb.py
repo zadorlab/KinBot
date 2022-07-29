@@ -307,7 +307,7 @@ def main():
         mess = MESS(par, well0)
         mess.write_input(qc)
 
-        if par['me'] == 1: 
+        if par['me'] == 1 and par['run_me'] == 1: 
             logging.info('\tStarting Master Equation calculations')
             if par['me_code'] == 'mess':
                 mess.run()

@@ -246,8 +246,10 @@ class Parameters:
             'queue_job_limit': -1,
 
             # MASTER EQUATION
-            # Do master equation calculations
+            # Assemble the ME
             'me': 0,
+            # Run the ME
+            'run_me': 0,
             # Which ME code to use:
             'me_code': 'mess',  # or mesmer
             # collision parameters

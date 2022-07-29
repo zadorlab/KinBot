@@ -1041,7 +1041,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         s.append(frame + '# BARRIERS\n' + frame)
         for rxn in reactions:
             with open("reactionList.log", 'a') as f:
-                f.write('{0} {1}'.format(rxn, "\n"))
+                f.write(f'rxn\n')
             name = [ts_short[rxn[1]]]
             name.append(well_short[rxn[0]])
             if len(rxn[2]) == 1:
@@ -1119,6 +1119,33 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
             shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
             os.remove(f'me/mess_{mess_iter}_corr.inp')
+
+        # cleaning file from submerged barrier tunneling
+        #Tunneling   Eckart
+        #  ImaginaryFrequency[1/cm]  2277.51
+        #  CutoffEnergy[kcal/mol]    20.56
+        #  WellDepth[kcal/mol]       34.0
+        #  WellDepth[kcal/mol]       20.56
+        #End
+        with open(f'me/mess_{mess_iter}_temp.inp', 'w') as ftemp:
+            with open(f'me/mess_{mess_iter}.inp', 'r') as f:
+                lines = f.read().split('\n')
+                for ll, line in enumerate(lines):
+                    words = line.split()
+                    if 'Tunneling' in line:
+                        submerged = -1
+                        words = lines[ll + 2].split()
+                        if float(words[1]) <= 0:
+                            submerged = 0
+                        ftemp.write('! submerged barrier')
+                    elif submerged <= 5 and submerged >= 0:
+                        submerged += 1
+                    else: 
+                        ftemp.write(line)
+                        ftemp.write('\n')
+
+        shutil.copyfile(f'me/mess_{mess_iter}_temp.inp', f'me/mess_{mess_iter}.inp')
+        os.remove(f'me/mess_{mess_iter}_temp.inp')
 
         if par['me'] and par['run_me']:
             mess.run()

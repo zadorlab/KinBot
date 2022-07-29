@@ -215,7 +215,6 @@ class MESS:
                         prod_zeroenergy = 0
                         for opt in reaction.prod_opt:
                             prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
-                        print(well_zeroenergy, ts_zeroenergy, prod_zeroenergy) 
                         right_zeroenergy = ts_zeroenergy - prod_zeroenergy
 
                     allTS[reaction.instance_name], zeroenergy = self.write_barrier(reaction,
@@ -507,7 +506,7 @@ class MESS:
                 nunq_confs += 1
 
         # write tunneling block
-        if left_zeroenergy < 0 or right_zeroenergy < 0:
+        if left_zeroenergy < 0 or right_zeroenergy < 0 and not self.par['pes']: # at L3 a submerged can change...
             tun = f'! barrier is submerged {left_zeroenergy} {right_zeroenergy}'
         elif self.par['pes'] == 0:
             tun = self.tunneltpl.format(cutoff=round(min(left_zeroenergy, right_zeroenergy), 2),

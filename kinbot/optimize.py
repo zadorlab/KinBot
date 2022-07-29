@@ -463,7 +463,7 @@ class Optimize:
                 p_coord -= p_cent
                 q_coord -= q_cent
                 rotation_method = rmsd.kabsch_rmsd
-                reorder_method = rmsd.reorder_hungarian
+                reorder_method = rmsd.reorder_brute
                 q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
                 q_coord = q_coord[q_review]
                 q_atoms = q_atoms[q_review]

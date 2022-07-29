@@ -1139,6 +1139,9 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                         if float(words[1]) <= 0:
                             submerged = 0
                             ftemp.write('! submerged barrier\n')
+                        else:
+                            ftemp.write(line)
+                            ftemp.write('\n')
                     elif submerged <= 5 and submerged >= 0:
                         submerged += 1
                     else: 

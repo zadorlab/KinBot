@@ -243,11 +243,15 @@ class MESS:
                         freq_factor = uq.calc_factor('freq', uq_iter)
                         if 'hom_sci' not in reaction.instance_name:
                             bless = 0
+                            pstsymm_factor = 1
                         else:
                             bless = 1
+                            pstsymm_factor = uq.calc_factor('pstsymm', uq_iter)
+
                         bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
                                                                       energy_add,
                                                                       freq_factor,
+                                                                      pstsymm_factor,
                                                                       uq_iter,
                                                                       bless=bless)
                         written_bimol_names.append(bimol_name)
@@ -302,7 +306,7 @@ class MESS:
         return termol
 
 
-    def write_bimol(self, prod_list, well_add, freq_factor, uq_iter, bless=0):
+    def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor, uq_iter, bless):
         """
         Create the block for MESS for a bimolecular product.
         In case of a barrierless reaction (bless=1) also add a phase-space theory barrier.
@@ -416,7 +420,7 @@ class MESS:
             bimol = self.blbimoltpl.format(barrier='{blessname}',
                                            reactant='{wellname}',
                                            prod='{prodname}',
-                                           pstsymm=uq.calc_factor('pstsymm', uq_iter),
+                                           pstsymm=pstsymm_factor,
                                            stoich=stoich,
                                            frag1=frag1,
                                            frag2=frag2,

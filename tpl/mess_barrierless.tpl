@@ -4,7 +4,7 @@
         Core PhaseSpaceTheory
 {frag1}
 {frag2}
-          SymmetryFactor         1.0
+          SymmetryFactor         {pstsymm}
           PotentialPrefactor[au] 0.6
           PotentialPowerExponent 6. 
         End ! Core

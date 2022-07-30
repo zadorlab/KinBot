@@ -18,11 +18,12 @@ class UQ:
                       'sigma': par['sigma_uq'],
                       'enrelfact': par['enrelfact_uq'],
                       'enrelpow': par['enrelpow_uq'],
+                      'pstsymm': par['pstsymm_uq'],
                       }
 
         self.additive = ['energy', 'barrier']
 
-    def calc_factor(self, parameter, species, uq_iter):
+    def calc_factor(self, parameter, uq_iter):
         #if self.uq_iter != uq_iter:  # new iteration
         #    with open('uqtk.data', 'a') as f:
         #        f.write('')  # new line

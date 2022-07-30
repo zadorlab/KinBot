@@ -966,10 +966,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     for uq_iter in range(par['uq_n']):
         mess_iter = "{0:04d}".format(uq_iter)
 
-        e_well = par['epsilon'] * uq.calc_factor('epsilon', '', uq_iter)
-        s_well = par['sigma'] * uq.calc_factor('sigma', '', uq_iter)
-        enrelfact = par['EnergyRelaxationFactor'] * uq.calc_factor('enrelfact', '', uq_iter)
-        enrelpow = par['EnergyRelaxationPower'] * uq.calc_factor('enrelpow', '', uq_iter)
+        e_well = par['epsilon'] * uq.calc_factor('epsilon', uq_iter)
+        s_well = par['sigma'] * uq.calc_factor('sigma', uq_iter)
+        enrelfact = par['EnergyRelaxationFactor'] * uq.calc_factor('enrelfact', uq_iter)
+        enrelpow = par['EnergyRelaxationPower'] * uq.calc_factor('enrelpow', uq_iter)
 
         header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par['TemperatureList']]),
                             PressureList=' '.join([str(pi) for pi in par['PressureList']]),
@@ -999,7 +999,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         s.append(frame + '# WELLS\n' + frame)
         for well in wells:
             name = well_short[well] + ' ! ' + well
-            energy = well_energies[well] + uq.calc_factor('energy', well_short[well], uq_iter)
+            energy = well_energies[well] + uq.calc_factor('energy', uq_iter)
             well_energies_current[well] = energy
             with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
                 s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
@@ -1009,7 +1009,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
         for prod in products:
             name = pr_short[prod] + ' ! ' + prod
-            energy = prod_energies[prod] + uq.calc_factor('energy', pr_short[prod], uq_iter)
+            energy = prod_energies[prod] + uq.calc_factor('energy', uq_iter)
             prod_energies_current[prod] = energy
             fr_names = {}
             for fr in prod.split('_'):
@@ -1050,7 +1050,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 name.append(pr_short['_'.join(sorted(rxn[2]))])
             name.append('!')
             name.append(rxn[1])
-            energy = rxn[3] + uq.calc_factor('barrier', ts_short[rxn[1]], uq_iter)
+            energy = rxn[3] + uq.calc_factor('barrier', uq_iter)
             welldepth1 = energy - well_energies_current[rxn[0]] 
             if len(rxn[2]) == 1:
                 welldepth2 = energy - well_energies_current[rxn[2][0]] 

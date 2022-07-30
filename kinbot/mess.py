@@ -185,8 +185,8 @@ class MESS:
             written_bimol_names = []
             written_termolec_names = []
 
-            well_energy_add = uq.calc_factor('energy', self.species.chemid, uq_iter)
-            well_freq_factor = uq.calc_factor('freq', self.species.chemid, uq_iter)
+            well_energy_add = uq.calc_factor('energy', uq_iter)
+            well_freq_factor = uq.calc_factor('freq', uq_iter)
             well_blocks[self.species.chemid] = self.write_well(self.species,
                                                                well_energy_add,
                                                                well_freq_factor,
@@ -194,9 +194,9 @@ class MESS:
             
             for index, reaction in enumerate(self.species.reac_obj):
                 if reaction.instance_name in ts_all:
-                    barrier_add = uq.calc_factor('barrier', reaction.instance_name, uq_iter)
-                    freq_factor = uq.calc_factor('freq', reaction.instance_name, uq_iter)
-                    imagfreq_factor = uq.calc_factor('imagfreq', reaction.instance_name, uq_iter)
+                    barrier_add = uq.calc_factor('barrier', uq_iter)
+                    freq_factor = uq.calc_factor('freq', uq_iter)
+                    imagfreq_factor = uq.calc_factor('imagfreq', uq_iter)
         
         # get left-right barrier
                     species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
@@ -231,16 +231,16 @@ class MESS:
                     ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                     if len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
-                        energy_add = uq.calc_factor('energy', st_pt.chemid, uq_iter)
-                        freq_factor = uq.calc_factor('freq', st_pt.chemid, uq_iter)
+                        energy_add = uq.calc_factor('energy', uq_iter)
+                        freq_factor = uq.calc_factor('freq', uq_iter)
                         well_blocks[st_pt.chemid] = self.write_well(st_pt,
                                                                     energy_add,
                                                                     freq_factor,
                                                                     uq_iter)
                     elif len(reaction.products) == 2:
                         bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        energy_add = uq.calc_factor('energy', bimol_name, uq_iter)
-                        freq_factor = uq.calc_factor('freq', bimol_name, uq_iter)
+                        energy_add = uq.calc_factor('energy', uq_iter)
+                        freq_factor = uq.calc_factor('freq', uq_iter)
                         if 'hom_sci' not in reaction.instance_name:
                             bless = 0
                         else:
@@ -416,6 +416,7 @@ class MESS:
             bimol = self.blbimoltpl.format(barrier='{blessname}',
                                            reactant='{wellname}',
                                            prod='{prodname}',
+                                           pstsymm=uq.calc_factor('pstsymm', uq_iter),
                                            stoich=stoich,
                                            frag1=frag1,
                                            frag2=frag2,

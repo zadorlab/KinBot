@@ -1151,7 +1151,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         shutil.copyfile(f'me/mess_{mess_iter}_temp.inp', f'me/mess_{mess_iter}.inp')
         os.remove(f'me/mess_{mess_iter}_temp.inp')
 
-        if par['me'] and par['run_me']:
+        if par['me']:
             mess.run()
 
         #uq.format_uqtk_data() 

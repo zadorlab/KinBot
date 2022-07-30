@@ -1,4 +1,5 @@
 import os
+import stat
 import numpy as np
 import subprocess
 import time
@@ -658,34 +659,42 @@ class MESS:
         wait for the mess run to finish
         """
 
-        submitscript = 'run_mess' + constants.qext[self.par['queuing']]
-
         pids = []  # list of job pids
 
+        batch_list = ''
         uq_iter = 0
         pid_stats = []
-        while uq_iter < self.par['uq_n']:
+        for uq_iter in range(self.par['uq_n']):
+            submitscript = f'me/run_mess_{str(uq_iter).zfill(4)}{constants.qext[self.par["queuing"]]}'
             self.write_submitscript(submitscript, uq_iter)
+            batch_list += f'sbatch {submitscript}\n'
+            if not self.par['run_me']:
+                continue
             while len(pids) > self.par['uq_max_runs']:
                 time.sleep(5)
                 for pid in pids:
-                    stat = self.check_running(pid)
-                    if stat == 0:
+                    stati = self.check_running(pid)
+                    if stati == 0:
                         pids.remove(pid)
-                        pid_stats.append(stat)
+                        pid_stats.append(stati)
             
             pid = self.submit(submitscript)
             pids.append(pid)
 
             if self.par['uq_n'] < self.par['uq_max_runs']:
-                stat = 1
-                while stat != 0:
-                    stat = self.check_running(pid)
+                stati = 1
+                while stati != 0:
+                    stati = self.check_running(pid)
                     time.sleep(5)
-                pid_stats.append(stat)
-            uq_iter += 1
-  
-        if all(stat == 0 for s in pid_stats):
+                pid_stats.append(stati)
+        
+        # for manual submission
+        batch_me = 'batch_me.sub'
+        with open(batch_me, 'w') as f:
+            f.write(batch_list)
+        os.chmod(batch_me, stat.S_IRWXU)
+
+        if all(stati == 0 for s in pid_stats):
             return 0
 
     def write_submitscript(self, submitscript, uq_iter):

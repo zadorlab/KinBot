@@ -250,7 +250,12 @@ def correct_kwargs(outfile, kwargs):
     from kinbot.utils import tail
     outf_end = tail(outfile, 10)
     # Use cartesian coordinates when internal ones fail.
-    if 'Error in internal coordinate system' in outf_end:
-        kwargs['opt'] += ',cartesian'
+    if 'Error in internal coordinate system' in outf_end \
+            and 'cartesian' not in kwargs['opt']:
+        kwargs['opt'] += ', cartesian'
+    elif 'Error termination request processed by link 9999.' in outf_end:
+        kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'CalcAll')
+        if 'cartesian' not in kwargs['opt']:
+            kwargs['opt'] += ',Cartesian'
 
     return kwargs

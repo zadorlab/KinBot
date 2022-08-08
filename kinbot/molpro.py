@@ -167,7 +167,7 @@ class Molpro:
                         name=fname,
                         ppn=self.par['single_point_ppn'],
                         queue_name=self.par['queue_name'],
-                        errdir='molpro',
+                        errdir='.',
                         command=self.par['single_point_command'],
                         slurm_feature=self.par['slurm_feature']))
 

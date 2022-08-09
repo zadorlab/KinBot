@@ -68,7 +68,8 @@ class Parameters:
             'barrierless_saddle_start': 2.0,
             # step size in A
             'barrierless_saddle_step': 0.2,
-            'homolytic_bonds': [],
+            # for the hom_sci family, using the same format as in barrierless_saddle
+            'homolytic_bonds': {},
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed
             # atom index for break/form bonds starts at 0
@@ -245,8 +246,10 @@ class Parameters:
             'queue_job_limit': -1,
 
             # MASTER EQUATION
-            # Do master equation calculations
+            # Assemble the ME
             'me': 0,
+            # Run the ME
+            'run_me': 0,
             # Which ME code to use:
             'me_code': 'mess',  # or mesmer
             # collision parameters
@@ -292,6 +295,8 @@ class Parameters:
             # Collisional parameters
             'enrelfact_uq': 1.2,
             'enrelpow_uq': 1.2,
+            # PST symmetry number
+            'pstsymm_uq': 2.0,
         }
 
         if self.input_file is not None:
@@ -302,7 +307,7 @@ class Parameters:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
                 logging.error(err)
                 sys.exit(-1)
-            if self.par['rotor_scan'] == 0:
+            if self.par['rotor_scan'] == 0 and self.par['multi_conf_tst'] == 0:
                 err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
                 logging.error(err)
                 sys.exit(-1)

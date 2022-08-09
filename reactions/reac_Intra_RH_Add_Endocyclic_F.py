@@ -17,7 +17,10 @@ class IntraRHAddEndoF(GeneralReac):
             self.fix_bonds(fix)
 
         if step < self.dihstep:
+            # this might be necessary
+            #self.instance = self.filter_cycle(self.species, self.instance)
             self.set_dihedrals(change, step, 1)
+            self.fix_angles(fix)
 
         elif step < self.max_step:
             self.release_dihedrals(release)

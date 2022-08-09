@@ -206,10 +206,13 @@ class ReactionGenerator:
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
                         if self.species.reac_type[index] == 'R_Addition_MultipleBond':
                             ending = 'well_mp2'
+                            thresh = self.par['barrier_threshold']  # need to fix for mp2 specific
                         elif self.species.reac_type[index] == 'barrierless_saddle':
                             ending = 'well_bls'
+                            thresh = self.par['barrier_threshold']
                         else:
                             ending = 'well'
+                            thresh = self.par['barrier_threshold']
                         sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
                         sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
                         try:
@@ -217,7 +220,7 @@ class ReactionGenerator:
                         except TypeError:
                             logging.error(f'Faulty calculations, check or delete files for {obj.instance_name}.')
                             sys.exit(-1)
-                        if barrier > self.par['barrier_threshold']:
+                        if barrier > thresh:
                             logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'
                                          .format(barrier, obj.instance_name))
                             self.species.reac_ts_done[index] = -999
@@ -352,7 +355,7 @@ class ReactionGenerator:
                         chemid = st_pt.chemid
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
-                            logging.warning('Product optimization failed for {}, product {}'
+                            logging.warning('Product optimization failed for {}, product {}...'
                                          .format(obj.instance_name, st_pt.chemid))
                             self.species.reac_ts_done[index] = -999
                             err = -1
@@ -397,7 +400,7 @@ class ReactionGenerator:
                         obj.ts_opt = Optimize(obj.ts, self.par, self.qc)
                         obj.ts_opt.do_optimization()
                     else:
-                        obj.ts = copy.deepcopy(obj.species)  # the TS will be for now the species itself
+                        obj.ts = copy.copy(obj.species)  # the TS will be for now the species itself
                         obj.ts.wellorts = 1
 
                     # do the products optimizations
@@ -454,7 +457,6 @@ class ReactionGenerator:
                         if not pr_opt.shir == 1:
                             opts_done = 0
                             pr_opt.do_optimization()
-                            print(pr_opt.species.chemid, pr_opt.shigh)
                         if pr_opt.shigh == -999:
                             logging.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
                             fails = 1

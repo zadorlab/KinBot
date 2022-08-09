@@ -72,7 +72,7 @@ def creatMLInput(species, qc, par):
                 f.write('\n'.join(s))
 
 
-def createSummaryFile(species, qc, par):
+def create_summary_file(species, qc, par):
     """
     Create a summary file listing for each reaction
     1. whether its search was successful

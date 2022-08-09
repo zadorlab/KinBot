@@ -92,6 +92,8 @@ def main():
     running = []
     # jobs that are finished
     finished = []
+    # jobs that are waiting 
+    waiting = []
     # list of all jobs
     jobs = []
     # dict of the pid's for all jobs
@@ -101,8 +103,6 @@ def main():
     c = 0
     while 1:
         j = len(jobs)
-        if j != a:
-            logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
         if j != a:
             logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
         a = j
@@ -188,6 +188,11 @@ def main():
             summary_lines.append('')
             summary_lines.append('Finished:')
             for job in finished:
+                summary_lines.append('\t{}'.format(job))
+            waiting = jobs[len(running) + len(finished):]
+            summary_lines.append('')
+            summary_lines.append('Waiting:')
+            for job in waiting:
                 summary_lines.append('\t{}'.format(job))
             with open('pes_summary.txt', 'w') as f:
                 f.write('\n'.join(summary_lines))
@@ -290,7 +295,7 @@ def postprocess(par, jobs, task, names, mass):
             continue
         # read the summary file
         for line in summary:
-            if line.startswith('SUCCESS'):
+            if line.startswith('SUCCESS') and 'hom_sci' not in line:
                 pieces = line.split()
                 ts = pieces[2]  # this is the long specific name of the reaction
                 if ts in par['skip_reactions']:
@@ -356,11 +361,11 @@ def postprocess(par, jobs, task, names, mass):
                         reactions.pop(temp)
                         reactions.append([reactant, ts, prod, barrier])
 
-            elif line.startswith('HOMOLYTIC_SCISSION'):
+            elif line.startswith('SUCCESS') and 'hom_sci' in line:
                 pieces = line.split()
                 reactant = ji
-                energy = pieces[1]  # energy from summary
-                prod = pieces[2:]   # this is the chemid of the product
+                energy = float(pieces[1])  # energy from summary
+                prod = pieces[3:]   # these are the chemids of the products
 
                 if reactant not in wells:
                     wells.append(reactant)
@@ -395,12 +400,13 @@ def postprocess(par, jobs, task, names, mass):
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
         # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.
-        copy_from_kinbot(ji, par['single_point_qc'])
+        try:
+            copy_from_kinbot(ji, par['single_point_qc'])
+        except:
+            logging.warning(f'L3 calculations were not copied from {ji}')
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, products, reactions)
     # create a batch submission for all L3 jobs
-    # TODO slurm
-    batch = 'batch_L3_pbs.sub'
     if par['queuing'] == 'pbs':
         cmd = 'qsub'
         ext = 'pbs'
@@ -408,15 +414,7 @@ def postprocess(par, jobs, task, names, mass):
         cmd = 'sbatch'
         ext = 'slurm'
 
-    with open(batch, 'w') as f:
-        for well in wells:
-            f.write(f'{cmd} molpro/{well}.{ext}\n')
-        for prod in products:
-            for frag in prod.split('_'):
-                f.write(f'{cmd} molpro/{frag}.{ext}\n')
-        for reac in reactions:
-            f.write(f'{cmd} molpro/{reac[1]}.{ext}\n')
-    os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
+    batch_submit = ''
 
     well_energies = {}
     well_l3energies = {}
@@ -427,6 +425,7 @@ def postprocess(par, jobs, task, names, mass):
         status, l3energy = get_l3energy(well, par)
         if not status:
             l3done = 0  # not all L3 calculations are done
+            batch_submit += f'{cmd} {par["single_point_qc"]}/{well}.{ext}\n'
         else:
             well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
     prod_energies = {}
@@ -441,6 +440,7 @@ def postprocess(par, jobs, task, names, mass):
             status, l3e = get_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
+                batch_submit += f'{cmd} {par["single_point_qc"]}/{pr}.{ext}\n'
             else:
                 l3energy += l3e + zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
@@ -460,6 +460,7 @@ def postprocess(par, jobs, task, names, mass):
 
                 if not status * status_prod:
                     l3done = 0
+                    batch_submit += f'{cmd} {par["single_point_qc"]}/{reac[1]}.{ext}\n'
                 else:
                     delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
                     delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
@@ -469,10 +470,15 @@ def postprocess(par, jobs, task, names, mass):
                 status, l3energy = get_l3energy(reac[1], par)
                 if not status:
                     l3done = 0
+                    batch_submit += f'{cmd} {par["single_point_qc"]}/{reac[1]}.{ext}\n'
                 else:
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
+    batch = 'batch_L3_pbs.sub'
+    with open(batch, 'w') as f:
+        f.write(batch_submit)
+    os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
 
     if l3done == 1:
         logging.info('Energies are updated to L3 in ME and PESViewer.')
@@ -908,7 +914,8 @@ def create_short_names(wells, products, reactions, barrierless):
     n = 1
     for rxn in barrierless:
         nobar_name = 'nobar_' + str(n)
-        nobar_short[nobar_name] = nobar_name
+        key = f'{rxn[0]}_{rxn[2][0]}_{rxn[2][1]}'
+        nobar_short[key] = nobar_name
         n = n + 1
 
     return well_short, pr_short, fr_short, ts_short, nobar_short
@@ -922,6 +929,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     Two things per file need to be updated
     1. the names of all the wells, bimolecular products and ts's
     2. all the zpe corrected energies
+    If it is a multi_conf_tst calculation, then the ZeroEnergies and
+    ImaginaryFrequency values need to be also changed for each species in the Union.
+    The lowest energy species has L3 energies (if calculated), while the 
+    others are corrected with their DeltaL2 energies.
     """
 
     logging.info(f"uq value: {par['uq']}")
@@ -955,10 +966,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     for uq_iter in range(par['uq_n']):
         mess_iter = "{0:04d}".format(uq_iter)
 
-        e_well = par['epsilon'] * uq.calc_factor('epsilon', '', uq_iter)
-        s_well = par['sigma'] * uq.calc_factor('sigma', '', uq_iter)
-        enrelfact = par['EnergyRelaxationFactor'] * uq.calc_factor('enrelfact', '', uq_iter)
-        enrelpow = par['EnergyRelaxationPower'] * uq.calc_factor('enrelpow', '', uq_iter)
+        e_well = par['epsilon'] * uq.calc_factor('epsilon', uq_iter)
+        s_well = par['sigma'] * uq.calc_factor('sigma', uq_iter)
+        enrelfact = par['EnergyRelaxationFactor'] * uq.calc_factor('enrelfact', uq_iter)
+        enrelpow = par['EnergyRelaxationPower'] * uq.calc_factor('enrelpow', uq_iter)
 
         header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par['TemperatureList']]),
                             PressureList=' '.join([str(pi) for pi in par['PressureList']]),
@@ -988,34 +999,49 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         s.append(frame + '# WELLS\n' + frame)
         for well in wells:
             name = well_short[well] + ' ! ' + well
-            energy = well_energies[well] + uq.calc_factor('energy', well_short[well], uq_iter)
+            energy = well_energies[well] + uq.calc_factor('energy', uq_iter)
             well_energies_current[well] = energy
             with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
                 s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
             s.append(divider)
 
-        # write the products
+        # write the products and barrierless reactions
         s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
         for prod in products:
             name = pr_short[prod] + ' ! ' + prod
-            energy = prod_energies[prod] + uq.calc_factor('energy', pr_short[prod], uq_iter)
+            energy = prod_energies[prod] + uq.calc_factor('energy', uq_iter)
             prod_energies_current[prod] = energy
             fr_names = {}
             for fr in prod.split('_'):
-                key = 'fr_name_{}'.format(fr)
+                key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
+            # check if barrrieless
+            bless = 0
+            for bl in barrierless:
+                bl_prod = f'{bl[2][0]}_{bl[2][1]}'
+                if prod == bl_prod:
+                    bless = 1
+                    break
             with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                s.append(f.read().format(name=name,
-                                         ground_energy=round(energy, 2),
-                                         **fr_names))
+                if not bless:
+                    s.append(f.read().format(name=name,
+                                             ground_energy=round(energy, 2),
+                                             **fr_names))
+                else:
+                    s.append(f.read().format(name=name,
+                                             blessname=nobar_short[f'{parent[prod]}_{bl_prod}'],
+                                             wellname=well_short[parent[prod]],
+                                             prodname=pr_short[prod],
+                                             ground_energy=round(energy, 2),
+                                             **fr_names))
             s.append(divider)
 
         # write the barrier
         s.append(frame + '# BARRIERS\n' + frame)
         for rxn in reactions:
             with open("reactionList.log", 'a') as f:
-                f.write('{0} {1}'.format(rxn, "\n"))
+                f.write(f'rxn\n')
             name = [ts_short[rxn[1]]]
             name.append(well_short[rxn[0]])
             if len(rxn[2]) == 1:
@@ -1024,7 +1050,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 name.append(pr_short['_'.join(sorted(rxn[2]))])
             name.append('!')
             name.append(rxn[1])
-            energy = rxn[3] + uq.calc_factor('barrier', ts_short[rxn[1]], uq_iter)
+            energy = rxn[3] + uq.calc_factor('barrier', uq_iter)
             welldepth1 = energy - well_energies_current[rxn[0]] 
             if len(rxn[2]) == 1:
                 welldepth2 = energy - well_energies_current[rxn[2][0]] 
@@ -1046,9 +1072,84 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         if not os.path.exists('me'):
             os.mkdir('me')
 
-        with open('me/' + 'mess_' + mess_iter + '.inp', 'w') as f:
+        with open(f'me/mess_{mess_iter}.inp', 'w') as f:
             f.write(header)
             f.write('\n'.join(s))
+
+        if par['multi_conf_tst']:
+            logging.info('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
+            with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
+                with open(f'me/mess_{mess_iter}.inp', 'r') as f:
+                    lines = f.read().split('\n')
+                    for line in lines:
+                        words = line.split()
+                        if 'ZeroEnergy' in line:
+                            if len(words) == 4:
+                                space = ' ' * (len(line) - len(line.lstrip(' ')))
+                                ecorr = float(words[3])
+                                words[1] = str(round(float(words[1]) + ecorr, 2))
+                                newline = ' '.join(words)
+                                newline = space + newline
+                            else:
+                                newline = line
+                            fcorr.write(newline)
+                        elif 'End ! RRHO' in line:
+                            ecorr = None  # reset correction at the end of block
+                            fcorr.write(line)
+                        elif len(words) == 0:
+                            continue
+                        elif ('CutoffEnergy' in line or 'WellDepth' in line) and ecorr is not None:
+                            space = ' ' * (len(line) - len(line.lstrip(' ')))
+                            words[1] = str(round(float(words[1]) + ecorr, 2))
+                            newline = ' '.join(words)
+                            newline = space + newline
+                            fcorr.write(newline)
+                        elif 'ImaginaryFrequency' in line:
+                            if len(words) == 4:
+                                space = ' ' * (len(line) - len(line.lstrip(' ')))
+                                words[1] = words[3][1:]  # cutting off - sign
+                                newline = ' '.join(words)
+                                newline = space + newline
+                            else:
+                                newline = line
+                            fcorr.write(newline)
+                        else:
+                            fcorr.write(line)
+                        fcorr.write('\n')
+
+            shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
+            os.remove(f'me/mess_{mess_iter}_corr.inp')
+
+        # cleaning file from submerged barrier tunneling
+        #Tunneling   Eckart
+        #  ImaginaryFrequency[1/cm]  2277.51
+        #  CutoffEnergy[kcal/mol]    20.56
+        #  WellDepth[kcal/mol]       34.0
+        #  WellDepth[kcal/mol]       20.56
+        #End
+        with open(f'me/mess_{mess_iter}_temp.inp', 'w') as ftemp:
+            with open(f'me/mess_{mess_iter}.inp', 'r') as f:
+                lines = f.read().split('\n')
+                submerged = -1
+                for ll, line in enumerate(lines):
+                    words = line.split()
+                    if 'Tunneling' in line:
+                        submerged = -1
+                        words = lines[ll + 2].split()
+                        if float(words[1]) <= 0:
+                            submerged = 0
+                            ftemp.write('! submerged barrier\n')
+                        else:
+                            ftemp.write(line)
+                            ftemp.write('\n')
+                    elif submerged <= 5 and submerged >= 0:
+                        submerged += 1
+                    else: 
+                        ftemp.write(line)
+                        ftemp.write('\n')
+
+        shutil.copyfile(f'me/mess_{mess_iter}_temp.inp', f'me/mess_{mess_iter}.inp')
+        os.remove(f'me/mess_{mess_iter}_temp.inp')
 
         if par['me']:
             mess.run()
@@ -1309,21 +1410,30 @@ def get_l3energy(job, par, bls=0):
         key = par['single_point_key']
 
     if par['single_point_qc'] == 'molpro':
-        if os.path.exists('molpro/' + job + '.out'):
-            with open('molpro/' + job + '.out', 'r') as f:
+        if os.path.exists(f'molpro/{job}.out'):
+            with open(f'molpro/{job}.out', 'r') as f:
                 lines = f.readlines()
                 for line in reversed(lines):
                     if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
-    if par['single_point_qc'] == 'gaussian':
-        if os.path.exists('gaussian/' + job + '.log'):
-            gaussname = 'gaussian/' + job + '.log'
-        elif os.path.exists('gaussian/' + job + '_high.log'):
-            gaussname = 'gaussian/' + job + '_high.log'
-        elif os.path.exists('gaussian/' + job + '_well_high.log'):
-            gaussname = 'gaussian/' + job + '_well_high.log'
+    elif par['single_point_qc'] == 'orca':
+        if os.path.exists(f'orca/{job}_property.txt'):
+            with open(f'orca/{job}_property.txt', 'r') as f:
+                lines = f.readlines()
+                for line in reversed(lines):
+                    if (key) in line:
+                        e = float(line.split()[-1])
+                        logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                        return 1, e  # energy was found
+    elif par['single_point_qc'] == 'gauss':
+        if os.path.exists('gauss/' + job + '.log'):
+            gaussname = 'gauss/' + job + '.log'
+        elif os.path.exists('gauss/' + job + '_high.log'):
+            gaussname = 'gauss/' + job + '_high.log'
+        elif os.path.exists('gauss/' + job + '_well_high.log'):
+            gaussname = 'gauss/' + job + '_well_high.log'
         else:
             logging.info('L3 for {} is missing.'.format(job))
             return 0, -1  # job not yet started to run

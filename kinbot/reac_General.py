@@ -50,27 +50,33 @@ class GeneralReac:
                 if index > -1:
                     del fix[index]
 
-    def filter_cycle(self, species, instances):
-        cycle_atoms = self.species.cycle_chain
-        instances = instances
-        filtered_instances = instances
-        for c, cycle in enumerate(cycle_atoms):
-            for a, atoms in enumerate(instances):
+    def filter_cycle(self, species, inst, cut=0):
+        """
+        Shortcut instances when parts are in cycle
+        """
+        filt = [0] * (len(inst) - cut)
+        for cycle in self.species.cycle_chain:
+            for a, atoms in enumerate(inst):
                 j = a - 1
                 k = a + 1
-                if k < len(instances) and j >= 0:
-                    ca = instances[j]
-                    cb = instances[a]
-                    cc = instances[k]
-                    if ca in cycle_atoms[c] and cb in cycle_atoms[c] and cc in cycle_atoms[c]:
-                        filtered_instances.pop(a)
+                if k < len(inst)-cut and j >= 0:
+                    if inst[j] in cycle and inst[a] in cycle and inst[k] in cycle:
+                        filt[a] = 1
 
-        return filtered_instances
+        filt_inst = []
+        for ii, ins in enumerate(inst):
+            try:
+                if filt[ii] == 0:
+                    filt_inst.append(ins)
+            except IndexError:
+                pass
+
+        return filt_inst
 
     def fix_bonds(self, fix):
         for i in range(self.species.natom - 1):
             for j in range(i + 1, self.species.natom):
-                if self.species.bond[i][j] > 0:
+                if self.species.bonds[0][i][j] > 0:
                     fix.append([i + 1, j + 1])
 
 
@@ -105,6 +111,8 @@ class GeneralReac:
 
 
     def set_bond(self, a, b, val, change, step=None, stmax=None, findist=None, geom=None):
+        # step is counter for the step in the bond changing process
+        # stmax is the total number of steps we want to make
         if step is not None:
             val = geometry.new_bond_length(self.species, self.instance[a], self.instance[b],
                     step, stmax, findist, geom)

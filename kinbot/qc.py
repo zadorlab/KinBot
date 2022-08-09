@@ -400,9 +400,9 @@ class QuantumChemistry:
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
-
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
-
+        if species.natom < 3:
+            del kwargs['Symm'] 
+        
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,
@@ -463,6 +463,8 @@ class QuantumChemistry:
         if high_level and self.qc == 'gauss':
             if self.opt:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
+        if species.natom < 3:
+            del kwargs['Symm'] 
         # the integral is set in the get_qc_arguments parts, bad design
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))

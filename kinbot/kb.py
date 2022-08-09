@@ -2,6 +2,7 @@ import sys
 import os
 import logging
 import datetime
+import copy
 
 from kinbot import license_message
 from kinbot import postprocess
@@ -112,10 +113,12 @@ def main():
         # delete empty files
         try:
             conf_files = os.listdir('conf')
+            conf_files = [f'conf/{ff}' for ff in conf_files]
         except:
             conf_files = []
         try:
             hir_files = os.listdir('hir')
+            hir_files = [f'hir/{ff}' for ff in hir_files]
         except:
             hir_files = []
         files = files + conf_files + hir_files
@@ -152,6 +155,12 @@ def main():
             return
 
         # characterize again and look for differences
+        well0 = StationaryPoint('well0',
+                                par['charge'],
+                                par['mult'],
+                                atom=copy.deepcopy(well0.atom),
+                                geom=copy.deepcopy(well0.geom))
+        well0.short_name = 'w1'
         well0.characterize()
         well0.name = str(well0.chemid)
         if well0.name != start_name:
@@ -298,12 +307,12 @@ def main():
         mess = MESS(par, well0)
         mess.write_input(qc)
 
-        if par['me'] == 1: 
+        if par['me'] == 1:
             logging.info('\tStarting Master Equation calculations')
             if par['me_code'] == 'mess':
                 mess.run()
 
-    postprocess.createSummaryFile(well0, qc, par)
+    postprocess.create_summary_file(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
 

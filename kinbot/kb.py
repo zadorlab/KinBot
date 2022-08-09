@@ -86,6 +86,11 @@ def main():
         well0.characterize()
         well0.name = str(well0.chemid)
         start_name = well0.name
+        if well0.name in par['skip_chemids']:
+            logging.info('This chemid is skipped, nothing to do here')
+            logging.info('Finished KinBot at {}'.format(datetime.datetime.now()))
+            print("Done!")
+            return 
 
         # initialize the qc instance
         qc = QuantumChemistry(par)
@@ -318,6 +323,7 @@ def main():
 
     logging.info('Finished KinBot at {}'.format(datetime.datetime.now()))
     print("Done!")
+    return
 
 
 if __name__ == "__main__":

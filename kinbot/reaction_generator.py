@@ -80,8 +80,9 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
                     # somewhat messy manipulation to force the new bond matrix for hom_sci
-                    obj.products = copy.copy(obj.species)  # deep copy raises "TypeError: cannot pickle '_io.BufferedWriter' object" error
-                    obj.products.bonds = [copy.deepcopy(obj.species.bond)]  # plural/non plural! 
+                    obj.products = StationaryPoint(f'{instance}_prod', self.species.charge, self.species.mult,
+                                                   atom=self.species.atom, geom=self.species.geom, wellorts=0)
+                    obj.products.characterize()
                     obj.products.bonds[0][obj.instance[0]][obj.instance[1]] = 0  # delete bond
                     obj.products.bonds[0][obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     obj.products.bond[obj.instance[0]][obj.instance[1]] = 0  # delete bond
@@ -389,7 +390,7 @@ class ReactionGenerator:
                         ts = StationaryPoint(obj.instance_name, self.species.charge, self.species.mult,
                                              atom=self.species.atom, geom=geom, wellorts=1)
                         err, ts.energy = self.qc.get_qc_energy(obj.instance_name)
-                        err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)  # NEW STOPS HERE
+                        err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)  
                         err, ts.freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom) 
                         ts.distance_mx()
                         ts.bond = bond_mx

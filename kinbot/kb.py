@@ -86,6 +86,11 @@ def main():
         well0.characterize()
         well0.name = str(well0.chemid)
         start_name = well0.name
+        if well0.name in par['skip_chemids']:
+            logging.info('This chemid is skipped, nothing to do here')
+            logging.info('Finished KinBot at {}'.format(datetime.datetime.now()))
+            print("Done!")
+            return 
 
         # initialize the qc instance
         qc = QuantumChemistry(par)
@@ -307,17 +312,18 @@ def main():
         mess = MESS(par, well0)
         mess.write_input(qc)
 
-        if par['me'] == 1: 
+        if par['me'] == 1:
             logging.info('\tStarting Master Equation calculations')
             if par['me_code'] == 'mess':
                 mess.run()
 
-    postprocess.createSummaryFile(well0, qc, par)
+    postprocess.create_summary_file(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
 
     logging.info('Finished KinBot at {}'.format(datetime.datetime.now()))
     print("Done!")
+    return
 
 
 if __name__ == "__main__":

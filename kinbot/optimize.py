@@ -11,6 +11,7 @@ from kinbot import symmetry
 from kinbot.conformers import Conformers
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
+from kinbot.orca import Orca
 from kinbot import reader_gauss, reader_qchem
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
@@ -167,7 +168,7 @@ class Optimize:
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
                 if self.par['conformer_search'] == 1:
-                    status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid = \
+                    status, lowest_conf, self.species.geom, low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
                 while self.restart <= self.max_restart:
@@ -212,7 +213,7 @@ class Optimize:
                                 status = self.qc.check_qc(self.log_name(1, conf=conindx))
                                 if status == 'error':
                                     stati[ci] = 1
-                                    self.species.conformer_index[conindx] = -999
+                                    self.species.conformer_index[ci] = -999
                                 elif status == 'normal':
                                     stati[ci] = 1
                                     self.compare_structures(conf=conindx)
@@ -309,7 +310,7 @@ class Optimize:
                     self.species.kinbot_freqs = self.species.freq
                     self.species.reduced_freqs = self.species.freq
 
-                # write the molpro input and read the molpro energy, if available
+                # write the L3 input and read the L3 energy, if available
                 if self.par['L3_calc'] == 1:
                     if self.par['single_point_qc'] == 'molpro':
                         molp = Molpro(self.species, self.par)
@@ -321,9 +322,17 @@ class Optimize:
                             molp.create_molpro_input()
                         molp.create_molpro_submit()
                         status, molpro_energy = molp.get_molpro_energy(key)
-
                         if status:
                             self.species.energy = molpro_energy
+
+                    if self.par['single_point_qc'] == 'orca':
+                        orca = Orca(self.species, self.par)
+                        key = self.par['single_point_key']
+                        orca.create_orca_input()
+                        orca.create_orca_submit()
+                        status, orca_energy = orca.get_orca_energy(key)
+                        if status:
+                            self.species.energy = orca_energy
 
                     self.delete_files()
 
@@ -454,7 +463,7 @@ class Optimize:
                 p_coord -= p_cent
                 q_coord -= q_cent
                 rotation_method = rmsd.kabsch_rmsd
-                reorder_method = rmsd.reorder_hungarian
+                reorder_method = rmsd.reorder_brute
                 q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
                 q_coord = q_coord[q_review]
                 q_atoms = q_atoms[q_review]

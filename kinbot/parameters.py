@@ -246,8 +246,10 @@ class Parameters:
             'queue_job_limit': -1,
 
             # MASTER EQUATION
-            # Do master equation calculations
+            # Assemble the ME
             'me': 0,
+            # Run the ME
+            'run_me': 0,
             # Which ME code to use:
             'me_code': 'mess',  # or mesmer
             # collision parameters
@@ -293,6 +295,8 @@ class Parameters:
             # Collisional parameters
             'enrelfact_uq': 1.2,
             'enrelpow_uq': 1.2,
+            # PST symmetry number
+            'pstsymm_uq': 2.0,
         }
 
         if self.input_file is not None:

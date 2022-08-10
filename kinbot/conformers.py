@@ -90,6 +90,7 @@ class Conformers:
         by randomly sampling the dihedrals of the ring
         """
         # iterate the different rings in the species
+        ncyc = len(self.species.cycle_chain)
         for cyc in self.species.cycle_chain:
             if len(cyc) > 3:  # three membered rings don't have conformers
                 dihs = []  # list of the ring dihedrals
@@ -129,17 +130,14 @@ class Conformers:
                 
                 # number of conformers (nc) per ring conformer:
                 # 4, 5, 6 member rings nc = 3 ^ nd
-                # 7+ member rings = nc from (ring size - 1) + (2 ^ nd)
-                # ex: 7 member ring = 6 member ring nc + 2 ^ 4 = 27 + 16 = 43
+                # 7+ member rings = 27
                 if len(cyc) < 7:
                     nc = np.power(3, nd)
                 else:
                     nc = 27  # 3 ^ (6-3)
-                    exp = 4
-                    while exp <= nd:
-                        conf_add = np.power(2, exp)
-                        nc = nc + conf_add
-                        exp = exp + 1
+
+                # new thing for structures with multiple rings (whether fused or not)
+                nc = int(nc / ncyc)
 
                 for i in range(nc):
                     self.cyc_dih_atoms.append(random_dihs)
@@ -538,7 +536,7 @@ class Conformers:
                         They are the same
         Otherwise unique
 
-        test is all previous structures.
+        test all previous structures.
 
         temp is temperature, and only exp(-G/RT) > boltz conformers are considered if defined.
         returns the geometries, total energies, frequencies, and indices (as in the /conf directory)

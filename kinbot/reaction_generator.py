@@ -306,8 +306,8 @@ class ReactionGenerator:
                         elif e != 0:
                             err = -1
                         else:
-                            e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
-                            e2, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
+                            _, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
+                            _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
                             st_pt.characterize()  
                             if chemid != st_pt.chemid:
                                 obj.products_final.pop(i)
@@ -363,14 +363,15 @@ class ReactionGenerator:
                         elif e != 0:
                             err = -1
                         else:
-                            e2, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
-                            e2, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
+                            _, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
+                            _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
                             st_pt.characterize()  
                             if chemid != st_pt.chemid:
                                 # product was optimized to another structure, give warning but don't remove reaction
                                 logging.info('\tb) Product optimized to other structure for {}'
                                              ', product {} to {}'
                                              .format(obj.instance_name, chemid, st_pt.chemid))
+                                shutil.copy(f'{os.getcwd()}/{chemid}_well.log', f'{os.getcwd()}/{st_pt.chemid}_well.log')
                                 e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                                 if e < 0:
                                     err = -1
@@ -513,6 +514,7 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1
                     if any([fi < 0. for fi in obj.ts.reduced_freqs[1:]]):
+                        print(obj.ts.reduced_freqs)
                         logging.warning('\tFound more than one negative frequency for ' + obj.instance_name)
                         self.species.reac_ts_done[index] = -999
                         neg_freq = 1

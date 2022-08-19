@@ -425,7 +425,7 @@ def postprocess(par, jobs, task, names, mass):
         status, l3energy = get_l3energy(well, par)
         if not status:
             l3done = 0  # not all L3 calculations are done
-            batch_submit += f'{cmd} {par["single_point_qc"]}/{well}.{ext}\n'
+            batch_submit += f'{cmd} {well}.{ext}\n'
         else:
             well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
     prod_energies = {}
@@ -440,7 +440,7 @@ def postprocess(par, jobs, task, names, mass):
             status, l3e = get_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
-                batch_submit += f'{cmd} {par["single_point_qc"]}/{pr}.{ext}\n'
+                batch_submit += f'{cmd} {pr}.{ext}\n'
             else:
                 l3energy += l3e + zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
@@ -460,7 +460,7 @@ def postprocess(par, jobs, task, names, mass):
 
                 if not status * status_prod:
                     l3done = 0
-                    batch_submit += f'{cmd} {par["single_point_qc"]}/{reac[1]}.{ext}\n'
+                    batch_submit += f'{cmd} {reac[1]}.{ext}\n'
                 else:
                     delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
                     delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
@@ -470,12 +470,12 @@ def postprocess(par, jobs, task, names, mass):
                 status, l3energy = get_l3energy(reac[1], par)
                 if not status:
                     l3done = 0
-                    batch_submit += f'{cmd} {par["single_point_qc"]}/{reac[1]}.{ext}\n'
+                    batch_submit += f'{cmd} {reac[1]}.{ext}\n'
                 else:
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
-    batch = 'batch_L3_pbs.sub'
+    batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
     with open(batch, 'w') as f:
         f.write(batch_submit)
     os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner

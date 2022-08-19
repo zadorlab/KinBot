@@ -24,6 +24,8 @@ except RuntimeError:
     try:
         iowait(logfile, 'gauss')
         mol.positions = reader_gauss.read_geom(logfile, mol)
+        kwargs = reader_gauss.correct_kwargs(logfile, kwargs)
+        mol.calc = Gaussian(**kwargs)
         e = mol.get_potential_energy() # use the Gaussian optimizer
         iowait(logfile, 'gauss')
         mol.positions = reader_gauss.read_geom(logfile, mol)

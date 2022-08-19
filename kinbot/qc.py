@@ -449,7 +449,7 @@ class QuantumChemistry:
                              ppn=self.ppn,
                              qc_command=self.qc_command,
                              working_dir=os.getcwd())
-        t1 = template.format(label=job0,
+        t1 = template.format(label=job1,
                              kwargs=kwargs1,
                              atom=list(species.atom),
                              geom=list([list(gi) for gi in geom]),

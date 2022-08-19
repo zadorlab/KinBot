@@ -86,6 +86,8 @@ class Parameters:
             'simultaneous_kinbot': 5,
             # Perform high level optimization and freq calculation (L2)
             'high_level': 0,
+            # Calculate AIE for each conformer - requires conformer search
+            'calc_aie': 0,
 
             # CONFORMATIONAL SEARCH
             # Do a conformational search
@@ -302,15 +304,14 @@ class Parameters:
         if self.input_file is not None:
             self.read_user_input()
 
+        err = None
         if self.par['me'] == 1:
+            if self.par['calc_aie'] and not self.par['conformer_search']:
+                err = 'AIE calculation requires a conformer search.'
             if self.par['epsilon'] == 0. or self.par['sigma'] == 0.:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
-                logging.error(err)
-                sys.exit(-1)
             if self.par['rotor_scan'] == 0 and self.par['multi_conf_tst'] == 0:
                 err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
-                logging.error(err)
-                sys.exit(-1)
             # convert to cm-1 units
             if self.par['epsilon_unit'] == 'cm-1':  # units in MESS
                 pass
@@ -320,21 +321,15 @@ class Parameters:
                 self.par['epsilon'] *= units.J / units.mol / units.invcm
             else:
                 err = 'Unknown unit for epsilon, has to be K, J/mol or cm-1'
-                logging.error(err)
-                sys.exit(-1)
                 
         if self.par['families'] != ['all'] and self.par['skip_families'] != ['none']:
             err = 'Only one of the "families" or "skip_families" parameters can be defined.'
-            logging.error(err)
-            sys.exit(-1)
 
         if self.par['pes'] and self.par['specific_reaction']:
-            logging.error('Specific reaction cannot be searched in PES mode.')
-            sys.exit(-1)
+            err = 'Specific reaction cannot be searched in PES mode.'
 
         if self.par['high_level'] == 1 and self.par['conformer_search'] == 0:
-            logging.error('Conformer search has to be done before L2.')
-            sys.exit(-1)
+            err = 'Conformer search has to be done before L2.'
 
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
@@ -346,12 +341,10 @@ class Parameters:
             print('Choose for instance M06-2X.')
 
         if self.par['bimol'] and len(self.par['structure']) != 2:
-            logging.error('For bimolecular reactions two fragments need to be defined.')
-            sys.exit(-1)
+            err = 'For bimolecular reactions two fragments need to be defined.'
 
         if self.par['multi_conf_tst'] and not self.par['conformer_search']:
-            logging.error('For multi conformer tst calculation conformer search needs to be activated.')
-            sys.exit(-1)
+            err = 'For multi conformer tst calculation conformer search needs to be activated.'
 
         if not self.par['multi_conf_tst']:
             self.par['multi_conf_tst_temp'] = None
@@ -361,6 +354,12 @@ class Parameters:
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
+
+        if err is not None:
+            logging.error(err)
+            sys.exit(-1)
+
+        return
 
     def read_user_input(self):
         """
@@ -382,6 +381,8 @@ class Parameters:
             else:
                 msg = f'KinBot does not recognize option {key} with value {user_data[key]}'
                 raise IOError(msg)
+
+        return
 
     def print_parameters(self):
         """

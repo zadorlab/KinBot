@@ -135,7 +135,7 @@ class Optimize:
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        if self.skip_conf_check == 0 or self.par['multi_conf_tst'] or self.par['print_conf']:
+                        if self.skip_conf_check == 0 or self.par['multi_conf_tst'] or self.par['print_conf'] or self.par['calc_aie']:
                             status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid =\
                                     self.species.confs.check_conformers(wait=self.wait)
                             if status == 1:
@@ -149,8 +149,9 @@ class Optimize:
                                         self.par['multi_conf_tst_temp'],
                                         self.par['multi_conf_tst_boltz'])
                                 logging.info(f'\tLowest energy conformer for species {self.name} is number {lowest_conf}')
-                                if self.par['multi_conf_tst'] or self.par['print_conf']:
-                                    logging.info(f'\tUnique conformers for species {self.name} are {self.species.conformer_index}')
+                                if self.par['multi_conf_tst'] or self.par['print_conf'] or self.par['calc_aie']:
+                                    logging.info(f'\tAt {self.par["multi_conf_tst_temp"]} K with {100*self.par["multi_conf_tst_boltz"]}% cutoff')
+                                    logging.info(f'\t\t the unique conformers for species {self.name} are {self.species.conformer_index}')
                                 # save lowest energy conformer as species geometry
                                 self.species.geom = geom
                                 # save lowest energy conformer energy
@@ -195,6 +196,13 @@ class Optimize:
                                                        high_level=1,
                                                        ext=f'_{str(conindx).zfill(4)}_high',
                                                        )
+                                if self.par['calc_aie']:
+                                     for ci, conindx in enumerate(self.species.conformer_index):
+                                        self.qc.qc_aie(self.species, 
+                                                       self.species.conformer_geom[ci], 
+                                                       ext=f'{str(conindx).zfill(4)}',
+                                                       )
+                                logging.info('\tStarting AIE optimization(s) of {}'.format(name))
                             logging.info('\tStarting high level optimization(s) of {}'.format(name))
                             self.shigh = 0  # set the high status to running
                         if self.shigh == 0:

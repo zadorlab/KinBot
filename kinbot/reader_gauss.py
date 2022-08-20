@@ -247,6 +247,9 @@ def correct_kwargs(outfile, kwargs):
     @param kwargs: Original keyword arguments.
     @return kwargs: New keyword arguments.
     """
+    if 'opt' not in kwargs:
+        return kwargs
+
     from kinbot.utils import tail
     outf_end = tail(outfile, 10)
     # Use cartesian coordinates when internal ones fail.

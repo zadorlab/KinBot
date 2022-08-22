@@ -1232,6 +1232,8 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     """
     Create an interactive plot with pyvis
     """
+    if len(wells) < 2:
+        return -2
     try:
         from pyvis import network as net
     except ImportError:

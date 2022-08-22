@@ -56,7 +56,7 @@ class QuantumChemistry:
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
-                         start_from_geom=0, rigid=0):
+                         start_from_geom=0, rigid=0, aie=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
@@ -178,12 +178,23 @@ class QuantumChemistry:
                         del kwargs['opt']
                     except KeyError:
                         pass
-    
             if 'hom_sci' in job:
                 try:
                     del kwargs['opt']
                 except KeyError:
                     pass
+            if aie:
+                kwargs = {
+                    'method': 'cbs-qb3',
+                    'basis': None,
+                    'nprocshared': self.ppn,
+                    'mem': '700MW',
+                    'label': job,
+                    'Symm': 'None',
+                    'mult': mult,
+                    'charge': charge,
+                    'scf': 'xqc'
+                }
 
             return kwargs
 
@@ -365,25 +376,20 @@ class QuantumChemistry:
         self.submit_qc(job)
         return 0
 
-    def qc_conf(self, species, geom, index=-1, ring=0, semi_emp=0):
+    def qc_conf(self, species, geom, index, semi_emp=0):
         """
         Creates a geometry optimization input for the conformational search and runs it.
         qc: 'gauss' or 'nwchem' or 'qchem'
         wellorts: 0 for wells and 1 for saddle points
         index: >=0 for sampling, each job will get numbered with index
         """
-        if index == -1:
-            job = 'conf/' + str(species.chemid) + '_well'
+        add = ''
+        if semi_emp:
+            add = 'semi_emp_'
+        if species.wellorts:
+            job = 'conf/' + species.name + '_' + add + str(index).zfill(self.zf)
         else:
-            add = ''
-            if ring:
-                add = 'r'
-            if semi_emp:
-                add = 'semi_emp_'
-            if species.wellorts:
-                job = 'conf/' + species.name + '_' + add + str(index).zfill(self.zf)
-            else:
-                job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
+            job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
 
         if species.wellorts:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
@@ -417,6 +423,46 @@ class QuantumChemistry:
             f.write(template)
 
         self.submit_qc(job)
+
+        return 0
+
+    def qc_aie(self, species, geom, ext):
+        """
+        Sets up AIE calculations. Currently results are not digested by KinBot.
+        Only for well, not for saddles!
+        qc: 'gauss' or 'nwchem' or 'qchem'
+        index: the index of the conformer as in conf search
+        """
+        job0 = f'aie/{str(species.chemid)}_AIE0_{ext}'  # neutral
+        job1 = f'aie/{str(species.chemid)}_AIE1_{ext}'  # cation
+        kwargs0 = self.get_qc_arguments(job0, species.mult, species.charge, aie=1)
+        if species.mult == 1: m1 = 2
+        elif species.mult == 2: m1 = 1
+        elif species.mult == 3: m1 = 2
+        kwargs1 = self.get_qc_arguments(job1, m1, species.charge + 1, aie=1)
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
+        template = open(template_file, 'r').read()
+        t0 = template.format(label=job0,
+                             kwargs=kwargs0,
+                             atom=list(species.atom),
+                             geom=list([list(gi) for gi in geom]),
+                             ppn=self.ppn,
+                             qc_command=self.qc_command,
+                             working_dir=os.getcwd())
+        t1 = template.format(label=job1,
+                             kwargs=kwargs1,
+                             atom=list(species.atom),
+                             geom=list([list(gi) for gi in geom]),
+                             ppn=self.ppn,
+                             qc_command=self.qc_command,
+                             working_dir=os.getcwd())
+        
+        with open(f'{job0}.py', 'w') as f:
+            f.write(t0)
+        with open(f'{job1}.py', 'w') as f:
+            f.write(t1)
+        self.submit_qc(job0)
+        self.submit_qc(job1)
 
         return 0
 

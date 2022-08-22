@@ -63,6 +63,11 @@ def main():
             os.mkdir('conf')
         if not os.path.exists('perm/conf'):
             os.makedirs('perm/conf')
+    if par['calc_aie'] == 1:
+        if not os.path.exists('aie'):
+            os.mkdir('aie')
+        if not os.path.exists('perm/aie'):
+            os.makedirs('perm/aie')
     if not os.path.exists('me'):
         os.mkdir('me')
 

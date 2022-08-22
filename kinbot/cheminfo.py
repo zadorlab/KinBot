@@ -8,9 +8,11 @@ import logging
 # try to import pybel
 try:
     import pybel
+    pybel.ob.obErrorLog.SetOutputLevel(0)
 except ImportError:
     try:
         from openbabel import pybel
+        pybel.ob.obErrorLog.SetOutputLevel(0)
     except:
         print('Warning: Pybel could not be imported.')
         print('Certain features or the whole code might not run properly.')

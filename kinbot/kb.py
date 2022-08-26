@@ -48,7 +48,27 @@ def make_dirs(par):
 def clean_files():
     import numpy as np
     import ase.io
+    # delete leftover AM1 calculations
     files = os.listdir()
+    com = []
+    for ff in files:
+        if 'com' in ff:
+            com.append(ff)
+
+    for cc in com:
+        delfile = False
+        with open(cc, 'r') as f:
+            if 'am1' in f.read():
+                delfile = True
+        if delfile:
+            ll = cc.split('.')[0] + '.log'
+            try:
+                os.remove(ll)
+                logging.info(f'Stuck AM1 job {ll} is deleted.')
+            except FileNotFoundError:
+                pass
+
+    # delete empty files
     try:
         conf_files = os.listdir('conf')
         conf_files = [f'conf/{ff}' for ff in conf_files]
@@ -60,36 +80,15 @@ def clean_files():
     except FileNotFoundError:
         hir_files = []
     files = files + conf_files + hir_files
-
-    com_files = []
-    log_files = []
+    log = []
     for ff in files:
-        if len(ff) < 4:
-            continue
-        elif ff[-4:] == '.com':
-            com_files.append(ff)
-        elif ff[-4:] == '.log':
-            log_files.append(ff)
+        if len(ff) > 4 and ff[-4:] == '.log':
+            log.append(ff)
 
-    # delete leftover AM1 calculations
-    for cc in com_files:
-        delfile = False
-        with open(cc, 'r') as f:
-            if 'am1' in f.read():
-                delfile = True
-        if delfile:
-            ll = cc.split('.')[0] + '.log'
-            try:
-                os.remove(ll)
-                logging.info(f'Stuck AM1 job {ll} is deleted.')
-                log_files.remove(ll)
-            except FileNotFoundError:
-                pass
-
-    for ll in log_files:
+    for ll in log:
         if not os.path.isfile(ll):
             continue
-        elif os.path.getsize(ll) < 10:
+        if os.path.getsize(ll) < 10:
             os.remove(ll)
             logging.info(f'Empty file {ll} is deleted.')
         else:

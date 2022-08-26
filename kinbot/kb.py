@@ -17,6 +17,93 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot.qc import QuantumChemistry
 
 
+def make_dirs(par):
+    if not os.path.exists('perm'):
+        os.makedirs('perm')
+    if not os.path.exists('scratch'):
+        os.makedirs('scratch')
+    if not os.path.exists(par['single_point_qc']):
+        os.mkdir(par['single_point_qc'])
+    if par['rotor_scan'] == 1:
+        if not os.path.exists('hir'):
+            os.mkdir('hir')
+        if not os.path.exists('hir_profiles'):
+            os.mkdir('hir_profiles')
+        if not os.path.exists('perm/hir/'):
+            os.makedirs('perm/hir/')
+    if par['conformer_search'] == 1:
+        if not os.path.exists('conf'):
+            os.mkdir('conf')
+        if not os.path.exists('perm/conf'):
+            os.makedirs('perm/conf')
+    if par['calc_aie'] == 1:
+        if not os.path.exists('aie'):
+            os.mkdir('aie')
+        if not os.path.exists('perm/aie'):
+            os.makedirs('perm/aie')
+    if not os.path.exists('me'):
+        os.mkdir('me')
+
+
+def clean_files():
+    import numpy as np
+    import ase.io
+    files = os.listdir()
+    try:
+        conf_files = os.listdir('conf')
+        conf_files = [f'conf/{ff}' for ff in conf_files]
+    except FileNotFoundError:
+        conf_files = []
+    try:
+        hir_files = os.listdir('hir')
+        hir_files = [f'hir/{ff}' for ff in hir_files]
+    except FileNotFoundError:
+        hir_files = []
+    files = files + conf_files + hir_files
+
+    com_files = []
+    log_files = []
+    for ff in files:
+        if len(ff) < 4:
+            continue
+        elif ff[-4:] == '.com':
+            com_files.append(ff)
+        elif ff[-4:] == '.log':
+            log_files.append(ff)
+
+    # delete leftover AM1 calculations
+    for cc in com_files:
+        delfile = False
+        with open(cc, 'r') as f:
+            if 'am1' in f.read():
+                delfile = True
+        if delfile:
+            ll = cc.split('.')[0] + '.log'
+            try:
+                os.remove(ll)
+                logging.info(f'Stuck AM1 job {ll} is deleted.')
+                log_files.remove(ll)
+            except FileNotFoundError:
+                pass
+
+    for ll in log_files:
+        if not os.path.isfile(ll):
+            continue
+        elif os.path.getsize(ll) < 10:
+            os.remove(ll)
+            logging.info(f'Empty file {ll} is deleted.')
+        else:
+            try:
+                atoms = ase.io.read(ll)
+            except StopIteration:
+                continue
+            else:
+                if len(atoms.positions) > 1 and np.all(atoms.positions == 0):
+                    os.remove(ll)
+                    logging.info(f'All coordinates of file {ll} are 0, hence '
+                                 f'it is deleted.')
+
+
 def main():
     try:
         input_file = sys.argv[1]
@@ -44,32 +131,7 @@ def main():
     # time stamp of the KinBot start
     logging.info('Starting KinBot at {}'.format(datetime.datetime.now()))
 
-    # Make the necessary directories
-    if not os.path.exists('perm'):
-        os.makedirs('perm')
-    if not os.path.exists('scratch'):
-        os.makedirs('scratch')
-    if not os.path.exists(par['single_point_qc']):
-        os.mkdir(par['single_point_qc'])
-    if par['rotor_scan'] == 1:
-        if not os.path.exists('hir'):
-            os.mkdir('hir')
-        if not os.path.exists('hir_profiles'):
-            os.mkdir('hir_profiles')
-        if not os.path.exists('perm/hir/'):
-            os.makedirs('perm/hir/')
-    if par['conformer_search'] == 1:
-        if not os.path.exists('conf'):
-            os.mkdir('conf')
-        if not os.path.exists('perm/conf'):
-            os.makedirs('perm/conf')
-    if par['calc_aie'] == 1:
-        if not os.path.exists('aie'):
-            os.mkdir('aie')
-        if not os.path.exists('perm/aie'):
-            os.makedirs('perm/aie')
-    if not os.path.exists('me'):
-        os.mkdir('me')
+    make_dirs(par)
 
     if par['bimol'] == 0:
         # initialize the reactant
@@ -100,50 +162,7 @@ def main():
         # initialize the qc instance
         qc = QuantumChemistry(par)
 
-        # delete leftover AM1 calculations
-        files = os.listdir()
-        com = []
-        for ff in files:
-            if 'com' in ff:
-                com.append(ff)
-
-        for cc in com:
-            delfile = False
-            with open(cc, 'r') as f:
-                if 'am1' in f.read():
-                    delfile = True
-            if delfile:
-                ll = cc.split('.')[0] + '.log'
-                try:
-                    os.remove(ll)
-                    logging.info(f'Stuck AM1 job {ll} is deleted.')
-                except FileNotFoundError:
-                    pass
-
-        # delete empty files
-        try:
-            conf_files = os.listdir('conf')
-            conf_files = [f'conf/{ff}' for ff in conf_files]
-        except:
-            conf_files = []
-        try:
-            hir_files = os.listdir('hir')
-            hir_files = [f'hir/{ff}' for ff in hir_files]
-        except:
-            hir_files = []
-        files = files + conf_files + hir_files
-        log = []
-        for ff in files:
-            if 'log' in ff:
-                log.append(ff)
-
-        for ll in log:
-            try:
-                if os.path.getsize(ll) < 10:
-                    os.remove(ll)
-                    logging.info(f'Empty file {ll} is deleted.')
-            except FileNotFoundError:
-                pass
+        clean_files()
 
         # start the initial optimization of the reactant
         logging.info('Starting optimization of initial well...')

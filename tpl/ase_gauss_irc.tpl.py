@@ -30,7 +30,14 @@ except RuntimeError:
         kwargs = reader_gauss.correct_kwargs(logfile, kwargs)
         mol.calc = Gaussian(**kwargs)
         e = mol.get_potential_energy()  # use the Gaussian optimizer
-    except RuntimeError:
+        iowait(logfile, 'gauss')
+        mol.positions = reader_gauss.read_geom(logfile, mol)
+        if mol.positions is not None:
+            db.write(mol, name=label, data={{'status': 'normal'}})
+        else:
+            db.write(mol, name=label, data={{'status': 'error'}})
+            success = False
+   except RuntimeError:
         if mol.positions is not None:
             # although there is an error, continue from the final geometry
             db.write(mol, name=label, data={{'status': 'normal'}})

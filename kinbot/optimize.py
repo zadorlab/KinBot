@@ -472,12 +472,12 @@ class Optimize:
                 q_coord -= q_cent
                 rotation_method = rmsd.kabsch_rmsd
                 reorder_method = rmsd.reorder_brute
-                q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
-                q_coord = q_coord[q_review]
-                q_atoms = q_atoms[q_review]
+                #q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
+                #q_coord = q_coord[q_review]
+                #q_atoms = q_atoms[q_review]
                 result_rmsd = rotation_method(p_coord, q_coord)
-                if result_rmsd > 0.15:
-                    same_geom = 0
+                #if result_rmsd > 0.15:
+                #    same_geom = 0
             else:
                 result_rmsd = 'not done'
             logging.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\

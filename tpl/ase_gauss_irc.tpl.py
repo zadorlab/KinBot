@@ -37,7 +37,7 @@ except RuntimeError:
         else:
             db.write(mol, name=label, data={{'status': 'error'}})
             success = False
-   except RuntimeError:
+    except RuntimeError:
         if mol.positions is not None:
             # although there is an error, continue from the final geometry
             db.write(mol, name=label, data={{'status': 'normal'}})

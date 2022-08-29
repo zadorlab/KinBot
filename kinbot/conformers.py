@@ -584,9 +584,9 @@ class Conformers:
                             q_coord -= q_cent
                             rotation_method = rmsd.kabsch_rmsd
                             reorder_method = rmsd.reorder_hungarian
-                            q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
-                            q_coord = q_coord[q_review]
-                            q_atoms = q_atoms[q_review]
+                            #q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
+                            #q_coord = q_coord[q_review]
+                            #q_atoms = q_atoms[q_review]
                             result_rmsd = rotation_method(p_coord, q_coord)
                             if result_rmsd < 0.05:
                                 unique = False

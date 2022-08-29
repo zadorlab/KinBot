@@ -350,6 +350,9 @@ class Parameters:
             self.par['multi_conf_tst_temp'] = None
             self.par['multi_conf_tst_boltz'] = 0.05 
 
+        if self.par['multi_conf_tst']:
+            self.par['rotor_scan'] = 0
+
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])

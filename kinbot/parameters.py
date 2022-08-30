@@ -310,8 +310,8 @@ class Parameters:
                 err = 'AIE calculation requires a conformer search.'
             if self.par['epsilon'] == 0. or self.par['sigma'] == 0.:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
-            if self.par['rotor_scan'] == 0 and self.par['multi_conf_tst'] == 0:
-                err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
+#            if self.par['rotor_scan'] == 0 and self.par['multi_conf_tst'] == 0:
+#                err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
             # convert to cm-1 units
             if self.par['epsilon_unit'] == 'cm-1':  # units in MESS
                 pass

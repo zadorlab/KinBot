@@ -56,8 +56,6 @@ class Optimize:
         # restart counter: number of times the high-level and hir calculations
         # has been restarted in case a lower energy structure has been found
         self.restart = 0
-        # maximum restart count
-        self.max_restart = par['rotation_restart']
 
         self.skip_conf_check = 0  # initialize
 
@@ -172,7 +170,7 @@ class Optimize:
                     status, lowest_conf, self.species.geom, low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
-                while self.restart <= self.max_restart:
+                while self.restart <= par['rotation_restart']:
                     # do the high level calculations
                     if self.par['high_level'] == 1:
                         if self.shigh == -1:
@@ -202,7 +200,7 @@ class Optimize:
                                                        self.species.conformer_geom[ci], 
                                                        ext=f'{str(conindx).zfill(4)}',
                                                        )
-                                logging.info('\tStarting AIE optimization(s) of {}'.format(name))
+                                    logging.info('\tStarting AIE optimization(s) of {}'.format(name))
                             logging.info('\tStarting high level optimization(s) of {}'.format(name))
                             self.shigh = 0  # set the high status to running
                         if self.shigh == 0:
@@ -258,9 +256,9 @@ class Optimize:
                                                     min_ai = ai
                                         if min_rotor > -1:
                                             self.restart += 1
-                                            if self.restart < self.max_restart:
+                                            if self.restart < par['rotation_restart']:
                                                 # lower energy structure found
-                                                logging.warning('Lower energy conformer during HIR for {}. Restart #{}'.format(self.name, str(self.restart)))
+                                                logging.warning(f'Lower energy conformer during HIR for {self.name} for rotor {min_rotor}. Restart #{self.restart}')
                                                 logging.debug('Rotor: ' + str(min_rotor))
                                                 logging.debug('Scan point: ' + str(min_ai))
                                                 job = self.log_name(1, hir=1, r=min_rotor, s=min_ai)
@@ -279,7 +277,7 @@ class Optimize:
                                                 self.shigh = -1
                                                 self.shir = -1
                                             else:
-                                                logging.warning('Lower energy conformer, but readched max restart for {}'.format(self.name))
+                                                logging.warning('Lower energy conformer, but reached max restart for {}'.format(self.name))
                                                 self.shir = 1
                                         else:
                                             self.shir = 1

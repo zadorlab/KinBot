@@ -18,7 +18,7 @@ mol.calc = calc
 success = True
 
 try:
-    e = mol.get_potential_energy() # use the Gaussian optimizer
+    e = mol.get_potential_energy()  # use the Gaussian optimizer
     iowait(logfile, 'gauss')
     mol.positions = reader_gauss.read_geom(logfile, mol)
     db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
@@ -32,11 +32,7 @@ except RuntimeError:
         e = mol.get_potential_energy()  # use the Gaussian optimizer
         iowait(logfile, 'gauss')
         mol.positions = reader_gauss.read_geom(logfile, mol)
-        if mol.positions is not None:
-            db.write(mol, name=label, data={{'status': 'normal'}})
-        else:
-            db.write(mol, name=label, data={{'status': 'error'}})
-            success = False
+        db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
     except RuntimeError:
         if mol.positions is not None:
             # although there is an error, continue from the final geometry

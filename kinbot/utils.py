@@ -1,4 +1,5 @@
 import time
+import os
 
 
 def tail(file_path, lines=10):
@@ -88,7 +89,6 @@ def make_dirs(par):
 
 
 def clean_files():
-    import os
     import logging
     """Removes files from jobs that ended up erroneously.
     """

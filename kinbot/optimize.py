@@ -170,7 +170,7 @@ class Optimize:
                     status, lowest_conf, self.species.geom, low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
-                while self.restart <= par['rotation_restart']:
+                while self.restart <= self.par['rotation_restart']:
                     # do the high level calculations
                     if self.par['high_level'] == 1:
                         if self.shigh == -1:
@@ -256,7 +256,7 @@ class Optimize:
                                                     min_ai = ai
                                         if min_rotor > -1:
                                             self.restart += 1
-                                            if self.restart < par['rotation_restart']:
+                                            if self.restart < self.par['rotation_restart']:
                                                 # lower energy structure found
                                                 logging.warning(f'Lower energy conformer during HIR for {self.name} for rotor {min_rotor}. Restart #{self.restart}')
                                                 logging.debug('Rotor: ' + str(min_rotor))

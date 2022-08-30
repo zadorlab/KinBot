@@ -7,7 +7,6 @@ import copy
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.parameters import Parameters
-from kinbot.mesmer import MESMER
 from kinbot.mess import MESS
 from kinbot.optimize import Optimize
 from kinbot.reaction_finder import ReactionFinder
@@ -18,6 +17,10 @@ from kinbot.qc import QuantumChemistry
 
 
 def make_dirs(par):
+    """Creates the directory hierarchy.
+
+    @param par: Dictionary with the simulation parameters read from the input.
+    """
     if not os.path.exists('perm'):
         os.makedirs('perm')
     if not os.path.exists('scratch'):
@@ -46,6 +49,8 @@ def make_dirs(par):
 
 
 def clean_files():
+    """Removes files from jobs that ended up erroneously.
+    """
     import numpy as np
     import ase.io
     # delete leftover AM1 calculations

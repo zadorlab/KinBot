@@ -200,7 +200,7 @@ class Optimize:
                                                        self.species.conformer_geom[ci], 
                                                        ext=f'{str(conindx).zfill(4)}',
                                                        )
-                                    logging.info('\tStarting AIE optimization(s) of {}'.format(name))
+                                     logging.info('\tStarting AIE optimization(s) of {}'.format(name))
                             logging.info('\tStarting high level optimization(s) of {}'.format(name))
                             self.shigh = 0  # set the high status to running
                         if self.shigh == 0:

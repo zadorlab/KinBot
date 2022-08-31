@@ -575,8 +575,6 @@ class QuantumChemistry:
         KinBot will park here until resources are freed up.
         """
         # if the logfile already exists, copy it with another name
-        if self.queue_job_limit > 0:
-            self.limit_jobs()
 
         check = self.check_qc(job)
         if singlejob == 1:
@@ -585,6 +583,9 @@ class QuantumChemistry:
         else:
             if check == 'running':
                 return 0
+
+        if self.queue_job_limit > 0:
+            self.limit_jobs()
 
         try:
             if self.par['queue_template'] == '':

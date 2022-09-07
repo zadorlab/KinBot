@@ -965,8 +965,10 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     if l3done:
         if par['single_point_key'] == 'MYDZA':
             lot = 'CCSD(T)-F12/cc-pVDZ-f12'
-        elif par['single_point_key'] == 'MYYZA':
+        elif par['single_point_key'] == 'MYTZA':
             lot = 'CCSD(T)-F12/cc-pVTZ-f12'
+        else:
+            lot = 'CCSD(T)-F12'
     else:
         lot = f'{par["high_level_method"]}/{par["high_level_basis"]}'
 

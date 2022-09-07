@@ -563,8 +563,7 @@ class QuantumChemistry:
         return 0
 
     def submit_qc(self, job, singlejob=1):
-        """
-        Submit a job to the queue, unless the job:
+        """Submit a job to the queue, unless the job:
             * has finished with Normal termination
             * has finished with Error termination
             * is currently running

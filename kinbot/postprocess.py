@@ -168,7 +168,7 @@ def createPESViewerInput(species, qc, par):
                     st_pt = prod_opt.species
                     with open("pesviewer_data.txt", 'a') as pesdata:
                         pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}\n".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
-                    # make twice the same file but with adifferent name
+                    # make twice the same file but with a different name
                     # TODO: is there no better way?
                     # this is for the pes viewer
                     make_xyz(st_pt.atom, st_pt.geom, name + str(i + 1), dir_xyz)

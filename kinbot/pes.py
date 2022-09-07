@@ -497,7 +497,9 @@ def postprocess(par, jobs, task, names, mass):
             logging.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
         for ts in ts_l3energies:
             logging.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
-
+    else:
+        logging.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
+                     f'{par["high_level_basis"]}) level of theory.')
 
     # if L3 was done, everything below is done with that
     # filter according to tasks
@@ -553,7 +555,8 @@ def postprocess(par, jobs, task, names, mass):
                           well_energies,
                           prod_energies,
                           parent,
-                          mass)
+                          mass,
+                          l3done)
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -922,7 +925,7 @@ def create_short_names(wells, products, reactions, barrierless):
 
 
 def create_mess_input(par, wells, products, reactions, barrierless,
-                      well_energies, prod_energies, parent, mass):
+                      well_energies, prod_energies, parent, mass, l3done):
     """
     When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
@@ -959,6 +962,14 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     mess = MESS(par, dummy)
     uq = UQ(par)
 
+    if l3done:
+        if par['single_point_key'] == 'MYDZA':
+            lot = 'CCSD(T)-F12/cc-pVDZ-f12'
+        elif par['single_point_key'] == 'MYYZA':
+            lot = 'CCSD(T)-F12/cc-pVTZ-f12'
+    else:
+        lot = f'{par["high_level_method"]}/{par["high_level_basis"]}'
+
     header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
     with open(header_file) as f:
         tpl = f.read()
@@ -988,6 +999,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                             e_well=round(e_well, 2),
                             s_well=round(s_well, 2),
                             m_well=mass,
+                            LevelOfTheory=lot
                             )
 
         s = []  # mess string after header

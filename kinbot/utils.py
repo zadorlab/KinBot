@@ -89,9 +89,9 @@ def make_dirs(par):
 
 
 def clean_files():
-    import logging
     """Removes files from jobs that ended up erroneously.
     """
+    import logging
     import numpy as np
     import ase.io
     # delete leftover AM1 calculations

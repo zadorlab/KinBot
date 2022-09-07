@@ -939,19 +939,15 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
 
     logging.info(f"uq value: {par['uq']}")
-    well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
-                                                                               products,
-                                                                               reactions,
-                                                                               barrierless)
+    short_names = create_short_names(wells, products, reactions, barrierless)
+    well_short, pr_short, fr_short, ts_short, nobar_short = short_names
 
     # list of the strings to write to mess input file
     s = []
 
-    """
-    Create the header block for MESS
-    """
+    # Create the header block for MESS
     frame = '######################\n' 
-    divider = '!****************************************\n'
+    divider = '! ****************************************\n'
     
     dummy = StationaryPoint('dummy',
                             par['charge'],
@@ -1054,6 +1050,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         # write the barrier
         s.append(frame + '# BARRIERS\n' + frame)
         for rxn in reactions:
+            if rxn[0] == rxn[2][0]:  # Avoid writing identity reactions.
+                continue
             with open("reactionList.log", 'a') as f:
                 f.write(f'rxn\n')
             name = [ts_short[rxn[1]]]

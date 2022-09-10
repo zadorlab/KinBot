@@ -1,3 +1,5 @@
+! Energies in this file are computed at the {LevelOfTheory} level of theory.
+! **********************
 TemperatureList[K]                      {TemperatureList}
 PressureList[torr]                      {PressureList}
 EnergyStepOverTemperature               {EnergyStepOverTemperature}

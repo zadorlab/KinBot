@@ -563,8 +563,7 @@ class QuantumChemistry:
         return 0
 
     def submit_qc(self, job, singlejob=1):
-        """
-        Submit a job to the queue, unless the job:
+        """Submit a job to the queue, unless the job:
             * has finished with Normal termination
             * has finished with Error termination
             * is currently running
@@ -575,8 +574,6 @@ class QuantumChemistry:
         KinBot will park here until resources are freed up.
         """
         # if the logfile already exists, copy it with another name
-        if self.queue_job_limit > 0:
-            self.limit_jobs()
 
         check = self.check_qc(job)
         if singlejob == 1:
@@ -585,6 +582,9 @@ class QuantumChemistry:
         else:
             if check == 'running':
                 return 0
+
+        if self.queue_job_limit > 0:
+            self.limit_jobs()
 
         try:
             if self.par['queue_template'] == '':

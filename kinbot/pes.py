@@ -1192,13 +1192,11 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
     barrierless_lines = []
     index = 0
     prev_prod = []
-    print(barrierless)
     for rxn in barrierless:
         prod_name = '_'.join(sorted(rxn[2]))
         new = 1
         for item in prev_prod:
             if prod_name == item:
-                print(item)
                 new = 0
                 break
         if new:

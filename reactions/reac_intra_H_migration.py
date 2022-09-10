@@ -67,12 +67,20 @@ class IntraHMigration(GeneralReac):
                 self.fix_dihedrals(fix)
                 self.set_angles(change)
             else:
-                fval = 1.35
-                if self.species.atom[self.instance[0]] == 'O': fval = 1.2
+                if self.species.atom[self.instance[0]] == 'O': 
+                    fval = 1.2
+                elif self.species.atom[self.instance[0]] == 'S': 
+                    fval = 1.5
+                else: 
+                    fval = 1.35
                 self.set_bond(0, -1, fval, change)
                
-                fval = 1.35
-                if self.species.atom[self.instance[-2]] == 'O': fval = 1.2
+                if self.species.atom[self.instance[-2]] == 'O': 
+                    fval = 1.2
+                elif self.species.atom[self.instance[-2]] == 'S': 
+                    fval = 1.5
+                else: 
+                    fval = 1.35
                 self.set_bond(-2, -1, fval, change)
                 step += 1
 
@@ -80,12 +88,20 @@ class IntraHMigration(GeneralReac):
             self.release_angles(release)
             self.release_dihedrals(release)
                
-            fval = 1.35
-            if self.species.atom[self.instance[0]] == 'O': fval = 1.2
+            if self.species.atom[self.instance[0]] == 'O': 
+                fval = 1.2
+            elif self.species.atom[self.instance[0]] == 'S': 
+                fval = 1.5
+            else: 
+                fval = 1.35
             self.set_bond(0, -1, fval, change)
 
-            fval = 1.35
-            if self.species.atom[self.instance[-2]] == 'O': fval = 1.2
+            if self.species.atom[self.instance[-2]] == 'O': 
+                fval = 1.2
+            elif self.species.atom[self.instance[-2]] == 'S': 
+                fval = 1.5
+            else: 
+                fval = 1.35
             self.set_bond(-2, -1, fval, change)
 
         self.clean_constraints(change, fix)

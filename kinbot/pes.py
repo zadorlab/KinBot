@@ -383,16 +383,13 @@ def postprocess(par, jobs, task, names, mass):
                             parent[prod_name] = reactant
                         products.append('_'.join(sorted(prod)))
                 new = 1
-                temp = None
-                for i, rxn in enumerate(reactions):
+                for rxn in reactions:
                     rxn_prod_name = '_'.join(sorted(rxn[2]))
                     if (reactant == rxn[0] and
                             '_'.join(sorted(prod)) == rxn_prod_name):
                         new = 0
-                        temp = i
                     if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
                         new = 0
-                        temp = i
                 if new:
                     ts = 'barrierless'
                     barrier = energy
@@ -1194,12 +1191,14 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
                                                     high))
     barrierless_lines = []
     index = 0
-    new = 1
     prev_prod = []
+    print(barrierless)
     for rxn in barrierless:
         prod_name = '_'.join(sorted(rxn[2]))
+        new = 1
         for item in prev_prod:
             if prod_name == item:
+                print(item)
                 new = 0
                 break
         if new:

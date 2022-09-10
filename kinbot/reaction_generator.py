@@ -62,9 +62,7 @@ class ReactionGenerator:
         # status to see of kinbot needs to wait for the product optimizations
         # from another kinbot run, to avoid duplication of calculations
         products_waiting_status = [[] for i in self.species.reac_inst]
-        count = 0
-        for i in self.species.reac_inst:
-            count = count + 1
+        count = len(self.species.reac_inst)
         frag_unique = []
 
         while alldone:
@@ -314,22 +312,22 @@ class ReactionGenerator:
                                 newfrags, newmaps = st_pt.start_multi_molecular()  # newfrags is list of stpt obj
                                 products_waiting_status[index] = [0 for frag in newfrags]
                                 frag_chemid = []
-                                for i, newfr in enumerate(newfrags):
+                                for ii, newfr in enumerate(newfrags):
                                     newfr.characterize()
                                     for prod in frag_unique:
                                         if newfr.chemid == prod.chemid:
-                                            newfrags.pop(i)
+                                            newfrags.pop(ii)
                                             newfr = prod
-                                            j = i - 1
-                                            newfrags.insert(j, newfr)
-                                    j = i - 1
-                                    obj.products_final.insert(j, newfr)
+                                            jj = ii - 1
+                                            newfrags.insert(jj, newfr)
+                                    jj = ii - 1
+                                    obj.products_final.insert(jj, newfr)
                                     self.qc.qc_opt(newfr, newfr.geom, 0)
                                     frag_chemid.append(newfr.chemid)
                                 if len(frag_chemid) == 1:
                                     frag_chemid.append(" ")
-                                for i, frag in enumerate(newfrags):
-                                    products_waiting_status[index][i] = 1
+                                for ii, frag in enumerate(newfrags):
+                                    products_waiting_status[index][ii] = 1
                                 logging.info('\ta) Product optimized to other structure for {}'
                                              ', product {} to {} {}'
                                              .format(obj.instance_name, chemid, frag_chemid[0], frag_chemid[1]))

@@ -293,6 +293,7 @@ class ReactionGenerator:
                     logging.info('\tReaction {} leads to products {} {} {}'
                                  .format(obj.instance_name, products[0], products[1], products[2]))
 
+                    hom_sci_energy = 0
                     for i, st_pt in enumerate(obj.products_final):
                         chemid = st_pt.chemid
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
@@ -306,6 +307,8 @@ class ReactionGenerator:
                         else:
                             _, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                             _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
+                            if self.species.reac_type[index] == 'hom_sci':  
+                                hom_sci_energy += st_pt.energy + st_pt.zpe
                             st_pt.characterize()  
                             if chemid != st_pt.chemid:
                                 obj.products_final.pop(i)
@@ -338,7 +341,15 @@ class ReactionGenerator:
                     obj.products_final = []
 
                     if all([pi == 1 for pi in products_waiting_status[index]]):
-                        self.species.reac_ts_done[index] = 3
+                        if self.species.reac_type[index] == 'hom_sci': 
+                            hom_sci_energy = (hom_sci_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
+                            if hom_sci_energy < self.par['barrier_threshold'] + 5.:
+                                self.species.reac_ts_done[index] = 3
+                            else:
+                                logging.info(f'\thom_sci energy is too high at {hom_sci_energy} kcal/mol for {obj.instance_name}')
+                                self.species.reac_ts_done[index] = -999
+                        else:
+                            self.species.reac_ts_done[index] = 3
 
                 elif self.species.reac_ts_done[index] == 3:
                     # wait for the optimization to finish

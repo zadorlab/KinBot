@@ -138,6 +138,9 @@ def main():
 
         err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)
         err, well0.zpe = qc.get_qc_zpe(str(well0.chemid) + '_well', 1)
+        # to save the starting energy to make thresholds consistent
+        well0.start_energy = well0.energy 
+        well0.start_zpe = well0.zpe 
 
         well_opt = Optimize(well0, par, qc, wait=1)
         well_opt.do_optimization()

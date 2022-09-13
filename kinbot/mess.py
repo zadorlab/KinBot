@@ -15,13 +15,6 @@ class MESS:
     """
     Class that reads and writes MESS files
     UQ analysis parameter (uq) can be used to generate 'n' number of mess input files
-    with the following parameters randomized within the alloted UQ tolerance.
-    By default UQ ranges are set to these values
-       1. Stationary point energy (E+ZPE, +/- 0.5 kcal/mol)
-       2. Barrier (E+ZPE, +/- 1.0 kcal/mol)
-       3. Frequencies (cm-1 */ / 1.2)
-    Default parameters were chosen/based on the following paper:  Goldsmith, C. F. PCI, 2013, 177-185
-    New parameters can be set within the input 
     """
 
 

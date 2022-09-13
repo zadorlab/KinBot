@@ -16,6 +16,7 @@ from kinbot.optimize import Optimize
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.molpro import Molpro
 from ase.db import connect
+from ase import Atoms
 
 
 class ReactionGenerator:
@@ -183,10 +184,8 @@ class ReactionGenerator:
                                 logging.info('\tRxn search using scan failed for {}, no saddle guess found.'
                                              .format(obj.instance_name))
                                 db = connect('{}/kinbot.db'.format(os.getcwd()))
-                                rows = db.select(name=obj.instance_name)
-                                for row in reversed(list(rows)):
-                                    row.data['status'] = 'error'
-                                    break # only write error to the last calculation
+                                # error line, H atom is just placeholder
+                                db.write(Atoms('H'), name=obj.instance_name, data = {'status': 'error'})
                                 # this is copied here so that a non-AM1 file is in place
                                 shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
                                 self.species.reac_ts_done[index] = -999

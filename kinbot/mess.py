@@ -77,7 +77,14 @@ class MESS:
         Create the header block for MESS
         """
         # Read the header template
-        header = self.headertpl.format(TemperatureList=' '.join([str(ti) for ti in self.par['TemperatureList']]),
+        if self.par['single_point_key'] == 'MYDZA':
+            lot = 'CCSD(T)-F12/cc-pVDZ-f12'
+        elif self.par['single_point_key'] == 'MYTZA':
+            lot = 'CCSD(T)-F12/cc-pVTZ-f12'
+        else:
+            lot = 'CCSD(T)-F12'
+        header = self.headertpl.format(LevelOfTheory=lot,
+                                       TemperatureList=' '.join([str(ti) for ti in self.par['TemperatureList']]),
                                        PressureList=' '.join([str(pi) for pi in self.par['PressureList']]),
                                        EnergyStepOverTemperature=self.par['EnergyStepOverTemperature'],
                                        ExcessEnergyOverTemperature=self.par['ExcessEnergyOverTemperature'],

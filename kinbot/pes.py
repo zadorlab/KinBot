@@ -216,8 +216,6 @@ def main():
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
 
     # Notify user the search is done
-    if par['check_l2_l3']:
-        check_l2_l3()
     logging.info('PES search done!')
     print('PES search done!')
 
@@ -556,6 +554,8 @@ def postprocess(par, jobs, task, names, mass):
                           parent,
                           mass,
                           l3done)
+
+    check_l2_l3()
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):

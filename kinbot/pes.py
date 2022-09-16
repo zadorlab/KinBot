@@ -216,6 +216,8 @@ def main():
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
 
     # Notify user the search is done
+    if par['check_l2_l3']:
+        check_l2_l3()
     logging.info('PES search done!')
     print('PES search done!')
 
@@ -944,19 +946,15 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
 
     logging.info(f"uq value: {par['uq']}")
-    well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
-                                                                               products,
-                                                                               reactions,
-                                                                               barrierless)
+    short_names = create_short_names(wells, products, reactions, barrierless)
+    well_short, pr_short, fr_short, ts_short, nobar_short = short_names
 
     # list of the strings to write to mess input file
     s = []
 
-    """
-    Create the header block for MESS
-    """
+    # Create the header block for MESS
     frame = '######################\n' 
-    divider = '!****************************************\n'
+    divider = '! ****************************************\n'
     
     dummy = StationaryPoint('dummy',
                             par['charge'],
@@ -1059,6 +1057,8 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         # write the barrier
         s.append(frame + '# BARRIERS\n' + frame)
         for rxn in reactions:
+            if rxn[0] == rxn[2][0]:  # Avoid writing identity reactions.
+                continue
             with open("reactionList.log", 'a') as f:
                 f.write(f'rxn\n')
             name = [ts_short[rxn[1]]]
@@ -1584,6 +1584,54 @@ def write_input(input_file, species, threshold, root, me):
     file_name = directory + str(species.chemid) + '.json'
     with open(file_name, 'w') as outfile:
         json.dump(par2, outfile, indent=4, sort_keys=True)
+
+
+def check_l2_l3():
+    """Perform a check on the difference between L2 and L3 energy differences.
+    """
+    # Get L3 energies
+    l3_energies = {}
+    if not os.path.isdir('molpro'):
+        logging.warning("Unable to perform L2-L3 check. The molpro directory "
+                        "is missing")
+        return
+    for file in [f for f in os.listdir('molpro/') if
+                 f[::-1].startswith('tuo.')]:
+        st_pt_name = file.split('.')[0]
+        with open(f'molpro/{file}') as out_fh:
+            for line in out_fh:
+                if 'MYDZA' not in line:
+                    continue
+                l3_energies[st_pt_name] = float(line.split()[3])
+
+    # Get L2 Energies and its difference respect L3.
+    e_diffs = {}
+    for st_pt_name in l3_energies:
+        try:
+            if st_pt_name.isdigit():
+                db = connect(f'{st_pt_name}/kinbot.db')
+                rows = db.select(name=f'{st_pt_name}_well_high')
+            else:
+                db = connect(f'{st_pt_name.split("_")[0]}/kinbot.db')
+                rows = db.select(name=f'{st_pt_name}_high')
+            for row in rows:
+                final_row = row
+            e_diff = final_row.data["energy"] * constants.EVtoHARTREE \
+                     - l3_energies[st_pt_name]
+            e_diffs[st_pt_name] = e_diff
+        except:  # TODO try to catch the exact exception.
+            logging.warning(f"Unable to read db for {st_pt_name}")
+            continue
+    e_diff_avg = np.average(list(e_diffs.values()))
+    e_diff_std = np.std(list(e_diffs.values()))
+    logging.info(f'L2-L3 Energy difference Analysis (Ha):')
+    logging.info(f'Avg difference: {e_diff_avg}. Max: '
+                 f'{max(e_diffs.values())}, Min: {min(e_diffs.values())}, '
+                 f'STDEV: {e_diff_std}.')
+    for st_pt_name, e_diff in e_diffs.items():
+        if e_diff > 5 * constants.KCALtoHARTREE:
+            logging.info(f"Outlying L2-L3 difference found for {st_pt_name}. "
+                         f"Energy difference: {e_diff}.")
 
 
 if __name__ == "__main__":

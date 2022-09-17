@@ -2021,7 +2021,7 @@ class ReactionFinder:
             motif = ['X','X']
             instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
             for instance in instances: 
-                if not self.species.cycle[instance[0]] and not self.species.cycle[instance[1]]:
+                if not self.species.cycle[instance[0]] or not self.species.cycle[instance[1]]:
                     rxns += [instance]
         else: 
             try:

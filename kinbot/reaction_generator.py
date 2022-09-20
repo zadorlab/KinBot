@@ -342,7 +342,7 @@ class ReactionGenerator:
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         if self.species.reac_type[index] == 'hom_sci': 
                             hom_sci_energy = (hom_sci_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
-                            if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_shift']:
+                            if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
                                 self.species.reac_ts_done[index] = 3
                             else:
                                 logging.info(f'\thom_sci energy is too high at {hom_sci_energy} kcal/mol for {obj.instance_name}')

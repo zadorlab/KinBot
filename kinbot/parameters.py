@@ -79,7 +79,7 @@ class Parameters:
             # Threshold above which barriers are deemed unimportant
             'barrier_threshold': 100.,
             # Additional barrier allowance for homolytic scissions
-            'hom_sci_shift': 5.,
+            'hom_sci_threshold_add': 5.,
             # Number of 0.1 Angstrom steps in bond scans
             'scan_step': 30,
             # Do a full PES scan instead of one well

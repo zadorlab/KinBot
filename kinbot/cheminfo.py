@@ -8,24 +8,15 @@ import logging
 # try to import pybel
 try:
     import pybel
+    pybel.ob.obErrorLog.SetOutputLevel(0)
 except ImportError:
     try:
         from openbabel import pybel
+        pybel.ob.obErrorLog.SetOutputLevel(0)
     except:
         print('Warning: Pybel could not be imported.')
         print('Certain features or the whole code might not run properly.')
         pass
-
-try:
-    from rdkit import Chem
-    from rdkit.Chem import AllChem
-    from rdkit.Chem import rdMolDescriptors
-    from rdkit import RDLogger
-    RDLogger.DisableLog('rdApp.*')
-except ImportError:
-    print('Warning: RDKit could not be imported.')
-    print('Certain features or the whole code might not run properly.')
-    pass
 
 num_to_syms = {1: 'H', 6: 'C', 7: 'N', 8: 'O', 16: 'S'}
 syms_to_num = {'H': 1, 'C': 6, 'N': 7, 'O': 8, 'S': 16}
@@ -43,7 +34,7 @@ def get_molecular_formula(smi):
     return rdMolDescriptors.CalcMolFormula(mol)
 
 
-def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
+def create_rxn_depiction(react_smiles, prod_smiles, cdir, name):
     """
     Create a 2D depiction of a chemical reaction,
     react smiles: smiles of the reactants
@@ -51,8 +42,8 @@ def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
     dir: directory where to save the reaction depiction
     name: name of the depiction files
     """
-    react_png = '{dir}/react.png'.format(dir=dir)
-    prod_png = '{dir}/prod.png'.format(dir=dir)
+    react_png = f'{cdir}/react.png'
+    prod_png = f'{cdir}/prod.png'
 
     try:
         obmol = pybel.readstring("smi", react_smiles)
@@ -80,7 +71,7 @@ def create_rxn_depiction(react_smiles, prod_smiles, dir, name):
         new_im.paste(im, (x, y))
         x += im.size[0]
 
-    new_im.save('{dir}/{name}.png'.format(dir=dir, name=name))
+    new_im.save(f'{cdir}/{name}.png')
 
 
 def generate_3d_structure(smi, obabel=1):
@@ -158,6 +149,16 @@ def create_rdkit_mol(bond, atom):
     Method to create a RDKit Molecule object from a KinBot stationary_pt object
     """
     try:
+        from rdkit import Chem
+        from rdkit.Chem import AllChem
+        from rdkit.Chem import rdMolDescriptors
+        from rdkit import RDLogger
+        RDLogger.DisableLog('rdApp.*')
+    except ImportError:
+        logging.warning('RDKit could not be imported.')
+        pass
+
+    try:
         m = Chem.MolFromSmiles('[' + atom[0] + ']')
     except NameError:
         logging.error('RDKit is not installed or loaded correctly.')
@@ -184,13 +185,12 @@ def create_rdkit_mol(bond, atom):
 
 def create_inchi_from_geom(atom, geom):
     xyz_file = 'temp.xyz'
-    f = open(xyz_file, 'w')
-    f.write(str(len(atom)) + '\n\n')
-    for i, at in enumerate(atom):
-        x, y, z = geom[i]
-        f.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
-    f.write('\n\n')
-    f.close()
+    with open(xyz_file, 'w') as f:
+        f.write(str(len(atom)) + '\n\n')
+        for i, at in enumerate(atom):
+            x, y, z = geom[i]
+            f.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
+        f.write('\n\n')
     inchi = create_inchi('', '', xyz_file=xyz_file)
     # remove temp file
     os.remove(xyz_file)
@@ -237,3 +237,8 @@ def create_smiles(inchi):
         sys.exit()
 
     return obmol.write("smi").split()[0]
+
+
+def create_smi_from_geom(atom, geom):
+    inchi = create_inchi_from_geom(atom, geom)
+    return create_smiles(inchi)

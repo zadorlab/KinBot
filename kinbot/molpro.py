@@ -1,7 +1,7 @@
 import os
 import pkg_resources
-import numpy as np
 import logging
+import numpy as np
 
 from kinbot import constants
 
@@ -34,7 +34,7 @@ class Molpro:
             tpl_file = self.par['single_point_template']
 
         with open(tpl_file) as f:
-            file = f.read()
+            tpl = f.read()
 
         fname = self.get_name(name)
 
@@ -51,14 +51,14 @@ class Molpro:
 
         if bls == 0:
             with open('molpro/' + fname + '.inp', 'w') as outf:
-                outf.write(file.format(name=fname,
-                                       natom=self.species.natom,
-                                       geom=geom,
-                                       nelectron=nelectron,
-                                       symm=symm,
-                                       spin=spin,
-                                       charge=self.species.charge
-                                       ))
+                outf.write(tpl.format(name=fname,
+                                      natom=self.species.natom,
+                                      geom=geom,
+                                      nelectron=nelectron,
+                                      symm=symm,
+                                      spin=spin,
+                                      charge=self.species.charge
+                                      ))
 
         else:
             closed = (nelectron - self.par['barrierless_saddle_nelectron']) / 2
@@ -74,17 +74,17 @@ class Molpro:
 
             if shift_vec is None:
                 with open('molpro/' + fname + '.inp', 'w') as outf:
-                    outf.write(file.format(name=fname,
-                                           natom=self.species.natom,
-                                           geom=geom,
-                                           nelectron=nelectron,
-                                           symm=symm,
-                                           spin=spin,
-                                           charge=self.species.charge,
-                                           state=self.par['barrierless_saddle_nstate'],
-                                           closed=closed,
-                                           occ=occ
-                                           ))
+                    outf.write(tpl.format(name=fname,
+                                          natom=self.species.natom,
+                                          geom=geom,
+                                          nelectron=nelectron,
+                                          symm=symm,
+                                          spin=spin,
+                                          charge=self.species.charge,
+                                          state=self.par['barrierless_saddle_nstate'],
+                                          closed=closed,
+                                          occ=occ
+                                          ))
             else:
                 shift_vec = shift_vec / np.linalg.norm(shift_vec) * 0.5  # step of 0.5 A
                 geom0 = ''
@@ -103,20 +103,20 @@ class Molpro:
                         shift += 's{0} = s{0} + {1:.8f}\n'.format(3 * i + 1, shift_vec[1])
                         shift += 's{0} = s{0} + {1:.8f}\n'.format(3 * i + 2, shift_vec[2])
                 with open('molpro/' + fname + '.inp', 'w') as f:
-                    f.write(file.format(name=fname,
-                                        natom=self.species.natom,
-                                        geom=geom0,
-                                        scanstart=scanstart,
-                                        scancoo=scancoo,
-                                        shift=shift,
-                                        nelectron=nelectron,
-                                        symm=symm,
-                                        spin=spin,
-                                        charge=self.species.charge,
-                                        state=self.par['barrierless_saddle_nstate'],
-                                        closed=closed,
-                                        occ=occ
-                                        ))
+                    f.write(tpl.format(name=fname,
+                                       natom=self.species.natom,
+                                       geom=geom0,
+                                       scanstart=scanstart,
+                                       scancoo=scancoo,
+                                       shift=shift,
+                                       nelectron=nelectron,
+                                       symm=symm,
+                                       spin=spin,
+                                       charge=self.species.charge,
+                                       state=self.par['barrierless_saddle_nstate'],
+                                       closed=closed,
+                                       occ=occ
+                                       ))
         return 0
 
     def get_molpro_energy(self, key, name=''):
@@ -139,35 +139,37 @@ class Molpro:
 
     def create_molpro_submit(self, name=''):
         """
-        write a pbs file for the molpro input file
+        write a pbs or slurm file for the molpro input file
         """
         fname = self.get_name(name)
 
         # open the template head and template
-        molpro_head = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+        if self.par['queue_template'] == '':
+            molpro_head = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+        else:
+            molpro_head = self.par['queue_template'] 
         with open(molpro_head) as f:
             tpl_head = f.read()
         molpro_tpl = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_molpro.tpl')
         with open(molpro_tpl) as f:
             tpl = f.read()
         # substitution
-        with open('molpro/' + fname + '.' + self.par['queuing'], 'w') as f:
+        with open(f'molpro/{fname}.{self.par["queuing"]}', 'w') as f:
             if self.par['queuing'] == 'pbs':
                 f.write((tpl_head + tpl).format(
                         name=fname,
                         ppn=self.par['single_point_ppn'],
                         queue_name=self.par['queue_name'],
-                        dir='molpro',
+                        errdir='molpro',
                         command=self.par['single_point_command']))
             elif self.par['queuing'] == 'slurm':
                 f.write((tpl_head + tpl).format(
                         name=fname,
                         ppn=self.par['single_point_ppn'],
                         queue_name=self.par['queue_name'],
-                        dir='molpro',
+                        errdir='.',
                         command=self.par['single_point_command'],
                         slurm_feature=self.par['slurm_feature']))
-
         return 0
 
     def molpro_symm(self):

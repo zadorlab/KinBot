@@ -1,8 +1,8 @@
-from __future__ import print_function, division
 import sys
 import numpy as np
 import copy
 import math
+import itertools
 
 from kinbot import cheminfo
 from kinbot import constants
@@ -63,15 +63,19 @@ class StationaryPoint:
         self.reac_ts_freq = []
         self.reac_scan_energy = []
 
-        # Instance of HomolyticScissions class
-        self.homolytic_scissions = None
-
         # Instance of HIR class
         self.hir = None
 
         # Instances of the Conformers class
         self.confs = None
         self.am1_confs = None
+
+        # The list of conformers
+        self.conformer_geom = []
+        self.conformer_energy = []
+        self.conformer_zeroenergy = []
+        self.conformer_freq = []
+        self.conformer_index = []
         
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number
@@ -164,7 +168,6 @@ class StationaryPoint:
                 if i == j: continue
                 atom_pair = [self.atom[i], self.atom[j]]
                 atom_pair = sorted(atom_pair)
-                #if self.dist[i][j] < constants.st_bond[''.join(sorted(self.atom[i]+self.atom[j]))]:
                 if self.dist[i][j] < constants.st_bond[''.join(atom_pair)]:
                     self.bond[i][j] = 1
 
@@ -176,7 +179,7 @@ class StationaryPoint:
 
         # create all the permutations of the heavy atoms
         rad_atoms = [i for i in range(self.natom) if self.rad[i] > 0]
-        all_permutations = False 
+        all_permutations = False
         if all_permutations:  # use all the permutations (slow for more than 6 atoms in conjugated system)
             perms = list(itertools.permutations(rad_atoms))
         else:  # use the same atom ordering but a different starting atoms and searching directions
@@ -275,7 +278,6 @@ class StationaryPoint:
                     #check the uniqueness of the bond matrix
                     is_unique = 1
                     for b in self.bonds:
-                        # TODO this gives an error for hom_sci
                         if all([all([b[j][k] == perm_b[j][k] for k in range(self.natom)]) for j in range(self.natom)]):
                             is_unique = 0
                     if is_unique:
@@ -287,7 +289,10 @@ class StationaryPoint:
                 from kinbot.cheminfo import create_rdkit_mol
                 mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
             except ImportError:
-                pass
+                try:
+                    self.smiles = cheminfo.create_smi_from_geom(self.atom, self.geom)
+                except:
+                    pass
         return 0
 
     def make_extra_bond(self, parts, maps):
@@ -494,36 +499,11 @@ class StationaryPoint:
                     for cyc in self.cycle_chain:
                         if sorted(cyc) == sorted(ins):
                             new = 0
+                            break
                     if new:
                         self.cycle_chain.append(ins)
                         for at in ins:
                             self.cycle[at] = 1
-        ringSizes = []
-        filteredRings = []
-        if len(self.cycle_chain) > 1:
-            for ring in self.cycle_chain:
-                ringSize = len(ring)
-                ringSizes.append(ringSize)
-            ringSizes.sort()
-            ringSizes.reverse()
-            for size in ringSizes:
-                for ring in self.cycle_chain:
-                    if len(ring) == size:
-                        filteredRings.append(ring)
-            checkRings = filteredRings
-            for i, ring in enumerate(checkRings):
-                duplicateRing = [0] * len(ring)
-                for k, a in enumerate(checkRings[i]):
-                    j = i + 1
-                    while j < len(checkRings):
-                        for b in checkRings[j]:
-                            if a == b:
-                                duplicateRing[k] = 1
-                        j = j + 1
-                    sumDuplicateRing = sum(duplicateRing)
-                    if sumDuplicateRing == len(checkRings[i]):
-                        filteredRings.pop(i)
-            self.cycle_chain = filteredRings
         return 0
 
     def calc_chemid(self):
@@ -772,7 +752,7 @@ class StationaryPoint:
                         elif 2 in self.bond[at]:
                             double_neigh = [i for i, x in enumerate(self.bond[at]) if x == 2]
                             for neigh in double_neigh:
-                                if sum(self.bond[neigh]) > 2:  # atom has at least on other neighbor
+                                if sum(self.bond[neigh]) > 2:  # atom has at least one other neighbor
                                     return 1
                     return 0
 

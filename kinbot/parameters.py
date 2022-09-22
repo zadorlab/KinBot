@@ -5,7 +5,6 @@ The defaults are listed in this file and the user defined parameters
 are defined in a json file that needs to be given as an argument to the
 initializer.
 """
-from __future__ import with_statement
 import sys
 import json
 import logging
@@ -59,9 +58,6 @@ class Parameters:
             'skip_chemids': ['none'],
             # Skip specific reactions, usually makes sense once the search is done
             'skip_reactions': ['none'],
-            # break all single bonds to find the barriers
-            # of potential homolytic scissions
-            'homolytic_scissions': 0,
             # perform variational calculations for the homolytic scissions
             'variational': 0,
             # break specific bonds in the homolytic search
@@ -72,7 +68,8 @@ class Parameters:
             'barrierless_saddle_start': 2.0,
             # step size in A
             'barrierless_saddle_step': 0.2,
-            'homolytic_bonds': [],
+            # for the hom_sci family, using the same format as in barrierless_saddle
+            'homolytic_bonds': {},
             # if requested with specific_reaction = 1
             # then only these bonds are broken and formed
             # atom index for break/form bonds starts at 0
@@ -81,6 +78,8 @@ class Parameters:
             'form_bonds': [],
             # Threshold above which barriers are deemed unimportant
             'barrier_threshold': 100.,
+            # Additional barrier allowance for homolytic scissions
+            'hom_sci_threshold_add': 5.,
             # Number of 0.1 Angstrom steps in bond scans
             'scan_step': 30,
             # Do a full PES scan instead of one well
@@ -89,6 +88,12 @@ class Parameters:
             'simultaneous_kinbot': 5,
             # Perform high level optimization and freq calculation (L2)
             'high_level': 0,
+            # Calculate AIE for each conformer - requires conformer search
+            'calc_aie': 0,
+            # Whether to perform a check.
+            'check_l2_l3': 0,
+
+            # CONFORMATIONAL SEARCH
             # Do a conformational search
             'conformer_search': 0,
             # The angular grid for dihedrals, angle = 360 / grid
@@ -104,8 +109,6 @@ class Parameters:
             'nrotation': 12,
             # Make figures of the HIR profiles
             'plot_hir_profiles': 0,
-            # Do master equation calculations
-            'me': 0,
             # Number of HIR restarts in case a lower energy point gets found
             'rotation_restart': 3,
             # Maximum number of diherals for which exhaustive
@@ -122,6 +125,15 @@ class Parameters:
             # threshold of conformers at semi empirical level to take to the L1 level
             # in kcal/mol
             'semi_emp_confomer_threshold': 5,
+            # multi conformer TST
+            'multi_conf_tst': 0,
+            # temperature in K
+            'multi_conf_tst_temp': 300.0,
+            # percent of Boltzmann to include
+            'multi_conf_tst_boltz': 0.05, 
+            # force print conformational info, might be slow 
+            'print_conf': 0,
+
             # For the combinatorial search, minimum number of bonds to break
             # this value is decreased by 1 for radical reactions
             'min_bond_break': 2,
@@ -240,6 +252,10 @@ class Parameters:
             'queue_job_limit': -1,
 
             # MASTER EQUATION
+            # Assemble the ME
+            'me': 0,
+            # Run the ME
+            'run_me': 0,
             # Which ME code to use:
             'me_code': 'mess',  # or mesmer
             # collision parameters
@@ -279,20 +295,27 @@ class Parameters:
             # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1.
             # factor of 1.1 corresponds to values ranging from 0.909 to 1.1 times the original frequency
             'imagfreq_uq': 1.1,
+            # LJ parameters
+            'epsilon_uq': 1.2,
+            'sigma_uq': 1.2,
+            # Collisional parameters
+            'enrelfact_uq': 1.2,
+            'enrelpow_uq': 1.2,
+            # PST symmetry number
+            'pstsymm_uq': 2.0,
         }
 
         if self.input_file is not None:
             self.read_user_input()
 
+        err = None
         if self.par['me'] == 1:
+            if self.par['calc_aie'] and not self.par['conformer_search']:
+                err = 'AIE calculation requires a conformer search.'
             if self.par['epsilon'] == 0. or self.par['sigma'] == 0.:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
-                logging.error(err)
-                sys.exit(-1)
-            if self.par['rotor_scan'] == 0:
+            if self.par['rotor_scan'] == 0 and self.par['multi_conf_tst'] == 0:
                 err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
-                logging.error(err)
-                sys.exit(-1)
             # convert to cm-1 units
             if self.par['epsilon_unit'] == 'cm-1':  # units in MESS
                 pass
@@ -302,21 +325,15 @@ class Parameters:
                 self.par['epsilon'] *= units.J / units.mol / units.invcm
             else:
                 err = 'Unknown unit for epsilon, has to be K, J/mol or cm-1'
-                logging.error(err)
-                sys.exit(-1)
                 
         if self.par['families'] != ['all'] and self.par['skip_families'] != ['none']:
             err = 'Only one of the "families" or "skip_families" parameters can be defined.'
-            logging.error(err)
-            sys.exit(-1)
 
         if self.par['pes'] and self.par['specific_reaction']:
-            logging.error('Specific reaction cannot be searched in PES mode.')
-            sys.exit(-1)
+            err = 'Specific reaction cannot be searched in PES mode.'
 
         if self.par['high_level'] == 1 and self.par['conformer_search'] == 0:
-            logging.error('Conformer search has to be done before L2.')
-            sys.exit(-1)
+            err = 'Conformer search has to be done before L2.'
 
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
@@ -328,13 +345,28 @@ class Parameters:
             print('Choose for instance M06-2X.')
 
         if self.par['bimol'] and len(self.par['structure']) != 2:
-            logging.error('For bimolecular reactions two fragments need to be defined.')
-            sys.exit(-1)
+            err = 'For bimolecular reactions two fragments need to be defined.'
+
+        if self.par['multi_conf_tst'] and not self.par['conformer_search']:
+            err = 'For multi conformer tst calculation conformer search needs to be activated.'
+
+        if not self.par['multi_conf_tst']:
+            self.par['multi_conf_tst_temp'] = None
+            self.par['multi_conf_tst_boltz'] = 0.05 
+
+        if self.par['multi_conf_tst']:
+            self.par['rotor_scan'] = 0
 
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
+
+        if err is not None:
+            logging.error(err)
+            sys.exit(-1)
+
+        return
 
     def read_user_input(self):
         """
@@ -356,6 +388,8 @@ class Parameters:
             else:
                 msg = f'KinBot does not recognize option {key} with value {user_data[key]}'
                 raise IOError(msg)
+
+        return
 
     def print_parameters(self):
         """

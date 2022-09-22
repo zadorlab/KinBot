@@ -18,18 +18,28 @@ mol.calc = calc
 success = True
 
 try:
-    e = mol.get_potential_energy() # use the Gaussian optimizer
+    e = mol.get_potential_energy()  # use the Gaussian optimizer
     iowait(logfile, 'gauss')
     mol.positions = reader_gauss.read_geom(logfile, mol)
-    db.write(mol, name=label, data={{'energy': e,'status': 'normal'}})
-except:
-    iowait(logfile, 'gauss')
-    mol.positions = reader_gauss.read_geom(logfile, mol)
-    if mol.positions is not None:
-        db.write(mol, name=label, data={{'status': 'normal'}}) #although there is an error, continue from the final geometry
-    else:
-        db.write(mol, name=label, data={{'status': 'error'}})
-        success = False
+    db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
+except RuntimeError:
+    # Retry by correcting errors
+    try:
+        iowait(logfile, 'gauss')
+        mol.positions = reader_gauss.read_geom(logfile, mol)
+        kwargs = reader_gauss.correct_kwargs(logfile, kwargs)
+        mol.calc = Gaussian(**kwargs)
+        e = mol.get_potential_energy()  # use the Gaussian optimizer
+        iowait(logfile, 'gauss')
+        mol.positions = reader_gauss.read_geom(logfile, mol)
+        db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
+    except RuntimeError:
+        if mol.positions is not None:
+            # although there is an error, continue from the final geometry
+            db.write(mol, name=label, data={{'status': 'normal'}})
+        else:
+            db.write(mol, name=label, data={{'status': 'error'}})
+            success = False
 
 with open(logfile, 'a') as f:
     f.write('done\n')
@@ -46,7 +56,7 @@ if success:
         e = mol_prod.get_potential_energy() # use the Gaussian optimizer
         iowait(logfile, 'gauss')
         mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
-        db.write(mol_prod, name=label, data={{'energy': e,'status': 'normal'}})
+        db.write(mol_prod, name=label, data={{'energy': e, 'status': 'normal'}})
     except RuntimeError: 
         iowait(logfile, 'gauss')
         mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)

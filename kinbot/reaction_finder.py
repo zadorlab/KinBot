@@ -218,39 +218,77 @@ class ReactionFinder:
             self.reactions[name] = []
 
         rxns = [] #reactions found with the current resonance isomer
-        
-        if np.sum(rad) == 0: 
-        #find H-migrations over double bonds and to lone pairs
-        
-            for ringsize in self.ringrange:
-                # double bonds 
-                motif = ['X' for i in range(ringsize)]
-                motif[-1] = 'H'
-                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-           
-                for instance in instances:
-                    if any([bi > 1 for bi in bond[instance[0]]]):
-                        rxns += [instance]
 
-                # lone pairs
-                motif = ['X' for i in range(ringsize)]
-                motif[-1] = 'H'
-                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-                for instance in instances:
-                    if (self.species.atom[instance[0]] == 'O' or  
-                       self.species.atom[instance[0]] == 'S' or 
-                       self.species.atom[instance[0]] == 'N'):
-                        rxns += [instance]
+        # if np.sum(rad) == 0:
+        # find H-migrations over double bonds and to lone pairs
 
-        else:
+        for ringsize in self.ringrange:
+            motif = ['X' for i in range(ringsize)]
+            motif[-1] = 'H'
+            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+
+            # double bonds
+            for instance in instances:
+                if any([bi > 1 for bi in bond[instance[0]]]):
+                    rxns += [instance]
+
+            # lone pairs
+            # motif = ['X' for i in range(ringsize)]
+            # motif[-1] = 'H'
+            # instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            for instance in instances:
+                if (self.species.atom[instance[0]] == 'O' or
+                        self.species.atom[instance[0]] == 'S' or
+                        self.species.atom[instance[0]] == 'N'):
+                    rxns += [instance]
+
+                # carbene
+                if self.species.atom[instance[0]] == 'C' and rad[instance[0]] == 2:
+                    rxns += [instance]
+
+        if np.sum(rad) != 0:
+            #        else:
             instances = []
             for ringsize in self.ringrange:
                 motif = ['X' for i in range(ringsize)]
                 motif[-1] = 'H'
                 for rad_site in np.nonzero(rad)[0]:
                     instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
-            for instance in instances: 
+            for instance in instances:
                 rxns.append(instance)
+        
+        # if np.sum(rad) == 0:
+        # #find H-migrations over double bonds and to lone pairs
+        #
+        #     for ringsize in self.ringrange:
+        #         # double bonds
+        #         motif = ['X' for i in range(ringsize)]
+        #         motif[-1] = 'H'
+        #         instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        #
+        #         for instance in instances:
+        #             if any([bi > 1 for bi in bond[instance[0]]]):
+        #                 rxns += [instance]
+        #
+        #         # lone pairs
+        #         motif = ['X' for i in range(ringsize)]
+        #         motif[-1] = 'H'
+        #         instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        #         for instance in instances:
+        #             if (self.species.atom[instance[0]] == 'O' or
+        #                self.species.atom[instance[0]] == 'S' or
+        #                self.species.atom[instance[0]] == 'N'):
+        #                 rxns += [instance]
+        #
+        # else:
+        #     instances = []
+        #     for ringsize in self.ringrange:
+        #         motif = ['X' for i in range(ringsize)]
+        #         motif[-1] = 'H'
+        #         for rad_site in np.nonzero(rad)[0]:
+        #             instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+        #     for instance in instances:
+        #         rxns.append(instance)
         
         rxns = self.clean_rigid(name, rxns, 0, -1)
 
@@ -558,48 +596,6 @@ class ReactionFinder:
         return 0
 
 
-    def search_Intra_RH_Add_Endocyclic_F(self, natom, atom, bond, rad):
-        """ 
-        This is an RMG class.
-
-                                  H
-                                  | 
-        H-R~~~~~~~R=R ==> R~~~~~~~R-R
-                          |         |
-                           ---------
-        This is for the forward direction.
-        """
-        
-        if np.sum(rad) != 0: return
-        if len(self.species.cycle_chain) > 0: return
-        
-        name = 'Intra_RH_Add_Endocyclic_F'
-        
-        if not name in self.reactions:
-            self.reactions[name] = []
-
-        rxns = [] #reactions found with the current resonance isomer
-
-        for ringsize in range(5, 9):
-            motif = ['X' for i in range(ringsize + 1)]
-            motif[-1] = 'H'
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-
-            bondpattern = ['X' for i in range(ringsize)]
-            bondpattern[0] = 2
-            for instance in instances:
-                if find_motif.bondfilter(instance, bond, bondpattern) == 0:
-                    rxns += [instance] 
-            
-        self.new_reaction(rxns, name, a=0, b=-2, length=True)
-#            # filter for specific reaction after this
-#            if self.one_reaction_fam and new:
-#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-2]}), frozenset({inst[-1], inst[1]})}:
-#                    new = 0
-                
-        return 0
-
-
     def search_Intra_RH_Add_Endocyclic_R(self, natom, atom, bond, rad):
         """ 
         This is an RMG class.
@@ -793,7 +789,6 @@ class ReactionFinder:
             for instance in instances:
                 if find_motif.bondfilter(instance, bond, bondpattern) == 0:
                     rxns += [instance]
-
 
         self.new_reaction(rxns, name, a=0, b=-2)
 #            # filter for specific reaction after this
@@ -1533,13 +1528,15 @@ class ReactionFinder:
         """ 
         This is an RMG class.
 
-        R=R + R* <== R*-R-R
+        R=R + r* <== R*-R-r 
+                     0  1 2
 
-        N.B.: only the reverse direction is available. 
+        - only the reverse direction is available. 
+        - this is not a scan class
+        - we are also allowing to form anticipated resonance stabilized species:
+            R=R-R-r ==> [R=R-R <--> R-R=R] + r 
         """
         
-        
-        if np.sum(rad) == 0: return
         
         name = 'R_Addition_MultipleBond'
         
@@ -1548,9 +1545,22 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
+        # simple beta scission for radicals
         motif = ['X', 'X', 'X']
         for rad_site in np.nonzero(rad)[0]:
             rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+
+        # anticipated resonance stabilized radical
+        motif = ['X', 'X', 'X', 'X']
+        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        bondpattern = [2, 'X', 'X', 'X']
+        for instance in instances:
+            if find_motif.bondfilter(instance, bond, bondpattern) == 0:
+                rxns += [instance[1:]]  # cutting off the first atom
+        bondpattern = [3, 'X', 'X', 'X']
+        for instance in instances:
+            if find_motif.bondfilter(instance, bond, bondpattern) == 0:
+                rxns += [instance[1:]]
     
         self.new_reaction(rxns, name, a=0, b=1, c=2)
 #            # filter for specific reaction after this
@@ -1996,6 +2006,8 @@ class ReactionFinder:
         This is not an RMG class.
 
         R-R ==> R + R
+        
+        We exclude ring bonds.
         """
 
         name = 'hom_sci'
@@ -2005,10 +2017,18 @@ class ReactionFinder:
 
         rxns = []  # reactions found with the current resonance isomer
 
-        motif = ['X','X']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-        for instance in instances: 
-            rxns += [instance]
+        if self.par['homolytic_bonds'] == {}:
+            motif = ['X','X']
+            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            for instance in instances: 
+                if not self.species.cycle[instance[0]] or not self.species.cycle[instance[1]]:
+                    rxns += [instance]
+        else: 
+            try:
+                rxns = self.par['homolytic_bonds'][str(self.species.chemid)]
+            except KeyError:
+                pass
+                
 
         self.new_reaction(rxns, name, a=0, b=1, cross=True)
 #        for inst in rxns:
@@ -2062,7 +2082,7 @@ class ReactionFinder:
         Create arrays to store all reactions for species.
         input: 
         reac_list: atom motifs from individual searches
-        reac_id: reaction name (e.g., HO2_Elimination_from_PeroxyRadical) from individual searc functions
+        reac_id: reaction name (e.g., HO2_Elimination_from_PeroxyRadical) from individual search functions
         Every reaction type just makes the below arrays longer, generated as reactions are found.
 
         generated:
@@ -2276,7 +2296,7 @@ class ReactionFinder:
         transfer of atoms, e.g., H transfer across a large rigid ring structure.
         It is based on the presence of (partial) double bonds along the motif.
         If the structure is rigid, and the selected pivot atoms are further than a cutoff
-        then the instance will be deleted fro the list.
+        then the instance will be deleted from the list.
         Pivots requires manual determination for each family, where this is important.
         Not applied to all families.
         """
@@ -2292,7 +2312,7 @@ class ReactionFinder:
                 if np.linalg.norm(self.species.geom[instance[pivot1]] - self.species.geom[instance[pivot2]]) > cutoff:
                     mask[inst] = False
                     numbers = [ii + 1 for ii in instance]
-                    logging.debug(f'{name} reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
+                    logging.info(f'{name} reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
         return list(np.array(instances, dtype=object)[mask])
 
 

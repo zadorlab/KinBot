@@ -18,15 +18,15 @@ calc = Gaussian(**kwargs)
 mol.calc = calc
 
 try:
-    e = mol.get_potential_energy() # use the Gaussian optimizer (task optimize)
+    e = mol.get_potential_energy()  # use the Gaussian optimizer (task optimize)
 except RuntimeError: 
     e = 0.
  
 iowait(logfile, 'gauss')
 mol.positions = reader_gauss.read_geom(logfile, mol)
-if all([ci==0 for mp in mol.positions for ci in mp]):
+if all([ci == 0 for mp in mol.positions for ci in mp]):
     mol.positions = {geom}  # reset to the original geometry
-db.write(mol, name=label, data={{'energy': e,'status': 'normal'}})
+db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
 
 #for tr in range(ntrial):  # DELETED CURLY BRACKET
 #    try:

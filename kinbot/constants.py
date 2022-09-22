@@ -13,6 +13,8 @@ SPEEDofLIGHT = 137.0359996  # in atomic units
 AUtoS = 2.418884326505E-17
 AUtoMDYNE = 8.2387234983  # au of force to mDyne = 1e-8 N
 KCALtoHARTREE = 0.0015936010974213599
+R = 8.31446261815324  # J K−1 mol−1
+CALtoJ = 4.184
 
 # elements currently in KinBot
 elements = ['C', 'H', 'O', 'N', 'S', 'F', 'Cl', 'Br', 'I']

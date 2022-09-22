@@ -56,7 +56,7 @@ class QuantumChemistry:
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
-                         start_from_geom=0, rigid=0):
+                         start_from_geom=0, rigid=0, aie=0):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
@@ -83,7 +83,10 @@ class QuantumChemistry:
                 'charge': charge,
                 'scf': 'xqc'
             }
-            if self.par['guessmix'] == 1 or 'barrierless_saddle' in job or 'bls' in job:
+            if self.par['guessmix'] == 1 or \
+                'barrierless_saddle' in job or \
+                'bls' in job or \
+                (mult == 1 and 'R_Addition_MultipleBond' in job):
                 kwargs['guess'] = 'Mix,Always'
             if ts:
                 # arguments for transition state searches
@@ -93,16 +96,16 @@ class QuantumChemistry:
                 if step == 0:
                     if not self.par['bimol']:
                         kwargs['opt'] = 'ModRedun,Loose,CalcFC'
-                        #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     else:
                         kwargs['opt'] = 'ModRedun,Loose,CalcFC'
                         kwargs['method'] = self.method
                         kwargs['basis'] = self.basis
                 elif step < max_step:
                     kwargs['opt'] = 'ModRedun,Loose,CalcFC'
-                    #kwargs['opt'] = 'ModRedun,Tight,CalcFC,MaxCycle=999'
                     kwargs['guess'] = 'Read'
-                    if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                    if self.par['guessmix'] == 1 or \
+                        'barrierless_saddle' in job or \
+                        (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'
                     if self.par['bimol']:
                         kwargs['method'] = self.method
@@ -130,7 +133,9 @@ class QuantumChemistry:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
                     kwargs['geom'] = 'AllCheck,NoKeepConstants'
-                    if self.par['guessmix'] == 1 or 'barrierless_saddle' in job:
+                    if self.par['guessmix'] == 1 or \
+                        'barrierless_saddle' in job or \
+                        (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here
                     else:
                         kwargs['guess'] = 'Read'
@@ -173,12 +178,23 @@ class QuantumChemistry:
                         del kwargs['opt']
                     except KeyError:
                         pass
-    
             if 'hom_sci' in job:
                 try:
                     del kwargs['opt']
                 except KeyError:
                     pass
+            if aie:
+                kwargs = {
+                    'method': 'cbs-qb3',
+                    'basis': None,
+                    'nprocshared': self.ppn,
+                    'mem': '700MW',
+                    'label': job,
+                    'Symm': 'None',
+                    'mult': mult,
+                    'charge': charge,
+                    'scf': 'xqc'
+                }
 
             return kwargs
 
@@ -311,9 +327,8 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
 
@@ -343,8 +358,6 @@ class QuantumChemistry:
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
-
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,
@@ -357,46 +370,45 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
         return 0
 
-    def qc_conf(self, species, geom, index=-1, ring=0, semi_emp=0):
+    def qc_conf(self, species, geom, index, semi_emp=0):
         """
         Creates a geometry optimization input for the conformational search and runs it.
         qc: 'gauss' or 'nwchem' or 'qchem'
         wellorts: 0 for wells and 1 for saddle points
         index: >=0 for sampling, each job will get numbered with index
         """
-        if index == -1:
-            job = 'conf/' + str(species.chemid) + '_well'
+        add = ''
+        if semi_emp:
+            add = 'semi_emp_'
+        if species.wellorts:
+            job = 'conf/' + species.name + '_' + add + str(index).zfill(self.zf)
         else:
-            add = ''
-            if ring:
-                add = 'r'
-            if semi_emp:
-                add = 'semi_emp_'
-            if species.wellorts:
-                job = 'conf/' + species.name + '_' + add + str(index).zfill(self.zf)
-            else:
-                job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
+            job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
 
         if species.wellorts:
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1)
+            kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
+                                           ts=1, step=1, max_step=1)
         else:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
             if self.qc == 'gauss':
-                kwargs['opt'] = 'CalcFC, Tight'
-                del kwargs['chk']
+                if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                    kwargs['opt'] = 'CalcFC, Tight'
+                else:
+                    kwargs['opt'] = 'CalcFC'
+        if self.qc == 'gauss':
+            del kwargs['chk']
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
-
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
-
+        if species.natom < 3:
+            del kwargs['Symm'] 
+        
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
         template = template.format(label=job,
@@ -406,25 +418,71 @@ class QuantumChemistry:
                                    ppn=self.ppn,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
 
         return 0
 
-    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0):
+    def qc_aie(self, species, geom, ext):
+        """
+        Sets up AIE calculations. Currently results are not digested by KinBot.
+        Only for well, not for saddles!
+        qc: 'gauss' or 'nwchem' or 'qchem'
+        index: the index of the conformer as in conf search
+        """
+        job0 = f'aie/{str(species.chemid)}_AIE0_{ext}'  # neutral
+        job1 = f'aie/{str(species.chemid)}_AIE1_{ext}'  # cation
+        kwargs0 = self.get_qc_arguments(job0, species.mult, species.charge, aie=1)
+        if species.mult == 1: m1 = 2
+        elif species.mult == 2: m1 = 1
+        elif species.mult == 3: m1 = 2
+        kwargs1 = self.get_qc_arguments(job1, m1, species.charge + 1, aie=1)
+        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
+        template = open(template_file, 'r').read()
+        t0 = template.format(label=job0,
+                             kwargs=kwargs0,
+                             atom=list(species.atom),
+                             geom=list([list(gi) for gi in geom]),
+                             ppn=self.ppn,
+                             qc_command=self.qc_command,
+                             working_dir=os.getcwd())
+        t1 = template.format(label=job1,
+                             kwargs=kwargs1,
+                             atom=list(species.atom),
+                             geom=list([list(gi) for gi in geom]),
+                             ppn=self.ppn,
+                             qc_command=self.qc_command,
+                             working_dir=os.getcwd())
+        
+        with open(f'{job0}.py', 'w') as f:
+            f.write(t0)
+        with open(f'{job1}.py', 'w') as f:
+            f.write(t1)
+        self.submit_qc(job0)
+        self.submit_qc(job1)
+
+        return 0
+
+    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, fdir=None):
         """
         Creates a geometry optimization input and runs it.
         """
-        job = str(species.chemid) + '_well'
-        if high_level:
-            job = str(species.chemid) + '_well_high'
-        if mp2:
-            job = str(species.chemid) + '_well_mp2'
-        if bls:
-            job = str(species.chemid) + '_well_bls'
+        if ext is None:
+            job = str(species.chemid) + '_well'
+            if high_level:
+                job = str(species.chemid) + '_well_high'
+            if mp2:
+                job = str(species.chemid) + '_well_mp2'
+            if bls:
+                job = str(species.chemid) + '_well_bls'
+        else:
+            job = str(species.chemid) + ext
+
+        if fdir is not None:
+            job = f'{fdir}/{job}'
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -441,16 +499,19 @@ class QuantumChemistry:
                                        high_level=high_level)
 
         if self.qc == 'gauss':
-            kwargs['opt'] = 'CalcFC, Tight'
+            if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                kwargs['opt'] = 'CalcFC, Tight'
+            else:
+                kwargs['opt'] = 'CalcFC'
         if mp2:
             kwargs['method'] = self.scan_method
             kwargs['basis'] = self.scan_basis
         if high_level and self.qc == 'gauss':
             if self.opt:
                 kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
+        if species.natom < 3:
+            del kwargs['Symm'] 
         # the integral is set in the get_qc_arguments parts, bad design
-
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
         template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
         template = open(template_file, 'r').read()
@@ -462,20 +523,25 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
         return 0
 
-    def qc_opt_ts(self, species, geom, high_level=0):
+    def qc_opt_ts(self, species, geom, high_level=0, ext=None, fdir=None):
         """Creates a ts optimization input and runs it
         """
 
         job = str(species.name)
-        if high_level:
-            job += '_high'
+        if ext is None:
+            if high_level:
+                job += '_high'
+        else:
+            job += ext
+
+        if fdir is not None:
+            job = f'{fdir}/{job}'
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1, high_level=1)
 
@@ -489,17 +555,15 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd())
 
-        f_out = open('{}.py'.format(job), 'w')
-        f_out.write(template)
-        f_out.close()
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
 
         self.submit_qc(job)
 
         return 0
 
     def submit_qc(self, job, singlejob=1):
-        """
-        Submit a job to the queue, unless the job:
+        """Submit a job to the queue, unless the job:
             * has finished with Normal termination
             * has finished with Error termination
             * is currently running
@@ -510,8 +574,6 @@ class QuantumChemistry:
         KinBot will park here until resources are freed up.
         """
         # if the logfile already exists, copy it with another name
-        if self.queue_job_limit > 0:
-            self.limit_jobs()
 
         check = self.check_qc(job)
         if singlejob == 1:
@@ -520,6 +582,9 @@ class QuantumChemistry:
         else:
             if check == 'running':
                 return 0
+
+        if self.queue_job_limit > 0:
+            self.limit_jobs()
 
         try:
             if self.par['queue_template'] == '':
@@ -538,15 +603,15 @@ class QuantumChemistry:
             sys.exit()
 
         template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
-        python_file = '{}.py'.format(job)
+        python_file = f'{job}.py'
         name = job.split('/')[-1]
         python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 
         if self.queuing == 'pbs':
             python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
-                                                        dir='perm', python_file=python_file, arguments='')
+                                                        errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
-            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, dir='perm',
+            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, errdir='perm',
                                                         slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
         else:
             logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
@@ -834,12 +899,9 @@ class QuantumChemistry:
         Possible returns:
         running - the job is either running or is in the queue
         status - this can be normal or error, read from the database.
-                 Only happens if log file had a done stamp and it was in te db.
+                 Only happens if log file had a done stamp and it was in the db.
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
-        Problem: if a reaction search is cut because of a restart in the middle,
-                 but there is a file with a done stamp e.g., at the AM1 level.
-        Solution:
         """
         #logging.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')

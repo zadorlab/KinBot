@@ -303,7 +303,7 @@ def equal_geom(orig_spec, new_spec, cutoff):
     """
     Test if two geometries are the same based on:
     - bond mx has to be the same
-    - bond lenths have to be within cutoff as a percentage change
+    - bond lengths have to be within cutoff as a percentage change
     Only works for structures with unchanged atom order, e.g.,
     L2 vs L1 or conformers vs base.
     """

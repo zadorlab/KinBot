@@ -1,5 +1,6 @@
 ***,{name}
 memory,1600,M
+orient
 geomtyp=xyz
 geometry={{
 {natom}

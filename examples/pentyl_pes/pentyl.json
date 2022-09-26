@@ -11,7 +11,7 @@
 "rotor_scan" : 0,
 "high_level" : 0,
 "pes" : 1,
-"homolytic_scissions" : 0,
+"skip_families": ["hom_sci"],
 "barrier_threshold" : 50.0,
 "ppn" : 8,
 

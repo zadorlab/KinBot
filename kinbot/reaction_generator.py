@@ -374,7 +374,10 @@ class ReactionGenerator:
                             _, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                             _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
                             st_pt.characterize()  
-                            if chemid != st_pt.chemid:
+                            if chemid == self.species.chemid:
+                                logging.info(f'Product in {obj.instance_nam} is identical to the reactant. Reaction deleted.')
+                                self.species.reac_ts_done[index] = -999 
+                            elif chemid != st_pt.chemid:
                                 # product was optimized to another structure, give warning but don't remove reaction
                                 logging.info('\tb) Product optimized to other structure for {}'
                                              ', product {} to {}'

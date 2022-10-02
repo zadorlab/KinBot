@@ -29,6 +29,13 @@ from kinbot.uncertaintyAnalysis import UQ
 
 
 def main():
+    if sys.version_info.major < 3:
+        print('KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        sys.exit(-1)
+    elif sys.version_info.minor < 8:
+        print('KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        sys.exit(-1)
+
     try:
         input_file = sys.argv[1]
     except IndexError:
@@ -423,6 +430,8 @@ def postprocess(par, jobs, task, names, mass):
         if not status:
             l3done = 0  # not all L3 calculations are done
             batch_submit += f'{cmd} {well}.{ext}\n'
+        elif not par['L3_calc']:
+            pass
         else:
             well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
     prod_energies = {}
@@ -438,6 +447,8 @@ def postprocess(par, jobs, task, names, mass):
             if not status:
                 l3done = 0  # not all L3 calculations are done
                 batch_submit += f'{cmd} {pr}.{ext}\n'
+            elif not par['L3_calc']:
+                pass
             else:
                 l3energy += l3e + zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
@@ -458,6 +469,8 @@ def postprocess(par, jobs, task, names, mass):
                 if not status * status_prod:
                     l3done = 0
                     batch_submit += f'{cmd} {reac[1]}.{ext}\n'
+                elif not par['L3_calc']:
+                    pass
                 else:
                     delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
                     delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
@@ -468,6 +481,8 @@ def postprocess(par, jobs, task, names, mass):
                 if not status:
                     l3done = 0
                     batch_submit += f'{cmd} {reac[1]}.{ext}\n'
+                elif not par['L3_calc']:
+                    pass
                 else:
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
@@ -477,7 +492,7 @@ def postprocess(par, jobs, task, names, mass):
         f.write(batch_submit)
     os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
 
-    if l3done == 1:
+    if l3done == 1 and par['L3_calc']:
         logging.info('Energies are updated to L3 in ME and PESViewer.')
         well_energies = well_l3energies
         prod_energies = prod_l3energies
@@ -498,7 +513,7 @@ def postprocess(par, jobs, task, names, mass):
         logging.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
                      f'{par["high_level_basis"]}) level of theory.')
 
-    # if L3 was done, everything below is done with that
+    # if L3 was done and requested, everything below is done with that
     # filter according to tasks
     wells, products, reactions, highlight = filter(par,
                                                    wells,

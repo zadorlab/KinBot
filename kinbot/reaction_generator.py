@@ -342,7 +342,7 @@ class ReactionGenerator:
                     if all([pi == 1 for pi in products_waiting_status[index]]):
                         if self.species.reac_type[index] == 'hom_sci': 
                             hom_sci_energy = (hom_sci_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
-                            if hom_sci_energy < self.par['barrier_threshold'] + 5.:
+                            if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
                                 self.species.reac_ts_done[index] = 3
                             else:
                                 logging.info(f'\thom_sci energy is too high at {hom_sci_energy} kcal/mol for {obj.instance_name}')
@@ -414,6 +414,7 @@ class ReactionGenerator:
                         obj.ts.wellorts = 1
 
                     # do the products optimizations
+                    temp_prod_opt = []  # holding the optimization objects temporarily
                     for st_pt in obj.products:
                         # do the products optimizations
                         # check for products of other reactions that are the same as this product
@@ -436,8 +437,11 @@ class ReactionGenerator:
                                 logging.info('\tRxn search failed for {}, prod_opt shigh fail for {}.'
                                              .format(obj.instance_name, prod_opt.species.chemid))
                                 self.species.reac_ts_done[index] = -999
-                                break  # breaks so that other species is not looked at
-                        obj.prod_opt.append(prod_opt)
+                                #break  # breaks so that other species is not looked at
+                        temp_prod_opt.append(prod_opt)
+                    if self.species.reac_ts_done[index] != -999:
+                        for tpo in temp_prod_opt:
+                            obj.prod_opt.append(tpo)
 
                     if self.species.reac_ts_done[index] != -999:  # so we don't reset faulty calculation
                         for st_pt in obj.products:

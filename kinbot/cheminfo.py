@@ -18,17 +18,6 @@ except ImportError:
         print('Certain features or the whole code might not run properly.')
         pass
 
-try:
-    from rdkit import Chem
-    from rdkit.Chem import AllChem
-    from rdkit.Chem import rdMolDescriptors
-    from rdkit import RDLogger
-    RDLogger.DisableLog('rdApp.*')
-except ImportError:
-    print('Warning: RDKit could not be imported.')
-    print('Certain features or the whole code might not run properly.')
-    pass
-
 num_to_syms = {1: 'H', 6: 'C', 7: 'N', 8: 'O', 16: 'S'}
 syms_to_num = {'H': 1, 'C': 6, 'N': 7, 'O': 8, 'S': 16}
 
@@ -159,6 +148,16 @@ def create_rdkit_mol(bond, atom):
     """
     Method to create a RDKit Molecule object from a KinBot stationary_pt object
     """
+    try:
+        from rdkit import Chem
+        from rdkit.Chem import AllChem
+        from rdkit.Chem import rdMolDescriptors
+        from rdkit import RDLogger
+        RDLogger.DisableLog('rdApp.*')
+    except ImportError:
+        logging.warning('RDKit could not be imported.')
+        pass
+
     try:
         m = Chem.MolFromSmiles('[' + atom[0] + ']')
     except NameError:

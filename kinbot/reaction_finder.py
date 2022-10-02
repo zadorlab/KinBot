@@ -2006,6 +2006,8 @@ class ReactionFinder:
         This is not an RMG class.
 
         R-R ==> R + R
+        
+        We exclude ring bonds.
         """
 
         name = 'hom_sci'
@@ -2019,7 +2021,8 @@ class ReactionFinder:
             motif = ['X','X']
             instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
             for instance in instances: 
-                rxns += [instance]
+                if not self.species.cycle[instance[0]] or not self.species.cycle[instance[1]]:
+                    rxns += [instance]
         else: 
             try:
                 rxns = self.par['homolytic_bonds'][str(self.species.chemid)]

@@ -87,10 +87,9 @@ setup(
         'pes = kinbot.pes:main',
         ]},
     install_requires=['ase','numpy','networkx','rmsd'],
-    
-    author="Judit Zador and Ruben Van de Vijver",
+    author="Judit Zador, Ruben Van de Vijver, Carles Marti, Amanda Dewyer",
     author_email = "jzador@sandia.gov",
-    description = "Automatic Potential Energy Surface searches to identify chemical reactions.",
+    description = "Automated reaction kinetics for gas-phase species",
     license = "BSD 3-clause",
     url = "https://github.com/zadorlab/KinBot",
 )

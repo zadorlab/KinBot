@@ -488,6 +488,9 @@ def postprocess(par, jobs, task, names, mass):
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
+    # clean duplicates
+    batch_submit = set(batch_submit.split())
+    batch_submit = '\n'.join(batch_submit)
     batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
     with open(batch, 'w') as f:
         f.write(batch_submit)

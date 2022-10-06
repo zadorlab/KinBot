@@ -324,6 +324,8 @@ class StationaryPoint:
         """
         if all([element == 'O' for element in atomlist]):
             return 3 # O and O2 are triplet
+        if len(atomlist) == 1 and atomlist[0] == 'S':
+            return 3 # S is triplet
         if len(atomlist) == 1 and atomlist[0] == 'C':
             return 3 # C atom is triplet
         atomC = np.char.count(atomlist, 'C')

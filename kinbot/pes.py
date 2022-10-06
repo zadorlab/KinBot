@@ -13,7 +13,6 @@ import subprocess
 import json
 from distutils.dir_util import copy_tree
 import pkg_resources
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from copy import deepcopy
@@ -30,10 +29,10 @@ from kinbot.uncertaintyAnalysis import UQ
 
 def main():
     if sys.version_info.major < 3:
-        print('KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
     elif sys.version_info.minor < 8:
-        print('KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
 
     try:
@@ -524,14 +523,6 @@ def postprocess(par, jobs, task, names, mass):
                                                    well_energies,
                                                    task,
                                                    names)
-
-    # draw a graph of the network
-    create_graph(wells,
-                 products,
-                 reactions,
-                 well_energies,
-                 prod_energies,
-                 highlight)
 
     create_interactive_graph(wells,
                              products,
@@ -1302,100 +1293,6 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     g.save_graph(f'{title}.html')
     #display(HTML('example.html'))
     return 0
-
-
-def create_graph(wells, products, reactions,
-                 well_energies, prod_energies, highlight):
-    """
-    highlight: list of reaction names that need a red highlight
-    """
-    if highlight is None:
-        highlight = []
-    # update the connectivity with the filtered wells, products and reactions
-    conn, bars = get_connectivity(wells, products, reactions)
-
-    # get the minimum and maximum well and product energy
-    try:
-        minimum = min(min(well_energies.values()),
-                      min(prod_energies.values()))
-        maximum = max(max(well_energies.values()),
-                      max(prod_energies.values()))
-    except ValueError:
-        # list of products can be empty, but list of wells not
-        minimum = min(well_energies.values())
-        maximum = max(well_energies.values())
-    # define the inveresly proportial weights function
-    max_size = 400
-    min_size = 100
-    slope = (min_size - max_size) / (maximum - minimum)
-    offset = max_size - minimum * slope
-    # define the graph nodes
-    nodes = [i for i, wi in enumerate(wells)]
-    nodes += [len(wells) + i for i, pi in enumerate(products)]
-    # size of the nodes from the weights
-    node_size = [slope * well_energies[wi] + offset for wi in wells]
-    node_size += [slope * prod_energies[pi] + offset for pi in products]
-    # color nodes and wells differently
-    node_color = ['lightskyblue' for wi in wells]
-    node_color += ['lightcoral' for pi in products]
-    # labels of the wells and products
-    labels = {}
-    name_dict = {}
-    for i, wi in enumerate(wells):
-        labels[i] = 'w{}'.format(i + 1)
-        name_dict[labels[i]] = wi
-    for i, pi in enumerate(products):
-        labels[i + len(wells)] = 'b{}'.format(i + 1)
-        name_dict[labels[i + len(wells)]] = pi
-    # write the labels to a file
-    with open('species_dict.txt', 'w') as f:
-        lines = []
-        for name in sorted(name_dict.keys()):
-            lines.append('{}  {}'.format(name, name_dict[name]))
-        f.write('\n'.join(lines))
-    # make a graph object
-    G = nx.Graph()
-    # add the nodes
-    for i, node in enumerate(nodes):
-        G.add_node(node, weight=node_size[i])
-
-    # define the inversely proportional weights for the lines
-    minimum = min(rxn[3] for rxn in reactions)
-    maximum = max(rxn[3] for rxn in reactions)
-    max_size = 5
-    min_size = 0.5
-    try:
-        slope = (min_size - max_size) / (maximum - minimum)
-    except:
-        slope = 1.
-    offset = max_size - minimum * slope
-
-    # add the edges
-    for i, ci in enumerate(conn):
-        for j, cij in enumerate(ci):
-            if cij > 0:
-                weight = slope * bars[i][j] + offset
-                G.add_edge(i, j, weight=weight)
-    edges = G.edges()
-    weights = [G[u][v]['weight'] for u, v in edges]
-
-    # position the nodes
-    pos = nx.spring_layout(G, scale=1)
-    #pos = nx.circular_layout(G)
-
-    
-    # make the matplotlib figure
-    plt.figure(figsize=(8, 8))
-    nx.draw_networkx_edges(G, pos, edgelist=edges, width=weights)
-    nx.draw_networkx_nodes(G,
-                           pos,
-                           nodelist=G.nodes(),
-                           node_size=node_size,
-                           node_color=node_color)
-    nx.draw_networkx_labels(G, pos, labels, font_size=8)
-    plt.axis('off')
-    plt.savefig('graph.png')
-    
 
 def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
     db = connect(directory + '/kinbot.db')

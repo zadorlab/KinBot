@@ -175,6 +175,8 @@ class Molpro:
     def molpro_symm(self):
         if np.array_equal(self.species.atom, ['O']) and self.species.mult == 3:
             return 4
+        if np.array_equal(self.species.atom, ['S']) and self.species.mult == 3:
+            return 4
         if np.array_equal(self.species.atom, ['O', 'O']) \
                 and self.species.mult == 3:
             return 4

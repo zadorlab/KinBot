@@ -71,7 +71,7 @@ setup(
         'ase',
         'networkx',
         'rmsd'
-    ]
+    ],
     author="Judit Zador, Ruben Van de Vijver, Carles Marti, Amanda Dewyer",
     author_email = "jzador@sandia.gov",
     description = "Automated reaction kinetics for gas-phase species",

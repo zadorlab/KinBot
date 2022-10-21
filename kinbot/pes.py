@@ -11,7 +11,6 @@ import datetime
 import time
 import subprocess
 import json
-from distutils.dir_util import copy_tree
 import pkg_resources
 import networkx as nx
 import numpy as np
@@ -486,6 +485,9 @@ def postprocess(par, jobs, task, names, mass):
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
+    # clean duplicates
+    batch_submit = set(batch_submit.split())
+    batch_submit = '\n'.join(batch_submit)
     batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
     with open(batch, 'w') as f:
         f.write(batch_submit)
@@ -863,11 +865,15 @@ def is_pathway(wells, products, ins, names):
 
 
 def copy_from_kinbot(well, dirname):
-    dirname = dirname + '/'
+    files = os.listdir(f'{well}/{dirname}')
     if not os.path.exists(dirname):
         os.mkdir(dirname)
-    copy_tree(well + '/' + dirname, dirname)
-
+    for f in files:
+        if f.endswith('.out'):  
+            if not os.path.exists(f'{dirname}/{f}'):
+                shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+        else:
+            shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
 
 def get_rxn(prods, rxns):
     for rxn in rxns:
@@ -1495,6 +1501,7 @@ def check_l2_l3():
     """
     # Get L3 energies
     l3_energies = {}
+    logging.info(f'L2-L3 Energy difference Analysis (Ha):')
     if not os.path.isdir('molpro'):
         logging.warning("Unable to perform L2-L3 check. The molpro directory "
                         "is missing")
@@ -1528,7 +1535,6 @@ def check_l2_l3():
             continue
     e_diff_avg = np.average(list(e_diffs.values()))
     e_diff_std = np.std(list(e_diffs.values()))
-    logging.info(f'L2-L3 Energy difference Analysis (Ha):')
     logging.info(f'Avg difference: {e_diff_avg}. Max: '
                  f'{max(e_diffs.values())}, Min: {min(e_diffs.values())}, '
                  f'STDEV: {e_diff_std}.')

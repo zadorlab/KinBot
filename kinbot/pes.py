@@ -1501,6 +1501,7 @@ def check_l2_l3():
     """
     # Get L3 energies
     l3_energies = {}
+    logging.info(f'L2-L3 Energy difference Analysis (Ha):')
     if not os.path.isdir('molpro'):
         logging.warning("Unable to perform L2-L3 check. The molpro directory "
                         "is missing")
@@ -1534,7 +1535,6 @@ def check_l2_l3():
             continue
     e_diff_avg = np.average(list(e_diffs.values()))
     e_diff_std = np.std(list(e_diffs.values()))
-    logging.info(f'L2-L3 Energy difference Analysis (Ha):')
     logging.info(f'Avg difference: {e_diff_avg}. Max: '
                  f'{max(e_diffs.values())}, Min: {min(e_diffs.values())}, '
                  f'STDEV: {e_diff_std}.')

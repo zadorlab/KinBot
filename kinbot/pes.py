@@ -11,7 +11,6 @@ import datetime
 import time
 import subprocess
 import json
-from distutils.dir_util import copy_tree
 import pkg_resources
 import networkx as nx
 import numpy as np
@@ -866,11 +865,15 @@ def is_pathway(wells, products, ins, names):
 
 
 def copy_from_kinbot(well, dirname):
-    dirname = dirname + '/'
+    files = os.listdir(f'{well}/{dirname}')
     if not os.path.exists(dirname):
         os.mkdir(dirname)
-    copy_tree(well + '/' + dirname, dirname)
-
+    for f in files:
+        if f.endswith('.out'):  
+            if not os.path.exists(f'{dirname}/{f}'):
+                shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+        else:
+            shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
 
 def get_rxn(prods, rxns):
     for rxn in rxns:

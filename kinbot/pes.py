@@ -11,7 +11,6 @@ import datetime
 import time
 import subprocess
 import json
-from distutils.dir_util import copy_tree
 import pkg_resources
 import networkx as nx
 import numpy as np
@@ -221,11 +220,6 @@ def main():
     # do something like postprocess, but with new energies
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
 
-    if par['single_point_qc'].lower() == 'molpro':
-        t1_analysis(par['single_point_key'])
-
-    if par['check_l2_l3']:
-        check_l2_l3()
     # Notify user the search is done
     logging.info('PES search done!')
     print('PES search done!')
@@ -491,6 +485,9 @@ def postprocess(par, jobs, task, names, mass):
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
+    # clean duplicates
+    batch_submit = set(batch_submit.split())
+    batch_submit = '\n'.join(batch_submit)
     batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
     with open(batch, 'w') as f:
         f.write(batch_submit)
@@ -513,7 +510,6 @@ def postprocess(par, jobs, task, names, mass):
             logging.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
         for ts in ts_l3energies:
             logging.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
-
     else:
         logging.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
                      f'{par["high_level_basis"]}) level of theory.')
@@ -566,6 +562,11 @@ def postprocess(par, jobs, task, names, mass):
                           parent,
                           mass,
                           l3done)
+
+    check_l2_l3()
+
+    if par['single_point_qc'].lower() == 'molpro':
+        t1_analysis(par['single_point_key'])
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -867,11 +868,15 @@ def is_pathway(wells, products, ins, names):
 
 
 def copy_from_kinbot(well, dirname):
-    dirname = dirname + '/'
+    files = os.listdir(f'{well}/{dirname}')
     if not os.path.exists(dirname):
         os.mkdir(dirname)
-    copy_tree(well + '/' + dirname, dirname)
-
+    for f in files:
+        if f.endswith('.out'):
+            if not os.path.exists(f'{dirname}/{f}'):
+                shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+        else:
+            shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
 
 def get_rxn(prods, rxns):
     for rxn in rxns:
@@ -1558,6 +1563,7 @@ def t1_analysis(lot='TZ'):
     else:
         logging.warning('Unable to perform a summary of T1 diagnostics: '
                         'Unrecognized single_point_key.')
+        return
     T1s = []
     for f in os.listdir('molpro/'):
         if not f.endswith('.out'):

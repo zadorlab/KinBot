@@ -221,9 +221,12 @@ def main():
     # do something like postprocess, but with new energies
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
 
-    # Notify user the search is done
+    if par['single_point_qc'].lower() == 'molpro':
+        t1_analysis(par['single_point_key'])
+
     if par['check_l2_l3']:
         check_l2_l3()
+    # Notify user the search is done
     logging.info('PES search done!')
     print('PES search done!')
 
@@ -510,6 +513,7 @@ def postprocess(par, jobs, task, names, mass):
             logging.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
         for ts in ts_l3energies:
             logging.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
+
     else:
         logging.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
                      f'{par["high_level_basis"]}) level of theory.')
@@ -1294,6 +1298,7 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     #display(HTML('example.html'))
     return 0
 
+
 def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
     db = connect(directory + '/kinbot.db')
     if ts:
@@ -1536,6 +1541,58 @@ def check_l2_l3():
         if e_diff > 5 * constants.KCALtoHARTREE:
             logging.info(f"Outlying L2-L3 difference found for {st_pt_name}. "
                          f"Energy difference: {e_diff}.")
+
+
+def t1_analysis(lot='TZ'):
+    import os
+    try:
+        import matplotlib.pyplot as plt
+        do_plot = True
+    except ModuleNotFoundError:
+        do_plot = False
+
+    if 'TZ' in lot.upper():
+        lot = 'TZ'
+    elif 'DZ' in lot.upper():
+        lot = 'DZ'
+    else:
+        logging.warning('Unable to perform a summary of T1 diagnostics: '
+                        'Unrecognized single_point_key.')
+    T1s = []
+    for f in os.listdir('molpro/'):
+        if not f.endswith('.out'):
+            continue
+        with open(f'molpro/{f}') as fh:
+            do_read1 = False
+            do_read2 = False
+            for line in fh:
+                if lot in line:
+                    do_read1 = True
+                    do_read2 = False
+                if "Starting UCCSD calculation" in line:
+                    do_read2 = True
+                elif do_read1 and do_read2 and 'T1 diagnostic:' in line:
+                    T1s.append(float(line.split()[9]))
+                    break
+    counts, bins = np.histogram(T1s)
+
+    if do_plot:
+        fig1, ax1 = plt.subplots()  # Histogram
+        ax1.bar(bins[1:], counts, width=bins[1]*0.7)
+        ax1.set_xlabel('T1 Diagnostic')
+        ax1.set_ylabel('Counts')
+        fig1.savefig('T1_histo.png')
+
+        fig2, ax2 = plt.subplots()  # Cumulative counts.
+        ax2.plot(sorted(T1s), range(len(T1s)))
+        ax2.set_xlabel('T1 Diagnostic')
+        ax2.set_ylabel('Cumulative counts')
+        fig2.savefig('T1_cum_count.png')
+    else:
+        logging.warning('Matplotlib not found. Unable to plot T1 diagnostics '
+                        'summary.')
+
+    logging.info(f"T1 histogram:\nBins: {bins}\nCounts: {counts}.")
 
 
 if __name__ == "__main__":

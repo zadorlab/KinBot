@@ -2,19 +2,23 @@
 
 {% set name = "kinbot" %}
 {% set version = "2.0.6" %}
+{% set sha256 = "4fa5bf36a5aa22e5edc1080be196febc9fb6a3153b16296c5220ee601f36c8ab" %}
 
 package:
     name: {{ name|lower }}
     version: {{ version }}
 
 source:
-    url: https://github.com/zadorlab/KinBot/archive/refs/tags/{{ version }}.tar.gz
+    url: https://github.com/zadorlab/KinBot/archive/refs/tags/v{{ version }}.tar.gz
+    sha256: {{ sha256 }}
 
 build:
+    number: 0
+    noarch: python
+    script: {{ PYTHON }} setup.py build
     entry_points:
         - kinbot = kinbot.kb:main
         - pes = kinbot.pes:main
-    noarch: python
 
 requirements:
     host:
@@ -35,8 +39,16 @@ about:
     license_file: LICENSE
     summary: Automated reaction pathway search for gas-phase molecules.
 
+    description: |
+        KinBot is an automated gas-phase kinetics workflow code that drives 
+        electronic structure calculations on a chemical PES and characterizes
+        the chemically relevant stationary points to finally create a complete
+        master equation formulation of the chemical kinetic system.
+    doc_url: https://github.com/zadorlab/KinBot/wiki
+    dev_url: https://github.com/zadorlab/KinBot
+
 extra:
     recipe-maintainers:
-        - juditzador
+        - jzador
         - cmartia
 

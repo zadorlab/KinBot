@@ -1,7 +1,7 @@
 # cmd: conda build . -c conda-forge
 
 {% set name = "kinbot" %}
-{% set version = "v2.0.6" %}
+{% set version = "2.0.6" %}
 
 package:
     name: {{ name|lower }}
@@ -37,6 +37,6 @@ about:
 
 extra:
     recipe-maintainers:
-        - jzador
+        - juditzador
         - cmartia
 

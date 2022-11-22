@@ -25,13 +25,7 @@ from pathlib import Path, PurePath
 from typing import (
     IO, List, Any, Iterable, Tuple, Union, Sequence, Dict, Optional)
 
-if sys.version_info >= (3, 8):
-    from importlib.metadata import entry_points
-else:
-    from importlib_metadata import entry_points
-
 from ase.atoms import Atoms
-from ase.utils.plugins import ExternalIOFormat
 from importlib import import_module
 from ase.parallel import parallel_function, parallel_generator
 
@@ -263,10 +257,9 @@ def define_io_format(name, desc, code, *, module=None, ext=None,
     if module is None:
         module = name.replace('-', '_')
         format2modulename[name] = module
-
     if 'gaussian' in name:
         module = 'ase_modules.io.' + module
-    elif not external:
+    else:
         module = 'ase.io.' + module
 
     def normalize_patterns(strings):
@@ -304,34 +297,6 @@ def get_ioformat(name: str) -> IOFormat:
     # Make sure module is importable, since this could also raise an error.
     fmt.module
     return ioformats[name]
-
-
-def register_external_io_formats(group):
-    if hasattr(entry_points(), 'select'):
-        fmt_entry_points = entry_points().select(group=group)  # type: ignore
-    else:
-        fmt_entry_points = entry_points().get(group, ())
-
-    for entry_point in fmt_entry_points:
-        try:
-            define_external_io_format(entry_point)
-        except Exception as exc:
-            warnings.warn(
-                'Failed to register external '
-                f'IO format {entry_point.name}: {exc}'
-            )
-
-
-def define_external_io_format(entry_point):
-
-    fmt = entry_point.load()
-    if entry_point.name in ioformats:
-        raise ValueError(f'Format {entry_point.name} already defined')
-    if not isinstance(fmt, ExternalIOFormat):
-        raise TypeError('Wrong type for registering external IO formats '
-                        f'in format {entry_point.name}, expected '
-                        'ExternalIOFormat')
-    F(entry_point.name, **fmt._asdict(), external=True)  # type: ignore
 
 
 # We define all the IO formats below.  Each IO format has a code,
@@ -396,7 +361,7 @@ F('eps', 'Encapsulated Postscript', '1S')
 F('espresso-in', 'Quantum espresso in file', '1F',
   module='espresso', ext='pwi', magic=[b'*\n&system', b'*\n&SYSTEM'])
 F('espresso-out', 'Quantum espresso out file', '+F',
-  module='espresso', ext=['pwo', 'out'], magic=b'*Program PWSCF')
+  module='espresso', ext=['out', 'pwo'], magic=b'*Program PWSCF')
 F('exciting', 'exciting input', '1F', glob='input.xml')
 F('extxyz', 'Extended XYZ file', '+F', ext='xyz')
 F('findsym', 'FINDSYM-format', '+F')
@@ -500,9 +465,6 @@ F('xtd', 'Materials Studio file', '+F')
 #      The .xyz files are handled by the extxyz module by default.
 F('xyz', 'XYZ-file', '+F')
 
-#Register IO formats exposed through the ase.ioformats entry point
-register_external_io_formats('ase.ioformats')
-
 
 def get_compression(filename: str) -> Tuple[str, Optional[str]]:
     """
@@ -581,7 +543,7 @@ def open_with_compression(filename: str, mode: str = 'r') -> IO:
         return gzip.open(filename, mode=mode)  # type: ignore
     elif compression == 'bz2':
         import bz2
-        return bz2.open(filename, mode=mode)  # type: ignore
+        return bz2.open(filename, mode=mode)
     elif compression == 'xz':
         import lzma
         return lzma.open(filename, mode)

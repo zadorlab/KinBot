@@ -1,30 +1,42 @@
-# cmd: conda build . -c zadorlab -c openbabel -c conda-forge
+# cmd: conda build . -c conda-forge
+
+{% set name = "kinbot" %}
+{% set version = "v2.0.6" %}
+
 package:
-    name: kinbot
-    version: "2.0"
+    name: {{ name|lower }}
+    version: {{ version }}
 
 source:
-    path: .
+    url: https://github.com/zadorlab/KinBot/archive/refs/tags/{{ version }}.tar.gz
 
 build:
+    entry_points:
+        - kinbot = kinbot.kb:main
+        - pes = kinbot.pes:main
     noarch: python
 
 requirements:
-    build:
-        - python {{ python }}
-        - numpy {{ numpy }}
     host:
-        - python
+        - python >=3.6
+        - setuptools
     run:
-        - python {{ python }}
-        - numpy {{ numpy }}
+        - python >=3.6
+        - numpy >=1.17.0
         - matplotlib
         - networkx
-        - conda-forge::pyvis
-        - zadorlab::ase
-        - openbabel::openbabel
+        - pyvis
+        - openbabel
+        - ase
 
 about:
     home: https://github.com/zadorlab/KinBot
     license: BSD 3-clause
+    license_file: LICENSE
+    summary: Automated reaction pathway search for gas-phase molecules.
+
+extra:
+    recipe-maintainers:
+        - jzador
+        - cmartia
 

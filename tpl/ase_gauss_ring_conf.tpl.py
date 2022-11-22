@@ -1,8 +1,10 @@
 from ase import Atoms
-from ase.calculators.gaussian import Gaussian
+# from ase.calculators.gaussian import Gaussian
 from ase.optimize import LBFGS
 from ase.constraints import FixInternals
 from ase.db import connect
+
+from ase_modules.calculators.gaussian import Gaussian  # New
 from kinbot import reader_gauss
 from kinbot.utils import iowait
 

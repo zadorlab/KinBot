@@ -35,7 +35,7 @@ requirements:
 
 about:
     home: https://github.com/zadorlab/KinBot
-    license: BSD 3-clause
+    license: BSD-3-Clause
     license_file: LICENSE
     summary: Automated reaction pathway search for gas-phase molecules.
 

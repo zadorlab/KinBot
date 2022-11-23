@@ -1,15 +1,15 @@
 # cmd: conda build . -c conda-forge
 
 {% set name = "kinbot" %}
-{% set version = "2.0.6" %}
-{% set sha256 = "4fa5bf36a5aa22e5edc1080be196febc9fb6a3153b16296c5220ee601f36c8ab" %}
+{% set version = "2.0.7" %}
+{% set sha256 = "08bd0adcfbe54e418ac07eeaf2c4a00b451e896dd52e9e21d0940a3152596f44" %}
 
 package:
     name: {{ name|lower }}
     version: {{ version }}
 
 source:
-    url: https://github.com/zadorlab/KinBot/archive/refs/tags/v{{ version }}.tar.gz
+    url: https://github.com/zadorlab/KinBot/archive/refs/heads/master.tar.gz
     sha256: {{ sha256 }}
 
 build:

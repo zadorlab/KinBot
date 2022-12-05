@@ -5,13 +5,16 @@ from copy import deepcopy
 
 import numpy as np
 from ase import Atoms
-from ase.calculators.calculator import InputError, Calculator
+from ase.calculators.calculator import Calculator
 from ase.calculators.gaussian import Gaussian
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.data import atomic_masses_iupac2016, chemical_symbols
-from ase.io import ParseError
-from ase.io.zmatrix import parse_zmatrix
 from ase.units import Bohr, Hartree
+
+try:
+    from ase.io.zmatrix import parse_zmatrix
+except ModuleNotFoundError:
+    from ase_modules.io.zmatrix import parse_zmatrix
 
 _link0_keys = [
     'mem',
@@ -236,7 +239,7 @@ def _format_basis_set(basis, basisfile, basis_set):
         out.append(basis_set)
     else:
         if basis is not None and basis.lower() == 'gen':
-            raise InputError('Please set basisfile or basis_set')
+            raise ValueError('Please set basisfile or basis_set')
     return out
 
 
@@ -493,7 +496,7 @@ def _convert_to_symbol(string):
 
 def _validate_symbol_string(string):
     if "-" in string:
-        raise ParseError("ERROR: Could not read the Gaussian input file, as"
+        raise IOError("ERROR: Could not read the Gaussian input file, as"
                          " molecule specifications for molecular mechanics "
                          "calculations are not supported.")
     return string
@@ -607,7 +610,7 @@ def _get_charge_mult(chgmult_section):
         chgmult = chgmult_match.group(0).split()
         return {'charge': int(chgmult[0]), 'mult': int(chgmult[1])}
     except (IndexError, AttributeError):
-        raise ParseError("ERROR: Could not read the charge and multiplicity "
+        raise IOError("ERROR: Could not read the charge and multiplicity "
                          "from the Gaussian input file. These must be 2 "
                          "integers separated with whitespace or a comma.")
 
@@ -664,7 +667,7 @@ def _get_cartesian_atom_coords(symbol, pos):
         # no cartesian coords.
         return
     elif len(pos) > 3:
-        raise ParseError("ERROR: Gaussian input file could "
+        raise IOError("ERROR: Gaussian input file could "
                          "not be read as freeze codes are not"
                          " supported. If using cartesian "
                          "coordinates, these must be "
@@ -674,7 +677,7 @@ def _get_cartesian_atom_coords(symbol, pos):
         try:
             return list(map(float, pos))
         except ValueError:
-            raise(ParseError(
+            raise(IOError(
                 "ERROR: Molecule specification in"
                 "Gaussian input file could not be read"))
 
@@ -684,7 +687,7 @@ def _get_zmatrix_line(line):
     be added to the z-matrix contents '''
     line_list = line.split()
     if len(line_list) == 8 and line_list[7] == '1':
-        raise ParseError(
+        raise IOError(
             "ERROR: Could not read the Gaussian input file"
             ", as the alternative Z-matrix format using "
             "two bond angles instead of a bond angle and "
@@ -698,10 +701,10 @@ def _read_zmatrix(zmatrix_contents, zmatrix_vars=None):
     try:
         atoms = parse_zmatrix(zmatrix_contents, defs=zmatrix_vars)
     except (ValueError, AssertionError) as e:
-        raise ParseError("Failed to read Z-matrix from "
+        raise IOError("Failed to read Z-matrix from "
                          "Gaussian input file: ", e)
     except KeyError as e:
-        raise ParseError("Failed to read Z-matrix from "
+        raise IOError("Failed to read Z-matrix from "
                          "Gaussian input file, as symbol: {}"
                          "could not be recognised. Please make "
                          "sure you use element symbols, not "
@@ -803,7 +806,7 @@ def _get_atoms_from_molspec(molspec_section):
     try:
         atoms = Atoms(symbols, positions, pbc=pbc, cell=cell)
     except (IndexError, ValueError, KeyError) as e:
-        raise ParseError("ERROR: Could not read the Gaussian input file, "
+        raise IOError("ERROR: Could not read the Gaussian input file, "
                          "due to a problem with the molecule "
                          "specification: {}".format(e))
 
@@ -912,7 +915,7 @@ def _validate_params(parameters):
     for s in unsupported_settings:
         for v in parameters.values():
             if v is not None and s in str(v):
-                raise ParseError(
+                raise IOError(
                     "ERROR: Could not read the Gaussian input file"
                     ", as the option: {} is currently unsupported."
                     .format(s))

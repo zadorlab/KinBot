@@ -1,6 +1,5 @@
 import numpy as np
 from ase.calculators.calculator import FileIOCalculator
-from ase.calculators.calculator import SCFError
 import ase.units
 
 
@@ -76,10 +75,9 @@ class QChem(FileIOCalculator):
             lineiter = iter(fileobj)
             for line in lineiter:
                 if 'SCF failed to converge' in line:
-                    raise SCFError()
+                    raise RuntimeError()
                 elif 'ERROR: alpha_min' in line:
-                    # Even though it is not technically a SCFError:
-                    raise SCFError()
+                    raise RuntimeError()
                 elif ' Total energy in the final basis set =' in line:
                     convert = ase.units.Hartree
                     self.results['energy'] = float(line.split()[8]) * convert

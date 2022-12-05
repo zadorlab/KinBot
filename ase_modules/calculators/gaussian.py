@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from shutil import which
 from typing import Dict, Optional
 
-from ase.calculators.calculator import FileIOCalculator, EnvironmentError
+from ase.calculators.calculator import FileIOCalculator
 from ase_modules.io.formats import read, write
 
 
@@ -110,8 +110,8 @@ class Gaussian(FileIOCalculator):
                     self.command = self.command.replace('GAUSSIAN', gau)
                     break
             else:
-                raise EnvironmentError('Missing Gaussian executable {}'
-                                       .format(gaussians))
+                raise ValueError('Missing Gaussian executable {}'
+                                 .format(gaussians))
 
         FileIOCalculator.calculate(self, *args, **kwargs)
 

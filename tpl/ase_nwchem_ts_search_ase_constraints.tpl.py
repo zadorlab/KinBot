@@ -24,7 +24,6 @@ from ase.optimize import BFGS
 from ase.db import connect
 from ase.constraints import FixInternals
 
-
 label = '{label}'
 kwargs = {kwargs}
 
@@ -34,10 +33,10 @@ calc = NWChem(**kwargs)
 atom = {atom}
 geom = {geom}
 
-mol = Atoms(symbols = atom, positions = geom)
+mol = Atoms(symbols=atom, positions=geom)
 mol.set_calculator(calc)
 
-#apply the constraints: 
+# apply the constraints:
 fix = {fix}
 change = {change}
 release = {release}
@@ -48,41 +47,40 @@ dihedrals = []
 
 for f in fix:
     if len(f) == 3:
-        dist = mol.get_distance(f[0]-1,f[1]-1) #ase enumerates atoms starting from zero
-        bonds.append([dist,[f[0]-1,f[1]-1]])
+        dist = mol.get_distance(f[0] - 1, f[1] - 1)  # ase enumerates atoms starting from zero
+        bonds.append([dist, [f[0] - 1, f[1] - 1]])
     if len(f) == 3:
-        angle = mol.get_angle(f[0]-1,f[1]-1,f[2]-1) #ase enumerates atoms starting from zero
+        angle = mol.get_angle(f[0] - 1, f[1] - 1, f[2] - 1)  # ase enumerates atoms starting from zero
         angle *= pi / 180.
-        angles.append([angle ,[f[0]-1,f[1]-1,f[2]-1]])
+        angles.append([angle, [f[0] - 1, f[1] - 1, f[2] - 1]])
     if len(f) == 4:
-        dih = mol.get_dihedral(f[0]-1,f[1]-1,f[2]-1,f[3]-1) #ase enumerates atoms starting from zero
+        dih = mol.get_dihedral(f[0] - 1, f[1] - 1, f[2] - 1, f[3] - 1)  # ase enumerates atoms starting from zero
         dih *= pi / 180.
-        dihedrals.append([dih,[f[0]-1,f[1]-1,f[2]-1,f[3]-1]])
+        dihedrals.append([dih, [f[0] - 1, f[1] - 1, f[2] - 1, f[3] - 1]])
 for c in change:
     if len(c) == 3:
-        bonds.append([c[2],[c[0]-1,c[1]-1]])
+        bonds.append([c[2], [c[0] - 1, c[1] - 1]])
     if len(c) == 4:
         angle = c[3] * pi / 180.
-        angles.append([angle ,[c[0]-1,c[1]-1,c[2]-1]])
+        angles.append([angle, [c[0] - 1, c[1] - 1, c[2] - 1]])
     if len(c) == 5:
         dih = c[4] * pi / 180.
-        dihedrals.append([dih,[c[0]-1,c[1]-1,c[2]-1,c[3]-1]])
+        dihedrals.append([dih, [c[0] - 1, c[1] - 1, c[2] - 1, c[3] - 1]])
 
-cons = FixInternals(bonds = bonds, angles = angles, dihedrals = dihedrals)
+cons = FixInternals(bonds=bonds, angles=angles, dihedrals=dihedrals)
 mol.set_constraint(cons)
 
-cons.adjust_positions(mol,mol.positions)
+cons.adjust_positions(mol, mol.positions)
 
 try:
-    dyn = BFGS(mol, trajectory = '%s.traj'%label)
-    dyn.run(fmax = 0.05)
+    dyn = BFGS(mol, trajectory='%s.traj' % label)
+    dyn.run(fmax=0.05)
     db = connect('kinbot.db')
-    db.write(mol, name = label, data = {{'status' : 'normal'}})
-except RuntimeError, e: 
-    print 'error'
+    db.write(mol, name=label, data={{'status': 'normal'}})
+except RuntimeError as e:
+    print('error')
     db = connect('kinbot.db')
-    db.write(mol, name = label, data = {{'status' : 'error'}})
-
+    db.write(mol, name=label, data={{'status': 'error'}})
 
 """
 try:
@@ -104,6 +102,6 @@ except RuntimeError, e:
     db.write(mol, name = label, data = {{'status' : 'error'}})
 
 """
-f = open(label + '.out','a')
+f = open(label + '.out', 'a')
 f.write('done\n')
 f.close()

@@ -22,7 +22,7 @@ from ase import Atoms
 from ase.calculators.nwchem import NWChem
 from ase.optimize import BFGS
 from ase.db import connect
-from ase.constraints import FixInternals
+from ase_modules.constraints import FixInternals
 
 label = '{label}'
 kwargs = {kwargs}

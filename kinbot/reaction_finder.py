@@ -1187,7 +1187,8 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
-        if not any([len(ci) == 3 for ci in self.species.cycle_chain]): return 
+        if not any([len(ci) == 3 for ci in self.species.cycle_chain]):
+            return
         
         for ci in self.species.cycle_chain:
             if len(ci) == 3:
@@ -1196,9 +1197,9 @@ class ReactionFinder:
                 ring2 = np.ndarray.tolist(np.roll(ring1, 1))
                 ring3 = np.ndarray.tolist(np.roll(ring1, 2))
 
-                rxns += ring1
-                rxns += ring2
-                rxns += ring3 
+                rxns += [ring1]
+                rxns += [ring2]
+                rxns += [ring3]
 
         self.new_reaction(rxns, name, a=0, b=1)
 #            # filter for specific reaction after this

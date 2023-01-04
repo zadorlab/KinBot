@@ -12,8 +12,8 @@ a tool for automatically searching for reactions on the potential energy surface
 
 If you are using this tool in scientific publications, please reference this git repo and the following publications:
 
-Ruben Van de Vijver, Judit Zádor: KinBot: _Automated stationary point search on potential energy surfaces_, Comp. Phys. Comm., **2019**, 248, 106947. https://doi.org/10.1016/j.cpc.2019.106947
-Judit Zádor, Carles Martí, Ruben Van de Vijver, Sommer L. Johansen, Yoona Yang, Hope A. Michelsen, Habib N. Najm, J. Phys. Chem. A, **2023**, ASAP. https://doi.org/10.1021/acs.jpca.2c06558
+* Ruben Van de Vijver, Judit Zádor: KinBot: _Automated stationary point search on potential energy surfaces_, Comp. Phys. Comm., **2019**, 248, 106947. https://doi.org/10.1016/j.cpc.2019.106947
+* Judit Zádor, Carles Martí, Ruben Van de Vijver, Sommer L. Johansen, Yoona Yang, Hope A. Michelsen, Habib N. Najm, J. Phys. Chem. A, **2023**, ASAP. https://doi.org/10.1021/acs.jpca.2c06558
 
 We appreciate if you send us the DOI of your published paper that used KinBot, so we can feature it here below.
 

@@ -64,7 +64,8 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 ## Authors
 * Judit Zador (jzador@sandia.gov)
 * Ruben Van de Vijver (Ruben.VandeVijver@UGent.be)
-* Amanda Dewyer (adewyer@sandia.gov)
+* Amanda Dewyer
+* Carles Martí (cmartia@sandia.gov)
 
 ## Papers using KinBot
 * Takahashi, L., Yoshida, S., Fujima, J., Oikawa, H., Takahashi, K.: _Unveiling the reaction pathways of hydrocarbons via experiments, computations and data science._ Phys. Chem. Chem. Phys., **2022**, 24, 29841-29849. https://pubs.rsc.org/en/content/articlelanding/2022/CP/D2CP04499D

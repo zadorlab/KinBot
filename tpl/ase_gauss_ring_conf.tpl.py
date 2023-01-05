@@ -1,8 +1,9 @@
 from ase import Atoms
-from ase.calculators.gaussian import Gaussian
 from ase.optimize import LBFGS
-from ase.constraints import FixInternals
 from ase.db import connect
+
+from kinbot.ase_modules.calculators.gaussian import Gaussian
+from kinbot.ase_modules.constraints import FixInternals  # New
 from kinbot import reader_gauss
 from kinbot.utils import iowait
 
@@ -18,7 +19,11 @@ calc = Gaussian(**kwargs)
 mol.calc = calc
 
 bonds, angles, dihedrals = reader_gauss.constraint(mol, {fix}, {change})
-constraints = FixInternals(bonds=bonds, angles_deg=angles, dihedrals_deg=dihedrals)
+# if version.parse(ase.__version__) >= version.parse("3.21"):
+constraints = FixInternals(bonds=bonds, angles_deg=angles,
+                           dihedrals_deg=dihedrals)
+# else:
+#     constraints = FixInternals(bonds, angles, dihedrals)
 mol.set_constraint(constraints)
 
 dyn = LBFGS(atoms=mol, trajectory='ringopt.traj')

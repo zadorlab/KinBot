@@ -93,7 +93,7 @@ def clean_files():
     """
     import logging
     import numpy as np
-    import ase.io
+    from kinbot.ase_modules.io.formats import read
     # delete leftover AM1 calculations
     files = os.listdir()
     com = []
@@ -139,7 +139,7 @@ def clean_files():
             logging.info(f'Empty file {ll} is deleted.')
         else:
             try:
-                atoms = ase.io.read(ll)
+                atoms = read(ll)
             except StopIteration:
                 continue
             else:

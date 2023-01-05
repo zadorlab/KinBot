@@ -10,9 +10,10 @@
 This repository contains the KinBot code version 2.0,
 a tool for automatically searching for reactions on the potential energy surface.
 
-If you are using this tool in scientific publications, please reference this git repo and the following publication:
+If you are using this tool in scientific publications, please reference this git repo and the following publications:
 
-Ruben Van de Vijver, Judit Zádor: KinBot: Automated stationary point search on potential energy surfaces, Computer Physics Communication, 2019, 106947 https://doi.org/10.1016/j.cpc.2019.106947
+* Ruben Van de Vijver, Judit Zádor: KinBot: _Automated stationary point search on potential energy surfaces_, Comp. Phys. Comm., **2019**, 248, 106947. https://doi.org/10.1016/j.cpc.2019.106947
+* Judit Zádor, Carles Martí, Ruben Van de Vijver, Sommer L. Johansen, Yoona Yang, Hope A. Michelsen, Habib N. Najm, J. Phys. Chem. A, **2023**, ASAP. https://doi.org/10.1021/acs.jpca.2c06558
 
 We appreciate if you send us the DOI of your published paper that used KinBot, so we can feature it here below.
 
@@ -64,10 +65,12 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 ## Authors
 * Judit Zador (jzador@sandia.gov)
 * Ruben Van de Vijver (Ruben.VandeVijver@UGent.be)
-* Amanda Dewyer (adewyer@sandia.gov)
+* Amanda Dewyer
+* Carles Martí (cmartia@sandia.gov)
 
 ## Papers using KinBot
-* Doner, A. C., Zádor, J., Rotavera, B.: Stereoisomer-dependent unimolecular kinetics of 2,4-dimethyloxetane peroxy radicals. Faraday Discussions, **2022**, https://doi.org/10.1039/D2FD00029F
+* Takahashi, L., Yoshida, S., Fujima, J., Oikawa, H., Takahashi, K.: _Unveiling the reaction pathways of hydrocarbons via experiments, computations and data science._ Phys. Chem. Chem. Phys., **2022**, 24, 29841-29849. https://pubs.rsc.org/en/content/articlelanding/2022/CP/D2CP04499D
+* Doner, A. C., Zádor, J., Rotavera, B.: _Stereoisomer-dependent unimolecular kinetics of 2,4-dimethyloxetane peroxy radicals._ Faraday Discuss., **2022**, 238, 295-319. https://doi.org/10.1039/D2FD00029F
 * Ramasesha, K., Savee, J. D., Zádor, J., Osborn, D. L.: _A New Pathway for Intersystem Crossing: Unexpected Products in the O(3P) + Cyclopentene Reaction._ J. Phys. Chem. A, **2021**, 125 9785-9801. https://doi.org/10.1021/acs.jpca.1c05817
 * Rogers, C. O, Lockwood, K. S., Nguyen, Q. L. D., Labbe, N. J.: _Diol isomer revealed as a source of methyl ketene from propionic acid unimolecular decomposition._ Int. J. Chem. Kinet., **2021**, 53, 1272–1284. https://doi.org/10.1002/kin.21532
 * Lockwood, K. S., Labbe, N. J.: _Insights on keto-hydroperoxide formation from O2 addition to the beta-tetrahydrofuran radical._ Proceedings of the Combustion Institute, **2021**, 38, 1, 533. https://doi.org/10.1016/j.proci.2020.06.357

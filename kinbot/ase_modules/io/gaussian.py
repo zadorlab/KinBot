@@ -14,7 +14,7 @@ from ase.units import Bohr, Hartree
 try:
     from ase.io.zmatrix import parse_zmatrix
 except ModuleNotFoundError:
-    from ase_modules.io.zmatrix import parse_zmatrix
+    from kinbot.ase_modules.io.zmatrix import parse_zmatrix
 
 _link0_keys = [
     'mem',

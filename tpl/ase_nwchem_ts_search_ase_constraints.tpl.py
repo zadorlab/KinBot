@@ -12,17 +12,13 @@ KinBot needs to pass to the template:
     c. Release: The coordinates to release (only for gaussian)
 """
 
-import os, sys, re
-
 from math import pi
-import numpy as np
 
-import ase
 from ase import Atoms
 from ase.calculators.nwchem import NWChem
 from ase.optimize import BFGS
 from ase.db import connect
-from ase_modules.constraints import FixInternals
+from kinbot.ase_modules.constraints import FixInternals
 
 label = '{label}'
 kwargs = {kwargs}

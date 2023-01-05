@@ -258,7 +258,7 @@ def define_io_format(name, desc, code, *, module=None, ext=None,
         module = name.replace('-', '_')
         format2modulename[name] = module
     if 'gaussian' in name:
-        module = 'ase_modules.io.' + module
+        module = 'kinbot.ase_modules.io.' + module
     else:
         module = 'ase.io.' + module
 

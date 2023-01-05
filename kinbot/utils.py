@@ -93,7 +93,7 @@ def clean_files():
     """
     import logging
     import numpy as np
-    from ase_modules.io.formats import read, write
+    from kinbot.ase_modules.io.formats import read
     # delete leftover AM1 calculations
     files = os.listdir()
     com = []

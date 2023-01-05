@@ -5,7 +5,7 @@ from shutil import which
 from typing import Dict, Optional
 
 from ase.calculators.calculator import FileIOCalculator
-from ase_modules.io.formats import read, write
+from kinbot.ase_modules.io.formats import read, write
 
 
 class GaussianDynamics:

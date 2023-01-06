@@ -166,6 +166,10 @@ class ReactionGenerator:
                                                 logging.debug(f'Derivatives: {ediff}')
                                                 self.species.reac_step[index] = self.par['scan_step']  # ending the scan
                                             if len(ediff) >= 3:
+                                                if any([edf == 0 for edf in ediff[-2:]]):
+                                                    logging.warning(f'Calculation failed in the bond scan of {obj.instance_name}.')
+                                                    self.species.reac_ts_done[index] = -999
+                                                    continue
                                                 if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
                                                     logging.info(f'\tSudden change in slope for for {obj.instance_name}.')
                                                     logging.info(f'\tRelative energies (kcal/mol): {self.species.reac_scan_energy[index]}')

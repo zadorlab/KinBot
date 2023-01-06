@@ -38,7 +38,7 @@ dependencies = [
         "ase>=3.19",
         "networkx",
         "rmsd",
-        "typing-extensions"
+        "typing-extensions"  # TODO Not a direct dependency. Remove it once rmsd list it as theirs.
 ]
 
 [project.optional-dependencies]

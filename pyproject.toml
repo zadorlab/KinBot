@@ -10,7 +10,7 @@ name = "kinbot"
 version = "2.1.0"
 description = "Automated reaction kinetics for gas-phase species"
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.8"
 license = {file = "LICENSE"}
 # keywords = []
 authors = [
@@ -29,9 +29,6 @@ classifiers = [
     "Natural Language :: English",
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Topic :: Scientific/Engineering :: Chemistry"
@@ -40,7 +37,8 @@ dependencies = [
         "numpy>=1.17.0",
         "ase>=3.19",
         "networkx",
-        "rmsd"
+        "rmsd",
+        "typing-extensions"
 ]
 
 [project.optional-dependencies]

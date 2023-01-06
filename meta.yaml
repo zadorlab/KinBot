@@ -1,30 +1,53 @@
-# cmd: conda build . -c zadorlab -c openbabel -c conda-forge
+# cmd: conda build . -c conda-forge
+
+{% set name = "kinbot" %}
+{% set version = "2.0.7" %}
+{% set sha256 = "08bd0adcfbe54e418ac07eeaf2c4a00b451e896dd52e9e21d0940a3152596f44" %}
+
 package:
-    name: kinbot
-    version: "2.0"
+    name: {{ name|lower }}
+    version: {{ version }}
 
 source:
-    path: .
+    url: https://github.com/zadorlab/KinBot/archive/refs/heads/master.tar.gz
+    sha256: {{ sha256 }}
 
 build:
+    number: 0
     noarch: python
+    script: {{ PYTHON }} setup.py build
+    entry_points:
+        - kinbot = kinbot.kb:main
+        - pes = kinbot.pes:main
 
 requirements:
-    build:
-        - python {{ python }}
-        - numpy {{ numpy }}
     host:
-        - python
+        - python >=3.6
+        - setuptools
     run:
-        - python {{ python }}
-        - numpy {{ numpy }}
+        - python >=3.6
+        - numpy >=1.17.0
         - matplotlib
         - networkx
-        - conda-forge::pyvis
-        - zadorlab::ase
-        - openbabel::openbabel
+        - pyvis
+        - openbabel
+        - ase
 
 about:
     home: https://github.com/zadorlab/KinBot
-    license: BSD 3-clause
+    license: BSD-3-Clause
+    license_file: LICENSE
+    summary: Automated reaction pathway search for gas-phase molecules.
 
+    description: |
+        KinBot is an automated gas-phase kinetics workflow code that drives 
+        electronic structure calculations on a chemical PES and characterizes
+        the chemically relevant stationary points to finally create a complete
+        master equation formulation of the chemical kinetic system.
+    doc_url: https://github.com/zadorlab/KinBot/wiki
+    dev_url: https://github.com/zadorlab/KinBot
+
+extra:
+    recipe-maintainers:
+        - juditzador
+        - cmartia

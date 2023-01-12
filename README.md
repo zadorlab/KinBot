@@ -18,32 +18,19 @@ If you are using this tool in scientific publications, please reference this git
 We appreciate if you send us the DOI of your published paper that used KinBot, so we can feature it here below.
 
 ## How to Install
-Make sure all dependencies are correctly installed. The dependencies are lister here https://github.com/zadorlab/KinBot/wiki/Setting-Up-KinBot-on-Your-System 
 
-Clone the project to the place where you want to run it. Make sure you switch to the latest version, e.g., 2.0.5:
+KinBot can be installed either via `pip` or `conda`.
 
-    git branch 2.0.5
+### PIP
 
-You can find the latest stable version's tag if you click on the Branch button above on this page.
+    pip install kinbot
+> **Note**
+>  KinBot only works with Python >= 3.8. 
 
-In your local space go into the KinBot/ directory. Run the following:
+### conda
 
-    python setup.py build
-    python setup.py install
-    
-If you do not have admin priveleges, you might have to run
+    conda install -c conda-forge kinbot
 
-    python setup.py build
-    python setup.py install --user
-    
-Moreover, if you plan to modify the code, you need to install it as:
-
-    python setup.py build
-    python setup.py develop --user
-    
-Please note that you will need the ase version linked to at https://github.com/zadorlab/ase installed
-and linked to in your path during the installation of KinBot. This version of ase has changes within it that
-are local to KinBot, using any other ase versions will likely result in errors when trying to run reaction searches.
 
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:

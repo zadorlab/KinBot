@@ -19,11 +19,18 @@ We appreciate if you send us the DOI of your published paper that used KinBot, s
 
 ## How to Install
 
+KinBot can be installed either via `pip` or `conda`.
+
 ### PIP
 
-To install kinbot simply type:
+    pip install kinbot
+> **Note**
+>  KinBot only works with Python >= 3.8. 
 
-    pip3 install kinbot
+### conda
+
+    conda install -c conda-forge kinbot
+
 
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:

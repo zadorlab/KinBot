@@ -1,11 +1,8 @@
 import numpy as np
 import sys
-import copy
 import logging
 
-from kinbot import bond_combinations
-from kinbot import find_motif
-from reactions.reac_abstraction import Abstraction
+from kinbot.reactions import Abstraction
 
 
 class ReactionFinderBimol:

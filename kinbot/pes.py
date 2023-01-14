@@ -563,9 +563,8 @@ def postprocess(par, jobs, task, names, mass):
                           mass,
                           l3done)
 
-    check_l2_l3()
-
     if par['single_point_qc'].lower() == 'molpro':
+        check_l3_l2(par['single_point_key'], parent, reactions)
         t1_analysis(par['single_point_key'])
 
 
@@ -1500,52 +1499,95 @@ def write_input(input_file, species, threshold, root, me):
         json.dump(par2, outfile, indent=4, sort_keys=True)
 
 
-def check_l2_l3():
-    """Perform a check on the difference between L2 and L3 energy differences.
+def check_l3_l2(l3_key, parent_specs, reactions):
+    """Perform a check on the difference between L3 and L2 energy differences.
     """
     # Get L3 energies
     l3_energies = {}
-    logging.info(f'L2-L3 Energy difference Analysis (Ha):')
+    logging.info(f'L3-L2 Energy difference Analysis. Energy units: (Ha).')
     if not os.path.isdir('molpro'):
-        logging.warning("Unable to perform L2-L3 check. The molpro directory "
-                        "is missing")
+        logging.warning("Unable to perform L3-L2 check. The molpro directory "
+                        "is missing.")
         return
-    for file in [f for f in os.listdir('molpro/') if
-                 f[::-1].startswith('tuo.')]:
-        st_pt_name = file.split('.')[0]
-        with open(f'molpro/{file}') as out_fh:
-            for line in out_fh:
-                if 'MYDZA' not in line:
-                    continue
-                l3_energies[st_pt_name] = float(line.split()[3])
+    if len([f for f in os.listdir('molpro/') if f.endswith('.out')]) == 0:
+        logging.warning("Unable to perform L3-L2 check. The molpro directory "
+                        "is empty.")
+        return
+
+    # Get L3 energies
+    for st_pt in list(parent_specs.keys()) + [r[1] for r in reactions]:
+        if "_" in st_pt and all([frag.isdigit() for frag in st_pt.split('_')]):
+            # Bimolecular species
+            l3_energies[st_pt] = 0
+            for frag in st_pt.split('_'):
+                with open(f'molpro/{frag}.out') as out_fh:
+                    for line in out_fh:
+                        if l3_key not in line:
+                            continue
+                        l3_energies[st_pt] += float(line.split()[3])
+                        break
+        else:
+            # Wells and TSs
+            with open(f'molpro/{st_pt}.out') as out_fh:
+                for line in out_fh:
+                    if l3_key not in line:
+                        continue
+                    l3_energies[st_pt] = float(line.split()[3])
+                    break
 
     # Get L2 Energies and its difference respect L3.
     e_diffs = {}
-    for st_pt_name in l3_energies:
-        try:
-            if st_pt_name.isdigit():
-                db = connect(f'{st_pt_name}/kinbot.db')
-                rows = db.select(name=f'{st_pt_name}_well_high')
-            else:
-                db = connect(f'{st_pt_name.split("_")[0]}/kinbot.db')
-                rows = db.select(name=f'{st_pt_name}_high')
+    for st_pt in l3_energies:
+        if any([c.isalpha() for c in st_pt]):  # TSs (have letters in the name)
+            db_path = f'{st_pt.split("_")[0]}/kinbot.db'
+        else:  # Wells and Bimolecular products
+            db_path = f'{parent_specs[st_pt]}/kinbot.db'
+        if not os.path.isfile(db_path):
+            logging.warning(f"Unable to find L2 energy for {st_pt}.")
+            continue
+        db = connect(db_path)
+        if st_pt.isdigit():
+            # Wells
+            rows = db.select(name=f'{st_pt}_well_high')
+        elif all([fr.isdigit() for fr in st_pt.split('_')]):
+            # Bimolecular species.
+            l2_energy = 0
+            for frag in st_pt.split('_'):
+                rows = db.select(name=f'{frag}_well_high')
+                try:
+                    final_row = next(rows)
+                except StopIteration:
+                    logging.warning(f"Unable to find L2 energy for {frag}.")
+                    l2_energy = np.nan
+                    break
+                for row in rows:
+                    final_row = row
+                l2_energy += final_row.data["energy"] * constants.EVtoHARTREE
+        else:
+            rows = db.select(name=f'{st_pt}_high')
+
+        if "_" not in st_pt or any([c.isalpha() for c in st_pt]):
+            # Wells and TSs
+            try:
+                final_row = next(rows)
+            except StopIteration:
+                logging.warning(f"Unable to find L2 energy for {st_pt}.")
+                continue
             for row in rows:
                 final_row = row
-            e_diff = final_row.data["energy"] * constants.EVtoHARTREE \
-                     - l3_energies[st_pt_name]
-            e_diffs[st_pt_name] = e_diff
-        except:  # TODO try to catch the exact exception.
-            logging.warning(f"Unable to read db for {st_pt_name}")
-            continue
+            l2_energy = final_row.data["energy"] * constants.EVtoHARTREE
+        e_diff = l3_energies[st_pt] - l2_energy
+        e_diffs[st_pt] = e_diff
+
     e_diff_avg = np.average(list(e_diffs.values()))
     e_diff_std = np.std(list(e_diffs.values()))
-    logging.info(f'Avg difference: {e_diff_avg}. Max: '
-                 f'{max(e_diffs.values())}, Min: {min(e_diffs.values())}, '
-                 f'STDEV: {e_diff_std}.')
-    for st_pt_name, e_diff in e_diffs.items():
-        if e_diff > 5 * constants.KCALtoHARTREE:
-            logging.info(f"Outlying L2-L3 difference found for {st_pt_name}. "
-                         f"Energy difference: {e_diff}.")
+    logging.info(f'Avg difference: {e_diff_avg} Ha. Max: '
+                 f'{max(e_diffs.values())} Ha, Min: {min(e_diffs.values())} Ha, '
+                 f'STDEV: {e_diff_std} Ha.')
+    for st_pt, e_diff in e_diffs.items():
+        if e_diff < e_diff_avg * 0.9 or e_diff > e_diff_avg * 0.9:  # * constants.KCALtoHARTREE:
+            logging.info(f"Outlying L2-L3 difference found for {st_pt}. "
+                         f"Energy difference: {e_diff} Ha.")
 
 
 def t1_analysis(lot='TZ'):

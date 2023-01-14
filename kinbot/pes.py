@@ -1499,8 +1499,12 @@ def write_input(input_file, species, threshold, root, me):
         json.dump(par2, outfile, indent=4, sort_keys=True)
 
 
-def check_l3_l2(l3_key, parent_specs, reactions):
+def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
     """Perform a check on the difference between L3 and L2 energy differences.
+
+    @param l3_key: Pattern to search for in L3 calculations.
+    @param parent_specs: Dictionary of species' chemids with its parent species.
+    @param reactions: List of all reaction names in the PES.
     """
     # Get L3 energies
     l3_energies = {}
@@ -1582,10 +1586,10 @@ def check_l3_l2(l3_key, parent_specs, reactions):
     e_diff_avg = np.average(list(e_diffs.values()))
     e_diff_std = np.std(list(e_diffs.values()))
     logging.info(f'Avg difference: {e_diff_avg} Ha. Max: '
-                 f'{max(e_diffs.values())} Ha, Min: {min(e_diffs.values())} Ha, '
-                 f'STDEV: {e_diff_std} Ha.')
+                 f'{max(e_diffs.values())} Ha, Min: {min(e_diffs.values())} Ha,'
+                 f' STDEV: {e_diff_std} Ha.')
     for st_pt, e_diff in e_diffs.items():
-        if e_diff < e_diff_avg * 0.9 or e_diff > e_diff_avg * 0.9:  # * constants.KCALtoHARTREE:
+        if not e_diff_avg * 0.9 < e_diff < e_diff_avg * 1.1:
             logging.info(f"Outlying L2-L3 difference found for {st_pt}. "
                          f"Energy difference: {e_diff} Ha.")
 

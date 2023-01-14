@@ -19,17 +19,14 @@ We appreciate if you send us the DOI of your published paper that used KinBot, s
 
 ## How to Install
 
-KinBot can be installed either via `pip` or `conda`.
+KinBot can be installed either via `pip`.
 
 ### PIP
 
     pip install kinbot
+
 > **Note**
->  KinBot only works with Python >= 3.8. 
-
-### conda
-
-    conda install -c conda-forge kinbot
+>  KinBot only works with Python >= 3.8.
 
 
 ## How to Run

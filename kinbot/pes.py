@@ -1525,13 +1525,17 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
             # Bimolecular species
             l3_energies[st_pt] = 0
             for frag in st_pt.split('_'):
+                if not os.path.isfile(f'molpro/{frag}.out'):
+                    if st_pt in l3_energies:
+                        del l3_energies[st_pt]
+                    break
                 with open(f'molpro/{frag}.out') as out_fh:
                     for line in out_fh:
                         if l3_key not in line:
                             continue
                         l3_energies[st_pt] += float(line.split()[3])
                         break
-        else:
+        elif os.path.isfile(f'molpro/{st_pt}.out'):
             # Wells and TSs
             with open(f'molpro/{st_pt}.out') as out_fh:
                 for line in out_fh:

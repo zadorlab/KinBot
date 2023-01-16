@@ -1631,7 +1631,12 @@ def t1_analysis(lot='TZ'):
                 elif do_read1 and do_read2 and 'T1 diagnostic:' in line:
                     T1s.append(float(line.split()[9]))
                     break
-    counts, bins = np.histogram(T1s)
+    if T1s:
+        counts, bins = np.histogram(T1s)
+    else:
+        logging.warning('Unable to perform a summary of T1 diagnostics: '
+                        'No T1 Diagnostics results found.')
+        return
 
     if do_plot:
         fig1, ax1 = plt.subplots()  # Histogram

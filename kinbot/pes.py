@@ -486,7 +486,8 @@ def postprocess(par, jobs, task, names, mass):
 
     logging.info('l3done status {}'.format(l3done))
     # clean duplicates
-    batch_submit = set(batch_submit.split())
+    batch_submit = list(set(batch_submit.split('\n')))
+    batch_submit.reverse()
     batch_submit = '\n'.join(batch_submit)
     batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
     with open(batch, 'w') as f:

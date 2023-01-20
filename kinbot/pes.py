@@ -1509,7 +1509,7 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
     """
     # Get L3 energies
     l3_energies = {}
-    logging.info(f'L3-L2 Energy difference Analysis. Energy units: (Ha).')
+    logging.info(f'L3-L2 Energy difference Analysis. Energy units: (kcal/mol).')
     if not os.path.isdir('molpro'):
         logging.warning("Unable to perform L3-L2 check. The molpro directory "
                         "is missing.")
@@ -1586,17 +1586,17 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
                 final_row = row
             l2_energy = final_row.data["energy"] * constants.EVtoHARTREE
         e_diff = l3_energies[st_pt] - l2_energy
-        e_diffs[st_pt] = e_diff
+        e_diffs[st_pt] = e_diff / constants.KCALtoHARTREE
 
     e_diff_avg = np.average(list(e_diffs.values()))
     e_diff_std = np.std(list(e_diffs.values()))
-    logging.info(f'Avg difference: {e_diff_avg} Ha. Max: '
-                 f'{max(e_diffs.values())} Ha, Min: {min(e_diffs.values())} Ha,'
-                 f' STDEV: {e_diff_std} Ha.')
+    logging.info(f'Avg difference: {e_diff_avg} kcal/mol. Max: '
+                 f'{max(e_diffs.values())} kcal/mol, Min: {min(e_diffs.values())} kcal/mol,'
+                 f' STDEV: {e_diff_std} kcal/mol.')
     for st_pt, e_diff in e_diffs.items():
         if not e_diff_avg * 0.9 < e_diff < e_diff_avg * 1.1:
             logging.info(f"Outlying L2-L3 difference found for {st_pt}. "
-                         f"Energy difference: {e_diff} Ha.")
+                         f"Energy difference: {e_diff} kcal/mol.")
 
 
 def t1_analysis(lot='TZ'):

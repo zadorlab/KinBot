@@ -19,17 +19,14 @@ We appreciate if you send us the DOI of your published paper that used KinBot, s
 
 ## How to Install
 
-KinBot can be installed either via `pip` or `conda`.
+KinBot can be installed either via `pip`.
 
 ### PIP
 
     pip install kinbot
+
 > **Note**
->  KinBot only works with Python >= 3.8. 
-
-### conda
-
-    conda install -c conda-forge kinbot
+>  KinBot only works with Python >= 3.8.
 
 
 ## How to Run
@@ -50,7 +47,7 @@ See [wiki](https://github.com/zadorlab/KinBot/wiki).
 See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 
 ## Authors
-* Judit Zador (jzador@sandia.gov)
+* Judit Zádor (jzador@sandia.gov)
 * Ruben Van de Vijver (Ruben.VandeVijver@UGent.be)
 * Amanda Dewyer
 * Carles Martí (cmartia@sandia.gov)

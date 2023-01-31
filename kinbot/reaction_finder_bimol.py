@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import logging
 
-from kinbot.reactions import Abstraction
+from kinbot.reactions.reac_abstraction import Abstraction
 
 
 class ReactionFinderBimol:

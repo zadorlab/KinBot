@@ -3,7 +3,7 @@
 # KinBot: Automated reaction pathway search for gas-phase molecules
 
 <p>
-    <img src="graphics/kinbot_logo_V2.png" width="220" height="240" />
+    <img src="https://raw.githubusercontent.com/zadorlab/KinBot/master/graphics/kinbot_logo_V2.png" width="220" height="240" />
 </p>
 
 ## Description
@@ -28,6 +28,21 @@ KinBot can be installed either via `pip`.
 > **Note**
 >  KinBot only works with Python >= 3.8.
 
+### From Github
+
+If you want to have the very last version of KinBot without waiting for a 
+release or you want to modify KinBot to your needs you can clone the project 
+from github:
+
+    git clone git@github.com:zadorlab/KinBot.git
+
+and then, from within the KinBot directory produced after cloning type:
+
+    pip install .
+ 
+> **Note**
+>  If you want to modify KinBot yourself it's better to fork the project 
+> into your own repository.
 
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:

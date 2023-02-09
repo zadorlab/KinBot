@@ -36,7 +36,7 @@ from github:
 
     git clone git@github.com:zadorlab/KinBot.git
 
-and then, from within the KinBot directory produced after cloning type:
+and then, from within the KinBot directory produced after cloning, type:
 
     pip install .
  

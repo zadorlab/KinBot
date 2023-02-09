@@ -19,7 +19,7 @@ We appreciate if you send us the DOI of your published paper that used KinBot, s
 
 ## How to Install
 
-KinBot can be installed either via `pip`.
+KinBot is installed with `pip`, either from the PyPI repo or by first cloning this github repo and then install it locally.
 
 ### PIP
 

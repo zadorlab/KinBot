@@ -10,7 +10,7 @@
 This repository contains the KinBot code version 2.0,
 a tool for automatically searching for reactions on the potential energy surface.
 
-If you are using this tool in scientific publications, please reference this git repo and the following publications:
+If you are using this tool in scientific publications, please reference the following publications:
 
 * Ruben Van de Vijver, Judit Zádor: KinBot: _Automated stationary point search on potential energy surfaces_, Comp. Phys. Comm., **2019**, 248, 106947. https://doi.org/10.1016/j.cpc.2019.106947
 * Judit Zádor, Carles Martí, Ruben Van de Vijver, Sommer L. Johansen, Yoona Yang, Hope A. Michelsen, Habib N. Najm, J. Phys. Chem. A, **2023**, ASAP. https://doi.org/10.1021/acs.jpca.2c06558
@@ -21,7 +21,7 @@ We appreciate if you send us the DOI of your published paper that used KinBot, s
 
 KinBot is installed with `pip`, either from the PyPI repo or by first cloning this github repo and then install it locally.
 
-### PIP
+### PyPI
 
     pip install kinbot
 
@@ -31,7 +31,7 @@ KinBot is installed with `pip`, either from the PyPI repo or by first cloning th
 ### From Github
 
 If you want to have the very last version of KinBot without waiting for a 
-release or you want to modify KinBot to your needs you can clone the project 
+release or you want to modify KinBot acccording to your needs you can clone the project 
 from github:
 
     git clone git@github.com:zadorlab/KinBot.git
@@ -41,8 +41,8 @@ and then, from within the KinBot directory produced after cloning, type:
     pip install .
  
 > **Note**
->  If you want to modify KinBot yourself it's better to fork the project 
-> into your own repository.
+> If you want to modify KinBot yourself it's better to fork the project 
+> into your own repository and then clone it.
 
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:

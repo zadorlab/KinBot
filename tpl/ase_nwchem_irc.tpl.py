@@ -8,18 +8,12 @@ KinBot needs to pass to the template:
 5. The geometry
 """
 
-import os, sys, re
+import re
 
-from math import pi
 import numpy as np
-
-import ase
 from ase import Atoms
 from ase.calculators.nwchem import NWChem
-from ase.optimize import BFGS
 from ase.db import connect
-from ase.constraints import FixInternals
-
 
 label = '{label}'
 kwargs = {kwargs}
@@ -30,46 +24,45 @@ calc = NWChem(**kwargs)
 atom = {atom}
 geom = {geom}
 
-mol = Atoms(symbols = atom, positions = geom)
+mol = Atoms(symbols=atom, positions=geom)
 mol.set_calculator(calc)
 
 try:
-    e = mol.get_potential_energy() # use the NWChem optimizer (task optimize)
-    #read the geometry from the output file
+    e = mol.get_potential_energy()  # use the NWChem optimizer (task optimize)
+    # read the geometry from the output file
     outfile = '{label}.out'
     with open(outfile) as f:
         lines = f.readlines()
-    geom = np.zeros((len(mol),3))
+    geom = np.zeros((len(mol), 3))
     for index, line in enumerate(reversed(lines)):
         if re.search('Output coordinates in angstroms', line) != None:
             for n in range(len(atom)):
-                geom[n][0:3] = np.array(lines[-index+3+n].split()[3:6]).astype(float)
+                geom[n][0:3] = np.array(lines[-index + 3 + n].split()[3:6]).astype(float)
             break
     mol.positions = geom
     db = connect('kinbot.db')
-    db.write(mol, name = label, data = {{'energy' : e, 'status' : 'normal'}})
-except RuntimeError, e: 
-    #read the geometry from the output file
+    db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
+except RuntimeError as e:
+    # read the geometry from the output file
     outfile = '{label}.out'
     with open(outfile) as f:
         lines = f.readlines()
-    geom = np.zeros((len(mol),3))
+    geom = np.zeros((len(mol), 3))
     new_geom = 0
     for index, line in enumerate(reversed(lines)):
         if re.search('Output coordinates in angstroms', line) != None:
             for n in range(len(atom)):
-                geom[n][0:3] = np.array(lines[-index+3+n].split()[3:6]).astype(float)
+                geom[n][0:3] = np.array(lines[-index + 3 + n].split()[3:6]).astype(float)
                 new_geom = 1
             break
     if new_geom:
         mol.positions = geom
         db = connect('kinbot.db')
-        db.write(mol, name = label, data = {{'status' : 'normal'}}) #although there is an error, continue from the final geometry
+        db.write(mol, name=label, data={{'status': 'normal'}})  # although there is an error, continue from the final geometry
     else:
         db = connect('kinbot.db')
-        db.write(mol, name = label, data = {{'status' : 'error'}})
+        db.write(mol, name=label, data={{'status': 'error'}})
 
-
-f = open(label + '.out','a')
+f = open(label + '.out', 'a')
 f.write('done\n')
 f.close()

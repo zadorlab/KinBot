@@ -12,7 +12,7 @@
 "high_level" : 1,
 "high_level_method" : "M062X",
 "high_level_basis" : "6-311++G(d,p)",
-"homolytic_scissions" : 0,
+"skip_families": ["hom_sci"],
 "barrier_threshold" : 200.0,
 "me" : 1,
 "me_code" : "mess",

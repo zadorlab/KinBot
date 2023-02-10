@@ -3,46 +3,46 @@
 # KinBot: Automated reaction pathway search for gas-phase molecules
 
 <p>
-    <img src="graphics/kinbot_logo_V2.png" width="220" height="240" />
+    <img src="https://raw.githubusercontent.com/zadorlab/KinBot/master/graphics/kinbot_logo_V2.png" width="220" height="240" />
 </p>
 
 ## Description
 This repository contains the KinBot code version 2.0,
 a tool for automatically searching for reactions on the potential energy surface.
 
-If you are using this tool in scientific publications, please reference this git repo and the following publication:
+If you are using this tool in scientific publications, please reference the following publications:
 
-Ruben Van de Vijver, Judit Zádor: KinBot: Automated stationary point search on potential energy surfaces, Computer Physics Communication, 2019, 106947 https://doi.org/10.1016/j.cpc.2019.106947
+* Ruben Van de Vijver, Judit Zádor: KinBot: _Automated stationary point search on potential energy surfaces_, Comp. Phys. Comm., **2019**, 248, 106947. https://doi.org/10.1016/j.cpc.2019.106947
+* Judit Zádor, Carles Martí, Ruben Van de Vijver, Sommer L. Johansen, Yoona Yang, Hope A. Michelsen, Habib N. Najm, J. Phys. Chem. A, **2023**, ASAP. https://doi.org/10.1021/acs.jpca.2c06558
 
 We appreciate if you send us the DOI of your published paper that used KinBot, so we can feature it here below.
 
 ## How to Install
-Make sure all dependencies are correctly installed. The dependencies are lister here https://github.com/zadorlab/KinBot/wiki/Setting-Up-KinBot-on-Your-System 
 
-Clone the project to the place where you want to run it. Make sure you switch to the latest version, e.g., 2.0.5:
+KinBot is installed with `pip`, either from the PyPI repo or by first cloning this github repo and then install it locally.
 
-    git branch 2.0.5
+### PyPI
 
-You can find the latest stable version's tag if you click on the Branch button above on this page.
+    pip install kinbot
 
-In your local space go into the KinBot/ directory. Run the following:
+> **Note**
+>  KinBot only works with Python >= 3.8.
 
-    python setup.py build
-    python setup.py install
-    
-If you do not have admin priveleges, you might have to run
+### From Github
 
-    python setup.py build
-    python setup.py install --user
-    
-Moreover, if you plan to modify the code, you need to install it as:
+If you want to have the very last version of KinBot without waiting for a 
+release or you want to modify KinBot acccording to your needs you can clone the project 
+from github:
 
-    python setup.py build
-    python setup.py develop --user
-    
-Please note that you will need the ase version linked to at https://github.com/zadorlab/ase installed
-and linked to in your path during the installation of KinBot. This version of ase has changes within it that
-are local to KinBot, using any other ase versions will likely result in errors when trying to run reaction searches.
+    git clone git@github.com:zadorlab/KinBot.git
+
+and then, from within the KinBot directory produced after cloning, type:
+
+    pip install .
+ 
+> **Note**
+> If you want to modify KinBot yourself it's better to fork the project 
+> into your own repository and then clone it.
 
 ## How to Run
 To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:
@@ -62,12 +62,14 @@ See [wiki](https://github.com/zadorlab/KinBot/wiki).
 See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 
 ## Authors
-* Judit Zador (jzador@sandia.gov)
+* Judit Zádor (jzador@sandia.gov)
 * Ruben Van de Vijver (Ruben.VandeVijver@UGent.be)
-* Amanda Dewyer (adewyer@sandia.gov)
+* Amanda Dewyer
+* Carles Martí (cmartia@sandia.gov)
 
 ## Papers using KinBot
-* Doner, A. C., Zádor, J., Rotavera, B.: Stereoisomer-dependent unimolecular kinetics of 2,4-dimethyloxetane peroxy radicals. Faraday Discussions, **2022**, https://doi.org/10.1039/D2FD00029F
+* Takahashi, L., Yoshida, S., Fujima, J., Oikawa, H., Takahashi, K.: _Unveiling the reaction pathways of hydrocarbons via experiments, computations and data science._ Phys. Chem. Chem. Phys., **2022**, 24, 29841-29849. https://pubs.rsc.org/en/content/articlelanding/2022/CP/D2CP04499D
+* Doner, A. C., Zádor, J., Rotavera, B.: _Stereoisomer-dependent unimolecular kinetics of 2,4-dimethyloxetane peroxy radicals._ Faraday Discuss., **2022**, 238, 295-319. https://doi.org/10.1039/D2FD00029F
 * Ramasesha, K., Savee, J. D., Zádor, J., Osborn, D. L.: _A New Pathway for Intersystem Crossing: Unexpected Products in the O(3P) + Cyclopentene Reaction._ J. Phys. Chem. A, **2021**, 125 9785-9801. https://doi.org/10.1021/acs.jpca.1c05817
 * Rogers, C. O, Lockwood, K. S., Nguyen, Q. L. D., Labbe, N. J.: _Diol isomer revealed as a source of methyl ketene from propionic acid unimolecular decomposition._ Int. J. Chem. Kinet., **2021**, 53, 1272–1284. https://doi.org/10.1002/kin.21532
 * Lockwood, K. S., Labbe, N. J.: _Insights on keto-hydroperoxide formation from O2 addition to the beta-tetrahydrofuran radical._ Proceedings of the Combustion Institute, **2021**, 38, 1, 533. https://doi.org/10.1016/j.proci.2020.06.357

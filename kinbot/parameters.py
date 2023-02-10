@@ -90,8 +90,6 @@ class Parameters:
             'high_level': 0,
             # Calculate AIE for each conformer - requires conformer search
             'calc_aie': 0,
-            # Whether to perform a check.
-            'check_l2_l3': 0,
 
             # CONFORMATIONAL SEARCH
             # Do a conformational search

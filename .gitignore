@@ -1,4 +1,5 @@
 *pyc
-build/*
-.idea/*
+build*
+.idea*
 *egg*
+dist*

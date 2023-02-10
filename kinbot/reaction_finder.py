@@ -1187,19 +1187,19 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
         
-        if not any([len(ci) == 3 for ci in self.species.cycle_chain]): return 
+        if not any([len(ci) == 3 for ci in self.species.cycle_chain]):
+            return
         
         for ci in self.species.cycle_chain:
             if len(ci) == 3:
                 # there are three ways to slice a 3-mem ring
-                ring1 = self.species.cycle_chain
+                ring1 = ci
                 ring2 = np.ndarray.tolist(np.roll(ring1, 1))
                 ring3 = np.ndarray.tolist(np.roll(ring1, 2))
 
-                # FIXME only works for 1 cycle
-                rxns += ring1
-                rxns += ring2
-                rxns += ring3 
+                rxns += [ring1]
+                rxns += [ring2]
+                rxns += [ring3]
 
         self.new_reaction(rxns, name, a=0, b=1)
 #            # filter for specific reaction after this

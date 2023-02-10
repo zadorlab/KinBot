@@ -11,9 +11,7 @@ import datetime
 import time
 import subprocess
 import json
-from distutils.dir_util import copy_tree
 import pkg_resources
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from copy import deepcopy
@@ -30,10 +28,10 @@ from kinbot.uncertaintyAnalysis import UQ
 
 def main():
     if sys.version_info.major < 3:
-        print('KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
     elif sys.version_info.minor < 8:
-        print('KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
 
     try:
@@ -223,8 +221,6 @@ def main():
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
 
     # Notify user the search is done
-    if par['check_l2_l3']:
-        check_l2_l3()
     logging.info('PES search done!')
     print('PES search done!')
 
@@ -489,6 +485,10 @@ def postprocess(par, jobs, task, names, mass):
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
+    # clean duplicates
+    batch_submit = list(set(batch_submit.split('\n')))
+    batch_submit.reverse()
+    batch_submit = '\n'.join(batch_submit)
     batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
     with open(batch, 'w') as f:
         f.write(batch_submit)
@@ -527,14 +527,6 @@ def postprocess(par, jobs, task, names, mass):
                                                    task,
                                                    names)
 
-    # draw a graph of the network
-    create_graph(wells,
-                 products,
-                 reactions,
-                 well_energies,
-                 prod_energies,
-                 highlight)
-
     create_interactive_graph(wells,
                              products,
                              reactions,
@@ -571,6 +563,10 @@ def postprocess(par, jobs, task, names, mass):
                           parent,
                           mass,
                           l3done)
+
+    if par['single_point_qc'].lower() == 'molpro':
+        check_l3_l2(par['single_point_key'], parent, reactions)
+        t1_analysis(par['single_point_key'])
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -872,11 +868,15 @@ def is_pathway(wells, products, ins, names):
 
 
 def copy_from_kinbot(well, dirname):
-    dirname = dirname + '/'
+    files = os.listdir(f'{well}/{dirname}')
     if not os.path.exists(dirname):
         os.mkdir(dirname)
-    copy_tree(well + '/' + dirname, dirname)
-
+    for f in files:
+        if f.endswith('.out'):
+            if not os.path.exists(f'{dirname}/{f}'):
+                shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+        else:
+            shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
 
 def get_rxn(prods, rxns):
     for rxn in rxns:
@@ -1304,99 +1304,6 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     return 0
 
 
-def create_graph(wells, products, reactions,
-                 well_energies, prod_energies, highlight):
-    """
-    highlight: list of reaction names that need a red highlight
-    """
-    if highlight is None:
-        highlight = []
-    # update the connectivity with the filtered wells, products and reactions
-    conn, bars = get_connectivity(wells, products, reactions)
-
-    # get the minimum and maximum well and product energy
-    try:
-        minimum = min(min(well_energies.values()),
-                      min(prod_energies.values()))
-        maximum = max(max(well_energies.values()),
-                      max(prod_energies.values()))
-    except ValueError:
-        # list of products can be empty, but list of wells not
-        minimum = min(well_energies.values())
-        maximum = max(well_energies.values())
-    # define the inveresly proportial weights function
-    max_size = 400
-    min_size = 100
-    slope = (min_size - max_size) / (maximum - minimum)
-    offset = max_size - minimum * slope
-    # define the graph nodes
-    nodes = [i for i, wi in enumerate(wells)]
-    nodes += [len(wells) + i for i, pi in enumerate(products)]
-    # size of the nodes from the weights
-    node_size = [slope * well_energies[wi] + offset for wi in wells]
-    node_size += [slope * prod_energies[pi] + offset for pi in products]
-    # color nodes and wells differently
-    node_color = ['lightskyblue' for wi in wells]
-    node_color += ['lightcoral' for pi in products]
-    # labels of the wells and products
-    labels = {}
-    name_dict = {}
-    for i, wi in enumerate(wells):
-        labels[i] = 'w{}'.format(i + 1)
-        name_dict[labels[i]] = wi
-    for i, pi in enumerate(products):
-        labels[i + len(wells)] = 'b{}'.format(i + 1)
-        name_dict[labels[i + len(wells)]] = pi
-    # write the labels to a file
-    with open('species_dict.txt', 'w') as f:
-        lines = []
-        for name in sorted(name_dict.keys()):
-            lines.append('{}  {}'.format(name, name_dict[name]))
-        f.write('\n'.join(lines))
-    # make a graph object
-    G = nx.Graph()
-    # add the nodes
-    for i, node in enumerate(nodes):
-        G.add_node(node, weight=node_size[i])
-
-    # define the inversely proportional weights for the lines
-    minimum = min(rxn[3] for rxn in reactions)
-    maximum = max(rxn[3] for rxn in reactions)
-    max_size = 5
-    min_size = 0.5
-    try:
-        slope = (min_size - max_size) / (maximum - minimum)
-    except:
-        slope = 1.
-    offset = max_size - minimum * slope
-
-    # add the edges
-    for i, ci in enumerate(conn):
-        for j, cij in enumerate(ci):
-            if cij > 0:
-                weight = slope * bars[i][j] + offset
-                G.add_edge(i, j, weight=weight)
-    edges = G.edges()
-    weights = [G[u][v]['weight'] for u, v in edges]
-
-    # position the nodes
-    pos = nx.spring_layout(G, scale=1)
-    #pos = nx.circular_layout(G)
-
-    
-    # make the matplotlib figure
-    plt.figure(figsize=(8, 8))
-    nx.draw_networkx_edges(G, pos, edgelist=edges, width=weights)
-    nx.draw_networkx_nodes(G,
-                           pos,
-                           nodelist=G.nodes(),
-                           node_size=node_size,
-                           node_color=node_color)
-    nx.draw_networkx_labels(G, pos, labels, font_size=8)
-    plt.axis('off')
-    plt.savefig('graph.png')
-    
-
 def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
     db = connect(directory + '/kinbot.db')
     if ts:
@@ -1594,52 +1501,162 @@ def write_input(input_file, species, threshold, root, me):
         json.dump(par2, outfile, indent=4, sort_keys=True)
 
 
-def check_l2_l3():
-    """Perform a check on the difference between L2 and L3 energy differences.
+def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
+    """Perform a check on the difference between L3 and L2 energy differences.
+
+    @param l3_key: Pattern to search for in L3 calculations.
+    @param parent_specs: Dictionary of species' chemids with its parent species.
+    @param reactions: List of all reaction names in the PES.
     """
     # Get L3 energies
     l3_energies = {}
+    logging.info(f'L3-L2 Energy difference Analysis. Energy units: kcal/mol.')
     if not os.path.isdir('molpro'):
-        logging.warning("Unable to perform L2-L3 check. The molpro directory "
-                        "is missing")
+        logging.warning("Unable to perform L3-L2 check. The molpro directory "
+                        "is missing.")
         return
-    for file in [f for f in os.listdir('molpro/') if
-                 f[::-1].startswith('tuo.')]:
-        st_pt_name = file.split('.')[0]
-        with open(f'molpro/{file}') as out_fh:
-            for line in out_fh:
-                if 'MYDZA' not in line:
-                    continue
-                l3_energies[st_pt_name] = float(line.split()[3])
+    if len([f for f in os.listdir('molpro/') if f.endswith('.out')]) == 0:
+        logging.warning("Unable to perform L3-L2 check. The molpro directory "
+                        "is empty.")
+        return
+
+    # Get L3 energies
+    for st_pt in list(parent_specs.keys()) + [r[1] for r in reactions]:
+        if "_" in st_pt and all([frag.isdigit() for frag in st_pt.split('_')]):
+            # Bimolecular species
+            l3_energies[st_pt] = 0
+            for frag in st_pt.split('_'):
+                if not os.path.isfile(f'molpro/{frag}.out'):
+                    if st_pt in l3_energies:
+                        del l3_energies[st_pt]
+                    break
+                with open(f'molpro/{frag}.out') as out_fh:
+                    for line in out_fh:
+                        if l3_key not in line:
+                            continue
+                        l3_energies[st_pt] += float(line.split()[3])
+                        break
+        elif os.path.isfile(f'molpro/{st_pt}.out'):
+            # Wells and TSs
+            with open(f'molpro/{st_pt}.out') as out_fh:
+                for line in out_fh:
+                    if l3_key not in line:
+                        continue
+                    l3_energies[st_pt] = float(line.split()[3])
+                    break
 
     # Get L2 Energies and its difference respect L3.
     e_diffs = {}
-    for st_pt_name in l3_energies:
-        try:
-            if st_pt_name.isdigit():
-                db = connect(f'{st_pt_name}/kinbot.db')
-                rows = db.select(name=f'{st_pt_name}_well_high')
-            else:
-                db = connect(f'{st_pt_name.split("_")[0]}/kinbot.db')
-                rows = db.select(name=f'{st_pt_name}_high')
+    for st_pt in l3_energies:
+        if any([c.isalpha() for c in st_pt]):  # TSs (have letters in the name)
+            db_path = f'{st_pt.split("_")[0]}/kinbot.db'
+        else:  # Wells and Bimolecular products
+            db_path = f'{parent_specs[st_pt]}/kinbot.db'
+        if not os.path.isfile(db_path):
+            logging.warning(f"Unable to find L2 energy for {st_pt}.")
+            continue
+        db = connect(db_path)
+        if st_pt.isdigit():
+            # Wells
+            rows = db.select(name=f'{st_pt}_well_high')
+        elif all([fr.isdigit() for fr in st_pt.split('_')]):
+            # Bimolecular species.
+            l2_energy = 0
+            for frag in st_pt.split('_'):
+                rows = db.select(name=f'{frag}_well_high')
+                try:
+                    final_row = next(rows)
+                except StopIteration:
+                    logging.warning(f"Unable to find L2 energy for {frag}.")
+                    l2_energy = np.nan
+                    break
+                for row in rows:
+                    final_row = row
+                l2_energy += final_row.data["energy"] * constants.EVtoHARTREE
+        else:
+            rows = db.select(name=f'{st_pt}_high')
+
+        if "_" not in st_pt or any([c.isalpha() for c in st_pt]):
+            # Wells and TSs
+            try:
+                final_row = next(rows)
+            except StopIteration:
+                logging.warning(f"Unable to find L2 energy for {st_pt}.")
+                continue
             for row in rows:
                 final_row = row
-            e_diff = final_row.data["energy"] * constants.EVtoHARTREE \
-                     - l3_energies[st_pt_name]
-            e_diffs[st_pt_name] = e_diff
-        except:  # TODO try to catch the exact exception.
-            logging.warning(f"Unable to read db for {st_pt_name}")
+            l2_energy = final_row.data["energy"] * constants.EVtoHARTREE
+        e_diff = l3_energies[st_pt] - l2_energy
+        e_diffs[st_pt] = e_diff / constants.KCALtoHARTREE
+
+    e_diff_avg = np.round(np.average(list(e_diffs.values())), 1)
+    e_diff_std = np.round(np.std(list(e_diffs.values())), 1)
+    logging.info(f'Avg difference: {e_diff_avg} kcal/mol, '
+                 f'Max: {np.round(max(e_diffs.values()), 1)} kcal/mol, '
+                 f'Min: {np.round(min(e_diffs.values()), 1)} kcal/mol, '
+                 f'STDEV: {e_diff_std} kcal/mol.')
+    for st_pt, e_diff in e_diffs.items():
+        if not e_diff_avg * 0.9 < e_diff < e_diff_avg * 1.1:
+            logging.info(f"Outlying L2-L3 difference found for {st_pt}. "
+                         f"Energy difference: {np.round(e_diff, 1)} kcal/mol.")
+
+
+def t1_analysis(lot='TZ'):
+    import os
+    try:
+        import matplotlib.pyplot as plt
+        do_plot = True
+    except ModuleNotFoundError:
+        do_plot = False
+
+    if 'TZ' in lot.upper():
+        lot = 'TZ'
+    elif 'DZ' in lot.upper():
+        lot = 'DZ'
+    else:
+        logging.warning('Unable to perform a summary of T1 diagnostics: '
+                        'Unrecognized single_point_key.')
+        return
+    T1s = []
+    for f in os.listdir('molpro/'):
+        if not f.endswith('.out'):
             continue
-    e_diff_avg = np.average(list(e_diffs.values()))
-    e_diff_std = np.std(list(e_diffs.values()))
-    logging.info(f'L2-L3 Energy difference Analysis (Ha):')
-    logging.info(f'Avg difference: {e_diff_avg}. Max: '
-                 f'{max(e_diffs.values())}, Min: {min(e_diffs.values())}, '
-                 f'STDEV: {e_diff_std}.')
-    for st_pt_name, e_diff in e_diffs.items():
-        if e_diff > 5 * constants.KCALtoHARTREE:
-            logging.info(f"Outlying L2-L3 difference found for {st_pt_name}. "
-                         f"Energy difference: {e_diff}.")
+        with open(f'molpro/{f}') as fh:
+            do_read1 = False
+            do_read2 = False
+            for line in fh:
+                if lot in line:
+                    do_read1 = True
+                    do_read2 = False
+                if "Starting UCCSD calculation" in line:
+                    do_read2 = True
+                elif do_read1 and do_read2 and 'T1 diagnostic:' in line:
+                    T1s.append(float(line.split()[9]))
+                    break
+    if T1s:
+        counts, bins = np.histogram(T1s)
+    else:
+        logging.warning('Unable to perform a summary of T1 diagnostics: '
+                        'No T1 Diagnostics results found.')
+        return
+
+    if do_plot:
+        fig1, ax1 = plt.subplots()  # Histogram
+        ax1.bar(bins[1:], counts, width=bins[1]*0.7)
+        ax1.set_xlabel('T1 Diagnostic')
+        ax1.set_ylabel('Counts')
+        fig1.savefig('T1_histo.png')
+
+        fig2, ax2 = plt.subplots()  # Cumulative counts.
+        ax2.plot(sorted(T1s), range(len(T1s)))
+        ax2.set_xlabel('T1 Diagnostic')
+        ax2.set_ylabel('Cumulative counts')
+        fig2.savefig('T1_cum_count.png')
+    else:
+        logging.warning('Matplotlib not found. Unable to plot T1 diagnostics '
+                        'summary.')
+
+    logging.info(f"T1 histogram:\nBins: {bins}\nCounts: {counts}.")
 
 
 if __name__ == "__main__":

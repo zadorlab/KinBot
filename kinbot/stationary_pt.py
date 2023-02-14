@@ -1,3 +1,4 @@
+import logging
 import sys
 import numpy as np
 import copy
@@ -161,6 +162,16 @@ class StationaryPoint:
         Also create smiles if possible
         """
         self.distance_mx()
+        for i in range(self.natom):
+            for j in range(self.natom):
+                if i == j:
+                    continue
+                elif self.dist[i][j] < 0.5:
+                    err_msg = 'Incorrect geometry: Found an interatomic ' \
+                              'distance smaller than 0.5 Å.'
+                    logging.error(err_msg)
+                    raise ValueError(err_msg)
+
         self.bond = np.zeros((self.natom, self.natom), dtype=int)
 
         for i in range(self.natom):

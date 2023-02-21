@@ -3,9 +3,9 @@ import stat
 import numpy as np
 import subprocess
 import time
-import pkg_resources
 from collections import Counter
 
+from kinbot import kb_path
 from kinbot import constants
 from kinbot import frequencies
 from kinbot.uncertaintyAnalysis import UQ
@@ -28,47 +28,47 @@ class MESS:
         self.termolec_names = {}
         self. barrierless_names = {}
         # read all templates to create mess input
-        with open(pkg_resources.resource_filename('tpl', 'mess_header.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_header.tpl') as f:
             self.headertpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_dummy.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_dummy.tpl') as f:
             self.dummytpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_termol.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_termol.tpl') as f:
             self.termoltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_fragment.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_fragment.tpl') as f:
             self.fragmenttpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_fragment_OH.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_fragment_OH.tpl') as f:
             self.fragmenttplOH = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_pstfragment.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_pstfragment.tpl') as f:
             self.pstfragmenttpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_hinderedrotor.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_hinderedrotor.tpl') as f:
             self.hinderedrotortpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_freerotor.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_freerotor.tpl') as f:
             self.freerotortpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_atom.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_atom.tpl') as f:
             self.atomtpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_tunneling.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_tunneling.tpl') as f:
             self.tunneltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_well.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_well.tpl') as f:
             self.welltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_well_union.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_well_union.tpl') as f:
             self.welluniontpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_bimol.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_bimol.tpl') as f:
             self.bimoltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_barrierless.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_barrierless.tpl') as f:
             self.blbimoltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_barrier.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_barrier.tpl') as f:
             self.barriertpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_barrier_union.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_barrier_union.tpl') as f:
             self.barrieruniontpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_rrho.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_rrho.tpl') as f:
             self.rrhotpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_core_rr.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_core_rr.tpl') as f:
             self.corerrtpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_pst.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_pst.tpl') as f:
             self.psttpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_variational.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_variational.tpl') as f:
             self.variationaltpl = f.read()
-        with open(pkg_resources.resource_filename('tpl', 'mess_2tst.tpl')) as f:
+        with open(f'{kb_path}/tpl/mess_2tst.tpl') as f:
             self.twotstpl = f.read()
 
 
@@ -703,13 +703,13 @@ class MESS:
         """
 
         if self.par['queue_template'] == '':
-            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+            q_file = f'{kb_path}/tpl/{self.par["queuing"]}.tpl'
         else:
             q_file = self.par['queue_template']
         with open(q_file) as f:
             tpl_head = f.read()
 
-        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mess_uq.tpl')
+        q_file = f'{kb_path}/tpl/{self.par["queuing"]}_mess_uq.tpl'
         with open(q_file) as f:
             tpl = f.read()
 

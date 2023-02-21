@@ -2,8 +2,8 @@ import numpy as np
 import os
 import logging
 from shutil import copyfile
-import pkg_resources
 
+from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
 
 
@@ -148,8 +148,7 @@ class IRC:
             if self.rxn.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'
-
-            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_irc.tpl.py'.format(qc=self.rxn.qc.qc))
+            template_file = f'{kb_path}/tpl/ase_{self.rxn.qc.qc}_irc.tpl.py'
             template = open(template_file, 'r').read()
             template = template.format(label=irc_name,
                                        kwargs=kwargs,

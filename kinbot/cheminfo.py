@@ -1,9 +1,11 @@
 import sys
 import os
-import numpy as np
-import pkg_resources
-from PIL import Image
 import logging
+
+import numpy as np
+from PIL import Image
+
+from kinbot import kb_path
 
 # try to import pybel
 try:
@@ -56,7 +58,7 @@ def create_rxn_depiction(react_smiles, prod_smiles, cdir, name):
     obmol = pybel.readstring("smi", prod_smiles)
     obmol.draw(show=False, filename=prod_png)
 
-    arrow = pkg_resources.resource_filename('tpl', 'arrow.png')
+    arrow = f'{kb_path}/tpl/arrow.png'
     images = map(Image.open, [react_png, arrow, prod_png])
     widths, heights = zip(*(i.size for i in images))
 

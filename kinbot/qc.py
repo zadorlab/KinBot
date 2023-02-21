@@ -2,15 +2,15 @@ import os
 import sys
 import subprocess
 import logging
-import numpy as np
 import re
 import time
 from datetime import datetime
 import copy
-import pkg_resources
-from shutil import copyfile
 
+import numpy as np
 from ase.db import connect
+
+from kinbot import kb_path 
 from kinbot import constants
 from kinbot import geometry
 
@@ -317,7 +317,7 @@ class QuantumChemistry:
 
 #        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_hir.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -358,7 +358,7 @@ class QuantumChemistry:
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -409,7 +409,7 @@ class QuantumChemistry:
         if species.natom < 3:
             del kwargs['Symm'] 
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -440,7 +440,7 @@ class QuantumChemistry:
         elif species.mult == 2: m1 = 1
         elif species.mult == 3: m1 = 2
         kwargs1 = self.get_qc_arguments(job1, m1, species.charge + 1, aie=1)
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         t0 = template.format(label=job0,
                              kwargs=kwargs0,
@@ -513,7 +513,7 @@ class QuantumChemistry:
             del kwargs['Symm'] 
         # the integral is set in the get_qc_arguments parts, bad design
 
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -545,7 +545,7 @@ class QuantumChemistry:
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1, high_level=1)
 
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -588,7 +588,7 @@ class QuantumChemistry:
 
         try:
             if self.par['queue_template'] == '':
-                template_head_file = pkg_resources.resource_filename('tpl', self.queuing + '.tpl')
+                template_head_file = f'{kb_path}/tpl/{self.queuing}.tpl'
             else:
                 template_head_file = self.par['queue_template']
         except OSError:
@@ -602,7 +602,7 @@ class QuantumChemistry:
                           'carry out calculations when queuing is \'local\'.')
             sys.exit()
 
-        template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
+        template_file = f'{kb_path}/tpl/{self.queuing}_python.tpl'
         python_file = f'{job}.py'
         name = job.split('/')[-1]
         python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()

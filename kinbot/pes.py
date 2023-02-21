@@ -11,13 +11,13 @@ import datetime
 import time
 import subprocess
 import json
-import pkg_resources
 import networkx as nx
 import numpy as np
 from copy import deepcopy
 
 from ase.db import connect
 
+from kinbot import kb_path
 from kinbot import constants
 from kinbot import license_message
 from kinbot.parameters import Parameters
@@ -982,7 +982,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     else:
         lot = f'{par["high_level_method"]}/{par["high_level_basis"]}'
 
-    header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
+    header_file = f'{kb_path}/tpl/mess_header.tpl'
     with open(header_file) as f:
         tpl = f.read()
 
@@ -1243,7 +1243,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
 
     # write everything to a file
     fname = 'pesviewer.inp'
-    template_file_path = pkg_resources.resource_filename('tpl', fname + '.tpl')
+    template_file_path = f'{kb_path}/tpl/{fname}.tpl'
     with open(template_file_path) as template_file:
         template = template_file.read()
     template = template.format(id=par['title'],

@@ -7,9 +7,9 @@ reactions, including their barrier heights and which products are formed
 2. Writing an input file for the PES viewer.
 """
 import os
-import pkg_resources
 import numpy as np
 
+from kinbot import kb_path
 from kinbot import license_message
 from kinbot import constants
 
@@ -217,7 +217,7 @@ def createPESViewerInput(species, qc, par):
 
     # write everything to a file
     fname = 'pesviewer.inp'
-    template_file_path = pkg_resources.resource_filename('tpl', fname + '.tpl')
+    template_file_path = f'{kb_path}/tpl/{fname}.tpl'
     with open(template_file_path) as template_file:
         template = template_file.read()
     template = template.format(id=species.chemid, wells=wells, bimolecs=bimolecs, ts=tss, barrierless=barrierless)

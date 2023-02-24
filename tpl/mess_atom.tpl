@@ -1,7 +1,6 @@
     Fragment       {chemid}
-    Atom
-        Name                          {element}
-
+      Atom
+        Name                        {element}
         ElectronicLevels[1/cm]      {nelec}
             0.    {mult}
-    End ! end atom
+      End ! Atom

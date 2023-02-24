@@ -2,10 +2,28 @@ import os
 import re
 import numpy as np
 import copy
+from kinbot import constants
 
 """
 Functions to read Gaussian output files.
 """
+
+
+def read_energy(outfile):
+    """
+    Read the last SCF Done line.
+    """
+
+    with open(outfile) as f:
+        lines = f.readlines()
+
+    energy = np.NAN
+    for line in reversed(lines):
+        if 'SFC Done' in line:
+            energy = float(line.split()[4]) / constants.EVtoHARTREE
+
+    return energy
+
 
 def read_geom(outfile, mol):
     """
@@ -33,6 +51,7 @@ def read_zpe(outfile):
     with open(outfile) as f:
         lines = f.readlines()
 
+    zpe = np.NAN
     for line in reversed(lines):
         if 'Zero-point correction=' in line:
             zpe = float(line.split()[2])
@@ -92,7 +111,9 @@ def read_convergence(outfile):
 
 def constraint(mol, fix, change):
     """
-    Convert constraints into PCBFGS constraints.
+    Convert constraints into ASE constraints.
+    Angles are in degrees according to angles_deg and dihedrals_deg.
+    Careful: atom indices in the fix and change lists start at 1
     """
 
     bonds = []
@@ -100,30 +121,24 @@ def constraint(mol, fix, change):
     dihedrals = []
     for fi in fix:
         if len(fi) == 2:
-            #careful: atom indices in the fix lists start at 1
             bondlength = mol.get_distance(fi[0]-1, fi[1]-1)
-            bonds.append([bondlength,[fi[0]-1, fi[1]-1]])
+            bonds.append([bondlength, [fi[0]-1, fi[1]-1]])
         if len(fi) == 3:
-            #careful: atom indices in the fix lists start at 1
-            angle = mol.get_angle(fi[0]-1, fi[1]-1, fi[2]-1) * np.pi / 180.
-            angles.append([angle,[fi[0]-1, fi[1]-1, fi[2]-1]])
+            angle = mol.get_angle(fi[0]-1, fi[1]-1, fi[2]-1)
+            angles.append([angle, [fi[0]-1, fi[1]-1, fi[2]-1]])
         if len(fi) == 4:
-            #careful: atom indices in the fix lists start at 1
-            dihed = mol.get_dihedral(fi[0]-1, fi[1]-1, fi[2]-1, fi[3]-1) * np.pi / 180.
-            dihedrals.append([dihed,[fi[0]-1, fi[1]-1, fi[2]-1, fi[3]-1]])
+            dihed = mol.get_dihedral(fi[0]-1, fi[1]-1, fi[2]-1, fi[3]-1)
+            dihedrals.append([dihed, [fi[0]-1, fi[1]-1, fi[2]-1, fi[3]-1]])
     for ci in change:
         if len(ci) == 3:
-            #careful: atom indices in the fix lists start at 1
             bondlength = ci[2]
-            bonds.append([bondlength,[ci[0]-1, ci[1]-1]])
+            bonds.append([bondlength, [ci[0]-1, ci[1]-1]])
         if len(ci) == 4:
-            #careful: atom indices in the fix lists start at 1
-            angle = ci[3] * np.pi / 180.
+            angle = ci[3]
             angles.append([angle, [ci[0]-1, ci[1]-1, ci[2]-1]])
         if len(ci) == 5:
-            #careful: atom indices in the fix lists start at 1
-            dihed = ci[4] * np.pi / 180.
-            dihedrals.append([dihed,[ci[0]-1, ci[1]-1, ci[2]-1, ci[3]-1]])
+            dihed = ci[4]
+            dihedrals.append([dihed, [ci[0]-1, ci[1]-1, ci[2]-1, ci[3]-1]])
 
     return bonds, angles, dihedrals
 
@@ -139,7 +154,7 @@ def read_hess(job, natom):
     fchk = str(job) + '.fchk'
     chk = str(job) + '.chk'
     if os.path.exists(chk):
-    #create the fchk file using formchk
+        # create the fchk file using formchk
         os.system('formchk ' + job + '.chk > /dev/null')
     
     with open(fchk) as f:
@@ -180,12 +195,12 @@ def read_imag_mode(job, natom):
         if line[:10] == '  Atom  AN':
             for n in range(natom):
                 mm = lines[l + n + 1].split() 
-                nmode[n][0]= float(mm[2])
-                nmode[n][1]= float(mm[3])
-                nmode[n][2]= float(mm[4])
+                nmode[n][0] = float(mm[2])
+                nmode[n][1] = float(mm[3])
+                nmode[n][2] = float(mm[4])
             break
 
-    return(nmode)
+    return nmode
 
 
 def read_all_irc_geoms(outfile):
@@ -223,3 +238,27 @@ def read_all_irc_geoms(outfile):
                 geom = np.append(geom, g)
                 natom += 1
     return atom, all_geoms, charge, mult
+
+
+def correct_kwargs(outfile, kwargs):
+    """Function to correct errors by modifying the kwargs of the ase calculator.
+
+    @param outfile: Output file of gaussian (.log file)
+    @param kwargs: Original keyword arguments.
+    @return kwargs: New keyword arguments.
+    """
+    if 'opt' not in kwargs:
+        return kwargs
+
+    from kinbot.utils import tail
+    outf_end = tail(outfile, 10)
+    # Use cartesian coordinates when internal ones fail.
+    if 'Error in internal coordinate system' in outf_end \
+            and 'cartesian' not in kwargs['opt']:
+        kwargs['opt'] += ', cartesian'
+    elif 'Error termination request processed by link 9999.' in outf_end:
+        kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'CalcAll')
+        if 'cartesian' not in kwargs['opt']:
+            kwargs['opt'] += ',Cartesian'
+
+    return kwargs

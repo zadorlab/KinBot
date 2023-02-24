@@ -73,9 +73,6 @@ class IRC:
             else:
                 if temp.chemid == self.rxn.species.chemid and all(temp.chiral[at] == self.rxn.species.chiral[at] for at in range(self.rxn.species.natom)):
                     ini_well_hits += 1
-                elif str(temp.chemid) in self.par['skip_chemids']:
-                    logging.info('\tReaction {} leads to forbidden chemid {}'.format(instance_name, temp.chemid))
-                    return 0
                 else:
                     prod_hit = i  # this leaves the possibility of a chirality changing reaction
 
@@ -99,7 +96,7 @@ class IRC:
     def problem_in_geom(self, geom):
         # check if interatomic distances are closer than 0.3 Angstrom
         for i in range(len(geom)):
-            for j in range(i+1, len(geom)):
+            for j in range(i + 1, len(geom)):
                 dist = np.linalg.norm(geom[i] - geom[j])
                 if dist < 0.3:
                     return 1
@@ -149,7 +146,8 @@ class IRC:
                                                   start_from_geom=start_from_geometry)
             prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge)
             if self.rxn.qc.qc == 'gauss':
-                prod_kwargs['opt'] = 'CalcFC, Tight'
+                #prod_kwargs['opt'] = 'CalcFC, Tight'
+                prod_kwargs['opt'] = 'CalcFC'
 
             template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_irc.tpl.py'.format(qc=self.rxn.qc.qc))
             template = open(template_file, 'r').read()
@@ -162,9 +160,8 @@ class IRC:
                                        qc_command=self.par['qc_command'],
                                        working_dir=os.getcwd())
 
-            f_out = open('{}.py'.format(irc_name), 'w')
-            f_out.write(template)
-            f_out.close()
+            with open('{}.py'.format(irc_name), 'w') as f:
+                f.write(template)
 
             self.rxn.qc.submit_qc(irc_name, singlejob=0)
 

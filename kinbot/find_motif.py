@@ -3,8 +3,8 @@ def start_motif(motif, natom, bond, atom, allover, eqv):
     Initialize the motif search.
     If allover is >0, that atom is used as a starting point.
     """
-    visit = [0 for i in range(natom)]
-    chain = [-999 for i in range(natom)]
+    visit = [0] * natom
+    chain = [-999] * natom
     nsteps = -1
     motifset = []
     find_motif(motif, visit, chain, nsteps, 0, -1,
@@ -35,13 +35,13 @@ def find_motif(motif, visit, chain, nsteps, current,
         if allover < 0:
             for i in range(natom):
                 current = i
-                visit = [0 for i in range(natom)]
-                chain = [-999 for i in range(natom)]
+                visit = [0] * natom
+                chain = [-999] * natom
                 find_motif(motif, visit, chain, nsteps, current, previous,
                            motifset, allover, natom, bond, atom, eqv)
         else:
             current = allover
-            visit = [0 for i in range(natom)]
+            visit = [0] * natom
             find_motif(motif, visit, chain, nsteps, current, previous,
                        motifset, allover, natom, bond, atom, eqv)
 
@@ -95,15 +95,22 @@ def find_motif(motif, visit, chain, nsteps, current,
     return 0
 
 
-def bondfilter(motif, bond, bondpattern):
+def bondfilter(motif, bond, bondpattern, atleast=False):
     """
     For a given linear sequence of atoms it tests whether
     the bond orders match pattern bondpattern.
     E.g., bondpattern can be 1, 1, 2, 1 for a 5-long motif.
+    X means any bond pattern is accepted
+    atleast: the bond multiplicity is at least as in bondpattern
+    E.g., the above can be 2, 1, 3, 1 as well and will be accepted
     """
     for atomi in range(len(motif)-1):
         if bondpattern[atomi] == 'X':
             continue
-        if bond[motif[atomi]][motif[atomi+1]] != bondpattern[atomi]:
-            return -1
+        if not atleast:
+            if bond[motif[atomi]][motif[atomi+1]] != bondpattern[atomi]:
+                return -1
+        else:
+            if bond[motif[atomi]][motif[atomi+1]] < bondpattern[atomi]:
+                return -1
     return 0

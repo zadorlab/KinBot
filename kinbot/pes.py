@@ -2,8 +2,6 @@
 This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
 """
-from __future__ import print_function
-from __future__ import absolute_import
 import sys
 import os
 import stat
@@ -13,11 +11,10 @@ import datetime
 import time
 import subprocess
 import json
-from distutils.dir_util import copy_tree
 import pkg_resources
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from copy import deepcopy
 
 from ase.db import connect
 
@@ -30,6 +27,13 @@ from kinbot.uncertaintyAnalysis import UQ
 
 
 def main():
+    if sys.version_info.major < 3:
+        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        sys.exit(-1)
+    elif sys.version_info.minor < 8:
+        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        sys.exit(-1)
+
     try:
         input_file = sys.argv[1]
     except IndexError:
@@ -76,7 +80,7 @@ def main():
                             smiles=par['smiles'],
                             structure=par['structure'])
     well0.characterize()
-    write_input(input_file, well0, par['barrier_threshold'], os.getcwd())
+    write_input(input_file, well0, par['barrier_threshold'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
@@ -93,6 +97,8 @@ def main():
     running = []
     # jobs that are finished
     finished = []
+    # jobs that are waiting 
+    waiting = []
     # list of all jobs
     jobs = []
     # dict of the pid's for all jobs
@@ -102,8 +108,6 @@ def main():
     c = 0
     while 1:
         j = len(jobs)
-        if j != a:
-            logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
         if j != a:
             logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
         a = j
@@ -190,6 +194,11 @@ def main():
             summary_lines.append('Finished:')
             for job in finished:
                 summary_lines.append('\t{}'.format(job))
+            waiting = jobs[len(running) + len(finished):]
+            summary_lines.append('')
+            summary_lines.append('Waiting:')
+            for job in waiting:
+                summary_lines.append('\t{}'.format(job))
             with open('pes_summary.txt', 'w') as f:
                 f.write('\n'.join(summary_lines))
             time.sleep(1)
@@ -201,7 +210,7 @@ def main():
         except ValueError:
             pass
 
-    postprocess(par, jobs, task, names)
+    postprocess(par, jobs, task, names, well0.mass)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission
     # read in the molpro energies for the keys in the above three dicts
@@ -245,7 +254,7 @@ def get_wells(job):
             f.write('\n'.join(new_wells) + '\n')
     
 
-def postprocess(par, jobs, task, names):
+def postprocess(par, jobs, task, names, mass):
 
     """
     postprocess a pes search
@@ -291,7 +300,7 @@ def postprocess(par, jobs, task, names):
             continue
         # read the summary file
         for line in summary:
-            if line.startswith('SUCCESS'):
+            if line.startswith('SUCCESS') and 'hom_sci' not in line:
                 pieces = line.split()
                 ts = pieces[2]  # this is the long specific name of the reaction
                 if ts in par['skip_reactions']:
@@ -357,11 +366,11 @@ def postprocess(par, jobs, task, names):
                         reactions.pop(temp)
                         reactions.append([reactant, ts, prod, barrier])
 
-            elif line.startswith('HOMOLYTIC_SCISSION'):
+            elif line.startswith('SUCCESS') and 'hom_sci' in line:
                 pieces = line.split()
                 reactant = ji
-                energy = pieces[1]  # energy from summary
-                prod = pieces[2:]   # this is the chemid of the product
+                energy = float(pieces[1])  # energy from summary
+                prod = pieces[3:]   # these are the chemids of the products
 
                 if reactant not in wells:
                     wells.append(reactant)
@@ -379,16 +388,13 @@ def postprocess(par, jobs, task, names):
                             parent[prod_name] = reactant
                         products.append('_'.join(sorted(prod)))
                 new = 1
-                temp = None
-                for i, rxn in enumerate(reactions):
+                for rxn in reactions:
                     rxn_prod_name = '_'.join(sorted(rxn[2]))
                     if (reactant == rxn[0] and
                             '_'.join(sorted(prod)) == rxn_prod_name):
                         new = 0
-                        temp = i
                     if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
                         new = 0
-                        temp = i
                 if new:
                     ts = 'barrierless'
                     barrier = energy
@@ -396,22 +402,21 @@ def postprocess(par, jobs, task, names):
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
         # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.
-        copy_from_kinbot(ji, par['single_point_qc'])
+        try:
+            copy_from_kinbot(ji, par['single_point_qc'])
+        except:
+            logging.warning(f'L3 calculations were not copied from {ji}')
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, products, reactions)
     # create a batch submission for all L3 jobs
-    # TODO slurm
     if par['queuing'] == 'pbs':
-        batch = 'batch_L3_pbs.sub'
-        with open(batch, 'w') as f:
-            for well in wells:
-                f.write('qsub molpro/' + well + '.pbs' + '\n')
-            for prod in products:
-                for frag in prod.split('_'):
-                    f.write('qsub molpro/' + frag + '.pbs' + '\n')
-            for reac in reactions:
-                f.write('qsub molpro/' + reac[1] + '.pbs' + '\n')
-        os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
+        cmd = 'qsub'
+        ext = 'pbs'
+    elif par['queuing'] == 'slurm':
+        cmd = 'sbatch'
+        ext = 'slurm'
+
+    batch_submit = ''
 
     well_energies = {}
     well_l3energies = {}
@@ -422,6 +427,9 @@ def postprocess(par, jobs, task, names):
         status, l3energy = get_l3energy(well, par)
         if not status:
             l3done = 0  # not all L3 calculations are done
+            batch_submit += f'{cmd} {well}.{ext}\n'
+        elif not par['L3_calc']:
+            pass
         else:
             well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
     prod_energies = {}
@@ -436,6 +444,9 @@ def postprocess(par, jobs, task, names):
             status, l3e = get_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
+                batch_submit += f'{cmd} {pr}.{ext}\n'
+            elif not par['L3_calc']:
+                pass
             else:
                 l3energy += l3e + zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
@@ -455,6 +466,9 @@ def postprocess(par, jobs, task, names):
 
                 if not status * status_prod:
                     l3done = 0
+                    batch_submit += f'{cmd} {reac[1]}.{ext}\n'
+                elif not par['L3_calc']:
+                    pass
                 else:
                     delta1 = l3energy_prod - (l3energy + zpe)  # ZPEs cancel out for fragments
                     delta2 = l3energy_prod1 + l3energy_prod2 - (base_l3energy + base_zpe) 
@@ -464,12 +478,23 @@ def postprocess(par, jobs, task, names):
                 status, l3energy = get_l3energy(reac[1], par)
                 if not status:
                     l3done = 0
+                    batch_submit += f'{cmd} {reac[1]}.{ext}\n'
+                elif not par['L3_calc']:
+                    pass
                 else:
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
     logging.info('l3done status {}'.format(l3done))
+    # clean duplicates
+    batch_submit = list(set(batch_submit.split('\n')))
+    batch_submit.reverse()
+    batch_submit = '\n'.join(batch_submit)
+    batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
+    with open(batch, 'w') as f:
+        f.write(batch_submit)
+    os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
 
-    if l3done == 1:
+    if l3done == 1 and par['L3_calc']:
         logging.info('Energies are updated to L3 in ME and PESViewer.')
         well_energies = well_l3energies
         prod_energies = prod_l3energies
@@ -486,9 +511,11 @@ def postprocess(par, jobs, task, names):
             logging.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
         for ts in ts_l3energies:
             logging.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
+    else:
+        logging.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
+                     f'{par["high_level_basis"]}) level of theory.')
 
-
-    # if L3 was done, everything below is done with that
+    # if L3 was done and requested, everything below is done with that
     # filter according to tasks
     wells, products, reactions, highlight = filter(par,
                                                    wells,
@@ -500,14 +527,13 @@ def postprocess(par, jobs, task, names):
                                                    task,
                                                    names)
 
-    # draw a graph of the network
-    # create_graph(wells,
-    #              products,
-    #              reactions,
-    #              well_energies,
-    #              prod_energies,
-    #              highlight)
-    # write_mess
+    create_interactive_graph(wells,
+                             products,
+                             reactions,
+                             par['title'],
+                             well_energies,
+                             prod_energies,
+                             )
 
     barrierless = []
     rxns = []
@@ -526,7 +552,7 @@ def postprocess(par, jobs, task, names):
                            well_energies,
                            prod_energies,
                            highlight)
-    if par['me'] == 1:
+    if par['me']:
         create_mess_input(par,
                           wells,
                           products,
@@ -534,7 +560,13 @@ def postprocess(par, jobs, task, names):
                           barrierless,
                           well_energies,
                           prod_energies,
-                          parent)
+                          parent,
+                          mass,
+                          l3done)
+
+    if par['single_point_qc'].lower() == 'molpro':
+        check_l3_l2(par['single_point_key'], parent, reactions)
+        t1_analysis(par['single_point_key'])
 
 
 def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
@@ -836,11 +868,15 @@ def is_pathway(wells, products, ins, names):
 
 
 def copy_from_kinbot(well, dirname):
-    dirname = dirname + '/'
+    files = os.listdir(f'{well}/{dirname}')
     if not os.path.exists(dirname):
         os.mkdir(dirname)
-    copy_tree(well + '/' + dirname, dirname)
-
+    for f in files:
+        if f.endswith('.out'):
+            if not os.path.exists(f'{dirname}/{f}'):
+                shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+        else:
+            shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
 
 def get_rxn(prods, rxns):
     for rxn in rxns:
@@ -895,118 +931,143 @@ def create_short_names(wells, products, reactions, barrierless):
     n = 1
     for rxn in barrierless:
         nobar_name = 'nobar_' + str(n)
-        nobar_short[nobar_name] = nobar_name
+        key = f'{rxn[0]}_{rxn[2][0]}_{rxn[2][1]}'
+        nobar_short[key] = nobar_name
         n = n + 1
 
     return well_short, pr_short, fr_short, ts_short, nobar_short
 
 
 def create_mess_input(par, wells, products, reactions, barrierless,
-                      well_energies, prod_energies, parent):
+                      well_energies, prod_energies, parent, mass, l3done):
     """
     When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
     Two things per file need to be updated
     1. the names of all the wells, bimolecular products and ts's
     2. all the zpe corrected energies
+    If it is a multi_conf_tst calculation, then the ZeroEnergies and
+    ImaginaryFrequency values need to be also changed for each species in the Union.
+    The lowest energy species has L3 energies (if calculated), while the 
+    others are corrected with their DeltaL2 energies.
     """
 
-    i = 0  # uncertainty counter
-    logging.info('{0} {1} {2}'.format("uq value: ", par['uq'], "\n"))
-    well_short, pr_short, fr_short, ts_short, nobar_short = create_short_names(wells,
-                                                                               products,
-                                                                               reactions,
-                                                                               barrierless)
+    logging.info(f"uq value: {par['uq']}")
+    short_names = create_short_names(wells, products, reactions, barrierless)
+    well_short, pr_short, fr_short, ts_short, nobar_short = short_names
 
     # list of the strings to write to mess input file
     s = []
 
-    # create mess0 label for mess header
-    well0 = StationaryPoint('well0',
+    # Create the header block for MESS
+    frame = '######################\n' 
+    divider = '! ****************************************\n'
+    
+    dummy = StationaryPoint('dummy',
                             par['charge'],
                             par['mult'],
                             smiles=par['smiles'],
                             structure=par['structure'])
-    well0.characterize()
 
-    """
-    Create the header block for MESS
-    """
-    # Read the header template
+    mess = MESS(par, dummy)
+    uq = UQ(par)
+
+    if l3done:
+        if par['single_point_key'] == 'MYDZA':
+            lot = 'CCSD(T)-F12/cc-pVDZ-f12'
+        elif par['single_point_key'] == 'MYTZA':
+            lot = 'CCSD(T)-F12/cc-pVTZ-f12'
+        else:
+            lot = 'CCSD(T)-F12'
+    else:
+        lot = f'{par["high_level_method"]}/{par["high_level_basis"]}'
+
     header_file = pkg_resources.resource_filename('tpl', 'mess_header.tpl')
     with open(header_file) as f:
         tpl = f.read()
-    header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par['TemperatureList']]),
-                        PressureList=' '.join([str(pi) for pi in par['PressureList']]),
-                        EnergyStepOverTemperature=par['EnergyStepOverTemperature'],
-                        ExcessEnergyOverTemperature=par['ExcessEnergyOverTemperature'],
-                        ModelEnergyLimit=par['ModelEnergyLimit'],
-                        CalculationMethod=par['CalculationMethod'],
-                        ChemicalEigenvalueMax=par['ChemicalEigenvalueMax'],
-                        Reactant=well_short[wells[0]],
-                        EnergyRelaxationFactor=par['EnergyRelaxationFactor'],
-                        EnergyRelaxationPower=par['EnergyRelaxationPower'],
-                        EnergyRelaxationExponentCutoff=par['EnergyRelaxationExponentCutoff'],
-                        e_coll=constants.epsilon[par['collider']],
-                        s_coll=constants.sigma[par['collider']],
-                        m_coll=constants.mass[par['collider']],
-                        e_well=par['epsilon'],
-                        s_well=par['sigma'],
-                        m_well=well0.mass,
-                        )
 
-    frame = '######################\n' 
-    divider = '!****************************************\n'
-    if par['uq'] == 0:
-        # list of the strings to write to mess input file
-        s = []
-        # write the header
+    for uq_iter in range(par['uq_n']):
+        mess_iter = "{0:04d}".format(uq_iter)
 
-        # create dummy for mess object
-        dummy = StationaryPoint('dummy',
-                                par['charge'],
-                                par['mult'],
-                                smiles=par['smiles'],
-                                structure=par['structure'])
+        e_well = par['epsilon'] * uq.calc_factor('epsilon', uq_iter)
+        s_well = par['sigma'] * uq.calc_factor('sigma', uq_iter)
+        enrelfact = par['EnergyRelaxationFactor'] * uq.calc_factor('enrelfact', uq_iter)
+        enrelpow = par['EnergyRelaxationPower'] * uq.calc_factor('enrelpow', uq_iter)
 
-        # mess object
-        mess = MESS(par, dummy)
+        header = tpl.format(TemperatureList=' '.join([str(ti) for ti in par['TemperatureList']]),
+                            PressureList=' '.join([str(pi) for pi in par['PressureList']]),
+                            EnergyStepOverTemperature=par['EnergyStepOverTemperature'],
+                            ExcessEnergyOverTemperature=par['ExcessEnergyOverTemperature'],
+                            ModelEnergyLimit=par['ModelEnergyLimit'],
+                            CalculationMethod=par['CalculationMethod'],
+                            ChemicalEigenvalueMax=par['ChemicalEigenvalueMax'],
+                            Reactant=well_short[wells[0]],
+                            EnergyRelaxationFactor=round(enrelfact, 2),
+                            EnergyRelaxationPower=round(enrelpow, 2),
+                            EnergyRelaxationExponentCutoff=par['EnergyRelaxationExponentCutoff'],
+                            e_coll=round(constants.epsilon[par['collider']], 2),
+                            s_coll=constants.sigma[par['collider']],
+                            m_coll=constants.mass[par['collider']],
+                            e_well=round(e_well, 2),
+                            s_well=round(s_well, 2),
+                            m_well=mass,
+                            LevelOfTheory=lot
+                            )
 
+        s = []  # mess string after header
+
+        well_energies_current = deepcopy(well_energies)
+        prod_energies_current = deepcopy(prod_energies)
+            
         # write the wells
-        s.append(frame +'# WELLS\n' + frame)
+        s.append(frame + '# WELLS\n' + frame)
         for well in wells:
             name = well_short[well] + ' ! ' + well
-            energy = well_energies[well]
-            fi = parent[well] + '/' + well + '_0000.mess'
-            with open(fi, 'r') as f:
-                s.append(f.read().format(name=name, zeroenergy=energy))
+            energy = well_energies[well] + uq.calc_factor('energy', uq_iter)
+            well_energies_current[well] = energy
+            with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
+                s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
             s.append(divider)
 
-        slen = len(s)
-        w = len(wells)
-        ws = len(well_short)
-
-        # write the products
+        # write the products and barrierless reactions
         s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
         for prod in products:
             name = pr_short[prod] + ' ! ' + prod
-            energy = prod_energies[prod]
+            energy = prod_energies[prod] + uq.calc_factor('energy', uq_iter)
+            prod_energies_current[prod] = energy
             fr_names = {}
             for fr in prod.split('_'):
-                key = 'fr_name_{}'.format(fr)
+                key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
-            with open(parent[prod] + '/' + prod + '_0000.mess') as f:
-                s.append(f.read().format(name=name,
-                                         ground_energy=energy,
-                                         **fr_names))
+            # check if barrrieless
+            bless = 0
+            for bl in barrierless:
+                bl_prod = f'{bl[2][0]}_{bl[2][1]}'
+                if prod == bl_prod:
+                    bless = 1
+                    break
+            with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                if not bless:
+                    s.append(f.read().format(name=name,
+                                             ground_energy=round(energy, 2),
+                                             **fr_names))
+                else:
+                    s.append(f.read().format(name=name,
+                                             blessname=nobar_short[f'{parent[prod]}_{bl_prod}'],
+                                             wellname=well_short[parent[prod]],
+                                             prodname=pr_short[prod],
+                                             ground_energy=round(energy, 2),
+                                             **fr_names))
             s.append(divider)
 
         # write the barrier
         s.append(frame + '# BARRIERS\n' + frame)
         for rxn in reactions:
-            with open("reactionList.log", 'a') as rxFi:
-                rxFi.write('{0} {1}'.format(rxn, "\n"))
+            if rxn[0] == rxn[2][0]:  # Avoid writing identity reactions.
+                continue
+            with open("reactionList.log", 'a') as f:
+                f.write(f'rxn\n')
             name = [ts_short[rxn[1]]]
             name.append(well_short[rxn[0]])
             if len(rxn[2]) == 1:
@@ -1015,129 +1076,113 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 name.append(pr_short['_'.join(sorted(rxn[2]))])
             name.append('!')
             name.append(rxn[1])
-            energy = rxn[3]
-            try:
-                with open(rxn[0] + "/" + rxn[1] + "_0000.mess") as f:
-                    if 'barrierless_saddle' in rxn[1]:
-                        prodzeroenergy = prod_energies['_'.join(rxn[2])]
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy, prodzeroenergy=prodzeroenergy))
-                    else:
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
-                s.append(divider)
-            except:
-                logging.warning('File {}/{}_0000.mess not found.\n'.format(rxn[0], rxn[1]))
-        # add last end statement
+            energy = rxn[3] + uq.calc_factor('barrier', uq_iter)
+            welldepth1 = energy - well_energies_current[rxn[0]] 
+            if len(rxn[2]) == 1:
+                welldepth2 = energy - well_energies_current[rxn[2][0]] 
+            else:
+                prodname = '_'.join(sorted(rxn[2]))
+                welldepth2 = energy - prod_energies_current[prodname] 
+            cutoff = min(welldepth1, welldepth2)
+            with open(rxn[0] + '/' + rxn[1] + '_' + mess_iter + '.mess') as f:
+                s.append(f.read().format(name=' '.join(name), 
+                         zeroenergy=round(energy, 2),
+                         cutoff=round(cutoff, 2),
+                         welldepth1=round(welldepth1, 2),
+                         welldepth2=round(welldepth2, 2),
+                         ))
+            s.append('!****************************************')
         s.append(divider)
         s.append('End ! end kinetics\n')
 
         if not os.path.exists('me'):
             os.mkdir('me')
 
-        # write everything to a file
-        with open('me/mess_0000.inp', 'w') as f:
+        with open(f'me/mess_{mess_iter}.inp', 'w') as f:
             f.write(header)
             f.write('\n'.join(s))
+
+        if par['multi_conf_tst']:
+            logging.info('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
+            with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
+                with open(f'me/mess_{mess_iter}.inp', 'r') as f:
+                    lines = f.read().split('\n')
+                    for line in lines:
+                        words = line.split()
+                        if 'ZeroEnergy' in line:
+                            if len(words) == 4:
+                                space = ' ' * (len(line) - len(line.lstrip(' ')))
+                                ecorr = float(words[3])
+                                words[1] = str(round(float(words[1]) + ecorr, 2))
+                                newline = ' '.join(words)
+                                newline = space + newline
+                            else:
+                                newline = line
+                            fcorr.write(newline)
+                        elif 'End ! RRHO' in line:
+                            ecorr = None  # reset correction at the end of block
+                            fcorr.write(line)
+                        elif len(words) == 0:
+                            continue
+                        elif ('CutoffEnergy' in line or 'WellDepth' in line) and ecorr is not None:
+                            space = ' ' * (len(line) - len(line.lstrip(' ')))
+                            words[1] = str(round(float(words[1]) + ecorr, 2))
+                            newline = ' '.join(words)
+                            newline = space + newline
+                            fcorr.write(newline)
+                        elif 'ImaginaryFrequency' in line:
+                            if len(words) == 4:
+                                space = ' ' * (len(line) - len(line.lstrip(' ')))
+                                words[1] = words[3][1:]  # cutting off - sign
+                                newline = ' '.join(words)
+                                newline = space + newline
+                            else:
+                                newline = line
+                            fcorr.write(newline)
+                        else:
+                            fcorr.write(line)
+                        fcorr.write('\n')
+
+            shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
+            os.remove(f'me/mess_{mess_iter}_corr.inp')
+
+        # cleaning file from submerged barrier tunneling
+        #Tunneling   Eckart
+        #  ImaginaryFrequency[1/cm]  2277.51
+        #  CutoffEnergy[kcal/mol]    20.56
+        #  WellDepth[kcal/mol]       34.0
+        #  WellDepth[kcal/mol]       20.56
+        #End
+        with open(f'me/mess_{mess_iter}_temp.inp', 'w') as ftemp:
+            with open(f'me/mess_{mess_iter}.inp', 'r') as f:
+                lines = f.read().split('\n')
+                submerged = -1
+                for ll, line in enumerate(lines):
+                    words = line.split()
+                    if 'Tunneling' in line:
+                        submerged = -1
+                        words = lines[ll + 2].split()
+                        if float(words[1]) <= 0:
+                            submerged = 0
+                            ftemp.write('! submerged barrier\n')
+                        else:
+                            ftemp.write(line)
+                            ftemp.write('\n')
+                    elif submerged <= 5 and submerged >= 0:
+                        submerged += 1
+                    else: 
+                        ftemp.write(line)
+                        ftemp.write('\n')
+
+        shutil.copyfile(f'me/mess_{mess_iter}_temp.inp', f'me/mess_{mess_iter}.inp')
+        os.remove(f'me/mess_{mess_iter}_temp.inp')
 
         if par['me']:
             mess.run()
 
-    else:
-        uq_iter = 0
-        while(uq_iter < par['uq_n']):
-            # list of the strings to write to mess input file
-            s = []
-            # write the header
-            # s.append(write_header(par, well_short[wells[0]]))
+        #uq.format_uqtk_data() 
+    return
 
-            # create dummy for mess object
-            dummy = StationaryPoint('dummy',
-                                    par['charge'],
-                                    par['mult'],
-                                    smiles=par['smiles'],
-                                    structure=par['structure'])
-
-            mess = MESS(par, dummy)
-            uq_obj = UQ(par)
-
-            # write the wells
-            s.append('######################')
-            s.append('# WELLS')
-            s.append('######################')
-            for well in wells:
-                name = well_short[well] + ' ! ' + well
-                energy = well_energies[well]
-                uq_energyAdd = uq_obj.calc_factor('energy', well_short[well], uq_iter)
-                energy = energy + uq_energyAdd
-                mess_iter = "{0:04d}".format(uq_iter)
-                with open(parent[well] + '/' + well + '_' + str(mess_iter) + '.mess') as f:
-                    s.append(f.read().format(name=name, zeroenergy=energy))
-                s.append('!****************************************')
-            slen = len(s)
-            w = len(wells)
-            ws = len(well_short)
-
-            # write the products
-            s.append('######################')
-            s.append('# BIMOLECULAR PRODUCTS')
-            s.append('######################')
-            for prod in products:
-                name = pr_short[prod] + ' ! ' + prod
-                energy = prod_energies[prod]
-                uq_energyAdd = uq_obj.calc_factor('energy', pr_short[prod], uq_iter)
-                energy = energy + uq_energyAdd
-                fr_names = {}
-                for fr in prod.split('_'):
-                    key = 'fr_name_{}'.format(fr)
-                    value = fr_short[fr] + ' ! ' + fr
-                    fr_names[key] = value
-                mess_iter = "{0:04d}".format(uq_iter)
-                with open(parent[prod] + '/' + prod + '_' + str(mess_iter) + '.mess') as f:
-                    s.append(f.read().format(name=name,
-                                             ground_energy=energy,
-                                             **fr_names))
-                s.append('!****************************************')
-
-            # write the barrier
-            s.append('######################')
-            s.append('# BARRIERS')
-            s.append('######################')
-            for rxn in reactions:
-                name = [ts_short[rxn[1]]]
-                name.append(well_short[rxn[0]])
-                if len(rxn[2]) == 1:
-                    name.append(well_short[rxn[2][0]])
-                else:
-                    name.append(pr_short['_'.join(sorted(rxn[2]))])
-                name.append('!')
-                name.append(rxn[1])
-                energy = rxn[3]
-                uq_energyAdd = uq_obj.calc_factor('barrier', ts_short[rxn[1]], uq_iter)
-                energy = energy + uq_energyAdd
-                mess_iter = "{0:04d}".format(uq_iter)
-                try:
-                    with open(rxn[0] + '/' + rxn[1] + '_' + str(mess_iter) + '.mess') as f:
-                        s.append(f.read().format(name=' '.join(name), zeroenergy=energy))
-                    s.append('!****************************************')
-                except:
-                    logging.warning('{}/{} not found.\n'.format(rxn[0], rxn[1]))
-            # add last end statement
-            s.append('!****************************************')
-            s.append('End ! end kinetics\n')
-            
-            if not os.path.exists('me'):
-                os.mkdir('me')
-
-            # write everything to a file
-            mess_iter = "{0:04d}".format(uq_iter)
-            with open('me/' + 'mess_' + str(mess_iter) + '.inp', 'a') as f:
-                f.write(header)
-                f.write('\n'.join(s))
-            uq_iter = uq_iter + 1
-
-        if par['me'] == 1:
-            mess.run()
-        
-        uq_obj.format_uqtk_data() 
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):
@@ -1147,8 +1192,6 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
     # delete the im_extent and xval files
     try:
         os.remove('{}_xval.txt'.format(par['title']))
-    except OSError:
-        pass
     except OSError:
         pass
 
@@ -1178,10 +1221,10 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
                                                     high))
     barrierless_lines = []
     index = 0
-    new = 1
     prev_prod = []
     for rxn in barrierless:
         prod_name = '_'.join(sorted(rxn[2]))
+        new = 1
         for item in prev_prod:
             if prod_name == item:
                 new = 0
@@ -1212,97 +1255,54 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
         f.write(template)
 
 
-def create_graph(wells, products, reactions,
-                 well_energies, prod_energies, highlight):
+def create_interactive_graph(wells, products, reactions, title, well_energies, prod_energies):
     """
-    highlight: list of reaction names that need a red highlight
+    Create an interactive plot with pyvis
     """
-    if highlight is None:
-        highlight = []
-    # update the connectivity with the filtered wells, products and reactions
+    if len(wells) < 2:
+        return -2
+    try:
+        from pyvis import network as net
+    except ImportError:
+        logging.warning('pyvis cannot be imported, no interactive plot is made.')
+        return -1
+    try:
+        from IPython.core.display import display, HTML
+    except ImportError:
+        logging.warning('IPython cannot be imported, no interactive plot is made.')
+        return -1
+
+    # For now we are assuming the all of the 2D depictions
+    # are in place, which were created with PESViewer
+    # Later we can add those in independently, but
+    # this is not needed, just requires a quick run of
+    # PESViewer
+
     conn, bars = get_connectivity(wells, products, reactions)
 
-    # get the minimum and maximum well and product energy
-    try:
-        minimum = min(min(well_energies.values()),
-                      min(prod_energies.values()))
-        maximum = max(max(well_energies.values()),
-                      max(prod_energies.values()))
-    except ValueError:
-        # list of products can be empty, but list of wells not
-        minimum = min(well_energies.values())
-        maximum = max(well_energies.values())
-    # define the inveresly proportial weights function
-    max_size = 400
-    min_size = 100
-    slope = (min_size - max_size) / (maximum - minimum)
-    offset = max_size - minimum * slope
-    # define the graph nodes
-    nodes = [i for i, wi in enumerate(wells)]
-    nodes += [len(wells) + i for i, pi in enumerate(products)]
-    # size of the nodes from the weights
-    node_size = [slope * well_energies[wi] + offset for wi in wells]
-    node_size += [slope * prod_energies[pi] + offset for pi in products]
-    # color nodes and wells differently
-    node_color = ['lightskyblue' for wi in wells]
-    node_color += ['lightcoral' for pi in products]
-    # labels of the wells and products
-    labels = {}
-    name_dict = {}
-    for i, wi in enumerate(wells):
-        labels[i] = 'w{}'.format(i + 1)
-        name_dict[labels[i]] = wi
-    for i, pi in enumerate(products):
-        labels[i + len(wells)] = 'b{}'.format(i + 1)
-        name_dict[labels[i + len(wells)]] = pi
-    # write the labels to a file
-    with open('species_dict.txt', 'w') as f:
-        lines = []
-        for name in sorted(name_dict.keys()):
-            lines.append('{}  {}'.format(name, name_dict[name]))
-        f.write('\n'.join(lines))
-    # make a graph object
-    G = nx.Graph()
-    # add the nodes
-    for i, node in enumerate(nodes):
-        G.add_node(node, weight=node_size[i])
+    g = net.Network(height='800px', width='50%',heading='')
+    for i, well in enumerate(wells):
+        g.add_node(i, label='', borderWidth=3, title=f'{well}: {round(well_energies[well], 1)} kcal/mol', 
+                   shape='image', image=f'{os.getcwd()}/{title}/{well}_2d.png')
+    for i, prod in enumerate(products):
+        g.add_node(i + len(wells), label='', borderWidth=3, title=f'{prod}: {round(prod_energies[prod],1)} kcal/mol', 
+                   shape='image', image=f'{os.getcwd()}/{title}/{prod}_2d.png')
 
-    # define the inversely proportional weights for the lines
-    minimum = min(rxn[3] for rxn in reactions)
-    maximum = max(rxn[3] for rxn in reactions)
-    max_size = 5
-    min_size = 0.5
-    try:
-        slope = (min_size - max_size) / (maximum - minimum)
-    except:
-        slope = 1.
-    offset = max_size - minimum * slope
-
-    # add the edges
+    color_min = bars.min()
+    color_max = bars.max()
+    color_step = (color_max - color_min) / 256.
     for i, ci in enumerate(conn):
         for j, cij in enumerate(ci):
             if cij > 0:
-                weight = slope * bars[i][j] + offset
-                G.add_edge(i, j, weight=weight)
-    edges = G.edges()
-    weights = [G[u][v]['weight'] for u, v in edges]
+                red = round((bars[i, j] - color_min) / color_step) 
+                green = 0
+                blue = round((color_max - bars[i, j]) / color_step)
+                g.add_edge(i, j, title=f'{round(bars[i, j], 1)} kcal/mol', width=4, color=f'rgb({red},{green},{blue})')
+    g.show_buttons(filter_=['physics'])
+    g.save_graph(f'{title}.html')
+    #display(HTML('example.html'))
+    return 0
 
-    # position the nodes
-    pos = nx.spring_layout(G, scale=1)
-
-    
-    # make the matplotlib figure
-    plt.figure(figsize=(8, 8))
-    nx.draw_networkx_edges(G, pos, edgelist=edges, width=weights)
-    nx.draw_networkx_nodes(G,
-                           pos,
-                           nodelist=G.nodes(),
-                           node_size=node_size,
-                           node_color=node_color)
-    nx.draw_networkx_labels(G, pos, labels, font_size=8)
-    plt.axis('off')
-    plt.savefig('graph.png')
-    
 
 def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
     db = connect(directory + '/kinbot.db')
@@ -1323,11 +1323,14 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
     try:
         # ase energies are always in ev, convert to hartree
         energy *= constants.EVtoHARTREE
-    except UnboundLocalError:
+    except UnboundLocalError or TypeError:
         # this happens when the job is not found in the database
-        logging.error('Could not find {} in directory {}'.format(job, dir))
+        logging.error('Could not find {} in directory {} database.'.format(job, directory))
         logging.error('Exiting...')
         sys.exit(-1)
+    except TypeError:
+        logging.warning('Could not find {} in directory {}'.format(job, directory))
+        energy = 0.
     return energy
 
 
@@ -1343,21 +1346,30 @@ def get_l3energy(job, par, bls=0):
         key = par['single_point_key']
 
     if par['single_point_qc'] == 'molpro':
-        if os.path.exists('molpro/' + job + '.out'):
-            with open('molpro/' + job + '.out', 'r') as f:
+        if os.path.exists(f'molpro/{job}.out'):
+            with open(f'molpro/{job}.out', 'r') as f:
                 lines = f.readlines()
                 for line in reversed(lines):
                     if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
                         logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
-    if par['single_point_qc'] == 'gaussian':
-        if os.path.exists('gaussian/' + job + '.log'):
-            gaussname = 'gaussian/' + job + '.log'
-        elif os.path.exists('gaussian/' + job + '_high.log'):
-            gaussname = 'gaussian/' + job + '_high.log'
-        elif os.path.exists('gaussian/' + job + '_well_high.log'):
-            gaussname = 'gaussian/' + job + '_well_high.log'
+    elif par['single_point_qc'] == 'orca':
+        if os.path.exists(f'orca/{job}_property.txt'):
+            with open(f'orca/{job}_property.txt', 'r') as f:
+                lines = f.readlines()
+                for line in reversed(lines):
+                    if (key) in line:
+                        e = float(line.split()[-1])
+                        logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                        return 1, e  # energy was found
+    elif par['single_point_qc'] == 'gauss':
+        if os.path.exists('gauss/' + job + '.log'):
+            gaussname = 'gauss/' + job + '.log'
+        elif os.path.exists('gauss/' + job + '_high.log'):
+            gaussname = 'gauss/' + job + '_high.log'
+        elif os.path.exists('gauss/' + job + '_well_high.log'):
+            gaussname = 'gauss/' + job + '_well_high.log'
         else:
             logging.info('L3 for {} is missing.'.format(job))
             return 0, -1  # job not yet started to run
@@ -1377,8 +1389,8 @@ def get_l3energy(job, par, bls=0):
     return 0, -1  # job not yet started to run or not finished
 
 
-def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):
-    db = connect(dir + '/kinbot.db')
+def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
+    db = connect(jobdir + '/kinbot.db')
     if ts:
         j = job
     else:
@@ -1390,9 +1402,13 @@ def get_zpe(dir, job, ts, high_level, mp2=0, bls=0):
     if high_level:
         j += '_high'
     rows = db.select(name=j)
+    zpe = None 
     for row in rows:
         if hasattr(row, 'data'):
             zpe = row.data.get('zpe')
+    if zpe == None: 
+        logging.warning('Could not find zpe for {} in directory {}'.format(job, jobdir))
+        zpe = 1.  # a large value
     return zpe
 
 
@@ -1422,11 +1438,11 @@ def submit_job(chemid, par):
     # everything is done
     # relevant if jobs are killed
     try:
-        os.system('rm -f {dir}/summary_*.out'.format(dir=chemid))
+        os.system(f'rm -f {chemid}/summary_*.out')
     except OSError:
         pass
     try:
-        os.system('rm -f {dir}/kinbot_monitor.out'.format(dir=chemid))
+        os.system(f'rm -f {chemid}/kinbot_monitor.out')
     except OSError:
         pass
 
@@ -1439,8 +1455,8 @@ def submit_job(chemid, par):
                         .format(chemid, par['barrierless_saddle_single_point_template']))
         shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
                         .format(chemid, par['barrierless_saddle_prod_single_point_template']))
-    outfile = open('{dir}/kinbot.out'.format(dir=chemid), 'w')
-    errfile = open('{dir}/kinbot.err'.format(dir=chemid), 'w')
+    outfile = open(f'{chemid}/kinbot.out', 'w')
+    errfile = open(f'{chemid}/kinbot.err', 'w')
     process = subprocess.Popen(command,
                                cwd=chemid,
                                stdout=outfile,
@@ -1451,11 +1467,11 @@ def submit_job(chemid, par):
     return pid
 
 
-def write_input(input_file, species, threshold, root):
+def write_input(input_file, species, threshold, root, me):
     # directory for this particular species
-    dir = root + '/' + str(species.chemid) + '/'
-    if not os.path.exists(dir):
-        os.makedirs(dir)
+    directory = root + '/' + str(species.chemid) + '/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
@@ -1476,11 +1492,170 @@ def write_input(input_file, species, threshold, root):
     # set the pes option to 1
     par2['pes'] = 1
     # don't do ME for these kinbots but write the files
-    par2['me'] = 2
+    if me:
+        par2['me'] = 2
 
-    file_name = dir + str(species.chemid) + '.json'
+    file_name = directory + str(species.chemid) + '.json'
     with open(file_name, 'w') as outfile:
         json.dump(par2, outfile, indent=4, sort_keys=True)
+
+
+def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
+    """Perform a check on the difference between L3 and L2 energy differences.
+
+    @param l3_key: Pattern to search for in L3 calculations.
+    @param parent_specs: Dictionary of species' chemids with its parent species.
+    @param reactions: List of all reaction names in the PES.
+    """
+    # Get L3 energies
+    l3_energies = {}
+    logging.info(f'L3-L2 Energy difference Analysis. Energy units: kcal/mol.')
+    if not os.path.isdir('molpro'):
+        logging.warning("Unable to perform L3-L2 check. The molpro directory "
+                        "is missing.")
+        return
+    if len([f for f in os.listdir('molpro/') if f.endswith('.out')]) == 0:
+        logging.warning("Unable to perform L3-L2 check. The molpro directory "
+                        "is empty.")
+        return
+
+    # Get L3 energies
+    for st_pt in list(parent_specs.keys()) + [r[1] for r in reactions]:
+        if "_" in st_pt and all([frag.isdigit() for frag in st_pt.split('_')]):
+            # Bimolecular species
+            l3_energies[st_pt] = 0
+            for frag in st_pt.split('_'):
+                if not os.path.isfile(f'molpro/{frag}.out'):
+                    if st_pt in l3_energies:
+                        del l3_energies[st_pt]
+                    break
+                with open(f'molpro/{frag}.out') as out_fh:
+                    for line in out_fh:
+                        if l3_key not in line:
+                            continue
+                        l3_energies[st_pt] += float(line.split()[3])
+                        break
+        elif os.path.isfile(f'molpro/{st_pt}.out'):
+            # Wells and TSs
+            with open(f'molpro/{st_pt}.out') as out_fh:
+                for line in out_fh:
+                    if l3_key not in line:
+                        continue
+                    l3_energies[st_pt] = float(line.split()[3])
+                    break
+
+    # Get L2 Energies and its difference respect L3.
+    e_diffs = {}
+    for st_pt in l3_energies:
+        if any([c.isalpha() for c in st_pt]):  # TSs (have letters in the name)
+            db_path = f'{st_pt.split("_")[0]}/kinbot.db'
+        else:  # Wells and Bimolecular products
+            db_path = f'{parent_specs[st_pt]}/kinbot.db'
+        if not os.path.isfile(db_path):
+            logging.warning(f"Unable to find L2 energy for {st_pt}.")
+            continue
+        db = connect(db_path)
+        if st_pt.isdigit():
+            # Wells
+            rows = db.select(name=f'{st_pt}_well_high')
+        elif all([fr.isdigit() for fr in st_pt.split('_')]):
+            # Bimolecular species.
+            l2_energy = 0
+            for frag in st_pt.split('_'):
+                rows = db.select(name=f'{frag}_well_high')
+                try:
+                    final_row = next(rows)
+                except StopIteration:
+                    logging.warning(f"Unable to find L2 energy for {frag}.")
+                    l2_energy = np.nan
+                    break
+                for row in rows:
+                    final_row = row
+                l2_energy += final_row.data["energy"] * constants.EVtoHARTREE
+        else:
+            rows = db.select(name=f'{st_pt}_high')
+
+        if "_" not in st_pt or any([c.isalpha() for c in st_pt]):
+            # Wells and TSs
+            try:
+                final_row = next(rows)
+            except StopIteration:
+                logging.warning(f"Unable to find L2 energy for {st_pt}.")
+                continue
+            for row in rows:
+                final_row = row
+            l2_energy = final_row.data["energy"] * constants.EVtoHARTREE
+        e_diff = l3_energies[st_pt] - l2_energy
+        e_diffs[st_pt] = e_diff / constants.KCALtoHARTREE
+
+    e_diff_avg = np.round(np.average(list(e_diffs.values())), 1)
+    e_diff_std = np.round(np.std(list(e_diffs.values())), 1)
+    logging.info(f'Avg difference: {e_diff_avg} kcal/mol, '
+                 f'Max: {np.round(max(e_diffs.values()), 1)} kcal/mol, '
+                 f'Min: {np.round(min(e_diffs.values()), 1)} kcal/mol, '
+                 f'STDEV: {e_diff_std} kcal/mol.')
+    for st_pt, e_diff in e_diffs.items():
+        if not e_diff_avg * 0.9 < e_diff < e_diff_avg * 1.1:
+            logging.info(f"Outlying L2-L3 difference found for {st_pt}. "
+                         f"Energy difference: {np.round(e_diff, 1)} kcal/mol.")
+
+
+def t1_analysis(lot='TZ'):
+    import os
+    try:
+        import matplotlib.pyplot as plt
+        do_plot = True
+    except ModuleNotFoundError:
+        do_plot = False
+
+    if 'TZ' in lot.upper():
+        lot = 'TZ'
+    elif 'DZ' in lot.upper():
+        lot = 'DZ'
+    else:
+        logging.warning('Unable to perform a summary of T1 diagnostics: '
+                        'Unrecognized single_point_key.')
+        return
+    T1s = []
+    for f in os.listdir('molpro/'):
+        if not f.endswith('.out'):
+            continue
+        with open(f'molpro/{f}') as fh:
+            do_read1 = False
+            do_read2 = False
+            for line in fh:
+                if lot in line:
+                    do_read1 = True
+                    do_read2 = False
+                if "Starting UCCSD calculation" in line:
+                    do_read2 = True
+                elif do_read1 and do_read2 and 'T1 diagnostic:' in line:
+                    T1s.append(float(line.split()[9]))
+                    break
+    if T1s:
+        counts, bins = np.histogram(T1s)
+    else:
+        logging.warning('Unable to perform a summary of T1 diagnostics: '
+                        'No T1 Diagnostics results found.')
+        return
+
+    if do_plot:
+        fig1, ax1 = plt.subplots()  # Histogram
+        ax1.bar(bins[1:], counts, width=bins[1]*0.7)
+        ax1.set_xlabel('T1 Diagnostic')
+        ax1.set_ylabel('Counts')
+        fig1.savefig('T1_histo.png')
+
+        fig2, ax2 = plt.subplots()  # Cumulative counts.
+        ax2.plot(sorted(T1s), range(len(T1s)))
+        ax2.set_xlabel('T1 Diagnostic')
+        ax2.set_ylabel('Cumulative counts')
+        fig2.savefig('T1_cum_count.png')
+    else:
+        logging.warning('Matplotlib not found. Unable to plot T1 diagnostics '
+                        'summary.')
+
+    logging.info(f"T1 histogram:\nBins: {bins}\nCounts: {counts}.")
 
 
 if __name__ == "__main__":

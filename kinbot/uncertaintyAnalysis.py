@@ -1,5 +1,3 @@
-from __future__ import division
-from __future__ import print_function
 import random
 import numpy as np
 
@@ -11,62 +9,56 @@ Functions for the generation and postprocessing of uncertainty analysis
 class UQ:
 
     def __init__(self, par):
-        self.par = par
-        self.wellUQ = par['well_uq']
-        self.barUQ = par['barrier_uq']
-        self.freqUQ = par['freq_uq']
-        self.imagfreqUQ = par['imagfreq_uq']
-        self.uq_iter = 0
+        self.uq_n = par['uq_n']
+        self.limit = {'energy': par['well_uq'],
+                      'barrier': par['barrier_uq'],
+                      'freq': par['freq_uq'],
+                      'imagfreq': par['imagfreq_uq'],
+                      'epsilon': par['epsilon_uq'],
+                      'sigma': par['sigma_uq'],
+                      'enrelfact': par['enrelfact_uq'],
+                      'enrelpow': par['enrelpow_uq'],
+                      'pstsymm': par['pstsymm_uq'],
+                      }
 
+        self.additive = ['energy', 'barrier']
 
-    def calc_factor(self, propertyType, species, uq_iter):
-        if self.uq_iter != uq_iter:  # new iteration
-            with open('uqtk.data', 'a') as f:
-                f.write('')  # new line
+    def calc_factor(self, parameter, uq_iter):
+        #if self.uq_iter != uq_iter:  # new iteration
+        #    with open('uqtk.data', 'a') as f:
+        #        f.write('')  # new line
+
 
         if uq_iter == 0:
-            if propertyType == 'freq' or propertyType == 'imagfreq':
-                factor = 1
-                normfactor = 0
-                
-            else:
+            if parameter in self.additive:
                 factor = 0
-                normfactor = factor /self.wellUQ
+            else:
+                factor = 1
+            normfactor = 0
         
-            self.write_uqtk_header(species, propertyType)
-            self.write_uqtk_data(propertyType, normfactor, species, uq_iter)
-
             return factor
+
+
+        if parameter in self.additive:
+            factor = random.uniform(-self.limit[parameter], self.limit[parameter])
+            normfactor = factor / self.limit[parameter]
         else:
-            if propertyType == 'energy':
-                factor = random.uniform(-self.wellUQ, self.wellUQ)
-                normfactor = factor / self.wellUQ
+            factor = np.exp(random.uniform(np.log(1. / self.limit[parameter]), np.log(self.limit[parameter])))
+            normfactor = np.log(factor) / np.log(self.limit[parameter])
 
-            elif propertyType == 'freq':
-                factor = np.exp(random.uniform(np.log(1./self.freqUQ), np.log(self.freqUQ)))
-                normfactor = np.log(factor) / np.log(self.freqUQ)
-        
-            elif propertyType == 'imagfreq':
-                factor = np.exp(random.uniform(np.log(1./self.imagfreqUQ), np.log(self.imagfreqUQ)))
-                normfactor = np.log(factor) / np.log(self.imagfreqUQ)
-
-            elif propertyType == 'barrier':
-                factor = random.uniform(-self.barUQ, self.barUQ)
-                normfactor = factor / self.barUQ
-
-            self.write_uqtk_header(species, propertyType)
-            self.write_uqtk_data(propertyType, normfactor, species, uq_iter)
+        #self.write_uqtk_header(species, parameter)
+        #self.write_uqtk_data(parameter, normfactor, species, uq_iter)
 
         return factor
 
 
-    def write_uqtk_header(self, species, propertyType):
+    def write_uqtk_header(self, species, parameter):
         with open('uqtk.data', 'a') as fi:
-            fi.write("{} {} ".format(species, propertyType))
+            fi.write("{}{} ".format(species, parameter))
         return 0
 
 
-    def write_uqtk_data(self, propertyType, normfactor, species, uq_iter):
+    def write_uqtk_data(self, parameter, normfactor, uq_iter):
         with open('uqtk.data', 'a') as fi:
             fi.write("{} \n".format(normfactor))
 
@@ -85,17 +77,16 @@ class UQ:
                 else:
                     data[data_point].append(line[2])
         
-        uq_n = self.par['uq_n']
         names = []
         vals = []
         uq_counter = 0
-        while uq_counter < uq_n:
+        while uq_counter < self.uq_n:
             for item in data.items():
                 names.append(item[0])
                 vals.append(item[1])
                 uq_counter += 1
 
-        vals = np.array(vals)
+        vals = np.array(vals, dtype=object)
         vals = vals.transpose()
         with open('fuqtk.data', 'w') as f:
             for item in vals:

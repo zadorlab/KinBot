@@ -5,7 +5,6 @@ need to have a new value assigned.
 The optimization is done based on interatomic distances only
 The deviations of the the distances are weighted by the inverse of the distance itself
 """
-from __future__ import division
 import os
 import copy
 import logging
@@ -271,8 +270,8 @@ def control_changes(species, name, geom, new_geom, changes, bond):
         for j in range(i + 1, species.natom):
             if bond[i][j] == 0:
                 dist = np.linalg.norm(new_geom[i] - new_geom[j])
-                min = constants.st_bond[''.join(sorted([species.atom[i], species.atom[j]]))]
-                if dist < min:
+                minb = constants.st_bond[''.join(sorted([species.atom[i], species.atom[j]]))]
+                if dist < minb:
                     logging.debug("The atoms {} {} are too close after modifications".format(i, j))
                     logging.debug("Species name: " + name)
                     logging.debug("For the following initial geometry:\n" + gs)
@@ -289,18 +288,16 @@ def write_zmat(zmat_atom, zmat_ref, zmat, geom, atom):
         i += 1
         zmat_file = 'zmatrix_' + str(i) + '.zmat'
 
-    file = open(zmat_file, 'w')
-    zmatrix.write_zmat_molden(file, zmat_atom, zmat_ref, zmat)
-    file.close()
+    with open(zmat_file, 'w') as ff:
+        zmatrix.write_zmat_molden(ff, zmat_atom, zmat_ref, zmat)
 
     cart_file = zmat_file.replace('.zmat', '.xyz')
-    file = open(cart_file, 'w')
-    file.write(str(len(atom)) + '\n\n')
-    for i, at in enumerate(atom):
-        x, y, z = geom[i]
-        file.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
-    file.write('\n')
-    file.close()
+    with open(cart_file, 'w') as ff:
+        ff.write(str(len(atom)) + '\n\n')
+        for i, at in enumerate(atom):
+            x, y, z = geom[i]
+            ff.write('{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z))
+        ff.write('\n')
 
 
 def get_coords(species, bond, geom, changes, mode):
@@ -370,7 +367,7 @@ def divide_atoms(ati, atj, bond, natom, atom):
     # Get all the atoms on the side of ati
     visited = [ati]
     forbidden = [atj]
-    division = [ati]
+    division1 = [ati]
 
     # check for cycles and cut them in half
     for ring_size in range(3, natom + 1):
@@ -386,19 +383,19 @@ def divide_atoms(ati, atj, bond, natom, atom):
         if len(inst) == 0:
             break
 
-    get_neighbors(ati, visited, forbidden, division, bond, natom)
-    division2 = [x for x in range(natom) if x not in division]
+    get_neighbors(ati, visited, forbidden, division1, bond, natom)
+    division2 = [x for x in range(natom) if x not in division1]
 
-    return status, division, division2
+    return status, division1, division2
 
 
-def get_neighbors(ati, visited, forbidden, division, bond, natom):
+def get_neighbors(ati, visited, forbidden, division1, bond, natom):
     for atj in range(natom):
         if atj not in visited and atj not in forbidden:
             if bond[atj, ati] > 0:
-                division.append(atj)
+                division1.append(atj)
                 visited.append(atj)
-                get_neighbors(atj, visited, forbidden, division, bond, natom)
+                get_neighbors(atj, visited, forbidden, division1, bond, natom)
 
 
 def perform_rotation(at, center, axis, angle):

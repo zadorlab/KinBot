@@ -1,21 +1,11 @@
-"""
-Drive for KinBot runs.
-1. Reading keywords
-2. Optimizing the reactant
-3. Search for reactions
-"""
-from __future__ import print_function
 import sys
-import os
 import logging
 import datetime
-import numpy as np
+import copy
 
 from kinbot import license_message
 from kinbot import postprocess
-from kinbot.homolytic_scissions import HomolyticScissions
 from kinbot.parameters import Parameters
-from kinbot.mesmer import MESMER
 from kinbot.mess import MESS
 from kinbot.optimize import Optimize
 from kinbot.reaction_finder import ReactionFinder
@@ -23,10 +13,18 @@ from kinbot.reaction_finder_bimol import ReactionFinderBimol
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.qc import QuantumChemistry
+from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
 
 
 def main():
+    if sys.version_info.major < 3:
+        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        sys.exit(-1)
+    elif sys.version_info.minor < 8:
+        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        sys.exit(-1)
+
     try:
         input_file = sys.argv[1]
     except IndexError:
@@ -54,27 +52,7 @@ def main():
     # time stamp of the KinBot start
     logger.info('Starting KinBot')
 
-    # Make the necessary directories
-    if not os.path.exists('perm'):
-        os.makedirs('perm')
-    if not os.path.exists('scratch'):
-        os.makedirs('scratch')
-    if not os.path.exists(par['single_point_qc']):
-        os.mkdir(par['single_point_qc'])
-    if par['rotor_scan'] == 1:
-        if not os.path.exists('hir'):
-            os.mkdir('hir')
-        if not os.path.exists('hir_profiles'):
-            os.mkdir('hir_profiles')
-        if not os.path.exists('perm/hir/'):
-            os.makedirs('perm/hir/')
-    if par['conformer_search'] == 1:
-        if not os.path.exists('conf'):
-            os.mkdir('conf')
-        if not os.path.exists('perm/conf'):
-            os.makedirs('perm/conf')
-    if not os.path.exists('me'):
-        os.mkdir('me')
+    make_dirs(par)
 
     if par['bimol'] == 0:
         # initialize the reactant
@@ -96,41 +74,16 @@ def main():
         well0.characterize()
         well0.name = str(well0.chemid)
         start_name = well0.name
+        if well0.name in par['skip_chemids']:
+            logger.info('This chemid is skipped, nothing to do here')
+            logger.info('Finished KinBot at {}'.format(datetime.datetime.now()))
+            print("Done!")
+            return
 
         # initialize the qc instance
         qc = QuantumChemistry(par)
 
-        # delete leftover AM1 calculations
-        files = os.listdir()
-        com = []
-        for ff in files:
-            if 'com' in ff:
-                com.append(ff)
-
-        for cc in com:
-            delfile = False
-            with open(cc, 'r') as f:
-                if 'am1' in f.read():
-                    delfile = True
-            if delfile:
-                ll = cc.split('.')[0] + '.log'
-                try:
-                    os.remove(ll)
-                except FileNotFoundError:
-                    pass
-
-        # delete empty files
-        log = []
-        for ff in files:
-            if 'log' in ff:
-                log.append(ff)
-
-        for ll in log:
-            try:
-                if os.path.getsize(ll) < 10:
-                    os.remove(ll)
-            except FileNotFoundError:
-                pass
+        clean_files()
 
         # start the initial optimization of the reactant
         logger.info('Starting optimization of initial well...')
@@ -152,6 +105,12 @@ def main():
             return
 
         # characterize again and look for differences
+        well0 = StationaryPoint('well0',
+                                par['charge'],
+                                par['mult'],
+                                atom=copy.deepcopy(well0.atom),
+                                geom=copy.deepcopy(well0.geom))
+        well0.short_name = 'w1'
         well0.characterize()
         well0.name = str(well0.chemid)
         if well0.name != start_name:
@@ -165,10 +124,10 @@ def main():
                 'r12_cycloaddition' in par['families'] or \
                 'r14_birad_scission' in par['families'] or \
                 'R_Addition_MultipleBond' in par['families'] or \
-                (par['skip_families'] != ['none'] and \
-                ('birad_recombination_R' not in par['skip_families'] or \
-                'r12_cycloaddition' not in par['skip_families'] or \
-                'r14_birad_scission' not in par['skip_families'] or \
+                (par['skip_families'] != ['none'] and
+                ('birad_recombination_R' not in par['skip_families'] or
+                'r12_cycloaddition' not in par['skip_families'] or
+                'r14_birad_scission' not in par['skip_families'] or
                 'R_Addition_MultipleBond' not in par['skip_families'])) or \
                 par['reaction_search'] == 0:
             logger.debug('Starting MP2 optimization of initial well...')
@@ -188,6 +147,9 @@ def main():
 
         err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)
         err, well0.zpe = qc.get_qc_zpe(str(well0.chemid) + '_well', 1)
+        # to save the starting energy to make thresholds consistent
+        well0.start_energy = well0.energy
+        well0.start_zpe = well0.zpe
 
         well_opt = Optimize(well0, par, qc, wait=1)
         well_opt.do_optimization()
@@ -195,7 +157,7 @@ def main():
             logger.error('Error with high level optimization of initial structure.')
             return
 
-        #if par['pes']:
+        # if par['pes']:
         #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
@@ -205,17 +167,11 @@ def main():
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
 
-        if par['homolytic_scissions'] == 1:
-            logger.info('\tStarting the search for homolytic scission products...')
-            well0.homolytic_scissions = HomolyticScissions(well0, par, qc)
-            well0.homolytic_scissions.find_homolytic_scissions()
-
     # BIMOLECULAR REACTANTS
     elif par['bimol'] == 1:
         fragments = {'frag_a': None, 'frag_b': None} 
         # initialize the reacting fragments
         charge = 0
-        structure = []
         for ii, frag in enumerate(fragments):
             fragments[frag] = StationaryPoint(frag,
                                               par['charge'][ii],
@@ -290,7 +246,7 @@ def main():
         for frag in fragments.values():
             well0.energy += frag.energy
             well0.zpe += frag.zpe
-        #if par['pes']:
+        # if par['pes']:
         #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
@@ -304,17 +260,18 @@ def main():
         mess = MESS(par, well0)
         mess.write_input(qc)
 
-        if par['me'] == 1: 
+        if par['me'] == 1:
             logger.info('\tStarting Master Equation calculations')
             if par['me_code'] == 'mess':
                 mess.run()
 
-    postprocess.createSummaryFile(well0, qc, par)
+    postprocess.create_summary_file(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
 
     logger.info('Finished KinBot at {}'.format(datetime.datetime.now()))
     print("Done!")
+    return
 
 
 if __name__ == "__main__":

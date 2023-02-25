@@ -8,6 +8,8 @@ from kinbot import zmatrix
 from kinbot.frequencies import skip_rotor
 from kinbot.stationary_pt import StationaryPoint
 
+logger = logging.getLogger('KinBot')
+
 
 class HIR:
     """
@@ -56,7 +58,7 @@ class HIR:
         for rotor in range(len(self.species.dihed)):
             if skip_rotor(self.species.name, self.species.dihed[rotor]) == 1:
                 self.hir_status[rotor] = [2 for i in range(self.nrotation)]
-                logging.info('\tFor {} rotor {} was skipped in HIR.'.format(self.species.name, rotor))
+                logger.info('\tFor {} rotor {} was skipped in HIR.'.format(self.species.name, rotor))
                 continue
 
             cart = np.asarray(cart)
@@ -131,7 +133,7 @@ class HIR:
                     self.hir_energies[rotor][ai] = energy
                     self.hir_geoms[rotor][ai] = geom
                 elif success == -1:
-                    logging.warning("Hindered rotor optimization not successful for {}".format(job))
+                    logger.warning("Hindered rotor optimization not successful for {}".format(job))
                     self.hir_status[rotor][ai] = 1
                     self.hir_energies[rotor][ai] = -1
                     self.hir_geoms[rotor][ai] = geom
@@ -146,7 +148,7 @@ class HIR:
             # check if all the calculations are finished
             self.test_hir()
             if len(self.species.dihed) == 0:
-                logging.debug(f'No hindered rotors for {self.species.name}.')
+                logger.debug(f'No hindered rotors for {self.species.name}.')
             for rotor in range(len(self.species.dihed)):
                 status = self.hir_status[rotor]
                 energies = self.hir_energies[rotor]
@@ -163,7 +165,7 @@ class HIR:
                     else:
                         job = str(self.species.chemid) + '_hir_' + str(rotor)
                     if len(ens) < self.nrotation - 2:
-                        logging.warning("More than 2 HIR calculations failed for " + job)
+                        logger.warning("More than 2 HIR calculations failed for " + job)
 
                     angles = [i * 2 * np.pi / float(self.nrotation) for i in range(self.nrotation)]
                     # write profile to file
@@ -171,7 +173,7 @@ class HIR:
                     # Check to see if HIR failed, job will continue if failed, but warning will be generated
                     a = self.fourier_fit(job, angles, rotor)
                     if(a == 0):
-                        logging.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
+                        logger.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
                     else:
                         self.hir_fourier.append(self.fourier_fit(job, angles, rotor))
                 return 1

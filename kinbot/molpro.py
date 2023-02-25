@@ -5,6 +5,8 @@ import numpy as np
 
 from kinbot import constants
 
+logger = logging.getLogger('KinBot')
+
 
 class Molpro:
     """
@@ -63,7 +65,7 @@ class Molpro:
         else:
             closed = (nelectron - self.par['barrierless_saddle_nelectron']) / 2
             if closed.is_integer() is not True:
-                logging.warning("The number of closed orbitals is not an integer,\n\
+                logger.warning("The number of closed orbitals is not an integer,\n\
                              the CASPT2-like calculation will crash, but\n\
                              KinBot carries on for now. Revise your input,\n\
                              barrierless_saddle_nelectron is incorrect.")

@@ -31,9 +31,8 @@ def log_warning(message, *args, **kwargs):
     logger.warning(" ".join(f"{message}".split()))
 
 
-def config_log(label, level='info'):  # TODO Format log to break long lines (
-    # after
-    # column 80).
+def config_log(label, mode='kinbot', level='info'):
+    # TODO Format log to break long lines (after column 80).
     """Configures the logger to record all calculation events on a log file.
 
     @param label: Label of the logger to be used.
@@ -43,7 +42,7 @@ def config_log(label, level='info'):  # TODO Format log to break long lines (
     logger = logging.getLogger(label)
     logger.setLevel(logging.INFO)
 
-    log_handler = logging.FileHandler('kinbot.log', mode='a')
+    log_handler = logging.FileHandler(f'{mode}.log', mode='a')
     if level in ['debug', 'verbose']:
         log_handler.setLevel(logging.DEBUG)
     else:

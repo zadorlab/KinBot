@@ -5,6 +5,8 @@ import copy
 
 from kinbot import geometry
 
+logger = logging.getLogger('KinBot')
+
 
 def make_zmat_from_cart(species, rotor, cart, mode):
     """
@@ -236,11 +238,11 @@ def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, ato
                     added.append(at)
 
             if len(to_add) == 0:
-                logging.error("error, all atoms of a rotor have been added, without adding this dihedral explicitly")
+                logger.error("error, all atoms of a rotor have been added, without adding this dihedral explicitly")
             elif len(to_add) == 1:
                 at = to_add[0]
                 if rotor.index(at) == 1 or rotor.index(at) == 2:
-                    logging.error("error, all atoms except a middle atom have been added, strange...")
+                    logger.error("error, all atoms except a middle atom have been added, strange...")
                 elif rotor.index(at) == 0:
                     add(j, [at, rotor[1], rotor[2], rotor[3]], zmat, zmat_atom, zmatorder, zmat_ref, atom, cart)
                     j += 1
@@ -315,7 +317,7 @@ def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, ato
                     add(j, [rotor[3], rotor[2], rotor[1], rotor[0]], zmat, zmat_atom, zmatorder, zmat_ref, atom, cart)
                     j += 1
                 else:
-                    logging.error("error, two atoms that need to be added are not the outer atoms of a rotor, strange...")
+                    logger.error("error, two atoms that need to be added are not the outer atoms of a rotor, strange...")
             elif len(to_add) == 3:
                 if added[0] == rotor[0]:
                     neighbor_list = get_neighbors(rotor[0], bond, natom, rotors, zmatorder)
@@ -366,7 +368,7 @@ def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, ato
                     add(j, [rotor[0], rotor[1], rotor[2], rotor[3]], zmat, zmat_atom, zmatorder, zmat_ref, atom, cart)
                     j += 1
                 else:
-                    logging.error('error')
+                    logger.error('error')
             else:
                 if len(chain) == 2:  # this is the minimum chain length
                     neighbor_list = get_neighbors(chain[1], bond, natom, rotors, zmatorder)
@@ -504,7 +506,7 @@ def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, ato
                         add(j, [rotor[0], rotor[1], rotor[2], rotor[3]], zmat, zmat_atom, zmatorder, zmat_ref, atom, cart)
                         j += 1
                 else:
-                    logging.error('error, chain length too small')
+                    logger.error('error, chain length too small')
             rot_index += 1
     else:
         # no rotors here, add the first four atoms of the molecule

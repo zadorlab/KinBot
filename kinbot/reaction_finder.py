@@ -47,9 +47,10 @@ from reactions.reac_r14_birad_scission import R14BiradScission
 from reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
 from reactions.reac_barrierless_saddle import BarrierlessSaddle
 from reactions.reac_h2_elim import H2Elim
-from reactions.reac_homolytic_scission import HS 
-
+from reactions.reac_homolytic_scission import HS
 from reactions.reac_combinatorial import Combinatorial
+
+logger = logging.getLogger('KinBot')
 
 
 class ReactionFinder:
@@ -164,14 +165,14 @@ class ReactionFinder:
         
         for index in range(len(self.species.reac_name)-1):
             if self.species.reac_name[index] in self.species.reac_name[index + 1:]:
-                logging.error('Found reaction name "{}" more than once'
+                logger.error('Found reaction name "{}" more than once'
                                .format(self.species.reac_name[index]))
-                logging.error('Exiting')
+                logger.error('Exiting')
                 sys.exit()
 
-        logging.info('\tFound the following reactions:')
+        logger.info('\tFound the following reactions:')
         for rxn in self.species.reac_name:
-            logging.info('\t\t{}'.format(rxn))
+            logger.info('\t\t{}'.format(rxn))
         
         return 0  
    
@@ -2312,7 +2313,7 @@ class ReactionFinder:
                 if np.linalg.norm(self.species.geom[instance[pivot1]] - self.species.geom[instance[pivot2]]) > cutoff:
                     mask[inst] = False
                     numbers = [ii + 1 for ii in instance]
-                    logging.info(f'{name} reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
+                    logger.info(f'{name} reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
         return list(np.array(instances, dtype=object)[mask])
 
 

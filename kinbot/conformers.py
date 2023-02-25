@@ -16,6 +16,9 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
 import rmsd
 
+logger = logging.getLogger('KinBot')
+
+
 class Conformers:
     """
     Class that does all the steps for the conformers of one species
@@ -190,11 +193,11 @@ class Conformers:
         if status == 1:  # still running
             return np.zeros((self.species.natom, 3)), -1
         elif status == -1:  # conformer search failed
-            logging.debug('Conformer search failed for scan point {}'.format(job))
+            logger.debug('Conformer search failed for scan point {}'.format(job))
             return np.zeros((self.species.natom, 3)), 1
         else:
             if self.start_ring_conformer_search(index, geom):
-                logging.debug('Running the next dihedral for conformer {}'.format(job))
+                logger.debug('Running the next dihedral for conformer {}'.format(job))
                 return geom, -1
             else:
                 # check if all the bond lenghts are withing 10% or the original bond lengths
@@ -205,10 +208,10 @@ class Conformers:
                                        geom=geom)
                 temp.bond_mx()
                 if geometry.equal_geom(self.species, temp, 0.10):
-                    logging.debug('Successfully finished conformer {}'.format(job))
+                    logger.debug('Successfully finished conformer {}'.format(job))
                     return geom, 0
                 else:
-                    logging.debug('Conformer too far from original structure {}'.format(job))
+                    logger.debug('Conformer too far from original structure {}'.format(job))
                     return np.zeros((self.species.natom, 3)), 1
 
     def check_ring_conformers(self, wait=0):
@@ -272,7 +275,7 @@ class Conformers:
             if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
                 if rotor == 0:
                     if self.info: 
-                        logging.info('\tRandom conformer search is carried out for {}.'.format(name))
+                        logger.info('\tRandom conformer search is carried out for {}.'.format(name))
                         self.info = False
 
                     # skipping generation if done
@@ -284,7 +287,7 @@ class Conformers:
                         rows = self.db.select(name=self.get_job_name(nrandconf - 1))
                         for row in rows:
                             self.conf = nrandconf
-                            logging.debug('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
+                            logger.debug('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
                             return 1
 
                 self.generate_conformers_random_sampling(cart)
@@ -294,7 +297,7 @@ class Conformers:
         if rotor == len(self.species.conf_dihed) or rotor == -999:
             self.qc.qc_conf(self.species, cart, self.conf, semi_emp=self.semi_emp)
             if self.conf == 0:
-                logging.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+                logger.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
             self.conf += 1
             return 0
 
@@ -304,8 +307,8 @@ class Conformers:
             for row in rows:
                 self.conf = theoretical_confs
                 if print_warning:
-                    logging.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
-                    logging.info('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
+                    logger.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+                    logger.info('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
                 return 1
 
         cart = np.asarray(cart)
@@ -431,7 +434,7 @@ class Conformers:
                             frequencies.append(None)
                         if lowest_totenergy == 0.:  # likely / hopefully the first sample was valid
                             if ci != 0:
-                                logging.debug('For {} conformer 0 failed.'.format(name)) 
+                                logger.debug('For {} conformer 0 failed.'.format(name)) 
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             if self.species.natom > 1:
                                 # job fails if conformer freq array is empty
@@ -445,7 +448,7 @@ class Conformers:
                                         if freq[0] <= 0.:
                                             err = -1
                                 else:
-                                    logging.warning("Conformer {} failed due to empty freq array".format(ci))
+                                    logger.warning("Conformer {} failed due to empty freq array".format(ci))
                                     err = -1
                             if err == 0:
                                 lowest_totenergy = energy + zpe
@@ -465,7 +468,7 @@ class Conformers:
                                     if freq[0] <= -50.:  # note that now we allow negative frequencies here as well
                                         err = -1
                             else:
-                                logging.warning("Conformer {} failed due to empty freq array".format(ci))
+                                logger.warning("Conformer {} failed due to empty freq array".format(ci))
                                 err = -1
                             if err == 0:
                                 lowest_job = job

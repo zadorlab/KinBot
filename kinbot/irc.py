@@ -6,6 +6,8 @@ import pkg_resources
 
 from kinbot.stationary_pt import StationaryPoint
 
+logger = logging.getLogger('KinBot')
+
 
 class IRC:
     """
@@ -47,7 +49,7 @@ class IRC:
             if self.problem_in_geom(geom):
                 # this happens seldom that all the atoms are
                 # very close to one another (problem in Gaussian)
-                logging.warning('Problem with product geometry for {}'.format(instance_name))
+                logger.warning('Problem with product geometry for {}'.format(instance_name))
                 return 0
 
             temp = StationaryPoint(irc_name,
@@ -78,19 +80,19 @@ class IRC:
 
         if ini_well_hits == 0:
             if self.par['bimol']:
-                logging.info('\tNeither IRC leads to the initial reactants for {}'.format(instance_name))
+                logger.info('\tNeither IRC leads to the initial reactants for {}'.format(instance_name))
             else:
-                logging.info('\tNeither IRC leads to the initial well for {}'.format(instance_name))
+                logger.info('\tNeither IRC leads to the initial well for {}'.format(instance_name))
             return 0
         elif ini_well_hits == 2:
             if self.par['bimol']:
-                logging.info('\tBoth IRCs lead to the initial reactants, identical reaction found: {}'.format(instance_name))
+                logger.info('\tBoth IRCs lead to the initial reactants, identical reaction found: {}'.format(instance_name))
             else:
-                logging.info('\tBoth IRCs lead to the initial well, identical reaction found: {}'.format(instance_name))
+                logger.info('\tBoth IRCs lead to the initial well, identical reaction found: {}'.format(instance_name))
             return 0
         else:
             # ircs OK: well and product found
-            logging.info('\tIRCs successful for {}'.format(instance_name))
+            logger.info('\tIRCs successful for {}'.format(instance_name))
             return st_pts[prod_hit]
 
     def problem_in_geom(self, geom):

@@ -1,0 +1,2 @@
+{command} {name}.inp
+

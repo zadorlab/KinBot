@@ -420,6 +420,12 @@ def postprocess(par, jobs, task, names, mass):
     elif par['queuing'] == 'slurm':
         cmd = 'sbatch'
         ext = 'slurm'
+    elif par['queuing'] == 'local':
+        cmd = ''
+        ext = ''
+        pass
+    else:
+        raise ValueError(f'Unexpected value for queueing: {par["queuing"]}')
 
     batch_submit = ''
 
@@ -430,7 +436,7 @@ def postprocess(par, jobs, task, names, mass):
         zpe = get_zpe(parent[well], well, 0, par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
-        if not status:
+        if not status and par['queuing'] != 'local':
             l3done = 0  # not all L3 calculations are done
             batch_submit += f'{cmd} {well}.{ext}\n'
         elif not par['L3_calc']:
@@ -447,7 +453,7 @@ def postprocess(par, jobs, task, names, mass):
             zpe = get_zpe(parent[prods], pr, 0, par['high_level'])
             energy += zpe
             status, l3e = get_l3energy(pr, par)
-            if not status:
+            if not status and par['queuing'] != 'local':
                 l3done = 0  # not all L3 calculations are done
                 batch_submit += f'{cmd} {pr}.{ext}\n'
             elif not par['L3_calc']:
@@ -469,7 +475,7 @@ def postprocess(par, jobs, task, names, mass):
 
                 status_prod, l3energy_prod = get_l3energy(reac[1] + '_prod', par, bls=1)
 
-                if not status * status_prod:
+                if not status * status_prod and par['queuing'] != 'local':
                     l3done = 0
                     batch_submit += f'{cmd} {reac[1]}.{ext}\n'
                 elif not par['L3_calc']:
@@ -481,7 +487,7 @@ def postprocess(par, jobs, task, names, mass):
             else:
                 zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
                 status, l3energy = get_l3energy(reac[1], par)
-                if not status:
+                if not status and par['queuing'] != 'local':
                     l3done = 0
                     batch_submit += f'{cmd} {reac[1]}.{ext}\n'
                 elif not par['L3_calc']:

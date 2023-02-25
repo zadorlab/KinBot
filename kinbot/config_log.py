@@ -1,5 +1,6 @@
 """Module for the configuration of how and what is recorded in the log file."""
 import sys
+import os
 import logging
 import warnings
 
@@ -41,8 +42,14 @@ def config_log(label, mode='kinbot', level='info'):
     """
     logger = logging.getLogger(label)
     logger.setLevel(logging.INFO)
-
-    log_handler = logging.FileHandler(f'{mode}.log', mode='a')
+    fname = f'{mode}.log'
+    # Backup previous log
+    if os.path.isfile(fname):
+        with open(fname) as log_fh:
+            first_line = log_fh.readline()
+        date = first_line.replace('-INFO: \n', '').replace(' ', '_')
+        os.rename(fname, f'{mode}_{date}.log')
+    log_handler = logging.FileHandler(fname, mode='w')
     if level in ['debug', 'verbose']:
         log_handler.setLevel(logging.DEBUG)
     else:

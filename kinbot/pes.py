@@ -121,7 +121,7 @@ def main():
             jobs = [ji for ji in jobs if ji != '']
 
         if len(jobs) > j:
-            logger.info('\tPicked up new jobs: ' + ' '.join(jobs[j:]))
+            logger.info('Picked up new jobs: ' + ' '.join(jobs[j:]))
 
         k = len(running)
         l = len(finished)
@@ -156,7 +156,7 @@ def main():
                     get_wells(job)
                 pids[job] = pid
                 t = datetime.datetime.now()
-                logger.info('\tStarted job {} at {}'.format(job, t))
+                logger.info('Started job {} at {}'.format(job, t))
                 running.append(job)
             elif kb == 0:
                 logger.info('Skipping Kinbot for {}'.format(job))
@@ -168,7 +168,7 @@ def main():
         for job in running:
             if not check_status(job, pids[job]):
                 t = datetime.datetime.now()
-                logger.info('\tFinished job {} at {}'.format(job, t))
+                logger.info('Finished job {} at {}'.format(job, t))
                 finished.append(job)
                 if not no_kinbot:
                     # write a temporary pes file

@@ -114,8 +114,9 @@ for e in epsilon:
 qsubmit = {'pbs': 'qsub'}
 qsubmit['slurm'] = 'sbatch'
 # extensions
-qext = {'pbs': '.pbs'}
-qext['slurm'] = '.sbatch'
+qext = {'pbs': '.pbs',
+        'slurm': '.sbatch',
+        }
 
 
 def main():

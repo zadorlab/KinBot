@@ -665,6 +665,8 @@ class MESS:
         uq_iter = 0
         pid_stats = []
         for uq_iter in range(self.par['uq_n']):
+            if self.par["queuing"] == 'local':
+                return 0
             submitscript = f'me/run_mess_{str(uq_iter).zfill(4)}{constants.qext[self.par["queuing"]]}'
             self.write_submitscript(submitscript, uq_iter)
             batch_list += f'sbatch {submitscript}\n'

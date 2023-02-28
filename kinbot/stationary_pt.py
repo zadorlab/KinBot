@@ -1,4 +1,4 @@
-import sys
+import logging
 import numpy as np
 import copy
 import math
@@ -8,6 +8,8 @@ from kinbot import cheminfo
 from kinbot import constants
 from kinbot import find_motif
 from kinbot import geometry
+
+logger = logging.getLogger('KinBot')
 
 
 class StationaryPoint:
@@ -161,6 +163,16 @@ class StationaryPoint:
         Also create smiles if possible
         """
         self.distance_mx()
+        for i in range(self.natom):
+            for j in range(self.natom):
+                if i == j:
+                    continue
+                elif self.dist[i][j] < 0.5:
+                    err_msg = 'Incorrect geometry: Found an interatomic ' \
+                              'distance smaller than 0.5 Å.'
+                    logger.error(err_msg)
+                    raise ValueError(err_msg)
+
         self.bond = np.zeros((self.natom, self.natom), dtype=int)
 
         for i in range(self.natom):

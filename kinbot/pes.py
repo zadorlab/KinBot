@@ -24,6 +24,7 @@ from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
+from kinbot.config_log import config_log
 
 
 def main():
@@ -68,11 +69,15 @@ def main():
     par = Parameters(input_file).par
 
     # set up the logging environment
-    logging.basicConfig(filename='pes.log', level=logging.INFO)
+    global logger
+    if par['verbose']:
+        logger = config_log('KinBot', mode='pes', level='debug')
+    else:
+        logger = config_log('KinBot', mode='pes')
 
-    logging.info(license_message.message)
+    logger.info(license_message.message)
     msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
-    logging.info(msg)
+    logger.info(msg)
 
     well0 = StationaryPoint('well0',
                             par['charge'],
@@ -109,22 +114,22 @@ def main():
     while 1:
         j = len(jobs)
         if j != a:
-            logging.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
+            logger.info('{0} {1} {2}'.format("len(jobs): ", j, "\n"))
         a = j
         with open('chemids', 'r') as f:
             jobs = f.read().split('\n')
             jobs = [ji for ji in jobs if ji != '']
 
         if len(jobs) > j:
-            logging.info('\tPicked up new jobs: ' + ' '.join(jobs[j:]))
+            logger.info('Picked up new jobs: ' + ' '.join(jobs[j:]))
 
         k = len(running)
         l = len(finished)
         if b != k:
-            logging.info('{0} {1} {2}'.format("len(running): ", len(running), "\n"))
+            logger.info('{0} {1} {2}'.format("len(running): ", len(running), "\n"))
         b = k
         if c != l:
-            logging.info('{0} {1} {2}'.format("len(finished): ", len(finished), "\n"))
+            logger.info('{0} {1} {2}'.format("len(finished): ", len(finished), "\n"))
         c = l
         if len(finished) == len(jobs):
             time.sleep(2)
@@ -136,13 +141,13 @@ def main():
             # start a new job
             job = jobs[len(running) + len(finished)]
             kb = 1
-            logging.info('Job: {}'.format(job))
+            logger.info('Job: {}'.format(job))
             if 'none' in par['skip_chemids']:
-                logging.info('No KinBot runs to be skipped')
+                logger.info('No KinBot runs to be skipped')
             else:
                 if job in par['skip_chemids']:
                     kb = 0
-            logging.info('kb: {}'.format(kb))
+            logger.info('kb: {}'.format(kb))
             if kb == 1:
                 pid = 0
                 if not no_kinbot:
@@ -151,19 +156,19 @@ def main():
                     get_wells(job)
                 pids[job] = pid
                 t = datetime.datetime.now()
-                logging.info('\tStarted job {} at {}'.format(job, t))
+                logger.info('Started job {} at {}'.format(job, t))
                 running.append(job)
             elif kb == 0:
-                logging.info('Skipping Kinbot for {}'.format(job))
+                logger.info('Skipping Kinbot for {}'.format(job))
                 finished.append(job)
             else:
-                logging.info('kb value not 0 or 1')
+                logger.info('kb value not 0 or 1')
 
         # check if a thread is done
         for job in running:
             if not check_status(job, pids[job]):
                 t = datetime.datetime.now()
-                logging.info('\tFinished job {} at {}'.format(job, t))
+                logger.info('Finished job {} at {}'.format(job, t))
                 finished.append(job)
                 if not no_kinbot:
                     # write a temporary pes file
@@ -221,7 +226,7 @@ def main():
     # postprocess_L3(saddle_zpe, well_zpe, prod_zpe, saddle_energy, well_energy, prod_energy, conn)
 
     # Notify user the search is done
-    logging.info('PES search done!')
+    logger.info('PES search done!')
     print('PES search done!')
 
 
@@ -405,7 +410,7 @@ def postprocess(par, jobs, task, names, mass):
         try:
             copy_from_kinbot(ji, par['single_point_qc'])
         except:
-            logging.warning(f'L3 calculations were not copied from {ji}')
+            logger.warning(f'L3 calculations were not copied from {ji}')
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, products, reactions)
     # create a batch submission for all L3 jobs
@@ -415,6 +420,12 @@ def postprocess(par, jobs, task, names, mass):
     elif par['queuing'] == 'slurm':
         cmd = 'sbatch'
         ext = 'slurm'
+    elif par['queuing'] == 'local':
+        cmd = ''
+        ext = ''
+        pass
+    else:
+        raise ValueError(f'Unexpected value for queueing: {par["queuing"]}')
 
     batch_submit = ''
 
@@ -425,7 +436,7 @@ def postprocess(par, jobs, task, names, mass):
         zpe = get_zpe(parent[well], well, 0, par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
-        if not status:
+        if not status and par['queuing'] != 'local':
             l3done = 0  # not all L3 calculations are done
             batch_submit += f'{cmd} {well}.{ext}\n'
         elif not par['L3_calc']:
@@ -442,7 +453,7 @@ def postprocess(par, jobs, task, names, mass):
             zpe = get_zpe(parent[prods], pr, 0, par['high_level'])
             energy += zpe
             status, l3e = get_l3energy(pr, par)
-            if not status:
+            if not status and par['queuing'] != 'local':
                 l3done = 0  # not all L3 calculations are done
                 batch_submit += f'{cmd} {pr}.{ext}\n'
             elif not par['L3_calc']:
@@ -464,7 +475,7 @@ def postprocess(par, jobs, task, names, mass):
 
                 status_prod, l3energy_prod = get_l3energy(reac[1] + '_prod', par, bls=1)
 
-                if not status * status_prod:
+                if not status * status_prod and par['queuing'] != 'local':
                     l3done = 0
                     batch_submit += f'{cmd} {reac[1]}.{ext}\n'
                 elif not par['L3_calc']:
@@ -476,7 +487,7 @@ def postprocess(par, jobs, task, names, mass):
             else:
                 zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
                 status, l3energy = get_l3energy(reac[1], par)
-                if not status:
+                if not status and par['queuing'] != 'local':
                     l3done = 0
                     batch_submit += f'{cmd} {reac[1]}.{ext}\n'
                 elif not par['L3_calc']:
@@ -484,7 +495,7 @@ def postprocess(par, jobs, task, names, mass):
                 else:
                     ts_l3energies[reac[1]] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
 
-    logging.info('l3done status {}'.format(l3done))
+    logger.info('l3done status {}'.format(l3done))
     # clean duplicates
     batch_submit = list(set(batch_submit.split('\n')))
     batch_submit.reverse()
@@ -495,7 +506,7 @@ def postprocess(par, jobs, task, names, mass):
     os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
 
     if l3done == 1 and par['L3_calc']:
-        logging.info('Energies are updated to L3 in ME and PESViewer.')
+        logger.info('Energies are updated to L3 in ME and PESViewer.')
         well_energies = well_l3energies
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
@@ -504,15 +515,15 @@ def postprocess(par, jobs, task, names, mass):
             if 'barrierless_saddle' in reac[1]:
                 reac[3] = ts_l3energies[reac[1]]
 
-        logging.info('L3 energies in kcal/mol, incl. ZPE')
+        logger.info('L3 energies in kcal/mol, incl. ZPE')
         for well in wells:
-            logging.info('{}   {:.2f}'.format(well, well_l3energies[well]))
+            logger.info('{}   {:.2f}'.format(well, well_l3energies[well]))
         for prod in products:
-            logging.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
+            logger.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
         for ts in ts_l3energies:
-            logging.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
+            logger.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
     else:
-        logging.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
+        logger.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
                      f'{par["high_level_basis"]}) level of theory.')
 
     # if L3 was done and requested, everything below is done with that
@@ -569,7 +580,8 @@ def postprocess(par, jobs, task, names, mass):
         t1_analysis(par['single_point_key'])
 
 
-def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
+def filter(par, wells, products, reactions, conn, bars, well_energies, task,
+           names):
     """
     Filter the wells, products and reactions according to the task
     and the names
@@ -639,8 +651,8 @@ def filter(par, wells, products, reactions, conn, bars, well_energies, task, nam
                 if names[0] == rxn[0] or names[0] == prod_name:
                     filtered_reactions.append(rxn)
         else:
-            logging.error('Only one name should be given for a well filter')
-            logging.error('Received: ' + ' '.join(names))
+            logger.error('Only one name should be given for a well filter')
+            logger.error('Received: ' + ' '.join(names))
             sys.exit(-1)
     elif task == 'temperature':
         if len(names) == 1:
@@ -648,8 +660,8 @@ def filter(par, wells, products, reactions, conn, bars, well_energies, task, nam
                 # read the temperature
                 temperature = float(names[0])
             except ValueError:
-                logging.error('A float is needed for a temperature filter')
-                logging.error('Received: ' + ' '.join(names))
+                logger.error('A float is needed for a temperature filter')
+                logger.error('Received: ' + ' '.join(names))
                 sys.exit(-1)
             filtered_reactions = []
             # iterate the wells
@@ -660,8 +672,8 @@ def filter(par, wells, products, reactions, conn, bars, well_energies, task, nam
                                                          well_energies,
                                                          temperature)
         else:
-            logging.error('Only one argument should be given for a temperature filter')
-            logging.error('Received: ' + ' '.join(names))
+            logger.error('Only one argument should be given for a temperature filter')
+            logger.error('Received: ' + ' '.join(names))
             sys.exit(-1)
     elif task == 'l2threshold':
         filtered_reactions = []
@@ -669,7 +681,7 @@ def filter(par, wells, products, reactions, conn, bars, well_energies, task, nam
             if rxn[3] < par['barrier_threshold']:
                 filtered_reactions.append(rxn)
     else:
-        logging.error('Could not recognize task ' + task)
+        logger.error('Could not recognize task ' + task)
         sys.exit(-1)
 
     # filter the wells
@@ -796,8 +808,8 @@ def get_all_pathways(wells, products, reactions, names, conn):
                 rxns.append(get_pathway(wells, products, reactions, path, names))
         return rxns
     else:
-        logging.error('Cannot find a lowest path if the number of species is not 2')
-        logging.error('Found species: ' + ' '.join(names))
+        logger.error('Cannot find a lowest path if the number of species is not 2')
+        logger.error('Found species: ' + ' '.join(names))
 
 
 def get_index(wells, products, name):
@@ -807,7 +819,7 @@ def get_index(wells, products, name):
         try:
             i = products.index(name) + len(wells)
         except ValueError:
-            logging.error('Could not find reactant ' + name)
+            logger.error('Could not find reactant ' + name)
             sys.exit(-1)
     return i
 
@@ -877,6 +889,7 @@ def copy_from_kinbot(well, dirname):
                 shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
         else:
             shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+
 
 def get_rxn(prods, rxns):
     for rxn in rxns:
@@ -952,7 +965,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     others are corrected with their DeltaL2 energies.
     """
 
-    logging.info(f"uq value: {par['uq']}")
+    logger.info(f"uq value: {par['uq']}")
     short_names = create_short_names(wells, products, reactions, barrierless)
     well_short, pr_short, fr_short, ts_short, nobar_short = short_names
 
@@ -1103,7 +1116,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             f.write('\n'.join(s))
 
         if par['multi_conf_tst']:
-            logging.info('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
+            logger.info('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
             with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
                 with open(f'me/mess_{mess_iter}.inp', 'r') as f:
                     lines = f.read().split('\n')
@@ -1264,12 +1277,12 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     try:
         from pyvis import network as net
     except ImportError:
-        logging.warning('pyvis cannot be imported, no interactive plot is made.')
+        logger.warning('pyvis cannot be imported, no interactive plot is made.')
         return -1
     try:
         from IPython.core.display import display, HTML
     except ImportError:
-        logging.warning('IPython cannot be imported, no interactive plot is made.')
+        logger.warning('IPython cannot be imported, no interactive plot is made.')
         return -1
 
     # For now we are assuming the all of the 2D depictions
@@ -1325,11 +1338,11 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
         energy *= constants.EVtoHARTREE
     except UnboundLocalError or TypeError:
         # this happens when the job is not found in the database
-        logging.error('Could not find {} in directory {} database.'.format(job, directory))
-        logging.error('Exiting...')
+        logger.error('Could not find {} in directory {} database.'.format(job, directory))
+        logger.error('Exiting...')
         sys.exit(-1)
     except TypeError:
-        logging.warning('Could not find {} in directory {}'.format(job, directory))
+        logger.warning('Could not find {} in directory {}'.format(job, directory))
         energy = 0.
     return energy
 
@@ -1352,7 +1365,7 @@ def get_l3energy(job, par, bls=0):
                 for line in reversed(lines):
                     if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
-                        logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                        logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
     elif par['single_point_qc'] == 'orca':
         if os.path.exists(f'orca/{job}_property.txt'):
@@ -1361,7 +1374,7 @@ def get_l3energy(job, par, bls=0):
                 for line in reversed(lines):
                     if (key) in line:
                         e = float(line.split()[-1])
-                        logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                        logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                         return 1, e  # energy was found
     elif par['single_point_qc'] == 'gauss':
         if os.path.exists('gauss/' + job + '.log'):
@@ -1371,7 +1384,7 @@ def get_l3energy(job, par, bls=0):
         elif os.path.exists('gauss/' + job + '_well_high.log'):
             gaussname = 'gauss/' + job + '_well_high.log'
         else:
-            logging.info('L3 for {} is missing.'.format(job))
+            logger.info('L3 for {} is missing.'.format(job))
             return 0, -1  # job not yet started to run
 
         with open(gaussname) as f:
@@ -1381,11 +1394,11 @@ def get_l3energy(job, par, bls=0):
                     words = line.split()
                     wi = words.index(key) + 2
                     e = float(words[wi].replace('D', 'E'))
-                    logging.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                    logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
                     return 1, e  # energy was found
  
     # if no file or no energy found
-    logging.info('L3 for {} is missing.'.format(job))
+    logger.info('L3 for {} is missing.'.format(job))
     return 0, -1  # job not yet started to run or not finished
 
 
@@ -1407,7 +1420,7 @@ def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
         if hasattr(row, 'data'):
             zpe = row.data.get('zpe')
     if zpe == None: 
-        logging.warning('Could not find zpe for {} in directory {}'.format(job, jobdir))
+        logger.warning('Could not find zpe for {} in directory {}'.format(job, jobdir))
         zpe = 1.  # a large value
     return zpe
 
@@ -1509,13 +1522,13 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
     """
     # Get L3 energies
     l3_energies = {}
-    logging.info(f'L3-L2 Energy difference Analysis. Energy units: kcal/mol.')
+    logger.info(f'L3-L2 Energy difference Analysis. Energy units: kcal/mol.')
     if not os.path.isdir('molpro'):
-        logging.warning("Unable to perform L3-L2 check. The molpro directory "
+        logger.warning("Unable to perform L3-L2 check. The molpro directory "
                         "is missing.")
         return
     if len([f for f in os.listdir('molpro/') if f.endswith('.out')]) == 0:
-        logging.warning("Unable to perform L3-L2 check. The molpro directory "
+        logger.warning("Unable to perform L3-L2 check. The molpro directory "
                         "is empty.")
         return
 
@@ -1552,7 +1565,7 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
         else:  # Wells and Bimolecular products
             db_path = f'{parent_specs[st_pt]}/kinbot.db'
         if not os.path.isfile(db_path):
-            logging.warning(f"Unable to find L2 energy for {st_pt}.")
+            logger.warning(f"Unable to find L2 energy for {st_pt}.")
             continue
         db = connect(db_path)
         if st_pt.isdigit():
@@ -1566,7 +1579,7 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
                 try:
                     final_row = next(rows)
                 except StopIteration:
-                    logging.warning(f"Unable to find L2 energy for {frag}.")
+                    logger.warning(f"Unable to find L2 energy for {frag}.")
                     l2_energy = np.nan
                     break
                 for row in rows:
@@ -1580,7 +1593,7 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
             try:
                 final_row = next(rows)
             except StopIteration:
-                logging.warning(f"Unable to find L2 energy for {st_pt}.")
+                logger.warning(f"Unable to find L2 energy for {st_pt}.")
                 continue
             for row in rows:
                 final_row = row
@@ -1590,13 +1603,13 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
 
     e_diff_avg = np.round(np.average(list(e_diffs.values())), 1)
     e_diff_std = np.round(np.std(list(e_diffs.values())), 1)
-    logging.info(f'Avg difference: {e_diff_avg} kcal/mol, '
+    logger.info(f'Avg difference: {e_diff_avg} kcal/mol, '
                  f'Max: {np.round(max(e_diffs.values()), 1)} kcal/mol, '
                  f'Min: {np.round(min(e_diffs.values()), 1)} kcal/mol, '
                  f'STDEV: {e_diff_std} kcal/mol.')
     for st_pt, e_diff in e_diffs.items():
         if not e_diff_avg * 0.9 < e_diff < e_diff_avg * 1.1:
-            logging.info(f"Outlying L2-L3 difference found for {st_pt}. "
+            logger.info(f"Outlying L2-L3 difference found for {st_pt}. "
                          f"Energy difference: {np.round(e_diff, 1)} kcal/mol.")
 
 
@@ -1613,7 +1626,7 @@ def t1_analysis(lot='TZ'):
     elif 'DZ' in lot.upper():
         lot = 'DZ'
     else:
-        logging.warning('Unable to perform a summary of T1 diagnostics: '
+        logger.warning('Unable to perform a summary of T1 diagnostics: '
                         'Unrecognized single_point_key.')
         return
     T1s = []
@@ -1635,7 +1648,7 @@ def t1_analysis(lot='TZ'):
     if T1s:
         counts, bins = np.histogram(T1s)
     else:
-        logging.warning('Unable to perform a summary of T1 diagnostics: '
+        logger.warning('Unable to perform a summary of T1 diagnostics: '
                         'No T1 Diagnostics results found.')
         return
 
@@ -1652,10 +1665,10 @@ def t1_analysis(lot='TZ'):
         ax2.set_ylabel('Cumulative counts')
         fig2.savefig('T1_cum_count.png')
     else:
-        logging.warning('Matplotlib not found. Unable to plot T1 diagnostics '
+        logger.warning('Matplotlib not found. Unable to plot T1 diagnostics '
                         'summary.')
 
-    logging.info(f"T1 histogram:\nBins: {bins}\nCounts: {counts}.")
+    logger.info(f"T1 histogram:\nBins: {bins}\nCounts: {counts}.")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@ import json
 import logging
 from ase import units
 
+logger = logging.getLogger('KinBot')
+
 
 class Parameters:
     """
@@ -337,8 +339,8 @@ class Parameters:
             self.par['uq_n'] = 1
 
         if self.par['bimol'] == 1 and self.par['method'] == 'b3lyp':
-            logging.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
-            logging.warning('Choose for instance M06-2X or wB97XD.')
+            logger.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
+            logger.warning('Choose for instance M06-2X or wB97XD.')
             print('B3LYP is not recommended as L1 for bimolecular reactions.')
             print('Choose for instance M06-2X.')
 
@@ -361,7 +363,7 @@ class Parameters:
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
 
         if err is not None:
-            logging.error(err)
+            logger.error(err)
             sys.exit(-1)
 
         return

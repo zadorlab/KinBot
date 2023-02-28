@@ -4,6 +4,8 @@ import logging
 
 from kinbot.reactions.reac_abstraction import Abstraction
 
+logger = logging.getLogger('KinBot')
+
 
 class ReactionFinderBimol:
     """
@@ -72,14 +74,14 @@ class ReactionFinderBimol:
         
         for index in range(len(self.species.reac_name)-1):
             if self.species.reac_name[index] in self.species.reac_name[index + 1:]:
-                logging.error('Found reaction name "{}" more than once'
+                logger.error('Found reaction name "{}" more than once'
                                .format(self.species.reac_name[index]))
-                logging.error('Exiting')
+                logger.error('Exiting')
                 sys.exit()
 
-        logging.info('\tFound the following bimolecular reactions:')
+        logger.info('\tFound the following bimolecular reactions:')
         for rxn in self.species.reac_name:
-            logging.info('\t\t{}'.format(rxn))
+            logger.info('\t\t{}'.format(rxn))
         
         return 0  
    

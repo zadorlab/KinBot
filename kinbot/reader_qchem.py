@@ -1,14 +1,12 @@
 """
 Functions to read QChem output files.
 """
-# import logging
-# import os
-# import re
-# import copy
 import logging
 
 import numpy as np
 from ase import Atoms
+
+logger = logging.getLogger('KinBot')
 
 
 def read_geom(outfile, mol=Atoms(), irc=False):
@@ -49,7 +47,7 @@ def read_zpe(outfile):
     try:
         return float(zpe) * constants.KCALtoHARTREE
     except ValueError:
-        logging.warning(f'Non-numeric ZPE: {zpe}')
+        logger.warning(f'Non-numeric ZPE: {zpe}')
         return np.NAN
 
 

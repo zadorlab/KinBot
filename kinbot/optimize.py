@@ -16,6 +16,9 @@ from kinbot import reader_gauss, reader_qchem
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
 
+logger = logging.getLogger('KinBot')
+
+
 class Optimize:
     """
     This class does the following:
@@ -31,7 +34,8 @@ class Optimize:
         try:
             delattr(self.species, 'cycle_chain')
         except AttributeError:
-            logging.debug("{} has no cycle_chain attribute to delete".format(self.species.chemid))
+            logger.debug(f"{self.species.chemid} has no cycle_chain attribute "
+                         f"to delete")
         if self.species.wellorts:
             self.species.characterize(bond_mx=self.species.bond)
             self.name = str(self.species.name)
@@ -64,7 +68,8 @@ class Optimize:
             # do the conformational search
             if self.par['conformer_search'] == 1:
                 if self.scycconf == -1 and self.sconf == -1:
-                    logging.info('\tStarting conformational search of {}'.format(self.name))
+                    logger.info('\tStarting conformational search of '
+                                f'{self.name}')
                     self.species.confs = Conformers(self.species, self.par, self.qc)
 
                 # first do the cyclic part of the molecule
@@ -88,7 +93,8 @@ class Optimize:
                         self.scycconf = 1
                 # first do an semi empirical optimization if requested by the user
                 if self.par['semi_emp_conformer_search'] == 1:
-                    logging.info('\tSemi-empirical conformer search is starting for {}'.format(self.name))
+                    logger.info('\tSemi-empirical conformer search is starting '
+                                f'for {self.name}')
                     if self.ssemi_empconf == -1:
                         # semi empirical part has not started yet
                         self.species.semi_emp_confs = Conformers(self.species, self.par, self.qc, semi_emp=1)
@@ -103,7 +109,9 @@ class Optimize:
                             # check if the conformational search is done
                             status, lowest_conf, geom, self.semi_emp_low_energy, self.semi_emp_conformers, self.semi_emp_energies = self.species.semi_emp_confs.check_conformers(wait=self.wait)
                             if status == 1:
-                                logging.info("\tSemi- empirical lowest energy conformer for species {} is number {}".format(self.name, lowest_conf))
+                                logger.info("\tSemi- empirical lowest energy "
+                                            f"conformer for species {self.name}"
+                                            f" is number {lowest_conf}")
                                 # set conf status to finished
                                 self.ssemi_empconf = 1
                 else:
@@ -119,7 +127,7 @@ class Optimize:
                             for i, geom in enumerate(self.semi_emp_conformers):
                                 if (self.semi_emp_energies[i] - self.semi_emp_low_energy) * constants.AUtoKCAL < self.par['semi_emp_confomer_threshold']:
                                     self.species.confs.generate_conformers(-999, geom)
-                            logging.info("\tThere are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
+                            logger.info("\tThere are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
                                          format(i, self.par['semi_emp_confomer_threshold'], self.name))
                         else:
                             print_warning = True
@@ -146,10 +154,10 @@ class Optimize:
                                         valid,
                                         self.par['multi_conf_tst_temp'],
                                         self.par['multi_conf_tst_boltz'])
-                                logging.info(f'\tLowest energy conformer for species {self.name} is number {lowest_conf}')
+                                logger.info(f'\tLowest energy conformer for species {self.name} is number {lowest_conf}')
                                 if self.par['multi_conf_tst'] or self.par['print_conf'] or self.par['calc_aie']:
-                                    logging.info(f'\tAt {self.par["multi_conf_tst_temp"]} K with {100*self.par["multi_conf_tst_boltz"]}% cutoff')
-                                    logging.info(f'\t\t the unique conformers for species {self.name} are {self.species.conformer_index}')
+                                    logger.info(f'\tAt {self.par["multi_conf_tst_temp"]} K with {100*self.par["multi_conf_tst_boltz"]}% cutoff')
+                                    logger.info(f'\t\t the unique conformers for species {self.name} are {self.species.conformer_index}')
                                 # save lowest energy conformer as species geometry
                                 self.species.geom = geom
                                 # save lowest energy conformer energy
@@ -158,7 +166,7 @@ class Optimize:
                                 self.sconf = 1
                         elif self.skip_conf_check == 1:
                             self.species.geom, self.species.energy = self.species.confs.lowest_conf_info()
-                            logging.info('\tEnergy and geometry updated based on conf/{}_low file.'.format(self.name))
+                            logger.info('\tEnergy and geometry updated based on conf/{}_low file.'.format(self.name))
                             self.sconf = 1
 
             else:
@@ -200,8 +208,8 @@ class Optimize:
                                                        self.species.conformer_geom[ci], 
                                                        ext=f'{str(conindx).zfill(4)}',
                                                        )
-                                     logging.info('\tStarting AIE optimization(s) of {}'.format(name))
-                            logging.info('\tStarting high level optimization(s) of {}'.format(name))
+                                     logger.info('\tStarting AIE optimization(s) of {}'.format(name))
+                            logger.info('\tStarting high level optimization(s) of {}'.format(name))
                             self.shigh = 0  # set the high status to running
                         if self.shigh == 0:
                             # high level calculation is running
@@ -209,7 +217,7 @@ class Optimize:
                             status = self.qc.check_qc(self.log_name(1))
                             if status == 'error':
                                 # found an error
-                                logging.warning('High level optimization failed for {}'.format(self.name))
+                                logger.warning('High level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
                             elif status == 'normal':
                                 self.compare_structures()  # this switches shigh to 0.5 or 1
@@ -233,7 +241,7 @@ class Optimize:
                         if self.par['rotor_scan'] == 1 and self.par['multi_conf_tst'] != 1:
                             if self.shir == -1:
                                 # hir not stated yet
-                                logging.info('\tStarting hindered rotor calculations of {}'.format(self.name))
+                                logger.info('\tStarting hindered rotor calculations of {}'.format(self.name))
                                 self.species.hir = HIR(self.species, self.qc, self.par)
                                 self.species.hir.generate_hir_geoms(copy.deepcopy(self.species.geom), self.par['rigid_hir'])
                                 self.shir = 0
@@ -258,26 +266,26 @@ class Optimize:
                                             self.restart += 1
                                             if self.restart < self.par['rotation_restart']:
                                                 # lower energy structure found
-                                                logging.warning(f'Lower energy conformer during HIR for {self.name} for rotor {min_rotor}. Restart #{self.restart}')
-                                                logging.debug('Rotor: ' + str(min_rotor))
-                                                logging.debug('Scan point: ' + str(min_ai))
+                                                logger.warning(f'Lower energy conformer during HIR for {self.name} for rotor {min_rotor}. Restart #{self.restart}')
+                                                logger.debug('Rotor: ' + str(min_rotor))
+                                                logger.debug('Scan point: ' + str(min_ai))
                                                 job = self.log_name(1, hir=1, r=min_rotor, s=min_ai)
 
                                                 err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # delete the high_level log file and the hir log files
                                                 if os.path.exists(self.log_name(1) + '.log'):
-                                                    logging.debug(f'Removing file {self.log_name(1)}.log')
+                                                    logger.debug(f'Removing file {self.log_name(1)}.log')
                                                     os.remove(self.log_name(1) + '.log')
                                                 for rotor in range(len(self.species.dihed)):
                                                     for ai in range(self.species.hir.nrotation):
                                                         if os.path.exists(self.log_name(1, hir=1, r=rotor, s=ai) + '.log'):
-                                                            logging.debug('Removing file ' + self.log_name(1, hir=1, r=rotor, s=ai) + '.log')
+                                                            logger.debug('Removing file ' + self.log_name(1, hir=1, r=rotor, s=ai) + '.log')
                                                             os.remove(self.log_name(1, hir=1, r=rotor, s=ai)  + '.log')
                                                 # set the status of high and hir back to not started
                                                 self.shigh = -1
                                                 self.shir = -1
                                             else:
-                                                logging.warning('Lower energy conformer, but reached max restart for {}'.format(self.name))
+                                                logger.warning('Lower energy conformer, but reached max restart for {}'.format(self.name))
                                                 self.shir = 1
                                         else:
                                             self.shir = 1
@@ -287,7 +295,7 @@ class Optimize:
                             # no hir calculations necessary, set status to finished
                             self.shir = 1
                             if self.par['multi_conf_tst'] == 1:
-                                logging.debug('No rotor scans performed because multi conformer TST is requested.')
+                                logger.debug('No rotor scans performed because multi conformer TST is requested.')
                     if not self.wait or self.shir == 1 or self.shigh == -999:
                         # break the loop if no waiting is required or
                         # if the hir calcs are done or
@@ -478,7 +486,7 @@ class Optimize:
                 #    same_geom = 0
             else:
                 result_rmsd = 'not done'
-            logging.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
+            logger.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
                          f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
                          f'corr: {geometry.matrix_corr(imagmode, imagmode_high)}, '\
                          f'same: {same_geom}')
@@ -495,7 +503,7 @@ class Optimize:
             freq_ok = 1
             if fr[0] < 0.:
                 fr[0] *= -1.
-                logging.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
+                logger.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
         elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
             freq_ok = 1
         else:
@@ -515,9 +523,9 @@ class Optimize:
             else:
                 # geometry diverged to other structure
                 if not same_geom:
-                    logging.warning('High level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
+                    logger.warning('High level optimization converged to different structure for {}, related channels are deleted.'.format(self.name))
                 if not freq_ok:
-                    logging.warning('Wrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
+                    logger.warning('Wrong number of imaginary frequencies for {}, related channels are deleted.'.format(self.name))
                 self.shigh = -999
         else:
             # update property of conformers
@@ -530,6 +538,6 @@ class Optimize:
                 self.species.conformer_zeroenergy[inx] = self.species.conformer_energy[inx] + zpe
             else:
                 self.species.conformer_index[inx] = -999
-                logging.warning(f'High level optimization failed for {self.log_name(1, conf=conf)}')
+                logger.warning(f'High level optimization failed for {self.log_name(1, conf=conf)}')
 
         return

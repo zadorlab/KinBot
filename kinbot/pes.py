@@ -580,7 +580,8 @@ def postprocess(par, jobs, task, names, mass):
         t1_analysis(par['single_point_key'])
 
 
-def filter(par, wells, products, reactions, conn, bars, well_energies, task, names):
+def filter(par, wells, products, reactions, conn, bars, well_energies, task,
+           names):
     """
     Filter the wells, products and reactions according to the task
     and the names

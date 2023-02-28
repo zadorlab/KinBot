@@ -159,11 +159,14 @@ class MESS:
                 prod_name = '_'.join([str(pi) for pi in rxnProds])
                 new = 1
                 remove = []
-                ts_all[reaction.instance_name] = [prod_name, reaction.ts.energy  + reaction.ts.zpe]
+                ts_all[reaction.instance_name] = [prod_name, reaction.ts.energy
+                                                  + reaction.ts.zpe]
                 for ts in ts_unique:
                     if ts_unique[ts][0] == prod_name:
-                        # check for the barrier with the lowest energy
-                        if ts_unique[ts][1] > reaction.ts.energy + reaction.ts.zpe:
+                        # check for the barrier with the lowest energy  # check if hom_sci is first
+                        if (ts_unique[ts][1] > reaction.ts.energy + reaction.ts.zpe
+                                or 'hom_sci' in ts) \
+                                and 'hom_sci' not in reaction.instance_name:
                             # remove the current barrier
                             remove.append(ts)
                         else:

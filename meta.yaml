@@ -1,5 +1,5 @@
 {% set name = "kinbot" %}
-{% set version = "2.1.post0" %}
+{% set version = "2.1.1" %}
 
 package:
     name: {{ name|lower }}
@@ -26,8 +26,7 @@ requirements:
         - numpy >=1.17.0
         - ase >=3.19
         - networkx
-        - rmsd
-        - typing_extensions
+        - rmsd >=1.5.1
 
 test:
   imports:
@@ -45,7 +44,7 @@ about:
     summary: Automated reaction pathway search for gas-phase molecules.
 
     description: |
-        KinBot is an automated gas-phase kinetics workflow code that drives 
+        KinBot is an automated gas-phase kinetics workflow code that drives
         electronic structure calculations on a chemical PES and characterizes
         the chemically relevant stationary points to finally create a complete
         master equation formulation of the chemical kinetic system.

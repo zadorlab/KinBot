@@ -490,7 +490,7 @@ class ReactionGenerator:
                         if pr_opt.shigh == -999:
                             logger.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
                             fails = 1
-                        break
+                        continue
                     if fails:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:

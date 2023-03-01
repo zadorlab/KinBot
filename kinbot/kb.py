@@ -270,7 +270,10 @@ def main():
     postprocess.creatMLInput(well0, qc, par)
 
     logger.info('Finished KinBot at {}'.format(datetime.datetime.now()))
-    print("Done!")
+    try:
+        print("Done!")
+    except OSError:
+        pass
     return
 
 

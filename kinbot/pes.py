@@ -227,7 +227,10 @@ def main():
 
     # Notify user the search is done
     logger.info('PES search done!')
-    print('PES search done!')
+    try:
+        print('PES search done!')
+    except OSError:
+        pass
 
 
 def get_wells(job):

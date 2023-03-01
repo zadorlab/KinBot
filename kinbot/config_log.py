@@ -37,12 +37,14 @@ def config_log(label, mode='kinbot', level='info'):
     """Configures the logger to record all calculation events on a log file.
 
     @param label: Label of the logger to be used.
+    @param mode: The mode of the logger.
     @param level: the level of verbosity for the log file.
     @return: The logger object.
     """
     logger = logging.getLogger(label)
     logger.setLevel(logging.INFO)
     fname = f'{mode}.log'
+
     # Backup previous log
     if os.path.isfile(fname):
         with open(fname) as log_fh:
@@ -65,4 +67,3 @@ def config_log(label, mode='kinbot', level='info'):
     warnings.showwarning = log_warning
 
     return logger
-

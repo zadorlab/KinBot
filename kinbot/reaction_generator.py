@@ -18,6 +18,8 @@ from kinbot.molpro import Molpro
 from ase.db import connect
 from ase import Atoms
 
+logger = logging.getLogger('KinBot')
+
 
 class ReactionGenerator:
     """
@@ -74,7 +76,7 @@ class ReactionGenerator:
                     # verify after restart if search has failed in previous kinbot run
                     status = self.qc.check_qc(obj.instance_name)
                     if status == 'error':
-                        logging.info('\tRxn search failed for {}'
+                        logger.info('\tRxn search failed for {}'
                                      .format(obj.instance_name))
                         self.species.reac_ts_done[index] = -999
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
@@ -98,15 +100,15 @@ class ReactionGenerator:
                             if status == 0 and freq[0] < 0. and freq[1] > 0.:
                                 self.species.reac_ts_done[index] = 1
                             elif status == 0 and freq[0] > 0.:
-                                logging.info('\tRxn search failed for {}, no imaginary freq.'
+                                logger.info('\tRxn search failed for {}, no imaginary freq.'
                                              .format(obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
                             elif status == 0 and freq[1] < 0.:
-                                logging.info('\tRxn search failed for {}, more than one imaginary freq.'
+                                logger.info('\tRxn search failed for {}, more than one imaginary freq.'
                                              .format(obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
                             elif status == -1: 
-                                logging.info('\tRxn search failed for {}'
+                                logger.info('\tRxn search failed for {}'
                                              .format(obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else:
@@ -115,7 +117,7 @@ class ReactionGenerator:
                                                             bimol=self.par['bimol'])
                             if self.species.reac_step[index] == -1:
                                 self.species.reac_ts_done[index] = -999
-                                logging.info('\tRxn search failed for {} because of 0 0 0 geometry.'
+                                logger.info('\tRxn search failed for {} because of 0 0 0 geometry.'
                                              .format(obj.instance_name))
 
                     else:  # do a bond scan
@@ -124,13 +126,13 @@ class ReactionGenerator:
                             if status == 0 and freq[0] < 0. and freq[1] > 0.:
                                 self.species.reac_ts_done[index] = 1
                             elif status == 0 and freq[0] > 0.:
-                                logging.info('\tRxn search failed for {}, no imaginary freq.'.format(obj.instance_name))
+                                logger.info('\tRxn search failed for {}, no imaginary freq.'.format(obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
                             elif status == 0 and freq[1] < 0.:
-                                logging.info('\tRxn search failed for {}, more than one imaginary freq.'.format(obj.instance_name))
+                                logger.info('\tRxn search failed for {}, more than one imaginary freq.'.format(obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
                             elif status == -1:
-                                logging.info('\tRxn search using scan failed for {} in TS optimization stage.'.format(obj.instance_name))
+                                logger.info('\tRxn search using scan failed for {} in TS optimization stage.'.format(obj.instance_name))
                                 self.species.reac_ts_done[index] = -999
                         else:
                             if self.species.reac_step[index] == 0:
@@ -139,41 +141,41 @@ class ReactionGenerator:
                                                                 bimol=self.par['bimol'])
                                 if self.species.reac_step[index] == -1:
                                     self.species.reac_ts_done[index] = -999
-                                    logging.info('\tRxn search failed for {} because of 0 0 0 geometry.'
+                                    logger.info('\tRxn search failed for {} because of 0 0 0 geometry.'
                                                  .format(obj.instance_name))
                             elif self.species.reac_step[index] < self.par['scan_step']:
                                 status = self.qc.check_qc(obj.instance_name)
                                 if status == 'error':
-                                    logging.info('\tRxn search using scan failed for {} in step {}'
+                                    logger.info('\tRxn search using scan failed for {} in step {}'
                                                  .format(obj.instance_name, self.species.reac_step[index]))
                                     self.species.reac_ts_done[index] = -999
                                 else:
                                     err, energy = self.qc.get_qc_energy(obj.instance_name)
                                     if err == 0:
                                         self.species.reac_scan_energy[index].append(energy)
-                                        logging.debug(f'Scan energy for {obj.instance_name} in step {self.species.reac_step[index]}:')
-                                        logging.debug(f'{self.species.reac_scan_energy[index][-1]} Hartree.')
+                                        logger.debug(f'Scan energy for {obj.instance_name} in step {self.species.reac_step[index]}:')
+                                        logger.debug(f'{self.species.reac_scan_energy[index][-1]} Hartree.')
                                         # need at least 3 points for a maximum
                                         if len(self.species.reac_scan_energy[index]) >= 3:
                                             ediff = np.diff(self.species.reac_scan_energy[index])
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
-                                                logging.info(f'\tMaximum found for {obj.instance_name}.')
+                                                logger.info(f'\tMaximum found for {obj.instance_name}.')
                                                 e_in_kcal = [constants.AUtoKCAL * (self.species.reac_scan_energy[index][ii] - 
                                                                self.species.reac_scan_energy[index][0]) 
                                                                for ii in range(len(self.species.reac_scan_energy[index]))]
                                                 e_in_kcal = np.round(e_in_kcal, 2)
-                                                logging.info(f'\tEnergies: {e_in_kcal}')
-                                                logging.debug(f'Derivatives: {ediff}')
+                                                logger.info(f'\tEnergies: {e_in_kcal}')
+                                                logger.debug(f'Derivatives: {ediff}')
                                                 self.species.reac_step[index] = self.par['scan_step']  # ending the scan
                                             if len(ediff) >= 3:
                                                 if any([edf == 0 for edf in ediff[-2:]]):
-                                                    logging.warning(f'Calculation failed in the bond scan of {obj.instance_name}.')
+                                                    logger.warning(f'Calculation failed in the bond scan of {obj.instance_name}.')
                                                     self.species.reac_ts_done[index] = -999
                                                     continue
                                                 if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
-                                                    logging.info(f'\tSudden change in slope for for {obj.instance_name}.')
-                                                    logging.info(f'\tRelative energies (kcal/mol): {self.species.reac_scan_energy[index]}')
-                                                    logging.debug(f'Derivatives: {ediff}')
+                                                    logger.info(f'\tSudden change in slope for for {obj.instance_name}.')
+                                                    logger.info(f'\tRelative energies (kcal/mol): {self.species.reac_scan_energy[index]}')
+                                                    logger.debug(f'Derivatives: {ediff}')
                                                     self.species.reac_step[index] = self.par['scan_step']  # ending the scan
                                      
                                         # scan continues, and if reached scan_step, then goes for full optimization
@@ -182,10 +184,10 @@ class ReactionGenerator:
                                                                         bimol=self.par['bimol'])
                                         if self.species.reac_step[index] == -1:
                                             self.species.reac_ts_done[index] = -999
-                                            logging.info('\tRxn search failed for {} because of 0 0 0 geometry.'
+                                            logger.info('\tRxn search failed for {} because of 0 0 0 geometry.'
                                                          .format(obj.instance_name))
                             else:  # the last step was reached, and no max or inflection was found
-                                logging.info('\tRxn search using scan failed for {}, no saddle guess found.'
+                                logger.info('\tRxn search using scan failed for {}, no saddle guess found.'
                                              .format(obj.instance_name))
                                 db = connect('{}/kinbot.db'.format(os.getcwd()))
                                 # error line, H atom is just placeholder
@@ -199,7 +201,7 @@ class ReactionGenerator:
                     if status == 'running':
                         continue
                     elif status == 'error':
-                        logging.info('\tRxn search failed (gaussian error) for {}'
+                        logger.info('\tRxn search failed (gaussian error) for {}'
                                      .format(obj.instance_name))
                         self.species.reac_ts_done[index] = -999
                     else:
@@ -220,20 +222,20 @@ class ReactionGenerator:
                         try:
                             barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
                         except TypeError:
-                            logging.error(f'Faulty calculations, check or delete files for {obj.instance_name}.')
+                            logger.error(f'Faulty calculations, check or delete files for {obj.instance_name}.')
                             sys.exit(-1)
                         if barrier > thresh:
-                            logging.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'
+                            logger.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'
                                          .format(barrier, obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
                             obj.irc = IRC(obj, self.par)  # TODO: this doesn't seem like a good design
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
-                                logging.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'
+                                logger.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'
                                              .format(barrier, obj.instance_name))
                                 # No IRC started yet, start the IRC now
-                                logging.info('\tStarting IRC calculations for {}'
+                                logger.info('\tStarting IRC calculations for {}'
                                              .format(obj.instance_name))
                                 obj.irc.do_irc_calculations()
                             elif irc_status[0] == 'running' or irc_status[1] == 'running':
@@ -244,7 +246,7 @@ class ReactionGenerator:
                                 # verify which of the ircs leads back to the reactant, if any
                                 prod = obj.irc.irc2stationary_pt()
                                 if prod == 0:
-                                    logging.info('\tNo product found for {}'.format(obj.instance_name))
+                                    logger.info('\tNo product found for {}'.format(obj.instance_name))
                                     self.species.reac_ts_done[index] = -999
                                 else:
                                     obj.products = prod
@@ -300,7 +302,7 @@ class ReactionGenerator:
                                 products.append(st_pt.chemid)
 
                             products.extend([' ', ' ', ' '])
-                            logging.info('\tReaction {} leads to products {} {} {}'
+                            logger.info('\tReaction {} leads to products {} {} {}'
                                          .format(obj.instance_name, products[0], products[1], products[2]))
 
                             hom_sci_energy = 0
@@ -308,7 +310,7 @@ class ReactionGenerator:
                                 chemid = st_pt.chemid
                                 e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                                 if e < 0:
-                                    logging.info('\tProduct optimization failed for {}, product {}'
+                                    logger.info('\tProduct optimization failed for {}, product {}'
                                                  .format(obj.instance_name, st_pt.chemid))
                                     self.species.reac_ts_done[index] = -999
                                     err = -1
@@ -341,7 +343,7 @@ class ReactionGenerator:
                                             frag_chemid.append(" ")
                                         for ii, frag in enumerate(newfrags):
                                             products_waiting_status[index][ii] = 1
-                                        logging.info('\ta) Product optimized to other structure for {}'
+                                        logger.info('\ta) Product optimized to other structure for {}'
                                                      ', product {} to {} {}'
                                                      .format(obj.instance_name, chemid, frag_chemid[0], frag_chemid[1]))
 
@@ -356,7 +358,7 @@ class ReactionGenerator:
                                     if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
                                         self.species.reac_ts_done[index] = 3
                                     else:
-                                        logging.info(f'\thom_sci energy is too high at {hom_sci_energy} kcal/mol for {obj.instance_name}')
+                                        logger.info(f'\thom_sci energy is too high at {hom_sci_energy} kcal/mol for {obj.instance_name}')
                                         self.species.reac_ts_done[index] = -999
                                 else:
                                     self.species.reac_ts_done[index] = 3
@@ -375,7 +377,7 @@ class ReactionGenerator:
                         chemid = st_pt.chemid
                         e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
                         if e < 0:
-                            logging.warning('Product optimization failed for {}, product {}...'
+                            logger.warning('Product optimization failed for {}, product {}...'
                                          .format(obj.instance_name, st_pt.chemid))
                             self.species.reac_ts_done[index] = -999
                             err = -1
@@ -386,11 +388,11 @@ class ReactionGenerator:
                             _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
                             st_pt.characterize()  
                             if chemid == self.species.chemid:
-                                logging.info(f'Product in {obj.instance_name} is identical to the reactant. Reaction deleted.')
+                                logger.info(f'Product in {obj.instance_name} is identical to the reactant. Reaction deleted.')
                                 self.species.reac_ts_done[index] = -999 
                             elif chemid != st_pt.chemid:
                                 # product was optimized to another structure, give warning but don't remove reaction
-                                logging.info('\tb) Product optimized to other structure for {}'
+                                logger.info('\tb) Product optimized to other structure for {}'
                                              ', product {} to {}'
                                              .format(obj.instance_name, chemid, st_pt.chemid))
                                 shutil.copy(f'{os.getcwd()}/{chemid}_well.log', f'{os.getcwd()}/{st_pt.chemid}_well.log')
@@ -448,7 +450,7 @@ class ReactionGenerator:
                             prod_opt = Optimize(st_pt, self.par, self.qc)
                             prod_opt.do_optimization()
                             if prod_opt.shigh == -999: 
-                                logging.info('\tRxn search failed for {}, prod_opt shigh fail for {}.'
+                                logger.info('\tRxn search failed for {}, prod_opt shigh fail for {}.'
                                              .format(obj.instance_name, prod_opt.species.chemid))
                                 self.species.reac_ts_done[index] = -999
                                 #break  # breaks so that other species is not looked at
@@ -479,16 +481,16 @@ class ReactionGenerator:
                             opts_done = 0
                             obj.ts_opt.do_optimization()
                         if obj.ts_opt.shigh == -999:
-                            logging.warning("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
+                            logger.warning("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
                             fails = 1
                     for pr_opt in obj.prod_opt:
                         if not pr_opt.shir == 1:
                             opts_done = 0
                             pr_opt.do_optimization()
                         if pr_opt.shigh == -999:
-                            logging.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
+                            logger.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
                             fails = 1
-                        break
+                        continue
                     if fails:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:
@@ -504,7 +506,7 @@ class ReactionGenerator:
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
                             rel_en = (st_pt.energy - self.species.energy) * constants.AUtoKCAL  # energy contains ZPE! check!!
-                            logging.info(f'\tProduct {obj.instance_name} energy is {np.round(rel_en, 2)} kcal/mol.')
+                            logger.info(f'\tProduct {obj.instance_name} energy is {np.round(rel_en, 2)} kcal/mol.')
                             new_barrier_threshold = self.par['barrier_threshold'] - rel_en 
                             dirwell = os.path.dirname(os.getcwd())
                             jobs = open(dirwell + '/chemids', 'r').read().split('\n')
@@ -533,15 +535,15 @@ class ReactionGenerator:
                     for st_pt in obj.products:
                         if len(st_pt.reduced_freqs):
                             if st_pt.reduced_freqs[0] <= 0. and st_pt.reduced_freqs[0] >= -50.:
-                                logging.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}. Flipped.')
+                                logger.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}. Flipped.')
                                 st_pt.reduced_freqs[0] *= -1.
                             elif st_pt.reduced_freqs[0] <-50.:
-                                logging.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}.')
+                                logger.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}.')
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1
                     if any([fi < 0. for fi in obj.ts.reduced_freqs[1:]]):
                         print(obj.ts.reduced_freqs)
-                        logging.warning('\tFound more than one negative frequency for ' + obj.instance_name)
+                        logger.warning('\tFound more than one negative frequency for ' + obj.instance_name)
                         self.species.reac_ts_done[index] = -999
                         neg_freq = 1
 
@@ -670,7 +672,7 @@ class ReactionGenerator:
             with open('combinatorial.txt', 'w') as f:
                 f.write('\n'.join(s) + '\n')
 
-        logging.info("Reaction generation done!")
+        logger.info("Reaction generation done!")
 
     def delete_files(self, name):
         # job names

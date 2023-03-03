@@ -2,17 +2,19 @@ import os
 import sys
 import subprocess
 import logging
-import numpy as np
 import re
 import time
 from datetime import datetime
 import copy
-import pkg_resources
-from shutil import copyfile
 
+import numpy as np
 from ase.db import connect
+
+from kinbot import kb_path
 from kinbot import constants
 from kinbot import geometry
+
+logger = logging.getLogger('KinBot')
 
 
 class QuantumChemistry:
@@ -317,7 +319,7 @@ class QuantumChemistry:
 
 #        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
 
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_hir.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_hir.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -358,7 +360,7 @@ class QuantumChemistry:
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ring_conf.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -409,7 +411,7 @@ class QuantumChemistry:
         if species.natom < 3:
             del kwargs['Symm'] 
         
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -440,7 +442,7 @@ class QuantumChemistry:
         elif species.mult == 2: m1 = 1
         elif species.mult == 3: m1 = 2
         kwargs1 = self.get_qc_arguments(job1, m1, species.charge + 1, aie=1)
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         t0 = template.format(label=job0,
                              kwargs=kwargs0,
@@ -513,7 +515,7 @@ class QuantumChemistry:
             del kwargs['Symm'] 
         # the integral is set in the get_qc_arguments parts, bad design
 
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_opt_well.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -545,7 +547,7 @@ class QuantumChemistry:
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1, high_level=1)
 
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=self.qc))
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -588,21 +590,22 @@ class QuantumChemistry:
 
         try:
             if self.par['queue_template'] == '':
-                template_head_file = pkg_resources.resource_filename('tpl', self.queuing + '.tpl')
+                template_head_file = f'{kb_path}/tpl/{self.queuing}.tpl'
             else:
                 template_head_file = self.par['queue_template']
         except OSError:
-            logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
-            logging.error('Or no file is found at {}.'.format(self.par['queue_template']))
-            logging.error('Exiting')
+            logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
+            logger.error('Or no file is found at {}.'.format(self.par['queue_template']))
+            logger.error('Exiting')
             sys.exit()
 
         if self.queuing == 'local':
-            logging.error(f'Output file for job {job} is missing. Unable to '
-                          'carry out calculations when queuing is \'local\'.')
+            logger.error(f'Job {job} is missing in the database or the output '
+                         'file is not present. Unable to run calculations when '
+                         'queuing is \'local\'.')
             sys.exit()
 
-        template_file = pkg_resources.resource_filename('tpl', self.queuing + '_python.tpl')
+        template_file = f'{kb_path}/tpl/{self.queuing}_python.tpl'
         python_file = f'{job}.py'
         name = job.split('/')[-1]
         python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
@@ -614,8 +617,8 @@ class QuantumChemistry:
             python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, errdir='perm',
                                                         slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
         else:
-            logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
-            logging.error('Exiting')
+            logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
+            logger.error('Exiting')
             sys.exit()
 
         qu_file = '{}{}'.format(job, constants.qext[self.queuing])
@@ -636,12 +639,12 @@ class QuantumChemistry:
             msg = 'Something went wrong when submitting a job'
             msg += 'This is the standard output:\n' + out
             msg += '\nThis is the standard error:\n' + err
-            logging.error(msg)
+            logger.error(msg)
             sys.exit()
         self.job_ids[job] = pid
 
         now = datetime.now()
-        logging.debug(f'SUBMITTED {job} on {now.ctime()}')
+        logger.debug(f'SUBMITTED {job} on {now.ctime()}')
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
     def get_qc_geom(self, job, natom, wait=0, allow_error=0, previous=0):
@@ -807,7 +810,7 @@ class QuantumChemistry:
                 zpe = row.data.get('zpe')
             else:
                 zpe = 0.0
-                logging.warning("{} has no zpe in database. ZPE SET TO 0.0".format(job))
+                logger.warning("{} has no zpe in database. ZPE SET TO 0.0".format(job))
 
         if zpe is None:
             zpe = 0.00
@@ -903,12 +906,12 @@ class QuantumChemistry:
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
         """
-        #logging.debug('Checking job {}'.format(job))
+        # logger.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job, '-1') + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-                #logging.debug('Job is running')
+                # logger.debug('Job is running')
                 return 'running'
         elif self.queuing == 'slurm':
             # command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
@@ -926,14 +929,14 @@ class QuantumChemistry:
                         line = line[1:]
                     pid = line.split()[0]
                     if pid == self.job_ids.get(job, '-1'):
-                        logging.debug('Job is running')
+                        logger.debug('Job is running')
                         return 'running'
         elif self.queuing == 'local':
             pass
 
         else:
-            logging.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
-            logging.error('Exiting')
+            logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
+            logger.error('Exiting')
             sys.exit()
         # if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
         #     return 'running'
@@ -955,12 +958,12 @@ class QuantumChemistry:
                         try:
                             last_line = f.readlines()[-1]
                             if 'done' not in last_line:
-                                logging.debug(f'Log file {log_file} is present, but has no "done" stamp.')
+                                logger.debug(f'Log file {log_file} is present, but has no "done" stamp.')
                                 return 0
                         except IndexError:
-                            logging.debug(f'Log file {log_file} is present, but it is empty.')
+                            logger.debug(f'Log file {log_file} is present, but it is empty.')
                             pass
-                    logging.debug('Log file is present after {} iterations'.format(i))
+                    logger.debug('Log file is present after {} iterations'.format(i))
                     # by deleting a log file, you allow restarting a job
                     # open the database
                     rows = self.db.select(name=job)
@@ -970,20 +973,20 @@ class QuantumChemistry:
                         if hasattr(row, 'data'):
                             data = row.data
                     if data is None:
-                        logging.debug('Data is not in database...')
+                        logger.debug('Data is not in database...')
                         return 0
                     else:
-                        logging.debug('Returning status {}'.format(data['status']))
+                        logger.debug('Returning status {}'.format(data['status']))
                         return data['status']
                 else:
-                    logging.debug('Checking againg for log file')
+                    logger.debug('Checking againg for log file')
                     log_file_exists = os.path.exists(log_file)
                     time.sleep(1)
 
-            logging.debug('log file {} does not exist'.format(log_file))
+            logger.debug('log file {} does not exist'.format(log_file))
             return 0
         else:
-            logging.debug('job {} is not in database'.format(job))
+            logger.debug('job {} is not in database'.format(job))
             return 0
 
     def limit_jobs(self):

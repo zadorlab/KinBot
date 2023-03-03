@@ -1,9 +1,11 @@
 import sys
 import os
-import numpy as np
-import pkg_resources
-from PIL import Image
 import logging
+
+import numpy as np
+from PIL import Image
+
+from kinbot import kb_path
 
 # try to import pybel
 try:
@@ -18,6 +20,8 @@ except ImportError:
         print('Certain features or the whole code might not run properly.')
         pass
 
+logger = logging.getLogger('KinBot')
+
 num_to_syms = {1: 'H', 6: 'C', 7: 'N', 8: 'O', 16: 'S'}
 syms_to_num = {'H': 1, 'C': 6, 'N': 7, 'O': 8, 'S': 16}
 
@@ -29,7 +33,7 @@ def get_molecular_formula(smi):
     try:
         mol = Chem.AddHs(Chem.MolFromSmiles(smi))
     except NameError:
-        logging.error('RDKit is not installed or loaded correctly.')
+        logger.error('RDKit is not installed or loaded correctly.')
         sys.exit()
     return rdMolDescriptors.CalcMolFormula(mol)
 
@@ -48,7 +52,7 @@ def create_rxn_depiction(react_smiles, prod_smiles, cdir, name):
     try:
         obmol = pybel.readstring("smi", react_smiles)
     except NameError:
-        logging.error('Cannot create 2D structures, Pybel is not loaded or installed properly.')
+        logger.error('Cannot create 2D structures, Pybel is not loaded or installed properly.')
         sys.exit()
 
     obmol.draw(show=False, filename=react_png)
@@ -56,7 +60,7 @@ def create_rxn_depiction(react_smiles, prod_smiles, cdir, name):
     obmol = pybel.readstring("smi", prod_smiles)
     obmol.draw(show=False, filename=prod_png)
 
-    arrow = pkg_resources.resource_filename('tpl', 'arrow.png')
+    arrow = f'{kb_path}/tpl/arrow.png'
     images = map(Image.open, [react_png, arrow, prod_png])
     widths, heights = zip(*(i.size for i in images))
 
@@ -100,7 +104,7 @@ def generate_3d_structure(smi, obabel=1):
                         try:
                             order = obmol.OBMol.GetBond(i+1, j+1).GetBondOrder()
                         except:
-                            logging.error('Something went wrong with OpenBabel')
+                            logger.error('Something went wrong with OpenBabel')
                             sys.exit()
                     bond[i][j] = order
         for at in obmol.atoms:
@@ -112,7 +116,7 @@ def generate_3d_structure(smi, obabel=1):
         try:
             rdmol = Chem.AddHs(Chem.MolFromSmiles(smi))
         except NameError:
-            logging.error('RDKit is not installed or loaded correctly.')
+            logger.error('RDKit is not installed or loaded correctly.')
             sys.exit()
         AllChem.EmbedMolecule(rdmol, AllChem.ETKDG())
         AllChem.MMFFOptimizeMolecule(rdmol)
@@ -138,7 +142,7 @@ def create_ob_mol(smi):
     try:
         obmol = pybel.readstring('smi', smi)
     except NameError:
-        logging.error('Pybel is not installed or loaded correctly.')
+        logger.error('Pybel is not installed or loaded correctly.')
         sys.exit()
     obmol.OBMol.AddHydrogens()
     return obmol
@@ -155,13 +159,13 @@ def create_rdkit_mol(bond, atom):
         from rdkit import RDLogger
         RDLogger.DisableLog('rdApp.*')
     except ImportError:
-        logging.warning('RDKit could not be imported.')
+        logger.warning('RDKit could not be imported.')
         pass
 
     try:
         m = Chem.MolFromSmiles('[' + atom[0] + ']')
     except NameError:
-        logging.error('RDKit is not installed or loaded correctly.')
+        logger.error('RDKit is not installed or loaded correctly.')
         sys.exit()
 
     mw = Chem.RWMol(m)
@@ -204,7 +208,7 @@ def create_inchi(job, chemid, xyz_file=''):
     try:
         obmol = list(pybel.readfile('xyz', xyz_file))[0]
     except NameError:
-        logging.error('Pybel is not installed or loaded correctly.')
+        logger.error('Pybel is not installed or loaded correctly.')
         sys.exit()
 
     # return obmol.write("inchi", opt={'T': 'nostereo'}).split()[0]
@@ -219,7 +223,7 @@ def create_inchi_from_smi(smi):
     try:
         obmol = pybel.readstring('smi', smi)
     except NameError:
-        logging.error('Pybel is not installed or loaded correctly.')
+        logger.error('Pybel is not installed or loaded correctly.')
         sys.exit()
 
     return obmol.write("inchi").split()[0]
@@ -233,7 +237,7 @@ def create_smiles(inchi):
     try:
         obmol = pybel.readstring('inchi', inchi)
     except NameError:
-        logging.error('Pybel is not installed or loaded correctly.')
+        logger.error('Pybel is not installed or loaded correctly.')
         sys.exit()
 
     return obmol.write("smi").split()[0]

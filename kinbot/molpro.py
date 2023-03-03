@@ -1,9 +1,12 @@
 import os
-import pkg_resources
 import logging
 import numpy as np
 
+from kinbot import kb_path
 from kinbot import constants
+
+logger = logging.getLogger('KinBot')
+
 
 
 class Molpro:
@@ -24,12 +27,13 @@ class Molpro:
         : shift_vec is for bls to define the direction of shift in prod scan
         : natom1 is the number of atoms in the second fragment
         """
+
         if bls == 1 and shift_vec is None:
             tpl_file = self.par['barrierless_saddle_single_point_template']
         elif bls == 1 and shift_vec is not None:
             tpl_file = self.par['barrierless_saddle_prod_single_point_template']
         elif self.par['single_point_template'] == '':
-            tpl_file = pkg_resources.resource_filename('tpl', 'molpro.tpl')
+            tpl_file = f'{kb_path}/tpl/molpro.tpl'
         else:
             tpl_file = self.par['single_point_template']
 
@@ -63,7 +67,7 @@ class Molpro:
         else:
             closed = (nelectron - self.par['barrierless_saddle_nelectron']) / 2
             if closed.is_integer() is not True:
-                logging.warning("The number of closed orbitals is not an integer,\n\
+                logger.warning("The number of closed orbitals is not an integer,\n\
                              the CASPT2-like calculation will crash, but\n\
                              KinBot carries on for now. Revise your input,\n\
                              barrierless_saddle_nelectron is incorrect.")
@@ -145,12 +149,12 @@ class Molpro:
 
         # open the template head and template
         if self.par['queue_template'] == '':
-            molpro_head = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+            molpro_head = f'{kb_path}/tpl/{self.par["queuing"]}.tpl'
         else:
             molpro_head = self.par['queue_template'] 
         with open(molpro_head) as f:
             tpl_head = f.read()
-        molpro_tpl = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_molpro.tpl')
+        molpro_tpl = f'{kb_path}/tpl/{self.par["queuing"]}_molpro.tpl'
         with open(molpro_tpl) as f:
             tpl = f.read()
         # substitution

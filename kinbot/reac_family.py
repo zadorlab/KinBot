@@ -1,9 +1,10 @@
 import os
 import numpy as np
-import pkg_resources
+
+from kinbot import kb_path
 from kinbot import modify_geom
 from kinbot import geometry
-from reactions.reac_abstraction import abstraction_align
+from kinbot.reactions.reac_abstraction import abstraction_align
 
 
 def carry_out_reaction(rxn, step, command, bimol=0):
@@ -124,7 +125,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     #     ntrial = 1
 
     if step < rxn.max_step:
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
+        template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
         template = template.format(label=rxn.instance_name, 
                                    kwargs=kwargs, 
@@ -140,7 +141,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    )
                                    #ntrial=ntrial,
     else:
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
+        template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
     
         template = template.format(label=rxn.instance_name, 

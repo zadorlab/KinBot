@@ -1,6 +1,6 @@
 import os
-import pkg_resources
 
+from kinbot import kb_path
 from kinbot import constants
 
 
@@ -71,12 +71,12 @@ class Orca:
 
         # open the template head and template
         if self.par['queue_template'] == '':
-            orca_head = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+            orca_head = f'{kb_path}/tpl/{self.par["queuing"]}.tpl'
         else:
             orca_head = self.par['queue_template'] 
         with open(orca_head) as f:
             tpl_head = f.read()
-        orca_tpl = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_orca.tpl')
+        orca_tpl = f'{kb_path}/tpl/{self.par["queuing"]}_orca.tpl'
         with open(orca_tpl) as f:
             tpl = f.read()
         # substitution

@@ -1,18 +1,11 @@
-import sys
 import os
-import numpy as np
-import re
 import subprocess
 import time
-import copy
 import xml.etree.cElementTree as ET
 import xml.dom.minidom as minidom
 
-import pkg_resources
-
+from kinbot import kb_path
 from kinbot import constants
-from kinbot import frequencies
-from kinbot import cheminfo
 
 
 class MESMER:
@@ -327,12 +320,12 @@ class MESMER:
 
         # open the the header and the specific templates
         if self.par['queue_template'] == '':
-            q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '.tpl')
+            q_file = f'{kb_path}/tpl/{self.par["queuing"]}.tpl'
         else:
             q_file = self.par['queue_template']
         with open(q_file) as f:
             tpl_head = f.read()
-        q_file = pkg_resources.resource_filename('tpl', self.par['queuing'] + '_mesmer.tpl')
+        q_file = f'{kb_path}/tpl/{self.par["queuing"]}_mesmer.tpl'
         with open(q_file) as f:
             tpl = f.read()
         submitscript = 'run_mesmer' + constants.qext[self.par['queuing']] 

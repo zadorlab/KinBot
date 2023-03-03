@@ -19,7 +19,7 @@ We appreciate if you send us the DOI of your published paper that used KinBot, s
 
 ## How to Install
 
-KinBot is installed with `pip`, either from the PyPI repo or by first cloning this github repo and then install it locally.
+KinBot can be installed both in three different ways, from the PyPI index (`pip install`), from the conda-forge repo (`conda install`) or by cloning this github repo and then install it locally.
 
 ### PyPI
 
@@ -27,6 +27,10 @@ KinBot is installed with `pip`, either from the PyPI repo or by first cloning th
 
 > **Note**
 >  KinBot only works with Python >= 3.8.
+
+### conda-forge
+
+    conda install -c conda-forge kinbot
 
 ### From Github
 
@@ -45,7 +49,7 @@ and then, from within the KinBot directory produced after cloning, type:
 > into your own repository and then clone it.
 
 ## How to Run
-To run KinBot (which will only explore one well), make an input file (e.g. input.json) and run:
+To run a single-well exploration of KinBot, make an input file (e.g. input.json) and run:
 
     kinbot input.json
 

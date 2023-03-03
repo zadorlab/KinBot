@@ -579,7 +579,7 @@ def postprocess(par, jobs, task, names, mass):
                           l3done)
 
     if par['single_point_qc'].lower() == 'molpro':
-        if l3_done:
+        if l3done:
             check_l3_l2(par['single_point_key'], parent, reactions)
         t1_analysis(par['single_point_key'])
 

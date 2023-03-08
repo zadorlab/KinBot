@@ -42,7 +42,7 @@ from github:
 
 and then, from within the KinBot directory produced after cloning, type:
 
-    pip install .
+    pip install -e .
  
 > **Note**
 > If you want to modify KinBot yourself it's better to fork the project 

@@ -542,7 +542,8 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1
                     if any([fi < 0. for fi in obj.ts.reduced_freqs[1:]]):
-                        logger.warning('\tFound more than one negative frequency for ' + obj.instance_name)
+                        logger.warning(' Found more than one negative frequency for ' + obj.instance_name)
+                        logger.warning(obj.ts.reduced_freqs)
                         self.species.reac_ts_done[index] = -999
                         neg_freq = 1
 

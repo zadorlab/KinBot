@@ -91,13 +91,14 @@ def generate_3d_structure(smi, obabel=1):
             message = '\nPybel is required to use the smiles input format.\n'
             message += 'If pybel is unavailable, use the geometry as input.\n'
             message += 'Else install OpenBabel with python bindings.\nExiting...\n'
+            logger.error(message)
             sys.exit(message)
         obmol.OBMol.AddHydrogens()
         obmol.make3D()
         bond = np.zeros((len(obmol.atoms), len(obmol.atoms)), dtype=int)
         for i in range(len(obmol.atoms)):
             for j in range(len(obmol.atoms)):
-                if not obmol.OBMol.GetBond(i+1, j+1) is None:
+                if obmol.OBMol.GetBond(i+1, j+1):
                     try:
                         order = obmol.OBMol.GetBond(i+1, j+1).GetBO()
                     except:

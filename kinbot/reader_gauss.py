@@ -282,6 +282,7 @@ def correct_kwargs(outfile, kwargs):
         kwargs['opt'] += ', cartesian'
     elif 'Error termination request processed by link 9999.' in outf_end:
         kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'CalcAll')
+        del kwargs['freq']
         if 'cartesian' not in kwargs['opt']:
             kwargs['opt'] += ',Cartesian'
 

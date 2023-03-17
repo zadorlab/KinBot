@@ -1,8 +1,9 @@
 import logging
-import numpy as np
 import copy
 import math
 import itertools
+
+import numpy as np
 
 from kinbot import cheminfo
 from kinbot import constants
@@ -17,7 +18,8 @@ class StationaryPoint:
     This object contains the properties of wells.
     """
 
-    def __init__(self, name, charge, mult, smiles='', structure=None, natom=0, atom=None, geom=None, wellorts=0, fragA=None, fragB=None):
+    def __init__(self, name, charge, mult, smiles='', structure=None, natom=0, 
+                 atom=None, geom=None, wellorts=0, fragA=None, fragB=None):
         self.name = name
         self.mult = mult
         self.charge = charge
@@ -92,6 +94,40 @@ class StationaryPoint:
             self.get_geom()
         if self.natom == 0:
             self.natom = len(atom)
+    
+    @classmethod
+    def from_ase_atoms(cls, atoms, **kwargs):
+        """Builds a stationary point object from an ase.Atoms object.
+
+        Args:
+            atoms (ase.Atoms): The Atoms class from the ase library.
+
+        Returns:
+            StationaryPoint: A Stationary point object with the properties of 
+                the ase.Atoms properties
+        """
+        if 'name' not in kwargs:
+            name = 'StationaryPoint'
+
+        if 'charge' not in kwargs:
+            if atoms.calc is None or 'charge' not in atoms.calc.parameters:
+                charge = sum(atoms.get_initial_charges())
+            else:
+                charge = atoms.calc.parameters['charge']
+
+        if 'mult' not in kwargs:
+            if atoms.calc is None or 'mult' not in atoms.calc.parameters:
+                mult = 1
+            else:
+                mult = atoms.calc.parameters['mult']
+
+        if 'geom' not in kwargs:
+            geom = atoms.positions
+
+        if 'symbols' not in kwargs:
+            symbols = list(atoms.symbols)
+
+        return cls(name, charge, mult, geom=geom, atom=symbols)
 
     def get_geom(self):
         """
@@ -772,7 +808,6 @@ class StationaryPoint:
 
         return 0
     
-
     def calc_chiral(self):
         """
         Calculate self.chiral. 0 if non-chiral, +1 or -1 if chiral. Each atom gets a label like this.
@@ -814,7 +849,6 @@ class StationaryPoint:
                                 center = instance[int(dlen / 2)]
                                 self.chiral[center] = self.calc_chiral_hand(self.geom[center], positions, atids)
         return self.chiral
-
 
     def calc_chiral_hand(self, center, ligands, atomids):
         """
@@ -860,7 +894,6 @@ class StationaryPoint:
         
         return hand
 
-
     def find_linear(self):
         self.linear = []
         for ati in range(self.natom):
@@ -878,7 +911,6 @@ class StationaryPoint:
                                     self.linear.append(lin)
 
         return
-
 
     def calc_maxbond(self):
         """

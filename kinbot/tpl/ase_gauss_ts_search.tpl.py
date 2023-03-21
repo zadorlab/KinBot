@@ -19,7 +19,7 @@ calc = Gaussian(**kwargs)
 mol.calc = calc
 
 try:
-    e = mol.get_potential_energy()  # use the Gaussian optimizer (task optimize)
+    e = mol.get_potential_energy()  # use the Gaussian optimizer
 except RuntimeError: 
     e = 0.
  

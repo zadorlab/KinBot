@@ -121,7 +121,7 @@ class IRC:
         err, geom = self.rxn.qc.get_qc_geom(instance_name,
                                             self.rxn.species.natom)
         directions = ['Forward', 'Reverse']
-        for i, direction in enumerate(directions):
+        for direction in directions:
             irc_name = '{}_IRC_{}'.format(instance_name, direction[0])
 
             # This boolean is false if the checkpoint file is available
@@ -131,16 +131,26 @@ class IRC:
             # geom(AllCheck,NoKeepConstants) guess=Read need to be removed
             start_from_geometry = 0
             if self.rxn.qc.qc == 'gauss':
+                code = 'gaussian'  # Sella
+                Code = 'Gaussian'  # Sella
                 # copy the chk file
                 if os.path.exists(instance_name + '.chk'):
                     copyfile(instance_name + '.chk', irc_name + '.chk')
                 else:
                     start_from_geometry = 1
 
-            if self.rxn.qc.qc == 'nwchem' and direction == 'Reverse':
-                direction = 'Backward'
+            elif self.rxn.qc.qc == 'nwchem':
+                code = 'nwchem'  # Sella
+                Code = 'NWChem'  # Sella
+                if direction == 'Reverse':
+                    direction = 'Backward'
+            elif self.rxn.qc.qc == 'qchem':
+                code = 'qchem'  # Sella
+                Code = 'QChem'  # Sella
+            else:
+                raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.'
+                                 ' ¯\_(ツ)_/¯')
 
-            odft = self.rxn.species.mult > 1
             kwargs = self.rxn.qc.get_qc_arguments(irc_name,
                                                   self.rxn.species.mult,
                                                   self.rxn.species.charge,
@@ -150,7 +160,16 @@ class IRC:
             if self.rxn.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'
-            template_file = f'{kb_path}/tpl/ase_{self.rxn.qc.qc}_irc.tpl.py'
+            if self.par['use_sella']:
+                kwargs.pop('irc', None)
+                kwargs.pop('geom', None)
+                kwargs.pop('guess', None)
+                prod_kwargs.pop('opt', None)
+                prod_kwargs.pop('freq', None)
+
+                template_file = f'{kb_path}/tpl/ase_sella_irc.tpl.py'
+            else:
+                template_file = f'{kb_path}/tpl/ase_{self.rxn.qc.qc}_irc.tpl.py'
             template = open(template_file, 'r').read()
             template = template.format(label=irc_name,
                                        kwargs=kwargs,
@@ -159,7 +178,9 @@ class IRC:
                                        geom=list([list(gi) for gi in geom]),
                                        ppn=self.rxn.qc.ppn,
                                        qc_command=self.par['qc_command'],
-                                       working_dir=os.getcwd())
+                                       working_dir=os.getcwd(),
+                                       code=code,
+                                       Code=Code)
 
             with open('{}.py'.format(irc_name), 'w') as f:
                 f.write(template)

@@ -226,6 +226,8 @@ class Parameters:
             'hir_maxcycle': None,
             # Non-rigid or rigid hir
             'rigid_hir': 0,
+            # use_sella
+            'use_sella': False,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

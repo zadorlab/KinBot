@@ -534,7 +534,7 @@ class ReactionGenerator:
                     neg_freq = 0
                     for st_pt in obj.products:
                         if len(st_pt.reduced_freqs):
-                            if st_pt.reduced_freqs[0] <= 0. and st_pt.reduced_freqs[0] >= -50.:
+                            if -50.0 <= st_pt.reduced_freqs[0] <= 0.:
                                 logger.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}. Flipped.')
                                 st_pt.reduced_freqs[0] *= -1.
                             elif st_pt.reduced_freqs[0] <-50.:
@@ -542,7 +542,7 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1
                     if any([fi < 0. for fi in obj.ts.reduced_freqs[1:]]):
-                        logger.warning(' Found more than one negative frequency for ' + obj.instance_name)
+                        logger.warning('Found more than one negative frequency for ' + obj.instance_name)
                         logger.warning(obj.ts.reduced_freqs)
                         self.species.reac_ts_done[index] = -999
                         neg_freq = 1
@@ -567,7 +567,8 @@ class ReactionGenerator:
 
             alldone = 1
             for index, instance in enumerate(self.species.reac_inst):
-                if any(self.species.reac_ts_done[i] >= 0 for i in range(len(self.species.reac_inst))):
+                if any(self.species.reac_ts_done[index] >= 0
+                       for i in range(len(self.species.reac_inst))):
                     alldone = 1
                     break
                 else:

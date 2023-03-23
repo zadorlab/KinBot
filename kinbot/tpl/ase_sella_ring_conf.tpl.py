@@ -14,6 +14,32 @@ from kinbot.ase_modules.calculators.{code} import {Code}
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.frequencies import get_frequencies
 
+def calc_vibrations(mol):
+        mol.calc.label = '{label}_vib'
+        if 'chk' in mol.calc.parameters:
+            del mol.calc.parameters['chk']
+        # Compute frequencies in a separate temporary directory to avoid 
+        # conflicts accessing the cache in parallel calculations.
+        if not os.path.isdir('{label}_vib'):
+            os.mkdir('{label}_vib')
+        init_dir = os.getcwd()
+        os.chdir('{label}_vib')
+        if os.path.isdir('vib'):
+            shutil.rmtree('vib')
+        vib = Vibrations(mol)
+        vib.run()
+        # Use kinbot frequencies to avoid mixing low vib frequencies with 
+        # the values associated with external rotations.
+        _ = vib.get_frequencies()
+        zpe = vib.get_zero_point_energy() * EVtoHARTREE
+        hessian = vib.H / 97.17370087
+        st_pt = StationaryPoint.from_ase_atoms(mol)
+        st_pt.characterize()
+        freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
+        os.chdir(init_dir)
+        shutil.rmtree('{label}_vib')
+        return freqs, zpe, hessian
+
 db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom}, 
             positions={geom})
@@ -31,7 +57,7 @@ for fix in base_0_fixes:
     elif len(fix) == 4:
         const.fix_dihedral(fix)
     else:
-        raise ValueError(f'¯\_(ツ)_/¯, Unexpected length of fix: {{fix}}')
+        raise ValueError(f'Unexpected length of fix: {{fix}}.')
 
 st_pt = StationaryPoint.from_ase_atoms(mol)
 st_pt.characterize()
@@ -51,7 +77,7 @@ for change in base_0_changes:
     elif len(change[:-1]) == 4:
         const.fix_dihedral(change[:-1])
     else:
-        raise ValueError(f'¯\_(ツ)_/¯, Unexpected length of changes: {{change}}')
+        raise ValueError(f'Unexpected length of changes: {{change}}.')
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
@@ -66,39 +92,30 @@ if len(mol) == 1:
         f.write('done\n')
     sys.exit(0)
 
-opt  = Sella(mol, order={order}, trajectory='{label}.traj', 
+order = {order}
+opt  = Sella(mol, order=order, trajectory='{label}.traj', 
              logfile='{label}_sella.log')
 try:
-    cvgd = opt.run(fmax=0.0001, steps=300)
-    if cvgd:
-        e = mol.get_potential_energy()
-        mol.calc.label = '{label}_vib'
-        if 'chk' in mol.calc.parameters:
-            del mol.calc.parameters['chk']
-        # Compute frequencies in a separate temporary directory to avoid 
-        # conflicts accessing the cache in parallel calculations.
-        if not os.path.isdir('{label}_vib'):
-            os.mkdir('{label}_vib')
-        init_dir = os.getcwd()
-        os.chdir('{label}_vib')
-        if os.path.isdir('vib'):
-            shutil.rmtree('vib')
-        vib = Vibrations(mol)
-        vib.run()
-        # Use kinbot frequencies to avoid problems with frequencies associated 
-        # with external rotations.
-        _ = vib.get_frequencies()
-        zpe = vib.get_zero_point_energy() * EVtoHARTREE
-        hessian = vib.H / 97.17370087
-        st_pt = StationaryPoint.from_ase_atoms(mol)
-        st_pt.characterize()
-        freqs, __ = get_frequencies(st_pt, hessian, st_pt.geom)
-        os.chdir(init_dir)
-        shutil.rmtree('{label}_vib')
-        db.write(mol, name='{label}', 
-                 data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
+    converged = False
+    fmax = 1e-4
+    attempts = 1
+    while not converged and attempts < 4:
+        converged = opt.run(fmax=fmax, steps=300)
+        freqs, zpe, hessian = calc_vibrations(mol)
+        if order == 0 and any([fr < -50 for fr in freqs]):
+            converged == False
+        elif order == 1 and np.count_nonzero([fr < -50 for fr in freqs]) > 1:
+            converged == False
+        if converged:
+            e = mol.get_potential_energy()
+            db.write(mol, name='{label}', 
+                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
                         'hess': hessian, 'status': 'normal'}})
-    else:  # TODO Eventually we might want to correct something in case it fails.
+        else:
+            mol.calc.label = '{label}'
+            attempts += 1
+            fmax *= 0.3
+    if not converged:
         raise RuntimeError
 except RuntimeError:
     db.write(mol, name='{label}', data={{'status': 'error'}})

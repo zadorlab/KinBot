@@ -56,20 +56,27 @@ try:
     converged = False
     fmax = 1e-4
     attempts = 1
-    while not converged and attempts < 4:
-        converged = opt.run(fmax=0.0001, steps=300)
+    steps=300
+    while not converged and attempts <= 3:
+        converged = opt.run(fmax=0.0001, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
-        if np.count_nonzero([fr < -50 for fr in freqs]) > 1:
+        if not converged:
+            steps += 100
+            attempts += 1
+            print(f"Convergence not found in {{steps - 100}} steps. Retrying "\
+                  f"with {{steps}} steps.")
+        elif np.count_nonzero([fr < -50 for fr in freqs]) > 1:
             converged == False
-        if converged:
-            e = mol.get_potential_energy()
-            db.write(mol, name='{label}', 
-                 data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                        'hess': hessian, 'status': 'normal'}})
-        else:
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
+            print("Found more than one imaginary frequency. Retrying with a " \
+                  f"tighter criterion: fmax={{fmax}}.")
+        else:
+            e = mol.get_potential_energy()
+            db.write(mol, name='{label}', 
+                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
+                            'hess': hessian, 'status': 'normal'}})            
     if not converged:
         raise RuntimeError
 except RuntimeError:

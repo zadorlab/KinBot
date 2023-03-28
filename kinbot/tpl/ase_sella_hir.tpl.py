@@ -24,8 +24,8 @@ opt  = Sella(mol, order={order}, constraints=const,
              trajectory='{label}.traj', 
              logfile='{label}_sella.log')
 try:
-    cvgd = opt.run(fmax=0.0001, steps=300)
-    if cvgd:
+    converged = opt.run(fmax=0.001, steps=300)
+    if converged:
         e = mol.get_potential_energy()
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
     else:  # TODO Eventually we might want to correct something in case it fails.

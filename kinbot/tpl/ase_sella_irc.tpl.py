@@ -23,10 +23,10 @@ if '{label}'.endswith('F'):
 elif '{label}'.endswith('R'):
     direction = 'reverse'
 else:
-    raise ValueError('Unexpected IRC name: {label}. ¯\_(ツ)_/¯')
+    raise ValueError('Unexpected IRC name: {label}.')
 try:
-    cvgd_irc = irc.run(fmax=0.1, steps=300, direction=direction)
-    if cvgd_irc:
+    converged_irc = irc.run(fmax=0.01, steps=300, direction=direction)
+    if converged_irc:
         e = mol.get_potential_energy()
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
         success = True
@@ -45,8 +45,8 @@ if success:
     opt = Sella(mol, order=0, trajectory='{label}_prod.traj', 
                 logfile='{label}_prod_sella.log')
     try:
-        cvgd = opt.run(fmax=0.0001, steps=300)
-        if cvgd:
+        converged_opt = opt.run(fmax=0.0001, steps=300)
+        if converged_opt:
             e = mol.get_potential_energy()
             db.write(mol, name='{label}_prod', 
                      data={{'energy': e, 'status': 'normal'}})

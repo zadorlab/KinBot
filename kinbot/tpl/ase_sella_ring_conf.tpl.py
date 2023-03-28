@@ -82,16 +82,6 @@ for change in base_0_changes:
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
-# For monoatomic wells, just calculate the energy and exit. 
-if len(mol) == 1:
-    e = mol.get_potential_energy()
-    db.write(mol, name='{label}',
-             data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
-                    'hess': np.zeros([3, 3]), 'status': 'normal'}})
-    with open('{label}.log', 'a') as f:
-        f.write('done\n')
-    sys.exit(0)
-
 order = {order}
 opt  = Sella(mol, order=order, trajectory='{label}.traj', 
              logfile='{label}_sella.log')
@@ -99,22 +89,34 @@ try:
     converged = False
     fmax = 1e-4
     attempts = 1
-    while not converged and attempts < 4:
+    steps=300
+    while not converged and attempts <= 3:
         converged = opt.run(fmax=fmax, steps=300)
         freqs, zpe, hessian = calc_vibrations(mol)
-        if order == 0 and any([fr < -50 for fr in freqs]):
+        if not converged:
+            steps += 100
+            attempts += 1
+            print(f"Convergence not found in {{steps - 100}} steps. Retrying " \
+                  f"with {{steps}} steps.")
+        elif order == 0 and any([fr < -50 for fr in freqs]):
             converged == False
+            mol.calc.label = '{label}'
+            attempts += 1
+            fmax *= 0.3
+            print("Found one or more imaginary frequencies. Retrying with a " \
+                  f"tighter criterion: fmax={{fmax}}.")
         elif order == 1 and np.count_nonzero([fr < -50 for fr in freqs]) > 1:
             converged == False
-        if converged:
+            mol.calc.label = '{label}'
+            attempts += 1
+            fmax *= 0.3
+            print("Found more than one imaginary frequency. Retrying with a " \
+                  f"tighter criterion: fmax={{fmax}}.")
+        else:
             e = mol.get_potential_energy()
             db.write(mol, name='{label}', 
                      data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
                         'hess': hessian, 'status': 'normal'}})
-        else:
-            mol.calc.label = '{label}'
-            attempts += 1
-            fmax *= 0.3
     if not converged:
         raise RuntimeError
 except RuntimeError:

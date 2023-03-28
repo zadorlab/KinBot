@@ -254,19 +254,18 @@ class ReactionGenerator:
                                     self.species.reac_ts_done[index] = 2
 
                 elif self.species.reac_ts_done[index] == 2:
-                    if len(products_waiting_status[index]) == 0:
+                    if len(products_waiting_status[index]) == 0:  # not started optimization yet
                         # identify bimolecular products and wells
                         fragments, maps = obj.products.start_multi_molecular()
-                        #obj.products = []
 
-                        a = []
+                        a = []  # cleaned up list of products
                         for frag in fragments:
                             a.append(frag)
                             if len(frag_unique) == 0:
                                 frag_unique.append(frag)
                             elif len(frag_unique) > 0:
                                 new = 1
-                                for fragb in frag_unique:
+                                for fragb in frag_unique:  # check if there is already this fragment somewhere earlier
                                     if frag.chemid == fragb.chemid:
                                         e, geom2 = self.qc.get_qc_geom(str(fragb.chemid) + '_well', fragb.natom)
                                         if e == 0:
@@ -277,6 +276,7 @@ class ReactionGenerator:
                                             break
                                 if new:
                                     frag_unique.append(frag)
+
                         obj.products_final = []
 
                         frag_opt_done = 0
@@ -286,11 +286,11 @@ class ReactionGenerator:
                             if e != 1:  # e == 1 means it's running
                                 frag_opt_done += 1
 
-                        if frag_opt_done == len(a):
+                        if frag_opt_done == len(a):  # both fragments are done
                             for frag in a:
                                 obj.products_final.append(frag)
 
-                            # check products make sure they are the same
+                            # if the two fragments are identical, make them the same object
                             for i, st_pt_i in enumerate(obj.products_final):
                                 for j, st_pt_j in enumerate(obj.products_final):
                                     if st_pt_i.chemid == st_pt_j.chemid and i < j:
@@ -358,7 +358,7 @@ class ReactionGenerator:
                                     if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
                                         self.species.reac_ts_done[index] = 3
                                     else:
-                                        logger.info(f'\thom_sci energy is too high at {hom_sci_energy} kcal/mol for {obj.instance_name}')
+                                        logger.info(f'\thom_sci energy is too high at {round(hom_sci_energy, 2)} kcal/mol for {obj.instance_name}')
                                         self.species.reac_ts_done[index] = -999
                                 else:
                                     self.species.reac_ts_done[index] = 3

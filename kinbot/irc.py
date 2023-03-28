@@ -126,7 +126,7 @@ class IRC:
 
             # This boolean is false if the checkpoint file is available
             # and true if no checkpoint file is found.
-            # In the latter case, the geometry needs to be supplies to
+            # In the latter case, the geometry needs to be supplied to
             # the gaussian calculation and the keywords
             # geom(AllCheck,NoKeepConstants) guess=Read need to be removed
             start_from_geometry = 0

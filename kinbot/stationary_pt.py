@@ -580,7 +580,6 @@ class StationaryPoint:
         i is the index for the atom to start at.
         """
         
-        
         visit = [0 for k in range(self.natom)]
         depth = 0
         atomid = int(0)

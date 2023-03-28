@@ -42,7 +42,7 @@ from github:
 
 and then, from within the KinBot directory produced after cloning, type:
 
-    pip install .
+    pip install -e .
  
 > **Note**
 > If you want to modify KinBot yourself it's better to fork the project 
@@ -72,8 +72,9 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 * Carles Martí (cmartia@sandia.gov)
 
 ## Papers using KinBot
-* Martí, C., Michelsen, H. A., Najm, H. N., Zádor, J.: _Comprehensive kinetics on the C7H7 potential energy surface under combustion conditions._ J. Phys. Chem. A, **2023**, ASAP. https://pubs.acs.org/doi/full/10.1021/acs.jpca.2c08035  
+* Martí, C., Michelsen, H. A., Najm, H. N., Zádor, J.: _Comprehensive kinetics on the C7H7 potential energy surface under combustion conditions._ J. Phys. Chem. A, **2023**, 127, 1941–1959. https://pubs.acs.org/doi/full/10.1021/acs.jpca.2c08035  
 * Zádor, J, Martí, C., Van de Vijver, R., Johansen, S. L., Yang, Y., Michelsen, H. A., Najm, H. N.: _Automated reaction kinetics of gas-phase organic species over multiwell potential energy surfaces._ J. Phys. Chem. A, **2023**, 127, 565–588. https://doi.org/10.1021/acs.jpca.2c06558
+* Lockwood, K. S., Ahmed, S. F., Huq, N. A., Stutzman, S. C., Foust, T. D., Labbe, N. J.: _Advances in predictive chemistry enable a multi-scale rational design approach for biofuels with advantaged properties_ Sustainable Energy Fuels, **2022**, 6, 5371-5383. https://doi.org/10.1039/D2SE00773H 
 * Takahashi, L., Yoshida, S., Fujima, J., Oikawa, H., Takahashi, K.: _Unveiling the reaction pathways of hydrocarbons via experiments, computations and data science._ Phys. Chem. Chem. Phys., **2022**, 24, 29841-29849. https://pubs.rsc.org/en/content/articlelanding/2022/CP/D2CP04499D
 * Doner, A. C., Zádor, J., Rotavera, B.: _Stereoisomer-dependent unimolecular kinetics of 2,4-dimethyloxetane peroxy radicals._ Faraday Discuss., **2022**, 238, 295-319. https://doi.org/10.1039/D2FD00029F
 * Ramasesha, K., Savee, J. D., Zádor, J., Osborn, D. L.: _A New Pathway for Intersystem Crossing: Unexpected Products in the O(3P) + Cyclopentene Reaction._ J. Phys. Chem. A, **2021**, 125 9785-9801. https://doi.org/10.1021/acs.jpca.1c05817

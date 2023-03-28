@@ -1988,12 +1988,6 @@ class ReactionFinder:
             rxns += [instance]
 
         self.new_reaction(rxns, name, a=0, b=-1, cross=True)
-#            # filter for the same reactions
-#            for instance in self.reactions[name]:
-#                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-#                    new = 0
-#                if inst[0] == instance[-1] and inst[-1] == instance[0]:
-#                    new = 0
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
@@ -2031,13 +2025,7 @@ class ReactionFinder:
                 pass
                 
 
-        self.new_reaction(rxns, name, a=0, b=1, cross=True)
-#        for inst in rxns:
-#            new = 1
-#            # filter for the same reactions
-#            for instance in self.reactions[name]:
-#                if inst[0] == instance[1] and inst[1] == instance[0]:
-#                    new = 0
+        self.new_reaction(rxns, name, a=0, b=1, cross=True, aid=True)
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
@@ -2317,17 +2305,29 @@ class ReactionFinder:
         return list(np.array(instances, dtype=object)[mask])
 
 
-    def new_reaction(self, rxns, name, a=None, b=None, c=None, d=None, e=None, length=None, full=False, cross=False):
+    def new_reaction(self, rxns, name, a=None, b=None, c=None, d=None, e=None, 
+                     length=None, full=False, cross=False, aid=False):
         """
         Returns 1 if new, and 0 if not new
         Checks a variable number of identical elements
         Also can check full equivalency (full=True), same lenght (length=True), and 
         equivalency between elements that are interchangeable (cross=True)
+        if aid is True, then it will throw away reactions where there is already one
+           with the same atom IDs involved - at least important for hom_sci
         """
 
         for inst in rxns:
             new = True
             for instance in self.reactions[name]:
+                if aid == True:
+                    if (self.species.atomid[inst[a]] == self.species.atomid[instance[a]] and
+                            self.species.atomid[inst[b]] == self.species.atomid[instance[b]]):
+                        new = False
+                        break
+                    if (self.species.atomid[inst[b]] == self.species.atomid[instance[a]] and
+                            self.species.atomid[inst[a]] == self.species.atomid[instance[b]]):
+                        new = False
+                        break
                 if cross == True:
                     if (inst[a] == instance[a] and inst[b] == instance[b]):
                         new = False

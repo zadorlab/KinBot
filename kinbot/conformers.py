@@ -87,6 +87,8 @@ class Conformers:
         # db to be used for skipping conf generation
         self.db = connect('kinbot.db')
 
+        self.imagfreq_threshold = par['imagfreq_threshold']
+
     def generate_ring_conformers(self, cart):
         """
         Generate the conformers of a cyclic structure
@@ -465,7 +467,7 @@ class Conformers:
                                     if self.species.natom > 2 and freq[1] <= 0.:
                                         err = -1
                                 else:
-                                    if freq[0] <= -50.:  # note that now we allow negative frequencies here as well
+                                    if freq[0] <= -1. * self.imagfreq_threshold:  # note that now we allow negative frequencies here as well
                                         err = -1
                             else:
                                 logger.warning("Conformer {} failed due to empty freq array".format(ci))

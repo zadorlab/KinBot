@@ -76,14 +76,14 @@ try:
             print(f"Convergence not found in {{steps - 100}} steps. Retrying "\
                   f"with {{steps}} steps.")
         elif order == 0 and any([fr < -50 for fr in freqs]):
-            converged == False
+            converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
             print("Found one or more imaginary frequencies. Retrying with a " \
                   f"tighter criterion: fmax={{fmax}}.")
         elif order == 1 and np.count_nonzero([fr < -50 for fr in freqs]) > 1:
-            converged == False
+            converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3

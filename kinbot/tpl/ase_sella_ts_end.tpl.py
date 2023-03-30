@@ -66,7 +66,7 @@ try:
             print(f"Convergence not found in {{steps - 100}} steps. Retrying "\
                   f"with {{steps}} steps.")
         elif np.count_nonzero([fr < -50 for fr in freqs]) > 1:
-            converged == False
+            converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3

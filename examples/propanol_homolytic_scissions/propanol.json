@@ -1,17 +1,35 @@
 {
-"title":"propanol_homolytic_scissions",
-
+"title": "propanol_homolytic_scissions",
+"structure": [
+    "O",   0.946652,  -0.053568,  -0.065456,
+    "C",   0.473324,   0.855943,   0.916964,
+    "C",   0.979994,   0.432010,   2.285893,
+    "C",   2.499994,   0.432011,   2.285894,
+    "H",   1.946652,  -0.053568,  -0.065456,
+    "H",   0.829992,   1.839706,   0.693584,
+    "H",  -0.596676,   0.855943,   0.916964,
+    "H",   0.623329,   1.117345,   3.026167,
+    "H",   0.623326,  -0.551753,   2.509273,
+    "H",   2.856662,   1.415774,   2.062515,
+    "H",   2.856662,   0.133583,   3.249547,
+    "H",   2.856657,  -0.253325,   1.545619
+],
 "charge" : 0,
 "mult" : 1,
-"method" : "b3lyp",
-"basis" : "6-31+g*",
-"qc" : "gauss",
+
 "conformer_search" : 0,
-"reaction_search" : 0,
+"reaction_search" : 1,
 "rotor_scan" : 0,
 "high_level" : 0,
 "barrier_threshold" : 200.0,
-"ppn" : 8,
+"families": ["hom_sci"],
 
-"smiles" : "OCCC"
+"queuing": "<slurm or pbs>",
+"queue_name":"<name of your queue>",
+"queue_job_limit": 100,
+"ppn": <num_processors_per_job>,
+
+"qc" : "gauss",
+"method" : "b3lyp",
+"basis" : "6-31+g*"
 }

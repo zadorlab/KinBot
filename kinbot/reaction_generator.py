@@ -437,7 +437,7 @@ class ReactionGenerator:
                         # in the case such products are found, use the same Optimize object for both
                         for i, inst_i in enumerate(self.species.reac_inst):
                             new = 1
-                            if not i == index:
+                            if i != index:
                                 obj_i = self.species.reac_obj[i]
                                 if self.species.reac_ts_done[i] > 3:
                                     for j, st_pt_i in enumerate(obj_i.products):

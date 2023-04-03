@@ -1,8 +1,7 @@
 from ase import Atoms
-# from ase.calculators.gaussian import Gaussian
 from ase.db import connect
 
-from kinbot.ase_modules.calculators.gaussian import Gaussian  # New
+from kinbot.ase_modules.calculators.gaussian import Gaussian
 from kinbot import reader_gauss
 from kinbot.utils import iowait
 
@@ -20,7 +19,7 @@ calc = Gaussian(**kwargs)
 mol.calc = calc
 
 try:
-    e = mol.get_potential_energy()  # use the Gaussian optimizer (task optimize)
+    e = mol.get_potential_energy()  # use the Gaussian optimizer
 except RuntimeError: 
     e = 0.
  

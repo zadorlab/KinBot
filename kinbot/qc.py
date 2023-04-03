@@ -305,21 +305,39 @@ class QuantumChemistry:
         else:
             job = 'hir/' + str(species.chemid) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=species.wellorts, step=1, max_step=1,
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
+                                       ts=species.wellorts, step=1, max_step=1,
                                        high_level=1, hir=1, rigid=rigid)
         #kwargs['fix'] = fix  # for old hacked ASE version
 
-        if self.qc == 'gauss':
-            kwargs['addsec'] = f"{' '.join(str(f) for f in fix[0])} F"
-            del kwargs['chk']
+        if self.qc == 'gauss': 
+            code = 'gaussian'
+            Code = 'Gaussian'
+            if not self.par['use_sella']:
+                kwargs['addsec'] = f"{' '.join(str(f) for f in fix[0])} F"
+                kwargs.pop('chk', None)
         elif self.qc == 'qchem':
-            dihedral = calc_dihedral(geom[fix[0][0]-1], geom[fix[0][1]-1], geom[fix[0][2]-1], geom[fix[0][3]-1])[0]
-            kwargs['addsec'] = f"$opt\nCONSTRAINT\ntors {' '.join(str(f) for f in fix[0])} {dihedral}\n" \
-                               f"ENDCONSTRAINT\n$end"
-
+            code = 'qchem'
+            Code = 'QChem'
+            if not self.par['use_sella']:
+                dihedral = calc_dihedral(geom[fix[0][0]-1], geom[fix[0][1]-1], 
+                                         geom[fix[0][2]-1], geom[fix[0][3]-1])[0]
+                kwargs['addsec'] = "$opt\nCONSTRAINT\ntors " \
+                                   f"{' '.join(str(f) for f in fix[0])} " \
+                                   f"{dihedral}\nENDCONSTRAINT\n$end"
+        elif self.qc == 'nwchem':
+            code = 'nwchem'
+            Code = 'NWChem'
+        else:
+            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
 #        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
-
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_hir.tpl.py'
+        if self.par['use_sella']:
+            kwargs.pop('chk', None)
+            kwargs.pop('opt', None)
+            kwargs.pop('freq', None)
+            template_file = f'{kb_path}/tpl/ase_sella_hir.tpl.py'
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_hir.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -327,7 +345,11 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
                                    qc_command=self.qc_command,
-                                   working_dir=os.getcwd())
+                                   working_dir=os.getcwd(),
+                                   fix=fix[0],
+                                   code=code,
+                                   Code=Code,
+                                   order=species.wellorts)
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -349,18 +371,38 @@ class QuantumChemistry:
         scan_nr: number of the scan for this conformer
         """
         if species.wellorts:
-            job = 'conf/' + species.name + '_r' + str(conf_nr).zfill(self.zf) + '_' + str(scan_nr).zfill(self.zf)
+            job = 'conf/' + species.name + '_r' + str(conf_nr).zfill(self.zf) \
+                  + '_' + str(scan_nr).zfill(self.zf)
         else:
-            job = 'conf/' + str(species.chemid) + '_r' + str(conf_nr).zfill(self.zf) + '_' + str(scan_nr).zfill(self.zf)
+            job = 'conf/' + str(species.chemid) + '_r' \
+                  + str(conf_nr).zfill(self.zf) + '_' \
+                  + str(scan_nr).zfill(self.zf)
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=species.wellorts, step=1, max_step=1, hir=1)
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
+                                       ts=species.wellorts, step=1, max_step=1, 
+                                       hir=1)
 
         del kwargs['opt']
         del kwargs['chk']
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
+        if self.qc == 'gauss':
+            code = 'gaussian'
+            Code = 'Gaussian'
+        elif self.qc == 'qchem':
+            code = 'qchem'
+            Code = 'QChem'
+        elif self.qc == 'nwchem':
+            code = 'nwchem'
+            Code = 'NWChem'
+        else:
+            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+
+        if self.par['use_sella']:
+            template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -370,7 +412,10 @@ class QuantumChemistry:
                                    change=change,
                                    ppn=self.ppn,
                                    qc_command=self.qc_command,
-                                   working_dir=os.getcwd())
+                                   working_dir=os.getcwd(),
+                                   order=species.wellorts,
+                                   code=code,
+                                   Code=Code)
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -391,35 +436,55 @@ class QuantumChemistry:
         if species.wellorts:
             job = 'conf/' + species.name + '_' + add + str(index).zfill(self.zf)
         else:
-            job = 'conf/' + str(species.chemid) + '_' + add + str(index).zfill(self.zf)
+            job = 'conf/' + str(species.chemid) + '_' + add \
+                  + str(index).zfill(self.zf)
 
         if species.wellorts:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
                                            ts=1, step=1, max_step=1)
         else:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
-            if self.qc == 'gauss':
+            if self.qc == 'gauss' and not self.par['use_sella']:
                 if self.par['opt'].casefold() == 'Tight'.casefold(): 
                     kwargs['opt'] = 'CalcFC, Tight'
                 else:
                     kwargs['opt'] = 'CalcFC'
+
         if self.qc == 'gauss':
+            code = 'gaussian'
+            Code = 'Gaussian'
             del kwargs['chk']
+        elif self.qc == 'qchem':
+            code = 'qchem'
+            Code = 'QChem'
+        elif self.qc == 'nwchem':
+            code = 'nwchem'
+            Code = 'NWChem'
+        else:
+            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+        
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
         if species.natom < 3:
-            del kwargs['Symm'] 
-        
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
+            del kwargs['Symm']
+        if self.par['use_sella']:
+            kwargs.pop('opt', None)
+            kwargs.pop('freq', None)
+            template_file = f'{kb_path}/tpl/ase_sella_opt_well.tpl.py'
+        else:        
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
                                    atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn,
+                                   ppn=self.ppn,  # QChem and NWChem
                                    qc_command=self.qc_command,
-                                   working_dir=os.getcwd())
+                                   working_dir=os.getcwd(),
+                                   code=code,    # Sella
+                                   Code=Code,    # Sella
+                                   order=species.wellorts)    
         
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -468,7 +533,8 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, fdir=None):
+    def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
+               fdir=None):
         """
         Creates a geometry optimization input and runs it.
         """
@@ -489,10 +555,10 @@ class QuantumChemistry:
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
         # O2
-        if species.chemid == "320320000000000000001":
+        if species.chemid == '320320000000000000001':
             mult = 3
         # CH2
-        elif species.chemid == "140260020000000000001":
+        elif species.chemid == '140260020000000000001':
             mult = 3
         else:
             mult = species.mult
@@ -501,29 +567,48 @@ class QuantumChemistry:
                                        high_level=high_level)
 
         if self.qc == 'gauss':
+            code = 'gaussian'
+            Code = 'Gaussian'
             if self.par['opt'].casefold() == 'Tight'.casefold(): 
                 kwargs['opt'] = 'CalcFC, Tight'
             else:
                 kwargs['opt'] = 'CalcFC'
+        elif self.qc == 'qchem':
+            code = 'qchem'
+            Code = 'QChem'
+        elif self.qc == 'nwchem':
+            code = 'nwchem'
+            Code = 'NWChem'   
+        else:
+            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+        
         if mp2:
             kwargs['method'] = self.scan_method
             kwargs['basis'] = self.scan_basis
-        if high_level and self.qc == 'gauss':
-            if self.opt:
-                kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
+        if high_level and self.qc == 'gauss'and self.opt \
+                and not self.par['use_sella']:
+            kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         if species.natom < 3:
             del kwargs['Symm'] 
         # the integral is set in the get_qc_arguments parts, bad design
+        if self.par['use_sella']:
+            kwargs.pop('opt', None)
+            kwargs.pop('freq', None)
+            template_file = f'{kb_path}/tpl/ase_sella_opt_well.tpl.py'
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
 
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
                                    atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn,
+                                   ppn=self.ppn,  # QChem and NWChem
                                    qc_command=self.qc_command,
-                                   working_dir=os.getcwd())
+                                   working_dir=os.getcwd(),
+                                   code=code,    # Sella
+                                   Code=Code,    # Sella
+                                   order=0)      # Sella
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -545,9 +630,28 @@ class QuantumChemistry:
         if fdir is not None:
             job = f'{fdir}/{job}'
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, step=1, max_step=1, high_level=1)
-
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_ts_end.tpl.py'
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, 
+                                       step=1, max_step=1, high_level=1)
+        
+        if self.qc == 'gauss':
+            code = 'gaussian'
+            Code = 'Gaussian'
+        elif self.qc == 'qchem':
+            code = 'qchem'
+            Code = 'QChem'
+        elif self.qc == 'nwchem':
+            code = 'nwchem'
+            Code = 'NWChem'
+        else:
+            raise ValueError(f"Unrecognized qc option: {self.qc}")
+        
+        if self.par['use_sella']:
+            kwargs.pop('addsec', None)
+            kwargs.pop('opt', None)
+            kwargs.pop('freq', None)
+            template_file = f'{kb_path}/tpl/ase_sella_ts_end.tpl.py'
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -555,7 +659,9 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]),
                                    ppn=self.ppn,
                                    qc_command=self.qc_command,
-                                   working_dir=os.getcwd())
+                                   working_dir=os.getcwd(),
+                                   code=code,
+                                   Code=Code)
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -612,10 +718,10 @@ class QuantumChemistry:
 
         if self.queuing == 'pbs':
             python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
-                                                        errdir='perm', python_file=python_file, arguments='')
+                                                     errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
             python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, errdir='perm',
-                                                        slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
+                                                     slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
         else:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logger.error('Exiting')
@@ -826,7 +932,11 @@ class QuantumChemistry:
         if check != 'normal':
             return []
 
-        if self.qc == 'gauss':
+        if self.par['use_sella']:
+            db = connect('kinbot.db')
+            row = next(db.select(name=job))
+            hess = row.data['hess']
+        elif self.qc == 'gauss':
             hess = np.zeros((3 * natom, 3 * natom))
             fchk = str(job) + '.fchk'
             if not os.path.exists(fchk):
@@ -851,6 +961,9 @@ class QuantumChemistry:
                             hess[j][i] = hess_flat[n]
                             n += 1
                     break
+            else:
+                raise FileNotFoundError(f'Hessian matrix not found on {fchk}.')
+            
         elif self.qc == 'qchem':
             hess = []
             row = 0
@@ -933,7 +1046,6 @@ class QuantumChemistry:
                         return 'running'
         elif self.queuing == 'local':
             pass
-
         else:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logger.error('Exiting')
@@ -943,7 +1055,6 @@ class QuantumChemistry:
 
         if self.is_in_database(job):
             for i in range(1):
-
                 if self.qc == 'gauss':
                     log_file = job + '.log'
                 elif self.qc == 'nwchem':
@@ -958,7 +1069,8 @@ class QuantumChemistry:
                         try:
                             last_line = f.readlines()[-1]
                             if 'done' not in last_line:
-                                logger.debug(f'Log file {log_file} is present, but has no "done" stamp.')
+                                logger.debug(f'Log file {log_file} is present, '
+                                             'but has no "done" stamp.')
                                 return 0
                         except IndexError:
                             logger.debug(f'Log file {log_file} is present, but it is empty.')

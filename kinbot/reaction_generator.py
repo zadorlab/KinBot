@@ -437,7 +437,7 @@ class ReactionGenerator:
                         # in the case such products are found, use the same Optimize object for both
                         for i, inst_i in enumerate(self.species.reac_inst):
                             new = 1
-                            if not i == index:
+                            if i != index:
                                 obj_i = self.species.reac_obj[i]
                                 if self.species.reac_ts_done[i] > 3:
                                     for j, st_pt_i in enumerate(obj_i.products):
@@ -534,7 +534,7 @@ class ReactionGenerator:
                     neg_freq = 0
                     for st_pt in obj.products:
                         if len(st_pt.reduced_freqs):
-                            if st_pt.reduced_freqs[0] <= 0. and st_pt.reduced_freqs[0] >= -1 * self.par['imagfreq_threshold']:
+                            if -1 * self.par['imagfreq_threshold'] <= st_pt.reduced_freqs[0] <= 0.:
                                 logger.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}. Flipped.')
                                 st_pt.reduced_freqs[0] *= -1.
                             elif st_pt.reduced_freqs[0] < -1 * self.par['imagfreq_threshold']:
@@ -542,7 +542,7 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1
                     if any([fi < 0. for fi in obj.ts.reduced_freqs[1:]]):
-                        logger.warning(' Found more than one negative frequency for ' + obj.instance_name)
+                        logger.warning('Found more than one negative frequency for ' + obj.instance_name)
                         logger.warning(obj.ts.reduced_freqs)
                         self.species.reac_ts_done[index] = -999
                         neg_freq = 1
@@ -567,7 +567,8 @@ class ReactionGenerator:
 
             alldone = 1
             for index, instance in enumerate(self.species.reac_inst):
-                if any(self.species.reac_ts_done[i] >= 0 for i in range(len(self.species.reac_inst))):
+                if any(self.species.reac_ts_done[index] >= 0
+                       for i in range(len(self.species.reac_inst))):
                     alldone = 1
                     break
                 else:

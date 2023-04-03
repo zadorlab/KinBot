@@ -93,6 +93,10 @@ def create_summary_file(species, qc, par):
                 mp2_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
                 mp2_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
                 energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
+            elif species.reac_type[index] == 'hom_sci':
+                energy = (sum([pr.energy + pr.zpe 
+                              for pr in species.reac_obj[index].products])
+                          - species.energy - species.zpe) * constants.AUtoKCAL
             else:
                 energy = (ts.energy + ts.zpe - species.energy - species.zpe) * constants.AUtoKCAL
             prod_name = ''

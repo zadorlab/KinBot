@@ -1,8 +1,7 @@
 from ase import Atoms
-# from ase.calculators.gaussian import Gaussian
 from ase.db import connect
 
-from kinbot.ase_modules.calculators.gaussian import Gaussian  # New
+from kinbot.ase_modules.calculators.gaussian import Gaussian
 from kinbot import reader_gauss
 from kinbot.utils import iowait
 

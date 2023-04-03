@@ -141,7 +141,10 @@ class Optimize:
                     if self.sconf == 0:
                         # conformational search is running
                         # check if the conformational search is done
-                        if self.skip_conf_check == 0 or self.par['multi_conf_tst'] or self.par['print_conf'] or self.par['calc_aie']:
+                        if self.skip_conf_check == 0 \
+                                or self.par['multi_conf_tst'] \
+                                or self.par['print_conf'] \
+                                or self.par['calc_aie']:
                             status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid =\
                                     self.species.confs.check_conformers(wait=self.wait)
                             if status == 1:
@@ -249,7 +252,7 @@ class Optimize:
                                 # hir is running
                                 # check if it is done:
                                 status = self.species.hir.check_hir(wait=self.wait)
-                                if status:
+                                if status:  # Finished correctly
                                     if len(self.species.hir.hir_energies) > 0:
                                         # check if along the hir potential a structure was found with a lower energy
                                         min_en = self.species.hir.hir_energies[0][0]
@@ -339,7 +342,7 @@ class Optimize:
                         if status:
                             self.species.energy = molpro_energy
 
-                    if self.par['single_point_qc'] == 'orca':
+                    elif self.par['single_point_qc'] == 'orca':
                         orca = Orca(self.species, self.par)
                         key = self.par['single_point_key']
                         orca.create_orca_input()

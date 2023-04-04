@@ -26,7 +26,7 @@ class QuantumChemistry:
 
     def __init__(self, par):
         self.par = par
-        self.qc = par['qc']
+        self.qc = par['qc'].lower()
         self.method = par['method']
         self.basis = par['basis']
         self.scan_method = par['scan_method']
@@ -55,6 +55,7 @@ class QuantumChemistry:
             self.slurm_feature = '#SBATCH -C ' + par['slurm_feature']
         self.queue_job_limit = par['queue_job_limit']
         self.username = par['username']
+        self.use_sella = par['use_sella']
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
@@ -313,13 +314,13 @@ class QuantumChemistry:
         if self.qc == 'gauss': 
             code = 'gaussian'
             Code = 'Gaussian'
-            if not self.par['use_sella']:
+            if not self.use_sella:
                 kwargs['addsec'] = f"{' '.join(str(f) for f in fix[0])} F"
                 kwargs.pop('chk', None)
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
-            if not self.par['use_sella']:
+            if not self.use_sella:
                 dihedral = calc_dihedral(geom[fix[0][0]-1], geom[fix[0][1]-1], 
                                          geom[fix[0][2]-1], geom[fix[0][3]-1])[0]
                 kwargs['addsec'] = "$opt\nCONSTRAINT\ntors " \
@@ -331,7 +332,7 @@ class QuantumChemistry:
         else:
             raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
 #        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
-        if self.par['use_sella']:
+        if self.use_sella:
             kwargs.pop('chk', None)
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
@@ -399,7 +400,7 @@ class QuantumChemistry:
         else:
             raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
 
-        if self.par['use_sella']:
+        if self.use_sella:
             template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
         else:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
@@ -444,7 +445,7 @@ class QuantumChemistry:
                                            ts=1, step=1, max_step=1)
         else:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge)
-            if self.qc == 'gauss' and not self.par['use_sella']:
+            if self.qc == 'gauss' and not self.use_sella:
                 if self.par['opt'].casefold() == 'Tight'.casefold(): 
                     kwargs['opt'] = 'CalcFC, Tight'
                 else:
@@ -468,7 +469,7 @@ class QuantumChemistry:
             kwargs['basis'] = ''
         if species.natom < 3:
             del kwargs['Symm']
-        if self.par['use_sella']:
+        if self.use_sella:
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
             template_file = f'{kb_path}/tpl/ase_sella_opt_well.tpl.py'
@@ -586,12 +587,12 @@ class QuantumChemistry:
             kwargs['method'] = self.scan_method
             kwargs['basis'] = self.scan_basis
         if high_level and self.qc == 'gauss'and self.opt \
-                and not self.par['use_sella']:
+                and not self.use_sella:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         if species.natom < 3:
             del kwargs['Symm'] 
         # the integral is set in the get_qc_arguments parts, bad design
-        if self.par['use_sella']:
+        if self.use_sella:
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
             template_file = f'{kb_path}/tpl/ase_sella_opt_well.tpl.py'
@@ -645,7 +646,7 @@ class QuantumChemistry:
         else:
             raise ValueError(f"Unrecognized qc option: {self.qc}")
         
-        if self.par['use_sella']:
+        if self.use_sella:
             kwargs.pop('addsec', None)
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
@@ -932,7 +933,7 @@ class QuantumChemistry:
         if check != 'normal':
             return []
 
-        if self.par['use_sella']:
+        if self.use_sella:
             db = connect('kinbot.db')
             row = next(db.select(name=job))
             hess = row.data['hess']

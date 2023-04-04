@@ -160,7 +160,7 @@ class IRC:
             if self.rxn.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'
-            if self.par['use_sella']:
+            if self.rxn.qc.use_sella:
                 kwargs.pop('irc', None)
                 kwargs.pop('geom', None)
                 kwargs.pop('guess', None)

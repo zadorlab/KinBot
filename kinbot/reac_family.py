@@ -134,7 +134,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     #     ntrial = 1
 
     if step < rxn.max_step:
-        if rxn.par['use_sella']:
+        if rxn.qc.use_sella:
             kwargs.pop('addsec', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_search.tpl.py'
@@ -154,7 +154,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    Code=Code,
                                    fix=fix)
     else:
-        if rxn.par['use_sella']:
+        if rxn.qc.use_sella:
             kwargs.pop('addsec', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_end.tpl.py'

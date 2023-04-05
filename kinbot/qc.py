@@ -955,8 +955,8 @@ class QuantumChemistry:
 
         if self.use_sella:
             db = connect('kinbot.db')
-            row = next(db.select(name=job))
-            hess = row.data['hess']
+            *_, last_row = db.select(name=job)
+            hess = last_row.data['hess']
         elif self.qc == 'gauss':
             hess = np.zeros((3 * natom, 3 * natom))
             fchk = str(job) + '.fchk'

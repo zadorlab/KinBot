@@ -41,7 +41,7 @@ with open('{label}.log', 'a') as f:
 
 if success:
     prod_kwargs = {prod_kwargs}
-    mol.calc = Gaussian(**prod_kwargs)
+    mol.calc = {Code}(**prod_kwargs)
     opt = Sella(mol, order=0, trajectory='{label}_prod.traj', 
                 logfile='{label}_prod_sella.log')
     try:

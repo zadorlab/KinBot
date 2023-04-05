@@ -77,7 +77,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     # atom, geom, dummy = rxn.qc.add_dummy(rxn.species.atom, geom,
     #                                      rxn.species.bond)
 
-    if rxn.qc.qc == 'gauss':
+    if rxn.qc.qc == 'gauss' or (rxn.qc.qc == 'nn_pes' and step < rxn.max_step):
         code = 'gaussian'
         Code = 'Gaussian'
         kwargs['addsec'] = ''
@@ -100,7 +100,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             for ii, at in enumerate(rxn.species.atom):
                 kwargs['addsec'] += f'{at} {geom_ts[ii][0]} {geom_ts[ii][1]} {geom_ts[ii][2]}\n'
             kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
-
     elif rxn.qc.qc == 'qchem':
         code = 'qchem'
         Code = 'QChem'
@@ -128,10 +127,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         elif bimol and step == 1:
             raise NotImplementedError('Bimolecular reactions are not yet '
                                       'implemented in QChem')
-    # if not bimol:
-    #     ntrial = 3
-    # else:
-    #     ntrial = 1
+    elif rxn.qc.qc == 'nn_pes' and step >= rxn.max_step:
+        kwargs = {}
+        code = 'nn_pes'
+        Code = 'Nn_surr'
 
     if step < rxn.max_step:
         if rxn.qc.use_sella:

@@ -56,6 +56,9 @@ class QuantumChemistry:
         self.queue_job_limit = par['queue_job_limit']
         self.username = par['username']
         self.use_sella = par['use_sella']
+        if not self.use_sella and self.qc.lower() == 'nn_pes':
+            logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
+            self.use_sella = True
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
@@ -72,7 +75,7 @@ class QuantumChemistry:
         irc: direction of the irc, None if this is not an irc job
         scan: is this calculation part of a scan of a bond length to find a maximum energy
         """
-        if self.qc == 'gauss':
+        if self.qc == 'gauss' or (self.qc == 'nn_pes' and step < max_step):
             # arguments for Gaussian
             kwargs = {
                 'method': self.method,
@@ -201,7 +204,7 @@ class QuantumChemistry:
 
             return kwargs
 
-        if self.qc == 'nwchem':
+        elif self.qc == 'nwchem':
             # arguments for NWChem
             odft = mult > 1
             kwargs = {
@@ -241,7 +244,7 @@ class QuantumChemistry:
                 kwargs.update(irc_kwargs)
             return kwargs
 
-        if self.qc == 'qchem':
+        elif self.qc == 'qchem':
             # arguments for QChem
             kwargs = {
                 'label': job,
@@ -290,6 +293,8 @@ class QuantumChemistry:
                     kwargs['rpath_direction'] = '-1'
                 else:
                     kwargs['rpath_direction'] = '1'
+        elif self.qc == 'nn_pes':
+            kwargs = {}
 
         return kwargs
 
@@ -329,6 +334,9 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'nn_pes':
+            code = 'nn_pes'
+            Code = 'Nn_surr'
         else:
             raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
 #        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
@@ -397,6 +405,9 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'nn_pes':
+            code = 'nn_pes'
+            Code = 'Nn_surr'
         else:
             raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
 
@@ -461,6 +472,9 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'nn_pes':
+            code = 'nn_pes'
+            Code = 'Nn_surr'
         else:
             raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
         
@@ -580,6 +594,9 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'   
+        elif self.qc == 'nn_pes':
+            code = 'nn_pes'
+            Code = 'Nn_surr'
         else:
             raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
         
@@ -590,7 +607,7 @@ class QuantumChemistry:
                 and not self.use_sella:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         if species.natom < 3:
-            del kwargs['Symm'] 
+            kwargs.pop('Symm', None)
         # the integral is set in the get_qc_arguments parts, bad design
         if self.use_sella:
             kwargs.pop('opt', None)
@@ -643,6 +660,9 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'nn_pes':
+            code = 'nn_pes'
+            Code = 'Nn_surr'
         else:
             raise ValueError(f"Unrecognized qc option: {self.qc}")
         
@@ -964,7 +984,6 @@ class QuantumChemistry:
                     break
             else:
                 raise FileNotFoundError(f'Hessian matrix not found on {fchk}.')
-            
         elif self.qc == 'qchem':
             hess = []
             row = 0
@@ -1062,9 +1081,12 @@ class QuantumChemistry:
                     log_file = job + '.out'
                 elif self.qc == 'qchem':
                     log_file = job + '.out'
+                elif self.qc == 'nn_pes':
+                    log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
-                log_file_exists = os.path.exists(log_file)
+                if self.qc != 'nn_pes':
+                    log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     with open(log_file, 'r') as f:
                         try:
@@ -1077,24 +1099,27 @@ class QuantumChemistry:
                             logger.debug(f'Log file {log_file} is present, but it is empty.')
                             pass
                     logger.debug('Log file is present after {} iterations'.format(i))
-                    # by deleting a log file, you allow restarting a job
-                    # open the database
-                    rows = self.db.select(name=job)
-                    data = None
-                    # take the last entry
-                    for row in rows:
-                        if hasattr(row, 'data'):
-                            data = row.data
-                    if data is None:
-                        logger.debug('Data is not in database...')
-                        return 0
-                    else:
-                        logger.debug('Returning status {}'.format(data['status']))
-                        return data['status']
+                elif self.qc == 'nn_pes':
+                    pass
                 else:
                     logger.debug('Checking againg for log file')
                     log_file_exists = os.path.exists(log_file)
                     time.sleep(1)
+            
+                # by deleting a log file, you allow restarting a job
+                # open the database
+                rows = self.db.select(name=job)
+                data = None
+                # take the last entry
+                for row in rows:
+                    if hasattr(row, 'data'):
+                        data = row.data
+                if data is None:
+                    logger.debug('Data is not in database...')
+                    return 0
+                else:
+                    logger.debug('Returning status {}'.format(data['status']))
+                    return data['status']
 
             logger.debug('log file {} does not exist'.format(log_file))
             return 0

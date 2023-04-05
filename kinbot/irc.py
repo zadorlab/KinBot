@@ -138,7 +138,6 @@ class IRC:
                     copyfile(instance_name + '.chk', irc_name + '.chk')
                 else:
                     start_from_geometry = 1
-
             elif self.rxn.qc.qc == 'nwchem':
                 code = 'nwchem'  # Sella
                 Code = 'NWChem'  # Sella
@@ -147,9 +146,11 @@ class IRC:
             elif self.rxn.qc.qc == 'qchem':
                 code = 'qchem'  # Sella
                 Code = 'QChem'  # Sella
+            elif self.rxn.qc.qc == 'nn_pes':
+                code = 'nn_pes'
+                Code = 'Nn_surr'
             else:
-                raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.'
-                                 ' ¯\_(ツ)_/¯')
+                raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.')
 
             kwargs = self.rxn.qc.get_qc_arguments(irc_name,
                                                   self.rxn.species.mult,

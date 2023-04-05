@@ -20,7 +20,7 @@ for fix in base_0_fix:
     elif len(fix) == 4:
         const.fix_dihedral(fix)
     else:
-        raise ValueError(f'¯\_(ツ)_/¯, Unexpected length of fix: {{fix}}')
+        raise ValueError(f'Unexpected length of fix: {{fix}}')
 
 kwargs = {kwargs}
 mol.calc = {Code}(**kwargs)

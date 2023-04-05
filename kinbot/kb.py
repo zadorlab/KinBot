@@ -118,7 +118,7 @@ def main():
 
         # do an MP2 optimization of the reactant,
         # to compare some scan barrier heigths to
-        if par['families'] == ['all'] or \
+        if qc.qc != 'nn_pes' and par['families'] == ['all'] or \
                 'birad_recombination_R' in par['families'] or \
                 'r12_cycloaddition' in par['families'] or \
                 'r14_birad_scission' in par['families'] or \

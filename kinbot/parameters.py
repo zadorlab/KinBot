@@ -228,6 +228,8 @@ class Parameters:
             'rigid_hir': 0,
             # use_sella
             'use_sella': False,
+            # Threshold to accept negative frequencies for floppy structures, this is a positive number
+            'imagfreq_threshold': 50.,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -351,6 +353,9 @@ class Parameters:
 
         if self.par['multi_conf_tst'] and not self.par['conformer_search']:
             err = 'For multi conformer tst calculation conformer search needs to be activated.'
+
+        if self.par['imagfreq_threshold'] < 0:
+            err = 'The threshold for imaginary freqency has to be a positive number, interpreted as an imaginary value.'
 
         if not self.par['multi_conf_tst']:
             self.par['multi_conf_tst_temp'] = None

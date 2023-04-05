@@ -502,7 +502,7 @@ class Optimize:
             freq_ok = 1
         elif len(fr) == 1 and fr[0] == 0:
             freq_ok = 0
-        elif self.species.wellorts == 0 and fr[0] > -50.:
+        elif self.species.wellorts == 0 and fr[0] > -1. * self.par['imagfreq_threshold']:
             freq_ok = 1
             if fr[0] < 0.:
                 fr[0] *= -1.

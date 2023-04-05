@@ -118,7 +118,7 @@ def main():
 
         # do an MP2 optimization of the reactant,
         # to compare some scan barrier heigths to
-        if qc.qc != 'nn_pes' and par['families'] == ['all'] or \
+        if qc.qc != 'nn_pes' and (par['families'] == ['all'] or \
                 'birad_recombination_R' in par['families'] or \
                 'r12_cycloaddition' in par['families'] or \
                 'r14_birad_scission' in par['families'] or \
@@ -128,7 +128,7 @@ def main():
                 'r12_cycloaddition' not in par['skip_families'] or
                 'r14_birad_scission' not in par['skip_families'] or
                 'R_Addition_MultipleBond' not in par['skip_families'])) or \
-                par['reaction_search'] == 0:
+                par['reaction_search'] == 0):
             logger.debug('Starting MP2 optimization of initial well...')
             qc.qc_opt(well0, well0.geom, mp2=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)

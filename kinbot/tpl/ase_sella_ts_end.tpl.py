@@ -58,20 +58,22 @@ try:
     attempts = 1
     steps=300
     while not converged and attempts <= 3:
-        converged = opt.run(fmax=0.0001, steps=steps)
+        converged = opt.run(fmax=fmax, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
         if not converged:
             steps += 100
             attempts += 1
-            print(f"Convergence not found in {{steps - 100}} steps. Retrying "\
-                  f"with {{steps}} steps.")
+            if attempts <= 3:
+                print(f'Convergence not found in {{steps - 100}} steps. '
+                      f'Retrying with {{steps}} steps.')
         elif np.count_nonzero([fr < -50 for fr in freqs]) > 1:
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
-            print("Found more than one imaginary frequency. Retrying with a " \
-                  f"tighter criterion: fmax={{fmax}}.")
+            if attempts <= 3:
+                print('Found more than one imaginary frequencies. Retrying with '
+                      f'a tighter criterion: fmax={{fmax}}.')
         else:
             e = mol.get_potential_energy()
             db.write(mol, name='{label}', 

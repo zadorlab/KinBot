@@ -94,6 +94,7 @@ class Nnpes_calc():
     def __init__(self, fname, multinn=False):
         self.dpes = data.Data_pes(['C', 'H'])
         self.myaev = self.dpes.prep_aev()
+        # self.myaev = self.dpes.prep_aev(nrho_rad=16, nrho_ang=4, nalpha=8)
         if multinn:
             self.nmodel = fname.__len__()
             options = [My_args('Comp', fnm, 'hfonly') for fnm in fname]

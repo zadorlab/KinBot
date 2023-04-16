@@ -896,14 +896,14 @@ class QuantumChemistry:
             else:
                 break
 
-        # open the database
-        rows = self.db.select(name=job)
-        energy = 0
-        # take the last entry
-        for row in rows:
-            if hasattr(row, 'data'):
-                if row.data.get('energy') is not None:
-                    energy = row.data.get('energy')
+        # Get last entry
+        *_, last_row = self.db.select(name=job)
+        if hasattr(last_row, 'data'):
+            energy = last_row.data.get('energy')
+        else:
+            logger.warning(f'No energy found in the database for {job}. '
+                           'This will lead to erroneous energies.')
+            energy = 0
 
         # ase energies are always in ev, convert to hartree
         energy *= constants.EVtoHARTREE

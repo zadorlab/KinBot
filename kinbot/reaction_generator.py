@@ -208,10 +208,12 @@ class ReactionGenerator:
                         # check the barrier height:
                         ts_energy = self.qc.get_qc_energy(obj.instance_name)[1]
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
-                        if self.species.reac_type[index] == 'R_Addition_MultipleBond':
+                        if self.species.reac_type[index] == 'R_Addition_MultipleBond' \
+                                and self.qc.qc != 'nn_pes':
                             ending = 'well_mp2'
                             thresh = self.par['barrier_threshold']  # need to fix for mp2 specific
-                        elif self.species.reac_type[index] == 'barrierless_saddle':
+                        elif self.species.reac_type[index] == 'barrierless_saddle' \
+                                and self.qc.qc != 'nn_pes':
                             ending = 'well_bls'
                             thresh = self.par['barrier_threshold']
                         else:

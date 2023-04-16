@@ -29,17 +29,8 @@ class Nn_surr(Calculator):
         elif fname is None:
             warnings.warn('No NN model provided. Falling back to C5H5. This '
                           'might lead to incorrect results.')
-            self.multinn = True
-            fname = [util_path + '/models/AL/C5H5-2b2IRC1ts_full/run1-1/C5H5_lf_reddb_2w2IRC1ts_20k_rand0-29540.pt',
-                     util_path + '/models/AL/C5H5-2b2IRC1ts_full/run1-1/C5H5_lf_reddb_2w2IRC1ts_20k_rand1-29260.pt',
-                     util_path + '/models/AL/C5H5-2b2IRC1ts_full/run1-1/C5H5_lf_reddb_2w2IRC1ts_20k_rand2-29115.pt',
-                     util_path + '/models/AL/C5H5-2b2IRC1ts_full/run1-1/C5H5_lf_reddb_2w2IRC1ts_20k_rand3-0005.pt',
-                     util_path + '/models/AL/C5H5-2b2IRC1ts_full/run1-1/C5H5_lf_reddb_2w2IRC1ts_20k_rand4-2500.pt']
-            # fname = [util_path + '/models/new/comp-1500_rand0.pt',
-            #          util_path + '/models/new/comp-1500_rand2.pt',
-            #          util_path + '/models/new/comp-1500_rand4.pt',
-            #          util_path + '/models/new/comp-1500_rand6.pt',
-            #          util_path + '/models/new/comp-1500_rand8.pt']
+            self.multinn = False
+            fname = [util_path + '/models/new/comp-0100.pt']
         else:
             self.multinn = False
         self.surrogate = Nnpes_calc(fname, self.multinn)

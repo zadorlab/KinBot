@@ -492,7 +492,12 @@ class Conformers:
                 self.write_profile(status, final_geoms, totenergies)
                
                 try:
-                    copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
+                    if self.qc.qc == 'gauss':
+                        copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
+                    elif self.qc.qc == 'nn_pes':
+                        pass
+                    else:
+                        raise NotImplementedError('Code {self.qc.qc} not available.')
                     rows = self.db.select(name='{}'.format(lowest_job))
                     for row in rows:
                         row_last = row

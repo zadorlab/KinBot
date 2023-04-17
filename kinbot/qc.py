@@ -406,6 +406,8 @@ class QuantumChemistry:
             code = 'nwchem'
             Code = 'NWChem'
         elif self.qc == 'nn_pes':
+            kwargs.pop('method', None)
+            kwargs.pop('basis', None)
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:

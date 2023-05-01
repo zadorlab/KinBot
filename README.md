@@ -1,6 +1,6 @@
 [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/zadorlab/KinBot)
 
-# KinBot: Automated reaction pathway search for gas-phase molecules
+# KinBot: Automated Reaction Kinetics of Gas-Phase Organic Species over Multiwell Potential Energy Surfaces
 
 <p>
     <img src="https://raw.githubusercontent.com/zadorlab/KinBot/master/graphics/kinbot_logo_V2.png" width="220" height="240" />

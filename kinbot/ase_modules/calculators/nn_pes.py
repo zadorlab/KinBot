@@ -27,10 +27,15 @@ class Nn_surr(Calculator):
         if isinstance(fname, list) and fname.__len__() > 1:
             self.multinn = True
         elif fname is None:
+            self.multinn = True
+            fname = [util_path + '/models/new/comp-0500_rand0_2023_4_24.pt',
+                     util_path + '/models/new/comp-0500_rand2_2023_4_24.pt',
+                     util_path + '/models/new/comp-0500_rand4_2023_4_24.pt',
+                     util_path + '/models/new/comp-0500_rand6_2023_4_24.pt',
+                     util_path + '/models/new/comp-0500_rand8_2023_4_24.pt']
             warnings.warn('No NN model provided. Falling back to C5H5. This '
-                          'might lead to incorrect results.')
-            self.multinn = False
-            fname = [util_path + '/models/new/comp-0100.pt']
+                          'might lead to incorrect results. Model used: '
+                          f'{fname}.')
         else:
             self.multinn = False
         self.surrogate = Nnpes_calc(fname, self.multinn)

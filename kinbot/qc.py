@@ -113,7 +113,7 @@ class QuantumChemistry:
                         kwargs['method'] = self.method
                         kwargs['basis'] = self.basis
                         kwargs['opt'] = 'QST3,AddRedundant'
-                        del kwargs['guess']
+                        kwargs.pop('guess', None)
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis
@@ -144,7 +144,7 @@ class QuantumChemistry:
                     kwargs['irc'] = 'RCFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
                 else:
                     kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
-                del kwargs['freq']
+                kwargs.pop('freq', None)
             if high_level:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
@@ -161,11 +161,11 @@ class QuantumChemistry:
                     kwargs['method'] = self.bls_high_level_method
                     kwargs['basis'] = self.bls_high_level_basis
                     kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
-                    del kwargs['freq']
+                    kwargs.pop('freq', None)
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
                 if (not ts) or (ts and (not self.par['calcall_ts'])):
-                    del kwargs['freq']
+                    kwargs.pop('freq', None)
                 if ts:
                     if self.par['hir_maxcycle'] is None:
                         kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest'
@@ -382,8 +382,8 @@ class QuantumChemistry:
                                        ts=species.wellorts, step=1, max_step=1, 
                                        hir=1)
 
-        del kwargs['opt']
-        del kwargs['chk']
+        kwargs.pop('opt', None)
+        kwargs.pop('chk', None)
         kwargs['method'] = 'am1'
         kwargs['basis'] = ''
 
@@ -453,7 +453,7 @@ class QuantumChemistry:
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
-            del kwargs['chk']
+            kwargs.pop('chk', None)
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
@@ -467,7 +467,7 @@ class QuantumChemistry:
             kwargs['method'] = self.par['semi_emp_method']
             kwargs['basis'] = ''
         if species.natom < 3:
-            del kwargs['Symm']
+            kwargs.pop('Symm', None)
         if self.par['use_sella']:
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
@@ -589,7 +589,7 @@ class QuantumChemistry:
                 and not self.par['use_sella']:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         if species.natom < 3:
-            del kwargs['Symm'] 
+            kwargs.pop('Symm', None)
         # the integral is set in the get_qc_arguments parts, bad design
         if self.par['use_sella']:
             kwargs.pop('opt', None)

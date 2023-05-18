@@ -28,11 +28,11 @@ class Nn_surr(Calculator):
             self.multinn = True
         elif fname is None:
             self.multinn = True
-            fname = [util_path + '/models/new/comp-0500_rand0_2023_4_24.pt',
-                     util_path + '/models/new/comp-0500_rand2_2023_4_24.pt',
-                     util_path + '/models/new/comp-0500_rand4_2023_4_24.pt',
-                     util_path + '/models/new/comp-0500_rand6_2023_4_24.pt',
-                     util_path + '/models/new/comp-0500_rand8_2023_4_24.pt']
+            fname = [util_path + '/models/new/comp-0500_rand0_2023_5_04.pt',
+                     util_path + '/models/new/comp-0500_rand2_2023_5_04.pt',
+                     util_path + '/models/new/comp-0500_rand4_2023_5_04.pt',
+                     util_path + '/models/new/comp-0500_rand6_2023_5_04.pt',
+                     util_path + '/models/new/comp-0500_rand8_2023_5_04.pt']
             warnings.warn('No NN model provided. Falling back to C5H5. This '
                           'might lead to incorrect results. Model used: '
                           f'{fname}.')
@@ -48,7 +48,7 @@ class Nn_surr(Calculator):
         else:
             favail = False
         xyzd = [[[s for s in atoms.symbols], np.array(atoms.positions)]]
-        self.surrogate.dpes.aev_from_xyz(xyzd, 32, 8, 8, False, self.surrogate.myaev)
+        self.surrogate.dpes.aev_from_xyz(xyzd, 32, 8, 8, [6.0, 4.0], False, self.surrogate.myaev)
         self.surrogate.nforce = self.surrogate.dpes.full_symb_data[0].__len__() * 3
 
         if self.multinn:
@@ -98,8 +98,9 @@ class Nnpes_calc():
 
     def __init__(self, fname, multinn=False):
         self.dpes = data.Data_pes(['C', 'H'])
-        self.myaev = self.dpes.prep_aev()
-        # self.myaev = self.dpes.prep_aev(nrho_rad=16, nrho_ang=4, nalpha=8)
+        # self.myaev = self.dpes.prep_aev()  # Normal AEV
+        self.myaev = self.dpes.prep_aev(R_c=[6.0,4.0])  # AEV modification
+        # self.myaev = self.dpes.prep_aev(nrho_rad=16, nrho_ang=4, nalpha=8)  # Small net
         if multinn:
             self.nmodel = fname.__len__()
             options = [My_args('Comp', fnm, 'hfonly') for fnm in fname]

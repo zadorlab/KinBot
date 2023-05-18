@@ -28,11 +28,11 @@ class Nn_surr(Calculator):
             self.multinn = True
         elif fname is None:
             self.multinn = True
-            fname = [util_path + '/models/new/comp-0500_rand0_2023_5_04.pt',
-                     util_path + '/models/new/comp-0500_rand2_2023_5_04.pt',
-                     util_path + '/models/new/comp-0500_rand4_2023_5_04.pt',
-                     util_path + '/models/new/comp-0500_rand6_2023_5_04.pt',
-                     util_path + '/models/new/comp-0500_rand8_2023_5_04.pt']
+            fname = [util_path + '/models/C5H5_SAE/2023_5_04/comp_r0-0500.pt',
+                     util_path + '/models/C5H5_SAE/2023_5_04/comp_r2-0500.pt',
+                     util_path + '/models/C5H5_SAE/2023_5_04/comp_r4-0500.pt',
+                     util_path + '/models/C5H5_SAE/2023_5_04/comp_r6-0500.pt',
+                     util_path + '/models/C5H5_SAE/2023_5_04/comp_r8-0500.pt']
             warnings.warn('No NN model provided. Falling back to C5H5. This '
                           'might lead to incorrect results. Model used: '
                           f'{fname}.')

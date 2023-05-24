@@ -246,7 +246,10 @@ class ReactionGenerator:
                                 # IRC's have successfully finished, have an error, in any case
                                 # read the geometries and try to make products out of them
                                 # verify which of the ircs leads back to the reactant, if any
-                                prod = obj.irc.irc2stationary_pt()
+                                try:
+                                    prod = obj.irc.irc2stationary_pt()
+                                except ValueError:
+                                    prod = 0
                                 if prod == 0:
                                     logger.info('\tNo product found for {}'.format(obj.instance_name))
                                     self.species.reac_ts_done[index] = -999

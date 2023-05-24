@@ -294,7 +294,10 @@ class QuantumChemistry:
                 else:
                     kwargs['rpath_direction'] = '1'
         elif self.qc == 'nn_pes':
-            kwargs = {}
+            if self.par['nn_model']:
+                kwargs = {'fname': self.par["nn_model"]}
+            else:
+                kwargs = {}
 
         return kwargs
 

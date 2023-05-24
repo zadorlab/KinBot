@@ -159,7 +159,7 @@ class Parameters:
 
             # QUANTUM CHEMISTRY INFO
             # Which quantum chemistry code to use
-            'qc': 'gauss',  # or nwchem
+            'qc': 'gauss',  # or nwchem or nn_pes
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
@@ -230,6 +230,8 @@ class Parameters:
             'use_sella': False,
             # Threshold to accept negative frequencies for floppy structures, this is a positive number
             'imagfreq_threshold': 50.,
+            # List of files containing the parameters for the NN model. 
+            'nn_model': None,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

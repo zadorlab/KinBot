@@ -128,7 +128,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             raise NotImplementedError('Bimolecular reactions are not yet '
                                       'implemented in QChem')
     elif rxn.qc.qc == 'nn_pes' and step >= rxn.max_step:
-        kwargs = {}
         code = 'nn_pes'
         Code = 'Nn_surr'
 

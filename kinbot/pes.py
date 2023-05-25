@@ -111,6 +111,17 @@ def main():
     a = 0
     b = 0
     c = 0
+
+    if 'none' not in par['keep_chemids']:
+        with open('chemids', 'w') as f:
+            for j in par['keep_chemids']:
+                f.write(j + '\n')
+
+    if 'none' in par['skip_chemids']:
+        logger.info('No KinBot runs to be skipped.')
+    if 'none' in par['keep_chemids']:
+        logger.info('All valid explored KinBot runs are kept.')
+
     while 1:
         j = len(jobs)
         if j != a:
@@ -142,12 +153,11 @@ def main():
             job = jobs[len(running) + len(finished)]
             kb = 1
             logger.info('Job: {}'.format(job))
-            if 'none' in par['skip_chemids']:
-                logger.info('No KinBot runs to be skipped')
-            else:
-                if job in par['skip_chemids']:
-                    kb = 0
-            logger.info('kb: {}'.format(kb))
+            if job in par['skip_chemids'] and 'none' not in par['skip_chemids']:
+                kb = 0
+            if job not in par['keep_chemids'] and 'none' not in par['keep_chemids']:
+                kb = 0
+            logger.info(f'kb: {kb} for {job}')
             if kb == 1:
                 pid = 0
                 if not no_kinbot:
@@ -214,6 +224,10 @@ def main():
             jobs.pop(jobs.index(skip))
         except ValueError:
             pass
+
+    # only keep the jobs we wanted
+    if 'none'not in par['keep_chemids']:
+        jobs = par['keep_chemids']
 
     postprocess(par, jobs, task, names, well0.mass)
     # make molpro inputs for all keys above

@@ -58,6 +58,8 @@ class Parameters:
             'skip_families': ['none'],
             # Which chemids to skip kinbot runs for during PES calculations
             'skip_chemids': ['none'],
+            # Which chemids to keep kinbot runs for during PES calculations
+            'keep_chemids': ['none'],
             # Skip specific reactions, usually makes sense once the search is done
             'skip_reactions': ['none'],
             # perform variational calculations for the homolytic scissions

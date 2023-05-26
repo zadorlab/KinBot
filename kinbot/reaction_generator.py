@@ -187,6 +187,8 @@ class ReactionGenerator:
                                             logger.info('\tRxn search failed for {} because of 0 0 0 geometry.'
                                                          .format(obj.instance_name))
                             else:  # the last step was reached, and no max or inflection was found
+                                if self.qc.check_qc(obj.instance_name) == 'running':
+                                    continue
                                 logger.info('\tRxn search using scan failed for {}, no saddle guess found.'
                                              .format(obj.instance_name))
                                 db = connect('{}/kinbot.db'.format(os.getcwd()))

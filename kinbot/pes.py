@@ -114,8 +114,9 @@ def main():
 
     if 'none' not in par['keep_chemids']:
         with open('chemids', 'w') as f:
-            for j in par['keep_chemids']:
-                f.write(j + '\n')
+            for keep in par['keep_chemids']:
+                f.write(keep + '\n')
+                write_input_keep(input_file, keep, os.getcwd())
 
     if 'none' in par['skip_chemids']:
         logger.info('No KinBot runs to be skipped.')
@@ -1521,6 +1522,30 @@ def write_input(input_file, species, threshold, root, me):
     file_name = directory + str(species.chemid) + '.json'
     with open(file_name, 'w') as outfile:
         json.dump(par2, outfile, indent=4, sort_keys=True)
+    return
+
+
+def write_input_keep(input_file, keepchemid, root):
+    directory = root + '/' + str(keepchemid) + '/'
+    if not os.path.exists(directory):
+        print(f'Cannot keep a well that is not already explored. Please correct the keep_chemids parameter. Bye!')
+        sys.exit(-1)
+
+    par_keep = Parameters(f'{directory}{keepchemid}.json').par
+    # make a new parameters instance and overwrite some keys
+    input_file = '{}'.format(input_file)
+    par_new = Parameters(input_file).par
+    # overwrite the title
+    par_new['title'] = par_keep['title']
+    par_new['structure'] = par_keep['structure']
+    par_new['barrier_threshold'] = par_keep['barrier_threshold']
+    par_new['pes'] = 1
+    par_new['me'] = 2
+
+    file_name = directory + str(keepchemid) + '.json'
+    with open(file_name, 'w') as outfile:
+        json.dump(par_new, outfile, indent=4, sort_keys=True)
+    return
 
 
 def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:

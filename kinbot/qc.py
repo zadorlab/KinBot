@@ -670,7 +670,7 @@ class QuantumChemistry:
 
         return 0
 
-    def submit_qc(self, job, singlejob=1):
+    def submit_qc(self, job, singlejob=1, jobtype=None):
         """Submit a job to the queue, unless the job:
             * has finished with Normal termination
             * has finished with Error termination
@@ -695,7 +695,13 @@ class QuantumChemistry:
             self.limit_jobs()
 
         try:
-            if self.par['queue_template'] == '':
+            if jobtype == 'am1':
+                template_head_file = self.par['q_temp_am1']
+            elif job.endswith('mp2') and self.par['q_temp_mp2']:
+                template_head_file = self.par['q_temp_mp2']
+            elif job.endswith('high') and self.par['q_temp_hi']:
+                template_head_file = self.par['q_temp_hi']
+            elif self.par['queue_template'] == '':
                 template_head_file = f'{kb_path}/tpl/{self.queuing}.tpl'
             else:
                 template_head_file = self.par['queue_template']
@@ -713,7 +719,6 @@ class QuantumChemistry:
 
         template_file = f'{kb_path}/tpl/{self.queuing}_python.tpl'
         python_file = f'{job}.py'
-        name = job.split('/')[-1]
         python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 
         if self.queuing == 'pbs':

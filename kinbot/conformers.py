@@ -454,6 +454,7 @@ class Conformers:
                                     err = -1
                             if err == 0:
                                 lowest_totenergy = energy + zpe
+                                lowest_zpe = zpe
                         if energy + zpe < lowest_totenergy:
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             ratio = 0.8
@@ -476,6 +477,7 @@ class Conformers:
                                 lowest_job = job
                                 lowest_conf = str(ci).zfill(self.zf)
                                 lowest_totenergy = energy + zpe
+                                lowest_zpe = zpe
                                 lowest_e_geom = geom
                         if err == -1:
                             status[ci] = 1  # make it invalid
@@ -505,7 +507,7 @@ class Conformers:
                              'status': row_last.data.get('status')})
                 except UnboundLocalError:
                     pass
-                
+                lowest_totenergy = lowest_totenergy - lowest_zpe
                 return 1, lowest_conf, lowest_e_geom, lowest_totenergy,\
                        final_geoms, totenergies, frequencies, status
 

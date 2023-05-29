@@ -98,7 +98,7 @@ try:
                             'hess': hessian, 'status': 'normal'}})
     if not converged:
         raise RuntimeError
-except RuntimeError:
+except (RuntimeError, ValueError):
     db.write(mol, name='{label}', data={{'status': 'error'}})
 
 with open('{label}.log', 'a') as f:

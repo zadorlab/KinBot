@@ -606,7 +606,6 @@ def filter(par, wells, products, reactions, conn, bars, well_energies, task,
     # filter the reactions according to the task
     if task == 'all':
         filtered_reactions = reactions
-        pass
     elif task == 'lowestpath':
         all_rxns = get_all_pathways(wells, products, reactions, names, conn)
         # this is the maximum energy along the minimun energy pathway
@@ -625,8 +624,8 @@ def filter(par, wells, products, reactions, conn, bars, well_energies, task,
     elif task == 'allpaths':
         all_rxns = get_all_pathways(wells, products, reactions, names, conn)
         filtered_reactions = []
-        for list in all_rxns:
-            for rxn in list:
+        for rxnlist in all_rxns:
+            for rxn in rxnlist:
                 new = 1
                 for r in filtered_reactions:
                     if r[1] == rxn[1]:
@@ -1241,17 +1240,10 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
     prev_prod = []
     for rxn in barrierless:
         prod_name = '_'.join(sorted(rxn[2]))
-        new = 1
-        for item in prev_prod:
-            if prod_name == item:
-                new = 0
-                break
-        if new:
-            barrierless_lines.append('{name} {react} {prod}'.format(name='nobar_' + str(index),
+        barrierless_lines.append('{name} {react} {prod}'.format(name='nobar_' + str(index),
                                                                     react=rxn[0],
                                                                     prod=prod_name))
-            prev_prod.append(prod_name)
-            index = index + 1
+        index = index + 1
 
     well_lines = '\n'.join(well_lines)
     bimol_lines = '\n'.join(bimol_lines)

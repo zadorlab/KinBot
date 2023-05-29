@@ -32,7 +32,7 @@ try:
         success = True
     else:  # TODO Eventually we might want to correct something in case it fails.
         raise RuntimeError
-except RuntimeError:
+except (RuntimeError, ValueError):
    success = False
    db.write(mol, name='{label}', data={{'status': 'error'}})
 
@@ -52,7 +52,7 @@ if success:
                      data={{'energy': e, 'status': 'normal'}})
         else:
             raise RuntimeError
-    except RuntimeError:
+    except (RuntimeError, ValueError):
         db.write(mol, name='{label}_prod', data={{'status': 'error'}})    
     
 

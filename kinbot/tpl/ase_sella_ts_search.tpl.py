@@ -36,7 +36,7 @@ try:
         e = mol.get_potential_energy()
     else:  # TODO Eventually we might want to correct something in case it fails.
         raise RuntimeError
-except RuntimeError:
+except (RuntimeError, ValueError):
     e = 0.0
 
 if not mol.positions.any():  # If all coordinates are 0

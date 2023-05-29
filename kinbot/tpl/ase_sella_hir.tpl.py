@@ -30,7 +30,7 @@ try:
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
     else:  # TODO Eventually we might want to correct something in case it fails.
         raise RuntimeError
-except RuntimeError:
+except (RuntimeError, ValueError):
     db.write(mol, name='{label}', data={{'status': 'error'}})
 
 with open('{label}.log', 'a') as f:

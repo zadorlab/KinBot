@@ -174,6 +174,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         f_out.write(template)
 
     step += rxn.qc.submit_qc(rxn.instance_name, singlejob=0, 
-                             jobtype=kwargs['method'])
+                             jobtype=kwargs.pop('method', None))
 
     return step

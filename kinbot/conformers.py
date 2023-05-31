@@ -3,18 +3,19 @@ import random
 import time
 import copy
 import logging
-import numpy as np
 from shutil import copyfile
 
+import numpy as np
 from ase.db import connect
 from ase import Atoms
 from ase.units import invcm, Hartree, kcal, mol
 from ase.thermochemistry import IdealGasThermo
+import rmsd
+
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
-import rmsd
 
 logger = logging.getLogger('KinBot')
 
@@ -330,7 +331,6 @@ class Conformers:
 
         return 0
 
-
     def generate_conformers_random_sampling(self, ini_cart):
         """
         Generate a random sampling of each dihedral for a number nconfs of conformers
@@ -412,7 +412,10 @@ class Conformers:
                     status[i] = self.test_conformer(i)[1]
             # problem: if the first sample has 2 imaginary frequencies, what to do then?
             if all([si >= 0 for si in status]):
-                lowest_totenergy = 0.
+                # These refer to the conformer with lowest E + ZPE, 
+                # not the individual lowest.
+                lowest_energy = np.inf
+                lowest_zpe = np.inf
                 lowest_e_geom = self.species.geom
                 final_geoms = []  # list of all final conformer geometries
                 totenergies = []
@@ -434,7 +437,7 @@ class Conformers:
                             frequencies.append(freq)
                         else:
                             frequencies.append(None)
-                        if lowest_totenergy == 0.:  # likely / hopefully the first sample was valid
+                        if lowest_energy is np.inf:  # likely / hopefully the first sample was valid
                             if ci != 0:
                                 logger.debug('For {} conformer 0 failed.'.format(name)) 
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
@@ -453,9 +456,9 @@ class Conformers:
                                     logger.warning("Conformer {} failed due to empty freq array".format(ci))
                                     err = -1
                             if err == 0:
-                                lowest_totenergy = energy + zpe
+                                lowest_energy = energy
                                 lowest_zpe = zpe
-                        if energy + zpe < lowest_totenergy:
+                        if energy + zpe < lowest_energy + lowest_zpe:
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             ratio = 0.8
                             # job fails if conformers freq array is empty
@@ -476,7 +479,7 @@ class Conformers:
                             if err == 0:
                                 lowest_job = job
                                 lowest_conf = str(ci).zfill(self.zf)
-                                lowest_totenergy = energy + zpe
+                                lowest_energy = energy
                                 lowest_zpe = zpe
                                 lowest_e_geom = geom
                         if err == -1:
@@ -507,8 +510,8 @@ class Conformers:
                              'status': row_last.data.get('status')})
                 except UnboundLocalError:
                     pass
-                lowest_totenergy = lowest_totenergy - lowest_zpe
-                return 1, lowest_conf, lowest_e_geom, lowest_totenergy,\
+
+                return 1, lowest_conf, lowest_e_geom, lowest_energy,\
                        final_geoms, totenergies, frequencies, status
 
             else:

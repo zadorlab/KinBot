@@ -458,7 +458,7 @@ class Conformers:
                             if err == 0:
                                 lowest_energy = energy
                                 lowest_zpe = zpe
-                        if energy + zpe < lowest_energy + lowest_zpe:
+                        if energy + zpe <= lowest_energy + lowest_zpe:
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             ratio = 0.8
                             # job fails if conformers freq array is empty

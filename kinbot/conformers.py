@@ -533,7 +533,7 @@ class Conformers:
         err, zpe = self.qc.get_qc_zpe(job)
         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                 
-        return geom, energy + zpe 
+        return geom, energy, zpe 
 
     def find_unique(self, conformers, energies, frequencies, valid, temp=None, boltz=None):
         """

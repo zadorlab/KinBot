@@ -1,9 +1,10 @@
 import os, sys
-import numpy as np
 import shutil
 import time
 import logging
 import copy
+
+import numpy as np
 
 from kinbot import constants
 #from kinbot import filecopying
@@ -18,8 +19,8 @@ from kinbot.molpro import Molpro
 from ase.db import connect
 from ase import Atoms
 
-logger = logging.getLogger('KinBot')
 
+logger = logging.getLogger('KinBot')
 
 class ReactionGenerator:
     """

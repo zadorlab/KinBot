@@ -473,7 +473,7 @@ class Conformers:
                                 else:
                                     if freq[0] <= -1. * self.imagfreq_threshold:  # note that now we allow negative frequencies here as well
                                         err = -1
-                            else:
+                            elif self.species.natom > 1:
                                 logger.warning("Conformer {} failed due to empty freq array".format(ci))
                                 err = -1
                             if err == 0:

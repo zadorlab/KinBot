@@ -168,7 +168,7 @@ class Optimize:
                                 # set conf status to finished
                                 self.sconf = 1
                         elif self.skip_conf_check == 1:
-                            self.species.geom, self.species.energy = self.species.confs.lowest_conf_info()
+                            self.species.geom, self.species.energy, self.species.zpe = self.species.confs.lowest_conf_info()
                             logger.info('\tEnergy and geometry updated based on conf/{}_low file.'.format(self.name))
                             self.sconf = 1
 

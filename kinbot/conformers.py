@@ -566,7 +566,7 @@ class Conformers:
             for vi, val in enumerate(valid):
                 if frequencies == [None]:
                     vib_energies = [0]
-                    geo_type = 'monatomic' # convert to eV
+                    geo_type = 'monatomic'
                 else:
                     vib_energies = [ff * invcm for ff in frequencies[vi] if ff > 0]  # convert to eV
                     if np.shape(frequencies)[1] == 3 * len(self.species.atom) - 5:

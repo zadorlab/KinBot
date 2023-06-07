@@ -1134,7 +1134,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             f.write('\n'.join(s))
 
         if par['multi_conf_tst']:
-            logger.info('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
+            logger.debug('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
             with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
                 with open(f'me/mess_{mess_iter}.inp', 'r') as f:
                     lines = f.read().split('\n')
@@ -1675,7 +1675,7 @@ def t1_analysis(lot='TZ'):
                 if lot in line:
                     do_read1 = True
                     do_read2 = False
-                if "Starting UCCSD calculation" in line:
+                if "Starting UCCSD calculation" in line or "Starting RCCSD calculation" in line:
                     do_read2 = True
                 elif do_read1 and do_read2 and 'T1 diagnostic:' in line:
                     T1s.append(float(line.split()[9]))

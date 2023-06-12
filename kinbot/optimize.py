@@ -159,8 +159,10 @@ class Optimize:
                                         self.par['multi_conf_tst_boltz'])
                                 logger.info(f'\tLowest energy conformer for species {self.name} is number {lowest_conf}')
                                 if self.par['multi_conf_tst'] or self.par['print_conf'] or self.par['calc_aie']:
-                                    logger.info(f'\tAt {self.par["multi_conf_tst_temp"]} K with {100*self.par["multi_conf_tst_boltz"]}% cutoff')
-                                    logger.info(f'\t\t the unique conformers for species {self.name} are {self.species.conformer_index}')
+                                    logger.info(f'\tAt {self.par["multi_conf_tst_temp"]} K '
+                                                f'with {100*self.par["multi_conf_tst_boltz"]}% '
+                                                f'cutoff the unique conformers for species {self.name} '
+                                                f'are {self.species.conformer_index}')
                                 # save lowest energy conformer as species geometry
                                 self.species.geom = geom
                                 # save lowest energy conformer energy

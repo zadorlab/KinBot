@@ -72,6 +72,10 @@ class ReactionGenerator:
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
+                if obj.instance_name in self.par['skip_reactions'] \
+                        and self.species.reac_ts_done[index] != -999:
+                    logger.info(f'\tRemoving reaction {obj.instance_name}.')
+                    self.species.reac_ts_done[index] = -999
                 # START REACTION SEARCH
                 if self.species.reac_ts_done[index] == 0 and self.species.reac_step[index] == 0:
                     # verify after restart if search has failed in previous kinbot run

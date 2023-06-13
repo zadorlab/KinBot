@@ -160,7 +160,7 @@ def main():
         #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
-            logger.info('\tStarting reaction search...')
+            logger.info('Starting reaction search...')
             rf = ReactionFinder(well0, par, qc)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
@@ -260,7 +260,7 @@ def main():
         mess.write_input(qc)
 
         if par['me'] == 1:
-            logger.info('\tStarting Master Equation calculations')
+            logger.info('Starting Master Equation calculations')
             if par['me_code'] == 'mess':
                 mess.run()
 

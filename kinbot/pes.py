@@ -1134,7 +1134,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             f.write('\n'.join(s))
 
         if par['multi_conf_tst']:
-            logger.info('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
+            logger.debug('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
             with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
                 with open(f'me/mess_{mess_iter}.inp', 'r') as f:
                     lines = f.read().split('\n')
@@ -1289,11 +1289,6 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
         from pyvis import network as net
     except ImportError:
         logger.warning('pyvis cannot be imported, no interactive plot is made.')
-        return -1
-    try:
-        from IPython.core.display import display, HTML
-    except ImportError:
-        logger.warning('IPython cannot be imported, no interactive plot is made.')
         return -1
 
     # For now we are assuming the all of the 2D depictions
@@ -1470,10 +1465,14 @@ def submit_job(chemid, par):
     except OSError:
         pass
 
-    if par['queue_template'] != '':
-        shutil.copyfile('{}'.format(par['queue_template']), '{}/{}'.format(chemid, par['queue_template']))
+    for tmpl in ['queue_template', 'q_temp_am1', 'q_temp_mp2', 'q_temp_hi', 
+                 'q_temp_l3']:
+        if par[tmpl] != '':
+            shutil.copyfile('{}'.format(par[tmpl]), 
+                            '{}/{}'.format(chemid, par[tmpl]))
     if par['single_point_template'] != '':
-        shutil.copyfile('{}'.format(par['single_point_template']), '{}/{}'.format(chemid, par['single_point_template']))
+        shutil.copyfile('{}'.format(par['single_point_template']), 
+                        '{}/{}'.format(chemid, par['single_point_template']))
     if par['barrierless_saddle_single_point_template'] != '':
         shutil.copyfile('{}'.format(par['barrierless_saddle_single_point_template']), '{}/{}'
                         .format(chemid, par['barrierless_saddle_single_point_template']))
@@ -1675,7 +1674,7 @@ def t1_analysis(lot='TZ'):
                 if lot in line:
                     do_read1 = True
                     do_read2 = False
-                if "Starting UCCSD calculation" in line:
+                if "Starting UCCSD calculation" in line or "Starting RCCSD calculation" in line:
                     do_read2 = True
                 elif do_read1 and do_read2 and 'T1 diagnostic:' in line:
                     T1s.append(float(line.split()[9]))

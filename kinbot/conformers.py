@@ -567,17 +567,21 @@ class Conformers:
             # calculate the Gibbs free energy for all conformers
             # at T = temp, P = 101325 Pa
             gibbs = []
+            geo_type = 'nonlinear'
             for vi, val in enumerate(valid):
-                if frequencies[vi][0] > 0:
-                    vib_energies = [ff * invcm for ff in frequencies[vi]]  # convert to eV
+                if frequencies == [None]:
+                    vib_energies = [0]
+                    geo_type = 'monatomic'
                 else:
-                    vib_energies = [ff * invcm for ff in frequencies[vi][1:]]  # convert to eV
+                    vib_energies = [ff * invcm for ff in frequencies[vi] if ff > 0]  # convert to eV
+                    if np.shape(frequencies)[1] == 3 * len(self.species.atom) - 5:
+                        geo_type = 'linear'
                 potentialenergy = energies[vi] * Hartree  # convert to eV
                 atoms = Atoms(symbols=self.species.atom, positions=conformers[vi])
                 thermo = IdealGasThermo(vib_energies=vib_energies,
                                         potentialenergy=potentialenergy,
                                         atoms=atoms,
-                                        geometry='nonlinear',
+                                        geometry=geo_type,
                                         symmetrynumber=1, spin=(self.species.mult-1)/2)
                 gibbs.append(thermo.get_gibbs_energy(temperature=temp, pressure=101325., verbose=False))
 

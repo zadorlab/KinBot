@@ -148,10 +148,10 @@ class Molpro:
         fname = self.get_name(name)
 
         # open the template head and template
-        if self.par['queue_template'] == '':
+        if self.par['q_temp_l3'] == '':
             molpro_head = f'{kb_path}/tpl/{self.par["queuing"]}.tpl'
         else:
-            molpro_head = self.par['queue_template'] 
+            molpro_head = self.par['q_temp_l3'] 
         with open(molpro_head) as f:
             tpl_head = f.read()
         molpro_tpl = f'{kb_path}/tpl/{self.par["queuing"]}_molpro.tpl'

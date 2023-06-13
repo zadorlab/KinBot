@@ -68,9 +68,9 @@ class Parameters:
             # this is a dictionary written as:
             # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
             'barrierless_saddle': {},
-            # starting distance for barrierless_saddle searches, A
+            # starting distance for barrierless_saddle searches in Å
             'barrierless_saddle_start': 2.0,
-            # step size in A
+            # step size in Å
             'barrierless_saddle_step': 0.2,
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},

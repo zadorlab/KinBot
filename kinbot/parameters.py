@@ -68,9 +68,9 @@ class Parameters:
             # this is a dictionary written as:
             # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
             'barrierless_saddle': {},
-            # starting distance for barrierless_saddle searches, A
+            # starting distance for barrierless_saddle searches in Å
             'barrierless_saddle_start': 2.0,
-            # step size in A
+            # step size in Å
             'barrierless_saddle_step': 0.2,
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
@@ -244,6 +244,8 @@ class Parameters:
             'q_temp_hi': None, 
             # Queue template for MP2 jobs
             'q_temp_mp2': None,
+            # Queue template for MP2 jobs
+            'q_temp_l3': None,
             # Name of the queue
             'queue_name': 'medium',
             # E.g. the type of node or anything that comes with -C in SLURM
@@ -372,7 +374,7 @@ class Parameters:
         if self.par['multi_conf_tst']:
             self.par['rotor_scan'] = 0
 
-        for par in ['q_temp_am1', 'q_temp_hi', 'q_temp_mp2']:
+        for par in ['q_temp_am1', 'q_temp_hi', 'q_temp_mp2', 'q_temp_l3']:
             if self.par[par] is None:
                 self.par[par] = self.par['queue_template']
 

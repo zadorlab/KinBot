@@ -129,6 +129,8 @@ class ReactionFinder:
                           'h2_elim': self.search_h2_elim,
                           'hom_sci': self.search_hom_sci,
                           'barrierless_saddle': self.search_barrierless_saddle,
+                          'Intra_disproportionation_F': self.search_Intra_disproportionation_F, 
+                          'Intra_disproportionation_R': self.search_Intra_disproportionation_R, 
                           }
 
         if 'combinatorial' in self.families:

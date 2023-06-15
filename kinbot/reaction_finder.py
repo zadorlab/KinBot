@@ -47,6 +47,7 @@ from kinbot.reactions.reac_r14_birad_scission import R14BiradScission
 from kinbot.reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
 from kinbot.reactions.reac_barrierless_saddle import BarrierlessSaddle
 from kinbot.reactions.reac_h2_elim import H2Elim
+from kinbot.reactions.reac_bimol_disproportionation_R import BimolDisproportionationR
 from kinbot.reactions.reac_homolytic_scission import HS
 from kinbot.reactions.reac_combinatorial import Combinatorial
 
@@ -131,6 +132,7 @@ class ReactionFinder:
                           'barrierless_saddle': self.search_barrierless_saddle,
                           'Intra_disproportionation_F': self.search_Intra_disproportionation_F, 
                           'Intra_disproportionation_R': self.search_Intra_disproportionation_R, 
+                          'bimol_disproportionation_R': self.search_bimol_disproportionation_R, 
                           }
 
         if 'combinatorial' in self.families:
@@ -1934,6 +1936,47 @@ class ReactionFinder:
         return 0
 
 
+    def search_bimol_disproportionation_R(self, natom, atom, bond, rad):
+        """ 
+        This is an RMG class.
+          X                  X
+          |                  |
+        R=R  *R*-R-H <== H-R-R-R=R
+          |   |              | | 
+          Y   Z              Y Z
+        """
+
+        if np.sum(rad) != 0: return
+        
+        name = 'bimol_disproportionation_R'
+        
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = [] #reactions found with the current resonance isomer
+        
+        for ringsize in range(5, 6):
+            motif = ['X' for i in range(ringsize)]
+            motif[-1] = 'H'
+            
+            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            
+            bondpattern = ['X' for i in range(ringsize - 1)]
+            bondpattern[0] = 2
+            
+            for instance in instances:
+                if find_motif.bondfilter(instance, bond, bondpattern) == 0:
+                    rxns += [instance] 
+
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
+        
+        return 0
+
+
     def search_beta_delta(self, natom, atom, bond, rad):
         """
         This is not an RMG class.
@@ -2268,6 +2311,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(HS(self.species, self.qc, self.par, reac_list[i], name))
+            elif reac_id == 'bimol_disproportionation_R':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(BimolDisproportionationR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'barrierless_saddle':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)

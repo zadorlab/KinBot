@@ -2,9 +2,11 @@ import numpy as np
 import os
 import logging
 from shutil import copyfile
-import pkg_resources
 
+from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
+
+logger = logging.getLogger('KinBot')
 
 
 class IRC:
@@ -47,7 +49,7 @@ class IRC:
             if self.problem_in_geom(geom):
                 # this happens seldom that all the atoms are
                 # very close to one another (problem in Gaussian)
-                logging.warning('Problem with product geometry for {}'.format(instance_name))
+                logger.warning('Problem with product geometry for {}'.format(instance_name))
                 return 0
 
             temp = StationaryPoint(irc_name,
@@ -78,19 +80,19 @@ class IRC:
 
         if ini_well_hits == 0:
             if self.par['bimol']:
-                logging.info('\tNeither IRC leads to the initial reactants for {}'.format(instance_name))
+                logger.info('\tNeither IRC leads to the initial reactants for {}'.format(instance_name))
             else:
-                logging.info('\tNeither IRC leads to the initial well for {}'.format(instance_name))
+                logger.info('\tNeither IRC leads to the initial well for {}'.format(instance_name))
             return 0
         elif ini_well_hits == 2:
             if self.par['bimol']:
-                logging.info('\tBoth IRCs lead to the initial reactants, identical reaction found: {}'.format(instance_name))
+                logger.info('\tBoth IRCs lead to the initial reactants, identical reaction found: {}'.format(instance_name))
             else:
-                logging.info('\tBoth IRCs lead to the initial well, identical reaction found: {}'.format(instance_name))
+                logger.info('\tBoth IRCs lead to the initial well, identical reaction found: {}'.format(instance_name))
             return 0
         else:
             # ircs OK: well and product found
-            logging.info('\tIRCs successful for {}'.format(instance_name))
+            logger.info('\tIRCs successful for {}'.format(instance_name))
             return st_pts[prod_hit]
 
     def problem_in_geom(self, geom):
@@ -119,26 +121,36 @@ class IRC:
         err, geom = self.rxn.qc.get_qc_geom(instance_name,
                                             self.rxn.species.natom)
         directions = ['Forward', 'Reverse']
-        for i, direction in enumerate(directions):
+        for direction in directions:
             irc_name = '{}_IRC_{}'.format(instance_name, direction[0])
 
             # This boolean is false if the checkpoint file is available
             # and true if no checkpoint file is found.
-            # In the latter case, the geometry needs to be supplies to
+            # In the latter case, the geometry needs to be supplied to
             # the gaussian calculation and the keywords
             # geom(AllCheck,NoKeepConstants) guess=Read need to be removed
             start_from_geometry = 0
             if self.rxn.qc.qc == 'gauss':
+                code = 'gaussian'  # Sella
+                Code = 'Gaussian'  # Sella
                 # copy the chk file
                 if os.path.exists(instance_name + '.chk'):
                     copyfile(instance_name + '.chk', irc_name + '.chk')
                 else:
                     start_from_geometry = 1
 
-            if self.rxn.qc.qc == 'nwchem' and direction == 'Reverse':
-                direction = 'Backward'
+            elif self.rxn.qc.qc == 'nwchem':
+                code = 'nwchem'  # Sella
+                Code = 'NWChem'  # Sella
+                if direction == 'Reverse':
+                    direction = 'Backward'
+            elif self.rxn.qc.qc == 'qchem':
+                code = 'qchem'  # Sella
+                Code = 'QChem'  # Sella
+            else:
+                raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.'
+                                 ' ¯\_(ツ)_/¯')
 
-            odft = self.rxn.species.mult > 1
             kwargs = self.rxn.qc.get_qc_arguments(irc_name,
                                                   self.rxn.species.mult,
                                                   self.rxn.species.charge,
@@ -148,8 +160,16 @@ class IRC:
             if self.rxn.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'
+            if self.par['use_sella']:
+                kwargs.pop('irc', None)
+                kwargs.pop('geom', None)
+                kwargs.pop('guess', None)
+                prod_kwargs.pop('opt', None)
+                prod_kwargs.pop('freq', None)
 
-            template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_irc.tpl.py'.format(qc=self.rxn.qc.qc))
+                template_file = f'{kb_path}/tpl/ase_sella_irc.tpl.py'
+            else:
+                template_file = f'{kb_path}/tpl/ase_{self.rxn.qc.qc}_irc.tpl.py'
             template = open(template_file, 'r').read()
             template = template.format(label=irc_name,
                                        kwargs=kwargs,
@@ -158,7 +178,9 @@ class IRC:
                                        geom=list([list(gi) for gi in geom]),
                                        ppn=self.rxn.qc.ppn,
                                        qc_command=self.par['qc_command'],
-                                       working_dir=os.getcwd())
+                                       working_dir=os.getcwd(),
+                                       code=code,
+                                       Code=Code)
 
             with open('{}.py'.format(irc_name), 'w') as f:
                 f.write(template)

@@ -3,7 +3,7 @@ from ase.optimize import LBFGS
 from ase.db import connect
 
 from kinbot.ase_modules.calculators.gaussian import Gaussian
-from kinbot.ase_modules.constraints import FixInternals  # New
+from kinbot.ase_modules.constraints import FixInternals
 from kinbot import reader_gauss
 from kinbot.utils import iowait
 

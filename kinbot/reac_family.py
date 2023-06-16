@@ -1,24 +1,28 @@
 import os
 import numpy as np
-import pkg_resources
+
+from kinbot import kb_path
 from kinbot import modify_geom
 from kinbot import geometry
-from reactions.reac_abstraction import abstraction_align
+from kinbot.reactions.reac_abstraction import abstraction_align
 
 
 def carry_out_reaction(rxn, step, command, bimol=0):
     """
     Verify what has been done and what needs to be done
-    skip: boolean which tells to skip the first 12 steps in case of an instance shorter than 4
-    scan: boolean which tells if this is part of an energy scan along a bond length coordinate
+    skip: boolean which tells to skip the first 12 steps in case of an instance 
+        shorter than 4
+    scan: boolean which tells if this is part of an energy scan along a bond 
+        length coordinate
     """
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error':
             return step
   
-    kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge, ts=1,
-                                     step=step, max_step=rxn.max_step, scan=rxn.scan)
+    kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, 
+                                     rxn.species.charge, ts=1, step=step, 
+                                     max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
             if rxn.qc.check_qc(rxn.instance_name) == 'normal':  # log file is present and is in the db
@@ -32,7 +36,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 if np.sum(geom) == 0:
                     return -1  # we don't want this to be repeated
 
-
         if rxn.skip and len(rxn.instance) < 4:
             step = 12
         geom = rxn.species.geom
@@ -42,14 +45,14 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 geom, _, _ = abstraction_align(rxn.species.geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
     elif step == rxn.max_step and rxn.scan:
-        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1, previous=1)
+        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, 
+                                       allow_error=1, previous=1)
     else:
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
         if bimol:
             if rxn.family_name == 'abstraction':
                 # gives the reactant and product geometry guesses
                 _, geom_prod, geom_ts = abstraction_align(geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
-
 
     step, fix, change, release = rxn.get_constraints(step, geom)
 
@@ -63,15 +66,20 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         c_new.append(c[-1])
         change_starting_zero.append(c_new)
     if len(change_starting_zero) > 0:
-        success, geom = modify_geom.modify_coordinates(rxn.species, rxn.instance_name, geom, change_starting_zero,
+        success, geom = modify_geom.modify_coordinates(rxn.species, 
+                                                       rxn.instance_name, geom, 
+                                                       change_starting_zero,
                                                        rxn.species.bond)
         for c in change:
             fix.append(c[:-1])
         change = []
 
-    #atom, geom, dummy = rxn.qc.add_dummy(rxn.species.atom, geom, rxn.species.bond)
+    # atom, geom, dummy = rxn.qc.add_dummy(rxn.species.atom, geom,
+    #                                      rxn.species.bond)
 
     if rxn.qc.qc == 'gauss':
+        code = 'gaussian'
+        Code = 'Gaussian'
         kwargs['addsec'] = ''
         if not bimol or step == 0:
             # here addsec contains the constraints
@@ -94,6 +102,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
 
     elif rxn.qc.qc == 'qchem':
+        code = 'qchem'
+        Code = 'QChem'
         if (not bimol or step == 0) and step < rxn.max_step:
             kwargs['addsec'] = '$opt\nCONSTRAINT\n'
             for fixi in fix:
@@ -116,46 +126,56 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} {dist}\n"
             kwargs['addsec'] += 'ENDCONSTRAINT\n$end\n'
         elif bimol and step == 1:
-            raise NotImplementedError('Bimolecular reactions are not yet implemented'
-                                      ' in QChem')
+            raise NotImplementedError('Bimolecular reactions are not yet '
+                                      'implemented in QChem')
     # if not bimol:
     #     ntrial = 3
     # else:
     #     ntrial = 1
 
     if step < rxn.max_step:
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_search.tpl.py'.format(qc=rxn.qc.qc))
+        if rxn.par['use_sella']:
+            kwargs.pop('addsec', None)
+            kwargs.pop('opt', None)
+            template_file = f'{kb_path}/tpl/ase_sella_ts_search.tpl.py'
+        else:
+            template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
         template = template.format(label=rxn.instance_name, 
                                    kwargs=kwargs, 
-                                   #atom=list(atom),
                                    atom=list(rxn.species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   #dummy=dummy,
                                    bimol=bimol,
                                    ppn=rxn.qc.ppn,
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    scan=rxn.scan,
-                                   )
-                                   #ntrial=ntrial,
+                                   code=code,
+                                   Code=Code,
+                                   fix=fix)
     else:
-        template_file = pkg_resources.resource_filename('tpl', 'ase_{qc}_ts_end.tpl.py'.format(qc=rxn.qc.qc))
+        if rxn.par['use_sella']:
+            kwargs.pop('addsec', None)
+            kwargs.pop('opt', None)
+            template_file = f'{kb_path}/tpl/ase_sella_ts_end.tpl.py'
+        else:
+            template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
     
         template = template.format(label=rxn.instance_name, 
-                                   kwargs=kwargs, 
-                                   #atom=list(atom),
+                                   kwargs=kwargs,
                                    atom=list(rxn.species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   #dummy=dummy,
                                    ppn=rxn.qc.ppn,
                                    qc_command=command,
-                                   working_dir=os.getcwd())
+                                   working_dir=os.getcwd(),
+                                   code=code,
+                                   Code=Code)
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:
         f_out.write(template)
 
-    step += rxn.qc.submit_qc(rxn.instance_name, singlejob=0)
+    step += rxn.qc.submit_qc(rxn.instance_name, singlejob=0, 
+                             jobtype=kwargs['method'])
 
     return step

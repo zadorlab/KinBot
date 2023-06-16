@@ -21,6 +21,8 @@ from kinbot import find_motif
 from kinbot import geometry
 from kinbot import zmatrix
 
+logger = logging.getLogger('KinBot')
+
 
 class cost_function():
     def __init__(self, coords):
@@ -107,10 +109,10 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
     """
 
     start_time = time.time()
-    logging.debug('Starting coordinate modification for {}'.format(name))
-    logging.debug('Changes:')
+    logger.debug('Starting coordinate modification for {}'.format(name))
+    logger.debug('Changes:')
     for c in changes:
-        logging.debug('\t{}'.format('\t'.join([str(ci) for ci in c])))
+        logger.debug('\t{}'.format('\t'.join([str(ci) for ci in c])))
 
     step = 1
     atoms_list = []
@@ -180,12 +182,12 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
     # optimize the geometry to meet the coords list
     x0 = np.reshape(new_geom, 3 * species.natom)
     cost_fct = cost_function(coords)
-    logging.debug('Starting BFGS')
+    logger.debug('Starting BFGS')
     gs = ''  # initial geomtry string
     for i, at in enumerate(species.atom):
         x, y, z = new_geom[i]
         gs += '{}, {:.8f}, {:.8f}, {:.8f}, \n'.format(at, x, y, z)
-    logging.debug("For the following initial geometry:\n" + gs)
+    logger.debug("For the following initial geometry:\n" + gs)
 
     opt = bfgs.BFGS()
     x_opt, x_i, g_i = opt.optimize(cost_fct, x0)
@@ -203,7 +205,7 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
     success = control_changes(species, name, geom, new_geom, changes, bond)
 
     end_time = time.time()
-    logging.debug('Finished coordinate changes after {:.2f} seconds'.format(end_time - start_time))
+    logger.debug('Finished coordinate changes after {:.2f} seconds'.format(end_time - start_time))
     return success, new_geom
 
 
@@ -229,21 +231,21 @@ def control_changes(species, name, geom, new_geom, changes, bond):
         if len(ci) == 3:
             bond_length = np.linalg.norm(new_geom[ci[0]] - new_geom[ci[1]])
             if np.abs(bond_length - ci[2]) > 0.05:  # use a 0.05 Angstrom cutoff
-                logging.debug("The modified bond length is not correct")
-                logging.debug("Expected {}, got {}".format(ci[2], bond_length))
-                logging.debug("Species name: " + name)
-                logging.debug("For the following initial geometry:\n" + gs)
-                logging.debug("And the following change list:\n" + cs)
+                logger.debug("The modified bond length is not correct")
+                logger.debug("Expected {}, got {}".format(ci[2], bond_length))
+                logger.debug("Species name: " + name)
+                logger.debug("For the following initial geometry:\n" + gs)
+                logger.debug("And the following change list:\n" + cs)
                 success = 0
         if len(ci) == 4:
             angle = geometry.calc_angle(new_geom[ci[0]], new_geom[ci[1]], new_geom[ci[2]])
             change_angle = np.radians(ci[3])
             if np.abs(angle - change_angle) > 0.05:  # use a 0.05 radians cutoff
-                logging.debug("The modified angle is not correct")
-                logging.debug("Expected {}, got {}".format(change_angle, angle))
-                logging.debug("Species name: " + name)
-                logging.debug("For the following initial geometry:\n" + gs)
-                logging.debug("And the following change list:\n" + cs)
+                logger.debug("The modified angle is not correct")
+                logger.debug("Expected {}, got {}".format(change_angle, angle))
+                logger.debug("Species name: " + name)
+                logger.debug("For the following initial geometry:\n" + gs)
+                logger.debug("And the following change list:\n" + cs)
                 success = 0
 
     # check if the bond lengths are good:
@@ -258,11 +260,11 @@ def control_changes(species, name, geom, new_geom, changes, bond):
                     new_bond = np.linalg.norm(new_geom[i] - new_geom[j])
                     orig_bond = np.linalg.norm(geom[i] - geom[j])
                     if np.abs(new_bond - orig_bond) > 0.1:  # use a 0.1 Angstrom cutoff
-                        logging.debug("The bond length {} {} is not correct after modifications".format(i, j))
-                        logging.debug("Expected {}, got {}".format(orig_bond, new_bond))
-                        logging.debug("Species name: " + name)
-                        logging.debug("For the following initial geometry:\n" + gs)
-                        logging.debug("And the following change list:\n" + cs)
+                        logger.debug("The bond length {} {} is not correct after modifications".format(i, j))
+                        logger.debug("Expected {}, got {}".format(orig_bond, new_bond))
+                        logger.debug("Species name: " + name)
+                        logger.debug("For the following initial geometry:\n" + gs)
+                        logger.debug("And the following change list:\n" + cs)
                         success = 0
 
     # check if non-bonded atoms are too close:
@@ -272,10 +274,10 @@ def control_changes(species, name, geom, new_geom, changes, bond):
                 dist = np.linalg.norm(new_geom[i] - new_geom[j])
                 minb = constants.st_bond[''.join(sorted([species.atom[i], species.atom[j]]))]
                 if dist < minb:
-                    logging.debug("The atoms {} {} are too close after modifications".format(i, j))
-                    logging.debug("Species name: " + name)
-                    logging.debug("For the following initial geometry:\n" + gs)
-                    logging.debug("And the following change list:\n" + cs)
+                    logger.debug("The atoms {} {} are too close after modifications".format(i, j))
+                    logger.debug("Species name: " + name)
+                    logger.debug("For the following initial geometry:\n" + gs)
+                    logger.debug("And the following change list:\n" + cs)
                     success = 0
 
     return success

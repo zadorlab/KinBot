@@ -1,8 +1,7 @@
 from ase import Atoms
-# from ase.calculators.gaussian import Gaussian
 from ase.db import connect
 
-from kinbot.ase_modules.calculators.gaussian import Gaussian  # New
+from kinbot.ase_modules.calculators.gaussian import Gaussian
 from kinbot import reader_gauss
 from kinbot.utils import iowait
 
@@ -57,11 +56,19 @@ if success:
     try:
         e = mol_prod.get_potential_energy() # use the Gaussian optimizer
         iowait(logfile, 'gauss')
-        mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
+        mol_prod.positions = reader_gauss.read_geom(logfile, 
+                                                    mol_prod, 
+                                                    max2frag=True, 
+                                                    charge=kwargs['charge'],
+                                                    mult=kwargs['mult'])
         db.write(mol_prod, name=label, data={{'energy': e, 'status': 'normal'}})
     except RuntimeError: 
         iowait(logfile, 'gauss')
-        mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
+        mol_prod.positions = reader_gauss.read_geom(logfile, 
+                                                    mol_prod, 
+                                                    max2frag=True, 
+                                                    charge=kwargs['charge'],
+                                                    mult=kwargs['mult'])
         if mol_prod.positions is not None:
             db.write(mol_prod, name=label, data={{'status': 'normal'}}) 
         else:

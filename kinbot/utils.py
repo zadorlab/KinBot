@@ -94,6 +94,7 @@ def clean_files():
     import logging
     import numpy as np
     from kinbot.ase_modules.io.formats import read
+    logger = logging.getLogger('KinBot')
     # delete leftover AM1 calculations
     files = os.listdir()
     com = []
@@ -110,7 +111,7 @@ def clean_files():
             ll = cc.split('.')[0] + '.log'
             try:
                 os.remove(ll)
-                logging.info(f'Stuck AM1 job {ll} is deleted.')
+                logger.info(f'Stuck AM1 job {ll} is deleted.')
             except FileNotFoundError:
                 pass
 
@@ -136,7 +137,7 @@ def clean_files():
             continue
         if os.path.getsize(ll) < 10:
             os.remove(ll)
-            logging.info(f'Empty file {ll} is deleted.')
+            logger.info(f'Empty file {ll} is deleted.')
         else:
             try:
                 atoms = read(ll)
@@ -145,5 +146,5 @@ def clean_files():
             else:
                 if len(atoms.positions) > 1 and np.all(atoms.positions == 0):
                     os.remove(ll)
-                    logging.info(f'All coordinates of file {ll} are 0, hence '
+                    logger.info(f'All coordinates of file {ll} are 0, hence '
                                  f'it is deleted.')

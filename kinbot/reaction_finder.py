@@ -5,51 +5,53 @@ import logging
 
 from kinbot import bond_combinations
 from kinbot import find_motif
-from reactions.reac_Cyclic_Ether_Formation import CyclicEtherFormation
-from reactions.reac_Diels_alder_addition import DielsAlder
-from reactions.reac_Intra_Diels_alder_R import IntraDielsAlder
-from reactions.reac_12_shift_S_F import S12ShiftF
-from reactions.reac_12_shift_S_R import S12ShiftR
-from reactions.reac_cpd_H_migration import CpdHMigration
-from reactions.reac_intra_H_migration import IntraHMigration
-from reactions.reac_intra_H_migration_suprafacial import IntraHMigrationSuprafacial
-from reactions.reac_intra_OH_migration import IntraOHMigration
-from reactions.reac_intra_OH_migration_Exocyclic_F import IntraOHMigrationExocyclicF
-from reactions.reac_Intra_R_Add_Endocyclic_F import IntraRAddEndocyclicF
-from reactions.reac_Intra_R_Add_Exocyclic_F import IntraRAddExocyclicF
-from reactions.reac_Intra_R_Add_ExoTetCyclic_F import IntraRAddExoTetCyclicF
-from reactions.reac_intra_R_migration import IntraRMigration
-from reactions.reac_Retro_Ene import RetroEne
-from reactions.reac_r22_cycloaddition import R22Cycloaddition
-from reactions.reac_r12_insertion_R import R12Insertion
-from reactions.reac_r13_insertion_RSR import R13InsertionRSR
-from reactions.reac_r13_insertion_ROR import R13InsertionROR
-from reactions.reac_r13_insertion_CO2 import R13InsertionCO2
-from reactions.reac_r12_cycloaddition import R12Cycloaddition
-from reactions.reac_R_Addition_MultipleBond import RAdditionMultipleBond
-from reactions.reac_R_Addition_CSm_R import RAdditionCS
-from reactions.reac_R_Addition_COm3_R import RAdditionCO
-from reactions.reac_Korcek_step2_odd import KorcekStep2Odd
-from reactions.reac_Korcek_step2_even import KorcekStep2Even
-from reactions.reac_Korcek_step2 import KorcekStep2
-from reactions.reac_ketoenol import KetoEnol
-from reactions.reac_Intra_RH_Add_Exocyclic_R import IntraRHAddExoR
-from reactions.reac_Intra_RH_Add_Exocyclic_F import IntraRHAddExoF
-from reactions.reac_Intra_RH_Add_Endocyclic_R import IntraRHAddEndoR
-from reactions.reac_Intra_RH_Add_Endocyclic_F import IntraRHAddEndoF
-from reactions.reac_HO2_Elimination_from_PeroxyRadical import HO2Elimination
-from reactions.reac_beta_delta import BetaDelta
-from reactions.reac_birad_recombination_F import BiradRecombinationF
-from reactions.reac_birad_recombination_R import BiradRecombinationR
-from reactions.reac_Intra_disproportionation_R import IntraDisproportionationR
-from reactions.reac_Intra_disproportionation_F import IntraDisproportionationF
-from reactions.reac_r14_birad_scission import R14BiradScission
-from reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
-from reactions.reac_barrierless_saddle import BarrierlessSaddle
-from reactions.reac_h2_elim import H2Elim
-from reactions.reac_homolytic_scission import HS 
+from kinbot.reactions.reac_Cyclic_Ether_Formation import CyclicEtherFormation
+from kinbot.reactions.reac_Diels_alder_addition import DielsAlder
+from kinbot.reactions.reac_Intra_Diels_alder_R import IntraDielsAlder
+from kinbot.reactions.reac_12_shift_S_F import S12ShiftF
+from kinbot.reactions.reac_12_shift_S_R import S12ShiftR
+from kinbot.reactions.reac_cpd_H_migration import CpdHMigration
+from kinbot.reactions.reac_intra_H_migration import IntraHMigration
+from kinbot.reactions.reac_intra_H_migration_suprafacial import IntraHMigrationSuprafacial
+from kinbot.reactions.reac_intra_OH_migration import IntraOHMigration
+from kinbot.reactions.reac_intra_OH_migration_Exocyclic_F import IntraOHMigrationExocyclicF
+from kinbot.reactions.reac_Intra_R_Add_Endocyclic_F import IntraRAddEndocyclicF
+from kinbot.reactions.reac_Intra_R_Add_Exocyclic_F import IntraRAddExocyclicF
+from kinbot.reactions.reac_Intra_R_Add_ExoTetCyclic_F import IntraRAddExoTetCyclicF
+from kinbot.reactions.reac_intra_R_migration import IntraRMigration
+from kinbot.reactions.reac_Retro_Ene import RetroEne
+from kinbot.reactions.reac_r22_cycloaddition import R22Cycloaddition
+from kinbot.reactions.reac_r12_insertion_R import R12Insertion
+from kinbot.reactions.reac_r13_insertion_RSR import R13InsertionRSR
+from kinbot.reactions.reac_r13_insertion_ROR import R13InsertionROR
+from kinbot.reactions.reac_r13_insertion_CO2 import R13InsertionCO2
+from kinbot.reactions.reac_r12_cycloaddition import R12Cycloaddition
+from kinbot.reactions.reac_R_Addition_MultipleBond import RAdditionMultipleBond
+from kinbot.reactions.reac_R_Addition_CSm_R import RAdditionCS
+from kinbot.reactions.reac_R_Addition_COm3_R import RAdditionCO
+from kinbot.reactions.reac_Korcek_step2_odd import KorcekStep2Odd
+from kinbot.reactions.reac_Korcek_step2_even import KorcekStep2Even
+from kinbot.reactions.reac_Korcek_step2 import KorcekStep2
+from kinbot.reactions.reac_ketoenol import KetoEnol
+from kinbot.reactions.reac_Intra_RH_Add_Exocyclic_R import IntraRHAddExoR
+from kinbot.reactions.reac_Intra_RH_Add_Exocyclic_F import IntraRHAddExoF
+from kinbot.reactions.reac_Intra_RH_Add_Endocyclic_R import IntraRHAddEndoR
+from kinbot.reactions.reac_Intra_RH_Add_Endocyclic_F import IntraRHAddEndoF
+from kinbot.reactions.reac_HO2_Elimination_from_PeroxyRadical import HO2Elimination
+from kinbot.reactions.reac_beta_delta import BetaDelta
+from kinbot.reactions.reac_birad_recombination_F import BiradRecombinationF
+from kinbot.reactions.reac_birad_recombination_R import BiradRecombinationR
+from kinbot.reactions.reac_Intra_disproportionation_R import IntraDisproportionationR
+from kinbot.reactions.reac_Intra_disproportionation_F import IntraDisproportionationF
+from kinbot.reactions.reac_r14_birad_scission import R14BiradScission
+from kinbot.reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
+from kinbot.reactions.reac_barrierless_saddle import BarrierlessSaddle
+from kinbot.reactions.reac_h2_elim import H2Elim
+from kinbot.reactions.reac_bimol_disproportionation_R import BimolDisproportionationR
+from kinbot.reactions.reac_homolytic_scission import HS
+from kinbot.reactions.reac_combinatorial import Combinatorial
 
-from reactions.reac_combinatorial import Combinatorial
+logger = logging.getLogger('KinBot')
 
 
 class ReactionFinder:
@@ -128,6 +130,9 @@ class ReactionFinder:
                           'h2_elim': self.search_h2_elim,
                           'hom_sci': self.search_hom_sci,
                           'barrierless_saddle': self.search_barrierless_saddle,
+                          'Intra_disproportionation_F': self.search_Intra_disproportionation_F, 
+                          'Intra_disproportionation_R': self.search_Intra_disproportionation_R, 
+                          'bimol_disproportionation_R': self.search_bimol_disproportionation_R, 
                           }
 
         if 'combinatorial' in self.families:
@@ -164,14 +169,14 @@ class ReactionFinder:
         
         for index in range(len(self.species.reac_name)-1):
             if self.species.reac_name[index] in self.species.reac_name[index + 1:]:
-                logging.error('Found reaction name "{}" more than once'
+                logger.error('Found reaction name "{}" more than once'
                                .format(self.species.reac_name[index]))
-                logging.error('Exiting')
+                logger.error('Exiting')
                 sys.exit()
 
-        logging.info('\tFound the following reactions:')
+        logger.info('\tFound the following reactions:')
         for rxn in self.species.reac_name:
-            logging.info('\t\t{}'.format(rxn))
+            logger.info('\t\t{}'.format(rxn))
         
         return 0  
    
@@ -1931,6 +1936,47 @@ class ReactionFinder:
         return 0
 
 
+    def search_bimol_disproportionation_R(self, natom, atom, bond, rad):
+        """ 
+        This is an RMG class.
+          X                  X
+          |                  |
+        R=R  *R*-R-H <== H-R-R-R=R
+          |   |              | | 
+          Y   Z              Y Z
+        """
+
+        if np.sum(rad) != 0: return
+        
+        name = 'bimol_disproportionation_R'
+        
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = [] #reactions found with the current resonance isomer
+        
+        for ringsize in range(5, 6):
+            motif = ['X' for i in range(ringsize)]
+            motif[-1] = 'H'
+            
+            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            
+            bondpattern = ['X' for i in range(ringsize - 1)]
+            bondpattern[0] = 2
+            
+            for instance in instances:
+                if find_motif.bondfilter(instance, bond, bondpattern) == 0:
+                    rxns += [instance] 
+
+        self.new_reaction(rxns, name, a=0, b=-1)
+#            # filter for specific reaction after this
+#            if self.one_reaction_fam and new:
+#                if self.reac_bonds != {frozenset({inst[-1], inst[-2]})} or self.prod_bonds != {frozenset({inst[0], inst[-1]})}:
+#                    new = 0
+        
+        return 0
+
+
     def search_beta_delta(self, natom, atom, bond, rad):
         """
         This is not an RMG class.
@@ -1987,12 +2033,6 @@ class ReactionFinder:
             rxns += [instance]
 
         self.new_reaction(rxns, name, a=0, b=-1, cross=True)
-#            # filter for the same reactions
-#            for instance in self.reactions[name]:
-#                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-#                    new = 0
-#                if inst[0] == instance[-1] and inst[-1] == instance[0]:
-#                    new = 0
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
@@ -2030,13 +2070,7 @@ class ReactionFinder:
                 pass
                 
 
-        self.new_reaction(rxns, name, a=0, b=1, cross=True)
-#        for inst in rxns:
-#            new = 1
-#            # filter for the same reactions
-#            for instance in self.reactions[name]:
-#                if inst[0] == instance[1] and inst[1] == instance[0]:
-#                    new = 0
+        self.new_reaction(rxns, name, a=0, b=1, cross=True, aid=True)
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
@@ -2277,6 +2311,10 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(HS(self.species, self.qc, self.par, reac_list[i], name))
+            elif reac_id == 'bimol_disproportionation_R':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(BimolDisproportionationR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'barrierless_saddle':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
@@ -2312,21 +2350,33 @@ class ReactionFinder:
                 if np.linalg.norm(self.species.geom[instance[pivot1]] - self.species.geom[instance[pivot2]]) > cutoff:
                     mask[inst] = False
                     numbers = [ii + 1 for ii in instance]
-                    logging.info(f'{name} reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
+                    logger.info(f'{name} reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
         return list(np.array(instances, dtype=object)[mask])
 
 
-    def new_reaction(self, rxns, name, a=None, b=None, c=None, d=None, e=None, length=None, full=False, cross=False):
+    def new_reaction(self, rxns, name, a=None, b=None, c=None, d=None, e=None, 
+                     length=None, full=False, cross=False, aid=False):
         """
         Returns 1 if new, and 0 if not new
         Checks a variable number of identical elements
         Also can check full equivalency (full=True), same lenght (length=True), and 
         equivalency between elements that are interchangeable (cross=True)
+        if aid is True, then it will throw away reactions where there is already one
+           with the same atom IDs involved - at least important for hom_sci
         """
 
         for inst in rxns:
             new = True
             for instance in self.reactions[name]:
+                if aid == True:
+                    if (self.species.atomid[inst[a]] == self.species.atomid[instance[a]] and
+                            self.species.atomid[inst[b]] == self.species.atomid[instance[b]]):
+                        new = False
+                        break
+                    if (self.species.atomid[inst[b]] == self.species.atomid[instance[a]] and
+                            self.species.atomid[inst[a]] == self.species.atomid[instance[b]]):
+                        new = False
+                        break
                 if cross == True:
                     if (inst[a] == instance[a] and inst[b] == instance[b]):
                         new = False

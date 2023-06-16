@@ -3,11 +3,14 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-exclude = ["build", "dist", "KinBot.egg-info"]
+exclude = ["build", "dist", "KinBot.egg-info", "graphics"]
+
+[tool.setuptools.package-data]
+"kinbot.tpl" = ["*.tpl"]
 
 [project]
 name = "kinbot"
-version = "2.1.post0"
+version = "2.1.1"
 description = "Automated reaction kinetics for gas-phase species"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -31,14 +34,14 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
     "Topic :: Scientific/Engineering :: Chemistry"
 ]
 dependencies = [
         "numpy>=1.17.0",
         "ase>=3.19",
         "networkx",
-        "rmsd",
-        "typing-extensions"  # TODO Not a direct dependency. Remove it once rmsd list it as theirs.
+        "rmsd>=1.5.1",
 ]
 
 [project.optional-dependencies]

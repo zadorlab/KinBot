@@ -1,6 +1,6 @@
 ###################################################
 ##                                               ##
-## This file is part of the KinBot code v2.0     ##
+## This file is part of the KinBot code v2.1.1   ##
 ##                                               ##
 ## The contents are covered by the terms of the  ##
 ## BSD 3-clause license included in the LICENSE  ##
@@ -13,15 +13,16 @@
 ## rights to this software.                      ##
 ##                                               ##
 ## Authors:                                      ##
-##   Judit Zador                                 ##
+##   Judit Zádor                                 ##
 ##   Ruben Van de Vijver                         ##
+##   Carles Martí                                ##
 ##                                               ##
 ###################################################
 
 This example runs searches for all reactions for 
 gamma valerolactone. The search finds 13
-isomerization and 9 dissociation channels
+isomerization and 11 dissociation channels
 
-To run this example, type "kinbot gvl.json"
+To run this example, type "kinbot gvl.json &"
 After it is finished, visualize the results
 with "pesviewer pesviewer.inp"

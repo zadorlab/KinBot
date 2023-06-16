@@ -32,7 +32,8 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
 
     # Mass-weight the hessian
     if not massweighted:
-        hess /= np.sqrt(np.outer(masses, masses))
+        # Cannot use /= on immutable arrays read from db. (Sella)
+        hess = hess / np.sqrt(np.outer(masses, masses))
 
     # STEP 1: calculate the initial frequencies
     all_eigvals, all_eigvecs = np.linalg.eig(hess)

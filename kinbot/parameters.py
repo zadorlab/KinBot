@@ -10,6 +10,8 @@ import json
 import logging
 from ase import units
 
+logger = logging.getLogger('KinBot')
+
 
 class Parameters:
     """
@@ -56,6 +58,8 @@ class Parameters:
             'skip_families': ['none'],
             # Which chemids to skip kinbot runs for during PES calculations
             'skip_chemids': ['none'],
+            # Which chemids to keep kinbot runs for during PES calculations
+            'keep_chemids': ['none'],
             # Skip specific reactions, usually makes sense once the search is done
             'skip_reactions': ['none'],
             # perform variational calculations for the homolytic scissions
@@ -64,9 +68,9 @@ class Parameters:
             # this is a dictionary written as:
             # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
             'barrierless_saddle': {},
-            # starting distance for barrierless_saddle searches, A
+            # starting distance for barrierless_saddle searches in Å
             'barrierless_saddle_start': 2.0,
-            # step size in A
+            # step size in Å
             'barrierless_saddle_step': 0.2,
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
@@ -224,12 +228,24 @@ class Parameters:
             'hir_maxcycle': None,
             # Non-rigid or rigid hir
             'rigid_hir': 0,
+            # use_sella
+            'use_sella': False,
+            # Threshold to accept negative frequencies for floppy structures, this is a positive number
+            'imagfreq_threshold': 50.,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
             'queuing': 'pbs',  # or slurm
             # Template for queue:
             'queue_template': '',
+            # Queue template for AM1 jobs
+            'q_temp_am1': None,
+            # Queue template for high jobs
+            'q_temp_hi': None, 
+            # Queue template for MP2 jobs
+            'q_temp_mp2': None,
+            # Queue template for MP2 jobs
+            'q_temp_l3': None,
             # Name of the queue
             'queue_name': 'medium',
             # E.g. the type of node or anything that comes with -C in SLURM
@@ -337,8 +353,8 @@ class Parameters:
             self.par['uq_n'] = 1
 
         if self.par['bimol'] == 1 and self.par['method'] == 'b3lyp':
-            logging.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
-            logging.warning('Choose for instance M06-2X or wB97XD.')
+            logger.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
+            logger.warning('Choose for instance M06-2X or wB97XD.')
             print('B3LYP is not recommended as L1 for bimolecular reactions.')
             print('Choose for instance M06-2X.')
 
@@ -348,6 +364,9 @@ class Parameters:
         if self.par['multi_conf_tst'] and not self.par['conformer_search']:
             err = 'For multi conformer tst calculation conformer search needs to be activated.'
 
+        if self.par['imagfreq_threshold'] < 0:
+            err = 'The threshold for imaginary freqency has to be a positive number, interpreted as an imaginary value.'
+
         if not self.par['multi_conf_tst']:
             self.par['multi_conf_tst_temp'] = None
             self.par['multi_conf_tst_boltz'] = 0.05 
@@ -355,13 +374,17 @@ class Parameters:
         if self.par['multi_conf_tst']:
             self.par['rotor_scan'] = 0
 
+        for par in ['q_temp_am1', 'q_temp_hi', 'q_temp_mp2', 'q_temp_l3']:
+            if self.par[par] is None:
+                self.par[par] = self.par['queue_template']
+
         self.par['well_uq'] = float(self.par['well_uq'])
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
 
         if err is not None:
-            logging.error(err)
+            logger.error(err)
             sys.exit(-1)
 
         return

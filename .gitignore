@@ -1,5 +1,6 @@
 *pyc
-build*
-.idea*
+build
+.idea
 *egg*
-dist*
+dist
+.vscode

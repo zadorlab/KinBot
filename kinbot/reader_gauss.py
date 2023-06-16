@@ -25,20 +25,44 @@ def read_energy(outfile):
     return energy
 
 
-def read_geom(outfile, mol):
+def read_geom(outfile, mol, max2frag=False, charge=None, mult=None):
     """
     Read the final geometry from a Gaussian file.
+    max2frag: if set to true, the last geometry is taken where
+              the structure has max 2 fragments
+              This is to avoid "exploding" IRC_prod trajectories.
     """
 
     with open(outfile) as f:
         lines = f.readlines()
 
-    geom = np.zeros((len(mol), 3))
-    for index, line in enumerate(reversed(lines)):
-        if 'Input orientation:' in line:
-            for n in range(len(mol)):
-                geom[n][0:3] = np.array(lines[-index+4+n].split()[3:6]).astype(float)
+    start = 0  # start reading here
+    while 1:
+        geom = np.zeros((len(mol), 3))
+        if start == 0:
+            data = lines
+        else:
+            data = lines[:-start+1]
+        for index, line in enumerate(reversed(data)):
+            if 'Input orientation:' in line:
+                for n in range(len(mol)):
+                    geom[n][0:3] = np.array(data[-index+4+n].split()[3:6]).astype(float)
+                start += index  # mark end for next loop if there is
+                break
+
+        if not max2frag:
             break
+        else:
+            from kinbot.stationary_pt import StationaryPoint
+            temp = StationaryPoint('dummy',
+                                   charge,
+                                   mult,
+                                   atom=[i for i in mol.symbols],
+                                   geom=geom)
+            temp.characterize()
+            fragments, maps = temp.start_multi_molecular()
+            if len(fragments) <= 2:
+                break
 
     return geom
 
@@ -258,6 +282,7 @@ def correct_kwargs(outfile, kwargs):
         kwargs['opt'] += ', cartesian'
     elif 'Error termination request processed by link 9999.' in outf_end:
         kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'CalcAll')
+        kwargs.pop('freq', None)
         if 'cartesian' not in kwargs['opt']:
             kwargs['opt'] += ',Cartesian'
 

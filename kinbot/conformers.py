@@ -3,18 +3,22 @@ import random
 import time
 import copy
 import logging
-import numpy as np
 from shutil import copyfile
 
+import numpy as np
 from ase.db import connect
 from ase import Atoms
 from ase.units import invcm, Hartree, kcal, mol
 from ase.thermochemistry import IdealGasThermo
+import rmsd
+
 from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
-import rmsd
+
+logger = logging.getLogger('KinBot')
+
 
 class Conformers:
     """
@@ -83,6 +87,8 @@ class Conformers:
 
         # db to be used for skipping conf generation
         self.db = connect('kinbot.db')
+
+        self.imagfreq_threshold = par['imagfreq_threshold']
 
     def generate_ring_conformers(self, cart):
         """
@@ -190,11 +196,11 @@ class Conformers:
         if status == 1:  # still running
             return np.zeros((self.species.natom, 3)), -1
         elif status == -1:  # conformer search failed
-            logging.debug('Conformer search failed for scan point {}'.format(job))
+            logger.debug('Conformer search failed for scan point {}'.format(job))
             return np.zeros((self.species.natom, 3)), 1
         else:
             if self.start_ring_conformer_search(index, geom):
-                logging.debug('Running the next dihedral for conformer {}'.format(job))
+                logger.debug('Running the next dihedral for conformer {}'.format(job))
                 return geom, -1
             else:
                 # check if all the bond lenghts are withing 10% or the original bond lengths
@@ -205,10 +211,10 @@ class Conformers:
                                        geom=geom)
                 temp.bond_mx()
                 if geometry.equal_geom(self.species, temp, 0.10):
-                    logging.debug('Successfully finished conformer {}'.format(job))
+                    logger.debug('Successfully finished conformer {}'.format(job))
                     return geom, 0
                 else:
-                    logging.debug('Conformer too far from original structure {}'.format(job))
+                    logger.debug('Conformer too far from original structure {}'.format(job))
                     return np.zeros((self.species.natom, 3)), 1
 
     def check_ring_conformers(self, wait=0):
@@ -272,7 +278,7 @@ class Conformers:
             if len(self.species.conf_dihed) > self.max_dihed or theoretical_confs > self.nconfs:
                 if rotor == 0:
                     if self.info: 
-                        logging.info('\tRandom conformer search is carried out for {}.'.format(name))
+                        logger.info('\tRandom conformer search is carried out for {}.'.format(name))
                         self.info = False
 
                     # skipping generation if done
@@ -284,7 +290,7 @@ class Conformers:
                         rows = self.db.select(name=self.get_job_name(nrandconf - 1))
                         for row in rows:
                             self.conf = nrandconf
-                            logging.debug('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
+                            logger.debug('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(self.get_job_name(nrandconf)))
                             return 1
 
                 self.generate_conformers_random_sampling(cart)
@@ -294,7 +300,7 @@ class Conformers:
         if rotor == len(self.species.conf_dihed) or rotor == -999:
             self.qc.qc_conf(self.species, cart, self.conf, semi_emp=self.semi_emp)
             if self.conf == 0:
-                logging.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+                logger.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
             self.conf += 1
             return 0
 
@@ -304,8 +310,8 @@ class Conformers:
             for row in rows:
                 self.conf = theoretical_confs
                 if print_warning:
-                    logging.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
-                    logging.info('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
+                    logger.debug('Theoretical number of conformers is {} for {}.'.format(theoretical_confs, name))
+                    logger.info('\tLast conformer was found in kinbot.db, generation is skipped for {}.'.format(name))
                 return 1
 
         cart = np.asarray(cart)
@@ -324,7 +330,6 @@ class Conformers:
             self.generate_conformers(rotor, cartmod)
 
         return 0
-
 
     def generate_conformers_random_sampling(self, ini_cart):
         """
@@ -407,7 +412,10 @@ class Conformers:
                     status[i] = self.test_conformer(i)[1]
             # problem: if the first sample has 2 imaginary frequencies, what to do then?
             if all([si >= 0 for si in status]):
-                lowest_totenergy = 0.
+                # These refer to the conformer with lowest E + ZPE, 
+                # not the individual lowest.
+                lowest_energy = np.inf
+                lowest_zpe = np.inf
                 lowest_e_geom = self.species.geom
                 final_geoms = []  # list of all final conformer geometries
                 totenergies = []
@@ -429,9 +437,9 @@ class Conformers:
                             frequencies.append(freq)
                         else:
                             frequencies.append(None)
-                        if lowest_totenergy == 0.:  # likely / hopefully the first sample was valid
+                        if lowest_energy is np.inf:  # likely / hopefully the first sample was valid
                             if ci != 0:
-                                logging.debug('For {} conformer 0 failed.'.format(name)) 
+                                logger.debug('For {} conformer 0 failed.'.format(name)) 
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             if self.species.natom > 1:
                                 # job fails if conformer freq array is empty
@@ -445,11 +453,12 @@ class Conformers:
                                         if freq[0] <= 0.:
                                             err = -1
                                 else:
-                                    logging.warning("Conformer {} failed due to empty freq array".format(ci))
+                                    logger.warning("Conformer {} failed due to empty freq array".format(ci))
                                     err = -1
                             if err == 0:
-                                lowest_totenergy = energy + zpe
-                        if energy + zpe < lowest_totenergy:
+                                lowest_energy = energy
+                                lowest_zpe = zpe
+                        if energy + zpe <= lowest_energy + lowest_zpe:
                             err, freq = self.qc.get_qc_freq(job, self.species.natom)
                             ratio = 0.8
                             # job fails if conformers freq array is empty
@@ -462,15 +471,16 @@ class Conformers:
                                     if self.species.natom > 2 and freq[1] <= 0.:
                                         err = -1
                                 else:
-                                    if freq[0] <= -50.:  # note that now we allow negative frequencies here as well
+                                    if freq[0] <= -1. * self.imagfreq_threshold:  # note that now we allow negative frequencies here as well
                                         err = -1
-                            else:
-                                logging.warning("Conformer {} failed due to empty freq array".format(ci))
+                            elif self.species.natom > 1:
+                                logger.warning("Conformer {} failed due to empty freq array".format(ci))
                                 err = -1
                             if err == 0:
                                 lowest_job = job
                                 lowest_conf = str(ci).zfill(self.zf)
-                                lowest_totenergy = energy + zpe
+                                lowest_energy = energy
+                                lowest_zpe = zpe
                                 lowest_e_geom = geom
                         if err == -1:
                             status[ci] = 1  # make it invalid
@@ -500,8 +510,8 @@ class Conformers:
                              'status': row_last.data.get('status')})
                 except UnboundLocalError:
                     pass
-                
-                return 1, lowest_conf, lowest_e_geom, lowest_totenergy,\
+
+                return 1, lowest_conf, lowest_e_geom, lowest_energy,\
                        final_geoms, totenergies, frequencies, status
 
             else:
@@ -523,7 +533,7 @@ class Conformers:
         err, zpe = self.qc.get_qc_zpe(job)
         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                 
-        return geom, energy + zpe 
+        return geom, energy, zpe 
 
     def find_unique(self, conformers, energies, frequencies, valid, temp=None, boltz=None):
         """
@@ -552,17 +562,21 @@ class Conformers:
             # calculate the Gibbs free energy for all conformers
             # at T = temp, P = 101325 Pa
             gibbs = []
+            geo_type = 'nonlinear'
             for vi, val in enumerate(valid):
-                if frequencies[vi][0] > 0:
-                    vib_energies = [ff * invcm for ff in frequencies[vi]]  # convert to eV
+                if frequencies == [None]:
+                    vib_energies = [0]
+                    geo_type = 'monatomic'
                 else:
-                    vib_energies = [ff * invcm for ff in frequencies[vi][1:]]  # convert to eV
+                    vib_energies = [ff * invcm for ff in frequencies[vi] if ff > 0]  # convert to eV
+                    if np.shape(frequencies)[1] == 3 * len(self.species.atom) - 5:
+                        geo_type = 'linear'
                 potentialenergy = energies[vi] * Hartree  # convert to eV
                 atoms = Atoms(symbols=self.species.atom, positions=conformers[vi])
                 thermo = IdealGasThermo(vib_energies=vib_energies,
                                         potentialenergy=potentialenergy,
                                         atoms=atoms,
-                                        geometry='nonlinear',
+                                        geometry=geo_type,
                                         symmetrynumber=1, spin=(self.species.mult-1)/2)
                 gibbs.append(thermo.get_gibbs_energy(temperature=temp, pressure=101325., verbose=False))
 

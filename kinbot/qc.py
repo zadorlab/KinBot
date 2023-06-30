@@ -533,7 +533,7 @@ class QuantumChemistry:
         KinBot will park here until resources are freed up.
         """
         try:
-            from kinbot.fireworks_setup import place_job
+            from kinbot.fireworks import place_job
         except ModuleNotFoundError as e:
             if self.queuing == 'fireworks':
                 raise e

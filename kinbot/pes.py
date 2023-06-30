@@ -26,7 +26,7 @@ from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
-from kinbot.fireworks_setup import setup_fireworks
+from kinbot.fireworks import setup_fireworks
 
 
 def main():

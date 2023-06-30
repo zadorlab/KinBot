@@ -14,7 +14,7 @@ from kinbot.reaction_finder_bimol import ReactionFinderBimol
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.qc import QuantumChemistry
-from kinbot.fireworks_setup import setup_fireworks
+from kinbot.fireworks import setup_fireworks
 
 
 def main():
@@ -91,10 +91,10 @@ def main():
         qc = QuantumChemistry(par)
 
         if par['queuing'] == "fireworks":
-            if not par['pes']:
-                reset_lpad = True
-            else:
+            if par['pes']:
                 reset_lpad = False
+            else:
+                reset_lpad = True
             qc.lpad = setup_fireworks(par['lpad_file'], par['fworker_file'], 
                                       par['queue_template'], reset=reset_lpad,
                                       num_jobs=par['queue_job_limit'])

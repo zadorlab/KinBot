@@ -44,7 +44,7 @@ def load_launchpad(lpad_file, **kwargs):  # TODO build a LaunchPad from kinbot p
     else:
         err_msg = "When using fireworks, either 'my_launchpad.yaml' should " \
                   "be present in the currrent working directory or the path " \
-                  "to the launchpad .yaml file must be specified with the " \
+                  "to the launchpad.yaml file must be specified with the " \
                   "'lpad_file' keyword.\n" \
                   "(eg. \"lpad_file\": \"/home/my_user/my_new_launchpad.yaml\")"
         logging.error(err_msg)

@@ -412,7 +412,7 @@ class Conformers:
                     status[i] = self.test_conformer(i)[1]
             # problem: if the first sample has 2 imaginary frequencies, what to do then?
             if all([si >= 0 for si in status]):
-                # These refer to the conformer with lowest E + ZPE, 
+                # The following refer to the conformer with lowest E + ZPE, 
                 # not the individual lowest.
                 lowest_energy = np.inf
                 lowest_zpe = np.inf

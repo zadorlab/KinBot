@@ -2,3 +2,4 @@
 build/*
 .idea/*
 *egg*
+.vscode

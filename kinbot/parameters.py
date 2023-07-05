@@ -70,6 +70,8 @@ class Parameters:
             'barrierless_saddle': {},
             # starting distance for barrierless_saddle searches in Å
             'barrierless_saddle_start': 2.0,
+            # starting distance for barrierless_saddle searches in Å
+            'barrierless_saddle_stop': 6.0,
             # step size in Å
             'barrierless_saddle_step': 0.2,
             # for the hom_sci family, using the same format as in barrierless_saddle

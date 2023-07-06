@@ -6,30 +6,35 @@ Class that generates a list of pivot points and a list of pivot points
 and their associated distances depending on the intermolecular distance.
 '''
 
-    def __init__(self, distances=None, surfaces=None, nfrag=None)
+    def __init__(self, par, fragments, distances=None, surfaces=None, nfrag=None, reactive_atoms=None)
         self.distances = []
-        self.surfaces = []
-        self.nfrag = len(fragments)
-        self.reactive_atoms = [] #Contains a list of integers. These are the order number of the atoms involved in the reaction.
-
-    def create_surfaces(self, par, fragments)
         self.distances.append(i for i in arange(par['vrc_tst_dist_start'],
                                                 par['vrc_tst_dist_stop'],
                                                 par['vrc_tst_dist_step']))
+        self.fragments = fragments #Array of Fragment objects
+        self.par = par
+        self.surfaces = []
+        self.nfrag = len(fragments)
+        self.reactive_atoms = [] #Contains a list of integers. These are the order number of the atoms involved in the reaction.
+        self.setup_fragments()
+        self.set_reactive_atoms()
+
+    def setup_fragments(self)
         frag_number = 0
         for this_frag in fragments:
+            this_frag.characterize
             #TODO:function of the fragment class to be written
             #Must return the number of the atom in the fragment correponding to the number in the reactant.
             this_frag.set_order(frag_number, self.nfrag)
             frag_number += 1
 
-        self.set_reactive_atoms(fragments)
+    def set_surfaces(self)
 
         #for all distances
         for dist in self.distances:
             #Create a coordinate system with all the fragments
             #TODO: write the global_system class
-            assembled = global_system.create_sys(fragments)
+            assembled = global_system(fragments)
             #Set the position of the pivot points in the fragment object
             #TODO: write the set_pivot_point() method in the class global_system
             #It must call the creation of a pivot point attribute of the fragment class
@@ -40,8 +45,6 @@ and their associated distances depending on the intermolecular distance.
             assembled.set_surface()
             
             self.surfaces.append(assembled.get_surface())
-
-        return self.surfaces
 
     def set_reactive_atoms(self, fragments)
         #Recover the index of the reactive atoms from the reaction name.

@@ -1,4 +1,4 @@
-from fragments.py import Fragment
+from kinbot.fragments.py import Fragment
 
 class VRC_TST_surfaces()
 '''
@@ -10,18 +10,42 @@ and their associated distances depending on the intermolecular distance.
         self.distances = []
         self.surfaces = []
         self.nfrag = len(fragments)
+        self.reactive_atoms = [] #Contains a list of integers. These are the order number of the atoms involved in the reaction.
 
     def create_surfaces(self, par, fragments)
-        self.distances.append(i for i in arange(par['barrierless_saddle_start'],
-                                                par['barrierless_saddle_stop'],
-                                                par['barrierless_saddle_step']))
+        self.distances.append(i for i in arange(par['vrc_tst_dist_start'],
+                                                par['vrc_tst_dist_stop'],
+                                                par['vrc_tst_dist_step']))
+        frag_number = 0
         for this_frag in fragments:
             #TODO:function of the fragment class to be written
             #Must return the number of the atom in the fragment correponding to the number in the reactant.
-            this_frag.set_labels(frag_number, self.nfrag)
+            this_frag.set_order(frag_number, self.nfrag)
+            frag_number += 1
 
+        self.set_reactive_atoms(fragments)
+
+        #for all distances
+        for dist in self.distances:
+            #Create a coordinate system with all the fragments
+            #TODO: write the global_system class
+            assembled = global_system.create_sys(fragments)
+            #Set the position of the pivot points in the fragment object
+            #TODO: write the set_pivot_point() method in the class global_system
+            #It must call the creation of a pivot point attribute of the fragment class
+            assembled.set_pivot_points(reactive_atoms)
+            #Create the "surface" attribute (dictionary) as expected by rotd_py
+            #TODO Must return the coordinates of the pivot points from the fragment object,
+            #and a pivot point distances matrix computed in the global_system class.
+            assembled.set_surface()
+            
+            self.surfaces.append(assembled.get_surface())
+
+        return self.surfaces
+
+    def set_reactive_atoms(self, fragments)
         #Recover the index of the reactive atoms from the reaction name.
-        summary = open(this_frag.parent_chemid + '/summary_' + this_frag.parent_chemid + '.out', 'r').readlines()
+        summary = open(fragments[0].parent_chemid + '/summary_' + fragments[0].parent_chemid + '.out', 'r').readlines()
         #Check if the line corresponds to the reaction before taking the indices
         for line in summary:
             if line.startswith('SUCCESS') and 'hom_sci' in line:
@@ -44,25 +68,7 @@ and their associated distances depending on the intermolecular distance.
                         break
                 #When the reaction is found, create the list of reactive atoms        
                 if corresponds:
-                    reactive_atoms = []
                     for i in pieces[2].split('_')[3:]:
-                        reactive_atoms.append(int(i))
+                        self.reactive_atoms.append(int(i))
                     break
 
-        #for all distances
-        for dist in self.distances:
-            #Create a coordinate system with all the fragments
-            #TODO: write the global_system class
-            assembled = global_system.create_sys(fragments)
-            #Set the position of the pivot points in the fragment object
-            #TODO: write the set_pivot_point() method in the class global_system
-            #It must call the creation of a pivot point attribute of the fragment class
-            assembled.set_pivot_points(reactive_atoms)
-            #Create the "surface" attribute (dictionary) as expected by rotd_py
-            #TODO Must return the coordinates of the pivot points from the fragment object,
-            #and a pivot point distances matrix computed in the global_system class.
-            assembled.set_surface()
-            
-            self.surfaces.append(assembled.get_surface())
-
-        return self.surfaces

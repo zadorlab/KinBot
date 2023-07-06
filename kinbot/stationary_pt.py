@@ -94,7 +94,7 @@ class StationaryPoint:
             self.get_geom()
         if self.natom == 0:
             self.natom = len(atom)
-    
+
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
         """Builds a stationary point object from an ase.Atoms object.

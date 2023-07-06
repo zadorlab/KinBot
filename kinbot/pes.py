@@ -1231,11 +1231,24 @@ def create_rotdPy_inputs(par, wells, products, reactions, barrierless,
                 chemid = sorted(reac[2])[frag_number]
                 parent_chemid = parent.get('_'.join(sorted(reac[2])))
 
+                if par['high_level']:
+                    #Will read info from L2 structure
+                    basename = '{chemid}_well_high'
+                else
+                    #Will read info from L1 structure
+                    basename = '{chemid}_well'
                 #Create ase.atoms objects for each fragments
-                fragments[frag_number] = Fragment.create( par, chemid, parent_chemid)
+
+                db = connect('{parent_chemid}/kinbot.db)'
+                for row in db.select(name='{basename}'):
+                    tmp = row.toatoms() #This is an ase.atoms object
+                    fragments[frag_number] = StationaryPoint.from_ase_atoms(tmp)
+                    fragments[frag_number].__class__ = Fragment
+                    fragments[frag_number].set_parent_chemid(parent_chemid)
                 
            #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
-           surfaces_list = VRC_TST_surfaces.create_surfaces(par, fragments)
+           setting_VRC_TST = VRC_TST_surfaces(par, fragments)
+           setting_VRC_TST.set_surfaces() 
        #TODO: Get the other necessary info and print in an input file for rotd_py 
        #Check the import keywords of the new classes
 

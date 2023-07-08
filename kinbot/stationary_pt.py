@@ -387,7 +387,7 @@ class StationaryPoint:
 
         return 1 + mult % 2
 
-    def start_multi_molecular(self):
+    def start_multi_molecular(self, vary_charge=False):
         """
         Iterative method to find all the separate products from a bond matrix
         """
@@ -410,17 +410,17 @@ class StationaryPoint:
                     #this is a molecule containing only one atom
                     fragi[at[0]] = 1
                     atomi = [at[0]]
-                    bool = 0
+                    boole = 0
                 else:
                     natomi = len(at)
-                    bool, sta = self.extract_next_mol(natomi,bondi)
+                    boole, sta = self.extract_next_mol(natomi,bondi)
                     atomi = [at[i] for i in range(natomi) if sta[i] == 1]
                     for i in range(len(sta)):
                         if sta[i] == 1:
                             status[at[i]] = 1
                             fragi[at[i]] = 1
 
-                if not bool and len(mols) == 0:
+                if not boole and len(mols) == 0:
                     #the bond matrix corresponds to one molecule only
                     try:
                         delattr(self, 'cycle_chain')
@@ -433,21 +433,40 @@ class StationaryPoint:
                 geomi = np.asarray(self.geom)[np.where(np.asarray(fragi) == 1)]
                 natomi = np.sum(fragi)
                 atomi = atomlist[np.where(np.asarray(fragi) == 1)]
-                multi = self.calc_multiplicity(atomi)
-                chargei = self.charge # todo
-                moli = StationaryPoint('prod_%i'%(len(mols)+1), chargei, multi, atom=atomi, natom=natomi, geom=geomi)
-                moli.characterize()  
-                moli.calc_chemid()
-                moli.name = str(moli.chemid)
 
-                mols.append(moli)
+                if vary_charge:
+                    multiply = 2
+                else:
+                    multiply = 1
+                
+                for ch in range(multiply):
+                    # ch == 0 is neutral, ch == 1  is ion case
+                    multi = self.calc_multiplicity(atomi)
+                    # on the second pass, adjust the multiplicity
+                    if ch == 1 and multi == 1:
+                        multi = 2
+                    elif ch == 1 and multi == 2:
+                        multi = 1
+                    if ch == 1 and multi == 3:
+                        multi = 2
 
-                numbering = np.asarray(range(self.natom))
-                # the original atom numbers in the correct order in the fragments, it's a map
-                mapi = numbering[np.where(np.asarray(fragi) == 1)]  
-                maps.append(mapi)
+                    if ch == 0:   
+                        chargei = 0
+                    elif ch == 1:
+                        chargei = self.charge 
+                    moli = StationaryPoint('prod_%i'%(len(mols)+1), chargei, multi, atom=atomi, natom=natomi, geom=geomi)
+                    moli.characterize()  
+                    moli.calc_chemid()
+                    moli.name = str(moli.chemid)
 
-                if bool:
+                    mols.append(moli)
+
+                    numbering = np.asarray(range(self.natom))
+                    # the original atom numbers in the correct order in the fragments, it's a map
+                    mapi = numbering[np.where(np.asarray(fragi) == 1)]  
+                    maps.append(mapi)
+
+                if boole:
                     continue 
                 else:
                     #reached the end, return the molecules

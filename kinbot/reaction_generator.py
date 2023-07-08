@@ -3,6 +3,7 @@ import shutil
 import time
 import logging
 import copy
+import itertools
 
 import numpy as np
 
@@ -263,7 +264,7 @@ class ReactionGenerator:
                 elif self.species.reac_ts_done[index] == 2:
                     if len(products_waiting_status[index]) == 0:  # not started optimization yet
                         # identify bimolecular products and wells
-                        fragments, maps = obj.products.start_multi_molecular()
+                        fragments, maps = obj.products.start_multi_molecular(vary_charge=True)
 
                         a = []  # cleaned up list of products
                         for frag in fragments:
@@ -360,6 +361,23 @@ class ReactionGenerator:
                             obj.products_final = []
 
                             if all([pi == 1 for pi in products_waiting_status[index]]):
+                                if self.species.charge != 0:  # select the lower energy combination
+                                    # brute for all combinations
+                                    combs = np.array([np.array(i) for i in itertools.product([0, 1], repeat = len(obj.products))])
+                                    val = 1000.
+                                    ens = np.array([i.energy for i in obj.products])
+                                    zpes = np.array([i.zpe for i in obj.products])
+                                    masses = np.array([i.mass for i in obj.products])
+                                    charges = np.array([i.charge for i in obj.products])
+                                    combo = combs[0]
+                                    for comb in combs:
+                                        if sum(comb * masses) == self.species.mass:
+                                            if sum(comb * charges) == self.species.charge:
+                                                if sum(comb * (ens + zpes)) < val:
+                                                    val = sum(comb * (ens + zpes))
+                                                    combo = comb
+                                    combo = combo.astype(bool)
+                                    obj.products = list(np.array(obj.products)[combo])
                                 if self.species.reac_type[index] == 'hom_sci': 
                                     hom_sci_energy = (hom_sci_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
                                     if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:

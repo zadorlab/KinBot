@@ -17,19 +17,40 @@ and their associated distances depending on the intermolecular distance.
         self.nfrag = len(fragments)
         self.reactive_atoms = [] #Contains a list of integers. These are the order number of the atoms involved in the reaction.
         self.setup_fragments()
+        self.set_parent()
+        self.set_order()
         self.set_reactive_atoms()
 
+        #TODO:function of the fragment class to be written
+        #Must return the number of the atom in the fragment correponding to the number in the reactant.
+        self.set_order()
+
     def setup_fragments(self)
-        frag_number = 0
         for this_frag in fragments:
-            this_frag.characterize
-            #TODO:function of the fragment class to be written
-            #Must return the number of the atom in the fragment correponding to the number in the reactant.
-            this_frag.set_order(frag_number, self.nfrag)
-            frag_number += 1
+            this_frag.characterize()
+
+
+    #Create a stationary point object for the parent
+    def set_parent(self):
+        parent_chemid = self.fragment[0].parent_chemid
+        if par['high_level']:
+            #Will read info from L2 structure
+            basename = '{parent_chemid}_well_high'
+        else
+            #Will read info from L1 structure
+            basename = '{parent_chemid}_well'
+
+        db = connect('{parent_chemid}/kinbot.db)'
+        for row in db.select(name='{basename}'):
+            tmp = row.toatoms() #This is an ase.atoms object
+            self.parent = StationaryPoint.from_ase_atoms(tmp)
+            self.parent.characterize()
+
+    def set_order(self):
+        #Cut the bond in parents
+
 
     def set_surfaces(self)
-
         #for all distances
         for dist in self.distances:
             #Create a coordinate system with all the fragments

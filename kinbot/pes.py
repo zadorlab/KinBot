@@ -1237,8 +1237,8 @@ def create_rotdPy_inputs(par, wells, products, reactions, barrierless,
                 else
                     #Will read info from L1 structure
                     basename = '{chemid}_well'
-                #Create ase.atoms objects for each fragments
 
+                #Create ase.atoms objects for each fragments
                 db = connect('{parent_chemid}/kinbot.db)'
                 for row in db.select(name='{basename}'):
                     tmp = row.toatoms() #This is an ase.atoms object

@@ -17,6 +17,3 @@ class Fragment(StationaryPoint):
         self.parent_chemid = p_chemid
 
         
-    def set_order(self, frag_number, nfrag):
-    #Function that associate each atom of the fragment to an atom of the parent
-        pass

@@ -1358,6 +1358,8 @@ def get_l3energy(job, par, bls=0):
     else:
         key = par['single_point_key']
 
+    if job == '10000000000000000001':  # proton
+        return 1, 0.0
     if par['single_point_qc'] == 'molpro':
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:

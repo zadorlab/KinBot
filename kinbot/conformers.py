@@ -89,6 +89,7 @@ class Conformers:
         self.db = connect('kinbot.db')
 
         self.imagfreq_threshold = par['imagfreq_threshold']
+        self.flat_ring_dih_angle = par['flat_ring_dih_angle']
 
     def generate_ring_conformers(self, cart):
         """
@@ -112,7 +113,7 @@ class Conformers:
                 for dih in dihs:
                     val = geometry.calc_dihedral(cart[dih[0]], cart[dih[1]],
                                                  cart[dih[2]], cart[dih[3]])[0]
-                    if abs(val) < 5.:
+                    if abs(val) < self.flat_ring_dih_angle:
                         flat_ring_dih.append(True)
                     else:
                         flat_ring_dih.append(False)

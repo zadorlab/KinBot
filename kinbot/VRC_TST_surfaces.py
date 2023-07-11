@@ -1,4 +1,6 @@
-from kinbot.fragments.py import Fragment
+from kinbot.fragments import Fragment
+from ase.db import connect
+from kinbot.stationary_pt import StationaryPoint
 
 class VRC_TST_surfaces()
 '''
@@ -11,22 +13,18 @@ and their associated distances depending on the intermolecular distance.
         self.distances.append(i for i in arange(par['vrc_tst_dist_start'],
                                                 par['vrc_tst_dist_stop'],
                                                 par['vrc_tst_dist_step']))
-        self.fragments = fragments #Array of Fragment objects
+        self.lr_fragments = fragments #Array of Fragment objects
         self.par = par
         self.surfaces = []
         self.nfrag = len(fragments)
         self.reactive_atoms = [] #Contains a list of integers. These are the order number of the atoms involved in the reaction.
         self.setup_fragments()
         self.set_parent()
-        self.set_order()
         self.set_reactive_atoms()
-
-        #TODO:function of the fragment class to be written
-        #Must return the number of the atom in the fragment correponding to the number in the reactant.
         self.set_order()
 
-    def setup_fragments(self)
-        for this_frag in fragments:
+    def setup_fragments(self):
+        for this_frag in self.lr_fragments:
             this_frag.characterize()
 
 
@@ -40,32 +38,11 @@ and their associated distances depending on the intermolecular distance.
             #Will read info from L1 structure
             basename = '{parent_chemid}_well'
 
-        db = connect('{parent_chemid}/kinbot.db)'
+        db = connect('{parent_chemid}/kinbot.db')
         for row in db.select(name='{basename}'):
             tmp = row.toatoms() #This is an ase.atoms object
             self.parent = StationaryPoint.from_ase_atoms(tmp)
             self.parent.characterize()
-
-    def set_order(self):
-        #Cut the bond in parents
-
-
-    def set_surfaces(self)
-        #for all distances
-        for dist in self.distances:
-            #Create a coordinate system with all the fragments
-            #TODO: write the global_system class
-            assembled = global_system(fragments)
-            #Set the position of the pivot points in the fragment object
-            #TODO: write the set_pivot_point() method in the class global_system
-            #It must call the creation of a pivot point attribute of the fragment class
-            assembled.set_pivot_points(reactive_atoms)
-            #Create the "surface" attribute (dictionary) as expected by rotd_py
-            #TODO Must return the coordinates of the pivot points from the fragment object,
-            #and a pivot point distances matrix computed in the global_system class.
-            assembled.set_surface()
-            
-            self.surfaces.append(assembled.get_surface())
 
     def set_reactive_atoms(self, fragments)
         #Recover the index of the reactive atoms from the reaction name.
@@ -95,4 +72,52 @@ and their associated distances depending on the intermolecular distance.
                     for i in pieces[2].split('_')[3:]:
                         self.reactive_atoms.append(int(i))
                     break
+
+    def set_order(self):
+    '''
+    Funtion that map the ids of the long-range fragments' atoms
+    from the ids of the parent.
+    '''
+        #Cut the bond in parent
+        self.parent.bond[self.reactive_atoms[0]][self.reactive_atoms[1]] = 0
+        self.parent.bond[self.reactive_atoms[1]][self.reactive_atoms[0]] = 0
+
+        #Find the short-range fragment in the reactant
+        self.sr_fragments, maps = self.parent.start_multi_molecular()
+        
+        #Map the sr fragments into the individually optimized lr fragments
+        for sr_fragment, lr_fragment, sr_map in zip(self.sr_fragments, self.lr_fragments, maps):
+            lr_map = []
+            for lr_atom in range(lr_fragment.natom):
+                #Find atoms with matching chemid in lr_fragment
+                sr_match = np.where(sr_fragment.atomid == lr_fragment.atomid[lr_atom])[0] #list of matching indexes
+                if sr_match.size == 1:
+                    lr_map.append(sr_map[sr_match[0]])
+                else
+                #add something if array empty
+                    for index in sr_match:
+                        if sr_map[index] in lr_map:
+                            pass
+                        else
+                            lr_map.append(sr_map[index])
+
+            lr_fragment.set_map(lr_map)
+
+
+    def set_surfaces(self):
+        #for all distances
+        for dist in self.distances:
+            #Create a coordinate system with all the fragments
+            #TODO: write the MultiMolSystem class
+            assembled = MultiMolSystem(self.lr_fragments, self.parent)
+            #Set the position of the pivot points in the fragment object
+            #TODO: write the set_pivot_point() method in the class global_system
+            #It must call the creation of a pivot point attribute of the fragment class
+            assembled.set_pivot_points(reactive_atoms)
+            #Create the "surface" attribute (dictionary) as expected by rotd_py
+            #TODO Must return the coordinates of the pivot points from the fragment object,
+            #and a pivot point distances matrix computed in the global_system class.
+            assembled.set_surface()
+            
+            self.surfaces.append(assembled.get_surface())
 

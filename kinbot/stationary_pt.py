@@ -434,7 +434,7 @@ class StationaryPoint:
                 natomi = np.sum(fragi)
                 atomi = atomlist[np.where(np.asarray(fragi) == 1)]
 
-                if vary_charge and charge != 0:
+                if vary_charge and self.charge != 0:
                     multiply = 2
                 else:
                     multiply = 1

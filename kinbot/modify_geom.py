@@ -14,6 +14,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import write
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.data import atomic_numbers, covalent_radii
 
 from kinbot import bfgs
 from kinbot import constants
@@ -272,7 +273,12 @@ def control_changes(species, name, geom, new_geom, changes, bond):
         for j in range(i + 1, species.natom):
             if bond[i][j] == 0:
                 dist = np.linalg.norm(new_geom[i] - new_geom[j])
-                minb = constants.st_bond[''.join(sorted([species.atom[i], species.atom[j]]))]
+                try:
+                    minb = constants.st_bond[''.join(sorted([species.atom[i], species.atom[j]]))]
+                except KeyError:
+                    minb = 1.2 * (covalent_radii[atomic_numbers[species.atom[i]]] 
+                                  + covalent_radii[atomic_numbers[species.atom[j]]])
+
                 if dist < minb:
                     logger.debug("The atoms {} {} are too close after modifications".format(i, j))
                     logger.debug("Species name: " + name)
@@ -334,7 +340,11 @@ def get_coords(species, bond, geom, changes, mode):
             else:
                 if mode == 0:
                     d = np.linalg.norm(geom[i] - geom[j]) ** 2
-                    d_min = (constants.st_bond[''.join(sorted([atom[i], atom[j]]))] * 1.2) ** 2
+                    try:
+                        d_min = (constants.st_bond[''.join(sorted([atom[i], atom[j]]))] * 1.2) ** 2
+                    except KeyError:
+                        d_min = (1.44 * (covalent_radii[atomic_numbers[atom[i]]] 
+                                         + covalent_radii[atomic_numbers[atom[j]]])) ** 2
                     if np.sqrt(d) < 4.:  # use a cutoff of 4 angstroms
                         if bond[i][j] > 0:
                             coords.append([i, j, d, 1. / d])  # use a larger weight for bonds

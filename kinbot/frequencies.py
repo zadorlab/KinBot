@@ -1,4 +1,5 @@
 import numpy as np
+from ase.data import atomic_numbers, covalent_radii
 
 from kinbot import constants
 from kinbot import geometry
@@ -233,7 +234,11 @@ def get_neighbors(ati, visited, forbidden, division, species, natom, checkdist):
                     visited.append(atj)
                     get_neighbors(atj, visited, forbidden, division, species, natom, checkdist)
                 else:
-                    cutoff = constants.st_bond[''.join(sorted(species.atom[atj] + species.atom[ati]))]
+                    try:
+                        cutoff = constants.st_bond[''.join(sorted(species.atom[atj] + species.atom[ati]))]
+                    except KeyError:
+                        cutoff = 1.2 * (covalent_radii[atomic_numbers[species.atom[ati]]] 
+                                        + covalent_radii[atomic_numbers[species.atom[atj]]])
                     if species.dist[atj, ati] < cutoff:
                         division.append(atj)
                         visited.append(atj)

@@ -4,6 +4,7 @@ import math
 import itertools
 
 import numpy as np
+from ase.data import covalent_radii, atomic_numbers
 
 from kinbot import cheminfo
 from kinbot import constants
@@ -216,7 +217,12 @@ class StationaryPoint:
                 if i == j: continue
                 atom_pair = [self.atom[i], self.atom[j]]
                 atom_pair = sorted(atom_pair)
-                if self.dist[i][j] < constants.st_bond[''.join(atom_pair)]:
+                try:
+                    bond_thresh = constants.st_bond[''.join(atom_pair)]
+                except KeyError:
+                    bond_thresh = 1.2 * (covalent_radii[atomic_numbers[atom_pair[0]]] 
+                                         + covalent_radii[atomic_numbers[atom_pair[1]]]) 
+                if self.dist[i][j] < bond_thresh:
                     self.bond[i][j] = 1
 
         max_bond = [constants.st_bond[self.atom[i]] for i in range(self.natom)]

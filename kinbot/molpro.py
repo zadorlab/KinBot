@@ -133,6 +133,8 @@ class Molpro:
         """
         fname = self.get_name(name)
         status = os.path.exists('molpro/' + fname + '.out')
+        if fname == '10000000000000000001':  # proton
+            return 1, 0.0
         if status:
             with open('molpro/' + fname + '.out') as f:
                 lines = f.readlines()

@@ -268,7 +268,7 @@ def main():
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
 
-    logger.info('Finished KinBot at {}'.format(datetime.datetime.now()))
+    logger.info('KinBot finished.')
     try:
         print("Done!")
     except OSError:

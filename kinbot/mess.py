@@ -72,17 +72,10 @@ class MESS:
             self.twotstpl = f.read()
 
 
-    def write_header(self):
+    def write_header(self, lot):
         """
         Create the header block for MESS
         """
-        # Read the header template
-        if self.par['single_point_key'] == 'MYDZA':
-            lot = 'CCSD(T)-F12/cc-pVDZ-f12'
-        elif self.par['single_point_key'] == 'MYTZA':
-            lot = 'CCSD(T)-F12/cc-pVTZ-f12'
-        else:
-            lot = 'CCSD(T)-F12'
         header = self.headertpl.format(LevelOfTheory=lot,
                                        TemperatureList=' '.join([str(ti) for ti in self.par['TemperatureList']]),
                                        PressureList=' '.join([str(pi) for pi in self.par['PressureList']]),
@@ -145,7 +138,8 @@ class MESS:
 
         # create short names for all the species, bimolecular products and barriers
         self.create_short_names()
-        header = self.write_header()
+        header = self.write_header(f'{self.par["high_level_method"]}/'
+                                   f'{self.par["high_level_basis"]}')
 
         # filter ts's with the same reactants and products:
         ts_unique = {}  # key: ts name, value: [prod_name, energy]
@@ -291,8 +285,6 @@ class MESS:
 
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
                 f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
-
-        #uq.format_uqtk_data() 
 
         return 0
 

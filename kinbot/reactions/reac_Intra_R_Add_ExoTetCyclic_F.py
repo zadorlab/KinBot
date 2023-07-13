@@ -1,3 +1,5 @@
+from ase.data import atomic_numbers, covalent_radii
+
 from kinbot import geometry
 from kinbot.reac_General import GeneralReac
 from kinbot import constants
@@ -35,15 +37,23 @@ class IntraRAddExoTetCyclicF(GeneralReac):
 
         elif step < self.max_step:
             self.release_dihedrals(release)
-            fdist1 = constants.st_bond[''.join(sorted(self.species.atom[self.instance[0]] + self.species.atom[self.instance[-2]]))] * 1.0
+            try:
+                fdist1 = constants.st_bond[''.join(sorted(self.species.atom[self.instance[0]] + self.species.atom[self.instance[-2]]))]
+            except KeyError:
+                fdist1 = 1.2 * (covalent_radii[atomic_numbers[self.species.atom[self.instance[0]]]] 
+                                + covalent_radii[atomic_numbers[self.species.atom[self.instance[-2]]]])
             if ''.join(sorted(self.species.atom[self.instance[0]] + self.species.atom[self.instance[-2]])) == 'CO':
                 if ''.join(sorted(self.species.atom[self.instance[-1]] + self.species.atom[self.instance[-2]])) == 'OO':
                     fdist1 = 1.96
                 else:
                     fdist1 = 1.68
             self.set_bond(0, -2, -999, change, step=step-11, stmax=10, findist=fdist1, geom=geom)
+            try:
+                fdist2 = constants.st_bond[''.join(sorted(self.species.atom[self.instance[-1]] + self.species.atom[self.instance[-2]]))]
+            except KeyError:
+                fdist2 = 1.2 * (covalent_radii[atomic_numbers[self.species.atom[self.instance[-1]]]] 
+                                + covalent_radii[atomic_numbers[self.species.atom[self.instance[-2]]]])
             
-            fdist2 = constants.st_bond[''.join(sorted(self.species.atom[self.instance[-1]] + self.species.atom[self.instance[-2]]))] * 1.0
             if ''.join(sorted(self.species.atom[self.instance[-1]] + self.species.atom[self.instance[-2]])) == 'CO':
                 fdist2 = 1.68
             self.set_bond(-1, -2, -999, change, step=step-11, stmax=10, findist=fdist2, geom=geom)

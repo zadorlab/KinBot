@@ -971,8 +971,7 @@ def create_short_names(wells, products, reactions, barrierless):
 
 def create_mess_input(par, wells, products, reactions, barrierless,
                       well_energies, prod_energies, parent, mass, l3done):
-    """
-    When calculating a full pes, the files from the separate wells
+    """When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
     Two things per file need to be updated
     1. the names of all the wells, bimolecular products and ts's
@@ -1004,12 +1003,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     uq = UQ(par)
 
     if l3done:
-        if par['single_point_key'] == 'MYDZA':
-            lot = 'CCSD(T)-F12/cc-pVDZ-f12'
-        elif par['single_point_key'] == 'MYTZA':
-            lot = 'CCSD(T)-F12/cc-pVTZ-f12'
-        else:
-            lot = 'CCSD(T)-F12'
+        lot = 'L3'
     else:
         lot = f'{par["high_level_method"]}/{par["high_level_basis"]}'
 
@@ -1364,6 +1358,8 @@ def get_l3energy(job, par, bls=0):
     else:
         key = par['single_point_key']
 
+    if job == '10000000000000000001':  # proton
+        return 1, 0.0
     if par['single_point_qc'] == 'molpro':
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:
@@ -1698,7 +1694,7 @@ def t1_analysis(lot='TZ'):
         ax2.plot(sorted(T1s), range(len(T1s)))
         ax2.set_xlabel('T1 Diagnostic')
         ax2.set_ylabel('Cumulative counts')
-        fig2.savefig('T1_cum_count.png')
+        fig2.savefig('T1_cumul_count.png')
     else:
         logger.warning('Matplotlib not found. Unable to plot T1 diagnostics '
                         'summary.')

@@ -72,6 +72,12 @@ class Parameters:
             'barrierless_saddle_start': 2.0,
             # step size in Å
             'barrierless_saddle_step': 0.2,
+            # starting distance for vrc_tst scan in Å
+            'vrc_tst_dist_start': 3.0,
+            # starting distance for vrc_tst scan in Å
+            'vrc_tst_dist_stop': 6.0,
+            # step size in Å
+            'vrc_tst_dist_step': 0.2,
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
             # if requested with specific_reaction = 1

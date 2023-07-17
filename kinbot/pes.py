@@ -1065,7 +1065,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
-            # check if barrrieless
+            # check if barrieless
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
@@ -1208,6 +1208,43 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         #uq.format_uqtk_data() 
     return
 
+def create_rotdPy_inputs(par, wells, products, reactions, barrierless,
+                           well_energies, prod_energies, highlight):
+    """
+    Function that create an input file for rotdPy.
+    """
+
+    for reac in barrierless:
+        if len(reac[2]) == 2: #Check if the barrierless reaction has 2 fragments
+            tot_frag = 1
+            for product_chemid in sorted(reac[2]): #set the name of the fragments
+                frag_name = 'frag_' + tot_frag + '_' + product_chemid
+                tot_frag += 1
+           
+            for frag_number in range(0,tot_frag):
+                chemid = sorted(reac[2])[frag_number]
+                parent_chemid = parent.get('_'.join(sorted(reac[2])))
+
+                if par['high_level']:
+                    #Will read info from L2 structure
+                    basename = '{chemid}_well_high'
+                else:
+                    #Will read info from L1 structure
+                    basename = '{chemid}_well'
+
+                #Create ase.atoms objects for each fragments
+                db = connect('{parent_chemid}/kinbot.db')
+                for row in db.select(name='{basename}'):
+                    tmp = row.toatoms() #This is an ase.atoms object
+                    fragments[frag_number] = StationaryPoint.from_ase_atoms(tmp)
+                    fragments[frag_number].__class__ = Fragment
+                    fragments[frag_number].set_parent_chemid(parent_chemid)
+                
+            #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
+            setting_VRC_TST = VRC_TST_surfaces(par, fragments)
+            surfaces_dictionary = setting_VRC_TST.get_surfaces() 
+        #TODO: Get the other necessary info and print in an input file for rotd_py 
+        #Check the import keywords of the new classes
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):

@@ -142,15 +142,17 @@ def createPESViewerInput(species, qc, par):
     # iterate the reactions and search for single products
     # i.e. other wells on the pes
     for index in range(len(species.reac_inst)):
-        if species.reac_ts_done[index] == -1:
-            if len(species.reac_obj[index].prod_opt) == 1:
-                st_pt = species.reac_obj[index].prod_opt[0].species
-                name = str(st_pt.chemid)
-                if name not in well_names:
-                    make_xyz(species.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
-                    energy = (st_pt.energy + st_pt.zpe - well_energy) * constants.AUtoKCAL
-                    wells.append('{name} {energy:.2f}'.format(name=st_pt.chemid, energy=energy))
-                    well_names.append(name)
+        if species.reac_ts_done[index] != -1 \
+                or len(species.reac_obj[index].prod_opt) != 1:
+            continue
+        st_pt = species.reac_obj[index].prod_opt[0].species
+        name = str(st_pt.chemid)
+        if name in well_names:
+            continue
+        make_xyz(species.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
+        energy = (st_pt.energy + st_pt.zpe - well_energy) * constants.AUtoKCAL
+        wells.append(f'{st_pt.chemid} {energy:.2f}')
+        well_names.append(name)
 
     # list of the lines for the pesviewer input file
     bimolecs = []
@@ -158,30 +160,33 @@ def createPESViewerInput(species, qc, par):
     bimolec_names = []
     # add the bimolecular products from the regular reactions
     for index in range(len(species.reac_inst)):
-        if species.reac_ts_done[index] == -1:
-            if len(species.reac_obj[index].prod_opt) > 1:
-                energy = 0. - well_energy
-                names = []
-                for prod_opt in species.reac_obj[index].prod_opt:
-                    st_pt = prod_opt.species
-                    energy += st_pt.energy + st_pt.zpe
-                    names.append(str(st_pt.chemid))
-                name = '_'.join(sorted(names))
+        if species.reac_ts_done[index] != -1 \
+                or len(species.reac_obj[index].prod_opt) <= 1:
+            continue
+        energy = 0. - well_energy
+        names = []
+        for prod_opt in species.reac_obj[index].prod_opt:
+            st_pt = prod_opt.species
+            energy += st_pt.energy + st_pt.zpe
+            names.append(str(st_pt.chemid))
+        name = '_'.join(sorted(names))
 
-                for i, prod_opt in enumerate(species.reac_obj[index].prod_opt):
-                    st_pt = prod_opt.species
-                    with open("pesviewer_data.txt", 'a') as pesdata:
-                        pesdata.write("Species: {}\n\tEnergy: {}\n\tZPE: {}\n".format(st_pt.chemid, st_pt.energy, st_pt.zpe))
-                    # make twice the same file but with a different name
-                    # TODO: is there no better way?
-                    # this is for the pes viewer
-                    make_xyz(st_pt.atom, st_pt.geom, name + str(i + 1), dir_xyz)
-                    # this is for the rmg postprocessing
-                    make_xyz(st_pt.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
-                energy = energy * constants.AUtoKCAL
-                if name not in bimolec_names:
-                    bimolecs.append('{name} {energy:.2f}'.format(name=name, energy=energy))
-                    bimolec_names.append(name)
+        for i, prod_opt in enumerate(species.reac_obj[index].prod_opt):
+            st_pt = prod_opt.species
+            with open('pesviewer_data.txt', 'a') as pesdata:
+                pesdata.write(f'Species: {st_pt.chemid}\n'
+                              f'\tEnergy: {st_pt.energy}\n'
+                              f'\tZPE: {st_pt.zpe}\n')
+            # make twice the same file but with a different name
+            # TODO: is there no better way?
+            # this is for the pes viewer
+            make_xyz(st_pt.atom, st_pt.geom, name + str(i + 1), dir_xyz)
+            # this is for the rmg postprocessing
+            make_xyz(st_pt.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
+        energy = energy * constants.AUtoKCAL
+        if name not in bimolec_names:
+            bimolecs.append(f'{name} {energy:.2f}')
+            bimolec_names.append(name)
 
     # list of the lines of the ts's
     tss = []
@@ -190,41 +195,56 @@ def createPESViewerInput(species, qc, par):
     # value: [energy,prod_names]
     ts_list = {}
     for index in range(len(species.reac_inst)):
-        if species.reac_ts_done[index] == -1:
-            ts = species.reac_obj[index].ts
-            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par['high_level']:
-                we_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
-                we_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
-                energy = (ts.energy + ts.zpe - we_energy - we_zpe) * constants.AUtoKCAL
-            else:
-                energy = (ts.energy + ts.zpe - well_energy) * constants.AUtoKCAL
-            name = []
-            for st_pt in species.reac_obj[index].products:
-                name.append(str(st_pt.chemid))
-            prod_name = '_'.join(sorted(name))
-            add = 1
-            for t in ts_list:
-                if ts_list[t][1] == prod_name and np.abs(ts_list[t][0] - energy) < 1.0:
-                    add = 0
-            if add:
-                ts_list[species.reac_name[index]] = [energy, prod_name]
-                tss.append('{ts} {energy:.2f} {react} {prod}'.format(ts=species.reac_name[index],
-                                                                     energy=energy,
-                                                                     react=species.chemid,
-                                                                     prod=prod_name))
+        if species.reac_ts_done[index] != -1:
+            continue
+        ts = species.reac_obj[index].ts
+        if species.reac_type[index] == 'R_Addition_MultipleBond' \
+                and not par['high_level']:
+            we_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
+            we_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
+            energy = (ts.energy + ts.zpe - we_energy - we_zpe) * constants.AUtoKCAL
+        elif species.reac_type[index] == 'hom_sci':
+            continue
+        else:
+            energy = (ts.energy + ts.zpe - well_energy) * constants.AUtoKCAL
+        name = []
+        for st_pt in species.reac_obj[index].products:
+            name.append(str(st_pt.chemid))
+        prod_name = '_'.join(sorted(name))
+        add = 1
+        for t in ts_list:
+            if ts_list[t][1] == prod_name and np.abs(ts_list[t][0] - energy) < 1.0:
+                add = 0
+        if add:
+            ts_list[species.reac_name[index]] = [energy, prod_name]
+            tss.append(f'{species.reac_name[index]} {energy:.2f} '
+                       f'{species.chemid} {prod_name}')
+    
+    # Barrierless reactions
+    bless = []
+    for index in range(len(species.reac_inst)):
+        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci':
+            continue
+        name = []
+        for st_pt in species.reac_obj[index].products:
+            name.append(str(st_pt.chemid))
+        prod_name = '_'.join(sorted(name))
+        if prod_name not in [v[1] for v in ts_list.values()]:
+            bless.append(f'{species.reac_name[index]} {species.chemid} {prod_name}')
 
     # make strings from the different lists
     wells = '\n'.join(wells)
     bimolecs = '\n'.join(bimolecs)
     tss = '\n'.join(tss)
-    barrierless = ''
+    barrierless = '\n'.join(bless)
 
     # write everything to a file
     fname = 'pesviewer.inp'
     template_file_path = f'{kb_path}/tpl/{fname}.tpl'
     with open(template_file_path) as template_file:
         template = template_file.read()
-    template = template.format(id=species.chemid, wells=wells, bimolecs=bimolecs, ts=tss, barrierless=barrierless)
+    template = template.format(id=species.chemid, wells=wells, ts=tss, 
+                               bimolecs=bimolecs, barrierless=barrierless)
     with open(fname, 'w') as f:
         f.write(template)
 
@@ -233,6 +253,7 @@ def make_xyz(atoms, geom, name, directory):
     s = []
     s.append('%i\n' % len(geom))
     for index in range(len(geom)):
-        s.append('%s %.6f %.6f %.6f' % (atoms[index], geom[index][0], geom[index][1], geom[index][2]))
+        s.append('%s %.6f %.6f %.6f' % (atoms[index], geom[index][0], 
+                                        geom[index][1], geom[index][2]))
     with open(directory + '/' + name + '.xyz', 'w') as f:
         f.write('\n'.join(s))

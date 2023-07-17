@@ -1,3 +1,5 @@
+from ase.data import atomic_numbers, covalent_radii
+
 from kinbot.reac_General import GeneralReac
 from kinbot import constants
 
@@ -35,11 +37,21 @@ class IntraRMigration(GeneralReac):
         elif step == 13:
             self.release_angles(release)
             self.release_dihedrals(release)
-                
-            fval = constants.st_bond[''.join(sorted(self.species.atom[self.instance[0]]+self.species.atom[self.instance[-1]]))]*1.0
+            
+            try:
+                fval = constants.st_bond[''.join(sorted(self.species.atom[self.instance[0]]+self.species.atom[self.instance[-1]]))]
+            except KeyError:
+                fval = 1.2 * (covalent_radii[atomic_numbers[self.species.atom[self.instance[0]]]] 
+                              + covalent_radii[atomic_numbers[self.species.atom[self.instance[-1]]]])
+
             self.set_bond(0, -1, fval, change)
             
-            fval = constants.st_bond[''.join(sorted(self.species.atom[self.instance[-2]]+self.species.atom[self.instance[-1]]))]*1.0
+            try:
+                fval = constants.st_bond[''.join(sorted(self.species.atom[self.instance[-2]]+self.species.atom[self.instance[-1]]))]
+            except KeyError:
+                fval = (covalent_radii[atomic_numbers[self.species.atom[self.instance[-2]]]] 
+                        + covalent_radii[atomic_numbers[self.species.atom[self.instance[-1]]]])
+
             self.set_bond(-2, -1, fval, change)
         
         self.clean_constraints(change, fix)

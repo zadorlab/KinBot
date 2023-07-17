@@ -327,7 +327,7 @@ class ReactionGenerator:
                                 else:
                                     _, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                                     _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
-                                    if self.species.reac_type[index] == 'hom_sci':  
+                                    if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments  
                                         hom_sci_energy += st_pt.energy + st_pt.zpe
                                     st_pt.characterize()  
                                     if chemid != st_pt.chemid:
@@ -378,7 +378,7 @@ class ReactionGenerator:
                                                     combo = comb
                                     combo = combo.astype(bool)
                                     obj.products = list(np.array(obj.products)[combo])
-                                if self.species.reac_type[index] == 'hom_sci': 
+                                if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                                     hom_sci_energy = (hom_sci_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
                                     if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
                                         self.species.reac_ts_done[index] = 3

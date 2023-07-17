@@ -103,8 +103,6 @@ and their associated distances depending on the intermolecular distance.
 
             lr_fragment.set_map(lr_map)
 
-
-<<<<<<< HEAD
     def get_surfaces(self):
         for frag, atom in zip(self.lr_fragments, self.reactive_atoms):
             frag.set_pivot_points(self.distances, atom) #Create the attribute frag.pivot_points: list of atom objects
@@ -116,22 +114,4 @@ and their associated distances depending on the intermolecular distance.
 
     def set_surfaces(self):
         pass
-=======
-    def set_surfaces(self):
-        #for all distances
-        for dist in self.distances:
-            #Create a coordinate system with all the fragments
-            #TODO: write the MultiMolSystem class
-            assembled = MultiMolSystem(self.lr_fragments, self.parent)
-            #Set the position of the pivot points in the fragment object
-            #TODO: write the set_pivot_point() method in the class global_system
-            #It must call the creation of a pivot point attribute of the fragment class
-            assembled.set_pivot_points(reactive_atoms)
-            #Create the "surface" attribute (dictionary) as expected by rotd_py
-            #TODO Must return the coordinates of the pivot points from the fragment object,
-            #and a pivot point distances matrix computed in the global_system class.
-            assembled.set_surface()
-            
-            self.surfaces.append(assembled.get_surface())
->>>>>>> d933ed8721f38ccb90b7892547119dc8b4a7af64
 

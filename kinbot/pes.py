@@ -1214,7 +1214,6 @@ def create_rotdPy_inputs(par, wells, products, reactions, barrierless,
     Function that create an input file for rotdPy.
     """
 
-<<<<<<< HEAD
     for reac in barrierless:
         if len(reac[2]) == 2: #Check if the barrierless reaction has 2 fragments
             tot_frag = 1
@@ -1222,56 +1221,30 @@ def create_rotdPy_inputs(par, wells, products, reactions, barrierless,
                 frag_name = 'frag_' + tot_frag + '_' + product_chemid
                 tot_frag += 1
            
-            for frag_number in range(0,tot_frag):
-=======
-   for reac in barrierless:
-       if len(reac[2]) == 2: #Check if the barrierless reaction has 2 fragments
-           tot_frag = 1
-           for product_chemid in sorted(reac[2]): #set the name of the fragments
-               frag_name = 'frag_' + tot_frag + '_' + product_chemid
-               tot_frag += 1
-           
-           for frag_number in range(0,tot_frag)
->>>>>>> d933ed8721f38ccb90b7892547119dc8b4a7af64
+            for frag_number in range(0,tot_frag)
                 chemid = sorted(reac[2])[frag_number]
                 parent_chemid = parent.get('_'.join(sorted(reac[2])))
 
                 if par['high_level']:
                     #Will read info from L2 structure
                     basename = '{chemid}_well_high'
-<<<<<<< HEAD
                 else:
-=======
-                else
->>>>>>> d933ed8721f38ccb90b7892547119dc8b4a7af64
                     #Will read info from L1 structure
                     basename = '{chemid}_well'
 
                 #Create ase.atoms objects for each fragments
-<<<<<<< HEAD
                 db = connect('{parent_chemid}/kinbot.db')
-=======
-                db = connect('{parent_chemid}/kinbot.db)'
->>>>>>> d933ed8721f38ccb90b7892547119dc8b4a7af64
                 for row in db.select(name='{basename}'):
                     tmp = row.toatoms() #This is an ase.atoms object
                     fragments[frag_number] = StationaryPoint.from_ase_atoms(tmp)
                     fragments[frag_number].__class__ = Fragment
                     fragments[frag_number].set_parent_chemid(parent_chemid)
                 
-<<<<<<< HEAD
             #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
             setting_VRC_TST = VRC_TST_surfaces(par, fragments)
             surfaces_dictionary = setting_VRC_TST.get_surfaces() 
         #TODO: Get the other necessary info and print in an input file for rotd_py 
         #Check the import keywords of the new classes
-=======
-           #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
-           setting_VRC_TST = VRC_TST_surfaces(par, fragments)
-           setting_VRC_TST.set_surfaces() 
-       #TODO: Get the other necessary info and print in an input file for rotd_py 
-       #Check the import keywords of the new classes
->>>>>>> d933ed8721f38ccb90b7892547119dc8b4a7af64
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):

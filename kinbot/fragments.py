@@ -13,8 +13,6 @@ class Fragment(StationaryPoint):
         super(Fragment, self).__init__(self, name, charge, mult, smiles='', structure=None, natom=0,\
                                             atom=None, geom=None, wellorts=0, fragA=None, fragB=None)
 
-<<<<<<< HEAD
-
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
         super(Fragment, self).from_ase_atoms(cls, atoms, **kwargs)
@@ -76,18 +74,3 @@ class Fragment(StationaryPoint):
 
     def set_pp_on_rc(self):
         
-
-
-
-
-
-
-
-
-=======
-    def set_parent_chemid(self, p_chemid):
-        self.parent_chemid = p_chemid
-
-    def set_map(self, p_map)
-        self.map = np.array(p_map, dtype=int)
->>>>>>> d933ed8721f38ccb90b7892547119dc8b4a7af64

@@ -1,16 +1,17 @@
 from kinbot.fragments import Fragment
 from ase.db import connect
 from kinbot.stationary_pt import StationaryPoint
+import numpy as np
 
-class VRC_TST_surfaces()
-'''
-Class that generates a list of pivot points and a list of pivot points
-and their associated distances depending on the intermolecular distance.
-'''
+class VRC_TST_surfaces():
+    '''
+    Class that generates a list of pivot points and a list of pivot points
+    and their associated distances depending on the intermolecular distance.
+    '''
 
-    def __init__(self, par, fragments, distances=None, surfaces=None, nfrag=None, reactive_atoms=None)
+    def __init__(self, par, fragments, distances=None, surfaces=None, nfrag=None, reactive_atoms=None):
         self.distances = []
-        self.distances.append(i for i in arange(par['vrc_tst_dist_start'],
+        self.distances.append(i for i in np.arange(par['vrc_tst_dist_start'],
                                                 par['vrc_tst_dist_stop'],
                                                 par['vrc_tst_dist_step']))
         self.lr_fragments = fragments #Array of Fragment objects
@@ -31,10 +32,10 @@ and their associated distances depending on the intermolecular distance.
     #Create a stationary point object for the parent
     def set_parent(self):
         parent_chemid = self.fragment[0].parent_chemid
-        if par['high_level']:
+        if self.par['high_level']:
             #Will read info from L2 structure
             basename = '{parent_chemid}_well_high'
-        else
+        else:
             #Will read info from L1 structure
             basename = '{parent_chemid}_well'
 
@@ -44,7 +45,7 @@ and their associated distances depending on the intermolecular distance.
             self.parent = StationaryPoint.from_ase_atoms(tmp)
             self.parent.characterize()
 
-    def set_reactive_atoms(self, fragments)
+    def set_reactive_atoms(self, fragments):
         #Recover the index of the reactive atoms from the reaction name.
         summary = open(fragments[0].parent_chemid + '/summary_' + fragments[0].parent_chemid + '.out', 'r').readlines()
         #Check if the line corresponds to the reaction before taking the indices
@@ -58,13 +59,13 @@ and their associated distances depending on the intermolecular distance.
                 #then skip this iteration.
                 if len(pieces[3:]) == len(fragments):
                     pass
-                else
+                else:
                     continue
 
                 for current_product, this_frag in zip(pieces[3:], fragments):
                     if current_parent == this_frag.parent_chemid and current_product == this_frag.chemid:
                         corresponds = 1
-                    else
+                    else:
                         corresponds = 0
                         break
                 #When the reaction is found, create the list of reactive atoms        
@@ -74,10 +75,10 @@ and their associated distances depending on the intermolecular distance.
                     break
 
     def set_order(self):
-    '''
-    Funtion that map the ids of the long-range fragments' atoms
-    from the ids of the parent.
-    '''
+        '''
+        Funtion that map the ids of the long-range fragments' atoms
+        from the ids of the parent.
+        '''
         #Cut the bond in parent
         self.parent.bond[self.reactive_atoms[0]][self.reactive_atoms[1]] = 0
         self.parent.bond[self.reactive_atoms[1]][self.reactive_atoms[0]] = 0
@@ -93,12 +94,12 @@ and their associated distances depending on the intermolecular distance.
                 sr_match = np.where(sr_fragment.atomid == lr_fragment.atomid[lr_atom])[0] #list of matching indexes
                 if sr_match.size == 1:
                     lr_map.append(sr_map[sr_match[0]])
-                else
+                else:
                 #add something if array empty
                     for index in sr_match:
                         if sr_map[index] in lr_map:
                             pass
-                        else
+                        else:
                             lr_map.append(sr_map[index])
 
             lr_fragment.set_map(lr_map)

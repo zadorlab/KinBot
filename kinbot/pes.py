@@ -22,6 +22,8 @@ from kinbot import constants
 from kinbot import license_message
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.fragments import Fragment
+from kinbot.VRC_TST_surfaces import VRC_TST_surfaces
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
@@ -581,6 +583,7 @@ def postprocess(par, jobs, task, names, mass):
                            well_energies,
                            prod_energies,
                            highlight)
+    create_pesviewer_input()
     if par['me']:
         create_mess_input(par,
                           wells,
@@ -1221,9 +1224,9 @@ def create_rotdPy_inputs(par, wells, products, reactions, barrierless,
                 frag_name = 'frag_' + tot_frag + '_' + product_chemid
                 tot_frag += 1
            
-            for frag_number in range(0,tot_frag)
+            for frag_number in range(0,tot_frag):
                 chemid = sorted(reac[2])[frag_number]
-                parent_chemid = parent.get('_'.join(sorted(reac[2])))
+                parent_chemid = reac[0]
 
                 if par['high_level']:
                     #Will read info from L2 structure
@@ -1233,10 +1236,11 @@ def create_rotdPy_inputs(par, wells, products, reactions, barrierless,
                     basename = '{chemid}_well'
 
                 #Create ase.atoms objects for each fragments
+                fragments = []
                 db = connect('{parent_chemid}/kinbot.db')
                 for row in db.select(name='{basename}'):
                     tmp = row.toatoms() #This is an ase.atoms object
-                    fragments[frag_number] = StationaryPoint.from_ase_atoms(tmp)
+                    fragments. append(StationaryPoint.from_ase_atoms(tmp))
                     fragments[frag_number].__class__ = Fragment
                     fragments[frag_number].set_parent_chemid(parent_chemid)
                 

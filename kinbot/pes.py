@@ -1211,8 +1211,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         #uq.format_uqtk_data() 
     return
 
-def create_rotdPy_inputs(par, wells, products, reactions, barrierless,
-                           well_energies, prod_energies, highlight):
+def create_rotdPy_inputs(par, barrierless):
     """
     Function that create an input file for rotdPy.
     """

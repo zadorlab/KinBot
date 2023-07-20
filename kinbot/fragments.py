@@ -28,34 +28,33 @@ class Fragment(StationaryPoint):
     def get_center_of_mass(self):
         super(Fragment, self).get_center_of_mass()
 
-    def set_pivot_points(self, distances, ra_indexes_in_parent):
-        for d in distances: #Distances must be in Angstrom
-            self.pivot_points = []
-            if d >= 12:
+    def set_pivot_points(self, dist, ra_indexes_in_parent):
+        self.pivot_points = []
+        if dist >= 12:
+            self.set_pp_on_com()
+        elif dist >= 10 and dist < 12:
+            self.set_pp_on_com()
+            self.set_ra(ra_indexes_in_parent)
+            for index in self.ra:
+                self.set_pp_on_ra(index)
+        elif dist >= 6 and dist < 10:
+            self.set_ra(ra_indexes_in_parent)
+            for index in self.ra:
+                self.set_pp_on_ra(index)
+        elif dist >= 5 and dist < 6:
+            self.set_ra(ra_indexes_in_parent)
+            for index in self.ra:
+                self.set_pp_on_ra(index)
+            if self.natom == 1:
+                pass
+            else:
+                self.set_pp_next_to_ra()
+        elif dist < 5:
+            self.set_ra(ra_indexes_in_parent)
+            if self.natom == 1:
                 self.set_pp_on_com()
-            elif d >= 10 and d < 12:
-                self.set_pp_on_com()
-                self.set_ra(ra_indexes_in_parent)
-                for index in self.ra:
-                    self.set_pp_on_ra(index)
-            elif d >= 6 and d < 10:
-                self.set_ra(ra_indexes_in_parent)
-                for index in self.ra:
-                    self.set_pp_on_ra(index)
-            elif d >= 5 and d < 6:
-                self.set_ra(ra_indexes_in_parent)
-                for index in self.ra:
-                    self.set_pp_on_ra(index)
-                if self.natom == 1:
-                    pass
-                else:
-                    self.set_pp_next_to_ra()
-            elif d < 5:
-                self.set_ra(ra_indexes_in_parent)
-                if self.natom == 1:
-                    self.set_pp_on_com()
-                else:
-                    self.set_pp_next_to_ra()
+            else:
+                self.set_pp_next_to_ra()
                 
     def set_ra(self, ra_indexes_in_parent): 
         #Find the atomid of all reactive atoms
@@ -78,10 +77,13 @@ class Fragment(StationaryPoint):
 
     def set_pp_next_to_ra(self):
         for index in self.ra:
-            origin = self.geom[index]
             atom_type = self.get_atom_type(index)
             coord = self.get_pp_coord(index, atom_type)
-            self.pivot_points.append(coord)
+            if type(coord) is list:
+                for this_pp in coord:
+                    self.pivot_points.append(this_pp)
+            else:
+                self.pivot_points.append(coord)
 
     def get_atom_type(self, index):
         element = self.atom(index)
@@ -101,8 +103,10 @@ class Fragment(StationaryPoint):
     def get_pp_coord(self, index, atom_type):
         match atom_type:
             case 'H' | 'C' | 'O' | 'S':
+                #Create pivot point on atom
                 self.set_pp_on_ra(index)
             case 'C_lin':
+                #Create pivot point aligned with the bond
                 ra_pos = np.array(self.geom(index), dtype=float)
                 for neighbour_index, this_bond in enumerate(self.bonds[index]):
                     if this_bond != 0:
@@ -114,6 +118,7 @@ class Fragment(StationaryPoint):
                 pp_coord = np.add(ra_pos, pp_vect)
                 return pp_coord
             case 'C_tri':
+                #Create pivot point in the middle of the big angle between the 2 fragments
                 ra_pos = np.array(self.geom(index), dtype=float)
                 neighbour_pos = []
                 for neighbour_index, this_bond in enumerate(self.bonds[index]):
@@ -130,6 +135,7 @@ class Fragment(StationaryPoint):
                 pp_coord = np.add(ra_pos, pp_vect)
                 return pp_coord
             case 'C_quad':
+                #Create one or two pivot points on one or both side of the plane
                 n_pp = 2
                 ra_pos = np.array(self.geom(index), dtype=float)
                 neighbour_pos = []
@@ -152,14 +158,25 @@ class Fragment(StationaryPoint):
                     pp_orient = np.array(unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
                     pp_vect = length * unit_vector(pp_orient)
                     pp_coord = np.add(ra_pos, pp_vect)
-                    return pp_coord
+                    pp_list.append(pp_coord)
+                return pp_list
 
             case 'N_tri':
                 pass
             case 'N_pyr':
                 pass
             case 'O_tri':
-                pass
+                #Create pivot point aligned with the bond
+                ra_pos = np.array(self.geom(index), dtype=float)
+                for neighbour_index, this_bond in enumerate(self.bonds[index]):
+                    if this_bond != 0:
+                        neighbour_pos = np.array(self.geom(neighbour_index), dtype=float)
+                        break
+                pp_orient = np.subtract(ra_pos, neighbour_pos)
+                length = pp_lenght_table(self.atom[index])
+                pp_vect = length * unit_vector(pp_orient)
+                pp_coord = np.add(ra_pos, pp_vect)
+                return pp_coord
             case 'S_tri':
                 pass
             case 'S_pyr':

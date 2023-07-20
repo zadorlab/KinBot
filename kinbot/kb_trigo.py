@@ -44,24 +44,3 @@ def dist_point_to_plane(point, plane):
     e = np.sqrt(np.sum(np.square(abc)))
     return dist/e
 
-from kinbot.pp_tables import *
-
-v1 = np.array([1, 0, 3])
-v2 = np.array([1, 1, 9])
-v3 = np.array([1, 2, 9])
-ra_pos = np.array([1.05, -1, 9])
-
-n_pp = 2
-plane = plane_from_points(v1, v2, v3)
-ra_to_plane = dist_point_to_plane(ra_pos, plane)
-if abs(ra_to_plane) >= .1:
-    #If carbon atom out of plane, only place a single pp on other side of the plane
-    n_pp = 1
-pp_list = []
-plane_direction = unit_vector(np.dot(plane[0], ra_pos))
-length = 0.5
-for i in range(n_pp):
-    pp_orient = np.array(unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
-    pp_vect = length * unit_vector(pp_orient)
-    pp_coord = np.add(ra_pos, pp_vect)
-    pp_list.append(pp_coord)

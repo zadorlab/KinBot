@@ -10,10 +10,7 @@ class VRC_TST_surfaces():
     '''
 
     def __init__(self, par, fragments, distances=None, surfaces=None, nfrag=None, reactive_atoms=None):
-        self.distances = []
-        self.distances.append(i for i in np.arange(par['vrc_tst_dist_start'],
-                                                par['vrc_tst_dist_stop'],
-                                                par['vrc_tst_dist_step']))
+        self.distances = par['vrc_tst_dist_list']
         self.lr_fragments = fragments #Array of Fragment objects
         self.par = par
         self.surfaces = []
@@ -27,8 +24,7 @@ class VRC_TST_surfaces():
     def setup_fragments(self):
         for this_frag in self.lr_fragments:
             this_frag.characterize()
-
-
+            
     #Create a stationary point object for the parent
     def set_parent(self):
         parent_chemid = self.fragment[0].parent_chemid
@@ -105,14 +101,25 @@ class VRC_TST_surfaces():
             lr_fragment.set_map(lr_map)
 
     def get_surfaces(self):
-        for frag, atom in zip(self.lr_fragments, self.reactive_atoms):
-            frag.set_pivot_points(self.distances, atom) #Create the attribute frag.pivot_points: list of atom objects
+        self.divid_surf_block = "divid_surf = [\n"
+        for dist in self.distances: #Distances must be in Angstrom
+            self.ndim = []
+            for frag, atom in zip(self.lr_fragments, self.reactive_atoms): #This line assume one reactive atom by fragment
+                frag.set_pivot_points(dist, atom) #Create the attribute frag.pivot_points: list of atom objects
+                self.ndim.append(len(frag.pivot_points))
+            self.pp_dist = np.zeros(tuple(self.ndim), dtype=float)
+            self.pp_dist[:] = dist #Set all elements of the matrix distance to dist. To elaborate probably
+            self.set_surface()
+        self.divid_surf_block = self.divid_surf_block + "\n]"
+        return self.divid_surf_block
+        
+    def set_surface(self):
+        pp_dict = {}
+        for index, frag in enumerate(self.lr_fragments):
+            pp_dict['{index}'] = "np.array({self.lr_fragments.pivot_points})"
+        distances = "distances = np.array({self.pp_dist})"
 
-        #Create a "surface" dictionary as expected by rotd_py
-        #TODO Must return the coordinates of the pivot points from the fragment object,
-        #and a pivot point distances matrix.
-        self.set_surfaces()
-
-    def set_surfaces(self):
-        pass
-
+        self.divid_surf_block = self.divid_surf_block +\
+                                "Surface(\
+                                        {pp_dict},\n\
+                                        {distances}),"

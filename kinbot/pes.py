@@ -215,7 +215,7 @@ def main():
             for job in waiting:
                 summary_lines.append('\t{}'.format(job))
             with open('pes_summary.txt', 'w') as f:
-                f.write('\n'.join(summary_lines))
+                f.write('\n'.join(summary_lines) + '\n')
             time.sleep(1)
 
     # delete skipped jobs from the jobs before sending to postprocess

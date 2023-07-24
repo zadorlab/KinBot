@@ -517,9 +517,10 @@ def postprocess(par, jobs, task, names, mass):
     batch_submit.reverse()
     batch_submit = '\n'.join(batch_submit)
     batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
-    with open(batch, 'w') as f:
-        f.write(batch_submit)
-    os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
+    if par['queuing'] != 'local':
+        with open(batch, 'w') as f:
+            f.write(batch_submit)
+        os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
 
     if l3done == 1 and par['L3_calc']:
         logger.info('Energies are updated to L3 in ME and PESViewer.')

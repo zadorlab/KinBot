@@ -6,7 +6,6 @@ import sys
 import os
 import stat
 import shutil
-import logging
 import datetime
 import time
 import subprocess
@@ -1428,7 +1427,7 @@ def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
 
 
 def check_status(job, pid):
-    command = ['ps', '-u', 'root', '-N', '-o', 'pid,s,user,%cpu,%mem,etime,args']
+    command = ['ps', 'u',]
     process = subprocess.Popen(command,
                                shell=False,
                                stdout=subprocess.PIPE,
@@ -1439,7 +1438,7 @@ def check_status(job, pid):
     lines = out.split('\n')
     for line in lines:
         if len(line) > 0:
-            if str(pid) == line.split()[0]:
+            if str(pid) == line.split()[1]:
                 return 1
     return 0
 

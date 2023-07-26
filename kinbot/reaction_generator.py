@@ -373,6 +373,9 @@ class ReactionGenerator:
                                     for comb in combs:
                                         if sum(comb * masses) == self.species.mass:
                                             if sum(comb * charges) == self.species.charge:
+                                                logger.info(f'Possible ion combination and energy {ens}, {zpes}')
+                                                logger.info('\tPossible ion combination and energy:'
+                                                        f'{comb} and {[i.chemid for i in obj.products]} at {sum(comb * (ens + zpes))}')
                                                 if sum(comb * (ens + zpes)) < val:
                                                     val = sum(comb * (ens + zpes))
                                                     combo = comb

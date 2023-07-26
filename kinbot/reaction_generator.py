@@ -331,7 +331,7 @@ class ReactionGenerator:
                                         hom_sci_energy += st_pt.energy + st_pt.zpe
                                     st_pt.characterize()  
                                     if chemid != st_pt.chemid:
-                                        obj.products_final.pop(i)
+                                        ##obj.products_final.pop(i)
                                         newfrags, newmaps = st_pt.start_multi_molecular()  # newfrags is list of stpt obj
                                         products_waiting_status[index] = [0 for frag in newfrags]
                                         frag_chemid = []
@@ -339,12 +339,16 @@ class ReactionGenerator:
                                             newfr.characterize()
                                             for prod in frag_unique:
                                                 if newfr.chemid == prod.chemid:
-                                                    newfrags.pop(ii)
+                                                    ##newfrags.pop(ii)
                                                     newfr = prod
-                                                    jj = ii - 1
-                                                    newfrags.insert(jj, newfr)
-                                            jj = ii - 1
-                                            obj.products_final.insert(jj, newfr)
+                                                    ##jj = ii - 1
+                                                    ##newfrags.insert(jj, newfr)
+                                                    #newfrags.append(newfr)
+                                                    newfrags[ii] = newfr
+                                            ##jj = ii - 1
+                                            ##obj.products_final.insert(jj, newfr)
+                                            #obj.products_final.append(newfr)
+                                            obj.products_final[i] = newfr
                                             self.qc.qc_opt(newfr, newfr.geom, 0)
                                             frag_chemid.append(newfr.chemid)
                                         if len(frag_chemid) == 1:
@@ -373,7 +377,6 @@ class ReactionGenerator:
                                     for comb in combs:
                                         if sum(comb * masses) == self.species.mass:
                                             if sum(comb * charges) == self.species.charge:
-                                                logger.info(f'Possible ion combination and energy {ens}, {zpes}')
                                                 logger.info('\tPossible ion combination and energy:'
                                                         f'{comb} and {[i.chemid for i in obj.products]} at {sum(comb * (ens + zpes))}')
                                                 if sum(comb * (ens + zpes)) < val:

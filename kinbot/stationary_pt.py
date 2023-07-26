@@ -441,7 +441,7 @@ class StationaryPoint:
                 atomi = atomlist[np.where(np.asarray(fragi) == 1)]
 
                 if vary_charge and self.charge != 0:
-                    multiply = 2
+                    multiply = 2  # do two versions
                 else:
                     multiply = 1
                 

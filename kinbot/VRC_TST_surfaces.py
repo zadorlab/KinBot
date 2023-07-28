@@ -17,6 +17,7 @@ class VRC_TST_surfaces():
         self.nfrag = len(fragments)
         self.reactive_atoms = [] #Contains a list of integers. These are the order number of the atoms involved in the reaction.
         self.setup_fragments()
+        self.set_fragnames()
         self.set_parent()
         self.set_reactive_atoms()
         self.set_order()
@@ -24,7 +25,30 @@ class VRC_TST_surfaces():
     def setup_fragments(self):
         for this_frag in self.lr_fragments:
             this_frag.characterize()
-            
+
+    def set_fragnames(self):
+        max_frag = 10
+        self.fragnames = []
+        for frag in self.lr_fragments:
+            fragname = (frag.get_chemical_formula())
+            if fragname in self.fragnames:
+                for frag_number in range(max_frag):
+                    if f"{fragname}_{frag_number}" not in self.fragnames:
+                        new_fragname = f"{fragname}_{frag_number}"
+                        self.fragnames[self.fragnames.index(fragname)] = new_fragname
+                        self.fragnames.append(f"{fragname}_{frag_number + 1}")
+            else:
+                if f"{fragname}_0" not in self.fragnames:
+                    self.fragnames.append(fragname)
+                else:
+                    for frag_number in range(max_frag):
+                        if f"{fragname}_{frag_number}" not in self.fragnames:
+                            new_fragname = f"{fragname}_{frag_number}"
+                            self.fragnames.append(new_fragname)
+
+    def get_fragnames(self):
+        return self.fragnames
+    
     #Create a stationary point object for the parent
     def set_parent(self):
         parent_chemid = self.fragment[0].parent_chemid

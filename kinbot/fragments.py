@@ -28,6 +28,12 @@ class Fragment(StationaryPoint):
     def get_center_of_mass(self):
         super(Fragment, self).get_center_of_mass()
 
+    def get_chemical_formula(self):
+        all_elem = ""
+        for elem in self.atom:
+            all_elem += f"{elem}"
+        return all_elem
+    
     def set_pivot_points(self, dist, ra_indexes_in_parent):
         self.pivot_points = []
         if dist >= 12:

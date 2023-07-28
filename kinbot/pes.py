@@ -13,6 +13,7 @@ import subprocess
 import json
 import networkx as nx
 import numpy as np
+import getpass
 from copy import deepcopy
 
 from ase.db import connect
@@ -319,12 +320,14 @@ def postprocess(par, jobs, task, names, mass):
     # read all the jobs
     for ji in jobs:
         try:
-            summary = open(ji + '/summary_' + ji + '.out', 'r').readlines()
+            summary = open(f"{ji}/summary_{ji}.out", "r").readlines()
         except:
             failedwells.append(ji)
+            print("Job failed")
             continue
         # read the summary file
         for line in summary:
+            print(f"The line is {line}")
             if line.startswith('SUCCESS') and 'hom_sci' not in line:
                 pieces = line.split()
                 ts = pieces[2]  # this is the long specific name of the reaction
@@ -546,6 +549,7 @@ def postprocess(par, jobs, task, names, mass):
         logger.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
                      f'{par["high_level_basis"]}) level of theory.')
 
+        
     # if L3 was done and requested, everything below is done with that
     # filter according to tasks
     wells, products, reactions, highlight = filter(par,
@@ -568,11 +572,16 @@ def postprocess(par, jobs, task, names, mass):
 
     barrierless = []
     rxns = []
+    print(reactions)
     for rxn in reactions:
         if rxn[1] == 'barrierless':
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
         else:
             rxns.append([rxn[0], rxn[1], rxn[2], rxn[3]])
+
+    create_rotdPy_inputs(par,
+                         barrierless)
+
 
     # write full pesviewer input
     create_pesviewer_input(par,
@@ -583,7 +592,7 @@ def postprocess(par, jobs, task, names, mass):
                            well_energies,
                            prod_energies,
                            highlight)
-    create_pesviewer_input()
+    
     if par['me']:
         create_mess_input(par,
                           wells,
@@ -1215,8 +1224,9 @@ def create_rotdPy_inputs(par, barrierless):
     """
     Function that create an input file for rotdPy.
     """
-
+    print(f"barierless contains {barrierless}")
     for reac in barrierless:
+        logger.info(f"Creating rotdPy input for reaction {reac}")
         if len(reac[2]) == 2: #Check if the barrierless reaction has 2 fragments
             tot_frag = 1
             for product_chemid in sorted(reac[2]): #set the name of the fragments
@@ -1245,9 +1255,26 @@ def create_rotdPy_inputs(par, barrierless):
                 
             #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
             setting_VRC_TST = VRC_TST_surfaces(par, fragments)
-            surfaces_dictionary = setting_VRC_TST.get_surfaces() 
+            Fragments_block = setting_VRC_TST.get_fragments()
+            Surfaces_block = setting_VRC_TST.get_surfaces()
+            frag_names = setting_VRC_TST.get_fragnames()
+
+
         #TODO: Get the other necessary info and print in an input file for rotd_py 
         #Check the import keywords of the new classes
+        whoami = getpass.getuser()
+        fname = 'rotdPy.inp'
+        template_file_path = f'{kb_path}/tpl/{fname}.tpl'
+        with open(template_file_path) as template_file:
+            template = template_file.read()
+        template = template.format(job_name = reac,
+                                   Fragments_block = Fragments_block,
+                                   Surfaces_block = Surfaces_block,
+                                   whoami = whoami,
+                                   frag_names = frag_names)
+        with open(fname, 'w') as f:
+            f.write(template)
+
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):

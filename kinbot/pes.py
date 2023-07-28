@@ -226,7 +226,7 @@ def main():
             pass
 
     # only keep the jobs we wanted
-    if 'none'not in par['keep_chemids']:
+    if 'none' not in par['keep_chemids']:
         jobs = par['keep_chemids']
 
     postprocess(par, jobs, task, names, well0.mass)

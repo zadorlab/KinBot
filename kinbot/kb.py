@@ -2,6 +2,8 @@ import sys
 import datetime
 import copy
 
+from os.path import isfile
+
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.parameters import Parameters

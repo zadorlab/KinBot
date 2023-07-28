@@ -12,8 +12,10 @@ import subprocess
 import json
 import networkx as nx
 import numpy as np
+import getpass
 from copy import deepcopy
-
+from os.path import join
+from os import listdir
 from ase.db import connect
 
 from kinbot import kb_path
@@ -21,6 +23,8 @@ from kinbot import constants
 from kinbot import license_message
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.fragments import Fragment
+from kinbot.VRC_TST_surfaces import VRC_TST_surfaces
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
@@ -226,8 +230,20 @@ def main():
             pass
 
     # only keep the jobs we wanted
-    if 'none'not in par['keep_chemids']:
+    if 'none' not in par['keep_chemids']:
         jobs = par['keep_chemids']
+
+    for ji in jobs:
+        workdir = os.getcwd()
+        for name in listdir():
+            if name == ji:
+                folder = str(name)
+        loop = 0
+        filename = f"{workdir}/{folder}/summary_{ji}.out"
+        while not os.path.isfile(filename):
+            time.sleep(1)
+            loop +=1
+            print(loop)
 
     postprocess(par, jobs, task, names, well0.mass)
     # make molpro inputs for all keys above
@@ -314,16 +330,35 @@ def postprocess(par, jobs, task, names, mass):
 
     # read all the jobs
     for ji in jobs:
+        workdir = os.getcwd()
+        for name in listdir():
+            if name == ji:
+                folder = str(name)
+        loop = 0
+        while not os.path.isfile(join(workdir + folder + f"summary_{ji}.out")):
+            time.sleep(1)
+            loop +=1
+            print(loop)
+        for name in listdir(folder):
+            if name == f"summary_{ji}.out":
+                file = str(name)
+                print(file)
+
+        print(join(workdir + folder + file))
+        x = open(join(workdir, ji, f"summary_{ji}.out"), 'r')
+        print(x)
         try:
-            summary = open(ji + '/summary_' + ji + '.out', 'r').readlines()
+            summary = open(f"{ji}/summary_{ji}.out", "r").readlines()
         except:
             failedwells.append(ji)
+            print("Job failed")
             continue
         # read the summary file
         for line in summary:
+            print(f"The line is {line}")
             if line.startswith('SUCCESS') and 'hom_sci' not in line:
                 pieces = line.split()
-                ts = pieces[2]  # this is the long specific name of the reaction
+                ts = pieces[2]  #this is the long specific name of the reaction
                 if ts in par['skip_reactions']:
                     continue
                 reactant = ji
@@ -543,6 +578,7 @@ def postprocess(par, jobs, task, names, mass):
         logger.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
                      f'{par["high_level_basis"]}) level of theory.')
 
+        
     # if L3 was done and requested, everything below is done with that
     # filter according to tasks
     wells, products, reactions, highlight = filter(par,
@@ -565,11 +601,16 @@ def postprocess(par, jobs, task, names, mass):
 
     barrierless = []
     rxns = []
+    print(reactions)
     for rxn in reactions:
         if rxn[1] == 'barrierless':
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
         else:
             rxns.append([rxn[0], rxn[1], rxn[2], rxn[3]])
+
+    create_rotdPy_inputs(par,
+                         barrierless)
+
 
     # write full pesviewer input
     create_pesviewer_input(par,
@@ -580,6 +621,7 @@ def postprocess(par, jobs, task, names, mass):
                            well_energies,
                            prod_energies,
                            highlight)
+    
     if par['me']:
         create_mess_input(par,
                           wells,
@@ -1064,7 +1106,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
-            # check if barrrieless
+            # check if barrieless
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
@@ -1206,6 +1248,61 @@ def create_mess_input(par, wells, products, reactions, barrierless,
 
         #uq.format_uqtk_data() 
     return
+
+def create_rotdPy_inputs(par, barrierless):
+    """
+    Function that create an input file for rotdPy.
+    """
+    print(f"barierless contains {barrierless}")
+    for reac in barrierless:
+        logger.info(f"Creating rotdPy input for reaction {reac}")
+        if len(reac[2]) == 2: #Check if the barrierless reaction has 2 fragments
+            tot_frag = 1
+            for product_chemid in sorted(reac[2]): #set the name of the fragments
+                frag_name = 'frag_' + tot_frag + '_' + product_chemid
+                tot_frag += 1
+           
+            for frag_number in range(0,tot_frag):
+                chemid = sorted(reac[2])[frag_number]
+                parent_chemid = reac[0]
+
+                if par['high_level']:
+                    #Will read info from L2 structure
+                    basename = '{chemid}_well_high'
+                else:
+                    #Will read info from L1 structure
+                    basename = '{chemid}_well'
+
+                #Create ase.atoms objects for each fragments
+                fragments = []
+                db = connect('{parent_chemid}/kinbot.db')
+                for row in db.select(name='{basename}'):
+                    tmp = row.toatoms() #This is an ase.atoms object
+                    fragments. append(StationaryPoint.from_ase_atoms(tmp))
+                    fragments[frag_number].__class__ = Fragment
+                    fragments[frag_number].set_parent_chemid(parent_chemid)
+                
+            #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
+            setting_VRC_TST = VRC_TST_surfaces(par, fragments)
+            Fragments_block = setting_VRC_TST.get_fragments()
+            Surfaces_block = setting_VRC_TST.get_surfaces()
+            frag_names = setting_VRC_TST.get_fragnames()
+
+
+        #TODO: Get the other necessary info and print in an input file for rotd_py 
+        #Check the import keywords of the new classes
+        whoami = getpass.getuser()
+        fname = 'rotdPy.inp'
+        template_file_path = f'{kb_path}/tpl/{fname}.tpl'
+        with open(template_file_path) as template_file:
+            template = template_file.read()
+        template = template.format(job_name = reac,
+                                   Fragments_block = Fragments_block,
+                                   Surfaces_block = Surfaces_block,
+                                   whoami = whoami,
+                                   frag_names = frag_names)
+        with open(fname, 'w') as f:
+            f.write(template)
 
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,

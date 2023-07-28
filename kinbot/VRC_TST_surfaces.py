@@ -1,0 +1,149 @@
+from kinbot.fragments import Fragment
+from ase.db import connect
+from kinbot.stationary_pt import StationaryPoint
+import numpy as np
+
+class VRC_TST_surfaces():
+    '''
+    Class that generates a list of pivot points and a list of pivot points
+    and their associated distances depending on the intermolecular distance.
+    '''
+
+    def __init__(self, par, fragments, distances=None, surfaces=None, nfrag=None, reactive_atoms=None):
+        self.distances = par['vrc_tst_dist_list']
+        self.lr_fragments = fragments #Array of Fragment objects
+        self.par = par
+        self.surfaces = []
+        self.nfrag = len(fragments)
+        self.reactive_atoms = [] #Contains a list of integers. These are the order number of the atoms involved in the reaction.
+        self.setup_fragments()
+        self.set_fragnames()
+        self.set_parent()
+        self.set_reactive_atoms()
+        self.set_order()
+
+    def setup_fragments(self):
+        for this_frag in self.lr_fragments:
+            this_frag.characterize()
+
+    def set_fragnames(self):
+        max_frag = 10
+        self.fragnames = []
+        for frag in self.lr_fragments:
+            fragname = (frag.get_chemical_formula())
+            if fragname in self.fragnames:
+                for frag_number in range(max_frag):
+                    if f"{fragname}_{frag_number}" not in self.fragnames:
+                        new_fragname = f"{fragname}_{frag_number}"
+                        self.fragnames[self.fragnames.index(fragname)] = new_fragname
+                        self.fragnames.append(f"{fragname}_{frag_number + 1}")
+            else:
+                if f"{fragname}_0" not in self.fragnames:
+                    self.fragnames.append(fragname)
+                else:
+                    for frag_number in range(max_frag):
+                        if f"{fragname}_{frag_number}" not in self.fragnames:
+                            new_fragname = f"{fragname}_{frag_number}"
+                            self.fragnames.append(new_fragname)
+
+    def get_fragnames(self):
+        return self.fragnames
+    
+    #Create a stationary point object for the parent
+    def set_parent(self):
+        parent_chemid = self.fragment[0].parent_chemid
+        if self.par['high_level']:
+            #Will read info from L2 structure
+            basename = '{parent_chemid}_well_high'
+        else:
+            #Will read info from L1 structure
+            basename = '{parent_chemid}_well'
+
+        db = connect('{parent_chemid}/kinbot.db')
+        for row in db.select(name='{basename}'):
+            tmp = row.toatoms() #This is an ase.atoms object
+            self.parent = StationaryPoint.from_ase_atoms(tmp)
+            self.parent.characterize()
+
+    def set_reactive_atoms(self, fragments):
+        #Recover the index of the reactive atoms from the reaction name.
+        summary = open(fragments[0].parent_chemid + '/summary_' + fragments[0].parent_chemid + '.out', 'r').readlines()
+        #Check if the line corresponds to the reaction before taking the indices
+        for line in summary:
+            if line.startswith('SUCCESS') and 'hom_sci' in line:
+                pieces = line.split()
+                current_parent = pieces[2].split('_')[0]
+
+                corresponds = 0
+                #If this reaction has a number of product different than the number of fragments,
+                #then skip this iteration.
+                if len(pieces[3:]) == len(fragments):
+                    pass
+                else:
+                    continue
+
+                for current_product, this_frag in zip(pieces[3:], fragments):
+                    if current_parent == this_frag.parent_chemid and current_product == this_frag.chemid:
+                        corresponds = 1
+                    else:
+                        corresponds = 0
+                        break
+                #When the reaction is found, create the list of reactive atoms        
+                if corresponds:
+                    for i in pieces[2].split('_')[3:]:
+                        self.reactive_atoms.append(int(i))
+                    break
+
+    def set_order(self):
+        '''
+        Funtion that map the ids of the long-range fragments' atoms
+        from the ids of the parent.
+        '''
+        #Cut the bond in parent
+        self.parent.bond[self.reactive_atoms[0]][self.reactive_atoms[1]] = 0
+        self.parent.bond[self.reactive_atoms[1]][self.reactive_atoms[0]] = 0
+
+        #Find the short-range fragment in the reactant
+        self.sr_fragments, maps = self.parent.start_multi_molecular()
+        
+        #Map the sr fragments into the individually optimized lr fragments
+        for sr_fragment, lr_fragment, sr_map in zip(self.sr_fragments, self.lr_fragments, maps):
+            lr_map = []
+            for lr_atom in range(lr_fragment.natom):
+                #Find atoms with matching chemid in lr_fragment
+                sr_match = np.where(sr_fragment.atomid == lr_fragment.atomid[lr_atom])[0] #list of matching indexes
+                if sr_match.size == 1:
+                    lr_map.append(sr_map[sr_match[0]])
+                else:
+                #add something if array empty
+                    for index in sr_match:
+                        if sr_map[index] in lr_map:
+                            pass
+                        else:
+                            lr_map.append(sr_map[index])
+
+            lr_fragment.set_map(lr_map)
+
+    def get_surfaces(self):
+        self.divid_surf_block = "divid_surf = [\n"
+        for dist in self.distances: #Distances must be in Angstrom
+            self.ndim = []
+            for frag, atom in zip(self.lr_fragments, self.reactive_atoms): #This line assume one reactive atom by fragment
+                frag.set_pivot_points(dist, atom) #Create the attribute frag.pivot_points: list of atom objects
+                self.ndim.append(len(frag.pivot_points))
+            self.pp_dist = np.zeros(tuple(self.ndim), dtype=float)
+            self.pp_dist[:] = dist #Set all elements of the matrix distance to dist. To elaborate probably
+            self.set_surface()
+        self.divid_surf_block = self.divid_surf_block + "\n]"
+        return self.divid_surf_block
+        
+    def set_surface(self):
+        pp_dict = {}
+        for index, frag in enumerate(self.lr_fragments):
+            pp_dict['{index}'] = "np.array({self.lr_fragments.pivot_points})"
+        distances = "distances = np.array({self.pp_dist})"
+
+        self.divid_surf_block = self.divid_surf_block +\
+                                "Surface(\
+                                        {pp_dict},\n\
+                                        {distances}),"

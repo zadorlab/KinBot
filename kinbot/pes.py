@@ -15,7 +15,8 @@ import networkx as nx
 import numpy as np
 import getpass
 from copy import deepcopy
-
+from os.path import join
+from os import listdir
 from ase.db import connect
 
 from kinbot import kb_path
@@ -230,8 +231,20 @@ def main():
             pass
 
     # only keep the jobs we wanted
-    if 'none'not in par['keep_chemids']:
+    if 'none' not in par['keep_chemids']:
         jobs = par['keep_chemids']
+
+    for ji in jobs:
+        workdir = os.getcwd()
+        for name in listdir():
+            if name == ji:
+                folder = str(name)
+        loop = 0
+        filename = f"{workdir}/{folder}/summary_{ji}.out"
+        while not os.path.isfile(filename):
+            time.sleep(1)
+            loop +=1
+            print(loop)
 
     postprocess(par, jobs, task, names, well0.mass)
     # make molpro inputs for all keys above
@@ -319,6 +332,23 @@ def postprocess(par, jobs, task, names, mass):
 
     # read all the jobs
     for ji in jobs:
+        workdir = os.getcwd()
+        for name in listdir():
+            if name == ji:
+                folder = str(name)
+        loop = 0
+        while not os.path.isfile(join(workdir + folder + f"summary_{ji}.out")):
+            time.sleep(1)
+            loop +=1
+            print(loop)
+        for name in listdir(folder):
+            if name == f"summary_{ji}.out":
+                file = str(name)
+                print(file)
+
+        print(join(workdir + folder + file))
+        x = open(join(workdir, ji, f"summary_{ji}.out"), 'r')
+        print(x)
         try:
             summary = open(f"{ji}/summary_{ji}.out", "r").readlines()
         except:
@@ -330,7 +360,7 @@ def postprocess(par, jobs, task, names, mass):
             print(f"The line is {line}")
             if line.startswith('SUCCESS') and 'hom_sci' not in line:
                 pieces = line.split()
-                ts = pieces[2]  # this is the long specific name of the reaction
+                ts = pieces[2]  #this is the long specific name of the reaction
                 if ts in par['skip_reactions']:
                     continue
                 reactant = ji

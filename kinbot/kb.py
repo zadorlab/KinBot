@@ -62,7 +62,7 @@ def main():
                                 structure=par['structure'])
         well0.short_name = 'w1'
         # write the initial reactant geometry to a file for visualization
-        with open('geometry.xyz', 'w') as geom_out:
+        with open('initial_geometry.xyz', 'w') as geom_out:
             geom_out.write('{}\n\n'.format(well0.natom))
             for i, at in enumerate(well0.atom):
                 x, y, z = well0.geom[i]
@@ -268,7 +268,7 @@ def main():
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
 
-    logger.info('Finished KinBot at {}'.format(datetime.datetime.now()))
+    logger.info('KinBot finished.')
     try:
         print("Done!")
     except OSError:

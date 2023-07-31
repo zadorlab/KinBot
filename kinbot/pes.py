@@ -6,7 +6,6 @@ import sys
 import os
 import stat
 import shutil
-import logging
 import datetime
 import time
 import subprocess
@@ -216,7 +215,7 @@ def main():
             for job in waiting:
                 summary_lines.append('\t{}'.format(job))
             with open('pes_summary.txt', 'w') as f:
-                f.write('\n'.join(summary_lines))
+                f.write('\n'.join(summary_lines) + '\n')
             time.sleep(1)
 
     # delete skipped jobs from the jobs before sending to postprocess
@@ -227,7 +226,7 @@ def main():
             pass
 
     # only keep the jobs we wanted
-    if 'none'not in par['keep_chemids']:
+    if 'none' not in par['keep_chemids']:
         jobs = par['keep_chemids']
 
     postprocess(par, jobs, task, names, well0.mass)
@@ -278,7 +277,6 @@ def get_wells(job):
     
 
 def postprocess(par, jobs, task, names, mass):
-
     """
     postprocess a pes search
     par: parameters of the search
@@ -454,7 +452,7 @@ def postprocess(par, jobs, task, names, mass):
         zpe = get_zpe(parent[well], well, 0, par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
-        if not status and par['queuing'] != 'local':
+        if not status:
             l3done = 0  # not all L3 calculations are done
             batch_submit += f'{cmd} {well}.{ext}\n'
         elif not par['L3_calc']:
@@ -471,7 +469,7 @@ def postprocess(par, jobs, task, names, mass):
             zpe = get_zpe(parent[prods], pr, 0, par['high_level'])
             energy += zpe
             status, l3e = get_l3energy(pr, par)
-            if not status and par['queuing'] != 'local':
+            if not status:
                 l3done = 0  # not all L3 calculations are done
                 batch_submit += f'{cmd} {pr}.{ext}\n'
             elif not par['L3_calc']:
@@ -493,7 +491,7 @@ def postprocess(par, jobs, task, names, mass):
 
                 status_prod, l3energy_prod = get_l3energy(reac[1] + '_prod', par, bls=1)
 
-                if not status * status_prod and par['queuing'] != 'local':
+                if not status * status_prod:
                     l3done = 0
                     batch_submit += f'{cmd} {reac[1]}.{ext}\n'
                 elif not par['L3_calc']:
@@ -505,7 +503,7 @@ def postprocess(par, jobs, task, names, mass):
             else:
                 zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
                 status, l3energy = get_l3energy(reac[1], par)
-                if not status and par['queuing'] != 'local':
+                if not status:
                     l3done = 0
                     batch_submit += f'{cmd} {reac[1]}.{ext}\n'
                 elif not par['L3_calc']:
@@ -519,9 +517,10 @@ def postprocess(par, jobs, task, names, mass):
     batch_submit.reverse()
     batch_submit = '\n'.join(batch_submit)
     batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
-    with open(batch, 'w') as f:
-        f.write(batch_submit)
-    os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
+    if par['queuing'] != 'local':
+        with open(batch, 'w') as f:
+            f.write(batch_submit)
+        os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
 
     if l3done == 1 and par['L3_calc']:
         logger.info('Energies are updated to L3 in ME and PESViewer.')
@@ -971,8 +970,7 @@ def create_short_names(wells, products, reactions, barrierless):
 
 def create_mess_input(par, wells, products, reactions, barrierless,
                       well_energies, prod_energies, parent, mass, l3done):
-    """
-    When calculating a full pes, the files from the separate wells
+    """When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
     Two things per file need to be updated
     1. the names of all the wells, bimolecular products and ts's
@@ -1004,12 +1002,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     uq = UQ(par)
 
     if l3done:
-        if par['single_point_key'] == 'MYDZA':
-            lot = 'CCSD(T)-F12/cc-pVDZ-f12'
-        elif par['single_point_key'] == 'MYTZA':
-            lot = 'CCSD(T)-F12/cc-pVTZ-f12'
-        else:
-            lot = 'CCSD(T)-F12'
+        lot = 'L3'
     else:
         lot = f'{par["high_level_method"]}/{par["high_level_basis"]}'
 
@@ -1364,6 +1357,8 @@ def get_l3energy(job, par, bls=0):
     else:
         key = par['single_point_key']
 
+    if job == '10000000000000000001':  # proton
+        return 1, 0.0
     if par['single_point_qc'] == 'molpro':
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:
@@ -1432,7 +1427,7 @@ def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
 
 
 def check_status(job, pid):
-    command = ['ps', '-u', 'root', '-N', '-o', 'pid,s,user,%cpu,%mem,etime,args']
+    command = ['ps', 'u',]
     process = subprocess.Popen(command,
                                shell=False,
                                stdout=subprocess.PIPE,
@@ -1443,7 +1438,7 @@ def check_status(job, pid):
     lines = out.split('\n')
     for line in lines:
         if len(line) > 0:
-            if str(pid) == line.split()[0]:
+            if str(pid) == line.split()[1]:
                 return 1
     return 0
 
@@ -1697,7 +1692,7 @@ def t1_analysis(lot='TZ'):
         ax2.plot(sorted(T1s), range(len(T1s)))
         ax2.set_xlabel('T1 Diagnostic')
         ax2.set_ylabel('Cumulative counts')
-        fig2.savefig('T1_cum_count.png')
+        fig2.savefig('T1_cumul_count.png')
     else:
         logger.warning('Matplotlib not found. Unable to plot T1 diagnostics '
                         'summary.')

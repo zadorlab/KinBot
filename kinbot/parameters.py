@@ -118,6 +118,8 @@ class Parameters:
             'max_dihed': 5,
             # Number of random conformers in case no exhaustive search is done
             'random_conf': 500,
+            # Dihedral angle to consider a section of a ring flat
+            'flat_ring_dih_angle': 5.,
             # Maximum number of diherals for which exhaustive
             # comformation searches are done at semi empirical level
             'max_dihed_semi_emp': 5,

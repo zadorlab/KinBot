@@ -41,14 +41,16 @@ class Nn_surr(Calculator):
         self.surrogate = Nnpes_calc(fname, self.multinn)
         self.tnsr = tnsr
     
-    def calculate(self, atoms=None, properties=['energy', 'forces'], system_changes=all_changes, args=None):
+    def calculate(self, atoms=None, properties=['energy', 'forces'], 
+                  system_changes=all_changes, args=None):
         Calculator.calculate(self, atoms, properties, system_changes)
         if 'forces' in properties:
             favail = True
         else:
             favail = False
         xyzd = [[[s for s in atoms.symbols], np.array(atoms.positions)]]
-        self.surrogate.dpes.aev_from_xyz(xyzd, 32, 8, 8, [6.0, 4.0], False, self.surrogate.myaev)
+        self.surrogate.dpes.aev_from_xyz(xyzd, 32, 8, 8, [6.0, 4.0], False, 
+                                         self.surrogate.myaev)
         self.surrogate.nforce = self.surrogate.dpes.full_symb_data[0].__len__() * 3
 
         if self.multinn:
@@ -72,7 +74,8 @@ class Nn_surr(Calculator):
             self.results['energy'] = float(energy)
             self.results['energy_std'] = float(Estd)
             if favail:
-                self.results['forces'] = np.reshape(force.detach().numpy(), (-1, 3))
+                self.results['forces'] = np.reshape(force.detach().numpy(), 
+                                                    (-1, 3))
                 self.results['forces_std'] = Fstd.detach().numpy()
 
 
@@ -99,13 +102,15 @@ class Nnpes_calc():
     def __init__(self, fname, multinn=False):
         self.dpes = data.Data_pes(['C', 'H'])
         # self.myaev = self.dpes.prep_aev()  # Normal AEV
-        self.myaev = self.dpes.prep_aev(R_c=[6.0,4.0])  # AEV modification
+        self.myaev = self.dpes.prep_aev(nrho_rad=16, nrho_ang=8, nalpha=8, 
+                                        R_c=[5.2,3.8])  # AEV modification
         # self.myaev = self.dpes.prep_aev(nrho_rad=16, nrho_ang=4, nalpha=8)  # Small net
         if multinn:
             self.nmodel = fname.__len__()
             options = [My_args('Comp', fnm, 'hfonly') for fnm in fname]
             self.dpes.device = options[0].device
-            self.nn_pes = [pes.prep_model(True, opts, load_opt=False) for opts in options]
+            self.nn_pes = [pes.prep_model(True, opts, load_opt=False) 
+                           for opts in options]
         else:
             self.nmodel = 1
             options = My_args('Comp', fname, 'hfonly')
@@ -118,7 +123,8 @@ class Nnpes_calc():
         self.dpes.indvout = indvout
         self.dpes.ymax = np.max([y[-1] for y in self.dpes.xdat])
         self.dpes.ymin = np.min([y[-1] for y in self.dpes.xdat])
-        self.dpes.xb = [[xt.requires_grad_() for xt in self.dpes.xb[b]] for b in range(self.dpes.nbt)]
+        self.dpes.xb = [[xt.requires_grad_() for xt in self.dpes.xb[b]] 
+                        for b in range(self.dpes.nbt)]
         if self.nmodel == 1:
             self.E_lf, self.E_hf = self.nn_pes.eval_dl(self.dpes)
             E_pred = self.E_hf
@@ -176,11 +182,15 @@ def main():
 
 
     #atoms = Atoms(['C', 'H', 'C'],
-    #              [(1.734285, 1.257951, 0.130304), (3.016641, 1.515035, 0.130976), (1.617565, -0.19116, -0.177416)])
+    #              [(1.734285, 1.257951, 0.130304), 
+    #               (3.016641, 1.515035, 0.130976), 
+    #               (1.617565, -0.19116, -0.177416)])
 
     xyz_db = [[
         ['C', 'H', 'C'],
-        np.array([[1.734285, 1.257951, 0.130304], [3.016641, 1.515035, 0.130976], [1.617565, -0.19116, -0.177416]])
+        np.array([[1.734285, 1.257951, 0.130304], 
+                  [3.016641, 1.515035, 0.130976], 
+                  [1.617565, -0.19116, -0.177416]])
     ]]
 
     # simple test
@@ -194,7 +204,8 @@ def main():
             print('System:',atoms)
             print('Energy:', surr.results['energy'])
             print('Forces:\n', surr.results['forces'])
-            print('Numerical forces with ASE:\n', surr.calculate_numerical_forces(atoms))
+            print('Numerical forces with ASE:\n', 
+                  surr.calculate_numerical_forces(atoms))
 
     print("avg nn:")
     surr  = Nn_surr(fn_nn,tnsr=False)
@@ -205,7 +216,8 @@ def main():
         print('System:',atoms)
         print('Energy:', surr.results['energy'])
         print('Forces:\n', surr.results['forces'])
-        print('Numerical forces with ASE:\n', surr.calculate_numerical_forces(atoms))
+        print('Numerical forces with ASE:\n', 
+              surr.calculate_numerical_forces(atoms))
 
 
 if __name__ == "__main__":

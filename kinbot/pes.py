@@ -13,6 +13,7 @@ import json
 import networkx as nx
 import numpy as np
 import getpass
+
 from copy import deepcopy
 from os.path import join
 from os import listdir
@@ -21,10 +22,11 @@ from ase.db import connect
 from kinbot import kb_path
 from kinbot import constants
 from kinbot import license_message
+from kinbot import pp_settings
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
-from kinbot.VRC_TST_surfaces import VRC_TST_surfaces
+from kinbot.vrc_tst_surfaces import VRC_TST_Surface
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
@@ -32,10 +34,10 @@ from kinbot.config_log import config_log
 
 def main():
     if sys.version_info.major < 3:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print(f'KinBot only runs with python 3.10 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
-    elif sys.version_info.minor < 8:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+    elif sys.version_info.minor < 10:
+        print(f'KinBot only runs with python 3.10 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
 
     try:
@@ -233,18 +235,6 @@ def main():
     if 'none' not in par['keep_chemids']:
         jobs = par['keep_chemids']
 
-    for ji in jobs:
-        workdir = os.getcwd()
-        for name in listdir():
-            if name == ji:
-                folder = str(name)
-        loop = 0
-        filename = f"{workdir}/{folder}/summary_{ji}.out"
-        while not os.path.isfile(filename):
-            time.sleep(1)
-            loop +=1
-            print(loop)
-
     postprocess(par, jobs, task, names, well0.mass)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission
@@ -330,32 +320,13 @@ def postprocess(par, jobs, task, names, mass):
 
     # read all the jobs
     for ji in jobs:
-        workdir = os.getcwd()
-        for name in listdir():
-            if name == ji:
-                folder = str(name)
-        loop = 0
-        while not os.path.isfile(join(workdir + folder + f"summary_{ji}.out")):
-            time.sleep(1)
-            loop +=1
-            print(loop)
-        for name in listdir(folder):
-            if name == f"summary_{ji}.out":
-                file = str(name)
-                print(file)
-
-        print(join(workdir + folder + file))
-        x = open(join(workdir, ji, f"summary_{ji}.out"), 'r')
-        print(x)
         try:
             summary = open(f"{ji}/summary_{ji}.out", "r").readlines()
         except:
             failedwells.append(ji)
-            print("Job failed")
             continue
         # read the summary file
         for line in summary:
-            print(f"The line is {line}")
             if line.startswith('SUCCESS') and 'hom_sci' not in line:
                 pieces = line.split()
                 ts = pieces[2]  #this is the long specific name of the reaction
@@ -601,7 +572,6 @@ def postprocess(par, jobs, task, names, mass):
 
     barrierless = []
     rxns = []
-    print(reactions)
     for rxn in reactions:
         if rxn[1] == 'barrierless':
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
@@ -1253,56 +1223,110 @@ def create_rotdPy_inputs(par, barrierless):
     """
     Function that create an input file for rotdPy.
     """
-    print(f"barierless contains {barrierless}")
     for reac in barrierless:
-        logger.info(f"Creating rotdPy input for reaction {reac}")
+        job_name = "_".join(reac[:2]) + "_" + "_".join(reac[2])
+        logger.info(f"Creating rotdPy input for reaction {job_name}")
+        parent_chemid = reac[0]
         if len(reac[2]) == 2: #Check if the barrierless reaction has 2 fragments
-            tot_frag = 1
-            for product_chemid in sorted(reac[2]): #set the name of the fragments
-                frag_name = 'frag_' + tot_frag + '_' + product_chemid
-                tot_frag += 1
-           
-            for frag_number in range(0,tot_frag):
-                chemid = sorted(reac[2])[frag_number]
-                parent_chemid = reac[0]
+            tot_frag = len(reac[2])
+
+            fragments = []
+            for frag_number in range(tot_frag):
+                chemid = reac[2][frag_number]
 
                 if par['high_level']:
                     #Will read info from L2 structure
-                    basename = '{chemid}_well_high'
+                    basename = f"{chemid}_well_high"
                 else:
                     #Will read info from L1 structure
-                    basename = '{chemid}_well'
+                    basename = f"{chemid}_well"
 
                 #Create ase.atoms objects for each fragments
-                fragments = []
-                db = connect('{parent_chemid}/kinbot.db')
-                for row in db.select(name='{basename}'):
-                    tmp = row.toatoms() #This is an ase.atoms object
-                    fragments. append(StationaryPoint.from_ase_atoms(tmp))
-                    fragments[frag_number].__class__ = Fragment
-                    fragments[frag_number].set_parent_chemid(parent_chemid)
-                
+                db = connect(f"{parent_chemid}/kinbot.db")
+                for row in db.select(name=f"{basename}"):
+                    atoms = row.toatoms() #This is an ase.atoms object
+                    fragments.append(Fragment.from_ase_atoms(atoms=atoms,
+                                                            frag_number=frag_number,
+                                                            max_frag=tot_frag,
+                                                            chemid=chemid,
+                                                            parent_chemid=parent_chemid,
+                                                            ))
+            if par['high_level']:
+                #Will read info from L2 structure
+                basename = f'{parent_chemid}_well_high'
+            else:
+                #Will read info from L1 structure
+                basename = f'{parent_chemid}_well'
+
+            db = connect(f'{parent_chemid}/kinbot.db')
+            for row in db.select(name=f'{basename}'):
+                parent = StationaryPoint.from_ase_atoms(row.toatoms())#This is an ase.atoms object
+                parent.characterize()
+
             #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
-            setting_VRC_TST = VRC_TST_surfaces(par, fragments)
-            Fragments_block = setting_VRC_TST.get_fragments()
-            Surfaces_block = setting_VRC_TST.get_surfaces()
-            frag_names = setting_VRC_TST.get_fragnames()
+            fragnames = Fragment.get_fragnames()
+            reactive_atoms = pp_settings.get_ra(reac)
+            #Map the long range fragments with the index of the parent to find 
+            pp_settings.set_order(parent, reactive_atoms, fragments)
+            #Make sure the reactive atoms are in the same order as the fragments
+            reactive_atoms = pp_settings.reset_reactive_atoms(reactive_atoms,[frag.map for frag in fragments])
 
+            #Set the pivot points on each fragments and create the surfaces
+            surfaces = []
+            for dist in par['vrc_tst_dist_list']:
+                n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
+                for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
+                    frag.set_pivot_points(dist, atom)
+                    n_pp.append(len(frag.pivot_points))
+                pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                pp_dist[:] = dist
+                
+                surfaces.append(VRC_TST_Surface(fragments, pp_dist))
 
-        #TODO: Get the other necessary info and print in an input file for rotd_py 
-        #Check the import keywords of the new classes
-        whoami = getpass.getuser()
-        fname = 'rotdPy.inp'
-        template_file_path = f'{kb_path}/tpl/{fname}.tpl'
+            #Creating the strings to print input file
+            #Fragments block:
+            Fragments_block = ""
+            for frag in fragments:
+                Fragments_block = Fragments_block + (repr(frag)) + "\n"
+
+            #Surfaces block:
+            Surfaces_block = "divid_surf = [\n"
+            for surf in surfaces:
+                Surfaces_block= Surfaces_block + (repr(surf))
+            Surfaces_block= Surfaces_block + "]\n" 
+
+            #Calc_block:
+            whoami = getpass.getuser()
+            Calc_block = "calc = {\n" +\
+                        "'code': 'molpro',\n" +\
+                        f"'scratch': '/scratch/{whoami}',\n" +\
+                        f"'processors': {par['single_point_ppn']},\n" +\
+                        f"'queue': '{par['queuing']}',\n" +\
+                        "'max_jobs': 20}"
+
+            #Flux block:
+            Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 2,\
+                  'tot_smp_max': 10000, 'tot_smp_min': 50,\
+                  'flux_rel_err': 10.0, 'smp_len': 1}"
+
+        fname = f"{job_name}.inp"
+        folder = "rotdPy"
+        template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
         with open(template_file_path) as template_file:
             template = template_file.read()
-        template = template.format(job_name = reac,
+            new_input = template.format(job_name = job_name,
                                    Fragments_block = Fragments_block,
                                    Surfaces_block = Surfaces_block,
-                                   whoami = whoami,
-                                   frag_names = frag_names)
-        with open(fname, 'w') as f:
-            f.write(template)
+                                   frag_names = fragnames,
+                                   calc_block = Calc_block,
+                                   flux_block = Flux_block,
+                                   min_dist = par['vrc_tst_dist_list'][0])
+        if not os.path.exists(folder):
+            # Create a new directory because it does not exist
+            os.makedirs(folder)
+
+        with open(f"{folder}/{fname}", 'w') as f:
+            f.write(new_input)
 
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
@@ -1331,7 +1355,6 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
 
     ts_lines = []
     for rxn in reactions:
-        high = ''
         if rxn[1] in highlight:
             high = 'red'
         prod_name = '_'.join(sorted(rxn[2]))

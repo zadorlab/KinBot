@@ -47,7 +47,6 @@ temperature = generate_grid(10, 10, 1.05, 2)
 energy = generate_grid(0, 10, 1.05, 2)
 angular_mom = generate_grid(0, 1, 1.1, 2)
 
-print(temperature)
 # fragment info
 {Fragments_block}
 
@@ -59,20 +58,14 @@ print(temperature)
 
 # how to sample the two fragments
 # calc = 'amp.amp'
-calc = {'code': 'molpro',
-        'scratch': '/scratch/{whoami}',
-        'processors': 4,
-        'queue': 'slurm',
-        'max_jobs': 20}
+{calc_block}
 
 r_inf = -79.47971696  # RS2/cc-pvtz
 {job_name} = MultiSample(fragments={frag_names}, inf_energy=r_inf,
                          energy_size=1, min_fragments_distance={min_dist})
 
 # the flux info
-flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 2,
-                  'tot_smp_max': 10000, 'tot_smp_min': 50,
-                  'flux_rel_err': 10.0, 'smp_len': 1}
+{flux_block}
 
 flux_base = FluxBase(temp_grid=temperature,
                      energy_grid=energy,

@@ -28,7 +28,7 @@ If you are using this tool in scientific publications, please reference the foll
 
 ```
 @article{Zador2022,
-   author = {Z\'ador, Judit and Martí, Carles and Van de Vijver, Ruben and Johansen, Sommer L. and Yang, Yoona and Michelsen, Hope A. and Najm, Habib N.},
+   author = {Z\'ador, Judit and Mart\'i, Carles and Van de Vijver, Ruben and Johansen, Sommer L. and Yang, Yoona and Michelsen, Hope A. and Najm, Habib N.},
    title = {Automated reaction kinetics of gas-phase organic species over multiwell potential energy surfaces},
    journal = {J. Phys. Chem. A},
    volume = {127},

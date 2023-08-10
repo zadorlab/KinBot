@@ -175,7 +175,7 @@ class Fragment(StationaryPoint):
         nconnect = 0
         ndouble = 0
         ntriple = 0
-        for this_bond in np.array(self.bonds)[0, index]:
+        for this_bond in np.array(self.bond)[ index]:
             nconnect += this_bond
             match this_bond:
                 case 2:
@@ -204,11 +204,11 @@ class Fragment(StationaryPoint):
                 return pp_coord
             case 'C_tri':
                 #Create pivot point in the middle of the big angle between the 2 fragments
-                ra_pos = np.array(self.geom(index), dtype=float)
+                ra_pos = np.array(self.geom[index], dtype=float)
                 neighbour_pos = []
-                for neighbour_index, this_bond in enumerate(self.bonds[index]):
+                for neighbour_index, this_bond in enumerate(self.bond[index]):
                     if this_bond != 0:
-                        neighbour_pos.append(np.array(self.geom(neighbour_index), dtype=float))
+                        neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
                 v1 = np.subtract(neighbour_pos[0], ra_pos)
                 v2 = np.subtract(neighbour_pos[1], ra_pos)
                 small_angle = angle_between(v1, v2)
@@ -252,16 +252,34 @@ class Fragment(StationaryPoint):
                 pass
             case 'O_tri':
                 #Create pivot point aligned with the bond
-                ra_pos = np.array(self.geom(index), dtype=float)
-                for neighbour_index, this_bond in enumerate(self.bonds[index]):
+                ra_pos = np.array(self.geom[index], dtype=float)
+                for neighbour_index, this_bond in enumerate(self.bond[index]):
                     if this_bond != 0:
-                        neighbour_pos = np.array(self.geom(neighbour_index), dtype=float)
+                        neighbour_pos = np.array(self.geom[neighbour_index], dtype=float)
                         break
                 pp_orient = np.subtract(ra_pos, neighbour_pos)
                 length = pp_lenght_table(self.atom[index])
                 pp_vect = length * unit_vector(pp_orient)
                 pp_coord = np.add(ra_pos, pp_vect)
                 return pp_coord
+            case 'O_quad':
+                #Create pivot point in the middle of the big angle between the 2 neighbours
+                ra_pos = np.array(self.geom[index], dtype=float)
+                neighbour_pos = []
+                for neighbour_index, this_bond in enumerate(self.bond[index]):
+                    if this_bond != 0:
+                        neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
+                v1 = np.subtract(neighbour_pos[0], ra_pos)
+                v2 = np.subtract(neighbour_pos[1], ra_pos)
+                small_angle = angle_between(v1, v2)
+                big_angle = 2*pi - small_angle
+                axis = unit_vector(np.cross(v2, v1))
+                pp_orient = np.dot(rotation_matrix(axis, big_angle/2), v1)
+                length = pp_lenght_table(self.atom[index])
+                pp_vect = length * unit_vector(pp_orient)
+                pp_coord = np.add(ra_pos, pp_vect)
+                return pp_coord
+
             case 'S_tri':
                 pass
             case 'S_pyr':

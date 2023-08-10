@@ -1243,25 +1243,25 @@ def create_rotdPy_inputs(par, barrierless):
 
                 #Create ase.atoms objects for each fragments
                 db = connect(f"{parent_chemid}/kinbot.db")
-                for row in db.select(name=f"{basename}"):
-                    atoms = row.toatoms() #This is an ase.atoms object
-                    fragments.append(Fragment.from_ase_atoms(atoms=atoms,
-                                                            frag_number=frag_number,
-                                                            max_frag=tot_frag,
-                                                            chemid=chemid,
-                                                            parent_chemid=parent_chemid,
+                *_, last_row = db.select(name=f"{basename}", sort="-1")
+                atoms = last_row.toatoms() #This is an ase.atoms object
+                fragments.append(Fragment.from_ase_atoms(atoms=atoms,
+                                                        frag_number=frag_number,
+                                                        max_frag=tot_frag,
+                                                        chemid=chemid,
+                                                        parent_chemid=parent_chemid,
                                                             ))
             if par['high_level']:
                 #Will read info from L2 structure
-                basename = f'{parent_chemid}_well_high'
+                basename = f"{parent_chemid}_well_high"
             else:
                 #Will read info from L1 structure
-                basename = f'{parent_chemid}_well'
+                basename = f"{parent_chemid}_well"
 
-            db = connect(f'{parent_chemid}/kinbot.db')
-            for row in db.select(name=f'{basename}'):
-                parent = StationaryPoint.from_ase_atoms(row.toatoms())#This is an ase.atoms object
-                parent.characterize()
+            db = connect(f"{parent_chemid}/kinbot.db")
+            *_, last_row = db.select(name=f"{basename}", sort="-1")
+            parent = StationaryPoint.from_ase_atoms(last_row.toatoms())#This is an ase.atoms object
+            parent.characterize()
 
             #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
             fragnames = Fragment.get_fragnames()
@@ -1328,6 +1328,8 @@ def create_rotdPy_inputs(par, barrierless):
         with open(f"{folder}/{fname}", 'w') as f:
             f.write(new_input)
 
+        #Erase the fragments for this reaction
+        Fragment._instances = []
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless,
                            well_energies, prod_energies, highlight):

@@ -229,6 +229,8 @@ def main():
     if 'none' not in par['keep_chemids']:
         jobs = par['keep_chemids']
 
+
+
     postprocess(par, jobs, task, names, well0.mass)
     # make molpro inputs for all keys above
     # place submission script in the directory for offline submission
@@ -245,6 +247,20 @@ def main():
         print('PES search done!')
     except OSError:
         pass
+
+def debug_local(jobs):
+    for ji in jobs:
+        filename = ji + '/summary_' + ji + '.out'
+        print(f"Does {filename} exists?")
+        fileExists = os.path.isfile(filename)
+        while True:
+            if fileExists:
+                print("Yes!")
+                break
+            else:
+                time.sleep(1)
+                print("Not yet...")
+        print("Yes")
 
 
 def get_wells(job):
@@ -274,7 +290,6 @@ def get_wells(job):
     if len(new_wells) > 0:
         with open('chemids', 'a') as f:
             f.write('\n'.join(new_wells) + '\n')
-    
 
 def postprocess(par, jobs, task, names, mass):
     """
@@ -555,13 +570,13 @@ def postprocess(par, jobs, task, names, mass):
                                                    task,
                                                    names)
 
-    create_interactive_graph(wells,
-                             products,
-                             reactions,
-                             par['title'],
-                             well_energies,
-                             prod_energies,
-                             )
+    #create_interactive_graph(wells,
+    #                         products,
+    #                         reactions,
+    #                         par['title'],
+    #                         well_energies,
+    #                         prod_energies,
+    #                         )
 
     barrierless = []
     rxns = []
@@ -1314,7 +1329,6 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     g.save_graph(f'{title}.html')
     #display(HTML('example.html'))
     return 0
-
 
 def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
     db = connect(directory + '/kinbot.db')

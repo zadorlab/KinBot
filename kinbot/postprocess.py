@@ -80,6 +80,7 @@ def create_summary_file(species, qc, par):
     3. the reaction name
     4. the product identifiers
     """
+    print(f"Creation of summary file with {len(species)} species")
     # list of strings which will be put together for the output
     s = []
     # add the license message to the file

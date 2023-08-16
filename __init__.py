@@ -1,6 +1,6 @@
 ###################################################
 ##                                               ##
-## This file is part of the KinBot code v2.0     ##
+## This file is part of the KinBot code v2.2.1   ##
 ##                                               ##
 ## The contents are covered by the terms of the  ##
 ## BSD 3-clause license included in the LICENSE  ##

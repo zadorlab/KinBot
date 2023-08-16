@@ -7,13 +7,36 @@
 </p>
 
 ## Description
-This repository contains the KinBot code version 2.0,
+This repository contains the KinBot code version 2.2.1,
 a tool for automatically searching for reactions on the potential energy surface.
 
 If you are using this tool in scientific publications, please reference the following publications:
 
 * Ruben Van de Vijver, Judit Zádor: KinBot: _Automated stationary point search on potential energy surfaces_, Comp. Phys. Comm., **2019**, 248, 106947. https://doi.org/10.1016/j.cpc.2019.106947
+```
+@article{Vijver2020,
+   author = {Van de Vijver, Ruben and Z\'ador, Judit},
+   title = {KinBot: Automated stationary point search on potential energy surfaces},
+   journal = {Comput. Phys. Commun.},
+   volume = {248},
+   pages = {106947},
+   year = {2020},
+   type = {Journal Article}
+}
+```
 * Judit Zádor, Carles Martí, Ruben Van de Vijver, Sommer L. Johansen, Yoona Yang, Hope A. Michelsen, Habib N. Najm: _Automated reaction kinetics of gas-phase organic species over multiwell potential energy surfaces_, J. Phys. Chem. A, **2023**, 127, 565–588. https://doi.org/10.1021/acs.jpca.2c06558
+
+```
+@article{Zador2022,
+   author = {Z\'ador, Judit and Mart\'i, Carles and Van de Vijver, Ruben and Johansen, Sommer L. and Yang, Yoona and Michelsen, Hope A. and Najm, Habib N.},
+   title = {Automated reaction kinetics of gas-phase organic species over multiwell potential energy surfaces},
+   journal = {J. Phys. Chem. A},
+   volume = {127},
+   pages = {565-588},
+   year = {2023},
+   type = {Journal Article}
+}
+```
 
 We appreciate if you send us the DOI of your published paper that used KinBot, so we can feature it here below.
 

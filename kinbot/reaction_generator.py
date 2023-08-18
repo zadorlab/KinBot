@@ -366,7 +366,7 @@ class ReactionGenerator:
 
                             if all([pi == 1 for pi in products_waiting_status[index]]):
                                 if self.species.charge != 0:  # select the lower energy combination
-                                    # brute for all combinations
+                                    # brute force all combinations
                                     combs = np.array([np.array(i) for i in itertools.product([0, 1], repeat = len(obj.products))])
                                     val = 1000.
                                     ens = np.array([i.energy for i in obj.products])

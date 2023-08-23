@@ -1,5 +1,6 @@
 
 def atom_type_table(element, nconnect, ndouble, ntriple):
+    print(f"{element}, {nconnect}, {ndouble}, {ntriple}")
     #This table does not take into account oxidation states. Neutral is assumed, unless specified in example.
     #Charges: (+)(-)
     if element == 'H':
@@ -26,6 +27,18 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                                 atom_type = 'C_tri' #Ex: O=C.-H -> O=CH2
                             case 0:
                                 atom_type = 'C_quad' #Ex: H3C. -> CH4
+            case 4:#Weird case, full valency carbon, to be double checked
+                match ntriple:
+                    case 1:
+                        atom_type = "C_tri"
+                    case 0:
+                        match ndouble:
+                            case 2:
+                                atom_type = "C_tri"
+                            case 1:
+                                atom_type = "C_quad"
+                            case 0:
+                                atom_type = "C_tri"
     elif element == 'N':
         match nconnect:
             case 0:
@@ -38,6 +51,28 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                         atom_type = 'N_pyr' #Ex: H2N. -> NH3
                     case 1:
                         atom_type = 'N_tri' #Ex: C=N. -> C=NH
+            case 3: #Weird case with full valency N, to be checked
+                match ntriple:
+                    case 1:
+                        atom_type = "N_tri"
+                    case 0:
+                        match ndouble:
+                            case 1:
+                                atom_type = "N_pyr"
+                            case 0:
+                                atom_type = "N_quad"
+            case 4:#Weird case, more than full valency N: N+ is assumed, which is equivalent to C 
+                match ntriple:
+                    case 1:
+                        atom_type = "C_tri"
+                    case 0:
+                        match ndouble:
+                            case 2:
+                                atom_type = "C_tri"
+                            case 1:
+                                atom_type = "C_quad"
+                            case 0:
+                                atom_type = "C_tri"
     elif element == 'O':
         match nconnect:
             case 0:

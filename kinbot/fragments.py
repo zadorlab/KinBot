@@ -130,7 +130,7 @@ class Fragment(StationaryPoint):
             for index in self.ra:
                 self.set_pp_on_ra(index)
             if self.natom == 1:
-                pass
+                self.set_pp_on_com()
             else:
                 self.set_pp_next_to_ra()
         elif dist < 5:
@@ -191,106 +191,103 @@ class Fragment(StationaryPoint):
                 #Create pivot point on atom
                 self.set_pp_on_ra(index)
             case 'C_lin':
-                #Create pivot point aligned with the bond
-                ra_pos = np.array(self.geom(index), dtype=float)
-                for neighbour_index, this_bond in enumerate(self.bonds[index]):
-                    if this_bond != 0:
-                        neighbour_pos = np.array(self.geom(neighbour_index), dtype=float)
-                        break
-                pp_orient = np.subtract(ra_pos, neighbour_pos)
-                length = pp_lenght_table(self.atom[index])
-                pp_vect = length * unit_vector(pp_orient)
-                pp_coord = np.add(ra_pos, pp_vect)
+                pp_coord = self.create_pp_aligned_with_bond(index)
                 return pp_coord
             case 'C_tri':
-                #Create pivot point in the middle of the big angle between the 2 fragments
-                ra_pos = np.array(self.geom[index], dtype=float)
-                neighbour_pos = []
-                for neighbour_index, this_bond in enumerate(self.bond[index]):
-                    if this_bond != 0:
-                        neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
-                v1 = np.subtract(neighbour_pos[0], ra_pos)
-                v2 = np.subtract(neighbour_pos[1], ra_pos)
-                small_angle = angle_between(v1, v2)
-                big_angle = 2*pi - small_angle
-                axis = unit_vector(np.cross(v2, v1))
-                pp_orient = np.dot(rotation_matrix(axis, big_angle/2), v1)
-                length = pp_lenght_table(self.atom[index])
-                pp_vect = length * unit_vector(pp_orient)
-                pp_coord = np.add(ra_pos, pp_vect)
+                pp_coord = self.create_pp_triangle(index)
                 return pp_coord
             case 'C_quad':
-                #Create one or two pivot points on one or both side of the plane
-                n_pp = 2
-                ra_pos = np.array(self.geom[index], dtype=float)
-                neighbour_pos = []
-                for neighbour_index, this_bond in enumerate(np.array(self.bonds)[0,index]):
-                    if this_bond != 0:
-                        neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
-                v1 = np.subtract(neighbour_pos[0], ra_pos)
-                v2 = np.subtract(neighbour_pos[1], ra_pos)
-                v3 = np.subtract(neighbour_pos[2], ra_pos)
-                plane = plane_from_points(v1, v2, v3)
-                ra_to_plane = dist_point_to_plane(ra_pos, plane)
-                if abs(ra_to_plane) >= .1:
-                    #If carbon atom out of plane, only place a single pp on other side of the plane
-                    n_pp = 1
-                pp_list = []
-                #To know in which direction to place the pivot point
-                plane_direction = unit_vector(np.dot(plane[0], ra_pos))
-                length = pp_lenght_table(self.atom[index])
-                for i in range(n_pp):
-                    pp_orient = np.array(unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
-                    pp_vect = length * unit_vector(pp_orient)
-                    pp_coord = np.add(ra_pos, pp_vect)
-                    pp_list.append(pp_coord)
+                pp_list = self.create_pp_bipyramide_triangle_base(index)
                 return pp_list
-
             case 'N_tri':
-                pass
+                pp_coord = self.create_pp_aligned_with_bond(index)
+                return pp_coord
             case 'N_pyr':
-                pass
+                pp_coord = self.create_pp_triangle(index)
+                return pp_coord
+            case 'N_quad':
+                pp_list = self.create_pp_bipyramide_triangle_base(index)
+                return pp_list
             case 'O_tri':
-                #Create pivot point aligned with the bond
-                ra_pos = np.array(self.geom[index], dtype=float)
-                for neighbour_index, this_bond in enumerate(self.bond[index]):
-                    if this_bond != 0:
-                        neighbour_pos = np.array(self.geom[neighbour_index], dtype=float)
-                        break
-                pp_orient = np.subtract(ra_pos, neighbour_pos)
-                length = pp_lenght_table(self.atom[index])
-                pp_vect = length * unit_vector(pp_orient)
-                pp_coord = np.add(ra_pos, pp_vect)
+                pp_coord = self.create_pp_aligned_with_bond(index)
                 return pp_coord
             case 'O_quad':
-                #Create pivot point in the middle of the big angle between the 2 neighbours
-                ra_pos = np.array(self.geom[index], dtype=float)
-                neighbour_pos = []
-                for neighbour_index, this_bond in enumerate(self.bond[index]):
-                    if this_bond != 0:
-                        neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
-                v1 = np.subtract(neighbour_pos[0], ra_pos)
-                v2 = np.subtract(neighbour_pos[1], ra_pos)
-                small_angle = angle_between(v1, v2)
-                big_angle = 2*pi - small_angle
-                axis = unit_vector(np.cross(v2, v1))
-                pp_orient = np.dot(rotation_matrix(axis, big_angle/2), v1)
-                length = pp_lenght_table(self.atom[index])
-                pp_vect = length * unit_vector(pp_orient)
-                pp_coord = np.add(ra_pos, pp_vect)
+                pp_coord = self.create_pp_triangle(index)
                 return pp_coord
-
             case 'S_tri':
-                pass
+                pp_coord = self.create_pp_aligned_with_bond(index)
+                return pp_coord
             case 'S_pyr':
-                pass
+                pp_coord = self.create_pp_triangle(index)
+                return pp_coord
             case 'S_lin':
-                pass
+                pp_coord = self.create_pp_aligned_with_bond(index)
+                return pp_coord
             case 'S_bip_tri_l':
-                pass
+                pp_list = self.create_pp_bipyramide_triangle_base(index)
+                return pp_list
             case 'S_bip_tri':
                 pass
             case 'S_quad':
-                pass
+                pp_list = self.create_pp_bipyramide_triangle_base(index)
+                return pp_list
             case 'S_bip_quad_t':
                 pass
+
+    def create_pp_aligned_with_bond(self, index):
+        #Create pivot point aligned with the bond
+        ra_pos = np.array(self.geom[index], dtype=float)
+        for neighbour_index, this_bond in enumerate(self.bond[index]):
+            if this_bond != 0:
+                neighbour_pos = np.array(self.geom[neighbour_index], dtype=float)
+                break
+        pp_orient = np.subtract(ra_pos, neighbour_pos)
+        length = pp_lenght_table(self.atom[index])
+        pp_vect = length * unit_vector(pp_orient)
+        pp_coord = np.add(ra_pos, pp_vect)
+        return pp_coord
+
+    def create_pp_triangle(self, index):
+        #Create pivot point in the middle of the big angle between the 2 neighbours
+        ra_pos = np.array(self.geom[index], dtype=float)
+        neighbour_pos = []
+        for neighbour_index, this_bond in enumerate(self.bond[index]):
+            if this_bond != 0:
+                neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
+        v1 = np.subtract(neighbour_pos[0], ra_pos)
+        v2 = np.subtract(neighbour_pos[1], ra_pos)
+        small_angle = angle_between(v1, v2)
+        big_angle = 2*pi - small_angle
+        axis = unit_vector(np.cross(v2, v1))
+        pp_orient = np.dot(rotation_matrix(axis, big_angle/2), v1)
+        length = pp_lenght_table(self.atom[index])
+        pp_vect = length * unit_vector(pp_orient)
+        pp_coord = np.add(ra_pos, pp_vect)
+        return pp_coord
+
+    def create_pp_bipyramide_triangle_base(self, index):
+        #Create one or two pivot points on one or both side of the plane
+        n_pp = 2
+        ra_pos = np.array(self.geom[index], dtype=float)
+        neighbour_pos = []
+        for neighbour_index, this_bond in enumerate(np.array(self.bonds)[0,index]):
+            if this_bond != 0:
+                neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
+        v1 = np.subtract(neighbour_pos[0], ra_pos)
+        v2 = np.subtract(neighbour_pos[1], ra_pos)
+        v3 = np.subtract(neighbour_pos[2], ra_pos)
+        plane = plane_from_points(v1, v2, v3)
+        ra_to_plane = dist_point_to_plane(ra_pos, plane)
+        if abs(ra_to_plane) >= .1:
+            #If carbon atom out of plane, only place a single pp on other side of the plane
+            n_pp = 1
+        pp_list = []
+        #To know in which direction to place the pivot point
+        plane_direction = unit_vector(np.dot(plane[0], ra_pos))
+        length = pp_lenght_table(self.atom[index])
+        for i in range(n_pp):
+            pp_orient = np.array(unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
+            pp_vect = length * unit_vector(pp_orient)
+            pp_coord = np.add(ra_pos, pp_vect)
+            pp_list.append(pp_coord)
+        return pp_list

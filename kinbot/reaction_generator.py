@@ -295,6 +295,11 @@ class ReactionGenerator:
                                 frag_opt_done += 1
 
                         if frag_opt_done == len(a):  # both fragments are done
+
+                            #Check if vdW Well.
+                            if sum(frag.energy for frag in a) - obj.products.energy > 0.1/AUtoKCAL:
+                                logger.info(f"Create a vdW well for {obj.products.name}")
+
                             for frag in a:
                                 obj.products_final.append(frag)
 

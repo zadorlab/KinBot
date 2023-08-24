@@ -89,17 +89,11 @@ try:
     converged = False
     fmax = 1e-4
     attempts = 1
-    steps=300
+    steps=500
     while not converged and attempts <= 3:
         converged = opt.run(fmax=fmax, steps=300)
         freqs, zpe, hessian = calc_vibrations(mol)
-        if not converged:
-            steps += 100
-            attempts += 1
-            if attempts <=3:
-                print(f"Convergence not found in {{steps - 100}} steps. Retrying "
-                      f"with {{steps}} steps.")
-        elif order == 0 and any([fr < -50 for fr in freqs]):
+        if order == 0 and any([fr < -50 for fr in freqs]):
             converged = False
             mol.calc.label = '{label}'
             attempts += 1

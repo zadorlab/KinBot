@@ -745,13 +745,13 @@ class QuantumChemistry:
 
         template_file = f'{kb_path}/tpl/{self.queuing}_python.tpl'
         python_file = f'{job}.py'
-        python_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
+        job_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
 
         if self.queuing == 'pbs':
-            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
+            job_template = job_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
                                                      errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
-            python_template = python_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, errdir='perm',
+            job_template = job_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, errdir='perm',
                                                      slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
         else:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
@@ -760,7 +760,7 @@ class QuantumChemistry:
 
         qu_file = '{}{}'.format(job, constants.qext[self.queuing])
         with open(qu_file, 'w') as f_out_qu:
-            f_out_qu.write(python_template)
+            f_out_qu.write(job_template)
 
         command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)

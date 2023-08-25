@@ -1107,14 +1107,17 @@ class QuantumChemistry:
                                 return 0
                         except IndexError:
                             logger.debug(f'Log file {log_file} is present, but it is empty.')
-                            pass
+                            return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
                 elif self.qc == 'nn_pes':
                     pass
                 else:
                     logger.debug('Checking againg for log file')
-                    log_file_exists = os.path.exists(log_file)
                     time.sleep(1)
+                    log_file_exists = os.path.exists(log_file)
+                    if not log_file_exists:
+                        logger.debug(f'Log file {log_file} is not present.')
+                        return 0
             
                 # by deleting a log file, you allow restarting a job
                 # open the database

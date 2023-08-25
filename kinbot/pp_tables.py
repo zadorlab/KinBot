@@ -1,6 +1,6 @@
 
 def atom_type_table(element, nconnect, ndouble, ntriple):
-    print(f"{element}, {nconnect}, {ndouble}, {ntriple}")
+    #print(f"{element}, {nconnect}, {ndouble}, {ntriple}")
     #This table does not take into account oxidation states. Neutral is assumed, unless specified in example.
     #Charges: (+)(-)
     if element == 'H':

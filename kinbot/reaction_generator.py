@@ -296,10 +296,6 @@ class ReactionGenerator:
 
                         if frag_opt_done == len(a):  # both fragments are done
 
-                            #Check if vdW Well.
-                            if sum(frag.energy for frag in a) - obj.products.energy > 0.1/AUtoKCAL:
-                                logger.info(f"Create a vdW well for {obj.products.name}")
-
                             for frag in a:
                                 obj.products_final.append(frag)
 
@@ -332,6 +328,8 @@ class ReactionGenerator:
                                 else:
                                     _, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                                     _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
+                                    if len(obj.products_final) > 1:
+                                        logger.info(f"Create a vdW well for {obj.products}")
                                     if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments  
                                         hom_sci_energy += st_pt.energy + st_pt.zpe
                                     st_pt.characterize()  
@@ -352,6 +350,21 @@ class ReactionGenerator:
                                             obj.products_final.insert(jj, newfr)
                                             self.qc.qc_opt(newfr, newfr.geom, 0)
                                             frag_chemid.append(newfr.chemid)
+                                        #Check if vdW Well.
+                                        #sum_fragments_energy = 0.
+                                        #if par['high_level']:
+                                        #    #Will read info from L2 structure
+                                        #    endname = "_well_high"
+                                        #else:
+                                        #    #Will read info from L1 structure
+                                        #    endname = "_well"
+                                        #for frag in newfrags:
+                                        #    _, frag.energy = self.qc.get_qc_energy(f"{frag.chemid}{endname}")
+                                        #    _, frag.zpe = self.qc.get_qc_energy(f"{frag.chemid}{endname}")
+                                        #    sum_fragments_energy += (frag.energy + frag.zpe)
+                                        #if sum_fragments_energy - obj.products.energy > 0.1/constants.AUtoKCAL:
+                                        #    logger.info(f"Create a vdW well for {obj.products}")
+
                                         if len(frag_chemid) == 1:
                                             frag_chemid.append(" ")
                                         for ii, frag in enumerate(newfrags):

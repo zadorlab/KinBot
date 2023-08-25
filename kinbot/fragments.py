@@ -11,7 +11,6 @@ class Fragment(StationaryPoint):
     """
     _instances = []
 
-#def __init__(self, frag_number=frag_number, max_frag=max_frag, chemid=chemid, parent_chemid=parent_chemid, **kwargs):
     def __init__(self, **kwargs):
         """
         Class generator. The fragment is part of an emsemble of fragments used to generate pivot points in VRC TST.
@@ -44,14 +43,14 @@ class Fragment(StationaryPoint):
 
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
-        """Builds a stationary point object from an ase.Atoms object.
+        """Builds a Fragment object from an ase.Atoms object.
 
         Args:
             atoms (ase.Atoms): The Atoms class from the ase library.
 
         Returns:
-            StationaryPoint: A Stationary point object with the properties of 
-                the ase.Atoms properties
+            Fragment: A Fragment object with the properties of 
+                the ase.Atoms properties, and access to methods for VRC-TST settings
         """
         if 'formula' not in kwargs:
             formula = atoms.get_chemical_formula(mode="reduce")
@@ -76,6 +75,30 @@ class Fragment(StationaryPoint):
 
         if 'geom' not in kwargs:
             geom = atoms.positions
+
+        if 'symbols' not in kwargs:
+            symbols = list(atoms.symbols)
+
+        return cls(frag_name=frag_name, charge=charge, mult=mult, geom=geom, atom=symbols, formula=formula, com=com, **kwargs)
+
+    @classmethod
+    def from_StationaryPoint(cls, stationary_point):
+        """Builds a Fragment object from a StationaryPoint object.
+
+        """
+
+        charge = stationary_point.charge
+        mult = stationary_point.mult
+        geom = stationary_point.geom
+
+        if 'formula' not in kwargs:
+            formula = atoms.get_chemical_formula(mode="reduce")
+
+        if 'frag_name' not in kwargs:
+            frag_name = formula
+
+        if 'com' not in kwargs:
+            com = atoms.get_center_of_mass()
 
         if 'symbols' not in kwargs:
             symbols = list(atoms.symbols)

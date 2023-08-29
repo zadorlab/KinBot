@@ -16,7 +16,7 @@ mol.calc = {Code}(**kwargs)
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
-irc  = IRC(mol, trajectory='{label}.traj', dx=0.1, eta=1e-4, gamma=0.4, 
+irc = IRC(mol, trajectory='{label}.traj', dx=0.1, eta=1e-4, gamma=0.4, 
            logfile='{label}_sella.log')
 if '{label}'.endswith('F'):
     direction = 'forward'
@@ -42,8 +42,12 @@ with open('{label}.log', 'a') as f:
 if success:
     prod_kwargs = {prod_kwargs}
     mol.calc = {Code}(**prod_kwargs)
-    opt = Sella(mol, order=0, trajectory='{label}_prod.traj', 
-                logfile='{label}_prod_sella.log')
+    sella_kwargs = {sella_kwargs}
+    opt = Sella(mol, 
+                order=0, 
+                trajectory='{label}_prod.traj', 
+                logfile='{label}_prod_sella.log',
+                **sella_kwargs)
     try:
         converged_opt = opt.run(fmax=0.0001, steps=300)
         if converged_opt:

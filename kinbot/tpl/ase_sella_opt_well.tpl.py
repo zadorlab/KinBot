@@ -60,8 +60,12 @@ if len(mol) == 1:
     sys.exit(0)
 
 order = {order}
-opt  = Sella(mol, order=order, trajectory='{label}.traj', 
-             logfile='{label}_sella.log')
+sella_kwargs = {sella_kwargs}
+opt = Sella(mol, 
+            order=order, 
+            trajectory='{label}.traj', 
+            logfile='{label}_sella.log',
+            **sella_kwargs)
 try:
     converged = False
     fmax = 1e-4

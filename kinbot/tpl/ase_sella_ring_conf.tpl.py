@@ -83,8 +83,12 @@ if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
 order = {order}
-opt  = Sella(mol, order=order, trajectory='{label}.traj', 
-             logfile='{label}_sella.log')
+sella_kwargs = {sella_kwargs}
+opt = Sella(mol, 
+            order=order, 
+            trajectory='{label}.traj', 
+            logfile='{label}_sella.log',
+            **sella_kwargs)
 try:
     converged = False
     fmax = 1e-4

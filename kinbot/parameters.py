@@ -161,7 +161,7 @@ class Parameters:
             # For cyclic transition states, look at this ring size range
             'ringrange': [3, 9],
 
-            # QUANTUM CHEMISTRY INFO
+            # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
             'qc': 'gauss',  # or nwchem or nn_pes
             # nwchem-specific parameter
@@ -230,8 +230,12 @@ class Parameters:
             'hir_maxcycle': None,
             # Non-rigid or rigid hir
             'rigid_hir': 0,
-            # use_sella
+            # Whether to use sella as optimizer or not
             'use_sella': False,
+            # Sella hyperparameters
+            'sella_kwargs': {},
+            # calc_kwargs
+            'calc_kwargs': {},
             # Threshold to accept negative frequencies for floppy structures, this is a positive number
             'imagfreq_threshold': 50.,
             # List of files containing the parameters for the NN model. 

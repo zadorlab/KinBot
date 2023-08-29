@@ -81,7 +81,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         code = 'gaussian'
         Code = 'Gaussian'
         kwargs['addsec'] = ''
-        if not bimol or step == 0:
+        if (not bimol or step == 0) and not rxn.qc.use_sella:
             # here addsec contains the constraints
             for fixi in fix:
                 kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
@@ -89,7 +89,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} F\n"
             for reli in release:
                 kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
-        elif bimol and step == 1:
+        elif bimol and step == 1 and not rxn.qc.use_sella:
             kwargs['addsec'] = f'{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
             # here addsec needs to contain the product and ts geometries and all the rest of the fluff
             kwargs['addsec'] += f'product geometry guess\n\n{rxn.species.charge} {rxn.species.mult}\n'
@@ -148,10 +148,14 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    scan=rxn.scan,
-                                   code=code,
-                                   Code=Code,
-                                   fix=fix)
+                                   code=code,  # Sella
+                                   Code=Code,  # Sella
+                                   fix=fix,  # Sella
+                                   sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                   )
     else:
+        if rxn.par['calc_kwargs']:
+            kwargs = rxn.qc.merge_kwargs(kwargs)
         if rxn.qc.use_sella:
             kwargs.pop('addsec', None)
             kwargs.pop('freq', None)
@@ -168,8 +172,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    ppn=rxn.qc.ppn,
                                    qc_command=command,
                                    working_dir=os.getcwd(),
-                                   code=code,
-                                   Code=Code)
+                                   code=code,  # Sella
+                                   Code=Code,  # Sella
+                                   sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                   )
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:
         f_out.write(template)

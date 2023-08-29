@@ -317,8 +317,8 @@ class QuantumChemistry:
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
                                        ts=species.wellorts, step=1, max_step=1,
                                        high_level=1, hir=1, rigid=rigid)
-        #kwargs['fix'] = fix  # for old hacked ASE version
-
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
         if self.qc == 'gauss': 
             code = 'gaussian'
             Code = 'Gaussian'
@@ -359,9 +359,11 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
                                    fix=fix[0],
-                                   code=code,
-                                   Code=Code,
-                                   order=species.wellorts)
+                                   code=code,  # Sella
+                                   Code=Code,  # Sella
+                                   order=species.wellorts,  # Sella
+                                   sella_kwargs=self.par['sella_kwargs']  # Sella
+                                   )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -393,7 +395,8 @@ class QuantumChemistry:
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
                                        ts=species.wellorts, step=1, max_step=1, 
                                        hir=1)
-
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
         kwargs.pop('opt', None)
         kwargs.pop('chk', None)
         kwargs['method'] = 'am1'
@@ -415,7 +418,6 @@ class QuantumChemistry:
             Code = 'Nn_surr'
         else:
             raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
-
         if self.use_sella:
             template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
         else:
@@ -431,8 +433,10 @@ class QuantumChemistry:
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
                                    order=species.wellorts,
-                                   code=code,
-                                   Code=Code)
+                                   code=code,  # Sella
+                                   Code=Code,  # Sella
+                                   sella_kwargs=self.par['sella_kwargs']  # Sella
+                                   )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -488,6 +492,8 @@ class QuantumChemistry:
             kwargs['basis'] = ''
         if species.natom < 3:
             kwargs.pop('Symm', None)
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
         if self.use_sella:
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
@@ -504,7 +510,9 @@ class QuantumChemistry:
                                    working_dir=os.getcwd(),
                                    code=code,    # Sella
                                    Code=Code,    # Sella
-                                   order=species.wellorts)    
+                                   order=species.wellorts,      # Sella
+                                   sella_kwargs=self.par['sella_kwargs']  # Sella
+                                   )    
         
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -608,19 +616,20 @@ class QuantumChemistry:
         if mp2:
             kwargs['method'] = self.scan_method
             kwargs['basis'] = self.scan_basis
-        if high_level and self.qc == 'gauss'and self.opt \
-                and not self.use_sella:
+        if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         if species.natom < 3:
             kwargs.pop('Symm', None)
         # the integral is set in the get_qc_arguments parts, bad design
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
         if self.use_sella:
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
             template_file = f'{kb_path}/tpl/ase_sella_opt_well.tpl.py'
         else:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
-
+        
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -631,7 +640,9 @@ class QuantumChemistry:
                                    working_dir=os.getcwd(),
                                    code=code,    # Sella
                                    Code=Code,    # Sella
-                                   order=0)      # Sella
+                                   order=0,      # Sella
+                                   sella_kwargs=self.par['sella_kwargs'] # Sella
+                                   )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -655,7 +666,8 @@ class QuantumChemistry:
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, 
                                        step=1, max_step=1, high_level=1)
-        
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
@@ -686,8 +698,10 @@ class QuantumChemistry:
                                    ppn=self.ppn,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
-                                   code=code,
-                                   Code=Code)
+                                   code=code, # Sella
+                                   Code=Code, # Sella
+                                   sella_kwargs=self.par['sella_kwargs'] # Sella
+                                   )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -749,10 +763,10 @@ class QuantumChemistry:
 
         if self.queuing == 'pbs':
             job_template = job_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
-                                                     errdir='perm', python_file=python_file, arguments='')
+                                               errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
             job_template = job_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, errdir='perm',
-                                                     slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
+                                               slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
         else:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logger.error('Exiting')
@@ -1172,3 +1186,29 @@ class QuantumChemistry:
                 geom = np.concatenate((geom, [d]), axis=0)
         dummy = [d.tolist() for d in dummy]
         return atom, geom, dummy
+
+    def merge_kwargs(self, kwargs):
+        user_kwargs = self.par['calc_kwargs']
+        for key, uvalue in user_kwargs.items():
+            if key in kwargs:
+                user_val_dict, val_dict = {}, {}
+                for field in uvalue.split(','):
+                    if len(field.split('=')) == 1:
+                        user_val_dict[field] = None
+                    elif len(field.split('=')) == 2:
+                        user_val_dict[field.split('=')[0]] = field.split('=')[1]
+                    else:
+                        raise ValueError(f'Unexpected value: {uvalue}')
+                for field in kwargs[key].split(','):
+                    if len(field.split('=')) == 1:
+                        val_dict[field] = None
+                    elif len(field.split('=')) == 2:
+                        val_dict[field.split('=')[0]] = field.split('=')[1]
+                    else:
+                        raise ValueError(f'Unexpected value: {uvalue}')
+                val_dict.update(user_val_dict)
+                kwargs[key] = ','.join([f'{k}={v}' if v is not None else k for k, v in val_dict.items() ])
+                
+            else:
+                kwargs[key] = uvalue
+        return kwargs

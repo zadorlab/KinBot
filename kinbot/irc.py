@@ -161,13 +161,15 @@ class IRC:
             if self.rxn.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'
+            if self.rxn.par['calc_kwargs']:
+                kwargs = self.rxn.qc.merge_kwargs(kwargs)
+                prod_kwargs = self.rxn.qc.merge_kwargs(prod_kwargs)
             if self.rxn.qc.use_sella:
                 kwargs.pop('irc', None)
                 kwargs.pop('geom', None)
                 kwargs.pop('guess', None)
                 prod_kwargs.pop('opt', None)
                 prod_kwargs.pop('freq', None)
-
                 template_file = f'{kb_path}/tpl/ase_sella_irc.tpl.py'
             else:
                 template_file = f'{kb_path}/tpl/ase_{self.rxn.qc.qc}_irc.tpl.py'
@@ -181,7 +183,9 @@ class IRC:
                                        qc_command=self.par['qc_command'],
                                        working_dir=os.getcwd(),
                                        code=code,
-                                       Code=Code)
+                                       Code=Code,
+                                       sella_kwargs=self.par['sella_kwargs']  # Sella
+            )
 
             with open('{}.py'.format(irc_name), 'w') as f:
                 f.write(template)

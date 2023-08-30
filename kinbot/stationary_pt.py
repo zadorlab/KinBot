@@ -376,7 +376,7 @@ class StationaryPoint:
         """ 
         1 = singlet, 2 = doublet, 3 = triplet, etc.
         """
-        if all([element == 'O' for element in atomlist]):
+        if atomlist.tolist() == ['O'] or atomlist.tolist() == ['O', 'O']:
             return 3 # O and O2 are triplet
         if len(atomlist) == 1 and atomlist[0] == 'S':
             return 3 # S is triplet

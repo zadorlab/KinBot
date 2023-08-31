@@ -397,36 +397,33 @@ class StationaryPoint:
         """
         Iterative method to find all the separate products from a bond matrix
         """
-        bond = copy.deepcopy(self.bond)
-
-        status = [0 for i in range(self.natom)]  # 1: part of a molecule, 0: not part of a molecule
-        atoms = [i for i in range(self.natom)]
-        mols = []  # list of stationary_pt objects for the parts 
-        atomlist = np.asarray(self.atom)
+        bond_mtx = copy.deepcopy(self.bond)
+        assigned_atoms = [0 for i in range(self.natom)]  # 1: part of the fragment, 0: not part of a fragment
+        atom_indices = [i for i in range(self.natom)]
+        st_pt_prodlist = []  # list of stationary_pt objects for the fragments 
+        symbols = np.asarray(self.atom)
         maps = []  # this maps the original atom numbering onto the fragments' numbers
 
         while 1:
-            if any([status[i] == 0 for i in range(len(status))]):
-                # reduce the bond matrix to the atoms that have a 0 as status
-                bondi = [[bond[i][j] for j in range(len(status)) if status[j] == 0] for i in range(len(status)) if status[i] == 0]
-                at = [atoms[i] for i in range(len(status)) if status[i] == 0]
-                natomi = len(at)
-                fragi = [0 for i in range(self.natom)]
-                if natomi == 1:
-                    #this is a molecule containing only one atom
-                    fragi[at[0]] = 1
-                    atomi = [at[0]]
-                    boole = 0
+            if not all(assigned_atoms):
+                # Work with the unassigned atoms (have 0 in assigned_atoms)
+                unass_bond_mtx = [[bond_mtx[i][j] for j in range(len(assigned_atoms)) if assigned_atoms[j] == 0] 
+                                  for i in range(len(assigned_atoms)) if assigned_atoms[i] == 0]
+                unass_idx = [idx for idx in atom_indices if assigned_atoms[idx] == 0]
+                frag_num_atoms = len(unass_idx)
+                frag_assg = [0] * self.natom
+                if frag_num_atoms == 1:
+                    #this is a fragment containing only one atom
+                    frag_assg[unass_idx[0]] = 1
+                    is_multifrag = 0
                 else:
-                    natomi = len(at)
-                    boole, sta = self.extract_next_mol(natomi,bondi)
-                    atomi = [at[i] for i in range(natomi) if sta[i] == 1]
-                    for i in range(len(sta)):
-                        if sta[i] == 1:
-                            status[at[i]] = 1
-                            fragi[at[i]] = 1
+                    is_multifrag, new_assign = self.extract_next_mol(frag_num_atoms, unass_bond_mtx)
+                    for i, assigned in enumerate(new_assign):
+                        if assigned == 1:
+                            assigned_atoms[unass_idx[i]] = 1
+                            frag_assg[unass_idx[i]] = 1
 
-                if not boole and len(mols) == 0:
+                if not is_multifrag and len(st_pt_prodlist) == 0:
                     #the bond matrix corresponds to one molecule only
                     try:
                         delattr(self, 'cycle_chain')
@@ -434,11 +431,11 @@ class StationaryPoint:
                         pass
                     self.characterize()  
                     self.name = str(self.chemid)
-                    mols.append(self)
+                    st_pt_prodlist.append(self)
                     break
-                geomi = np.asarray(self.geom)[np.where(np.asarray(fragi) == 1)]
-                natomi = np.sum(fragi)
-                atomi = atomlist[np.where(np.asarray(fragi) == 1)]
+                frag_geom = np.asarray(self.geom)[np.where(np.asarray(frag_assg) == 1)]
+                frag_num_atoms = np.sum(frag_assg)
+                frag_symbols = symbols[np.where(np.asarray(frag_assg) == 1)]
 
                 if vary_charge and self.charge != 0:
                     multiply = 2  # do two versions
@@ -447,7 +444,7 @@ class StationaryPoint:
                 
                 for ch in range(multiply):
                     # ch == 0 is neutral, ch == 1  is ion case
-                    multi = self.calc_multiplicity(atomi)
+                    multi = self.calc_multiplicity(frag_symbols)
                     # on the second pass, adjust the multiplicity
                     if ch == 1 and multi == 1:
                         multi = 2
@@ -460,25 +457,27 @@ class StationaryPoint:
                         chargei = 0
                     elif ch == 1:
                         chargei = self.charge 
-                    moli = StationaryPoint('prod_%i'%(len(mols)+1), chargei, multi, atom=atomi, natom=natomi, geom=geomi)
+                    moli = StationaryPoint('prod_%i'%(len(st_pt_prodlist)+1), 
+                                           chargei, multi, atom=frag_symbols, 
+                                           natom=frag_num_atoms, geom=frag_geom)
                     moli.characterize()  
                     moli.calc_chemid()
                     moli.name = str(moli.chemid)
 
-                    mols.append(moli)
+                    st_pt_prodlist.append(moli)
 
                     numbering = np.asarray(range(self.natom))
                     # the original atom numbers in the correct order in the fragments, it's a map
-                    mapi = numbering[np.where(np.asarray(fragi) == 1)]  
+                    mapi = numbering[np.where(np.asarray(frag_assg) == 1)]  
                     maps.append(mapi)
 
-                if boole:
+                if is_multifrag:
                     continue 
                 else:
                     #reached the end, return the molecules
                     break
 
-        return mols, maps
+        return st_pt_prodlist, maps
 
     def extract_next_mol(self, natom, bond):
         """
@@ -490,7 +489,7 @@ class StationaryPoint:
 
         max_step = 1000
         status = [0 for i in range(natom)] # 1: parent, -1: child, 0: not yet checked
-        edge = [0 for i in range(natom*(natom-1)//2)] # the ordered list of edges in the graph, 0-1, 0-2, ..., 1-2, 1-3, ...
+        edge = [0 for i in range(natom * (natom - 1) // 2)] # the ordered list of edges in the graph, 0-1, 0-2, ..., 1-2, 1-3, ...
         chain = [] # steps made during the search
 
         n_connect = np.count_nonzero(bond) // 2 # number of atom connections

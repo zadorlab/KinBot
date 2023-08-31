@@ -309,9 +309,9 @@ class ReactionGenerator:
                             for i, st_pt in enumerate(obj.products_final):
                                 products.append(st_pt.chemid)
 
-                            products.extend([' ', ' ', ' '])
-                            logger.info('\tReaction {} leads to products {} {} {}'
-                                         .format(obj.instance_name, products[0], products[1], products[2]))
+                            products.extend(['', '', '', ''])
+                            logger.info(f'\tReaction {obj.instance_name} leads '
+                                        f'to products {" ".join([str(p) for p in products[:4]])}.')
 
                             hom_sci_energy = 0
                             for i, st_pt in enumerate(obj.products_final):

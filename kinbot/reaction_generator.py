@@ -310,10 +310,8 @@ class ReactionGenerator:
                                 products.append(st_pt.chemid)
 
                             products.extend(['', '', '', ''])
-                            logger.info(f'\tReaction {obj.instance_name} leads '
-                                        f'to products {" ".join([str(p) for p in products[:4]])}.')
-
-                            hom_sci_energy = 0
+                            logger.info(f'\tReaction {obj.instance_name} leads to products '
+                                        f'{" ".join([str(p) for p in products[:4] if p])}.')
                             for i, st_pt in enumerate(obj.products_final):
                                 chemid = st_pt.chemid
                                 e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
@@ -327,8 +325,6 @@ class ReactionGenerator:
                                 else:
                                     _, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
                                     _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
-                                    if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments  
-                                        hom_sci_energy += st_pt.energy + st_pt.zpe
                                     st_pt.characterize()  
                                     if chemid != st_pt.chemid:
                                         ##obj.products_final.pop(i)
@@ -368,24 +364,31 @@ class ReactionGenerator:
                                 if self.species.charge != 0:  # select the lower energy combination
                                     # brute for all combinations
                                     combs = np.array([np.array(i) for i in itertools.product([0, 1], repeat = len(obj.products))])
-                                    val = 1000.
+                                    val = np.inf
                                     ens = np.array([i.energy for i in obj.products])
                                     zpes = np.array([i.zpe for i in obj.products])
                                     masses = np.array([i.mass for i in obj.products])
                                     charges = np.array([i.charge for i in obj.products])
-                                    combo = combs[0]
+                                    low_e_comb = combs[0]
                                     for comb in combs:
-                                        if sum(comb * masses) == self.species.mass:
-                                            if sum(comb * charges) == self.species.charge:
-                                                logger.info('\tPossible ion combination and energy:'
-                                                        f'{comb} and {[i.chemid for i in obj.products]} at {sum(comb * (ens + zpes))}')
-                                                if sum(comb * (ens + zpes)) < val:
-                                                    val = sum(comb * (ens + zpes))
-                                                    combo = comb
-                                    combo = combo.astype(bool)
-                                    obj.products = list(np.array(obj.products)[combo])
-                                if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
-                                    hom_sci_energy = (hom_sci_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
+                                        if sum(comb * charges) != self.species.charge \
+                                                or sum(comb * masses) != self.species.mass:
+                                            continue
+                                        rel_energy = constants.AUtoKCAL * (sum(comb * (ens + zpes)) - \
+                                                     (self.species.start_energy + self.species.start_zpe))
+                                        relev_comb = [p.chemid for i, p in enumerate(obj.products) if comb[i]]
+                                        if len(obj.products) > 2:
+                                            logger.info(f'\tPossible ion combination and energy for {obj.instance_name} products: '
+                                                        f'{", ".join([str(c) for c in relev_comb])} '
+                                                        f'at {rel_energy:.1f} kcal/mol.')
+                                        if sum(comb * (ens + zpes)) < val:
+                                            val = sum(comb * (ens + zpes))
+                                            low_e_comb = comb
+                                    low_e_comb = low_e_comb.astype(bool)
+                                    obj.products = list(np.array(obj.products)[low_e_comb])
+                                    prods_energy = sum([p.energy + p.zpe for p in obj.products])
+                                if self.species.reac_type[index] == 'hom_sci':
+                                    hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
                                     if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
                                         self.species.reac_ts_done[index] = 3
                                     else:

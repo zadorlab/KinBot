@@ -1,23 +1,40 @@
+from types import NoneType
 import numpy as np
 import logging
 
 logger = logging.getLogger('KinBot')
+
+def get_reaction_name(reac):
+    with open(reac[0] + '/summary_' + reac[0] + '.out', 'r') as summary:
+        for line in summary.readlines()[4:]:
+            if line.startswith('SUCCESS'):
+                if 'hom_sci' in line:
+                    reac_type = 'hom_sci'
+                elif 'vdW' in line:
+                    reac_type = 'vdW'
+                else:
+                    logger.warning("Identification of reactive atoms is not implemented yet for this type of reactions. Pivot points on COM.")
+                    reac_type = "not_implemented"
+            else:
+                reac_type = None
+    return reac_type
+
 
 def get_ra(reac):
     reactive_atoms = []
     #Recover the index of the reactive atoms from the reaction name.
     with open(reac[0] + '/summary_' + reac[0] + '.out', 'r') as summary:
         for line in summary.readlines()[4:]:
-            if line.startswith('SUCCESS') and 'hom_sci' in line: #TO change to accept different type of barrierless reactions
+            if line.startswith('SUCCESS'):
                 pieces = line.split()
 
-                if sorted(pieces[3:]) == sorted(reac[2]) :
+                if 'hom_sci' in line and sorted(pieces[3:]) == sorted(reac[2]) :
                     for ra in pieces[2].split('_')[3:]:
                         reactive_atoms.append(int(ra)-1)
                     break
                 else:
-                    logger.warning("Identification of reactive atoms is not implemented yet for this type of reactions.")
-                    return "Not implemented"
+                    logger.warning("Identification of reactive atoms is not implemented yet for this type of reactions. Pivot points on COM.")
+                    return None
                     
     return reactive_atoms
 

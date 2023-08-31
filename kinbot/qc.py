@@ -914,14 +914,14 @@ class QuantumChemistry:
                 break
         zpe = 0.0  # set as default
         # open the database
-        rows = self.db.select(name=job)
+        *_, last_row = self.db.select(name=job)
         # take the last entry
-        for row in rows:
-            if hasattr(row, 'data'):
-                zpe = row.data.get('zpe')
-            else:
-                zpe = 0.0
-                logger.warning("{} has no zpe in database. ZPE SET TO 0.0".format(job))
+        
+        if hasattr(last_row, 'data'):
+            zpe = last_row.data.get('zpe')
+        else:
+            zpe = 0.0
+            logger.warning("{} has no zpe in database. ZPE SET TO 0.0".format(job))
 
         if zpe is None:
             zpe = 0.00

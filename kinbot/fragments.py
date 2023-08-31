@@ -31,6 +31,7 @@ class Fragment(StationaryPoint):
         self.geom = np.array(kwargs["geom"])
         self.atom = kwargs["atom"]
         self.com = np.array(kwargs["com"])
+        self.pivot_points = []
 
         Fragment.set_fragnames(self)        
 
@@ -112,7 +113,6 @@ class Fragment(StationaryPoint):
         return all_elem
     
     def set_pivot_points(self, dist, ra_indexes_in_parent):
-        self.pivot_points = []
         if dist >= 12:
             self.set_pp_on_com()
         elif dist >= 10 and dist < 12:

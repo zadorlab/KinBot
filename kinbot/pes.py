@@ -326,8 +326,8 @@ def postprocess(par, jobs, task, names, mass):
             failedwells.append(ji)
             continue
         # read the summary file
-        for line in summary:
-            if line.startswith('SUCCESS') and 'hom_sci' not in line:
+        for line in summary[4:]:
+            if line.startswith('SUCCESS') and 'hom_sci' not in line and 'vdW' not in line :
                 pieces = line.split()
                 ts = pieces[2]  #this is the long specific name of the reaction
                 if ts in par['skip_reactions']:
@@ -429,7 +429,7 @@ def postprocess(par, jobs, task, names, mass):
 
             elif line.startswith('SUCCESS') and 'vdW' in line:
                 pieces = line.split()
-                reactant = ji
+                reactant = pieces[2].split('_')[2]
                 energy = float(pieces[1])  # energy from summary
                 prod = pieces[3:]   # these are the chemids of the products
                 if reactant not in wells:
@@ -1299,24 +1299,34 @@ def create_rotdPy_inputs(par, barrierless):
 
             #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
             fragnames = Fragment.get_fragnames()
+            reaction_type = pp_settings.get_reaction_name(reac)
             reactive_atoms = pp_settings.get_ra(reac)
-            #Map the long range fragments with the index of the parent to find 
-            pp_settings.set_order(parent, reactive_atoms, fragments)
-            #Make sure the reactive atoms are in the same order as the fragments
-            reactive_atoms = pp_settings.reset_reactive_atoms(reactive_atoms,[frag.map for frag in fragments])
+            if reaction_type != "vdW":
+                #Map the long range fragments with the index of the parent to find 
+                pp_settings.set_order(parent, reactive_atoms, fragments)
+                #Make sure the reactive atoms are in the same order as the fragments
+                reactive_atoms = pp_settings.reset_reactive_atoms(reactive_atoms,[frag.map for frag in fragments])
 
             #Set the pivot points on each fragments and create the surfaces
             surfaces = []
+
             for dist in par['vrc_tst_dist_list']:
                 n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
-                for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
-                    frag.set_pivot_points(dist, atom)
-                    n_pp.append(len(frag.pivot_points))
-                pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                pp_dist[:] = dist
+                if reaction_type != "vdW":
+                    for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
+                        frag.set_pivot_points(dist, atom)
+                        n_pp.append(len(frag.pivot_points))
+                else:
+                    for frag in fragments: #Pivot points directly on COM for vdW
+                        frag.set_pp_on_com()
+                        n_pp.append(len(frag.pivot_points))
+                    pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                    pp_dist[:] = dist
                 
                 surfaces.append(VRC_TST_Surface(fragments, pp_dist))
-
+                for frag in fragments:
+                    frag.pivot_points = [] #Reset the pivot points of each fragments for next surface.
+                    
             #Creating the strings to print input file
             #Fragments block:
             Fragments_block = ""

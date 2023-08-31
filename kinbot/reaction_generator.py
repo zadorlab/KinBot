@@ -69,8 +69,6 @@ class ReactionGenerator:
         products_waiting_status = [[] for i in self.species.reac_inst]
         count = len(self.species.reac_inst)
         frag_unique = []
-        if self.par['vdW'] and self.par['high_level']:
-            vdW_started = np.zeros(count)
 
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
@@ -255,11 +253,11 @@ class ReactionGenerator:
                                 # read the geometries and try to make products out of them
                                 # verify which of the ircs leads back to the reactant, if any
                                 obj.irc_prod = obj.irc.irc2stationary_pt()
-                                obj.irc_prod.characterize()
                                 if obj.irc_prod == 0:
                                     logger.info('\tNo product found for {}'.format(obj.instance_name))
                                     self.species.reac_ts_done[index] = -999
                                 else:
+                                    obj.irc_prod.characterize()
                                     obj.products = copy.deepcopy(obj.irc_prod)
                                     obj.product_bonds = obj.irc_prod.bond
                                     self.species.reac_ts_done[index] = 2
@@ -269,9 +267,9 @@ class ReactionGenerator:
                         # identify bimolecular products and wells
                         fragments, maps = obj.products.start_multi_molecular(vary_charge=True)
 
-                        a = []  # cleaned up list of products
+                        obj.irc_fragments = []  # cleaned up list of products
                         for frag in fragments:
-                            a.append(frag)
+                            obj.irc_fragments.append(frag)
                             if len(frag_unique) == 0:
                                 frag_unique.append(frag)
                             elif len(frag_unique) > 0:
@@ -280,9 +278,9 @@ class ReactionGenerator:
                                     if frag.chemid == fragb.chemid:
                                         e, geom2 = self.qc.get_qc_geom(str(fragb.chemid) + '_well', fragb.natom)
                                         if e == 0:
-                                            a.pop()
+                                            obj.irc_fragments.pop()
                                             frag = fragb
-                                            a.append(frag)
+                                            obj.irc_fragments.append(frag)
                                             new = 0
                                             break
                                 if new:
@@ -291,20 +289,16 @@ class ReactionGenerator:
                         obj.products_final = []
 
                         frag_opt_done = 0
-                        for frag in a:
+                        for frag in obj.irc_fragments:
                             self.qc.qc_opt(frag, frag.geom)
                             e, geom2 = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
                             if e != 1:  # e == 1 means it's running
                                 frag_opt_done += 1
 
-                        if frag_opt_done == len(a):  # both fragments are done
+                        if frag_opt_done == len(obj.irc_fragments):  # both fragments are done
 
-                            for frag in a:
-                                obj.products_final.append(frag)
-
-                            #save the geometries of the fragments from irc_prod for vdW treatment
-                            if self.par['vdW'] and self.par['high_level']:
-                                obj.vdW_fragments = a
+                            for frag in obj.irc_fragments:
+                                obj.products_final.append(copy.deepcopy(frag))
 
                             # if the two fragments are identical, make them the same object
                             for i, st_pt_i in enumerate(obj.products_final):
@@ -527,19 +521,24 @@ class ReactionGenerator:
                     if fails:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:
-                        #Initiate the vdW search
-                        if len(obj.products) == 2 and self.par['vdW'] and "hom_sci" not in obj.instance_name:
+                        
+                        # Select reactions leading to vdW wells
+                        if len(obj.products) == 2 and "hom_sci" not in obj.instance_name:
                             logger.info("\tChecking vdW well for {}.".format(obj.instance_name))
                             obj.irc_prod.characterize() #Stationnary point from irc_prod
-                            _, obj.irc_prod.energy = self.qc.get_qc_energy(str(obj.irc_prod.chemid) + '_well')
-                            _, obj.irc_prod.zpe = self.qc.get_qc_zpe(str(obj.irc_prod.chemid) + '_well')
-                            prod_energy = obj.irc_prod.energy + obj.irc_prod.zpe
-                            fragments_energies = sum([this_frag.energy + this_frag.zpe for this_frag in a ])
-                            obj.vdW_depth = (prod_energy - fragments_energies)*constants.AUtoCM
-                            if obj.vdW_depth < -50: #cm-1
-                                logger.info("\tReaction {} leads to vdW well {} with a depth of {}".format(obj.instance_name, obj.irc_prod.chemid, obj.vdW_depth))
+                            e, obj.irc_prod.energy = self.qc.get_qc_energy(f"{obj.irc_prod.name}") #e is the error code: should be 0 (success) at this point.
+                            #_, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}") + '_well') #Irc_prod doesn't have a zpe in the db. To be implemented if we want.
+                            #prod_energy = obj.irc_prod.energy + obj.irc_prod.zpe
+                            for this_frag in obj.irc_fragments:
+                                e, this_frag.energy = self.qc.get_qc_energy(f"{this_frag.chemid}_well")
+                            fragments_energies = sum([this_frag.energy + this_frag.zpe for this_frag in obj.irc_fragments ])
+                            obj.vdW_depth = (obj.irc_prod.energy - fragments_energies)*constants.AUtoKCAL
+                            if obj.vdW_depth < self.par["vdW_detection"]: #kcal/mol
+                                logger.info("\tReaction {} leads to vdW well {} with a depth of {:.2f} kcal/mol".format(obj.instance_name, obj.irc_prod.chemid, obj.vdW_depth))
+                                obj.do_vdW = True
                             else:
-                                logger.info("\tReaction {} did not lead to a vdW well.".format(obj.instance_name, obj.irc_prod.chemid, obj.vdW_depth))
+                                logger.info("\tReaction {} did not lead to a vdW well. Depth: {} | Threshold: {} (kcal/mol)".format(obj.instance_name, obj.vdW_depth, self.par["vdW_detection"]))
+
                         self.species.reac_ts_done[index] = 6
 
                 elif self.species.reac_ts_done[index] == 6:

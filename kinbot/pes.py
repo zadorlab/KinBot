@@ -429,9 +429,11 @@ def postprocess(par, jobs, task, names, mass):
 
             elif line.startswith('SUCCESS') and 'vdW' in line:
                 pieces = line.split()
-                reactant = pieces[2].split('_')[2]
+                reactant = ji
                 energy = float(pieces[1])  # energy from summary
-                prod = pieces[3:]   # these are the chemids of the products
+                prod = pieces[3]   # these are the chemids of the products
+                vdW_energy = pieces[4]
+                IRC_direction = pieces[5].split('vdW')[1:]
                 if reactant not in wells:
                     wells.append(reactant)
                     parent[reactant] = reactant

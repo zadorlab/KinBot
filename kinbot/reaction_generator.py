@@ -525,7 +525,6 @@ class ReactionGenerator:
                         # Select reactions leading to vdW wells
                         if len(obj.products) == 2 and "hom_sci" not in obj.instance_name:
                             logger.info("\tChecking vdW well for {}.".format(obj.instance_name))
-                            obj.irc_prod.characterize() #Stationnary point from irc_prod
                             e, obj.irc_prod.energy = self.qc.get_qc_energy(f"{obj.irc_prod.name}") #e is the error code: should be 0 (success) at this point.
                             #_, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}") + '_well') #Irc_prod doesn't have a zpe in the db. To be implemented if we want.
                             #prod_energy = obj.irc_prod.energy + obj.irc_prod.zpe

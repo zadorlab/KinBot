@@ -369,10 +369,16 @@ class ReactionGenerator:
                                     zpes = np.array([i.zpe for i in obj.products])
                                     masses = np.array([i.mass for i in obj.products])
                                     charges = np.array([i.charge for i in obj.products])
+                                    frag_symbols = [p.atom for p in obj.products]
                                     low_e_comb = combs[0]
                                     for comb in combs:
+                                        comb_symbols = []
+                                        for i, frag_sym in enumerate(frag_symbols):
+                                            if comb[i]:
+                                                comb_symbols.extend(frag_sym)
                                         if sum(comb * charges) != self.species.charge \
-                                                or sum(comb * masses) != self.species.mass:
+                                                or sum(comb * masses) != self.species.mass \
+                                                or sorted(comb_symbols) != sorted(self.species.atom):
                                             continue
                                         rel_energy = constants.AUtoKCAL * (sum(comb * (ens + zpes)) - \
                                                      (self.species.start_energy + self.species.start_zpe))

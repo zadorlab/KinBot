@@ -3,9 +3,9 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
     #print(f"{element}, {nconnect}, {ndouble}, {ntriple}")
     #This table does not take into account oxidation states. Neutral is assumed, unless specified in example.
     #Charges: (+)(-)
-    if element == 'H':
-        atom_type = 'H'
-    elif element == 'C':
+
+    atom_type = 'H'
+    if element == 'C':
         match nconnect:
             case 0:
                 atom_type = 'C'
@@ -131,8 +131,6 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                                 atom_type = 'S_bip_tri_l' #Ex: SOF3 -> SOF4
                             case 0:
                                 atom_type = 'S_bip_quad_t' #Ex: SF5 (+)(-)? -> SF6
-    else :
-        atom_type = 'dummy'
     return atom_type
 
 def pp_lenght_table(element):

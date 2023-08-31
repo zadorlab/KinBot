@@ -93,7 +93,7 @@ def create_summary_file(species, qc, par):
                 mp2_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
                 mp2_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
                 energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
-            elif species.reac_type[index] == 'hom_sci':
+            elif species.reac_type[index] == 'hom_sci' or 'vdW':
                 energy = (sum([pr.energy + pr.zpe 
                               for pr in species.reac_obj[index].products])
                           - species.energy - species.zpe) * constants.AUtoKCAL
@@ -223,7 +223,7 @@ def createPESViewerInput(species, qc, par):
     # Barrierless reactions
     bless = []
     for index in range(len(species.reac_inst)):
-        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci':
+        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci' or species.reac_type[index] != 'vdW':
             continue
         name = []
         for st_pt in species.reac_obj[index].products:

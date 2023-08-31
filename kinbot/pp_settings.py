@@ -1,8 +1,7 @@
-from kinbot.fragments import Fragment
-from ase.db import connect
-from kinbot.stationary_pt import StationaryPoint
 import numpy as np
-from numpy import loadtxt
+import logging
+
+logger = logging.getLogger('KinBot')
 
 def get_ra(reac):
     reactive_atoms = []
@@ -17,7 +16,9 @@ def get_ra(reac):
                         reactive_atoms.append(int(ra)-1)
                     break
                 else:
-                    exit
+                    logger.warning("Identification of reactive atoms is not implemented yet for this type of reactions.")
+                    return "Not implemented"
+                    
     return reactive_atoms
 
 def reset_reactive_atoms(reactive_atoms, maps):

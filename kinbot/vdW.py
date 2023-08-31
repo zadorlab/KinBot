@@ -14,7 +14,7 @@ class vdW_Well(StationaryPoint):
         self.fragA = self.create_Fragment(fragA, par)
         self.fragB = self.create_Fragment(fragB, par)
 
-    def create_Fragment(self, chemid, par)
+    def create_Fragment(self, chemid, par):
        if par['high_level']:
            #Will read info from L2 structure
            basename = f"{chemid}_well_high"
@@ -23,17 +23,17 @@ class vdW_Well(StationaryPoint):
            basename = f"{chemid}_well"
 
         #Create ase.atoms objects for each fragments
-        db = connect(f"{self.parent.chemid}/kinbot.db")
-        *_, last_row = db.select(name=f"{basename}", sort="-1")
-        atoms = last_row.toatoms() #This is an ase.atoms object
-        fragment = Fragment.from_ase_atoms(atoms=atoms,
-                                           frag_number=frag_number,
-                                           max_frag=2,
-                                           chemid=chemid,
-                                           parent_chemid=self.parent.chemid,
-                                               ))
-        frag_number +=1
-        if frag_number == 2:
-            frag_number = 0
+        #db = connect(f"{self.parent.chemid}/kinbot.db")
+        #*_, last_row = db.select(name=f"{basename}", sort="-1")
+        #atoms = last_row.toatoms() #This is an ase.atoms object
+        #fragment = Fragment.from_ase_atoms(atoms=atoms,
+        #                                   frag_number=frag_number,
+        #                                   max_frag=2,
+        #                                   chemid=chemid,
+        #                                   parent_chemid=self.parent.chemid,
+        #                                       ))
+        #frag_number +=1
+        #if frag_number == 2:
+        #    frag_number = 0
 
-        return fragment
+        #return fragment

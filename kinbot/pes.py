@@ -426,6 +426,40 @@ def postprocess(par, jobs, task, names, mass):
                     ts = 'barrierless'
                     barrier = energy
                     reactions.append([reactant, ts, prod, barrier])
+
+            elif line.startswith('SUCCESS') and 'vdW' in line:
+                pieces = line.split()
+                reactant = ji
+                energy = float(pieces[1])  # energy from summary
+                prod = pieces[3:]   # these are the chemids of the products
+                if reactant not in wells:
+                    wells.append(reactant)
+                    parent[reactant] = reactant
+
+                if len(prod) == 1:
+                    if prod[0] not in wells:
+                        if prod[0] not in parent:
+                            parent[prod[0]] = reactant
+                        wells.append(prod[0])
+                else:
+                    prod_name = '_'.join(sorted(prod))
+                    if prod_name not in products:
+                        if prod_name not in parent:
+                            parent[prod_name] = reactant
+                        products.append('_'.join(sorted(prod)))
+                new = 1
+                for rxn in reactions:
+                    rxn_prod_name = '_'.join(sorted(rxn[2]))
+                    if (reactant == rxn[0] and
+                            '_'.join(sorted(prod)) == rxn_prod_name):
+                        new = 0
+                    if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
+                        new = 0
+                if new:
+                    ts = 'vdW'
+                    barrier = energy
+                    reactions.append([reactant, ts, prod, barrier])
+
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
         # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.
@@ -573,7 +607,7 @@ def postprocess(par, jobs, task, names, mass):
     barrierless = []
     rxns = []
     for rxn in reactions:
-        if rxn[1] == 'barrierless':
+        if rxn[1] == 'barrierless' or rxn[1] == 'vdW':
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
         else:
             rxns.append([rxn[0], rxn[1], rxn[2], rxn[3]])
@@ -1357,6 +1391,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
 
     ts_lines = []
     for rxn in reactions:
+        high = ''
         if rxn[1] in highlight:
             high = 'red'
         prod_name = '_'.join(sorted(rxn[2]))

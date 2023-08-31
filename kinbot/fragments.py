@@ -1,8 +1,11 @@
 from kinbot.stationary_pt import StationaryPoint
 import numpy as np
 from numpy import pi
-from kinbot.pp_tables import *
-from kinbot.kb_trigo import *
+from kinbot import pp_tables
+from kinbot import kb_trigo
+import logging
+
+logger = logging.getLogger('KinBot')
 
 class Fragment(StationaryPoint):
     """
@@ -82,30 +85,6 @@ class Fragment(StationaryPoint):
         return cls(frag_name=frag_name, charge=charge, mult=mult, geom=geom, atom=symbols, formula=formula, com=com, **kwargs)
 
     @classmethod
-    def from_StationaryPoint(cls, stationary_point):
-        """Builds a Fragment object from a StationaryPoint object.
-
-        """
-
-        charge = stationary_point.charge
-        mult = stationary_point.mult
-        geom = stationary_point.geom
-
-        if 'formula' not in kwargs:
-            formula = atoms.get_chemical_formula(mode="reduce")
-
-        if 'frag_name' not in kwargs:
-            frag_name = formula
-
-        if 'com' not in kwargs:
-            com = atoms.get_center_of_mass()
-
-        if 'symbols' not in kwargs:
-            symbols = list(atoms.symbols)
-
-        return cls(frag_name=frag_name, charge=charge, mult=mult, geom=geom, atom=symbols, formula=formula, com=com, **kwargs)
-
-    @classmethod
     def set_fragnames(cls, self):
         cls._fragnames = [inst.frag_name for inst in cls._instances[:-1]]
         if f"{self.frag_name}_0" in cls._fragnames:
@@ -125,9 +104,6 @@ class Fragment(StationaryPoint):
 
     def set_map(self, p_map):
         self.map = np.array(p_map, dtype=int)
-
-    def get_center_of_mass(self):
-        super(Fragment, self).get_center_of_mass()
 
     def get_chemical_formula(self):
         all_elem = ""
@@ -205,7 +181,7 @@ class Fragment(StationaryPoint):
                     ndouble += 1
                 case 3:
                     ntriple += 1
-        atom_type = atom_type_table(element, nconnect, ndouble, ntriple)
+        atom_type = pp_tables.atom_type_table(element, nconnect, ndouble, ntriple)
         return atom_type
     
     def get_pp_coord(self, index, atom_type):
@@ -264,9 +240,22 @@ class Fragment(StationaryPoint):
             if this_bond != 0:
                 neighbour_pos = np.array(self.geom[neighbour_index], dtype=float)
                 break
-        pp_orient = np.subtract(ra_pos, neighbour_pos)
-        length = pp_lenght_table(self.atom[index])
-        pp_vect = length * unit_vector(pp_orient)
+
+        try:
+            pp_orient = np.subtract(ra_pos, neighbour_pos)
+        except NameError:
+            logger.warning(f"Could not find any bond for atom {self.atom[index]}. Setting it to COM")
+            neighbour_pos = self.com
+            pp_orient = np.subtract(ra_pos, neighbour_pos)
+
+
+        length = pp_tables.pp_lenght_table(self.atom[index])
+        try:
+            pp_vect = length * kb_trigo.unit_vector(pp_orient)
+        except NameError:
+            logger.warning(f"Length of pivot point not defined yet for atom {self.atom[index]}. Setting it to 0.5A.")
+            length = 0.5
+            pp_vect = length * kb_trigo.unit_vector(pp_orient)
         pp_coord = np.add(ra_pos, pp_vect)
         return pp_coord
 
@@ -279,12 +268,12 @@ class Fragment(StationaryPoint):
                 neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
         v1 = np.subtract(neighbour_pos[0], ra_pos)
         v2 = np.subtract(neighbour_pos[1], ra_pos)
-        small_angle = angle_between(v1, v2)
+        small_angle = kb_trigo.angle_between(v1, v2)
         big_angle = 2*pi - small_angle
-        axis = unit_vector(np.cross(v2, v1))
-        pp_orient = np.dot(rotation_matrix(axis, big_angle/2), v1)
-        length = pp_lenght_table(self.atom[index])
-        pp_vect = length * unit_vector(pp_orient)
+        axis = kb_trigo.unit_vector(np.cross(v2, v1))
+        pp_orient = np.dot(kb_trigo.rotation_matrix(axis, big_angle/2), v1)
+        length = pp_tables.pp_lenght_table(self.atom[index])
+        pp_vect = length * kb_trigo.unit_vector(pp_orient)
         pp_coord = np.add(ra_pos, pp_vect)
         return pp_coord
 
@@ -299,18 +288,23 @@ class Fragment(StationaryPoint):
         v1 = np.subtract(neighbour_pos[0], ra_pos)
         v2 = np.subtract(neighbour_pos[1], ra_pos)
         v3 = np.subtract(neighbour_pos[2], ra_pos)
-        plane = plane_from_points(v1, v2, v3)
-        ra_to_plane = dist_point_to_plane(ra_pos, plane)
+        plane = kb_trigo.plane_from_points(v1, v2, v3)
+        ra_to_plane = kb_trigo.dist_point_to_plane(ra_pos, plane)
         if abs(ra_to_plane) >= .1:
             #If carbon atom out of plane, only place a single pp on other side of the plane
             n_pp = 1
         pp_list = []
         #To know in which direction to place the pivot point
-        plane_direction = unit_vector(np.dot(plane[0], ra_pos))
-        length = pp_lenght_table(self.atom[index])
+        plane_direction = kb_trigo.unit_vector(np.dot(plane[0], ra_pos))
+        length = pp_tables.pp_lenght_table(self.atom[index])
         for i in range(n_pp):
-            pp_orient = np.array(unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
-            pp_vect = length * unit_vector(pp_orient)
+            pp_orient = np.array(kb_trigo.unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
+            try:
+                pp_vect = length * kb_trigo.unit_vector(pp_orient)
+            except NameError:
+                logger.warning(f"Length of pivot point not defined yet for atom {self.atom[index]}. Setting it to 0.5A.")
+                length = 0.5
+                pp_vect = length * kb_trigo.unit_vector(pp_orient)
             pp_coord = np.add(ra_pos, pp_vect)
             pp_list.append(pp_coord)
         return pp_list

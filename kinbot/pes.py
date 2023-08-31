@@ -1584,7 +1584,7 @@ def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
 
 
 def check_status(job, pid):
-    command = ['ps', 'u',]
+    command = ['ps', '-u', 'root', '-N', '-o', 'pid,s,user,%cpu,%mem,etime,args']
     process = subprocess.Popen(command,
                                shell=False,
                                stdout=subprocess.PIPE,
@@ -1595,7 +1595,7 @@ def check_status(job, pid):
     lines = out.split('\n')
     for line in lines:
         if len(line) > 0:
-            if str(pid) == line.split()[1]:
+            if str(pid) == line.split()[0]:
                 return 1
     return 0
 

@@ -94,9 +94,6 @@ class ReactionGenerator:
                     obj.irc_prod.bonds[0][obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     obj.irc_prod.bond[obj.instance[0]][obj.instance[1]] = 0  # delete bond
                     obj.irc_prod.bond[obj.instance[1]][obj.instance[0]] = 0  # delete bond
-                    obj.product_bonds = copy.deepcopy(obj.species.bonds[0])  # the first resonance structure
-                    obj.product_bonds[obj.instance[0]][obj.instance[1]] = 0  # delete bond
-                    obj.product_bonds[obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     self.species.reac_ts_done[index] = 2
 
                 if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
@@ -257,7 +254,6 @@ class ReactionGenerator:
                                     logger.info('\tNo product found for {}'.format(obj.instance_name))
                                     self.species.reac_ts_done[index] = -999
                                 else:
-                                    obj.product_bonds = prod.bond
                                     self.species.reac_ts_done[index] = 2
 
                 elif self.species.reac_ts_done[index] == 2:
@@ -376,7 +372,7 @@ class ReactionGenerator:
                     bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)
                     for i in range(self.species.natom):
                         for j in range(self.species.natom):
-                            bond_mx[i][j] = max(self.species.bond[i][j], obj.product_bonds[i][j])
+                            bond_mx[i][j] = max(self.species.bond[i][j], obj.irc_prod.bonds[0][i][j])
 
                     if self.species.reac_type[index] != 'hom_sci':  
                         err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
@@ -622,8 +618,8 @@ class ReactionGenerator:
                 if self.species.reac_ts_done[index] == -1:
                     for i in range(self.species.natom - 1):
                         for j in range(i + 1, self.species.natom):
-                            if self.species.bond[i][j] != obj.product_bonds[i][j]:
-                                if (self.species.bond[i][j] == 0 or obj.product_bonds[i][j] == 0):
+                            if self.species.bond[i][j] != obj.irc_prod.bonds[0][i][j]:
+                                if (self.species.bond[i][j] == 0 or obj.irc_prod.bonds[0][i][j] == 0):
                                     syms = []
                                     syms.append(self.species.atom[i])
                                     syms.append(self.species.atom[j])

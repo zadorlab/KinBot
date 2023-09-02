@@ -83,7 +83,7 @@ To run a full PES search, make an input file (e.g. input.json) and run:
 You can find additional command line arguments in the manual. 
 
 ## Documentation
-See [wiki](https://github.com/zadorlab/KinBot/wiki).
+See the [wiki](https://github.com/zadorlab/KinBot/wiki) for keywords, and our [tutorial](https://hackmd.io/@jzador/kinbot_workshop_2023#/) for a more hands-on introduction to the code.
 
 ## List of files in this project
 See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).

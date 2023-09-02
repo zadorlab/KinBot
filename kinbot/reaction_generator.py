@@ -262,6 +262,7 @@ class ReactionGenerator:
                                     self.species.reac_ts_done[index] = 2
 
                 elif self.species.reac_ts_done[index] == 2:
+<<<<<<< HEAD
                     # valid_prod: list marking fragments for deletion (if breaks apart or changes)
                     # frag_unique: list of unique fragments across all reactions for this well
                     # obj.products: list of products for given reaction, which includes changes and further dissociation 

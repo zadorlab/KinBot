@@ -240,8 +240,6 @@ class ReactionGenerator:
                             obj.irc = IRC(obj, self.par)  
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
-                                logger.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'
-                                             .format(barrier, obj.instance_name))
                                 # No IRC started yet, start the IRC now
                                 logger.info('\tStarting IRC calculations for {}'
                                              .format(obj.instance_name))
@@ -252,12 +250,13 @@ class ReactionGenerator:
                                 # IRC's have successfully finished, have an error, in any case
                                 # read the geometries and try to make products out of them
                                 # verify which of the ircs leads back to the reactant, if any
-                                irc_prod = obj.irc.irc2stationary_pt()
-                                if irc_prod == 0:
+                                logger.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'
+                                             .format(barrier, obj.instance_name))
+                                obj.irc_prod = obj.irc.irc2stationary_pt()
+                                if obj.irc_prod == 0:
                                     logger.info('\tNo product found for {}'.format(obj.instance_name))
                                     self.species.reac_ts_done[index] = -999
                                 else:
-                                    obj.irc_prod = irc_prod
                                     obj.product_bonds = prod.bond
                                     self.species.reac_ts_done[index] = 2
 
@@ -321,6 +320,11 @@ class ReactionGenerator:
                                 for nf in newfrags:
                                     obj.products.append(nf)
                                     obj.valid_prod.append(True)
+                            else:
+                                for fri, fr in enumerate(obj.products):
+                                    if fr.chemid == chemid_orig:
+                                        obj.products[fri].energy = frag.energy
+                                        obj.products[fri].zpe = frag.zpe
 
                     if ndone == len(obj.products):  # all currently recognized fragments are done
                         # delete invalid ones
@@ -355,7 +359,7 @@ class ReactionGenerator:
                                         val = sum(comb * (ens + zpes))
                                         low_e_comb = comb
                             obj.products = list(np.array(obj.products)[low_e_comb.astype(bool)])
-                            prods_energy = sum([p.energy + p.zpe for p in obj.products])
+                        prods_energy = sum([p.energy + p.zpe for p in obj.products])
                         if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                             hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
                             if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:

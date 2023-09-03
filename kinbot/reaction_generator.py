@@ -3,6 +3,7 @@ import shutil
 import time
 import logging
 import copy
+import pickle
 import itertools
 
 import numpy as np
@@ -279,7 +280,7 @@ class ReactionGenerator:
 
                     # initial fragment calculations finished, reading results...
                     hom_sci_energy = 0
-                    products_orig = copy.deepcopy(obj.products)
+                    products_orig = [opr for opr in obj.products] 
                     ndone = 0
                     for fragii, frag in enumerate(products_orig):
                         if frag.chemid == self.species.chemid:

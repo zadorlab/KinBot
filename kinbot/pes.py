@@ -286,7 +286,7 @@ def postprocess(par, jobs, task, names, mass):
     """
     postprocess a pes search
     par: parameters of the search
-    jobs: all of the jobs that were run
+    jobs: all of the kinbot jobs that were run
     temp: this is a temporary output file writing
     """
 
@@ -316,8 +316,15 @@ def postprocess(par, jobs, task, names, mass):
 
     wells = []
     failedwells = []
-    products = []
+    all_products = []
 
+    # calculate the barrier based on the new energy base
+    barrier = (0. - base_energy - base_zpe)*constants.AUtoKCAL
+
+    # list of reactions for which mp2 energies should be used at L1
+    mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
+                'reac_r12_cycloaddition', 'reac_r14_birad_scission']
+    
     # read all the jobs
     for ji in jobs:
         try:
@@ -326,141 +333,83 @@ def postprocess(par, jobs, task, names, mass):
             failedwells.append(ji)
             continue
         # read the summary file
-        for line in summary[4:]:
-            if line.startswith('SUCCESS') and 'hom_sci' not in line and 'vdW' not in line :
-                pieces = line.split()
-                ts = pieces[2]  #this is the long specific name of the reaction
-                if ts in par['skip_reactions']:
-                    continue
-                reactant = ji
-                prod = pieces[3:]  # this is the chemid of the product
-                # calculate the barrier based on the new energy base
-                barrier = 0. - base_energy - base_zpe
+        success_lines = [line for (line, starts_with_success) in zip(summary, np.char.startswith(summary, "SUCCESS")) if starts_with_success]
+        for line in success_lines:
 
-                # overwrite energies with mp2 energy if needed
-                mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
-                        'reac_r12_cycloaddition', 'reac_r14_birad_scission']
-                if (any([mm in ts for mm in mp2_list]) and not par['high_level']):
-                    base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
-                                                 par['high_level'], mp2=1)
-                    base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
-                                           par['high_level'], mp2=1)
-                    barrier = 0. - base_energy_mp2 - base_zpe_mp2
+            #Unpack the succesfull lines
+            if 'vdW' not in line :
+                success, ts_energy, reaction_name, *line_product_s = line.split()
+            elif 'vdW' in line : #Unpack differently when a vdW well is in line
+                success, ts_energy, reaction_name, *line_product_s, vdW_energy, vdW_direction = line.split()
+            if reaction_name in par['skip_reactions']:
+                continue
 
-                # overwrite energies with bls energy if needed
-                if 'barrierless_saddle' in ts and not par[ 'high_level']:
-                    base_energy_bls = get_energy(jobs[0], jobs[0], 0,
-                                                 par['high_level'], bls=1)
-                    base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
-                                           par['high_level'], bls=1)
-                    barrier = 0. - base_energy_bls - base_zpe_bls
+            reactant = ji
+            #prod = pieces[3:]  # this is the chemid of the product
 
-                ts_energy = get_energy(reactant, ts, 1, par['high_level'])
-                ts_zpe = get_zpe(reactant, ts, 1, par['high_level'])
-                barrier += ts_energy + ts_zpe
-                barrier *= constants.AUtoKCAL
-                if reactant not in wells:
-                    wells.append(reactant)
-                    parent[reactant] = reactant
-                if len(prod) == 1:
-                    if prod[0] not in wells:
-                        if prod[0] not in parent:
-                            parent[prod[0]] = reactant
-                        wells.append(prod[0])
-                else:
-                    prod_name = '_'.join(sorted(prod))
-                    if prod_name not in products:
-                        if prod_name not in parent:
-                            parent[prod_name] = reactant
-                        products.append('_'.join(sorted(prod)))
-                new = 1
-                temp = None
+            # overwrite energies with mp2 energy if needed
+            if (any([reaction_type in reaction_name for reaction_type in mp2_list]) and not par['high_level']):
+                base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
+                                                par['high_level'], mp2=1)
+                base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
+                                        par['high_level'], mp2=1)
+                barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
-                for i, rxn in enumerate(reactions):
-                    rxn_prod_name = '_'.join(sorted(rxn[2]))
-                    if (reactant == rxn[0] and
-                            '_'.join(sorted(prod)) == rxn_prod_name):
-                        new = 0
-                        temp = i
-                    if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
-                        new = 0
-                        temp = i
-                if new:
-                    reactions.append([reactant, ts, prod, barrier])
-                else:
-                    # check if the previous reaction has a lower energy or not
-                    if reactions[temp][3] > barrier:
-                        reactions.pop(temp)
-                        reactions.append([reactant, ts, prod, barrier])
+            # overwrite energies with bls energy if needed
+            if 'barrierless_saddle' in reaction_name and not par[ 'high_level']:
+                base_energy_bls = get_energy(jobs[0], jobs[0], 0,
+                                                par['high_level'], bls=1)
+                base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
+                                        par['high_level'], bls=1)
+                barrier = 0. - base_energy_bls - base_zpe_bls
 
-            elif line.startswith('SUCCESS') and 'hom_sci' in line:
-                pieces = line.split()
-                reactant = ji
-                energy = float(pieces[1])  # energy from summary
-                prod = pieces[3:]   # these are the chemids of the products
+            #Different treatment between homolytic scission and normal reaction
+            if 'hom_sci' in line:
+                reaction_name = "barrierless"
+                barrier = ts_energy
+            else:
+                #Save ts energy if there is a ts (eg. not homolytic scission)
+                ts_energy = get_energy(reactant, reaction_name, 1, par['high_level'])
+                ts_zpe = get_zpe(reactant, reaction_name, 1, par['high_level'])
+                barrier += (ts_energy + ts_zpe)*constants.AUtoKCAL
+                
+            if reactant not in wells:
+                wells.append(reactant)
+                parent[reactant] = reactant
+            if len(line_product_s) == 1:
+                if line_product_s not in wells:
+                    if line_product_s not in parent:
+                        parent[line_product_s] = reactant
+                    wells.append(line_product_s)
+            else:
+                prod_name = '_'.join(sorted(line_product_s))
+                if prod_name not in all_products:
+                    if prod_name not in parent:
+                        parent[prod_name] = reactant
+                    all_products.append('_'.join(sorted(line_product_s)))
+            new = 1
+            temp = None
 
-                if reactant not in wells:
-                    wells.append(reactant)
-                    parent[reactant] = reactant
+            for i, rxn in enumerate(reactions):
+                rxn_prod_name = '_'.join(sorted(rxn[2]))
+                if (reactant == rxn[0] and
+                        '_'.join(sorted(line_product_s)) == rxn_prod_name):
+                    new = 0
+                    temp = i
+                if reactant == ''.join(rxn[2]) and ''.join(line_product_s) == rxn[0]:
+                    new = 0
+                    temp = i
 
-                if len(prod) == 1:
-                    if prod[0] not in wells:
-                        if prod[0] not in parent:
-                            parent[prod[0]] = reactant
-                        wells.append(prod[0])
-                else:
-                    prod_name = '_'.join(sorted(prod))
-                    if prod_name not in products:
-                        if prod_name not in parent:
-                            parent[prod_name] = reactant
-                        products.append('_'.join(sorted(prod)))
-                new = 1
-                for rxn in reactions:
-                    rxn_prod_name = '_'.join(sorted(rxn[2]))
-                    if (reactant == rxn[0] and
-                            '_'.join(sorted(prod)) == rxn_prod_name):
-                        new = 0
-                    if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
-                        new = 0
-                if new:
-                    ts = 'barrierless'
-                    barrier = energy
-                    reactions.append([reactant, ts, prod, barrier])
+            if (new or 'hom_sci' in line) and "vdW" not in line:
+                reactions.append([reactant, reaction_name, line_product_s, barrier])
+            elif new and "vdW" in line:
+                reactions.append([reactant, reaction_name, line_product_s, barrier, vdW_energy, vdW_direction])
+            else:
+                # check if the previous reaction has a lower energy or not
+                if reactions[temp][3] > barrier:
+                    reactions.pop(temp)
+                    reactions.append([reactant, reaction_name, line_product_s, barrier])
 
-            elif line.startswith('SUCCESS') and 'vdW' in line:
-                pieces = line.split()
-                reactant = ji
-                energy = float(pieces[1])  # energy from summary
-                prod = pieces[3]   # these are the chemids of the products
-                vdW_energy = pieces[4]
-                IRC_direction = pieces[5].split('vdW')[1:]
-                if reactant not in wells:
-                    wells.append(reactant)
-                    parent[reactant] = reactant
-
-                if len(prod) == 1:
-                    if prod[0] not in wells:
-                        if prod[0] not in parent:
-                            parent[prod[0]] = reactant
-                        wells.append(prod[0])
-                else:
-                    prod_name = '_'.join(sorted(prod))
-                    if prod_name not in products:
-                        if prod_name not in parent:
-                            parent[prod_name] = reactant
-                        products.append('_'.join(sorted(prod)))
-                new = 1
-                for rxn in reactions:
-                    rxn_prod_name = '_'.join(sorted(rxn[2]))
-                    if (reactant == rxn[0] and
-                            '_'.join(sorted(prod)) == rxn_prod_name):
-                        new = 0
-                    if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
-                        new = 0
-                if new:
-                    ts = 'vdW'
-                    barrier = energy
-                    reactions.append([reactant, ts, prod, barrier])
 
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')

@@ -258,7 +258,7 @@ class ReactionGenerator:
                                     self.species.reac_ts_done[index] = 2
 
                 elif self.species.reac_ts_done[index] == 2:
-                    # valid_prod: list marking fragments for deletion (if breaks apart or changes)
+                    # obj.valid_prod: list marking fragments for deletion (if breaks apart or changes)
                     # frag_unique: list of unique fragments across all reactions for this well
                     # obj.products: list of products for given reaction, which includes changes and further dissociation 
                     if obj.prod_done == 0:  # not started optimization yet
@@ -309,7 +309,7 @@ class ReactionGenerator:
                                 for fri, fr in enumerate(obj.products):
                                     if fr.chemid == chemid_orig:
                                         obj.valid_prod[fri] = False
-                                newfrags, _ = frag.start_multi_molecular()  
+                                newfrags, _ = frag.start_multi_molecular(vary_charge=True)  # TODO
                                 self.equate_identical(newfrags)
                                 self.equate_unique(newfrags, frag_unique)
                                 logger.warning(f'Product {chemid_orig} optimized to {[nf.chemid for nf in newfrags]} '

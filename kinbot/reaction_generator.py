@@ -263,7 +263,7 @@ class ReactionGenerator:
                     # obj.products: list of products for given reaction, which includes changes and further dissociation 
                     if obj.prod_done == 0:  # not started optimization yet
                         # identify bimolecular products and wells from IRC - do it once
-                        obj.products, maps = obj.irc_prod.start_multi_molecular(vary_charge=True)
+                        obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
                         logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
                                     f'{[fr.chemid for fr in obj.products]}')
                         self.equate_identical(obj.products)
@@ -309,7 +309,7 @@ class ReactionGenerator:
                                 for fri, fr in enumerate(obj.products):
                                     if fr.chemid == chemid_orig:
                                         obj.valid_prod[fri] = False
-                                newfrags, newmaps = frag.start_multi_molecular()  
+                                newfrags, _ = frag.start_multi_molecular()  
                                 self.equate_identical(newfrags)
                                 self.equate_unique(newfrags, frag_unique)
                                 logger.warning(f'Product {chemid_orig} optimized to {[nf.chemid for nf in newfrags]} '
@@ -341,20 +341,20 @@ class ReactionGenerator:
                                 for i, frag_symb in enumerate(frag_symbols):
                                     if comb[i]:
                                         comb_symbols.extend(frag_symb)
-                                    if sum(comb * charges) != self.species.charge \
-                                            or sum(comb * masses) != self.species.mass \
-                                            or sorted(comb_symbols) != sorted(self.species.atom):
-                                        continue
-                                    rel_energy = constants.AUtoKCAL * (sum(comb * (ens + zpes)) - \
-                                                 (self.species.start_energy + self.species.start_zpe))
-                                    relev_comb = [p.chemid for i, p in enumerate(obj.products) if comb[i]]
-                                    if len(obj.products) > 2:
-                                        logger.info(f'\tPossible ion combination and energy for {obj.instance_name} products: '
-                                                    f'{", ".join([str(c) for c in relev_comb])} '
-                                                    f'at {rel_energy:.1f} kcal/mol.')
-                                    if sum(comb * (ens + zpes)) < val:
-                                        val = sum(comb * (ens + zpes))
-                                        low_e_comb = comb
+                                if sum(comb * charges) != self.species.charge \
+                                        or sum(comb * masses) != self.species.mass \
+                                        or sorted(comb_symbols) != sorted(self.species.atom):
+                                    continue
+                                rel_energy = constants.AUtoKCAL * (sum(comb * (ens + zpes)) - \
+                                             (self.species.start_energy + self.species.start_zpe))
+                                relev_comb = [p.chemid for i, p in enumerate(obj.products) if comb[i]]
+                                if len(obj.products) > 2:
+                                    logger.info(f'\tPossible ion combination and energy for {obj.instance_name} products: '
+                                                f'{", ".join([str(c) for c in relev_comb])} '
+                                                f'at {rel_energy:.1f} kcal/mol.')
+                                if sum(comb * (ens + zpes)) < val:
+                                    val = sum(comb * (ens + zpes))
+                                    low_e_comb = comb
                             obj.products = list(np.array(obj.products)[low_e_comb.astype(bool)])
                         prods_energy = sum([p.energy + p.zpe for p in obj.products])
                         if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments

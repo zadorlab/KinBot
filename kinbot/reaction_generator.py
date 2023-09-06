@@ -280,7 +280,7 @@ class ReactionGenerator:
 
                     # initial fragment calculations finished, reading results...
                     hom_sci_energy = 0
-                    products_orig = [opr for opr in obj.products] 
+                    products_orig = [copy.deepcopy(opr) for opr in obj.products] 
                     ndone = 0
                     for fragii, frag in enumerate(products_orig):
                         if frag.chemid == self.species.chemid:
@@ -356,6 +356,7 @@ class ReactionGenerator:
                                     val = sum(comb * (ens + zpes))
                                     low_e_comb = comb
                             obj.products = list(np.array(obj.products)[low_e_comb.astype(bool)])
+                        obj.irc_fragments = [copy.deepcopy(this_frag) for this_frag in obj.products]
                         prods_energy = sum([p.energy + p.zpe for p in obj.products])
                         if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                             hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
@@ -464,12 +465,13 @@ class ReactionGenerator:
                         if len(obj.products) == 2 and "hom_sci" not in obj.instance_name:
                             logger.info("\tChecking vdW well for {}.".format(obj.instance_name))
                             e, obj.irc_prod.energy = self.qc.get_qc_energy(f"{obj.irc_prod.name}") #e is the error code: should be 0 (success) at this point.
-                            #_, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}") + '_well') #Irc_prod doesn't have a zpe in the db. To be implemented if we want.
+                            e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}") #Irc_prod doesn't have a zpe in the db. To be implemented if we want.
                             #prod_energy = obj.irc_prod.energy + obj.irc_prod.zpe
                             for this_frag in obj.irc_fragments:
                                 e, this_frag.energy = self.qc.get_qc_energy(f"{this_frag.chemid}_well")
+                                e, this_frag.zpe = self.qc.get_qc_zpe(f"{this_frag.chemid}_well")
                             fragments_energies = sum([this_frag.energy + this_frag.zpe for this_frag in obj.irc_fragments ])
-                            obj.vdW_depth = (obj.irc_prod.energy - fragments_energies)*constants.AUtoKCAL
+                            obj.vdW_depth = (obj.irc_prod.energy + obj.irc_prod.zpe - fragments_energies)*constants.AUtoKCAL
                             if obj.vdW_depth < self.par["vdW_detection"]: #kcal/mol
                                 logger.info("\tReaction {} leads to vdW well {} with a depth of {:.2f} kcal/mol".format(obj.instance_name, obj.irc_prod.chemid, obj.vdW_depth))
                                 obj.do_vdW = True

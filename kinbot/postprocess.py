@@ -99,23 +99,28 @@ def create_summary_file(species, qc, par):
                           - species.energy - species.zpe) * constants.AUtoKCAL
             else:
                 energy = (ts.energy + ts.zpe - species.energy - species.zpe) * constants.AUtoKCAL
-                name = []
-                for prod in species.reac_obj[index].products:
-                    name.append(str(prod.chemid))
-                prod_name = ' '.join(sorted(name))
-
-            if species.reac_obj[index].do_vdW:
-                s.append('SUCCESS\t{energy:.2f}\t{name}\t{prod}\t{vdW_energy}\t{db_name}'.format(energy=energy,
+                
+            name = []
+            for prod in species.reac_obj[index].products:
+                name.append(str(prod.chemid))
+            prod_name = ' '.join(sorted(name))
+            status = "SUCCESS"
+            if species.reac_obj[index].do_vdW:                
+                s.append('{status:7s}\t{energy:-7.2f}\t{name:45s}\t{prod}\t{vdW_energy:7.2f}\t{db_name}'.format(status=status,
+                                                                    energy=energy,
                                                                     name=species.reac_name[index],
                                                                     prod=prod_name,
-                                                                    vdW_energy=species.reac_obj[index].irc_prod.energy,
-                                                                    db_name=f"vdW_{species.reac_obj[index].irc_prod.name.split('IRC')[1]}"))
+                                                                    vdW_energy=(species.reac_obj[index].irc_prod.energy - species.energy)*constants.AUtoKCAL,
+                                                                    db_name=f"vdW{species.reac_obj[index].irc_prod.name.split(species.reac_obj[index].instance_name)[1]}"))
             else:
-                s.append('SUCCESS\t{energy:.2f}\t{name}\t{prod}'.format(energy=energy,
+                s.append('{status:7s}\t{energy:-7.2f}\t{name:45s}\t{prod}'.format(status=status,
+                                                                    energy=energy,
                                                                     name=species.reac_name[index],
                                                                     prod=prod_name))
         else:
-            s.append('FAILED\t\t{name}'.format(name=species.reac_name[index]))
+            status = "FAILED"
+            s.append('{status:7s}\t\t{name:45s}'.format(status=status,
+                                                 name=species.reac_name[index]))
 
     # make a string out of all the lines
     s = '\n'.join(s)

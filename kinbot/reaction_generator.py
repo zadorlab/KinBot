@@ -264,8 +264,13 @@ class ReactionGenerator:
                     if obj.prod_done == 0:  # not started optimization yet
                         # identify bimolecular products and wells from IRC - do it once
                         obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
-                        logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
-                                    f'{[fr.chemid for fr in obj.products]}')
+                        if self.species.charge == 0:
+                            logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
+                                        f'{[fr.chemid for fr in obj.products]}')
+                        else:
+                            logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
+                                        f'{[fr.chemid for fr in obj.products]} (including all possible charge distributions)')
+
                         self.equate_identical(obj.products)
                         obj.valid_prod = len(obj.products) * [True]
                         
@@ -280,7 +285,7 @@ class ReactionGenerator:
 
                     # initial fragment calculations finished, reading results...
                     hom_sci_energy = 0
-                    products_orig = [opr for opr in obj.products] 
+                    products_orig = [copy.deepcopy(opr) for opr in obj.products] 
                     ndone = 0
                     for fragii, frag in enumerate(products_orig):
                         if frag.chemid == self.species.chemid:

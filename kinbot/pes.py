@@ -1229,20 +1229,20 @@ def create_rotdPy_inputs(par, barrierless, vdW):
     #format the vdW reactions to be added to the barrierless list.
     for reac in vdW:
         reactant, reaction_name, products, barrier, vdW_energy, vdW_direction = reac
-        reaction_name = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
+        reaction_name = f"{reaction_name.split(reactant)}{vdW_direction.split('vdW')[1]}"
         barrier = vdW_energy
         barrierless.append([reactant, reaction_name, products, barrier])
 
     for index, reac in enumerate(barrierless):
-        job_name = "_".join(reac[:2]) + "_" + "_".join(reac[2])
+        job_name = "_".join([reactant, reaction_name]) + "_" + "_".join(products)
         logger.info(f"Creating rotdPy input for reaction {job_name}")
-        parent_chemid = reac[0]
-        if len(reac[2]) == 2: #Check if the barrierless reaction has 2 fragments
-            tot_frag = len(reac[2])
+        parent_chemid = reactant
+        if len(products) == 2: #Check if the barrierless reaction has 2 fragments
+            tot_frag = len(products)
 
             fragments = []
             for frag_number in range(tot_frag):
-                chemid = reac[2][frag_number]
+                chemid = products[frag_number]
 
                 if par['high_level']:
                     #Will read info from L2 structure
@@ -1329,6 +1329,11 @@ def create_rotdPy_inputs(par, barrierless, vdW):
             Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 2,\
                   'tot_smp_max': 10000, 'tot_smp_min': 50,\
                   'flux_rel_err': 10.0, 'smp_len': 1}"
+            
+        else:
+            logger.warning("The creation of rotdPy inputs currently only work for bimolecular products.")
+            logger.warning(f"Skiping rotdPy input creation for reac {job_name}.")
+            continue
 
         fname = f"{job_name}.inp"
         folder = "rotdPy"

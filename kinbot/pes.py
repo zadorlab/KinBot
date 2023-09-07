@@ -364,11 +364,11 @@ def postprocess(par, jobs, task, names, mass):
                     barrier = 0. - base_energy_bls - base_zpe_bls
 
                 #Different treatment between homolytic scission and normal reaction
-                if 'hom_sci' in line:
-                    reaction_name = "barrierless"
+                if "hom_sci" in line:
+                    reaction_name = "hom_sci"
                     barrier = ts_energy
                 else:
-                    #Save ts energy if there is a ts (eg. not homolytic scission)
+                    #Save ts energy if there is a ts (eg. not barrierless reaction)
                     ts_energy = get_energy(reactant, reaction_name, 1, par['high_level'])
                     ts_zpe = get_zpe(reactant, reaction_name, 1, par['high_level'])
                     barrier += (ts_energy + ts_zpe)*constants.AUtoKCAL
@@ -401,15 +401,19 @@ def postprocess(par, jobs, task, names, mass):
                         new = 0
                         temp = i
 
-                if new and "vdW" not in line:
-                    reactions.append([reactant, reaction_name, products, barrier])
-                elif new and "vdW" in line:
-                    reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
+                if new :
+                    if "vdW" not in line:
+                        reactions.append([reactant, reaction_name, products, barrier])
+                    else:
+                        reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
                 elif not new and "hom_sci" not in line:
                     # check if the previous reaction has a lower energy or not
                     if reactions[temp][3] > barrier:
                         reactions.pop(temp)
-                        reactions.append([reactant, reaction_name, products, barrier])
+                        if "vdW" not in line:
+                            reactions.append([reactant, reaction_name, products, barrier])
+                        else:
+                            reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
 
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
@@ -547,24 +551,30 @@ def postprocess(par, jobs, task, names, mass):
                                                    task,
                                                    names)
 
-    create_interactive_graph(wells,
-                             bimol_products,
-                             reactions,
-                             par['title'],
-                             well_energies,
-                             prod_energies,
-                             )
+    #create_interactive_graph(wells,
+    #                         bimol_products,
+    #                         reactions,
+    #                         par['title'],
+    #                         well_energies,
+    #                         prod_energies,
+    #                         )
 
     barrierless = []
+    vdW = []
     rxns = []
     for rxn in reactions:
-        if rxn[1] == 'barrierless' or rxn[1] == 'vdW':
+        if rxn[1] == 'hom_sci':
+            #in rxn: [reactant, reaction_name, products, barrier]
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
+        elif len(rxn) > 4: #vdW for now, find better latter.
+            #in rxn: [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
+            vdW.append([rxn[0], rxn[1], rxn[2], rxn[3], rxn[4], rxn[5]])
         else:
             rxns.append([rxn[0], rxn[1], rxn[2], rxn[3]])
 
     create_rotdPy_inputs(par,
-                         barrierless)
+                         barrierless,
+                         vdW)
 
 
     # write full pesviewer input
@@ -1204,11 +1214,26 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         #uq.format_uqtk_data() 
     return
 
-def create_rotdPy_inputs(par, barrierless):
+def create_rotdPy_inputs(par, barrierless, vdW):
     """
     Function that create an input file for rotdPy.
+    barrierless and vdW are lists of reactions.
+    barrierless reactions:
+    [reactant, reaction_name, products, barrier]
+    vdW reactions:
+    [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
     """
-    for reac in barrierless:
+
+    number_of_barrierless = len(barrierless)
+
+    #format the vdW reactions to be added to the barrierless list.
+    for reac in vdW:
+        reactant, reaction_name, products, barrier, vdW_energy, vdW_direction = reac
+        reaction_name = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
+        barrier = vdW_energy
+        barrierless.append([reactant, reaction_name, products, barrier])
+
+    for index, reac in enumerate(barrierless):
         job_name = "_".join(reac[:2]) + "_" + "_".join(reac[2])
         logger.info(f"Creating rotdPy input for reaction {job_name}")
         parent_chemid = reac[0]
@@ -1250,9 +1275,9 @@ def create_rotdPy_inputs(par, barrierless):
 
             #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
             fragnames = Fragment.get_fragnames()
-            reaction_type = pp_settings.get_reaction_name(reac)
-            reactive_atoms = pp_settings.get_ra(reac)
-            if reaction_type != "vdW":
+            reactive_atoms = []
+            reactive_atoms = pp_settings.get_ra(reac) 
+            if index < number_of_barrierless:
                 #Map the long range fragments with the index of the parent to find 
                 pp_settings.set_order(parent, reactive_atoms, fragments)
                 #Make sure the reactive atoms are in the same order as the fragments
@@ -1263,16 +1288,17 @@ def create_rotdPy_inputs(par, barrierless):
 
             for dist in par['vrc_tst_dist_list']:
                 n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
-                if reaction_type != "vdW":
-                    for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
-                        frag.set_pivot_points(dist, atom)
-                        n_pp.append(len(frag.pivot_points))
-                else:
+                if len(reactive_atoms) == 0:
+                    logger.warning("No reactive atom detected for this reaction. Pivot points on COMs.")
                     for frag in fragments: #Pivot points directly on COM for vdW
                         frag.set_pp_on_com()
                         n_pp.append(len(frag.pivot_points))
-                    pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                    pp_dist[:] = dist
+                else:
+                    for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
+                        frag.set_pivot_points(dist, atom)
+                        n_pp.append(len(frag.pivot_points))
+                pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                pp_dist[:] = dist
                 
                 surfaces.append(VRC_TST_Surface(fragments, pp_dist))
                 for frag in fragments:

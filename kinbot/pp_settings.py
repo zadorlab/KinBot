@@ -4,37 +4,25 @@ import logging
 
 logger = logging.getLogger('KinBot')
 
-def get_reaction_name(reac):
-    with open(reac[0] + '/summary_' + reac[0] + '.out', 'r') as summary:
-        for line in summary.readlines()[4:]:
-            if line.startswith('SUCCESS'):
-                if 'hom_sci' in line:
-                    reac_type = 'hom_sci'
-                elif 'vdW' in line:
-                    reac_type = 'vdW'
-                else:
-                    logger.warning("Identification of reactive atoms is not implemented yet for this type of reactions. Pivot points on COM.")
-                    reac_type = "not_implemented"
-            else:
-                reac_type = None
-    return reac_type
-
-
 def get_ra(reac):
     reactive_atoms = []
     #Recover the index of the reactive atoms from the reaction name.
     with open(reac[0] + '/summary_' + reac[0] + '.out', 'r') as summary:
         for line in summary.readlines()[4:]:
-            if line.startswith('SUCCESS'):
-                pieces = line.split()
+            if line.startswith('SUCCESS') and ("vdW" in line or "hom_sci" in line):
+                if 'vdW' not in line :
+                    success, ts_energy, reaction_name, *products = line.split()
+                elif 'vdW' in line : #Unpack differently when a vdW well is in line
+                    success, ts_energy, reaction_name, *products, vdW_energy, vdW_direction = line.split()
 
-                if 'hom_sci' in line and sorted(pieces[3:]) == sorted(reac[2]) :
-                    for ra in pieces[2].split('_')[3:]:
-                        reactive_atoms.append(int(ra)-1)
-                    break
-                else:
-                    logger.warning("Identification of reactive atoms is not implemented yet for this type of reactions. Pivot points on COM.")
-                    return None
+                if sorted(products) == sorted(reac[2]):
+                    if 'hom_sci' in reaction_name:
+                        for ra in reaction_name.split('_')[3:]:
+                            reactive_atoms.append(int(ra)-1)
+                        break
+                    else:
+                        logger.warning("Identification of reactive atoms is not implemented yet for this type of reactions.")
+                        break
                     
     return reactive_atoms
 

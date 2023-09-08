@@ -4,6 +4,7 @@ import os
 import logging
 import warnings
 
+from kinbot import license_message
 
 def log_exception(exc_type, exc_value, exc_tb):
     """Sets up the recording of exceptions on the log file
@@ -65,5 +66,6 @@ def config_log(label, mode='kinbot', level='info'):
 
     sys.excepthook = log_exception
     warnings.showwarning = log_warning
+    logger.info(license_message.message)
 
     return logger

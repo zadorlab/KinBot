@@ -42,7 +42,6 @@ def main():
         logger = config_log('KinBot')
 
     # write the license message and the parameters to the log file
-    logger.info(license_message.message)
     logger.info('Input parameters')
     par_str = "\n\t".join([str(p) + ": " + str(par[p])for p in par])
 

@@ -337,8 +337,11 @@ def postprocess(par, jobs, task, names, mass):
                 #Unpack the succesfull lines
                 if 'vdW' not in line :
                     success, ts_energy, reaction_name, *products = line.split()
+                    do_vdW = False
                 elif 'vdW' in line : #Unpack differently when a vdW well is in line
                     success, ts_energy, reaction_name, *products, vdW_energy, vdW_direction = line.split()
+                    do_vdW = True
+                    vdW_well = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
                 if reaction_name in par['skip_reactions']:
                     continue
 
@@ -376,6 +379,7 @@ def postprocess(par, jobs, task, names, mass):
                 if reactant not in wells:
                     wells.append(reactant)
                     parent[reactant] = reactant
+                
                 if len(products) == 1:
                     product = products[0]
                     if product not in wells:
@@ -388,6 +392,11 @@ def postprocess(par, jobs, task, names, mass):
                         if prod_name not in parent:
                             parent[prod_name] = reactant
                         bimol_products.append('_'.join(sorted(products)))
+                    if do_vdW:
+                        if vdW_well not in wells:
+                            wells.append(vdW_well)
+                            parent[vdW_well] = reactant
+                            parent[prod_name] = vdW_well
                 new = 1
                 temp = None
 
@@ -443,8 +452,8 @@ def postprocess(par, jobs, task, names, mass):
     well_energies = {}
     well_l3energies = {}
     for well in wells:
-        energy = get_energy(parent[well], well, 0, par['high_level'])  # from the db
-        zpe = get_zpe(parent[well], well, 0, par['high_level'])
+        energy = get_energy(parent[well], well, do_vdW, par['high_level'])  # from the db
+        zpe = get_zpe(parent[well], well, do_vdW, par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -551,13 +560,13 @@ def postprocess(par, jobs, task, names, mass):
                                                    task,
                                                    names)
 
-    #create_interactive_graph(wells,
-    #                         bimol_products,
-    #                         reactions,
-    #                         par['title'],
-    #                         well_energies,
-    #                         prod_energies,
-    #                         )
+    create_interactive_graph(wells,
+                             bimol_products,
+                             reactions,
+                             par['title'],
+                             well_energies,
+                             prod_energies,
+                             )
 
     barrierless = []
     vdW = []
@@ -583,6 +592,7 @@ def postprocess(par, jobs, task, names, mass):
                            bimol_products,
                            rxns,
                            barrierless,
+                           vdW,
                            well_energies,
                            prod_energies,
                            highlight)
@@ -1357,7 +1367,7 @@ def create_rotdPy_inputs(par, barrierless, vdW):
         #Erase the fragments for this reaction
         Fragment._instances = []
 
-def create_pesviewer_input(par, wells, products, reactions, barrierless,
+def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
                            well_energies, prod_energies, highlight):
     """
     highlight: list of reaction names that need a red highlight
@@ -1393,14 +1403,28 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
                                                     prod_name,
                                                     high))
     barrierless_lines = []
-    index = 0
     prev_prod = []
-    for rxn in barrierless:
+    for index, rxn in enumerate(barrierless):
         prod_name = '_'.join(sorted(rxn[2]))
         barrierless_lines.append('{name} {react} {prod}'.format(name='nobar_' + str(index),
                                                                     react=rxn[0],
                                                                     prod=prod_name))
-        index = index + 1
+    
+    for index, rxn in enumerate(vdW):
+        high = ''
+        if rxn[1] in highlight:
+            high = 'red'
+        vdW_name = f"{rxn[1]}{rxn[5].split('vdW')[1]}"
+        prod_name = '_'.join(sorted(rxn[2]))
+        ts_lines.append('{} {:.2f} {} {} {}'.format(rxn[1],
+                                                    rxn[3],
+                                                    rxn[0],
+                                                    vdW_name,
+                                                    high))
+        barrierless_lines.append('{name} {react} {prod}'.format(name='nobar_' + str(index),
+                                                                    react=vdW_name,
+                                                                    prod=prod_name))
+
 
     well_lines = '\n'.join(well_lines)
     bimol_lines = '\n'.join(bimol_lines)

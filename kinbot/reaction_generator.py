@@ -322,6 +322,7 @@ class ReactionGenerator:
                                     if fr.chemid == chemid_orig:
                                         obj.products[fri].energy = frag.energy
                                         obj.products[fri].zpe = frag.zpe
+                                        obj.products[fri].geom = frag.geom
 
                     if ndone == len(obj.products):  # all currently recognized fragments are done
                         # delete invalid ones

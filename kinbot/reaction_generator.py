@@ -285,7 +285,7 @@ class ReactionGenerator:
 
                     # initial fragment calculations finished, reading results...
                     hom_sci_energy = 0
-                    products_orig = [copy.deepcopy(opr) for opr in obj.products] 
+                    products_orig = [copy.copy(opr) for opr in obj.products] 
                     ndone = 0
                     for fragii, frag in enumerate(products_orig):
                         if frag.chemid == self.species.chemid:
@@ -314,7 +314,7 @@ class ReactionGenerator:
                                 for fri, fr in enumerate(obj.products):
                                     if fr.chemid == chemid_orig:
                                         obj.valid_prod[fri] = False
-                                newfrags, _ = frag.start_multi_molecular(vary_charge=True)  # TODO
+                                newfrags, _ = frag.start_multi_molecular(vary_charge=True)  
                                 self.equate_identical(newfrags)
                                 self.equate_unique(newfrags, frag_unique)
                                 logger.warning(f'Product {chemid_orig} optimized to {[nf.chemid for nf in newfrags]} '
@@ -373,6 +373,9 @@ class ReactionGenerator:
                             self.species.reac_ts_done[index] = 3
 
                 elif self.species.reac_ts_done[index] == 3:
+                    for frag in obj.products:
+                        e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+
                     # Do the TS and product optimization
                     # make a stationary point object of the ts
                     bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)

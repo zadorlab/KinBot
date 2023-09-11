@@ -18,7 +18,7 @@ class Parameters:
     This class initiates all parameters to their defaults and reads in the
     user-defined variables, which overwrite the defaults
     """
-    def __init__(self, inpfile=None):
+    def __init__(self, inpfile=None, show_warnings=False):
         """
         Initialize all the variable and read the file which is the user input
         file
@@ -358,11 +358,12 @@ class Parameters:
             err = 'Conformer search has to be done before L2.'
 
         if self.par['high_level'] == 0 and self.par['rotor_scan'] == 1:
-            logger.warning('L1 level of theory (here set to '
-                           f'{self.par["method"].upper()}/{self.par["basis"].upper()}) is '
-                           'designed to be used for exploratory purposes only. '
-                           'Running the hindered rotor calculations at this '
-                           'level of theory is highly discouraged.')
+            if show_warnings:
+                logger.warning('L1 level of theory (here set to '
+                               f'{self.par["method"].upper()}/{self.par["basis"].upper()}) is '
+                               'designed to be used for exploratory purposes only. '
+                               'Running the hindered rotor calculations at this '
+                               'level of theory is highly discouraged.')
             if self.par['method'].lower() != self.par['high_level_method'].lower() \
                     or self.par['basis'].lower() != self.par['high_level_basis'].lower():
                 err = 'When running the hindered rotors at L1, "high_level_method" ' \

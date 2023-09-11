@@ -67,7 +67,7 @@ def main():
     logger = config_log('KinBot', mode='pes')
 
     # initialize the parameters
-    par = Parameters(input_file).par
+    par = Parameters(input_file, show_warnings=True).par
 
     # set up the logging environment
     if par['verbose']:

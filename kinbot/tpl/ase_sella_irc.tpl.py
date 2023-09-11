@@ -30,15 +30,20 @@ try:
         e = mol.get_potential_energy()
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
         success = True
-    elif mol.positions is not None:
+    elif mol.positions is not None and mol.positions.any():
         # although there is an error, continue from the final geometry
         db.write(mol, name='{label}', data={{'status': 'normal'}})
         success = True
     else:
         raise RuntimeError
 except (RuntimeError, ValueError):
-   success = False
-   db.write(mol, name='{label}', data={{'status': 'error'}})
+    if mol.positions is not None and mol.positions.any():
+        # although there is an error, continue from the final geometry
+        db.write(mol, name='{label}', data={{'status': 'normal'}})
+        success = True
+    else:
+        success = False
+        db.write(mol, name='{label}', data={{'status': 'error'}})
 
 with open('{label}.log', 'a') as f:
     f.write('done\n')
@@ -64,5 +69,5 @@ if success:
         db.write(mol, name='{label}_prod', data={{'status': 'error'}})    
     
 
-with open('{label}_prod.log', 'a') as f:
-    f.write('done\n')
+    with open('{label}_prod.log', 'a') as f:
+        f.write('done\n')

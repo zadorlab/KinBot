@@ -154,10 +154,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    sella_kwargs=rxn.par['sella_kwargs']  # Sella
                                    )
     else:
+        kwargs.pop('addsec', None)
         if rxn.par['calc_kwargs']:
             kwargs = rxn.qc.merge_kwargs(kwargs)
         if rxn.qc.use_sella:
-            kwargs.pop('addsec', None)
             kwargs.pop('freq', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_end.tpl.py'

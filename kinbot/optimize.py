@@ -29,7 +29,7 @@ class Optimize:
     4. Repeat steps 2-3 as long as lower energy structures are found
     """
 
-    def __init__(self, species, par, qc, wait=0):
+    def __init__(self, species, par, qc, wait=0, **kwargs):
         self.species = species
         try:
             delattr(self.species, 'cycle_chain')
@@ -47,15 +47,25 @@ class Optimize:
         # wait for all calculations to finish before returning
         self.wait = wait
 
-        # status of the various parts
-        # -1: not yet started
-        #  0: running
-        #  1: finished
-        # -999:failed
-        self.scycconf = -1
-        self.sconf = -1
         self.shigh = -1
-        self.shir = -1
+
+        self.kwargs = kwargs
+
+        if "do_vdW_well" not in kwargs:
+            # status of the various parts
+            # -1: not yet started
+            #  0: running
+            #  1: finished
+            # -999:failed
+            self.scycconf = -1
+            self.sconf = -1
+            self.shir = -1
+            self.kwargs["do_vdW_well"] = False
+        elif kwargs["do_vdW_well"]:
+            #Do not perform conformer search for vdW wells
+            self.scycconf = 1
+            self.sconf = 1
+            self.shir = 1
 
         # restart counter: number of times the high-level and hir calculations
         # has been restarted in case a lower energy structure has been found
@@ -179,7 +189,7 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                if self.par['conformer_search'] == 1:
+                if self.par['conformer_search'] == 1 and not self.kwargs["do_vdW_well"]:
                     status, lowest_conf, self.species.geom, low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
@@ -198,8 +208,12 @@ class Optimize:
                                                           ext=f'_{str(conindx).zfill(4)}_high',
                                                           )
                             else:
-                                name = self.species.chemid
-                                self.qc.qc_opt(self.species, self.species.geom, high_level=1)
+                                if self.kwargs["do_vdW_well"]:
+                                    name = self.species.name
+                                    self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
+                                else:
+                                    name = self.species.chemid
+                                    self.qc.qc_opt(self.species, self.species.geom, high_level=1)
                                 if self.par['multi_conf_tst']:
                                     for ci, conindx in enumerate(self.species.conformer_index):
                                         self.qc.qc_opt(self.species, 

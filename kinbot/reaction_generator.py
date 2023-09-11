@@ -359,6 +359,22 @@ class ReactionGenerator:
                             obj.products = list(np.array(obj.products)[low_e_comb.astype(bool)])
                         obj.irc_fragments = [copy.deepcopy(this_frag) for this_frag in obj.products]
                         prods_energy = sum([p.energy + p.zpe for p in obj.products])
+
+                        # Select reactions potentially leading to vdW wells
+                        if len(obj.products) == 2 and "hom_sci" not in obj.instance_name:
+                            logger.info("\tChecking vdW well for {}.".format(obj.instance_name))
+                            obj.irc_prod.characterize()
+                            e, obj.irc_prod.energy = self.qc.get_qc_energy(f"{obj.irc_prod.name}") #e is the error code: should be 0 (success) at this point.
+                            e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}") #Irc_prod doesn't have a zpe in the db. To be implemented if we want.
+                            e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
+                            e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
+                            for this_frag in obj.irc_fragments:
+                                e, this_frag.freq = self.qc.get_qc_freq(f"{this_frag.name}_well", this_frag.natom) 
+                            fragments_energies = sum([this_frag.energy + this_frag.zpe for this_frag in obj.irc_fragments ])
+                            obj.vdW_depth = fragments_energies - obj.irc_prod.energy + obj.irc_prod.zpe
+                            if obj.vdW_depth > self.par["vdW_detection"]:
+                                obj.do_vdW = True
+                            
                         if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                             hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
                             if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
@@ -370,8 +386,8 @@ class ReactionGenerator:
                             self.species.reac_ts_done[index] = 3
 
                 elif self.species.reac_ts_done[index] == 3:
-                    # Do the TS and product optimization
-                    # make a stationary point object of the ts
+                    # Do the TS, product and vdW optimization
+                    # make a stationary point object of the ts and vdW well
                     bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)
                     for i in range(self.species.natom):
                         for j in range(self.species.natom):
@@ -396,6 +412,19 @@ class ReactionGenerator:
                         obj.ts = copy.copy(obj.species)  # the TS will be for now the species itself
                         obj.ts.wellorts = 1
 
+                    # do the vdW optimizations
+                    if obj.do_vdW:               
+                        obj.irc_prod.distance_mx()
+                        obj.irc_prod.bond = bond_mx
+                        # do the high level optimization if requested
+                        obj.irc_prod_opt = Optimize(obj.irc_prod, self.par, self.qc, do_vdW_well=True)
+                        obj.irc_prod_opt.do_optimization()
+                        if obj.irc_prod_opt.shigh == -999: 
+                            logger.info('\tVdW search failed for {}, prod_opt shigh fail for {}.'
+                                            .format(obj.irc_prod.name, obj.irc_prod.chemid))
+                            obj.do_vdW = False
+                        # non-conformationally optimized fragments high-level qc to be added here if we want to
+                                                  
                     # do the products optimizations
                     temp_prod_opt = []  # holding the optimization objects temporarily
                     for st_pt in obj.products:
@@ -442,7 +471,7 @@ class ReactionGenerator:
                     # check up on the TS and product optimizations
                     opts_done = 1
                     fails = 0
-                    # check if ts is done
+                    # check if ts and vdW are done
                     if self.species.reac_type[index] != 'hom_sci':
                         if not obj.ts_opt.shir == 1:  # last stage in optimize
                             opts_done = 0
@@ -450,6 +479,12 @@ class ReactionGenerator:
                         if obj.ts_opt.shigh == -999:
                             logger.warning("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
                             fails = 1
+                        if obj.do_vdW:
+                            if obj.irc_prod_opt.shigh == -999:
+                                logger.warning("High level vdW well optimization of {} failed".format(obj.irc_prod.name))
+                                obj.do_vdW = False
+                            elif obj.irc_prod_opt.shigh != 1:
+                                opts_done = 0
                     for pr_opt in obj.prod_opt:
                         if not pr_opt.shir == 1:
                             opts_done = 0
@@ -461,24 +496,6 @@ class ReactionGenerator:
                     if fails:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:
-                        
-                        # Select reactions leading to vdW wells
-                        if len(obj.products) == 2 and "hom_sci" not in obj.instance_name:
-                            logger.info("\tChecking vdW well for {}.".format(obj.instance_name))
-                            e, obj.irc_prod.energy = self.qc.get_qc_energy(f"{obj.irc_prod.name}") #e is the error code: should be 0 (success) at this point.
-                            e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}") #Irc_prod doesn't have a zpe in the db. To be implemented if we want.
-                            #prod_energy = obj.irc_prod.energy + obj.irc_prod.zpe
-                            for this_frag in obj.irc_fragments:
-                                e, this_frag.energy = self.qc.get_qc_energy(f"{this_frag.chemid}_well")
-                                e, this_frag.zpe = self.qc.get_qc_zpe(f"{this_frag.chemid}_well")
-                            fragments_energies = sum([this_frag.energy + this_frag.zpe for this_frag in obj.irc_fragments ])
-                            obj.vdW_depth = (obj.irc_prod.energy + obj.irc_prod.zpe - fragments_energies)*constants.AUtoKCAL
-                            if obj.vdW_depth < self.par["vdW_detection"]: #kcal/mol
-                                logger.info("\tReaction {} leads to vdW well {} with a depth of {:.2f} kcal/mol".format(obj.instance_name, obj.irc_prod.chemid, obj.vdW_depth))
-                                obj.do_vdW = True
-                            else:
-                                logger.info("\tReaction {} did not lead to a vdW well. Depth: {} | Threshold: {} (kcal/mol)".format(obj.instance_name, obj.vdW_depth, self.par["vdW_detection"]))
-
                         self.species.reac_ts_done[index] = 5
 
                 elif self.species.reac_ts_done[index] == 5:
@@ -509,7 +526,12 @@ class ReactionGenerator:
                                         # wait a second and try again
                                         time.sleep(1)
                                         pass
-
+                        # verify vdW energies
+                        elif obj.do_vdW:
+                            for this_frag in obj.products:
+                                e, this_frag.freq = self.qc.get_qc_freq(f"{this_frag.name}_well", this_frag.natom) 
+                            fragments_energies = sum([this_frag.energy + this_frag.zpe for this_frag in obj.irc_fragments ])
+                            obj.vdW_depth = fragments_energies - obj.irc_prod.energy + obj.irc_prod.zpe
                         # copy the files of the species to an upper directory
                         frags = obj.products
                         #for frag in frags:
@@ -532,6 +554,10 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                         neg_freq = 1
 
+                    if obj.do_vdW:
+                        fragments_energies = sum([this_frag.energy + this_frag.zpe for this_frag in obj.products ])
+                        obj.vdW_depth = fragments_energies - obj.irc_prod.energy + obj.irc_prod.zpe
+                        
                     if not neg_freq:
                         # the reaction search is finished
                         self.species.reac_ts_done[index] = -1  # this is the success code

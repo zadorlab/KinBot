@@ -534,11 +534,14 @@ class QuantumChemistry:
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
-               fdir=None):
+               fdir=None, do_vdW=False):
         """
         Creates a geometry optimization input and runs it.
         """
-        if ext is None:
+        if do_vdW:
+            if high_level:
+                job = f"{species.name}_high"
+        elif ext is None:
             job = str(species.chemid) + '_well'
             if high_level:
                 job = str(species.chemid) + '_well_high'

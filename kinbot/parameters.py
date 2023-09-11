@@ -97,7 +97,7 @@ class Parameters:
             # Calculate AIE for each conformer - requires conformer search
             'calc_aie': 0,
             # Detect vdW wells deeper than threshold (kcal/mol)
-            'vdW_detection': -0.05,
+            'vdW_detection': 0.05,
 
             # CONFORMATIONAL SEARCH
             # Do a conformational search

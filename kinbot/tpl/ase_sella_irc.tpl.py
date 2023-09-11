@@ -25,12 +25,16 @@ elif '{label}'.endswith('R'):
 else:
     raise ValueError('Unexpected IRC name: {label}.')
 try:
-    converged_irc = irc.run(fmax=0.01, steps=300, direction=direction)
+    converged_irc = irc.run(fmax=0.01, steps=100, direction=direction)
     if converged_irc:
         e = mol.get_potential_energy()
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
         success = True
-    else:  # TODO Eventually we might want to correct something in case it fails.
+    elif mol.positions is not None:
+        # although there is an error, continue from the final geometry
+        db.write(mol, name='{label}', data={{'status': 'normal'}})
+        success = True
+    else:
         raise RuntimeError
 except (RuntimeError, ValueError):
    success = False

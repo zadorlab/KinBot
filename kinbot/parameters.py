@@ -351,6 +351,18 @@ class Parameters:
         if self.par['high_level'] == 1 and self.par['conformer_search'] == 0:
             err = 'Conformer search has to be done before L2.'
 
+        if self.par['high_level'] == 0 and self.par['rotor_scan'] == 1:
+            logger.warning('L1 level of theory (here set to '
+                           f'{self.par["method"].upper()}/{self.par["basis"].upper()}) is '
+                           'designed to be used for exploratory purposes only. '
+                           'Running the hindered rotor calculations at this '
+                           'level of theory is highly discouraged.')
+            if self.par['method'].lower() != self.par['high_level_method'].lower() \
+                    or self.par['basis'].lower() != self.par['high_level_basis'].lower():
+                err = 'When running the hindered rotors at L1, "high_level_method" ' \
+                      'must be the same as "method" and "high_level_basis" ' \
+                      'must be the same as "basis".'
+
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
 

@@ -32,7 +32,7 @@ def main():
     print(license_message.message)
     logger = config_log('KinBot')
     # initialize the parameters for this run
-    masterpar = Parameters(input_file)
+    masterpar = Parameters(input_file, show_warnings=True)
     par = masterpar.par
     input_file = masterpar.input_file
     # set up the logging environment

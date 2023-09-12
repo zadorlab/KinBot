@@ -17,7 +17,7 @@ class Molpro:
         self.species = species
         self.par = par
 
-    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None):
+    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None, do_vdW=False):
         """
         Create the input for molpro based on the template,
         which is either the one in the system, or provided
@@ -40,7 +40,7 @@ class Molpro:
         with open(tpl_file) as f:
             tpl = f.read()
 
-        fname = self.get_name(name)
+        fname = self.get_name(name, do_vdW=do_vdW)
 
         geom = ''
         nelectron = 0
@@ -143,11 +143,11 @@ class Molpro:
                     return 1, float(line.split()[3])
         return 0, -1
 
-    def create_molpro_submit(self, name=''):
+    def create_molpro_submit(self, name='', do_vdW=False):
         """
         write a pbs or slurm file for the molpro input file
         """
-        fname = self.get_name(name)
+        fname = self.get_name(name, do_vdW=do_vdW)
 
         # open the template head and template
         if self.par['q_temp_l3'] == '':
@@ -191,11 +191,13 @@ class Molpro:
             return 2
         return 1
 
-    def get_name(self, name):
+    def get_name(self, name, do_vdW=False):
         if name != '':
             fname = name
         elif self.species.wellorts:
             fname = self.species.name
+        elif do_vdW:
+            fname = str(self.species.name)
         else:
             fname = str(self.species.chemid)
         return fname

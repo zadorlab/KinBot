@@ -1253,7 +1253,7 @@ def create_rotdPy_inputs(par, barrierless, vdW):
 
     for index, reac in enumerate(barrierless):
         reactant, reaction_name, products, barrier = reac
-        job_name = "_".join([reactant, reaction_name]) + "_" + "_".join(products)
+        job_name = f"{reaction_name}_{'_'.join(products)}"
         logger.info(f"Creating rotdPy input for reaction {job_name}")
         parent_chemid = reactant
         if len(products) == 2: #Check if the barrierless reaction has 2 fragments

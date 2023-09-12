@@ -352,9 +352,9 @@ class Optimize:
                             molp.create_molpro_input(bls=1)
                         else:
                             key = self.par['single_point_key']
-                            molp.create_molpro_input()
+                            molp.create_molpro_input(do_vdW=self.kwargs["do_vdW_well"])
                         if self.par['queuing'] != 'local':
-                            molp.create_molpro_submit()
+                            molp.create_molpro_submit(do_vdW=self.kwargs["do_vdW_well"])
                         status, molpro_energy = molp.get_molpro_energy(key)
                         if status:
                             self.species.energy = molpro_energy

@@ -150,9 +150,11 @@ class HIR:
                 logger.debug(f'No hindered rotors for {self.species.name}.')
             for rotor in range(len(self.species.dihed)):
                 status = self.hir_status[rotor]
+                if any([st < 0 for st in status]):
+                    continue
                 energies = self.hir_energies[rotor]
                 if abs(energies[0] - self.species.energy) * constants.AUtoKCAL > 0.1:
-                    logger.warning('\t0 angle rotor has a different energy than '
+                    logger.warning('\t0-angle rotor has a different energy than '
                                    'the optimized structure for '
                                    f'{self.species.chemid}. This might be '
                                    'caused by an SCF convergence issue. '

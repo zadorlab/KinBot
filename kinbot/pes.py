@@ -575,10 +575,10 @@ def postprocess(par, jobs, task, names, mass):
     vdW = []
     rxns = []
     for rxn in reactions:
-        if rxn[1] == 'hom_sci':
+        if 'hom_sci' in rxn[1]:
             #in rxn: [reactant, reaction_name, products, barrier]
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
-        elif len(rxn) > 4: #vdW for now, find better latter.
+        elif len(rxn) > 4: #vdW for now, find better condition latter?
             #in rxn: [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
             vdW.append([rxn[0], rxn[1], rxn[2], rxn[3], rxn[4], rxn[5]])
         else:
@@ -1254,6 +1254,8 @@ def create_rotdPy_inputs(par, barrierless, vdW):
     for index, reac in enumerate(barrierless):
         reactant, reaction_name, products, barrier = reac
         job_name = f"{reaction_name}_{'_'.join(products)}"
+        if job_name not in par["rotdPy_inputs"]:
+            continue
         logger.info(f"Creating rotdPy input for reaction {job_name}")
         parent_chemid = reactant
         if len(products) == 2: #Check if the barrierless reaction has 2 fragments

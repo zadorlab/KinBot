@@ -105,12 +105,13 @@ def create_summary_file(species, qc, par):
                 name.append(str(prod.chemid))
             prod_name = ' '.join(sorted(name))
             status = "SUCCESS"
-            if species.reac_obj[index].do_vdW:                
+            if species.reac_obj[index].do_vdW:   
+                vdW_energy = (species.reac_obj[index].irc_prod.energy + species.reac_obj[index].irc_prod.zpe - (species.energy + species.zpe))*constants.AUtoKCAL             
                 s.append('{status:7s}\t{energy:-7.2f}\t{name:50s}\t{prod}\t{vdW_energy:7.2f}\t{db_name}'.format(status=status,
                                                                     energy=energy,
                                                                     name=species.reac_name[index],
                                                                     prod=prod_name,
-                                                                    vdW_energy=(species.reac_obj[index].irc_prod.energy - species.energy)*constants.AUtoKCAL,
+                                                                    vdW_energy=vdW_energy,
                                                                     db_name=f"vdW{species.reac_obj[index].irc_prod.name.split(species.reac_obj[index].instance_name)[1]}"))
             else:
                 s.append('{status:7s}\t{energy:-7.2f}\t{name:50s}\t{prod}'.format(status=status,
@@ -195,6 +196,15 @@ def createPESViewerInput(species, qc, par):
             # this is for the rmg postprocessing
             make_xyz(st_pt.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
         energy = energy * constants.AUtoKCAL
+        if species.reac_obj[index].do_vdW:
+            irc_prod = species.reac_obj[index].irc_prod_opt.species
+            name = str(irc_prod.name)
+            if name in well_names:
+                continue
+            make_xyz(species.atom, irc_prod.geom, str(irc_prod.name), dir_xyz)
+            energy = (irc_prod.energy + irc_prod.zpe - well_energy) * constants.AUtoKCAL
+            wells.append(f'{irc_prod.name} {energy:.2f}')
+            well_names.append(name)
         if name not in bimolec_names:
             bimolecs.append(f'{name} {energy:.2f}')
             bimolec_names.append(name)

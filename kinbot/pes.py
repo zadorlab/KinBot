@@ -578,7 +578,7 @@ def postprocess(par, jobs, task, names, mass):
         if 'hom_sci' in rxn[1]:
             #in rxn: [reactant, reaction_name, products, barrier]
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
-        elif len(rxn) > 4: #vdW for now, find better latter.
+        elif len(rxn) > 4: #vdW for now, find better condition latter?
             #in rxn: [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
             vdW.append([rxn[0], rxn[1], rxn[2], rxn[3], rxn[4], rxn[5]])
         else:

@@ -95,7 +95,7 @@ class StationaryPoint:
             self.get_geom()
         if self.natom == 0:
             self.natom = len(atom)
-    
+
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
         """Builds a stationary point object from an ase.Atoms object.
@@ -438,7 +438,7 @@ class StationaryPoint:
                 frag_symbols = symbols[np.where(np.asarray(frag_assg) == 1)]
 
                 if vary_charge and self.charge != 0:
-                    multiply = 2
+                    multiply = 2  # do two versions
                 else:
                     multiply = 1
                 

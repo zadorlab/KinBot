@@ -52,7 +52,7 @@ def creatMLInput(species, qc, par):
             s = ['{}'.format(species.natom)]
             s.append(' '.join(species.atom))
             s.append('\n')
-            for bi in obj.product_bonds:
+            for bi in obj.irc_prod.bonds[0]:
                 s.append(' '.join([str(bij) for bij in bi]))
             s.append('\n')
             with open(directory + name + '/product.txt', 'w') as f:
@@ -63,7 +63,7 @@ def creatMLInput(species, qc, par):
                 row = []
                 for j in range(species.natom):
                     d = 0.0
-                    if species.bond[i][j] != obj.product_bonds[i][j]:
+                    if species.bond[i][j] != obj.irc_prod.bonds[0][i][j]:
                         d = np.linalg.norm(obj.ts.geom[i] - obj.ts.geom[j])
                     row.append('{:.2f}'.format(d))
                 s.append(' '.join(row))
@@ -84,11 +84,11 @@ def create_summary_file(species, qc, par):
     s = []
     # add the license message to the file
     s.append(license_message.message)
-    # list of the products
-    products = []
+
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             ts = species.reac_obj[index].ts
+            prod_name = ''
             if species.reac_type[index] == 'R_Addition_MultipleBond' and not par['high_level']:
                 mp2_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
                 mp2_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
@@ -99,17 +99,28 @@ def create_summary_file(species, qc, par):
                           - species.energy - species.zpe) * constants.AUtoKCAL
             else:
                 energy = (ts.energy + ts.zpe - species.energy - species.zpe) * constants.AUtoKCAL
-            prod_name = ''
+                
             name = []
             for prod in species.reac_obj[index].products:
                 name.append(str(prod.chemid))
             prod_name = ' '.join(sorted(name))
-            products.append(prod_name)
-            s.append('SUCCESS\t{energy:.2f}\t{name}\t{prod}'.format(energy=energy,
+            status = "SUCCESS"
+            if species.reac_obj[index].do_vdW:                
+                s.append('{status:7s}\t{energy:-7.2f}\t{name:50s}\t{prod}\t{vdW_energy:7.2f}\t{db_name}'.format(status=status,
+                                                                    energy=energy,
+                                                                    name=species.reac_name[index],
+                                                                    prod=prod_name,
+                                                                    vdW_energy=(species.reac_obj[index].irc_prod.energy - species.energy)*constants.AUtoKCAL,
+                                                                    db_name=f"vdW{species.reac_obj[index].irc_prod.name.split(species.reac_obj[index].instance_name)[1]}"))
+            else:
+                s.append('{status:7s}\t{energy:-7.2f}\t{name:50s}\t{prod}'.format(status=status,
+                                                                    energy=energy,
                                                                     name=species.reac_name[index],
                                                                     prod=prod_name))
         else:
-            s.append('FAILED\t\t{name}'.format(name=species.reac_name[index]))
+            status = "FAILED"
+            s.append('{status:7s}\t\t{name:50s}'.format(status=status,
+                                                 name=species.reac_name[index]))
 
     # make a string out of all the lines
     s = '\n'.join(s)
@@ -223,7 +234,7 @@ def createPESViewerInput(species, qc, par):
     # Barrierless reactions
     bless = []
     for index in range(len(species.reac_inst)):
-        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci':
+        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci' or species.reac_type[index] != 'vdW':
             continue
         name = []
         for st_pt in species.reac_obj[index].products:

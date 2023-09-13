@@ -72,6 +72,8 @@ class Parameters:
             'barrierless_saddle_start': 2.0,
             # step size in Å
             'barrierless_saddle_step': 0.2,
+            # List of distance in Å for vrc_tst scan
+            'vrc_tst_dist_list': [2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 11, 12, 13, 14, 15, 16, 18, 20],
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
             # if requested with specific_reaction = 1
@@ -94,6 +96,8 @@ class Parameters:
             'high_level': 0,
             # Calculate AIE for each conformer - requires conformer search
             'calc_aie': 0,
+            # Detect vdW wells deeper than threshold (kcal/mol)
+            'vdW_detection': 0.05,
 
             # CONFORMATIONAL SEARCH
             # Do a conformational search

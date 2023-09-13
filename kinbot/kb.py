@@ -2,6 +2,8 @@ import sys
 import datetime
 import copy
 
+from os.path import isfile
+
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.parameters import Parameters
@@ -18,10 +20,12 @@ from kinbot.config_log import config_log
 
 def main():
     if sys.version_info.major < 3:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print('KinBot only runs with python 3.8 or higher. You have python '
+              f'{sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
     elif sys.version_info.minor < 8:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print('KinBot only runs with python 3.8 or higher. You have python '
+              f'{sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
 
     try:

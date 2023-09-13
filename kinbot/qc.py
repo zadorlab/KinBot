@@ -534,11 +534,14 @@ class QuantumChemistry:
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
-               fdir=None):
+               fdir=None, do_vdW=False):
         """
         Creates a geometry optimization input and runs it.
         """
-        if ext is None:
+        if do_vdW:
+            if high_level:
+                job = f"{species.name}_high"
+        elif ext is None:
             job = str(species.chemid) + '_well'
             if high_level:
                 job = str(species.chemid) + '_well_high'
@@ -880,14 +883,15 @@ class QuantumChemistry:
             else:
                 break
 
-        # open the database
-        rows = self.db.select(name=job)
         energy = 0
+
+        # open the database
+        *_, last_row = self.db.select(name=job)
         # take the last entry
-        for row in rows:
-            if hasattr(row, 'data'):
-                if row.data.get('energy') is not None:
-                    energy = row.data.get('energy')
+        
+        if hasattr(last_row, 'data'):
+            if last_row.data.get('energy') is not None:
+                energy = last_row.data.get('energy')
 
         # ase energies are always in ev, convert to hartree
         energy *= constants.EVtoHARTREE
@@ -914,14 +918,14 @@ class QuantumChemistry:
                 break
         zpe = 0.0  # set as default
         # open the database
-        rows = self.db.select(name=job)
+        *_, last_row = self.db.select(name=job)
         # take the last entry
-        for row in rows:
-            if hasattr(row, 'data'):
-                zpe = row.data.get('zpe')
-            else:
-                zpe = 0.0
-                logger.warning("{} has no zpe in database. ZPE SET TO 0.0".format(job))
+        
+        if hasattr(last_row, 'data'):
+            zpe = last_row.data.get('zpe')
+        else:
+            zpe = 0.0
+            logger.warning("{} has no zpe in database. ZPE SET TO 0.0".format(job))
 
         if zpe is None:
             zpe = 0.00
@@ -1040,11 +1044,9 @@ class QuantumChemistry:
                                        stdin=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
             out, err = process.communicate()
-            out = out.decode()
-            for line in out.split('\n'):
+            out = out.decode().split('\n')[1:]
+            for line in out:
                 if len(line) > 0:
-                    while line.startswith(' '):
-                        line = line[1:]
                     pid = line.split()[0]
                     if pid == self.job_ids.get(job, '-1'):
                         logger.debug('Job is running')

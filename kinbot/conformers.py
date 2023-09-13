@@ -441,10 +441,7 @@ class Conformers:
                             frequencies.append(freq)
                         else:
                             frequencies.append(None)
-                        if lowest_energy is np.inf:  # likely / hopefully the first sample was valid
-                            if ci != 0:
-                                logger.debug('For {} conformer 0 failed.'.format(name)) 
-                            err, freq = self.qc.get_qc_freq(job, self.species.natom)
+                        if lowest_energy is np.inf:
                             if self.species.natom > 1:
                                 # job fails if conformer freq array is empty
                                 if len(freq) > 0:
@@ -489,6 +486,8 @@ class Conformers:
                         if err == -1:
                             status[ci] = 1  # make it invalid
                     else:
+                        if ci == 0:
+                            logger.warning(f'For {name} conformer 0 failed.') 
                         totenergies.append(0.)
                         final_geoms.append(np.zeros((self.species.natom, 3)))
                         if self.species.natom == 1:

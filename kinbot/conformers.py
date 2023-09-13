@@ -421,6 +421,9 @@ class Conformers:
                 final_geoms = []  # list of all final conformer geometries
                 totenergies = []
                 frequencies = []
+                if all([si > 0 for si in status]):
+                    return 0, -1, lowest_e_geom, self.species.energy, \
+                       final_geoms, totenergies, frequencies, status
 
                 for ci in range(self.conf):
                     if status[ci] == 0:  # this is a valid confomer

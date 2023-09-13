@@ -97,7 +97,9 @@ class Parameters:
             # Calculate AIE for each conformer - requires conformer search
             'calc_aie': 0,
             # Detect vdW wells deeper than threshold (kcal/mol)
-            'vdW_detection': 0.05,
+            'vdW_detection': 0.1,
+            #List of barrierless reactions for which rotdPy inputs must be created
+            'rotdPy_inputs': [],
 
             # CONFORMATIONAL SEARCH
             # Do a conformational search

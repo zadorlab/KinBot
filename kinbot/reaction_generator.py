@@ -484,8 +484,6 @@ class ReactionGenerator:
                             if obj.irc_prod_opt.shigh == -999:
                                 logger.warning("High level vdW well optimization of {} failed".format(obj.irc_prod.name))
                                 obj.do_vdW = False
-                            elif obj.irc_prod_opt.shigh != 1:
-                                opts_done = 0
                     for pr_opt in obj.prod_opt:
                         if not pr_opt.shir == 1:
                             opts_done = 0

@@ -23,10 +23,7 @@ try:
     e = mol.get_potential_energy()  # use the Gaussian optimizer
     iowait(logfile, 'gauss')
     mol.positions = reader_gauss.read_geom(logfile, mol)
-    freq = reader_gauss.read_freq(logfile, {atom})
-    zpe = reader_gauss.read_zpe(logfile)
-    db.write(mol, name=label, data={{'energy': e, 'frequencies': np.asarray(freq),
-                                     'zpe': zpe, 'status': 'normal'}})
+    db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
 except RuntimeError:
     # Retry by correcting errors
     try:

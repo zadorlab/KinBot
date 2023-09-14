@@ -269,12 +269,13 @@ class ReactionGenerator:
                         self.equate_identical(obj.products)
                         obj.valid_prod = len(obj.products) * [True]
                         
-                        self.equate_unique(obj.products, frag_unique)
+                        #make the geom of productss in frag_unique the one from the multi_molecular (not optimized)
+                        self.equate_unique(obj.products, frag_unique) 
                         obj.prod_done = 1
 
                     for frag in obj.products:
                         self.qc.qc_opt(frag, frag.geom)
-                        e, _ = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+                        e, _ = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom) #check if finished without updating geom
                         if e == 1:  # it's running
                             continue
 

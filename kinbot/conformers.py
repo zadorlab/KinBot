@@ -422,6 +422,23 @@ class Conformers:
                 totenergies = []
                 frequencies = []
 
+                if status[0] != 0:  # the first confomer failed
+                    lowest_job = name
+                    copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
+                    rows = self.db.select(name='{}'.format(lowest_job))
+                    for row in rows:
+                        row_last = row
+                    mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
+                    data = {'energy': row_last.data.get('energy'),
+                            'frequencies': row_last.data.get('frequencies'),
+                            'zpe': row_last.data.get('zpe'),
+                            'status': row_last.data.get('status')}
+                    self.db.write(mol, name='conf/{}_low'.format(name), 
+                             data=data)
+
+                    return 1, lowest_conf, lowest_e_geom, lowest_energy,\
+                           final_geoms, totenergies, frequencies, status
+
                 for ci in range(self.conf):
                     if status[ci] == 0:  # this is a valid confomer
                         add = ''
@@ -498,22 +515,17 @@ class Conformers:
                
 
                 try:
-                    if status[0] != 0:  # the first confomer failed
-                        lowest_job = name
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
                     rows = self.db.select(name='{}'.format(lowest_job))
                     for row in rows:
                         row_last = row
-                    try:
-                        next(self.db.select(name='conf/{}_low'))
-                    except StopIteration:
-                        mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
-                        data = {'energy': row_last.data.get('energy'),
-                                'frequencies': row_last.data.get('frequencies'),
-                                'zpe': row_last.data.get('zpe'),
-                                'status': row_last.data.get('status')}
-                        self.db.write(mol, name='conf/{}_low'.format(name), 
-                                 data=data)
+                    mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
+                    data = {'energy': row_last.data.get('energy'),
+                            'frequencies': row_last.data.get('frequencies'),
+                            'zpe': row_last.data.get('zpe'),
+                            'status': row_last.data.get('status')}
+                    self.db.write(mol, name='conf/{}_low'.format(name), 
+                             data=data)
                 except UnboundLocalError:
                     pass
 

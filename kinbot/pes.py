@@ -1333,7 +1333,7 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
         if hasattr(row, 'data'):
             energy = row.data.get('energy')
     try:
-        # ase energies are always in ev, convert to hartree
+        # ase energies are always in eV, convert to Hartree
         energy *= constants.EVtoHARTREE
     except UnboundLocalError or TypeError:
         # this happens when the job is not found in the database

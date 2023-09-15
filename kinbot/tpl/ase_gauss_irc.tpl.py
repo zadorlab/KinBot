@@ -1,3 +1,4 @@
+import numpy as np
 from ase import Atoms
 from ase.db import connect
 
@@ -61,7 +62,11 @@ if success:
                                                     max2frag=True, 
                                                     charge=kwargs['charge'],
                                                     mult=kwargs['mult'])
-        db.write(mol_prod, name=label, data={{'energy': e, 'status': 'normal'}})
+        freq = reader_gauss.read_freq(logfile, {atom})
+        zpe = reader_gauss.read_zpe(logfile)
+        db.write(mol_prod, name=label, data={{'energy': e,
+                                         'frequencies': np.asarray(freq),
+                                         'zpe': zpe, 'status': 'normal'}})
     except RuntimeError: 
         iowait(logfile, 'gauss')
         mol_prod.positions = reader_gauss.read_geom(logfile, 

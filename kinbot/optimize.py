@@ -225,7 +225,7 @@ class Optimize:
                                 logger.warning('High level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
                             elif status == 'normal':
-                                self.compare_structures()  # this switches shigh to 0.5 or 1
+                                self.compare_structures()  # this switches shigh to 0.5 or 1 and updates the geometry
                         if self.shigh == 0.5:  # the top one was tested already and was ok
                             stati = [0] * len(self.species.conformer_index)
                             for ci, conindx in enumerate(self.species.conformer_index):
@@ -296,6 +296,8 @@ class Optimize:
                                             self.shir = 1
                                     else:
                                         self.shir = 1
+                                else:
+                                    self.shir = 1
                         else:
                             # no hir calculations necessary, set status to finished
                             self.shir = 1
@@ -508,8 +510,9 @@ class Optimize:
         elif self.species.wellorts == 0 and fr[0] > -1. * self.par['imagfreq_threshold']:
             freq_ok = 1
             if fr[0] < 0.:
+                logger.warning(f'Negative frequency {fr[0]} cm-1 detected in '
+                               f'{self.name}. Flipped to {-fr[0]}.')
                 fr[0] *= -1.
-                logger.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
         elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
             freq_ok = 1
         else:

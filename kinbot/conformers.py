@@ -438,10 +438,7 @@ class Conformers:
                             frequencies.append(freq)
                         else:
                             frequencies.append(None)
-                        if lowest_energy is np.inf:  # likely / hopefully the first sample was valid
-                            if ci != 0:
-                                logger.debug('For {} conformer 0 failed.'.format(name)) 
-                            err, freq = self.qc.get_qc_freq(job, self.species.natom)
+                        if lowest_energy is np.inf:
                             if self.species.natom > 1:
                                 # job fails if conformer freq array is empty
                                 if len(freq) > 0:
@@ -486,6 +483,8 @@ class Conformers:
                         if err == -1:
                             status[ci] = 1  # make it invalid
                     else:
+                        if ci == 0:
+                            logger.warning(f'For {name} conformer 0000 failed. Proceed with caution and check the calculations.') 
                         totenergies.append(0.)
                         final_geoms.append(np.zeros((self.species.natom, 3)))
                         if self.species.natom == 1:
@@ -497,18 +496,24 @@ class Conformers:
 
                 self.write_profile(status, final_geoms, totenergies)
                
+
                 try:
+                    if status[0] != 0:  # the first confomer failed
+                        lowest_job = name
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
                     rows = self.db.select(name='{}'.format(lowest_job))
                     for row in rows:
                         row_last = row
-                    
-                    mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
-                    self.db.write(mol, name='conf/{}_low'.format(name), 
-                             data={'energy': row_last.data.get('energy'),
-                             'frequencies': row_last.data.get('frequencies'),
-                             'zpe': row_last.data.get('zpe'),
-                             'status': row_last.data.get('status')})
+                    try:
+                        next(self.db.select(name='conf/{}_low'))
+                    except StopIteration:
+                        mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
+                        data = {'energy': row_last.data.get('energy'),
+                                'frequencies': row_last.data.get('frequencies'),
+                                'zpe': row_last.data.get('zpe'),
+                                'status': row_last.data.get('status')}
+                        self.db.write(mol, name='conf/{}_low'.format(name), 
+                                 data=data)
                 except UnboundLocalError:
                     pass
 
@@ -519,8 +524,9 @@ class Conformers:
                 if wait:
                     time.sleep(1)
                 else:
-                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), self.species.energy,\
-                           np.zeros((self.species.natom, 3)), np.zeros(1), np.zeros(1), np.zeros(1)
+                    return 0, lowest_conf, np.zeros((self.species.natom, 3)), \
+                           self.species.energy, np.zeros((self.species.natom, 3)), \
+                           np.zeros(1), np.zeros(1), np.zeros(1)
 
     def lowest_conf_info(self):
         """

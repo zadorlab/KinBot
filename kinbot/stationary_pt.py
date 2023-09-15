@@ -438,7 +438,7 @@ class StationaryPoint:
                 frag_symbols = symbols[np.where(np.asarray(frag_assg) == 1)]
 
                 if vary_charge and self.charge != 0:
-                    multiply = 2
+                    multiply = 2  # do two versions
                 else:
                     multiply = 1
                 

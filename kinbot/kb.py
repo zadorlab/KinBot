@@ -18,10 +18,12 @@ from kinbot.config_log import config_log
 
 def main():
     if sys.version_info.major < 3:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print('KinBot only runs with python 3.8 or higher. You have python '
+              f'{sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
     elif sys.version_info.minor < 8:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print('KinBot only runs with python 3.8 or higher. You have python '
+              f'{sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
 
     try:
@@ -31,7 +33,7 @@ def main():
         sys.exit(-1)
 
     print(license_message.message)
-
+    logger = config_log('KinBot')
     # initialize the parameters for this run
     masterpar = Parameters(input_file)
     par = masterpar.par
@@ -39,11 +41,8 @@ def main():
     # set up the logging environment
     if par['verbose']:
         logger = config_log('KinBot', 'debug')
-    else:
-        logger = config_log('KinBot')
 
     # write the license message and the parameters to the log file
-    logger.info(license_message.message)
     logger.info('Input parameters')
     par_str = "\n\t".join([str(p) + ": " + str(par[p])for p in par])
 

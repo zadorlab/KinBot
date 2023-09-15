@@ -19,7 +19,7 @@ def read_energy(outfile):
 
     energy = np.NAN
     for line in reversed(lines):
-        if 'SFC Done' in line:
+        if 'SCF Done' in line:
             energy = float(line.split()[4]) / constants.EVtoHARTREE
 
     return energy

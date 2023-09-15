@@ -65,7 +65,6 @@ class HIR:
             zmat_atom, zmat_ref, zmat, zmatorder = zmatrix.make_zmat_from_cart(self.species, rotor, cart, 0)
 
             # first element has same geometry
-            # ( TODO: this shouldn't be recalculated)
             cart_new = zmatrix.make_cart_from_zmat(zmat,
                                                    zmat_atom,
                                                    zmat_ref,
@@ -151,9 +150,21 @@ class HIR:
                 logger.debug(f'No hindered rotors for {self.species.name}.')
             for rotor in range(len(self.species.dihed)):
                 status = self.hir_status[rotor]
+                if any([st < 0 for st in status]):
+                    continue
                 energies = self.hir_energies[rotor]
+                if abs(energies[0] - self.species.energy) * constants.AUtoKCAL > 0.1:
+                    logger.warning('\t0-angle rotor has a different energy than '
+                                   'the optimized structure for '
+                                   f'{self.species.chemid}. This might be '
+                                   'caused by an SCF convergence issue. '
+                                   'Hindered rotors are disabled for this '
+                                   'stationary point.')
+                    self.hir_status = [[1 for ai in ri] for ri in self.hir_status]
+                    return 0
                 # energies taken if status = 0, successful geom check or normal gauss termination
-                ens = [(energies[i] - energies[0]) * constants.AUtoKCAL for i in range(len(status)) if status[i] == 0]
+                ens = [(energies[i] - energies[0]) * constants.AUtoKCAL 
+                       for i in range(len(status)) if status[i] == 0]
 
             # if job finishes status set to 0 or 1, if all done then do the following calculation
             if all([all([test >= 0 for test in status]) for status in self.hir_status]):

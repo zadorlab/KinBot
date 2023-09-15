@@ -96,6 +96,8 @@ try:
     steps=500
     while not converged and attempts <= 3:
         converged = opt.run(fmax=fmax, steps=300)
+        if not converged:
+            break
         freqs, zpe, hessian = calc_vibrations(mol)
         if order == 0 and any([fr < -50 for fr in freqs]):
             converged = False

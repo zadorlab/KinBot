@@ -62,6 +62,8 @@ try:
     steps=500
     while not converged and attempts <= 3:
         converged = opt.run(fmax=fmax, steps=steps)
+        if not converged:
+            break
         freqs, zpe, hessian = calc_vibrations(mol)
         if np.count_nonzero([fr < -50 for fr in freqs]) > 1:
             converged = False

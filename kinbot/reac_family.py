@@ -154,8 +154,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    Code=Code,
                                    fix=fix)
     else:
+        kwargs.pop('addsec', None)
         if rxn.par['use_sella']:
-            kwargs.pop('addsec', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_end.tpl.py'
         else:

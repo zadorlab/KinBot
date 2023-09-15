@@ -421,9 +421,6 @@ class Conformers:
                 final_geoms = []  # list of all final conformer geometries
                 totenergies = []
                 frequencies = []
-                if all([si > 0 for si in status]):
-                    return 0, -1, lowest_e_geom, self.species.energy, \
-                       final_geoms, totenergies, frequencies, status
 
                 for ci in range(self.conf):
                     if status[ci] == 0:  # this is a valid confomer
@@ -487,7 +484,7 @@ class Conformers:
                             status[ci] = 1  # make it invalid
                     else:
                         if ci == 0:
-                            logger.warning(f'For {name} conformer 0 failed.') 
+                            logger.warning(f'For {name} conformer 0000 failed. Proceed with caution and check the calculations.') 
                         totenergies.append(0.)
                         final_geoms.append(np.zeros((self.species.natom, 3)))
                         if self.species.natom == 1:
@@ -499,7 +496,10 @@ class Conformers:
 
                 self.write_profile(status, final_geoms, totenergies)
                
+
                 try:
+                    if status[0] != 0:  # the first confomer failed
+                        lowest_job = name
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
                     rows = self.db.select(name='{}'.format(lowest_job))
                     for row in rows:

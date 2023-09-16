@@ -349,20 +349,11 @@ class MESS:
                     combined_hir += self.make_rotors(species, freq_factor)
 
                     if nsp == 0: 
-                        combined_mult = species.mult
                         frag1 = self.pstfragmenttpl.format(chemid=name,
                                                            smi=species.smiles,
                                                            natom=species.natom,
                                                            geom=self.make_geom(species.geom, species.atom))
                     if nsp == 1: 
-                        if combined_mult == 1 and species.mult == 1:
-                            combined_mult = 1
-                        elif combined_mult == 2 and species.mult == 1:
-                            combined_mult = 2
-                        elif combined_mult == 1 and species.mult == 2:
-                            combined_mult = 2
-                        elif combined_mult == 2 and species.mult == 2:
-                            combined_mult = 1
                         frag2 = self.pstfragmenttpl.format(chemid=name,
                                                            smi=species.smiles,
                                                            natom=species.natom,
@@ -422,7 +413,7 @@ class MESS:
                                            frag2=frag2,
                                            nfreq=tot_nfreq,
                                            freq=combined_freq,
-                                           mult=combined_mult,
+                                           mult=self.species.mult,
                                            hinderedrotor=combined_hir, 
                                            fragments=fragments,
                                            ground_energy=energy)

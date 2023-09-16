@@ -510,8 +510,9 @@ class Optimize:
         elif self.species.wellorts == 0 and fr[0] > -1. * self.par['imagfreq_threshold']:
             freq_ok = 1
             if fr[0] < 0.:
+                logger.warning(f'Negative frequency {fr[0]} cm-1 detected in '
+                               f'{self.name}. Flipped to {-fr[0]}.')
                 fr[0] *= -1.
-                logger.warning(f'Negative frequency {fr[0]} detected in {self.name}. Flipped.')
         elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
             freq_ok = 1
         else:

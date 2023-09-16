@@ -52,7 +52,7 @@ def creatMLInput(species, qc, par):
             s = ['{}'.format(species.natom)]
             s.append(' '.join(species.atom))
             s.append('\n')
-            for bi in obj.product_bonds:
+            for bi in obj.irc_prod.bonds[0]:
                 s.append(' '.join([str(bij) for bij in bi]))
             s.append('\n')
             with open(directory + name + '/product.txt', 'w') as f:
@@ -63,7 +63,7 @@ def creatMLInput(species, qc, par):
                 row = []
                 for j in range(species.natom):
                     d = 0.0
-                    if species.bond[i][j] != obj.product_bonds[i][j]:
+                    if species.bond[i][j] != obj.irc_prod.bonds[0][i][j]:
                         d = np.linalg.norm(obj.ts.geom[i] - obj.ts.geom[j])
                     row.append('{:.2f}'.format(d))
                 s.append(' '.join(row))

@@ -138,7 +138,6 @@ class IRC:
                     copyfile(instance_name + '.chk', irc_name + '.chk')
                 else:
                     start_from_geometry = 1
-
             elif self.rxn.qc.qc == 'nwchem':
                 code = 'nwchem'  # Sella
                 Code = 'NWChem'  # Sella
@@ -147,9 +146,11 @@ class IRC:
             elif self.rxn.qc.qc == 'qchem':
                 code = 'qchem'  # Sella
                 Code = 'QChem'  # Sella
+            elif self.rxn.qc.qc == 'nn_pes':
+                code = 'nn_pes'
+                Code = 'Nn_surr'
             else:
-                raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.'
-                                 ' ¯\_(ツ)_/¯')
+                raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.')
 
             kwargs = self.rxn.qc.get_qc_arguments(irc_name,
                                                   self.rxn.species.mult,
@@ -160,13 +161,15 @@ class IRC:
             if self.rxn.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'
-            if self.par['use_sella']:
+            if self.rxn.par['calc_kwargs']:
+                kwargs = self.rxn.qc.merge_kwargs(kwargs)
+                prod_kwargs = self.rxn.qc.merge_kwargs(prod_kwargs)
+            if self.rxn.qc.use_sella:
                 kwargs.pop('irc', None)
                 kwargs.pop('geom', None)
                 kwargs.pop('guess', None)
                 prod_kwargs.pop('opt', None)
                 prod_kwargs.pop('freq', None)
-
                 template_file = f'{kb_path}/tpl/ase_sella_irc.tpl.py'
             else:
                 template_file = f'{kb_path}/tpl/ase_{self.rxn.qc.qc}_irc.tpl.py'
@@ -180,7 +183,9 @@ class IRC:
                                        qc_command=self.par['qc_command'],
                                        working_dir=os.getcwd(),
                                        code=code,
-                                       Code=Code)
+                                       Code=Code,
+                                       sella_kwargs=self.par['sella_kwargs']  # Sella
+            )
 
             with open('{}.py'.format(irc_name), 'w') as f:
                 f.write(template)

@@ -50,28 +50,27 @@ mol.calc = {Code}(**kwargs)
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
-opt  = Sella(mol, order=1, trajectory='{label}.traj',
-             logfile='{label}_sella.log')
+sella_kwargs = {sella_kwargs}
+opt = Sella(mol, order=1, 
+            trajectory='{label}.traj',
+            logfile='{label}_sella.log',
+            **sella_kwargs)
 try:
     converged = False
     fmax = 1e-4
     attempts = 1
-    steps=300
+    steps=500
     while not converged and attempts <= 3:
-        converged = opt.run(fmax=0.0001, steps=steps)
+        converged = opt.run(fmax=fmax, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
-        if not converged:
-            steps += 100
-            attempts += 1
-            print(f"Convergence not found in {{steps - 100}} steps. Retrying "\
-                  f"with {{steps}} steps.")
-        elif np.count_nonzero([fr < -50 for fr in freqs]) > 1:
+        if np.count_nonzero([fr < -50 for fr in freqs]) > 1:
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
-            print("Found more than one imaginary frequency. Retrying with a " \
-                  f"tighter criterion: fmax={{fmax}}.")
+            if attempts <= 3:
+                print('Found more than one imaginary frequencies. Retrying with '
+                      f'a tighter criterion: fmax={{fmax}}.')
         else:
             e = mol.get_potential_energy()
             db.write(mol, name='{label}', 
@@ -79,7 +78,7 @@ try:
                             'hess': hessian, 'status': 'normal'}})            
     if not converged:
         raise RuntimeError
-except RuntimeError:
+except (RuntimeError, ValueError):
    db.write(mol, name='{label}', data={{'status': 'error'}})
 
 with open('{label}.log', 'a') as f:

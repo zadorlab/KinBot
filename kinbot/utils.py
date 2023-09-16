@@ -99,7 +99,7 @@ def clean_files():
     files = os.listdir()
     com = []
     for ff in files:
-        if 'com' in ff:
+        if ff.endswith('.com'):
             com.append(ff)
 
     for cc in com:

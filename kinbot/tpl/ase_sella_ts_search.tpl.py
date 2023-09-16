@@ -20,23 +20,28 @@ for fix in base_0_fix:
     elif len(fix) == 4:
         const.fix_dihedral(fix)
     else:
-        raise ValueError(f'¯\_(ツ)_/¯, Unexpected length of fix: {{fix}}')
+        raise ValueError(f'Unexpected length of fix: {{fix}}')
 
 kwargs = {kwargs}
 mol.calc = {Code}(**kwargs)
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
-opt  = Sella(mol, order=0, constraints=const,
-             trajectory='{label}.traj', 
-             logfile='{label}_sella.log')
+
+sella_kwargs = {sella_kwargs}
+opt = Sella(mol, 
+            order=0,
+            constraints=const,
+            trajectory='{label}.traj', 
+            logfile='{label}_sella.log',
+            **sella_kwargs)
 try:
     cvgd = opt.run(fmax=0.1, steps=300)
     if cvgd:
         e = mol.get_potential_energy()
     else:  # TODO Eventually we might want to correct something in case it fails.
         raise RuntimeError
-except RuntimeError:
+except (RuntimeError, ValueError):
     e = 0.0
 
 if not mol.positions.any():  # If all coordinates are 0

@@ -63,18 +63,16 @@ def main():
 
     # print the license message to the console
     print(license_message.message)
+    # global logger
+    logger = config_log('KinBot', mode='pes')
 
     # initialize the parameters
-    par = Parameters(input_file).par
+    par = Parameters(input_file, show_warnings=True).par
 
     # set up the logging environment
-    global logger
     if par['verbose']:
         logger = config_log('KinBot', mode='pes', level='debug')
-    else:
-        logger = config_log('KinBot', mode='pes')
 
-    logger.info(license_message.message)
     msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
     logger.info(msg)
 
@@ -1333,7 +1331,7 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
         if hasattr(row, 'data'):
             energy = row.data.get('energy')
     try:
-        # ase energies are always in ev, convert to hartree
+        # ase energies are always in eV, convert to Hartree
         energy *= constants.EVtoHARTREE
     except UnboundLocalError or TypeError:
         # this happens when the job is not found in the database

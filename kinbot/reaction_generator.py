@@ -3,6 +3,7 @@ import shutil
 import time
 import logging
 import copy
+import pickle
 import itertools
 
 import numpy as np
@@ -64,10 +65,10 @@ class ReactionGenerator:
         else:
             alldone = 0
 
-        # status to see of kinbot needs to wait for the product optimizations
-        # from another kinbot run, to avoid duplication of calculations
-        products_waiting_status = [[] for i in self.species.reac_inst]
-        count = len(self.species.reac_inst)
+        for ro in self.species.reac_obj:
+            ro.prod_done = 0
+            ro.valid_prod = []
+
         frag_unique = []
 
         while alldone:
@@ -87,16 +88,13 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
                     # somewhat messy manipulation to force the new bond matrix for hom_sci
-                    obj.products = StationaryPoint(f'{instance}_prod', self.species.charge, self.species.mult,
+                    obj.irc_prod = StationaryPoint(f'{instance}_prod', self.species.charge, self.species.mult,
                                                    atom=self.species.atom, geom=self.species.geom, wellorts=0)
-                    obj.products.characterize()
-                    obj.products.bonds[0][obj.instance[0]][obj.instance[1]] = 0  # delete bond
-                    obj.products.bonds[0][obj.instance[1]][obj.instance[0]] = 0  # delete bond
-                    obj.products.bond[obj.instance[0]][obj.instance[1]] = 0  # delete bond
-                    obj.products.bond[obj.instance[1]][obj.instance[0]] = 0  # delete bond
-                    obj.product_bonds = copy.deepcopy(obj.species.bonds[0])  # the first resonance structure
-                    obj.product_bonds[obj.instance[0]][obj.instance[1]] = 0  # delete bond
-                    obj.product_bonds[obj.instance[1]][obj.instance[0]] = 0  # delete bond
+                    obj.irc_prod.characterize()
+                    obj.irc_prod.bonds[0][obj.instance[0]][obj.instance[1]] = 0  # delete bond
+                    obj.irc_prod.bonds[0][obj.instance[1]][obj.instance[0]] = 0  # delete bond
+                    obj.irc_prod.bond[obj.instance[0]][obj.instance[1]] = 0  # delete bond
+                    obj.irc_prod.bond[obj.instance[1]][obj.instance[0]] = 0  # delete bond
                     self.species.reac_ts_done[index] = 2
 
                 if self.species.reac_ts_done[index] == 0:  # ts search is ongoing
@@ -179,7 +177,7 @@ class ReactionGenerator:
                                                     self.species.reac_ts_done[index] = -999
                                                     continue
                                                 if 10. * (ediff[-3] / ediff[-2]) < (ediff[-2] / ediff[-1]):  # sudden change in slope
-                                                    logger.info(f'\tSudden change in slope for for {obj.instance_name}.')
+                                                    logger.info(f'\tSudden change in slope for {obj.instance_name}.')
                                                     logger.info(f'\tRelative energies (kcal/mol): {self.species.reac_scan_energy[index]}')
                                                     logger.debug(f'Derivatives: {ediff}')
                                                     self.species.reac_step[index] = self.par['scan_step']  # ending the scan
@@ -216,10 +214,12 @@ class ReactionGenerator:
                         # check the barrier height:
                         ts_energy = self.qc.get_qc_energy(obj.instance_name)[1]
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
-                        if self.species.reac_type[index] == 'R_Addition_MultipleBond':
+                        if self.species.reac_type[index] == 'R_Addition_MultipleBond' \
+                                and self.qc.qc != 'nn_pes':
                             ending = 'well_mp2'
                             thresh = self.par['barrier_threshold']  # need to fix for mp2 specific
-                        elif self.species.reac_type[index] == 'barrierless_saddle':
+                        elif self.species.reac_type[index] == 'barrierless_saddle' \
+                                and self.qc.qc != 'nn_pes':
                             ending = 'well_bls'
                             thresh = self.par['barrier_threshold']
                         else:
@@ -237,11 +237,9 @@ class ReactionGenerator:
                                          .format(barrier, obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
-                            obj.irc = IRC(obj, self.par)  # TODO: this doesn't seem like a good design
+                            obj.irc = IRC(obj, self.par)  
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
-                                logger.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'
-                                             .format(barrier, obj.instance_name))
                                 # No IRC started yet, start the IRC now
                                 logger.info('\tStarting IRC calculations for {}'
                                              .format(obj.instance_name))
@@ -252,188 +250,140 @@ class ReactionGenerator:
                                 # IRC's have successfully finished, have an error, in any case
                                 # read the geometries and try to make products out of them
                                 # verify which of the ircs leads back to the reactant, if any
-                                prod = obj.irc.irc2stationary_pt()
-                                if prod == 0:
+                                logger.info('\tRxn barrier is {0:.2f} kcal/mol for {1}'
+                                             .format(barrier, obj.instance_name))
+                                obj.irc_prod = obj.irc.irc2stationary_pt()
+                                if obj.irc_prod == 0:
                                     logger.info('\tNo product found for {}'.format(obj.instance_name))
                                     self.species.reac_ts_done[index] = -999
                                 else:
-                                    obj.products = prod
-                                    obj.product_bonds = prod.bond
                                     self.species.reac_ts_done[index] = 2
 
                 elif self.species.reac_ts_done[index] == 2:
-                    if len(products_waiting_status[index]) == 0:  # not started optimization yet
-                        # identify bimolecular products and wells
-                        fragments, maps = obj.products.start_multi_molecular(vary_charge=True)
+                    # obj.valid_prod: list marking fragments for deletion (if breaks apart or changes)
+                    # frag_unique: list of unique fragments across all reactions for this well
+                    # obj.products: list of products for given reaction, which includes changes and further dissociation 
+                    if obj.prod_done == 0:  # not started optimization yet
+                        # identify bimolecular products and wells from IRC - do it once
+                        obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
+                        if self.species.charge == 0:
+                            logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
+                                        f'{[fr.chemid for fr in obj.products]}')
+                        else:
+                            logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
+                                        f'{[fr.chemid for fr in obj.products]} (including all possible charge distributions)')
 
-                        a = []  # cleaned up list of products
-                        for frag in fragments:
-                            a.append(frag)
-                            if len(frag_unique) == 0:
-                                frag_unique.append(frag)
-                            elif len(frag_unique) > 0:
-                                new = 1
-                                for fragb in frag_unique:  # check if there is already this fragment somewhere earlier
-                                    if frag.chemid == fragb.chemid:
-                                        e, geom2 = self.qc.get_qc_geom(str(fragb.chemid) + '_well', fragb.natom)
-                                        if e == 0:
-                                            a.pop()
-                                            frag = fragb
-                                            a.append(frag)
-                                            new = 0
-                                            break
-                                if new:
-                                    frag_unique.append(frag)
+                        self.equate_identical(obj.products)
+                        obj.valid_prod = len(obj.products) * [True]
+                        
+                        self.equate_unique(obj.products, frag_unique)
+                        obj.prod_done = 1
 
-                        obj.products_final = []
+                    for frag in obj.products:
+                        self.qc.qc_opt(frag, frag.geom)
+                        e, _ = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+                        if e == 1:  # it's running
+                            continue
 
-                        frag_opt_done = 0
-                        for frag in a:
-                            self.qc.qc_opt(frag, frag.geom)
-                            e, geom2 = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
-                            if e != 1:  # e == 1 means it's running
-                                frag_opt_done += 1
+                    # initial fragment calculations finished, reading results...
+                    hom_sci_energy = 0
+                    products_orig = [copy.copy(opr) for opr in obj.products] 
+                    ndone = 0
+                    for fragii, frag in enumerate(products_orig):
+                        if frag.chemid == self.species.chemid:
+                            logger.info(f'Product in {obj.instance_name} is identical to the reactant. Reaction deleted.')
+                            self.species.reac_ts_done[index] = -999 
+                            break
+                        elif not obj.valid_prod[fragii]:  # do not look at already invalid fragments again
+                            ndone += 1
+                            continue
+                        chemid_orig = frag.chemid
+                        e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+                        if e < 0:
+                            logger.info(f'\tProduct optimization failed for {obj.instance_name}, product {frag.chemid}')
+                            self.species.reac_ts_done[index] = -999
+                            ndone += 1
+                        elif e == 1:
+                            break
+                        else:
+                            ndone += 1
+                            _, frag.energy = self.qc.get_qc_energy(str(frag.chemid) + '_well')
+                            _, frag.zpe = self.qc.get_qc_zpe(str(frag.chemid) + '_well')
+                            if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments  
+                                hom_sci_energy += frag.energy + frag.zpe
+                            frag.characterize()  
+                            if chemid_orig != frag.chemid:  # connectivity changed
+                                for fri, fr in enumerate(obj.products):
+                                    if fr.chemid == chemid_orig:
+                                        obj.valid_prod[fri] = False
+                                newfrags, _ = frag.start_multi_molecular(vary_charge=True)  
+                                self.equate_identical(newfrags)
+                                self.equate_unique(newfrags, frag_unique)
+                                logger.warning(f'Product {chemid_orig} optimized to {[nf.chemid for nf in newfrags]} '
+                                               f'in reaction {obj.instance_name}')
+                                for nf in newfrags:
+                                    obj.products.append(nf)
+                                    obj.valid_prod.append(True)
+                            else:
+                                for fri, fr in enumerate(obj.products):
+                                    if fr.chemid == chemid_orig:
+                                        obj.products[fri].energy = frag.energy
+                                        obj.products[fri].zpe = frag.zpe
 
-                        if frag_opt_done == len(a):  # both fragments are done
-                            for frag in a:
-                                obj.products_final.append(frag)
-
-                            # if the two fragments are identical, make them the same object
-                            for i, st_pt_i in enumerate(obj.products_final):
-                                for j, st_pt_j in enumerate(obj.products_final):
-                                    if st_pt_i.chemid == st_pt_j.chemid and i < j:
-                                        obj.products_final[j] = obj.products_final[i]
-
-                            # print products generated by IRC
-                            products = []
-                            for i, st_pt in enumerate(obj.products_final):
-                                products.append(st_pt.chemid)
-
-                            products.extend([' ', ' ', ' '])
-                            logger.info('\tReaction {} leads to products {} {} {}'
-                                         .format(obj.instance_name, products[0], products[1], products[2]))
-
-                            hom_sci_energy = 0
-                            for i, st_pt in enumerate(obj.products_final):
-                                chemid = st_pt.chemid
-                                e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
-                                if e < 0:
-                                    logger.info('\tProduct optimization failed for {}, product {}'
-                                                 .format(obj.instance_name, st_pt.chemid))
-                                    self.species.reac_ts_done[index] = -999
-                                    err = -1
-                                elif e != 0:
-                                    err = -1
-                                else:
-                                    _, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
-                                    _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
-                                    if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments  
-                                        hom_sci_energy += st_pt.energy + st_pt.zpe
-                                    st_pt.characterize()  
-                                    if chemid != st_pt.chemid:
-                                        obj.products_final.pop(i)
-                                        newfrags, newmaps = st_pt.start_multi_molecular()  # newfrags is list of stpt obj
-                                        products_waiting_status[index] = [0 for frag in newfrags]
-                                        frag_chemid = []
-                                        for ii, newfr in enumerate(newfrags):
-                                            newfr.characterize()
-                                            for prod in frag_unique:
-                                                if newfr.chemid == prod.chemid:
-                                                    newfrags.pop(ii)
-                                                    newfr = prod
-                                                    jj = ii - 1
-                                                    newfrags.insert(jj, newfr)
-                                            jj = ii - 1
-                                            obj.products_final.insert(jj, newfr)
-                                            self.qc.qc_opt(newfr, newfr.geom, 0)
-                                            frag_chemid.append(newfr.chemid)
-                                        if len(frag_chemid) == 1:
-                                            frag_chemid.append(" ")
-                                        for ii, frag in enumerate(newfrags):
-                                            products_waiting_status[index][ii] = 1
-                                        logger.info('\ta) Product optimized to other structure for {}'
-                                                     ', product {} to {} {}'
-                                                     .format(obj.instance_name, chemid, frag_chemid[0], frag_chemid[1]))
-
-                            obj.products = []
-                            for prod in obj.products_final:
-                                obj.products.append(prod)
-                            obj.products_final = []
-
-                            if all([pi == 1 for pi in products_waiting_status[index]]):
-                                if self.species.charge != 0:  # select the lower energy combination
-                                    # brute for all combinations
-                                    combs = np.array([np.array(i) for i in itertools.product([0, 1], repeat = len(obj.products))])
-                                    val = 1000.
-                                    ens = np.array([i.energy for i in obj.products])
-                                    zpes = np.array([i.zpe for i in obj.products])
-                                    masses = np.array([i.mass for i in obj.products])
-                                    charges = np.array([i.charge for i in obj.products])
-                                    combo = combs[0]
-                                    for comb in combs:
-                                        if sum(comb * masses) == self.species.mass:
-                                            if sum(comb * charges) == self.species.charge:
-                                                if sum(comb * (ens + zpes)) < val:
-                                                    val = sum(comb * (ens + zpes))
-                                                    combo = comb
-                                    combo = combo.astype(bool)
-                                    obj.products = list(np.array(obj.products)[combo])
-                                if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
-                                    hom_sci_energy = (hom_sci_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
-                                    if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
-                                        self.species.reac_ts_done[index] = 3
-                                    else:
-                                        logger.info(f'\thom_sci energy is too high at {round(hom_sci_energy, 2)} kcal/mol for {obj.instance_name}')
-                                        self.species.reac_ts_done[index] = -999
-                                else:
-                                    self.species.reac_ts_done[index] = 3
+                    if ndone == len(obj.products):  # all currently recognized fragments are done
+                        # delete invalid ones
+                        obj.products = list(np.array(obj.products)[obj.valid_prod])
+                        if self.species.charge != 0:  # select the lower energy combination
+                            # brute force all combinations for ions
+                            combs = np.array([np.array(i) for i in itertools.product([0, 1], repeat = len(obj.products))])
+                            val = 1000.
+                            ens = np.array([i.energy for i in obj.products])
+                            zpes = np.array([i.zpe for i in obj.products])
+                            masses = np.array([i.mass for i in obj.products])
+                            charges = np.array([i.charge for i in obj.products])
+                            frag_symbols = [p.atom for p in obj.products]
+                            low_e_comb = combs[0]
+                            for comb in combs:
+                                comb_symbols = []
+                                for i, frag_symb in enumerate(frag_symbols):
+                                    if comb[i]:
+                                        comb_symbols.extend(frag_symb)
+                                if sum(comb * charges) != self.species.charge \
+                                        or sum(comb * masses) != self.species.mass \
+                                        or sorted(comb_symbols) != sorted(self.species.atom):
+                                    continue
+                                rel_energy = constants.AUtoKCAL * (sum(comb * (ens + zpes)) - \
+                                             (self.species.start_energy + self.species.start_zpe))
+                                relev_comb = [p.chemid for i, p in enumerate(obj.products) if comb[i]]
+                                if len(obj.products) > 2:
+                                    logger.info(f'\tPossible ion combination and energy for {obj.instance_name} products: '
+                                                f'{", ".join([str(c) for c in relev_comb])} '
+                                                f'at {rel_energy:.1f} kcal/mol.')
+                                if sum(comb * (ens + zpes)) < val:
+                                    val = sum(comb * (ens + zpes))
+                                    low_e_comb = comb
+                            obj.products = list(np.array(obj.products)[low_e_comb.astype(bool)])
+                        prods_energy = sum([p.energy + p.zpe for p in obj.products])
+                        if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
+                            hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
+                            if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
+                                self.species.reac_ts_done[index] = 3
+                            else:
+                                logger.info(f'\thom_sci energy is too high at {round(hom_sci_energy, 2)} kcal/mol for {obj.instance_name}')
+                                self.species.reac_ts_done[index] = -999
+                        else:
+                            self.species.reac_ts_done[index] = 3
 
                 elif self.species.reac_ts_done[index] == 3:
-                    # wait for the optimization to finish
-                    # if two st_pt are the same in the products, we make them exactly identical otherwise
-                    # the different ordering of the atoms causes the chemid of the second to be seemingly wrong
-                    for i, st_pt_i in enumerate(obj.products):
-                        for j, st_pt_j in enumerate(obj.products):
-                            if st_pt_i.chemid == st_pt_j.chemid and i < j:
-                                obj.products[j] = obj.products[i]
+                    for frag in obj.products:
+                        e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
 
-                    err = 0
-                    for st_pt in obj.products:
-                        chemid = st_pt.chemid
-                        e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
-                        if e < 0:
-                            logger.warning('Product optimization failed for {}, product {}...'
-                                         .format(obj.instance_name, st_pt.chemid))
-                            self.species.reac_ts_done[index] = -999
-                            err = -1
-                        elif e != 0:
-                            err = -1
-                        else:
-                            _, st_pt.energy = self.qc.get_qc_energy(str(st_pt.chemid) + '_well')
-                            _, st_pt.zpe = self.qc.get_qc_zpe(str(st_pt.chemid) + '_well')
-                            st_pt.characterize()  
-                            if chemid == self.species.chemid:
-                                logger.info(f'Product in {obj.instance_name} is identical to the reactant. Reaction deleted.')
-                                self.species.reac_ts_done[index] = -999 
-                            elif chemid != st_pt.chemid:
-                                # product was optimized to another structure, give warning but don't remove reaction
-                                logger.info('\tb) Product optimized to other structure for {}'
-                                             ', product {} to {}'
-                                             .format(obj.instance_name, chemid, st_pt.chemid))
-                                shutil.copy(f'{os.getcwd()}/{chemid}_well.log', f'{os.getcwd()}/{st_pt.chemid}_well.log')
-                                e, st_pt.geom = self.qc.get_qc_geom(str(st_pt.chemid) + '_well', st_pt.natom)
-                                if e < 0:
-                                    err = -1
-                    if err == 0:
-                        self.species.reac_ts_done[index] = 4
-
-                elif self.species.reac_ts_done[index] == 4:
                     # Do the TS and product optimization
                     # make a stationary point object of the ts
                     bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)
                     for i in range(self.species.natom):
                         for j in range(self.species.natom):
-                            bond_mx[i][j] = max(self.species.bond[i][j], obj.product_bonds[i][j])
+                            bond_mx[i][j] = max(self.species.bond[i][j], obj.irc_prod.bonds[0][i][j])
 
                     if self.species.reac_type[index] != 'hom_sci':  
                         err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
@@ -464,7 +414,7 @@ class ReactionGenerator:
                             new = 1
                             if i != index:
                                 obj_i = self.species.reac_obj[i]
-                                if self.species.reac_ts_done[i] > 3:
+                                if self.species.reac_ts_done[i] > 2:
                                     for j, st_pt_i in enumerate(obj_i.products):
                                         if st_pt_i.chemid == st_pt.chemid:
                                             if len(obj_i.prod_opt) > j:
@@ -494,9 +444,9 @@ class ReactionGenerator:
                                             prod_opt = obj.prod_opt[j]
                                             break
 
-                        self.species.reac_ts_done[index] = 5
+                        self.species.reac_ts_done[index] = 4
 
-                elif self.species.reac_ts_done[index] == 5:
+                elif self.species.reac_ts_done[index] == 4:
                     # check up on the TS and product optimizations
                     opts_done = 1
                     fails = 0
@@ -519,9 +469,9 @@ class ReactionGenerator:
                     if fails:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:
-                        self.species.reac_ts_done[index] = 6
+                        self.species.reac_ts_done[index] = 5
 
-                elif self.species.reac_ts_done[index] == 6:
+                elif self.species.reac_ts_done[index] == 5:
                     # Finilize the calculations
                     # continue to PES search in case a new well was found
                     st_pt = obj.prod_opt[0].species
@@ -679,8 +629,8 @@ class ReactionGenerator:
                 if self.species.reac_ts_done[index] == -1:
                     for i in range(self.species.natom - 1):
                         for j in range(i + 1, self.species.natom):
-                            if self.species.bond[i][j] != obj.product_bonds[i][j]:
-                                if (self.species.bond[i][j] == 0 or obj.product_bonds[i][j] == 0):
+                            if self.species.bond[i][j] != obj.irc_prod.bonds[0][i][j]:
+                                if (self.species.bond[i][j] == 0 or obj.irc_prod.bonds[0][i][j] == 0):
                                     syms = []
                                     syms.append(self.species.atom[i])
                                     syms.append(self.species.atom[j])
@@ -728,3 +678,29 @@ class ReactionGenerator:
         else:
             stereochem = ''
         return stereochem
+
+    def equate_identical(self, frag):
+        ''' Make identical fragments for a given reaction be exactly the same
+        '''
+        for ii in range(len(frag)):
+            for jj in range(ii + 1, len(frag)):
+                if frag[ii].chemid == frag[jj].chemid:
+                    frag[jj] = frag[ii]
+        return
+
+    def equate_unique(self, fragments, frag_unique):
+        '''Make identical fragments across reactions be exatly the same
+        '''
+        for fi, frag in enumerate(fragments):
+            if len(frag_unique) == 0:
+                frag_unique.append(frag)
+            elif len(frag_unique) > 0:
+                new = 1
+                for fragu in frag_unique:  
+                    if frag.chemid == fragu.chemid:
+                        fragments[fi] = fragu
+                        new = 0
+                        break
+                if new:
+                    frag_unique.append(frag)
+        return

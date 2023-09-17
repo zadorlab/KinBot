@@ -52,7 +52,7 @@ def creatMLInput(species, qc, par):
             s = ['{}'.format(species.natom)]
             s.append(' '.join(species.atom))
             s.append('\n')
-            for bi in obj.product_bonds:
+            for bi in obj.irc_prod.bonds[0]:
                 s.append(' '.join([str(bij) for bij in bi]))
             s.append('\n')
             with open(directory + name + '/product.txt', 'w') as f:
@@ -63,7 +63,7 @@ def creatMLInput(species, qc, par):
                 row = []
                 for j in range(species.natom):
                     d = 0.0
-                    if species.bond[i][j] != obj.product_bonds[i][j]:
+                    if species.bond[i][j] != obj.irc_prod.bonds[0][i][j]:
                         d = np.linalg.norm(obj.ts.geom[i] - obj.ts.geom[j])
                     row.append('{:.2f}'.format(d))
                 s.append(' '.join(row))
@@ -89,7 +89,8 @@ def create_summary_file(species, qc, par):
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             ts = species.reac_obj[index].ts
-            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par['high_level']:
+            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par['high_level']\
+                    and qc.qc != 'nn_pes':
                 mp2_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
                 mp2_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
                 energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
@@ -199,7 +200,8 @@ def createPESViewerInput(species, qc, par):
             continue
         ts = species.reac_obj[index].ts
         if species.reac_type[index] == 'R_Addition_MultipleBond' \
-                and not par['high_level']:
+                and not par['high_level'] \
+                and qc.qc != 'nn_pes':
             we_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
             we_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
             energy = (ts.energy + ts.zpe - we_energy - we_zpe) * constants.AUtoKCAL

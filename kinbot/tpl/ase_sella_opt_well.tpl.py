@@ -60,28 +60,28 @@ if len(mol) == 1:
     sys.exit(0)
 
 order = {order}
-opt  = Sella(mol, order=order, trajectory='{label}.traj', 
-             logfile='{label}_sella.log')
+sella_kwargs = {sella_kwargs}
+opt = Sella(mol, 
+            order=order, 
+            trajectory='{label}.traj', 
+            logfile='{label}_sella.log',
+            **sella_kwargs)
 try:
     converged = False
     fmax = 1e-4
     attempts = 1
-    steps=300
+    steps=500
     while not converged and attempts <= 3:
         converged = opt.run(fmax=fmax, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
-        if not converged:
-            steps += 100
-            attempts += 1
-            print(f"Convergence not found in {{steps - 100}} steps. Retrying "\
-                  f"with {{steps}} steps.")
-        elif order == 0 and any([fr < -50 for fr in freqs]):
+        if order == 0 and any([fr < -50 for fr in freqs]):
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
-            print("Found one or more imaginary frequencies. Retrying with a " \
-                  f"tighter criterion: fmax={{fmax}}.")
+            if attempts <= 3:
+                print('Found one or more imaginary frequencies. Retrying with '
+                      f'a tighter criterion: fmax={{fmax}}.')
         elif order == 1 and np.count_nonzero([fr < -50 for fr in freqs]) > 1:
             converged = False
             mol.calc.label = '{label}'
@@ -96,7 +96,7 @@ try:
                             'hess': hessian, 'status': 'normal'}})
     if not converged:
         raise RuntimeError
-except RuntimeError:
+except (RuntimeError, ValueError):
     db.write(mol, name='{label}', data={{'status': 'error'}})
 
 with open('{label}.log', 'a') as f:

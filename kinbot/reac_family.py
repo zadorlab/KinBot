@@ -77,11 +77,11 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     # atom, geom, dummy = rxn.qc.add_dummy(rxn.species.atom, geom,
     #                                      rxn.species.bond)
 
-    if rxn.qc.qc == 'gauss':
+    if rxn.qc.qc == 'gauss' or (rxn.qc.qc == 'nn_pes' and step < rxn.max_step):
         code = 'gaussian'
         Code = 'Gaussian'
         kwargs['addsec'] = ''
-        if not bimol or step == 0:
+        if (not bimol or step == 0) and not rxn.qc.use_sella:
             # here addsec contains the constraints
             for fixi in fix:
                 kwargs['addsec'] += f"{' '.join(str(f) for f in fixi)} F\n"
@@ -89,7 +89,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} F\n"
             for reli in release:
                 kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} A\n"
-        elif bimol and step == 1:
+        elif bimol and step == 1 and not rxn.qc.use_sella:
             kwargs['addsec'] = f'{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
             # here addsec needs to contain the product and ts geometries and all the rest of the fluff
             kwargs['addsec'] += f'product geometry guess\n\n{rxn.species.charge} {rxn.species.mult}\n'
@@ -100,7 +100,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             for ii, at in enumerate(rxn.species.atom):
                 kwargs['addsec'] += f'{at} {geom_ts[ii][0]} {geom_ts[ii][1]} {geom_ts[ii][2]}\n'
             kwargs['addsec'] += f'\n{rxn.instance[0] + 1} {rxn.instance[2] + 1}\n\n'
-
     elif rxn.qc.qc == 'qchem':
         code = 'qchem'
         Code = 'QChem'
@@ -128,13 +127,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         elif bimol and step == 1:
             raise NotImplementedError('Bimolecular reactions are not yet '
                                       'implemented in QChem')
-    # if not bimol:
-    #     ntrial = 3
-    # else:
-    #     ntrial = 1
+    elif rxn.qc.qc == 'nn_pes' and step >= rxn.max_step:
+        code = 'nn_pes'
+        Code = 'Nn_surr'
 
     if step < rxn.max_step:
-        if rxn.par['use_sella']:
+        if rxn.qc.use_sella:
             kwargs.pop('addsec', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_search.tpl.py'
@@ -150,12 +148,17 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    scan=rxn.scan,
-                                   code=code,
-                                   Code=Code,
-                                   fix=fix)
+                                   code=code,  # Sella
+                                   Code=Code,  # Sella
+                                   fix=fix,  # Sella
+                                   sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                   )
     else:
         kwargs.pop('addsec', None)
-        if rxn.par['use_sella']:
+        if rxn.par['calc_kwargs']:
+            kwargs = rxn.qc.merge_kwargs(kwargs)
+        if rxn.qc.use_sella:
+            kwargs.pop('freq', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_end.tpl.py'
         else:
@@ -169,13 +172,15 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    ppn=rxn.qc.ppn,
                                    qc_command=command,
                                    working_dir=os.getcwd(),
-                                   code=code,
-                                   Code=Code)
+                                   code=code,  # Sella
+                                   Code=Code,  # Sella
+                                   sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                   )
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:
         f_out.write(template)
 
     step += rxn.qc.submit_qc(rxn.instance_name, singlejob=0, 
-                             jobtype=kwargs['method'])
+                             jobtype=kwargs.pop('method', None))
 
     return step

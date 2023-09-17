@@ -17,11 +17,10 @@ from kinbot.config_log import config_log
 
 
 def main():
-    if sys.version_info.major < 3:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
-        sys.exit(-1)
-    elif sys.version_info.minor < 8:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+    if sys.version_info.major < 3 or sys.version_info.minor < 8:
+        print('KinBot only runs with python 3.8 or higher. You have python '
+              f'{sys.version_info.major}.{sys.version_info.minor}. '
+              'Please update python to run KinBot!')
         sys.exit(-1)
 
     try:
@@ -31,19 +30,16 @@ def main():
         sys.exit(-1)
 
     print(license_message.message)
-
+    logger = config_log('KinBot')
     # initialize the parameters for this run
-    masterpar = Parameters(input_file)
+    masterpar = Parameters(input_file, show_warnings=True)
     par = masterpar.par
     input_file = masterpar.input_file
     # set up the logging environment
     if par['verbose']:
         logger = config_log('KinBot', 'debug')
-    else:
-        logger = config_log('KinBot')
 
     # write the license message and the parameters to the log file
-    logger.info(license_message.message)
     logger.info('Input parameters')
     par_str = "\n\t".join([str(p) + ": " + str(par[p])for p in par])
 
@@ -118,7 +114,7 @@ def main():
 
         # do an MP2 optimization of the reactant,
         # to compare some scan barrier heigths to
-        if par['families'] == ['all'] or \
+        if qc.qc != 'nn_pes' and (par['families'] == ['all'] or \
                 'birad_recombination_R' in par['families'] or \
                 'r12_cycloaddition' in par['families'] or \
                 'r14_birad_scission' in par['families'] or \
@@ -128,7 +124,7 @@ def main():
                 'r12_cycloaddition' not in par['skip_families'] or
                 'r14_birad_scission' not in par['skip_families'] or
                 'R_Addition_MultipleBond' not in par['skip_families'])) or \
-                par['reaction_search'] == 0:
+                par['reaction_search'] == 0):
             logger.debug('Starting MP2 optimization of initial well...')
             qc.qc_opt(well0, well0.geom, mp2=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_mp2', well0.natom, 1)

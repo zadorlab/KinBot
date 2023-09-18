@@ -320,7 +320,7 @@ def postprocess(par, jobs, task, names, mass):
     mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
                 'reac_r12_cycloaddition', 'reac_r14_birad_scission']
     
-    #list of booleans, length is number of reaction
+    #list of booleans, length is number of wells
     #True if reaction has vdW well
     do_vdW = []
 
@@ -337,10 +337,8 @@ def postprocess(par, jobs, task, names, mass):
                 #Unpack the succesfull lines
                 if 'vdW' not in line :
                     success, ts_energy, reaction_name, *products = line.split()
-                    do_vdW.append(False)
                 elif 'vdW' in line : #Unpack differently when a vdW well is in line
                     success, ts_energy, reaction_name, *products, vdW_energy, vdW_direction = line.split()
-                    do_vdW.append(True)
                     vdW_well = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
                 if reaction_name in par['skip_reactions']:
                     continue
@@ -378,6 +376,7 @@ def postprocess(par, jobs, task, names, mass):
                 if reactant not in wells:
                     wells.append(reactant)
                     parent[reactant] = reactant
+                    do_vdW.append(False)
                 
                 if len(products) == 1:
                     product = products[0]
@@ -385,15 +384,17 @@ def postprocess(par, jobs, task, names, mass):
                         if product not in parent:
                             parent[product] = reactant
                         wells.append(product)
+                        do_vdW.append(False)
                 else:
                     prod_name = '_'.join(sorted(products))
                     if prod_name not in bimol_products:
                         if prod_name not in parent:
                             parent[prod_name] = reactant
                         bimol_products.append('_'.join(sorted(products)))
-                    if do_vdW[-1]:
+                    if 'vdW' in line:
                         if vdW_well not in wells:
                             wells.append(vdW_well)
+                            do_vdW.append(True)
                             parent[vdW_well] = reactant
                             parent[prod_name] = vdW_well
                 new = 1
@@ -530,7 +531,7 @@ def postprocess(par, jobs, task, names, mass):
         well_energies = well_l3energies
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
-            if 'barrierless' not in reac[1]:
+            if 'hom_sci' not in reac[1]:
                 reac[3] = ts_l3energies[reac[1]]
             if 'barrierless_saddle' in reac[1]:
                 reac[3] = ts_l3energies[reac[1]]

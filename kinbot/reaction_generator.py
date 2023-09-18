@@ -365,7 +365,7 @@ class ReactionGenerator:
                                     val = sum(comb * (ens + zpes))
                                     low_e_comb = comb
                             obj.products = list(np.array(obj.products)[low_e_comb.astype(bool)])
-                        obj.irc_fragments = [copy.deepcopy(this_frag) for this_frag in obj.products]
+                        obj.irc_fragments = [copy.copy(this_frag) for this_frag in obj.products]
                         prods_energy = sum([p.energy + p.zpe for p in obj.products])
 
                         # Select reactions potentially leading to vdW wells

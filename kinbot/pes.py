@@ -15,8 +15,6 @@ import numpy as np
 import getpass
 
 from copy import deepcopy
-from os.path import join
-from os import listdir
 from ase.db import connect
 
 from kinbot import kb_path
@@ -69,7 +67,7 @@ def main():
 
     # print the license message to the console
     print(license_message.message)
-    # global logger
+    global logger
     logger = config_log('KinBot', mode='pes')
 
     # initialize the parameters

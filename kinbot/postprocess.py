@@ -107,20 +107,20 @@ def create_summary_file(species, qc, par):
             status = "SUCCESS"
             if species.reac_obj[index].do_vdW:   
                 vdW_energy = (species.reac_obj[index].irc_prod.energy + species.reac_obj[index].irc_prod.zpe - (species.energy + species.zpe))*constants.AUtoKCAL             
-                s.append('{status:10s}{energy:-7.2f}\t{name:60s}\t{prod}\t{vdW_energy:7.2f}\t{db_name}'.format(status=status,
+                s.append('{status:7s}{energy:-7.2f}\t{name:60s}{prod}{vdW_energy:7.2f}\t{db_name}'.format(status=status,
                                                                     energy=energy,
                                                                     name=species.reac_name[index],
                                                                     prod=prod_name,
                                                                     vdW_energy=vdW_energy,
                                                                     db_name=f"vdW{species.reac_obj[index].irc_prod.name.split(species.reac_obj[index].instance_name)[1]}"))
             else:
-                s.append('{status:10s}{energy:-7.2f}\t{name:60s}\t{prod}'.format(status=status,
+                s.append('{status:7s}{energy:-7.2f}\t{name:60s}{prod}'.format(status=status,
                                                                     energy=energy,
                                                                     name=species.reac_name[index],
                                                                     prod=prod_name))
         else:
             status = "FAILED"
-            s.append('{status:17s}\t{name:60s}'.format(status=status,
+            s.append('{status:14s}\t{name:60s}'.format(status=status,
                                                  name=species.reac_name[index]))
 
     # make a string out of all the lines

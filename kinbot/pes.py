@@ -542,7 +542,7 @@ def postprocess(par, jobs, task, names, mass):
         logger.info('L3 energies in kcal/mol, incl. ZPE')
         for well in wells:
             logger.info('{}   {:.2f}'.format(well, well_l3energies[well]))
-        for prod in products:
+        for prod in bimol_products:
             logger.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
         for ts in ts_l3energies:
             logger.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))

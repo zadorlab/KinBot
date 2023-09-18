@@ -20,9 +20,13 @@ mol.calc = {Code}(**kwargs)
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
-opt  = Sella(mol, order={order}, constraints=const,
-             trajectory='{label}.traj', 
-             logfile='{label}_sella.log')
+sella_kwargs = {sella_kwargs}
+opt = Sella(mol, 
+            order={order}, 
+            constraints=const,
+            trajectory='{label}.traj', 
+            logfile='{label}_sella.log',
+            **sella_kwargs)
 try:
     converged = opt.run(fmax=0.001, steps=300)
     if converged:
@@ -30,7 +34,7 @@ try:
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
     else:  # TODO Eventually we might want to correct something in case it fails.
         raise RuntimeError
-except RuntimeError:
+except (RuntimeError, ValueError):
     db.write(mol, name='{label}', data={{'status': 'error'}})
 
 with open('{label}.log', 'a') as f:

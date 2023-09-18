@@ -205,8 +205,8 @@ class StationaryPoint:
                 if i == j:
                     continue
                 elif self.dist[i][j] < 0.5:
-                    err_msg = 'Incorrect geometry: Found an interatomic ' \
-                              'distance smaller than 0.5 Å.'
+                    err_msg = f'Incorrect geometry for {self.name}: Found an ' \
+                              'interatomic distance smaller than 0.5 Å.'
                     logger.error(err_msg)
                     raise ValueError(err_msg)
 
@@ -370,7 +370,7 @@ class StationaryPoint:
                     pivot2 = maps[1][j]
         self.bond[pivot1][pivot2] = 1
         self.bond[pivot2][pivot1] = 1
-        return 0
+        return pivot1, pivot2
 
     def calc_multiplicity(self, atomlist):
         """ 

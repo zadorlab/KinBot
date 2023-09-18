@@ -16,7 +16,7 @@ mol.calc = {Code}(**kwargs)
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
-irc  = IRC(mol, trajectory='{label}.traj', dx=0.1, eta=1e-4, gamma=0.4, 
+irc = IRC(mol, trajectory='{label}.traj', dx=0.1, eta=1e-4, gamma=0.4, 
            logfile='{label}_sella.log')
 if '{label}'.endswith('F'):
     direction = 'forward'
@@ -25,25 +25,38 @@ elif '{label}'.endswith('R'):
 else:
     raise ValueError('Unexpected IRC name: {label}.')
 try:
-    converged_irc = irc.run(fmax=0.01, steps=300, direction=direction)
+    converged_irc = irc.run(fmax=0.01, steps=100, direction=direction)
     if converged_irc:
         e = mol.get_potential_energy()
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
         success = True
-    else:  # TODO Eventually we might want to correct something in case it fails.
+    elif mol.positions is not None and mol.positions.any():
+        # although there is an error, continue from the final geometry
+        db.write(mol, name='{label}', data={{'status': 'normal'}})
+        success = True
+    else:
         raise RuntimeError
-except RuntimeError:
-   success = False
-   db.write(mol, name='{label}', data={{'status': 'error'}})
+except (RuntimeError, ValueError):
+    if mol.positions is not None and mol.positions.any():
+        # although there is an error, continue from the final geometry
+        db.write(mol, name='{label}', data={{'status': 'normal'}})
+        success = True
+    else:
+        success = False
+        db.write(mol, name='{label}', data={{'status': 'error'}})
 
 with open('{label}.log', 'a') as f:
     f.write('done\n')
 
 if success:
     prod_kwargs = {prod_kwargs}
-    mol.calc = Gaussian(**prod_kwargs)
-    opt = Sella(mol, order=0, trajectory='{label}_prod.traj', 
-                logfile='{label}_prod_sella.log')
+    mol.calc = {Code}(**prod_kwargs)
+    sella_kwargs = {sella_kwargs}
+    opt = Sella(mol, 
+                order=0, 
+                trajectory='{label}_prod.traj', 
+                logfile='{label}_prod_sella.log',
+                **sella_kwargs)
     try:
         converged_opt = opt.run(fmax=0.0001, steps=300)
         if converged_opt:
@@ -52,9 +65,9 @@ if success:
                      data={{'energy': e, 'status': 'normal'}})
         else:
             raise RuntimeError
-    except RuntimeError:
+    except (RuntimeError, ValueError):
         db.write(mol, name='{label}_prod', data={{'status': 'error'}})    
     
 
-with open('{label}_prod.log', 'a') as f:
-    f.write('done\n')
+    with open('{label}_prod.log', 'a') as f:
+        f.write('done\n')

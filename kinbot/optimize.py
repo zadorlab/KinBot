@@ -239,7 +239,7 @@ class Optimize:
                                 logger.warning('High level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
                             elif status == 'normal':
-                                self.compare_structures()  # this switches shigh to 0.5 or 1
+                                self.compare_structures()  # this switches shigh to 0.5 or 1 and updates the geometry
                         if self.shigh == 0.5:  # the top one was tested already and was ok
                             stati = [0] * len(self.species.conformer_index)
                             for ci, conindx in enumerate(self.species.conformer_index):
@@ -310,6 +310,8 @@ class Optimize:
                                             self.shir = 1
                                     else:
                                         self.shir = 1
+                                else:
+                                    self.shir = 1
                         else:
                             # no hir calculations necessary, set status to finished
                             self.shir = 1

@@ -18,7 +18,7 @@ class Parameters:
     This class initiates all parameters to their defaults and reads in the
     user-defined variables, which overwrite the defaults
     """
-    def __init__(self, inpfile=None):
+    def __init__(self, inpfile=None, show_warnings=False):
         """
         Initialize all the variable and read the file which is the user input
         file
@@ -167,9 +167,9 @@ class Parameters:
             # For cyclic transition states, look at this ring size range
             'ringrange': [3, 9],
 
-            # QUANTUM CHEMISTRY INFO
+            # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
-            'qc': 'gauss',  # or nwchem
+            'qc': 'gauss',  # or nwchem or nn_pes
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
@@ -236,10 +236,16 @@ class Parameters:
             'hir_maxcycle': None,
             # Non-rigid or rigid hir
             'rigid_hir': 0,
-            # use_sella
+            # Whether to use sella as optimizer or not
             'use_sella': False,
+            # Sella hyperparameters
+            'sella_kwargs': {},
+            # calc_kwargs
+            'calc_kwargs': {},
             # Threshold to accept negative frequencies for floppy structures, this is a positive number
             'imagfreq_threshold': 50.,
+            # List of files containing the parameters for the NN model. 
+            'nn_model': None,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -356,6 +362,19 @@ class Parameters:
 
         if self.par['high_level'] == 1 and self.par['conformer_search'] == 0:
             err = 'Conformer search has to be done before L2.'
+
+        if self.par['high_level'] == 0 and self.par['rotor_scan'] == 1:
+            if show_warnings:
+                logger.warning('L1 level of theory (here set to '
+                               f'{self.par["method"].upper()}/{self.par["basis"].upper()}) is '
+                               'designed to be used for exploratory purposes only. '
+                               'Running the hindered rotor calculations at this '
+                               'level of theory is highly discouraged.')
+            if self.par['method'].lower() != self.par['high_level_method'].lower() \
+                    or self.par['basis'].lower() != self.par['high_level_basis'].lower():
+                err = 'When running the hindered rotors at L1, "high_level_method" ' \
+                      'must be the same as "method" and "high_level_basis" ' \
+                      'must be the same as "basis".'
 
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1

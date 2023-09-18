@@ -238,9 +238,6 @@ class ReactionFinder:
                     rxns += [instance]
 
             # lone pairs
-            # motif = ['X' for i in range(ringsize)]
-            # motif[-1] = 'H'
-            # instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
             for instance in instances:
                 if (self.species.atom[instance[0]] == 'O' or
                         self.species.atom[instance[0]] == 'S' or
@@ -250,6 +247,12 @@ class ReactionFinder:
                 # carbene
                 if self.species.atom[instance[0]] == 'C' and rad[instance[0]] == 2:
                     rxns += [instance]
+
+            # cations (try all)
+            if self.species.charge == 1:
+                for instance in instances:
+                    if self.species.atom[instance[0]] != 'H':
+                        rxns += [instance]
 
         if np.sum(rad) != 0:
             #        else:
@@ -261,39 +264,6 @@ class ReactionFinder:
                     instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
             for instance in instances:
                 rxns.append(instance)
-        
-        # if np.sum(rad) == 0:
-        # #find H-migrations over double bonds and to lone pairs
-        #
-        #     for ringsize in self.ringrange:
-        #         # double bonds
-        #         motif = ['X' for i in range(ringsize)]
-        #         motif[-1] = 'H'
-        #         instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-        #
-        #         for instance in instances:
-        #             if any([bi > 1 for bi in bond[instance[0]]]):
-        #                 rxns += [instance]
-        #
-        #         # lone pairs
-        #         motif = ['X' for i in range(ringsize)]
-        #         motif[-1] = 'H'
-        #         instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-        #         for instance in instances:
-        #             if (self.species.atom[instance[0]] == 'O' or
-        #                self.species.atom[instance[0]] == 'S' or
-        #                self.species.atom[instance[0]] == 'N'):
-        #                 rxns += [instance]
-        #
-        # else:
-        #     instances = []
-        #     for ringsize in self.ringrange:
-        #         motif = ['X' for i in range(ringsize)]
-        #         motif[-1] = 'H'
-        #         for rad_site in np.nonzero(rad)[0]:
-        #             instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
-        #     for instance in instances:
-        #         rxns.append(instance)
         
         rxns = self.clean_rigid(name, rxns, 0, -1)
 
@@ -1427,7 +1397,7 @@ class ReactionFinder:
         """ 
         This is an RMG class.
 
-        R=R-O-R <==> R-R-R=O
+        R=R-O-R1 <==> R1-R-R=O
         """
         
         name = 'ketoenol'

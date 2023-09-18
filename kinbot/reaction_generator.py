@@ -214,10 +214,12 @@ class ReactionGenerator:
                         # check the barrier height:
                         ts_energy = self.qc.get_qc_energy(obj.instance_name)[1]
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
-                        if self.species.reac_type[index] == 'R_Addition_MultipleBond':
+                        if self.species.reac_type[index] == 'R_Addition_MultipleBond' \
+                                and self.qc.qc != 'nn_pes':
                             ending = 'well_mp2'
                             thresh = self.par['barrier_threshold']  # need to fix for mp2 specific
-                        elif self.species.reac_type[index] == 'barrierless_saddle':
+                        elif self.species.reac_type[index] == 'barrierless_saddle' \
+                                and self.qc.qc != 'nn_pes':
                             ending = 'well_bls'
                             thresh = self.par['barrier_threshold']
                         else:
@@ -264,8 +266,13 @@ class ReactionGenerator:
                     if obj.prod_done == 0:  # not started optimization yet
                         # identify bimolecular products and wells from IRC - do it once
                         obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
-                        logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
-                                    f'{[fr.chemid for fr in obj.products]}')
+                        if self.species.charge == 0:
+                            logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
+                                        f'{[fr.chemid for fr in obj.products]}')
+                        else:
+                            logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
+                                        f'{[fr.chemid for fr in obj.products]} (including all possible charge distributions)')
+
                         self.equate_identical(obj.products)
                         obj.valid_prod = len(obj.products) * [True]
                         
@@ -281,7 +288,7 @@ class ReactionGenerator:
 
                     # initial fragment calculations finished, reading results...
                     hom_sci_energy = 0
-                    products_orig = [copy.deepcopy(opr) for opr in obj.products] 
+                    products_orig = [copy.copy(opr) for opr in obj.products] 
                     ndone = 0
                     for fragii, frag in enumerate(products_orig):
                         if frag.chemid == self.species.chemid:
@@ -310,7 +317,7 @@ class ReactionGenerator:
                                 for fri, fr in enumerate(obj.products):
                                     if fr.chemid == chemid_orig:
                                         obj.valid_prod[fri] = False
-                                newfrags, _ = frag.start_multi_molecular(vary_charge=True)  # TODO
+                                newfrags, _ = frag.start_multi_molecular(vary_charge=True)  
                                 self.equate_identical(newfrags)
                                 self.equate_unique(newfrags, frag_unique)
                                 logger.warning(f'Product {chemid_orig} optimized to {[nf.chemid for nf in newfrags]} '
@@ -388,8 +395,11 @@ class ReactionGenerator:
                             self.species.reac_ts_done[index] = 3
 
                 elif self.species.reac_ts_done[index] == 3:
-                    # Do the TS, product and vdW optimization
-                    # make a stationary point object of the ts and vdW well
+                    for frag in obj.products:
+                        e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+
+                    # Do the TS and product optimization
+                    # make a stationary point object of the ts
                     bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)
                     for i in range(self.species.natom):
                         for j in range(self.species.natom):

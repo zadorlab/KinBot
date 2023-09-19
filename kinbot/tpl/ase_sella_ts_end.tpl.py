@@ -62,8 +62,6 @@ try:
     steps=500
     while not converged and attempts <= 3:
         converged = opt.run(fmax=fmax, steps=steps)
-        if not converged:
-            break
         freqs, zpe, hessian = calc_vibrations(mol)
         if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
             or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i

@@ -370,7 +370,7 @@ class StationaryPoint:
                     pivot2 = maps[1][j]
         self.bond[pivot1][pivot2] = 1
         self.bond[pivot2][pivot1] = 1
-        return 0
+        return pivot1, pivot2
 
     def calc_multiplicity(self, atomlist):
         """ 

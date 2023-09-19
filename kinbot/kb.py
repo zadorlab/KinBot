@@ -30,6 +30,7 @@ def main():
         sys.exit(-1)
 
     print(license_message.message)
+    global logger
     logger = config_log('KinBot')
     # initialize the parameters for this run
     masterpar = Parameters(input_file, show_warnings=True)

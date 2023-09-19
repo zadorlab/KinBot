@@ -1397,7 +1397,7 @@ class ReactionFinder:
         """ 
         This is an RMG class.
 
-        R=R-O-R <==> R-R-R=O
+        R=R-O-R1 <==> R1-R-R=O
         """
         
         name = 'ketoenol'

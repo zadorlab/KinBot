@@ -63,7 +63,7 @@ def main():
 
     # print the license message to the console
     print(license_message.message)
-    # global logger
+    global logger
     logger = config_log('KinBot', mode='pes')
 
     # initialize the parameters

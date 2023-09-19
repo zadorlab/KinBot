@@ -321,7 +321,7 @@ def postprocess(par, jobs, task, names, mass):
                 'reac_r12_cycloaddition', 'reac_r14_birad_scission']
     
     #list of booleans, length is number of wells
-    #True if reaction has vdW well
+    #True if the well is a vdW well
     do_vdW = []
 
     # read all the jobs

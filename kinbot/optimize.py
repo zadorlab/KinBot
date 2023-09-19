@@ -155,7 +155,7 @@ class Optimize:
                                 or self.par['multi_conf_tst'] \
                                 or self.par['print_conf'] \
                                 or self.par['calc_aie']:
-                            status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid =\
+                            status, lowest_conf, geom, self.species.low_energy, conformers, energies, frequency_vals, valid =\
                                     self.species.confs.check_conformers(wait=self.wait)
                             if status == 1:
                                 self.species.conformer_geom, self.species.conformer_energy, \
@@ -176,7 +176,7 @@ class Optimize:
                                 # save lowest energy conformer as species geometry
                                 self.species.geom = geom
                                 # save lowest energy conformer energy
-                                self.species.energy = low_energy
+                                self.species.energy = self.species.low_energy
                                 # set conf status to finished
                                 self.sconf = 1
                         elif self.skip_conf_check == 1:
@@ -190,7 +190,7 @@ class Optimize:
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
                 if self.par['conformer_search'] == 1 and not self.kwargs["do_vdW_well"]:
-                    status, lowest_conf, self.species.geom, low_energy, conformers, energies, frequency_vals, valid = \
+                    status, lowest_conf, self.species.geom, self.species.low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
                 while self.restart <= self.par['rotation_restart']:
@@ -508,9 +508,9 @@ class Optimize:
                 #    same_geom = 0
             else:
                 result_rmsd = 'not done'
-            logger.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
+            logger.info(f'\t{self.name} high level rmsd: {result_rmsd:.2f}, '\
                          f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
-                         f'corr: {geometry.matrix_corr(imagmode, imagmode_high)}, '\
+                         f'corr: {geometry.matrix_corr(imagmode, imagmode_high):.2f}, '\
                          f'same: {same_geom}')
         else:
             same_geom = geometry.equal_geom(self.species, dummy, 0.1)

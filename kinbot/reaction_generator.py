@@ -373,7 +373,7 @@ class ReactionGenerator:
                             logger.info("\tChecking vdW well for {}.".format(obj.instance_name))
                             obj.irc_prod.characterize()
                             e, obj.irc_prod.energy = self.qc.get_qc_energy(f"{obj.irc_prod.name}") #e is the error code: should be 0 (success) at this point.
-                            e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}") #Irc_prod doesn't have a zpe in the db. To be implemented if we want.
+                            e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}")
                             e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
                             e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
                             for this_frag in obj.irc_fragments:

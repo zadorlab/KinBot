@@ -106,7 +106,7 @@ def create_summary_file(species, qc, par):
             prod_name = ' '.join(sorted(name))
             status = "SUCCESS"
             if species.reac_obj[index].do_vdW:   
-                vdW_energy = (species.reac_obj[index].irc_prod.energy + species.reac_obj[index].irc_prod.zpe - (species.energy + species.zpe))*constants.AUtoKCAL             
+                vdW_energy = (species.reac_obj[index].irc_prod.energy + species.reac_obj[index].irc_prod.zpe - (species.low_energy + species.start_zpe))*constants.AUtoKCAL             
                 s.append('{status:7s}{energy:-7.2f}\t{name:60s}{prod}{vdW_energy:7.2f}\t{db_name}'.format(status=status,
                                                                     energy=energy,
                                                                     name=species.reac_name[index],

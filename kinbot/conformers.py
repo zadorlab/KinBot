@@ -423,7 +423,10 @@ class Conformers:
                 frequencies = []
 
                 if status[0] != 0:  # the first confomer failed
-                    lowest_job = name
+                    if name.isdigit():
+                        lowest_job = name + '_well'
+                    else:
+                        lowest_job = name
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
                     rows = self.db.select(name='{}'.format(lowest_job))
                     for row in rows:

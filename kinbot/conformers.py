@@ -423,8 +423,8 @@ class Conformers:
                 frequencies = []
 
                 if status[0] != 0:  # the first confomer failed
-                    if name.isdigit():
-                        lowest_job = name + '_well'
+                    if isinstance(name, int):
+                        lowest_job = f'{name}_well'
                     else:
                         lowest_job = name
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))

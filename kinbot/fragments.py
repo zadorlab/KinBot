@@ -43,7 +43,7 @@ class Fragment(StationaryPoint):
 
     def __repr__(self):
         #TODO: Modify nonlinear by a variable that detects linearity
-        return f"{self.frag_name} = Nonlinear('{self.formula}', positions={np.round(np.array(self.geom), decimals=4).tolist()})\n".replace("],", "],\n                                   ")
+        return f"{self.frag_name} = Nonlinear(Atoms('{self.formula}', positions={np.round(np.array(self.geom), decimals=4).tolist()}))\n".replace("],", "],\n                                   ")
 
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
@@ -57,7 +57,7 @@ class Fragment(StationaryPoint):
                 the ase.Atoms properties, and access to methods for VRC-TST settings
         """
         if 'formula' not in kwargs:
-            formula = atoms.get_chemical_formula(mode="reduce")
+            formula = str(atoms.symbols)
 
         if 'frag_name' not in kwargs:
             frag_name = formula

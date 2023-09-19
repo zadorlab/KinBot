@@ -1333,8 +1333,10 @@ def create_rotdPy_inputs(par, barrierless, vdW):
             #Surfaces block:
             Surfaces_block = "divid_surf = [\n"
             for surf in surfaces:
-                Surfaces_block= Surfaces_block + (repr(surf))
-            Surfaces_block= Surfaces_block + "]\n" 
+                Surfaces_block = Surfaces_block + (repr(surf))
+                if surf == surfaces[-1]:
+                    Surfaces_block = Surfaces_block[:-3]
+            Surfaces_block= Surfaces_block + "]\n"
 
             #Calc_block:
             whoami = getpass.getuser()
@@ -1355,7 +1357,7 @@ def create_rotdPy_inputs(par, barrierless, vdW):
             logger.warning(f"Skiping rotdPy input creation for reac {job_name}.")
             continue
 
-        fname = f"{job_name}.inp"
+        fname = f"{job_name}.py"
         folder = "rotdPy"
         template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
         with open(template_file_path) as template_file:

@@ -3,6 +3,7 @@ from rotd_py.system import Surface
 from rotd_py.new_multi import Multi
 from rotd_py.sample.multi_sample import MultiSample
 from rotd_py.flux.fluxbase import FluxBase
+from ase.atoms import Atoms
 
 import numpy as np
 # # Parallel debugging stuff
@@ -61,7 +62,7 @@ angular_mom = generate_grid(0, 1, 1.1, 2)
 {calc_block}
 
 r_inf = -79.47971696  # RS2/cc-pvtz
-{job_name} = MultiSample(fragments={frag_names}, inf_energy=r_inf,
+_{job_name} = MultiSample(fragments={frag_names}, inf_energy=r_inf,
                          energy_size=1, min_fragments_distance={min_dist})
 
 # the flux info
@@ -74,7 +75,7 @@ flux_base = FluxBase(temp_grid=temperature,
                      flux_parameter=flux_parameter)
 
 # start the final run
-multi = Multi(sample={job_name}, dividing_surfaces=divid_surf,
+multi = Multi(sample=_{job_name}, dividing_surfaces=divid_surf,
               fluxbase=flux_base, calculator=calc)
 multi.run()
 # multi.total_flux['0'].flux_array[0].run(50)

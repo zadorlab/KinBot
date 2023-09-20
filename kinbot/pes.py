@@ -1365,7 +1365,7 @@ def create_rotdPy_inputs(par, barrierless, vdW):
             new_input = template.format(job_name = job_name,
                                    Fragments_block = Fragments_block,
                                    Surfaces_block = Surfaces_block,
-                                   frag_names = fragnames,
+                                   frag_names = '[' + ', '.join(fragnames) + ']',
                                    calc_block = Calc_block,
                                    flux_block = Flux_block,
                                    min_dist = par['vrc_tst_dist_list'][0])

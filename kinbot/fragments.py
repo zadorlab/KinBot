@@ -94,7 +94,7 @@ class Fragment(StationaryPoint):
             index = cls._fragnames.index(self.frag_name)
             cls._instances[index].frag_name = f"{self.frag_name}_{index}"
             self.frag_name = f"{self.frag_name}_{self.frag_number}"
-        cls._fragnames.append(f"{self.frag_name}")
+        cls._fragnames.append(self.frag_name)
 
     @classmethod
     def get_fragnames(cls):

@@ -3,7 +3,7 @@ class VRC_TST_Surface:
     def __init__(self, fragments, pp_dist):
         self.centers = {}
         for frag in fragments:
-            self.centers[frag.frag_number] = frag.pivot_points
+            self.centers[f"{frag.frag_number}"] = frag.pivot_points
 
         self.distances = pp_dist
 

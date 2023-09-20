@@ -413,33 +413,32 @@ class Conformers:
                     status[i] = self.test_conformer(i)[1]
             # problem: if the first sample has 2 imaginary frequencies, what to do then?
             if all([si >= 0 for si in status]):
+                if isinstance(name, int):
+                    lowest_job = f'{name}_well'
+                else:
+                    lowest_job = name
+                *_, last_row = self.db.select(name=f'{lowest_job}')
                 # The following refer to the conformer with lowest E + ZPE, 
                 # not the individual lowest.
                 lowest_energy = np.inf
                 lowest_zpe = np.inf
-                lowest_e_geom = self.species.geom
+                lowest_e_geom = last_row.positions
                 final_geoms = []  # list of all final conformer geometries
                 totenergies = []
                 frequencies = []
 
-                if status[0] != 0:  # the first confomer failed
-                    if isinstance(name, int):
-                        lowest_job = f'{name}_well'
-                    else:
-                        lowest_job = name
+                if all(status):  # All confomers failed
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
-                    rows = self.db.select(name='{}'.format(lowest_job))
-                    for row in rows:
-                        row_last = row
-                    mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)
-                    data = {'energy': row_last.data.get('energy'),
-                            'frequencies': row_last.data.get('frequencies'),
-                            'zpe': row_last.data.get('zpe'),
-                            'status': row_last.data.get('status')}
+                    mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
+                    data = {'energy': last_row.data.get('energy'),
+                            'frequencies': last_row.data.get('frequencies'),
+                            'zpe': last_row.data.get('zpe'),
+                            'status': last_row.data.get('status')}
                     self.db.write(mol, name='conf/{}_low'.format(name), 
-                             data=data)
+                                  data=data)
+                    logger.warning(f'All conformer optimizations failed for {name}.')
 
-                    return 1, lowest_conf, lowest_e_geom, lowest_energy,\
+                    return 1, lowest_conf, lowest_e_geom, last_row.data.get('energy'),\
                            final_geoms, totenergies, frequencies, status
 
                 for ci in range(self.conf):
@@ -465,10 +464,10 @@ class Conformers:
                                     if self.species.wellorts:
                                         if freq[0] >= 0.:
                                             err = -1
-                                        if self.species.natom > 2 and freq[1] <= 0.:
+                                        if self.species.natom > 2 and freq[1] <= -1 * self.imagfreq_threshold:
                                             err = -1
                                     else:
-                                        if freq[0] <= 0.:
+                                        if freq[0] <= -1 * self.imagfreq_threshold:
                                             err = -1
                                 else:
                                     logger.warning("Conformer {} failed due to empty freq array".format(ci))
@@ -503,8 +502,6 @@ class Conformers:
                         if err == -1:
                             status[ci] = 1  # make it invalid
                     else:
-                        if ci == 0:
-                            logger.warning(f'For {name} conformer 0000 failed. Proceed with caution and check the calculations.') 
                         totenergies.append(0.)
                         final_geoms.append(np.zeros((self.species.natom, 3)))
                         if self.species.natom == 1:
@@ -533,7 +530,7 @@ class Conformers:
                             'zpe': row_last.data.get('zpe'),
                             'status': row_last.data.get('status')}
                     self.db.write(mol, name='conf/{}_low'.format(name), 
-                             data=data)
+                                  data=data)
                 except UnboundLocalError:
                     pass
 

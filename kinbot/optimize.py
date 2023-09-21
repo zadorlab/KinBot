@@ -29,7 +29,7 @@ class Optimize:
     4. Repeat steps 2-3 as long as lower energy structures are found
     """
 
-    def __init__(self, species, par, qc, wait=0, **kwargs):
+    def __init__(self, species, par, qc, wait=0, do_vdW_well=False):
         self.species = species
         try:
             delattr(self.species, 'cycle_chain')
@@ -41,17 +41,16 @@ class Optimize:
             self.name = str(self.species.name)
         else:
             self.species.characterize()
-            self.name = str(self.species.chemid)
+            self.name = self.species.name
         self.par = par
         self.qc = qc
         # wait for all calculations to finish before returning
         self.wait = wait
 
         self.shigh = -1
+        self.do_vdW_well = do_vdW_well
 
-        self.kwargs = kwargs
-
-        if "do_vdW_well" not in kwargs:
+        if not self.do_vdW_well:
             # status of the various parts
             # -1: not yet started
             #  0: running
@@ -60,8 +59,7 @@ class Optimize:
             self.scycconf = -1
             self.sconf = -1
             self.shir = -1
-            self.kwargs["do_vdW_well"] = False
-        elif kwargs["do_vdW_well"]:
+        else:
             #Do not perform conformer search for vdW wells
             self.scycconf = 1
             self.sconf = 1
@@ -189,7 +187,7 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                if self.par['conformer_search'] == 1 and not self.kwargs["do_vdW_well"]:
+                if self.par['conformer_search'] == 1 and not self.do_vdW_well:
                     status, lowest_conf, self.species.geom, self.species.low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
@@ -208,7 +206,7 @@ class Optimize:
                                                           ext=f'_{str(conindx).zfill(4)}_high',
                                                           )
                             else:
-                                if self.kwargs["do_vdW_well"]:
+                                if self.do_vdW_well:
                                     name = self.species.name
                                     self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
                                 else:
@@ -354,10 +352,10 @@ class Optimize:
                             molp.create_molpro_input(bls=1)
                         else:
                             key = self.par['single_point_key']
-                            molp.create_molpro_input(do_vdW=self.kwargs["do_vdW_well"])
+                            molp.create_molpro_input(do_vdW=self.do_vdW_well)
                         if self.par['queuing'] != 'local':
-                            molp.create_molpro_submit(do_vdW=self.kwargs["do_vdW_well"])
-                        status, molpro_energy = molp.get_molpro_energy(key)
+                            molp.create_molpro_submit(do_vdW=self.do_vdW_well)
+                        status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.do_vdW_well)
                         if status:
                             self.species.energy = molpro_energy
 
@@ -446,7 +444,7 @@ class Optimize:
             return f'conf/{self.name}_{str(conf).zfill(4)}'
 
         name = str(self.name)
-        if not self.species.wellorts:
+        if not self.species.wellorts and not self.do_vdW_well:
             name += '_well'
         if high:
             name += '_high'

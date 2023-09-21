@@ -336,9 +336,9 @@ def postprocess(par, jobs, task, names, mass):
             if line.startswith("SUCCESS"):
                 #Unpack the succesfull lines
                 if 'vdW' not in line :
-                    success, ts_energy, reaction_name, *products = line.split()
+                    ts_energy, reaction_name, *products = line.split()[1:]
                 elif 'vdW' in line : #Unpack differently when a vdW well is in line
-                    success, ts_energy, reaction_name, *products, vdW_energy, vdW_direction = line.split()
+                    ts_energy, reaction_name, *products, vdW_energy, vdW_direction = line.split()[1:]
                     vdW_well = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
                 if reaction_name in par['skip_reactions']:
                     continue
@@ -415,14 +415,17 @@ def postprocess(par, jobs, task, names, mass):
                         reactions.append([reactant, reaction_name, products, barrier])
                     else:
                         reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
-                elif not new and "hom_sci" not in line:
-                    # check if the previous reaction has a lower energy or not
-                    if reactions[temp][3] > barrier:
-                        reactions.pop(temp)
-                        if "vdW" not in line:
-                            reactions.append([reactant, reaction_name, products, barrier])
-                        else:
-                            reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
+                elif not new:
+                    if "hom_sci" not in line:
+                        # check if the previous reaction has a lower energy or not
+                        if reactions[temp][3] > barrier:
+                            reactions.pop(temp)
+                            if "vdW" not in line:
+                                reactions.append([reactant, reaction_name, products, barrier])
+                            else:
+                                reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
+                        elif "hom_sci" in reactions[temp][1]:
+                            reactions.pop(temp)
 
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')

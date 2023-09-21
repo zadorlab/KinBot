@@ -539,16 +539,6 @@ class ReactionGenerator:
                                         # wait a second and try again
                                         time.sleep(1)
                                         pass
-                        # verify vdW energies
-                        elif obj.do_vdW:
-                            for this_frag in obj.products:
-                                e, this_frag.freq = self.qc.get_qc_freq(f"{this_frag.name}_well", this_frag.natom) 
-                            fragments_energies = sum([this_frag.energy + this_frag.zpe for this_frag in obj.irc_fragments ])
-                            obj.vdW_depth = fragments_energies - obj.irc_prod.energy + obj.irc_prod.zpe
-                        # copy the files of the species to an upper directory
-                        frags = obj.products
-                        #for frag in frags:
-                        #    filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
 
                     # check for wrong number of negative frequencies
                     neg_freq = 0
@@ -566,10 +556,6 @@ class ReactionGenerator:
                         logger.warning(obj.ts.reduced_freqs)
                         self.species.reac_ts_done[index] = -999
                         neg_freq = 1
-
-                    if obj.do_vdW:
-                        fragments_energies = sum([this_frag.energy + this_frag.zpe for this_frag in obj.products ])
-                        obj.vdW_depth = fragments_energies - obj.irc_prod.energy + obj.irc_prod.zpe
                         
                     if not neg_freq:
                         # the reaction search is finished

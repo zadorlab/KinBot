@@ -123,7 +123,7 @@ class Molpro:
                                        ))
         return 0
 
-    def get_molpro_energy(self, key, name=''):
+    def get_molpro_energy(self, key, name='', do_vdW=False):
         """
         Verify if there is a molpro output file and if yes, read the energy
         key is the keyword for the energy we want to read
@@ -131,14 +131,14 @@ class Molpro:
         returns 0, -1 if the energy or the file was not there
         A non-object-oriented version is used in pes.py
         """
-        fname = self.get_name(name)
+        fname = self.get_name(name, do_vdW)
         status = os.path.exists('molpro/' + fname + '.out')
         if fname == '10000000000000000001':  # proton
             return 1, 0.0
         if status:
             with open('molpro/' + fname + '.out') as f:
                 lines = f.readlines()
-            for index, line in enumerate(reversed(lines)):
+            for line in reversed(lines):
                 if ('SETTING ' + key) in line:
                     return 1, float(line.split()[3])
         return 0, -1
@@ -197,7 +197,7 @@ class Molpro:
         elif self.species.wellorts:
             fname = self.species.name
         elif do_vdW:
-            fname = str(self.species.name)
+            fname = self.species.name
         else:
             fname = str(self.species.chemid)
         return fname

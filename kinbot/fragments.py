@@ -2,7 +2,7 @@ from kinbot.stationary_pt import StationaryPoint
 import numpy as np
 from numpy import pi
 from kinbot import pp_tables
-from kinbot import kb_trigo
+from kinbot import geometry
 import logging
 
 logger = logging.getLogger('KinBot')
@@ -251,11 +251,11 @@ class Fragment(StationaryPoint):
 
         length = pp_tables.pp_lenght_table(self.atom[index])
         try:
-            pp_vect = length * kb_trigo.unit_vector(pp_orient)
+            pp_vect = length * geometry.unit_vector(pp_orient)
         except NameError:
             logger.warning(f"Length of pivot point not defined yet for atom {self.atom[index]}. Setting it to 0.5A.")
             length = 0.5
-            pp_vect = length * kb_trigo.unit_vector(pp_orient)
+            pp_vect = length * geometry.unit_vector(pp_orient)
         pp_coord = np.add(ra_pos, pp_vect)
         return pp_coord
 
@@ -268,12 +268,12 @@ class Fragment(StationaryPoint):
                 neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
         v1 = np.subtract(neighbour_pos[0], ra_pos)
         v2 = np.subtract(neighbour_pos[1], ra_pos)
-        small_angle = kb_trigo.angle_between(v1, v2)
+        small_angle = geometry.calc_angle(neighbour_pos[0], ra_pos, neighbour_pos[1])
         big_angle = 2*pi - small_angle
-        axis = kb_trigo.unit_vector(np.cross(v2, v1))
-        pp_orient = np.dot(kb_trigo.rotation_matrix(axis, big_angle/2), v1)
+        axis = geometry.unit_vector(np.cross(v2, v1))
+        pp_orient = np.dot(geometry.rotation_matrix(axis, big_angle/2), v1)
         length = pp_tables.pp_lenght_table(self.atom[index])
-        pp_vect = length * kb_trigo.unit_vector(pp_orient)
+        pp_vect = length * geometry.unit_vector(pp_orient)
         pp_coord = np.add(ra_pos, pp_vect)
         return pp_coord
 
@@ -288,23 +288,23 @@ class Fragment(StationaryPoint):
         v1 = np.subtract(neighbour_pos[0], ra_pos)
         v2 = np.subtract(neighbour_pos[1], ra_pos)
         v3 = np.subtract(neighbour_pos[2], ra_pos)
-        plane = kb_trigo.plane_from_points(v1, v2, v3)
-        ra_to_plane = kb_trigo.dist_point_to_plane(ra_pos, plane)
+        plane = geometry.plane_from_points(v1, v2, v3)
+        ra_to_plane = geometry.dist_point_to_plane(ra_pos, plane)
         if abs(ra_to_plane) >= .1:
             #If carbon atom out of plane, only place a single pp on other side of the plane
             n_pp = 1
         pp_list = []
         #To know in which direction to place the pivot point
-        plane_direction = kb_trigo.unit_vector(np.dot(plane[0], ra_pos))
+        plane_direction = geometry.unit_vector(np.dot(plane[0], ra_pos))
         length = pp_tables.pp_lenght_table(self.atom[index])
         for i in range(n_pp):
-            pp_orient = np.array(kb_trigo.unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
+            pp_orient = np.array(geometry.unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
             try:
-                pp_vect = length * kb_trigo.unit_vector(pp_orient)
+                pp_vect = length * geometry.unit_vector(pp_orient)
             except NameError:
                 logger.warning(f"Length of pivot point not defined yet for atom {self.atom[index]}. Setting it to 0.5A.")
                 length = 0.5
-                pp_vect = length * kb_trigo.unit_vector(pp_orient)
+                pp_vect = length * geometry.unit_vector(pp_orient)
             pp_coord = np.add(ra_pos, pp_vect)
             pp_list.append(pp_coord)
         return pp_list

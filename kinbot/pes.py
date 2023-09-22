@@ -416,7 +416,7 @@ def postprocess(par, jobs, task, names, mass):
                     else:
                         reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
                 elif not new:
-                    if "hom_sci" not in line:
+                    if "hom_sci" not in reaction_name:
                         # check if the previous reaction has a lower energy or not
                         if reactions[temp][3] > barrier:
                             reactions.pop(temp)
@@ -426,6 +426,7 @@ def postprocess(par, jobs, task, names, mass):
                                 reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
                         elif "hom_sci" in reactions[temp][1]:
                             reactions.pop(temp)
+
 
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
@@ -1232,7 +1233,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         #uq.format_uqtk_data() 
     return
 
-def create_rotdPy_inputs(par, barrierless, vdW):
+def create_rotdPy_inputs(par, bless, vdW):
     """
     Function that create an input file for rotdPy.
     barrierless and vdW are lists of reactions.
@@ -1242,6 +1243,7 @@ def create_rotdPy_inputs(par, barrierless, vdW):
     [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
     """
 
+    barrierless = list(bless) #Avoids modifying barrierless outside of the function
     number_of_barrierless = len(barrierless)
 
     #format the vdW reactions to be added to the barrierless list.

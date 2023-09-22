@@ -133,10 +133,16 @@ class Molpro:
         """
         fname = self.get_name(name, do_vdW)
         status = os.path.exists('molpro/' + fname + '.out')
+        if status:
+            molpro_dir = "molpro/"
+        else:
+            status = os.path.exists('../molpro/' + fname + '.out')
+            if status:
+                molpro_dir = "../molpro/"
         if fname == '10000000000000000001':  # proton
             return 1, 0.0
         if status:
-            with open('molpro/' + fname + '.out') as f:
+            with open(f"{molpro_dir}{fname}.out") as f:
                 lines = f.readlines()
             for line in reversed(lines):
                 if ('SETTING ' + key) in line:

@@ -109,6 +109,8 @@ class StationaryPoint:
         """
         if 'name' not in kwargs:
             name = 'StationaryPoint'
+        else:
+            name = kwargs["name"]
 
         if 'charge' not in kwargs:
             if atoms.calc is None or 'charge' not in atoms.calc.parameters:

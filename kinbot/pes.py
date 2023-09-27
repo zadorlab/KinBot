@@ -551,7 +551,7 @@ def postprocess(par, jobs, task, names, mass):
 
     # if L3 was done and requested, everything below is done with that
     # filter according to tasks
-    wells, products, reactions, highlight = filter(par,
+    wells, products, reactions, highlight = filter_stat_points(par,
                                                    wells,
                                                    products,
                                                    reactions,
@@ -604,12 +604,9 @@ def postprocess(par, jobs, task, names, mass):
         t1_analysis(par['single_point_key'])
 
 
-def filter(par, wells, products, reactions, conn, bars, well_energies, task,
+def filter_stat_points(par, wells, products, reactions, conn, bars, well_energies, task,
            names):
-    """
-    Filter the wells, products and reactions according to the task
-    and the names
-    """
+    """Filter the wells, products and reactions according to their task and name."""
     # list of reactions to highlight
     highlight = []
     # 1. all: This is the default showing all pathways

@@ -333,7 +333,9 @@ def postprocess(par, jobs, task, names, mass):
                 # overwrite energies with mp2 energy if needed
                 mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
                         'reac_r12_cycloaddition', 'reac_r14_birad_scission']
-                if (any([mm in ts for mm in mp2_list]) and not par['high_level']):
+                if any([mm in ts for mm in mp2_list]) \
+                       and not par['high_level'] \
+                       and par['qc'] != 'nn_pes':
                     base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
                                                  par['high_level'], mp2=1,
                                                  conf=par['conformer_search'])
@@ -1343,7 +1345,7 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0):
         energy *= constants.EVtoHARTREE
     except UnboundLocalError or TypeError:
         # this happens when the job is not found in the database
-        logger.error('Could not find {} in directory {} database.'.format(job, directory))
+        logger.error('Could not find {} in directory {} database.'.format(j, directory))
         logger.error('Exiting...')
         sys.exit(-1)
     except TypeError:

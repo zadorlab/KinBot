@@ -285,7 +285,8 @@ def postprocess(par, jobs, task, names, mass):
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
-    base_energy = get_energy(jobs[0], jobs[0], 0, par['high_level'])
+    base_energy = get_energy(jobs[0], jobs[0], 0, par['high_level'],
+                             conf=par['conformer_search'])
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
@@ -334,20 +335,23 @@ def postprocess(par, jobs, task, names, mass):
                         'reac_r12_cycloaddition', 'reac_r14_birad_scission']
                 if (any([mm in ts for mm in mp2_list]) and not par['high_level']):
                     base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
-                                                 par['high_level'], mp2=1)
+                                                 par['high_level'], mp2=1,
+                                                 conf=par['conformer_search'])
                     base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
                                            par['high_level'], mp2=1)
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
-                if 'barrierless_saddle' in ts and not par[ 'high_level']:
+                if 'barrierless_saddle' in ts and not par['high_level']:
                     base_energy_bls = get_energy(jobs[0], jobs[0], 0,
-                                                 par['high_level'], bls=1)
+                                                 par['high_level'], bls=1,
+                                                 conf=par['conformer_search'])
                     base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
                                            par['high_level'], bls=1)
                     barrier = 0. - base_energy_bls - base_zpe_bls
 
-                ts_energy = get_energy(reactant, ts, 1, par['high_level'])
+                ts_energy = get_energy(reactant, ts, 1, par['high_level'], 
+                                       conf=par['conformer_search'])
                 ts_zpe = get_zpe(reactant, ts, 1, par['high_level'])
                 barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
@@ -446,7 +450,8 @@ def postprocess(par, jobs, task, names, mass):
     well_energies = {}
     well_l3energies = {}
     for well in wells:
-        energy = get_energy(parent[well], well, 0, par['high_level'])  # from the db
+        energy = get_energy(parent[well], well, 0, par['high_level'], 
+                            conf=par['conformer_search'])  # from the db
         zpe = get_zpe(parent[well], well, 0, par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
@@ -463,7 +468,8 @@ def postprocess(par, jobs, task, names, mass):
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
-            energy += get_energy(parent[prods], pr, 0, par['high_level'])
+            energy += get_energy(parent[prods], pr, 0, par['high_level'], 
+                                 conf=par['conformer_search'])
             zpe = get_zpe(parent[prods], pr, 0, par['high_level'])
             energy += zpe
             status, l3e = get_l3energy(pr, par)
@@ -1314,18 +1320,20 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     return 0
 
 
-def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
+def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0):
     db = connect(directory + '/kinbot.db')
     if ts:
         j = job
     else:
         j = job + '_well'
+    if conf:
+        j = f'conf/{job}_low'
     if mp2:
-        j += '_mp2'
+        j = job + '_well_mp2'
     if bls:
-        j += '_bls'
+        j = job + '_well_bls'
     if high_level:
-        j += '_high'
+        j = job + '_well_high'
     rows = db.select(name=j)
     for row in rows:
         if hasattr(row, 'data'):

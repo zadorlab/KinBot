@@ -61,6 +61,7 @@ try:
     attempts = 1
     steps=500
     while not converged and attempts <= 3:
+        mol.calc.label = '{label}'
         converged = opt.run(fmax=fmax, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
         if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies

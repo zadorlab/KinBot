@@ -95,6 +95,7 @@ try:
     attempts = 1
     steps=500
     while not converged and attempts <= 3:
+        mol.calc.label = '{label}'
         converged = opt.run(fmax=fmax, steps=300)
         freqs, zpe, hessian = calc_vibrations(mol)
         if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1

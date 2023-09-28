@@ -551,15 +551,9 @@ def postprocess(par, jobs, task, names, mass):
 
     # if L3 was done and requested, everything below is done with that
     # filter according to tasks
-    wells, products, reactions, highlight = filter_stat_points(par,
-                                                   wells,
-                                                   products,
-                                                   reactions,
-                                                   conn,
-                                                   bars,
-                                                   well_energies,
-                                                   task,
-                                                   names)
+    filtered_stpts = filter_stat_points(par, wells, products, reactions, conn,
+                                        bars, well_energies, task, names)
+    wells, products, reactions, highlight = filtered_stpts
 
     create_interactive_graph(wells,
                              products,
@@ -1071,7 +1065,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
-                if prod == bl_prod:
+                if prod == bl_prod and parent[prod] == bl[0]:
                     bless = 1
                     break
             with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:

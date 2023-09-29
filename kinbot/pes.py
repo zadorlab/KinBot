@@ -1319,7 +1319,7 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0):
         j = job
     else:
         j = job + '_well'
-    if conf and (not high_level or not mp2):
+    if conf and not high_level and not mp2:
         j = f'conf/{job}_low'
     if mp2:
         j += '_mp2'

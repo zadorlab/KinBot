@@ -1319,14 +1319,14 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0):
         j = job
     else:
         j = job + '_well'
-    if conf:
+    if conf and (not high or not mp2):
         j = f'conf/{job}_low'
     if mp2:
-        j = job + '_well_mp2'
+        j += '_mp2'
     if bls:
-        j = job + '_well_bls'
+        j += '_bls'
     if high_level:
-        j = job + '_well_high'
+        j += '_high'
     rows = db.select(name=j)
     for row in rows:
         if hasattr(row, 'data'):

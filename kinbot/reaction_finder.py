@@ -46,6 +46,7 @@ from kinbot.reactions.reac_Intra_disproportionation_F import IntraDisproportiona
 from kinbot.reactions.reac_r14_birad_scission import R14BiradScission
 from kinbot.reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
 from kinbot.reactions.reac_barrierless_saddle import BarrierlessSaddle
+from kinbot.reactions.reac_vrc_tst_scan import VrcTstScan
 from kinbot.reactions.reac_h2_elim import H2Elim
 from kinbot.reactions.reac_bimol_disproportionation_R import BimolDisproportionationR
 from kinbot.reactions.reac_homolytic_scission import HS
@@ -82,6 +83,11 @@ class ReactionFinder:
             self.barrierless_saddle = par['barrierless_saddle'][str(self.species.chemid)]
         except KeyError:
             self.barrierless_saddle = None
+        if str(self.species.chemid) in par['vrc_tst_scan']:
+            self.vrc_tst_scan = par['vrc_tst_scan'][str(self.species.chemid)]
+        else:
+            self.vrc_tst_scan = None
+            
         # keys: names of the families
         # values: list of instances
         # this dict is used to keep track of the unique reactions found,
@@ -130,6 +136,7 @@ class ReactionFinder:
                           'h2_elim': self.search_h2_elim,
                           'hom_sci': self.search_hom_sci,
                           'barrierless_saddle': self.search_barrierless_saddle,
+                          'vrc_tst_scan': self.search_vrc_tst_scan,
                           'Intra_disproportionation_F': self.search_Intra_disproportionation_F, 
                           'Intra_disproportionation_R': self.search_Intra_disproportionation_R, 
                           'bimol_disproportionation_R': self.search_bimol_disproportionation_R, 
@@ -160,7 +167,7 @@ class ReactionFinder:
                 
             else:
                 for rn in reaction_names:
-                    if rn in self.families or 'all' in self.families:
+                    if 'all' in self.families or rn in self.families:
                         if not rn in self.skip_families:
                             reaction_names[rn](natom, atom, bond, rad)
 
@@ -2068,17 +2075,30 @@ class ReactionFinder:
             return 0
 
         self.new_reaction(rxns, name, a=0, b=-1, cross=True)
-#        for inst in rxns:
-#            new = 1
-#            # filter for the same reactions
-#            for instance in self.reactions[name]:
-#                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-#                    new = 0
-#                if inst[0] == instance[-1] and inst[-1] == instance[0]:
-#                    new = 0
-#            # no filter for specific reaction after this, this is a specific reaction already
 
         return 0
+
+    def search_vrc_tst_scan(self, natom, atom, bond, rad):
+        """ 
+        This is not an RMG class.
+
+        R - R ==> R + R
+
+        Scan the reaction coordinate of a barrierless reaction.
+        """
+
+        name = 'vrc_tst_scan'
+
+        if not name in self.reactions:
+            self.reactions[name] = []
+        if self.vrc_tst_scan is not None:
+            self.new_reaction(self.vrc_tst_scan, name, a=0, b=-1, cross=True)# defined by the user: [[reactant_name, reaction_name, products_name],[...]]
+            return 0
+        else:
+            return 0
+
+        
+        
 
 
     def reaction_matrix(self, reac_list, reac_id):
@@ -2289,6 +2309,16 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BarrierlessSaddle(self.species, self.qc, self.par, reac_list[i], name))
+            elif reac_id == 'vrc_tst_scan':
+                if len(reac_list[i]) != 2:
+                    logger.warning(f"{reac_id} for {reac_list[i]} ignored: try [reaction_name, products_chemids]")
+                else:
+                    if reac_list[i][0].split("_")[0] == str(self.species.chemid):
+                        name =  f"{reac_list[i][0]}_{reac_id}_{reac_list[i][1]}"
+                    else:
+                        name =  f"{self.species.chemid}_{reac_list[i][0]}_{reac_id}_{reac_list[i][1]}"
+                    self.species.reac_name.append(name)
+                    self.species.reac_obj.append(VrcTstScan(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)

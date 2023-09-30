@@ -27,6 +27,7 @@ class QuantumChemistry:
     def __init__(self, par):
         self.par = par
         self.qc = par['qc'].lower()
+        #self.vrc_tst_qc = dict((key, value.lower()) for key, value in par["vrc_tst_qc"].items() )
         self.method = par['method']
         self.basis = par['basis']
         self.scan_method = par['scan_method']
@@ -37,6 +38,13 @@ class QuantumChemistry:
         self.high_level_basis = par['high_level_basis']
         self.bls_high_level_method = par['barrierless_saddle_method_high']
         self.bls_high_level_basis = par['barrierless_saddle_basis_high']
+        self.VTS_basis = par['vrc_tst_scan_basis']
+        self.VTS_methods = par['vrc_tst_scan_methods']
+        self.VTS_parameters = par["vrc_tst_scan_parameters"]
+        self.VTS_qc=par["vrc_tst_scan_qc"]
+        self.VTS_qc_command=par["vrc_tst_scan_qc_command"]
+        self.single_point_template = par['single_point_template']
+        self.single_point_key = par['single_point_key']
         self.integral = par['integral']
         self.opt = par['opt']
         self.ppn = par['ppn']
@@ -62,7 +70,7 @@ class QuantumChemistry:
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
-                         start_from_geom=0, rigid=0, aie=0):
+                         start_from_geom=0, rigid=0, aie=0, L3=False):
         """
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
@@ -73,8 +81,18 @@ class QuantumChemistry:
         max_step: total number of necessary steps to get to the final transition state structure
             This is different for every reaction family
         irc: direction of the irc, None if this is not an irc job
-        scan: is this calculation part of a scan of a bond length to find a maximum energy
+        scan: this calculation is part of a scan of a bond length
         """
+        if "vrc_tst_scan" in job:
+            VTS = True
+        else:
+            VTS = False
+        if VTS:
+            if high_level:
+                self.qc = self.par["vrc_tst_scan_qc"]["L2"]
+            else:
+                self.qc = self.par["vrc_tst_scan_qc"]["L1"]
+
         if self.qc == 'gauss' or (self.qc == 'nn_pes' and step < max_step):
             # arguments for Gaussian
             kwargs = {
@@ -92,6 +110,7 @@ class QuantumChemistry:
             if self.par['guessmix'] == 1 or \
                 'barrierless_saddle' in job or \
                 'bls' in job or \
+                VTS or \
                 (mult == 1 and 'R_Addition_MultipleBond' in job):
                 kwargs['guess'] = 'Mix,Always'
             if ts:
@@ -111,6 +130,7 @@ class QuantumChemistry:
                     kwargs['guess'] = 'Read'
                     if self.par['guessmix'] == 1 or \
                         'barrierless_saddle' in job or \
+                        VTS or\
                         (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'
                     if self.par['bimol']:
@@ -118,6 +138,8 @@ class QuantumChemistry:
                         kwargs['basis'] = self.basis
                         kwargs['opt'] = 'QST3,AddRedundant'
                         kwargs.pop('guess', None)
+                    if VTS:
+                        kwargs["oldchk"] = f"{self.species.name.split('pt')[0]}{self.species.name.split('pt')[1]-1}"
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis
@@ -127,7 +149,7 @@ class QuantumChemistry:
                     else:
                         kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
                         kwargs['freq'] = 'freq'
-            else:
+            else:                   
                 kwargs['freq'] = 'freq'
             if scan or 'R_Addition_MultipleBond' in job:
                 kwargs['method'] = self.scan_method 
@@ -135,6 +157,9 @@ class QuantumChemistry:
             if 'barrierless_saddle' in job or 'bls' in job:
                 kwargs['method'] = self.bls_method
                 kwargs['basis'] = self.bls_basis
+            if VTS:
+                kwargs["method"] = self.VTS_methods["L1"]
+                kwargs["basis"] = self.VTS_basis["L1"]
             if irc is not None:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
@@ -164,6 +189,11 @@ class QuantumChemistry:
                 if 'barrierless_saddle' in job:  # completely overwrite normal settings
                     kwargs['method'] = self.bls_high_level_method
                     kwargs['basis'] = self.bls_high_level_basis
+                    kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
+                    kwargs.pop('freq', None)
+                if VTS:
+                    kwargs["method"] = self.VTS_methods["L2"]
+                    kwargs["basis"] = self.VTS_basis["L2"]
                     kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
                     kwargs.pop('freq', None)
             if hir:
@@ -279,10 +309,16 @@ class QuantumChemistry:
             if 'barrierless_saddle' in job or 'bls' in job:
                 kwargs['method'] = self.bls_method
                 kwargs['basis'] = self.bls_basis
+            if VTS:
+                kwargs["method"] = self.VTS_methods["L1"]
+                kwargs["basis"] = self.VTS_basis["L1"]
             if high_level:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
                 kwargs['vibman_print'] = '4'
+                if VTS:
+                    kwargs["method"] = self.VTS_methods["L2"]
+                    kwargs["basis"] = self.VTS_basis["L2"]
             if irc is not None:
                 kwargs['jobtype'] = 'freq'
                 kwargs['xc_grid'] = '3'
@@ -298,6 +334,45 @@ class QuantumChemistry:
                 kwargs = {'fname': self.par["nn_model"]}
             else:
                 kwargs = {}
+        
+        elif self.qc == 'molpro':
+            kwargs["options"] = """nosym;
+GPRINT,ORBITALS,ORBEN,CIVECTOR;
+bohr;
+orient,noorient;"""
+            kwargs["opt"] = {}
+            if VTS:
+                kwargs["key"] = self.VTS_parameters["molpro_key"]
+                kwargs["tpl"] = self.VTS_parameters["molpro_tpl"]
+            else:
+                kwargs["key"] = self.single_point_key
+                kwargs["tpl"] = self.single_point_tpl
+
+            if ts and not L3:
+                kwargs["opt"]["value"] = True
+                kwargs["opt"]["root"] = 2
+                kwargs["opt"]["method"] = "QSD, ITYPE=2"
+                kwargs["freq"]["value"] = True
+            if L3:
+                kwargs["option"] += "\nGTHRESH,energy=1.d-7;"
+                if VTS:
+                    kwargs["method"] = self.VTS_methods["L3"]
+                    kwargs["basis"] = self.VTS_basis["L3"]
+            elif high_level:
+                kwargs["option"] += "\nGTHRESH,energy=1.d-7;"
+                if VTS:
+                    kwargs["method"] = self.VTS_methods["L2"]
+                    kwargs["basis"] = self.VTS_basis["L2"]
+                else:
+                    kwargs['method'] = self.high_level_method
+                    kwargs['basis'] = self.high_level_basis
+            else:
+                if VTS:
+                    kwargs["method"] = self.VTS_methods["L1"]
+                    kwargs["basis"] = self.VTS_basis["L1"]
+                else:
+                    kwargs['method'] = self.method
+                    kwargs['basis'] = self.basis
 
         return kwargs
 
@@ -562,7 +637,7 @@ class QuantumChemistry:
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
-               fdir=None, do_vdW=False):
+               fdir=None, do_vdW=False, vrc_tst=False):
         """
         Creates a geometry optimization input and runs it.
         """
@@ -577,6 +652,8 @@ class QuantumChemistry:
                 job = str(species.chemid) + '_well_mp2'
             if bls:
                 job = str(species.chemid) + '_well_bls'
+            if vrc_tst:
+                job = f"{species.name}_well_VTS"
         else:
             job = str(species.chemid) + ext
 

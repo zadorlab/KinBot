@@ -133,10 +133,17 @@ def main():
 
         # comparison for barrierless scan
         if par['barrierless_saddle']:
-            logger.debug('Optimization of intial well for barrierless at {}/{}'.
+            logger.debug('Optimization of initial well for barrierless at {}/{}'.
                     format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
             qc.qc_opt(well0, well0.geom, bls=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
+        
+        #Initialize well for Vrc-Tst Scan (VTS)
+        if par["vrc_tst_scan"]:
+            logger.debug('Optimization of initial well for vrc_tst scan at L1 ({}/{})'.
+                    format(par['vrc_tst_scan_methods']["L1"], par['vrc_tst_scan_basis']["L2"]))
+            qc.qc_opt(well0, well0.geom, vrc_tst=True)
+            err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_VTS', well0.natom, 1)
 
         # characterize again and look for differences
         well0.characterize()

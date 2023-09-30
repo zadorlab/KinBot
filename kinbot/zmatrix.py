@@ -149,6 +149,22 @@ def make_zmat_from_cart(species, rotor, cart, mode):
 
     return zmat_atom, zmat_ref, zmat, zmatorder
 
+def make_simple_zmat_from_cart(stationary_pt):
+    distances = np.empty((0,1))
+    angles = np.empty((0,1))
+    dihedrals = np.empty((0,1))
+
+    for atom_index in range(1, stationary_pt.natom):
+        point_B = stationary_pt.geom[atom_index-1]
+        point_A = stationary_pt.geom[atom_index]
+        distances = np.append(distances, np.linalg.norm(point_A - point_B))
+        if atom_index > 1:
+            point_C = stationary_pt.geom[atom_index-2]
+            angles = np.append(angles, np.degrees(geometry.calc_angle(point_C, point_B, point_A)))
+        if atom_index > 2:
+            point_D = stationary_pt.geom[atom_index-3]
+            dihedrals = np.append(dihedrals, np.degrees(geometry.calc_dihedral(point_D, point_C, point_B, point_A)))
+    return [distances, angles, dihedrals]
 
 def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, atom, cart, mode):
     """

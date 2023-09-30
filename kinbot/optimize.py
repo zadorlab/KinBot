@@ -29,7 +29,7 @@ class Optimize:
     4. Repeat steps 2-3 as long as lower energy structures are found
     """
 
-    def __init__(self, species, par, qc, wait=0, do_vdW_well=False):
+    def __init__(self, species, par, qc, wait=0, just_high=False):
         self.species = species
         try:
             delattr(self.species, 'cycle_chain')
@@ -48,9 +48,9 @@ class Optimize:
         self.wait = wait
 
         self.shigh = -1
-        self.do_vdW_well = do_vdW_well
+        self.just_high = just_high
 
-        if not self.do_vdW_well:
+        if not self.just_high:
             # status of the various parts
             # -1: not yet started
             #  0: running
@@ -187,7 +187,7 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                if self.par['conformer_search'] == 1 and not self.do_vdW_well:
+                if self.par['conformer_search'] == 1 and not self.just_high:
                     status, lowest_conf, self.species.geom, self.species.low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
@@ -206,9 +206,16 @@ class Optimize:
                                                           ext=f'_{str(conindx).zfill(4)}_high',
                                                           )
                             else:
-                                if self.do_vdW_well:
+                                if self.just_high:
                                     name = self.species.name
-                                    self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
+                                    if "vrc_tst_scan" in name: #Avoid caculating high points if in db
+                                        status = self.qc.check_qc(self.log_name(1))
+                                        if status == "normal":
+                                            self.shigh = 0
+                                        else:
+                                            self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
+                                    else:
+                                        self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
                                 else:
                                     name = self.species.chemid
                                     self.qc.qc_opt(self.species, self.species.geom, high_level=1)
@@ -350,12 +357,15 @@ class Optimize:
                         if 'barrierless_saddle' in self.name:
                             key = self.par['barrierless_saddle_single_point_key']
                             molp.create_molpro_input(bls=1)
+                        if 'vrc_tst' in self.name:
+                            key = self.par['vrc_tst_scan_parameters']["molpro_key"].upper()
+                            #molp.create_molpro_input(VTS=1)
                         else:
                             key = self.par['single_point_key']
-                            molp.create_molpro_input(do_vdW=self.do_vdW_well)
+                            molp.create_molpro_input(do_vdW=self.just_high)
                         if self.par['queuing'] != 'local':
-                            molp.create_molpro_submit(do_vdW=self.do_vdW_well)
-                        status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.do_vdW_well)
+                            molp.create_molpro_submit(do_vdW=self.just_high)
+                        status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.just_high)
                         if status:
                             self.species.energy = molpro_energy
 
@@ -444,7 +454,7 @@ class Optimize:
             return f'conf/{self.name}_{str(conf).zfill(4)}'
 
         name = str(self.name)
-        if not self.species.wellorts and not self.do_vdW_well:
+        if not self.species.wellorts and not self.just_high:
             name += '_well'
         if high:
             name += '_high'

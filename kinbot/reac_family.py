@@ -15,10 +15,24 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     scan: boolean which tells if this is part of an energy scan along a bond 
         length coordinate
     """
+    if rxn.family_name != "VrcTstScan":
+        VTS = False
+    else:
+        VTS = True
+        rxn.instance_name = f"{rxn.instance_basename}_pt{step}"
+        rxn.species.name = rxn.instance_name
+
+
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
-        if status != 'normal' and status != 'error':
+        if status != 'normal' and status != 'error' and not VTS:
             return step
+        elif VTS and status == "normal":
+            err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
+            if err == 0:
+                rxn.species.geom = geom
+                step += 1
+                return step
   
     kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, 
                                      rxn.species.charge, ts=1, step=step, 
@@ -26,12 +40,18 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
             if rxn.qc.check_qc(rxn.instance_name) == 'normal':  # log file is present and is in the db
+                if VTS:
+                    err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
+                    if err == 0:
+                        rxn.species.geom = geom
+                        step +=1
+                        return step
                 err, freq = rxn.qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
                 if err == 0 and len(freq) > 0.:  # only final calculations have frequencies
                     err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
                     step = rxn.max_step + 1  # this shortcuts the search, jumps to the end
                     return step
-            if rxn.qc.check_qc(rxn.instance_name) == 'error':  # log file is present and is in the db
+            if rxn.qc.check_qc(rxn.instance_name) == 'error':  # log file is not present
                 err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
                 if np.sum(geom) == 0:
                     return -1  # we don't want this to be repeated
@@ -48,7 +68,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, 
                                        allow_error=1, previous=1)
     else:
-        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
+        if VTS:#Take geometry of previous point
+            err, geom = rxn.qc.get_qc_geom(rxn.scanned[f"{step-1}"]["stationary_point"].name, rxn.species.natom, allow_error=1)
+        else:
+            err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
         if bimol:
             if rxn.family_name == 'abstraction':
                 # gives the reactant and product geometry guesses
@@ -137,7 +160,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_search.tpl.py'
         else:
-            template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
+            if rxn.qc.qc != "molpro": #ASE doesn't have molpro calculator, use internal Molpro_calc class instead
+                template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
+            else:
+                template_file = f'{kb_path}/tpl/{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
         template = template.format(label=rxn.instance_name, 
                                    kwargs=kwargs, 

@@ -9,6 +9,7 @@ import sys
 import json
 import logging
 from ase import units
+from kinbot import kb_path
 
 logger = logging.getLogger('KinBot')
 
@@ -72,7 +73,7 @@ class Parameters:
             'barrierless_saddle_start': 2.0,
             # step size in Å
             'barrierless_saddle_step': 0.2,
-            # List of distance in Å for vrc_tst scan
+            # List of distance in Å for vrc_tst surfaces
             'vrc_tst_dist_list': [2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 11, 12, 13, 14, 15, 16, 18, 20],
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
@@ -97,7 +98,7 @@ class Parameters:
             # Calculate AIE for each conformer - requires conformer search
             'calc_aie': 0,
             # Detect vdW wells deeper than threshold (kcal/mol)
-            'vdW_detection': 0.1,
+            'vdW_detection': 0.5,
             #List of barrierless reactions for which rotdPy inputs must be created
             'rotdPy_inputs': [],
 
@@ -170,6 +171,9 @@ class Parameters:
             # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
             'qc': 'gauss',  # or nwchem or nn_pes
+            # Which quantum chemistry code to use for vrc_tst_scan
+            "vrc_tst_scan_qc": {"L1": "gauss", "L2": "gauss", "L3": "molpro"},
+            'vrc_tst_scan_qc_command': {"L1": "g16", "L2": "g16", "L3": "molpro"}, 
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
@@ -190,6 +194,22 @@ class Parameters:
             'barrierless_saddle_method_high': 'b3lyp',
             # Basis set to scan bonds in barrierless_saddle family
             'barrierless_saddle_basis_high': '6-31G',
+            # {chemid1: [["reaction_name", "products_chemids"],[]], chemid2: [[..]]}
+            #Ex: {chemid1:[["hom_sci_3_4", "prod1chemid_prod2chemid"],
+            #              ["inta_H_migration_1_3", "prod1chemid_prod2chemid"]]}
+            'vrc_tst_scan': {},
+            # Method to scan bonds in vrc_tst_scan
+            'vrc_tst_scan_methods': {
+                "L1": "b3lyp", 
+                "L2": "b3lyp", 
+                "L3": "casscf"},
+            # Basis set to scan bonds in vrc_tst_scan
+            'vrc_tst_scan_basis': {
+                "L1": "6-31G", 
+                "L2": "6-31G", 
+                "L3": "cc-pVDZ"},
+            # Parameters for the vrc_tst scan
+            "vrc_tst_scan_parameters": None,
             # for Gaussian, request CalcAll for TS optimization
             'calcall_ts': 0,
             # Quantum chemistry method to use for high-level L2
@@ -409,6 +429,22 @@ class Parameters:
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
+
+        VTS_defaults= {
+                "step": 0.1,
+                "start": 2.0,
+                "stop": 20.0,
+                "distances": None,
+                "molpro_key": "VTS_energy",
+                "molpro_tpl": f"{kb_path}/tpl/molpro_calc.tpl"
+        }
+        if not isinstance(self.par["vrc_tst_scan_parameters"], dict):
+            self.VTS_parameters = VTS_defaults
+        else:
+            self.VTS_parameters = self.par["vrc_tst_scan_parameters"]
+            for key in VTS_defaults:
+                if key not in self.VTS_parameters:
+                    self.VTS_parameters[key] = VTS_defaults[key]
 
         if err is not None:
             logger.error(err)

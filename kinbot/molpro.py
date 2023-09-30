@@ -17,7 +17,7 @@ class Molpro:
         self.species = species
         self.par = par
 
-    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None, do_vdW=False):
+    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None, do_vdW=False, VTS=False):
         """
         Create the input for molpro based on the template,
         which is either the one in the system, or provided
@@ -28,14 +28,18 @@ class Molpro:
         : natom1 is the number of atoms in the second fragment
         """
 
-        if bls == 1 and shift_vec is None:
-            tpl_file = self.par['barrierless_saddle_single_point_template']
-        elif bls == 1 and shift_vec is not None:
-            tpl_file = self.par['barrierless_saddle_prod_single_point_template']
+        if bls == 1:
+            if shift_vec is None:
+                tpl_file = self.par['barrierless_saddle_single_point_template']
+            elif shift_vec is not None:
+                tpl_file = self.par['barrierless_saddle_prod_single_point_template']
+        elif VTS:
+            tpl_file = self.par["vrc_tst_scan_parameters"]["molpro_tpl"]
         elif self.par['single_point_template'] == '':
             tpl_file = f'{kb_path}/tpl/molpro.tpl'
         else:
             tpl_file = self.par['single_point_template']
+
 
         with open(tpl_file) as f:
             tpl = f.read()
@@ -53,7 +57,7 @@ class Molpro:
         symm = self.molpro_symm()
         spin = self.species.mult - 1
 
-        if bls == 0:
+        if bls == 0 and not VTS:
             with open('molpro/' + fname + '.inp', 'w') as outf:
                 outf.write(tpl.format(name=fname,
                                       natom=self.species.natom,
@@ -159,7 +163,7 @@ class Molpro:
         if self.par['q_temp_l3'] == '':
             molpro_head = f'{kb_path}/tpl/{self.par["queuing"]}.tpl'
         else:
-            molpro_head = self.par['q_temp_l3'] 
+            molpro_head = self.par['q_temp_l3']
         with open(molpro_head) as f:
             tpl_head = f.read()
         molpro_tpl = f'{kb_path}/tpl/{self.par["queuing"]}_molpro.tpl'
@@ -200,9 +204,7 @@ class Molpro:
     def get_name(self, name, do_vdW=False):
         if name != '':
             fname = name
-        elif self.species.wellorts:
-            fname = self.species.name
-        elif do_vdW:
+        elif self.species.wellorts or do_vdW:
             fname = self.species.name
         else:
             fname = str(self.species.chemid)

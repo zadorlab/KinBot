@@ -148,3 +148,28 @@ def clean_files():
                     os.remove(ll)
                     logger.info(f'All coordinates of file {ll} are 0, hence '
                                  f'it is deleted.')
+                    
+def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label="x", y_label="y", data_legends=["y0"]):
+    """Function that create the input for a 2D matplotlib plot."""
+
+    if not isinstance(x, list) and not isinstance(data, list):
+        return 
+    
+    content = "import matplotlib.pyplot as plt\n\nx = {x}\n"
+
+    for index, y in enumerate(data):
+        content += f"y{index} = {list(y)}\n"
+
+    content += "\nfig, ax = plt.subplots()\n"
+
+    for index, legend in enumerate(data_legends):
+        content += f"ax.plot(x, y{index}, label={legend}\n"
+
+    content += """
+ax.legend(loc='bottom right')
+plt.xlabel(r'{x_label}')
+ax.set_ylabel(r'{y_label}')
+plt.show()"""
+
+    with open(f"{name}_plt.py", "w") as plt_file:
+                plt_file.write(content)

@@ -290,7 +290,8 @@ def postprocess(par, jobs, task, names, mass):
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
-    base_energy = get_energy(jobs[0], jobs[0], 0, par['high_level'])
+    base_energy = get_energy(jobs[0], jobs[0], 0, par['high_level'],
+                             conf=par['conformer_search'])
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
@@ -349,9 +350,14 @@ def postprocess(par, jobs, task, names, mass):
                 barrier = (0. - base_energy - base_zpe)*constants.AUtoKCAL
 
                 # overwrite energies with mp2 energy if needed
-                if (any([reaction_type in reaction_name for reaction_type in mp2_list]) and not par['high_level']):
+                mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
+                        'reac_r12_cycloaddition', 'reac_r14_birad_scission']
+                if any([mm in ts for mm in mp2_list]) \
+                       and not par['high_level'] \
+                       and par['qc'] != 'nn_pes':
                     base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
-                                                    par['high_level'], mp2=1)
+                                                 par['high_level'], mp2=1,
+                                                 conf=par['conformer_search'])
                     base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
                                             par['high_level'], mp2=1)
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
@@ -359,7 +365,8 @@ def postprocess(par, jobs, task, names, mass):
                 # overwrite energies with bls energy if needed
                 if 'barrierless_saddle' in reaction_name and not par[ 'high_level']:
                     base_energy_bls = get_energy(jobs[0], jobs[0], 0,
-                                                    par['high_level'], bls=1)
+                                                 par['high_level'], bls=1,
+                                                 conf=par['conformer_search'])
                     base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
                                             par['high_level'], bls=1)
                     barrier = 0. - base_energy_bls - base_zpe_bls
@@ -369,7 +376,8 @@ def postprocess(par, jobs, task, names, mass):
                     barrier = float(ts_energy)
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
-                    ts_energy = get_energy(reactant, reaction_name, 1, par['high_level'])
+                    ts_energy = get_energy(reactant, reaction_name, 1, par['high_level'], 
+                                       conf=par['conformer_search'])
                     ts_zpe = get_zpe(reactant, reaction_name, 1, par['high_level'])
                     barrier += (ts_energy + ts_zpe)*constants.AUtoKCAL
                     
@@ -456,7 +464,8 @@ def postprocess(par, jobs, task, names, mass):
     well_energies = {}
     well_l3energies = {}
     for index, well in enumerate(wells):
-        energy = get_energy(parent[well], well, do_vdW[index], par['high_level'])  # from the db
+        energy = get_energy(parent[well], well, do_vdW[index], par['high_level'], 
+                            conf=par['conformer_search']) # from the db
         zpe = get_zpe(parent[well], well, do_vdW[index], par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
@@ -473,7 +482,8 @@ def postprocess(par, jobs, task, names, mass):
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
-            energy += get_energy(parent[prods], pr, 0, par['high_level'])
+            energy += get_energy(parent[prods], pr, 0, par['high_level'], 
+                                 conf=par['conformer_search'])
             zpe = get_zpe(parent[prods], pr, 0, par['high_level'])
             energy += zpe
             status, l3e = get_l3energy(pr, par)
@@ -554,15 +564,9 @@ def postprocess(par, jobs, task, names, mass):
         
     # if L3 was done and requested, everything below is done with that
     # filter according to tasks
-    wells, products, reactions, highlight = filter(par,
-                                                   wells,
-                                                   bimol_products,
-                                                   reactions,
-                                                   conn,
-                                                   bars,
-                                                   well_energies,
-                                                   task,
-                                                   names)
+    filtered_stpts = filter_stat_points(par, wells, bimol_products, products, reactions, conn,
+                                        bars, well_energies, task, names)
+    wells, products, reactions, highlight = filtered_stpts
 
     create_interactive_graph(wells,
                              bimol_products,
@@ -619,12 +623,9 @@ def postprocess(par, jobs, task, names, mass):
         t1_analysis(par['single_point_key'])
 
 
-def filter(par, wells, products, reactions, conn, bars, well_energies, task,
+def filter_stat_points(par, wells, products, reactions, conn, bars, well_energies, task,
            names):
-    """
-    Filter the wells, products and reactions according to the task
-    and the names
-    """
+    """Filter the wells, products and reactions according to their task and name."""
     # list of reactions to highlight
     highlight = []
     # 1. all: This is the default showing all pathways
@@ -1094,7 +1095,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
-                if prod == bl_prod:
+                if prod == bl_prod and parent[prod] == bl[0]:
                     bless = 1
                     break
             with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
@@ -1506,7 +1507,7 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     return 0
 
 
-def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
+def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0)):
     if "IRC" in directory:
         directory = directory.split("_")[0]
     db = connect(directory + '/kinbot.db')
@@ -1514,6 +1515,8 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
         j = job
     else:
         j = job + '_well'
+    if conf and not high_level and not mp2:
+        j = f'conf/{job}_low'
     if mp2:
         j += '_mp2'
     if bls:
@@ -1529,7 +1532,7 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0):
         energy *= constants.EVtoHARTREE
     except UnboundLocalError or TypeError:
         # this happens when the job is not found in the database
-        logger.error('Could not find {} in directory {} database.'.format(job, directory))
+        logger.error('Could not find {} in directory {} database.'.format(j, directory))
         logger.error('Exiting...')
         sys.exit(-1)
     except TypeError:

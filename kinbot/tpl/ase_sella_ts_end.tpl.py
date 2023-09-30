@@ -61,9 +61,12 @@ try:
     attempts = 1
     steps=500
     while not converged and attempts <= 3:
+        mol.calc.label = '{label}'
         converged = opt.run(fmax=fmax, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
-        if np.count_nonzero([fr < -50 for fr in freqs]) > 1:
+        if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+            or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
+            or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
@@ -72,6 +75,7 @@ try:
                 print('Found more than one imaginary frequencies. Retrying with '
                       f'a tighter criterion: fmax={{fmax}}.')
         else:
+            converged = True
             e = mol.get_potential_energy()
             db.write(mol, name='{label}', 
                      data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 

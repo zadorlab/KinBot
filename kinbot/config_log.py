@@ -3,6 +3,7 @@ import sys
 import os
 import logging
 import warnings
+from dateutil import parser
 
 from kinbot import license_message
 
@@ -50,7 +51,8 @@ def config_log(label, mode='kinbot', level='info'):
     if os.path.isfile(fname):
         with open(fname) as log_fh:
             first_line = log_fh.readline()
-        date = first_line.replace('-INFO: \n', '').replace(' ', '_')
+        dt = parser.parse(first_line.replace('-INFO: \n', ''))
+        date = str(dt).replace(' ', '_')
         os.rename(fname, f'{mode}_{date}.log')
     log_handler = logging.FileHandler(fname, mode='w')
     if level in ['debug', 'verbose']:

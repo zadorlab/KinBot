@@ -120,7 +120,7 @@ class StationaryPoint:
 
         if 'mult' not in kwargs:
             if atoms.calc is None or 'mult' not in atoms.calc.parameters:
-                mult = 1
+                mult = cls.calc_multiplicity(cls, np.array(atoms.symbols))
             else:
                 mult = atoms.calc.parameters['mult']
 

@@ -427,7 +427,7 @@ class Conformers:
                 totenergies = []
                 frequencies = []
 
-                if all(status):  # All confomers failed
+                if status[-1]:  # Last confomer (initial structure)
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),

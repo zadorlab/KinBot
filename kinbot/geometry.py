@@ -302,33 +302,36 @@ def get_moments_of_inertia(geom, atom):
 def equal_geom(orig_spec, new_spec, cutoff):
     """
     Test if two geometries are the same based on:
-    - The maxmimum bond matrices (see below) have to be the same.
     - bond lengths have to be within cutoff as a percentage change
+    - bond mx is the same for wells, and for saddle, no new bonds have formed
+    For saddles it is not possible to directly compare bond matrices for dummy species.
     Only works for structures with unchanged atom order, e.g.,
     L2 vs L1 or conformers vs base.
 
-    The maximum bond matrix is the element-wise maximum of all resonant 
+    The maximum bond matrix is the elementwise maximum of all resonant 
     structures bond matrices.
     """
     
-    max_bond_new = new_spec.bonds[0]
-    for b in range(len(new_spec.bonds) - 1):
-        max_bond_new = np.maximum(max_bond_new, new_spec.bonds[b + 1])
-
-    max_bond_orig = orig_spec.bonds[0]
-    for b in range(len(orig_spec.bonds) - 1):
-        max_bond_orig = np.maximum(max_bond_orig, orig_spec.bonds[b + 1])
- 
-    if (max_bond_orig - max_bond_new).any():
-        return 0
-
-    for i in range(len(orig_spec.bond[0])-1):
-        for j in range(i + 1, len(orig_spec.bond[0])):
-            if orig_spec.bond[i][j] > 0:
+    # check if all original bonds are still very close to the original lenghts
+    for i in range(orig_spec.natom-1):
+        for j in range(i + 1, orig_spec.natom):
+            if orig_spec.maxbond[i][j] > 0:
                 orig_dist = np.linalg.norm(orig_spec.geom[i] - orig_spec.geom[j])
                 new_dist = np.linalg.norm(new_spec.geom[i] - new_spec.geom[j])
                 if np.abs(new_dist - orig_dist) / orig_dist > cutoff:
                     return 0
+
+    # for saddles, test if any unwanted new bonds are formed 
+    if orig_spec.wellorts == 1:
+        for i in range(orig_spec.natom-1):
+            for j in range(i + 1, orig_spec.natom):
+                if new_spec.maxbond[i][j] > 0 and orig_spec.maxbond[i][j] == 0:
+                    return 0
+    # for wells, check if the bond matrices are exactly the same
+    else:
+        if (new_spec.maxbond - orig_spec.maxbond).any():
+            return 0
+
     return 1
 
 

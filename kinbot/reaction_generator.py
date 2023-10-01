@@ -491,6 +491,7 @@ class ReactionGenerator:
                                 while 1:
                                     try:
                                         # try to open the file and write to it
+                                        logger.info(f'Launching new KinBot as {chemid}')
                                         pes.write_input(self.inp, obj.products[0], new_barrier_threshold, dirwell, self.par['me'])
                                         with open(dirwell + '/chemids', 'a') as f:
                                             f.write('{}\n'.format(chemid))

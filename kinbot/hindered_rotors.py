@@ -112,7 +112,7 @@ class HIR:
                                                self.species.mult,
                                                atom=self.species.atom,
                                                geom=geom)
-                        temp.bond_mx()
+                        temp.characterize()
                         if geometry.equal_geom(self.species,
                                                temp,
                                                0.15):

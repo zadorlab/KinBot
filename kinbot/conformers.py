@@ -210,7 +210,7 @@ class Conformers:
                                        self.species.mult,
                                        atom=self.species.atom,
                                        geom=geom)
-                temp.bond_mx()
+                temp.characterize()
                 if geometry.equal_geom(self.species, temp, 0.10):
                     logger.debug('Successfully finished conformer {}'.format(job))
                     return geom, 0
@@ -382,7 +382,7 @@ class Conformers:
                                     self.species.mult,
                                     atom=self.species.atom,
                                     geom=geom)
-            dummy.bond_mx()
+            dummy.characterize()
             if geometry.equal_geom(self.species, dummy, 0.10):
                 return geom, 0
             else:
@@ -418,7 +418,7 @@ class Conformers:
                 else:
                     lowest_job = name
                 *_, last_row = self.db.select(name=f'{lowest_job}')
-                # The following refer to the conformer with lowest E + ZPE, 
+                # The following refers to the conformer with lowest E + ZPE, 
                 # not the individual lowest.
                 lowest_energy = np.inf
                 lowest_zpe = np.inf
@@ -427,7 +427,7 @@ class Conformers:
                 totenergies = []
                 frequencies = []
 
-                if status[-1]:  # Last confomer (initial structure)
+                if status[0]:  # first confomer (initial structure)
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),

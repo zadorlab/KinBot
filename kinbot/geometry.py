@@ -302,10 +302,13 @@ def get_moments_of_inertia(geom, atom):
 def equal_geom(orig_spec, new_spec, cutoff):
     """
     Test if two geometries are the same based on:
-    - bond mx has to be the same
+    - The maxmimum bond matrices (see below) have to be the same.
     - bond lengths have to be within cutoff as a percentage change
     Only works for structures with unchanged atom order, e.g.,
     L2 vs L1 or conformers vs base.
+
+    The maximum bond matrix is the element-wise maximum of all resonant 
+    structures bond matrices.
     """
     
     max_bond_new = new_spec.bonds[0]
@@ -316,7 +319,7 @@ def equal_geom(orig_spec, new_spec, cutoff):
     for b in range(len(orig_spec.bonds) - 1):
         max_bond_orig = np.maximum(max_bond_orig, orig_spec.bonds[b + 1])
  
-    if max_bond_orig.all() != max_bond_new.all():
+    if (max_bond_orig - max_bond_new).any():
         return 0
 
     for i in range(len(orig_spec.bond[0])-1):

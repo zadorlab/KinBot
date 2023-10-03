@@ -205,13 +205,14 @@ class Conformers:
                 return geom, -1
             else:
                 # check if all the bond lenghts are withing 10% or the original bond lengths
-                temp = StationaryPoint('temp',
+                dummy = StationaryPoint('dummy',
                                        self.species.charge,
                                        self.species.mult,
                                        atom=self.species.atom,
                                        geom=geom)
-                temp.characterize()
-                if geometry.equal_geom(self.species, temp, 0.10):
+                dummy.bond_mx()
+                dummy.calc_chemid()
+                if geometry.equal_geom(self.species, dummy, 0.10):
                     logger.debug('Successfully finished conformer {}'.format(job))
                     return geom, 0
                 else:
@@ -382,7 +383,8 @@ class Conformers:
                                     self.species.mult,
                                     atom=self.species.atom,
                                     geom=geom)
-            dummy.characterize()
+            dummy.bond_mx()
+            dummy.calc_chemid()
             if geometry.equal_geom(self.species, dummy, 0.10):
                 return geom, 0
             else:
@@ -427,7 +429,7 @@ class Conformers:
                 totenergies = []
                 frequencies = []
 
-                if status[0]:  # first confomer (initial structure)
+                if all(status):  # if all conformers are invalid, 1 (different) or fail (-1)
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),

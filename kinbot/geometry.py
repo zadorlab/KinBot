@@ -320,16 +320,15 @@ def equal_geom(orig_spec, new_spec, cutoff):
                 new_dist = np.linalg.norm(new_spec.geom[i] - new_spec.geom[j])
                 if np.abs(new_dist - orig_dist) / orig_dist > cutoff:
                     return 0
-
     # for saddles, test if any unwanted new bonds are formed 
     if orig_spec.wellorts == 1:
         for i in range(orig_spec.natom-1):
             for j in range(i + 1, orig_spec.natom):
-                if new_spec.maxbond[i][j] > 0 and orig_spec.maxbond[i][j] == 0:
+                if new_spec.bond[i][j] > 0 and orig_spec.bond[i][j] == 0:
                     return 0
     # for wells, check if the bond matrices are exactly the same
     else:
-        if (new_spec.maxbond - orig_spec.maxbond).any():
+        if new_spec.chemid != orig_spec.chemid:
             return 0
 
     return 1

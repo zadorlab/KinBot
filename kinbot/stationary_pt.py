@@ -218,6 +218,7 @@ class StationaryPoint:
                     raise ValueError(err_msg)
 
         self.bond = np.zeros((self.natom, self.natom), dtype=int)
+        self.bonds = []  # unique list of bond matrices in case of resonance
 
         for i in range(self.natom):
             for j in range(self.natom):

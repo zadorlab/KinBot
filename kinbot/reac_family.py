@@ -15,12 +15,15 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     scan: boolean which tells if this is part of an energy scan along a bond 
         length coordinate
     """
+    ts = True
+
     if rxn.family_name != "VrcTstScan":
         VTS = False
     else:
         VTS = True
         rxn.instance_name = f"{rxn.instance_basename}_pt{step}"
         rxn.species.name = rxn.instance_name
+        ts = False
 
 
     if step > 0:
@@ -35,7 +38,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 return step
   
     kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, 
-                                     rxn.species.charge, ts=1, step=step, 
+                                     rxn.species.charge, ts=ts, step=step, 
                                      max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
@@ -64,7 +67,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 # gives the reactant and product geometry guesses
                 geom, _, _ = abstraction_align(rxn.species.geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
-    elif step == rxn.max_step and rxn.scan:
+    elif step == rxn.max_step and rxn.scan and not VTS:
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, 
                                        allow_error=1, previous=1)
     else:
@@ -126,7 +129,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     elif rxn.qc.qc == 'qchem':
         code = 'qchem'
         Code = 'QChem'
-        if (not bimol or step == 0) and step < rxn.max_step:
+        if (not bimol or step == 0) and (step < rxn.max_step or VTS):
             kwargs['addsec'] = '$opt\nCONSTRAINT\n'
             for fixi in fix:
                 if len(fixi) == 2:
@@ -154,7 +157,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         code = 'nn_pes'
         Code = 'Nn_surr'
 
-    if step < rxn.max_step:
+    if step < rxn.max_step or VTS:
         if rxn.qc.use_sella:
             kwargs.pop('addsec', None)
             kwargs.pop('opt', None)
@@ -180,7 +183,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    sella_kwargs=rxn.par['sella_kwargs']  # Sella
                                    )
     else:
-        kwargs.pop('addsec', None)
         if rxn.par['calc_kwargs']:
             kwargs = rxn.qc.merge_kwargs(kwargs)
         if rxn.qc.use_sella:

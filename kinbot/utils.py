@@ -155,7 +155,7 @@ def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label
     if not isinstance(x, list) and not isinstance(data, list):
         return 
     
-    content = "import matplotlib.pyplot as plt\n\nx = {x}\n"
+    content = f"import matplotlib.pyplot as plt\n\nx = {x}\n"
 
     for index, y in enumerate(data):
         content += f"y{index} = {list(y)}\n"
@@ -163,9 +163,9 @@ def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label
     content += "\nfig, ax = plt.subplots()\n"
 
     for index, legend in enumerate(data_legends):
-        content += f"ax.plot(x, y{index}, label={legend}\n"
+        content += f"ax.plot(x, y{index}, label='{legend}')\n"
 
-    content += """
+    content += f"""
 ax.legend(loc='bottom right')
 plt.xlabel(r'{x_label}')
 ax.set_ylabel(r'{y_label}')

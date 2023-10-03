@@ -29,8 +29,13 @@ class Optimize:
     4. Repeat steps 2-3 as long as lower energy structures are found
     """
 
-    def __init__(self, species, par, qc, wait=0, just_high=False):
+    def __init__(self, species, par, qc, wait=0, just_high=False, frozen_bonds=None):
         self.species = species
+        if frozen_bonds == None or not isinstance(frozen_bonds, list):
+            self.frozen_bonds = [[]]
+        else:
+            self.frozen_bonds = frozen_bonds
+
         try:
             delattr(self.species, 'cycle_chain')
         except AttributeError:
@@ -213,7 +218,7 @@ class Optimize:
                                         if status == "normal":
                                             self.shigh = 0
                                         else:
-                                            self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
+                                            self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True, frozen_bonds=self.frozen_bonds)
                                     else:
                                         self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
                                 else:
@@ -523,22 +528,26 @@ class Optimize:
         else:
             same_geom = geometry.equal_geom(self.species, dummy, 0.1)
 
+        #bypass freq check for VTS for now
+        if "vrc_tst_scan" not in self.name:
         # checking if L2 frequencies are okay
-        err, fr = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
-        if self.species.natom == 1:
-            freq_ok = 1
-        elif len(fr) == 1 and fr[0] == 0:
-            freq_ok = 0
-        elif self.species.wellorts == 0 and fr[0] > -1. * self.par['imagfreq_threshold']:
-            freq_ok = 1
-            if fr[0] < 0.:
-                logger.warning(f'Negative frequency {fr[0]} cm-1 detected in '
-                               f'{self.name}. Flipped to {-fr[0]}.')
-                fr[0] *= -1.
-        elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
-            freq_ok = 1
+            err, fr = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
+            if self.species.natom == 1:
+                freq_ok = 1
+            elif len(fr) == 1 and fr[0] == 0:
+                freq_ok = 0
+            elif self.species.wellorts == 0 and fr[0] > -1. * self.par['imagfreq_threshold']:
+                freq_ok = 1
+                if fr[0] < 0.:
+                    logger.warning(f'Negative frequency {fr[0]} cm-1 detected in '
+                                f'{self.name}. Flipped to {-fr[0]}.')
+                    fr[0] *= -1.
+            elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
+                freq_ok = 1
+            else:
+                freq_ok = 0
         else:
-            freq_ok = 0
+            freq_ok = 1
 
         if conf == -1:
             # update properties for base structure

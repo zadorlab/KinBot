@@ -130,7 +130,6 @@ class QuantumChemistry:
                     kwargs['guess'] = 'Read'
                     if self.par['guessmix'] == 1 or \
                         'barrierless_saddle' in job or \
-                        VTS or\
                         (mult == 1 and 'R_Addition_MultipleBond' in job):
                         kwargs['guess'] = 'Read,Mix'
                     if self.par['bimol']:
@@ -138,8 +137,6 @@ class QuantumChemistry:
                         kwargs['basis'] = self.basis
                         kwargs['opt'] = 'QST3,AddRedundant'
                         kwargs.pop('guess', None)
-                    if VTS:
-                        kwargs["oldchk"] = f"{self.species.name.split('pt')[0]}{self.species.name.split('pt')[1]-1}"
                 else:
                     kwargs['method'] = self.method
                     kwargs['basis'] = self.basis
@@ -149,7 +146,14 @@ class QuantumChemistry:
                     else:
                         kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
                         kwargs['freq'] = 'freq'
-            else:                   
+            else:
+                if VTS:
+                    kwargs["method"] = self.VTS_methods["L1"]
+                    kwargs["basis"] = self.VTS_basis["L1"]
+                    kwargs['opt'] = 'ModRedun,Loose,CalcFC'
+                    if step != 0 :
+                        kwargs["oldchk"] = f"{job.split('pt')[0]}pt{int(job.split('pt')[1])-1}" #L1 reads from previous L1 point
+                        kwargs['guess'] = 'Read,Mix'
                 kwargs['freq'] = 'freq'
             if scan or 'R_Addition_MultipleBond' in job:
                 kwargs['method'] = self.scan_method 
@@ -157,9 +161,6 @@ class QuantumChemistry:
             if 'barrierless_saddle' in job or 'bls' in job:
                 kwargs['method'] = self.bls_method
                 kwargs['basis'] = self.bls_basis
-            if VTS:
-                kwargs["method"] = self.VTS_methods["L1"]
-                kwargs["basis"] = self.VTS_basis["L1"]
             if irc is not None:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
@@ -194,8 +195,13 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L2"]
                     kwargs["basis"] = self.VTS_basis["L2"]
-                    kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
-                    kwargs.pop('freq', None)
+                    kwargs["oldchk"] = f"{job.split('_high')[0]}" #L2 reads from last L1 point
+                    kwargs['opt'] = 'ModRedun,CalcAll,NoEigentest,MaxCycle=999'
+                    try:
+                        kwargs.pop('freq', None)
+                    except KeyError:
+                        pass
+                    kwargs['freq'] = 'freq'
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
                 if (not ts) or (ts and (not self.par['calcall_ts'])):
@@ -637,7 +643,7 @@ orient,noorient;"""
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
-               fdir=None, do_vdW=False, vrc_tst=False):
+               fdir=None, do_vdW=False, vrc_tst=False, frozen_bonds=None):
         """
         Creates a geometry optimization input and runs it.
         """
@@ -681,6 +687,15 @@ orient,noorient;"""
                 kwargs['opt'] = 'CalcFC, Tight'
             else:
                 kwargs['opt'] = 'CalcFC'
+            if "vrc_tst_scan" in species.name and not self.use_sella:
+                if not "ModRedun" in kwargs['opt']:
+                    kwargs['opt'] += ", ModRedun"
+                # here addsec contains the constraints
+                kwargs['addsec'] = ''
+                if frozen_bonds == None or not isinstance(frozen_bonds, list):
+                    frozen_bonds = [[]]
+                for bond in frozen_bonds:
+                    kwargs['addsec'] += f"{' '.join(str(atom) for atom in bond)} F\n"
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
@@ -698,6 +713,19 @@ orient,noorient;"""
             kwargs['basis'] = self.scan_basis
         if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
+            if "vrc_tst_scan" in species.name and not self.use_sella:
+                if not "ModRedun" in kwargs['opt']:
+                    kwargs['opt'] += ", ModRedun"
+                if not "NoEigentest" in kwargs['opt']:
+                    kwargs['opt'] += ", NoEigentest"
+                if not "MaxCycle" in kwargs['opt']:
+                    kwargs['opt'] += ", MaxCycle=999"
+                # here addsec contains the constraints
+                kwargs['addsec'] = ''
+                if frozen_bonds == None or not isinstance(frozen_bonds, list):
+                    frozen_bonds = [[]]
+                for bond in frozen_bonds:
+                    kwargs['addsec'] += f"{' '.join(str(atom) for atom in bond)} F\n"
         if species.natom < 3:
             kwargs.pop('Symm', None)
         # the integral is set in the get_qc_arguments parts, bad design

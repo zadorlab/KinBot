@@ -352,7 +352,7 @@ def postprocess(par, jobs, task, names, mass):
                 # overwrite energies with mp2 energy if needed
                 mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
                         'reac_r12_cycloaddition', 'reac_r14_birad_scission']
-                if any([mm in ts for mm in mp2_list]) \
+                if any([mm in reaction_name for mm in mp2_list]) \
                        and not par['high_level'] \
                        and par['qc'] != 'nn_pes':
                     base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
@@ -1507,7 +1507,7 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     return 0
 
 
-def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0)):
+def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0):
     if "IRC" in directory:
         directory = directory.split("_")[0]
     db = connect(directory + '/kinbot.db')

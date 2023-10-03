@@ -33,8 +33,10 @@ class VrcTstScan(GeneralReac):
         self.e_in_kcal = {}
         #Reset the species to have the broken bond between fragments
         self.species, self.instance, self.shortest = self.find_bond_to_scan()
-        self.set_scan_list()
-        self.max_step = len(self.scan_list)-1 # -1 because step starts at 0
+        self.set_scan_list() #Internally, the list is in bhor
+        self.max_step = len(self.scan_list) - 1 #Step starts at 0
+        self.removed = []
+        self.points_to_remove = []
     
     def set_scan_list(self):
         if self.par["vrc_tst_scan_parameters"]["distances"] == None or\
@@ -99,28 +101,43 @@ class VrcTstScan(GeneralReac):
         return [initial_well, atoms_index, shortest]
     
     def finish_vrc_tst_scan(self, level):
+        self.filter_points()
+        if level != "L1":
+            self.filter_points(level=level)
         e_in_kcal = self.get_e_in_kcal(level)
         logger.info('\tSuccessful scan for {}.'.format(self.instance_name))
         logger.info(f"\tEnergies: {e_in_kcal}")
+        logger.info(f"Points removed: {self.removed}")
         self.print_scan_results(level=level)
+    
+    def filter_points(self, level="L1"):
+        for point in self .scanned:
+            if self.scanned[f"{point}"]["energy"][level] == 0.0:
+                self.points_to_remove.append(point)
+        for point in self.points_to_remove:
+            self.scanned.pop(str(point))
+            self.scan_list = np.delete(self.scan_list, int(point))
+            if point not in self.removed:
+                self.removed.append(point)
+        self.points_to_remove = []
 
     def print_scan_results(self, level="L1"):
         x_label = f"{self.species.atom[self.instance[0]]}{self.instance[0]} - {self.species.atom[self.instance[1]]}{self.instance[1]} distance ($\AA$)"
         y_label = f"Energy $(kcal/mol)$"
+        y = list([self.get_e_in_kcal(level="L1")])
         x = list(np.array(self.scan_list) * constants.BOHRtoANGSTROM)
-        y = list(self.get_e_in_kcal(level="L1"))
-        data_legends = list(f"{self.qc.VTS_methods['L1']}/{self.qc.VTS_basis['L1']}")
+        data_legends = []
+        data_legends.append(f"{self.qc.VTS_methods['L1']}/{self.qc.VTS_basis['L1']}")
         if level == "L2":
             y.append(list(self.get_e_in_kcal(level="L2")))
-            data_legends.append(list(f"{self.qc.VTS_methods['L2']}/{self.qc.VTS_basis['L2']}"))
-        utils.create_matplotlib_graph(x, y, name=f"{self.instance_name}", x_label=x_label, y_label=y_label, data_legends=data_legends)
+            data_legends.append(f"{self.qc.VTS_methods['L2']}/{self.qc.VTS_basis['L2']}")
+        utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_name}", x_label=x_label, y_label=y_label, data_legends=data_legends)
 
     def get_e_in_kcal(self, level="L1"):
-
         e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - 
                                 self.scanned["0"]["energy"][level]) 
                     for point in self.scanned]
-        e_in_kcal = np.round(e_in_kcal, 2)
+        e_in_kcal = list(np.round(e_in_kcal, 2))
         return e_in_kcal
     
     def get_constraints(self, step, geom):

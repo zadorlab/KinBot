@@ -1,3 +1,8 @@
+  Bimolecular  {prod} 
+{fragments}
+    GroundEnergy[kcal/mol]        {ground_energy}
+    End ! Barrierless
+
   Barrier       {barrier} {reactant} {prod} 
     RRHO
       Stoichiometry {stoich}
@@ -17,7 +22,4 @@
     End ! RRHO
 
 !****************************************
-  Bimolecular  {prod} 
-{fragments}
-    GroundEnergy[kcal/mol]        {ground_energy}
-    End ! Barrierless
+

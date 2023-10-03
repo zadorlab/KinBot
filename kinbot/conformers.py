@@ -514,8 +514,19 @@ class Conformers:
                             frequencies.append(np.zeros(self.species.natom * 3 - 6))
 
                 self.write_profile(status, final_geoms, totenergies)
-               
 
+                # Check if at least one conformer has the same enrgy as the L1 parent structure
+                if self.species.wellorts:
+                    *_, l1_last_row = self.db.select(name=self.species.name)
+                else:
+                    *_, l1_last_row = self.db.select(name=f'{self.species.name}_well')
+                l1energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
+                l1energy += l1_last_row.data.get('zpe')
+                if not any([abs(en - l1energy) < 1.6e-4 for en in totenergies]): # 0.1 kcal/mol
+                    logger.warning(f'None of {self.species.name} conformers '
+                                   'has the same energy as its parent structure. '
+                                   'This might be a result of SCF convergence '
+                                   'issues.')
                 try:
                     if self.qc.qc == 'gauss':
                         copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))

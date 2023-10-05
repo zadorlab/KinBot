@@ -2,6 +2,10 @@ from kinbot.reac_General import GeneralReac
 from kinbot import utils
 from kinbot import constants
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.molpro import Molpro
+from kinbot import geometry
+from kinbot import modify_geom
+from kinbot import zmatrix
 import numpy as np
 import copy
 import logging
@@ -26,10 +30,19 @@ class VrcTstScan(GeneralReac):
         #            },
         #       "stationary_point": StationaryPoint object used for this point
         #       "opt": Optimization object only doing high level
+        #       "molp": Molpro object
         #       },
         #   "1": {...}
         #   }
-        self.scanned = {}
+        self.relaxed = {}
+        self.frozen = {
+            "fragments": {
+                "L1": {},
+                "L2": {},
+                "L3":{}
+                }
+                }
+        self.frozen_coord = {"L1": [], "L2": []}
         self.e_in_kcal = {}
         #Reset the species to have the broken bond between fragments
         self.species, self.instance, self.shortest = self.find_bond_to_scan()
@@ -109,13 +122,18 @@ class VrcTstScan(GeneralReac):
         logger.info(f"\tEnergies: {e_in_kcal}")
         logger.info(f"Points removed: {self.removed}")
         self.print_scan_results(level=level)
+        if level == "L2":
+            for point in self.relaxed:
+                self.relaxed[point]["molp"] = Molpro(self.relaxed[point]["stationary_point"])
+                self.relaxed[point]["molp"].create_molpro_input(VTS=True,\
+                                                                name=self.relaxed[point]["stationary_point"])
     
     def filter_points(self, level="L1"):
-        for point in self .scanned:
-            if self.scanned[f"{point}"]["energy"][level] == 0.0:
+        for point in self .relaxed:
+            if self.relaxed[f"{point}"]["energy"][level] == 0.0:
                 self.points_to_remove.append(point)
         for point in self.points_to_remove:
-            self.scanned.pop(str(point))
+            self.relaxed.pop(str(point))
             self.scan_list = np.delete(self.scan_list, int(point))
             if point not in self.removed:
                 self.removed.append(point)
@@ -134,12 +152,109 @@ class VrcTstScan(GeneralReac):
         utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_name}", x_label=x_label, y_label=y_label, data_legends=data_legends)
 
     def get_e_in_kcal(self, level="L1"):
-        e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - 
-                                self.scanned["0"]["energy"][level]) 
-                    for point in self.scanned]
+        e_in_kcal = [constants.AUtoKCAL * (self.relaxed[f"{point}"]["energy"][level] - 
+                                self.relaxed["0"]["energy"][level]) 
+                    for point in self.relaxed]
         e_in_kcal = list(np.round(e_in_kcal, 2))
         return e_in_kcal
     
+    def prepare_frozen_scan(self):
+        fragments, self.frozen_maps = self.species.start_multimolecular()
+        #Recover the LR frozen fragments geometries
+        for index, frag in enumerate(fragments):
+            frag.characterize()
+            frag.name = f"{frag.chemid}_well_VTS"
+            err, geom = self.qc.get_qc_geom(frag.name, frag.natom)
+            if err == 0:
+                frag.geom = geom
+                frag.characterize()
+                broken_frag, broken_maps = frag.start_multi_molecular()
+                if len(broken_frag) != 1:
+                    logger.warning(f"Optimization of {frag.name} has failed. Cancelling scan {self.name}.")
+                    self.scan = 0
+                    break
+                self.frozen["fragments"]["L1"][f"{index}"] = frag
+            else:
+                self.qc.qc_opt(self.species, self.species.geom, ext="_well_VTS")
+            if self.par["high_level"]:
+                err, geom = self.qc.get_qc_geom(f"{frag.name}_high", frag.natom)
+                if err == 0:
+                    self.frag.geom = geom
+                    self.frag.characterize()
+                    broken_frag, broken_maps = frag.start_multi_molecular()
+                    if len(broken_frag) != 1:
+                        logger.warning(f"Optimization of {frag.name} has failed. Cancelling scan {self.name}.")
+                        self.scan = 0
+                        break
+                    self.frozen["fragments"]["L2"][f"{index}"] = frag
+                    self.frozen["fragments"]["L3"][f"{index}"] = frag
+                else:
+                    self.qc.qc_opt(self.species, self.species.geom, ext="_well_VTS_high", high_level=1)
+
+        #Create initial geometry
+        if self.scan == 1:
+            #Check that both fragments are present and optimized
+            fragment_missing = 0
+            for index in range(2):
+                if str(index) not in self.frozen["fragments"]["L1"]:
+                    fragment_missing = 1
+
+            #Create starting bimolecular stationary_point from optimized fragments
+            if not fragment_missing:
+                self.set_frozen_coord("L1")
+                if self.par["high_level"]:
+                    self.set_frozen_coord("L2")
+                #Create the list of constrain for frozen fragments
+                changes = [self.instance.append(self.shortest)] #This is the initial distance between the fragments
+                changes.append(self.frozen_coord["L1"])
+
+                axis = self.species.geom[self.instance[1]] - self.species.geom[self.instance[0]]
+                shift = [0, 10] #Distance in bhor to move each fragment along the bond axis
+                x_shift, y_shift, z_shift = np.array(shift) * geometry.unit_vector(axis)
+                bimolecular_geom = np.empty(0,3)
+                bimolecular_atom = []
+                for line_number in range(self.species.natom):#index, frag_map in enumerate(maps):
+                    for frag_number, frag_map in enumerate(self.frozen_maps):
+                        if line_number in frag_map:
+                            fragment = self.frozen["fragments"]["L1"][f"{frag_number}"]
+                            x, y, z = fragment.geom[frag_map.index(line_number)]
+                            np.append(bimolecular_geom, [x + x_shift[frag_number], y + y_shift[frag_number], z + z_shift[frag_number]])
+                            bimolecular_atom += fragment.atom[frag_map.index(line_number)]
+                self.frozen_species = StationaryPoint(f"{self.instance_name}_frozen",\
+                                                    self.species.charge,\
+                                                    self.species.mult,\
+                                                    natom=self.species.natom,\
+                                                    atom=bimolecular_atom,\
+                                                    geom=bimolecular_geom)
+                self.frozen_species.characterize()
+                success, geom = modify_geom.modify_coordinates(self.frozen_species,\
+                                                       f"{self.instance_name}_frozen",\
+                                                       self.frozen_species.geom,\
+                                                       changes,\
+                                                       self.frozen_species.bond)
+                if success:
+                    self.frozen_species.geom = geom
+                    self.frozen_species.characterize() #Frozen species is the starting geom of L1 frozen_scan
+
+    def set_frozen_coord(self, level="L1"):
+        parameters = [] #[[[dist_frag0][ang_frag0][dihed_frag0]][[dist_frag1][ang_frag1][dihed_frag1]]]
+        for index in range(2):
+            parameters.append([geometry.make_simple_zmat_from_cart(self.frozen["fragments"][level][f"{index}"])])
+        
+        for index, frag in self.frozen["fragments"][level].items():
+                    for atom1 in range(0, frag.natom-2):
+                        for atom2 in range(atom1+1, frag.natom-1):
+                            #Constrain fragments bonds
+                            self.frozen_coord[level].append([self.frozen_maps[int(index)][atom1], self.frozen_maps[int(index)][atom2], parameters[int(index)][0][atom1]])
+                            if atom2 < frag.natom-1:
+                                for atom3 in range(atom2+1, frag.natom-1):
+                                    #Constrain fragments angles
+                                    self.frozen_coord[level].append([self.frozen_maps[int(index)][atom1], self.frozen_maps[int(index)][atom2], self.frozen_maps[int(index)][atom3], parameters[int(index)][1][atom1]])
+                                    if atom3 < frag.natom-1:
+                                        for atom4 in range(atom3+1, frag.natom-1):
+                                            #Constrain fragments dihedrals
+                                            self.frozen_coord[level].append([self.frozen_maps[int(index)][atom1], self.frozen_maps[int(index)][atom2], self.frozen_maps[int(index)][atom3], self.frozen_maps[int(index)][atom4], parameters[int(index)][1][atom1]])
+
     def get_constraints(self, step, geom):
         fix = []
         change = []

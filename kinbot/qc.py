@@ -660,6 +660,8 @@ orient,noorient;"""
                 job = str(species.chemid) + '_well_bls'
             if vrc_tst:
                 job = f"{species.name}_well_VTS"
+                if high_level:
+                    job += "_high"
         else:
             job = str(species.chemid) + ext
 
@@ -917,7 +919,7 @@ orient,noorient;"""
         If allow_error = 0, do not read the final geometry if the status is not "normal"
         if allow_error = 1, read the geometry even though there is an error in the output file
             This option is to read the final IRC geometry when it did not converge
-        If previous = 0, read the last geometry, this is the normal behavious
+        If previous = 0, read the last geometry, this is the normal behaviour
         if previous = 1, read the geometry before the last one, this is needed in scan types so
             that the max energy point is taken, not the one after that
         """

@@ -1,6 +1,9 @@
 ***,{name}
 {options}
-memory,{memory},M
+
+text, Molpro input generated automatically by KinBot
+
+{basis}
 
 {geometry_block}
 

@@ -207,7 +207,7 @@ class Parameters:
             'vrc_tst_scan_basis': {
                 "L1": "6-31G", 
                 "L2": "6-31G", 
-                "L3": "cc-pVDZ"},
+                "L3": "cc-pVTZ"},
             # Parameters for the vrc_tst scan
             "vrc_tst_scan_parameters": None,
             # for Gaussian, request CalcAll for TS optimization

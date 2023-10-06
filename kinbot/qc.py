@@ -83,7 +83,7 @@ class QuantumChemistry:
         irc: direction of the irc, None if this is not an irc job
         scan: this calculation is part of a scan of a bond length
         """
-        if "vrc_tst_scan" in job:
+        if "vrc_tst_scan" or "VTS" in job:
             VTS = True
         else:
             VTS = False

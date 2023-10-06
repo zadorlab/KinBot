@@ -47,6 +47,7 @@ from kinbot.reactions.reac_r14_birad_scission import R14BiradScission
 from kinbot.reactions.reac_r14_cyclic_birad_scission_R import R14CyclicBiradScission
 from kinbot.reactions.reac_barrierless_saddle import BarrierlessSaddle
 from kinbot.reactions.reac_vrc_tst_scan import VrcTstScan
+from kinbot.reactions.reac_vrc_tst_scan_frozen import VrcTstScanFrozen
 from kinbot.reactions.reac_h2_elim import H2Elim
 from kinbot.reactions.reac_bimol_disproportionation_R import BimolDisproportionationR
 from kinbot.reactions.reac_homolytic_scission import HS
@@ -2319,6 +2320,7 @@ class ReactionFinder:
                         name =  f"{self.species.chemid}_{reac_list[i][0]}_{reac_id}_{reac_list[i][1]}"
                     self.species.reac_name.append(name)
                     self.species.reac_obj.append(VrcTstScan(self.species, self.qc, self.par, reac_list[i], name))
+                    self.species.reac_obj.append(VrcTstScanFrozen(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)

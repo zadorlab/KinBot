@@ -145,7 +145,6 @@ class ReactionGenerator:
                             if self.species.reac_step[index] == 0:
                                 if obj.family_name == "VrcTstScan":
                                     command = self.qc.VTS_qc_command["L1"]
-                                    obj.prepare_frozen_scan()
                                 else:
                                     command = self.par['qc_command']
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(
@@ -170,16 +169,16 @@ class ReactionGenerator:
                                                 err, geom = self.qc.get_qc_geom(obj.instance_name, obj.species.natom)
                                                 obj.species.geom = geom #Uptdate species from last L1 optimized point.
                                                 point = f"{self.species.reac_step[index] - 1}" #L1 point_n-1 finished, about to start point_n
-                                                if point not in obj.relaxed:
-                                                    obj.relaxed[f"{point}"] = {"energy": {"L1": energy}}
+                                                if point not in obj.scanned:
+                                                    obj.scanned[f"{point}"] = {"energy": {"L1": energy}}
                                                     if int(self.par["high_level"]): #Submit L2 level of vrc tst scan
-                                                        obj.relaxed[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
-                                                        obj.relaxed[f"{point}"]["opt"] = Optimize(obj.relaxed[f"{point}"]["stationary_point"],\
+                                                        obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
+                                                        obj.scanned[f"{point}"]["opt"] = Optimize(obj.scanned[f"{point}"]["stationary_point"],\
                                                                                                 self.par, self.qc,\
                                                                                                 just_high=True,\
                                                                                                 frozen_bonds=[[ index+1 for index in obj.instance]])
-                                                        obj.relaxed[f"{point}"]["opt"].do_optimization()
-                                                        if obj.relaxed[f"{point}"]["opt"].shigh == -999: 
+                                                        obj.scanned[f"{point}"]["opt"].do_optimization()
+                                                        if obj.scanned[f"{point}"]["opt"].shigh == -999: 
                                                             logger.info('\tScan {} point {} failed for high level calculation.'
                                                                 .format(point, obj.instance_name))
                                                     #if point == "0":
@@ -239,20 +238,20 @@ class ReactionGenerator:
                                         self.species.reac_ts_done[index] = -999
                                     else:
                                         point = f"{self.species.reac_step[index] - 1}" #L1 point_n-1 finished, about to start point_n
-                                        obj.relaxed[f"{point}"] = {"energy": {"L1": energy}}
+                                        obj.scanned[f"{point}"] = {"energy": {"L1": energy}}
                                         if int(self.par["high_level"]): #Submit L2 level of vrc tst scan
                                             self.species.reac_ts_done[index] = 4
                                             err, energy = self.qc.get_qc_energy(obj.instance_name)
                                             if err == 0:
                                                 err, geom = self.qc.get_qc_geom(obj.instance_name, obj.species.natom)
                                                 obj.species.geom = geom #Uptdate species from last L1 optimized point.
-                                                obj.relaxed[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
-                                                obj.relaxed[f"{point}"]["opt"] = Optimize(obj.relaxed[f"{point}"]["stationary_point"],\
+                                                obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
+                                                obj.scanned[f"{point}"]["opt"] = Optimize(obj.scanned[f"{point}"]["stationary_point"],\
                                                                                           self.par, self.qc,\
                                                                                           just_high=True,\
                                                                                           frozen_bonds=[[ index+1 for index in obj.instance]])
-                                                obj.relaxed[f"{point}"]["opt"].do_optimization()
-                                                if obj.relaxed[f"{point}"]["opt"].shigh == -999: 
+                                                obj.scanned[f"{point}"]["opt"].do_optimization()
+                                                if obj.scanned[f"{point}"]["opt"].shigh == -999: 
                                                     logger.info('\tScan {} point {} failed for high level calculation.'
                                                         .format(obj.instance_name, point ))
                                                     self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
@@ -565,22 +564,22 @@ class ReactionGenerator:
                             continue
                     #Check if vrc tst scan is done:
                     else:
-                        for point in obj.relaxed:
-                            if "L2" not in obj.relaxed[f"{point}"]["energy"]:
-                                if obj.relaxed[f"{point}"]["opt"].shir != 1 or obj.relaxed[f"{point}"]["opt"].shigh != 1:  # last stage in optimize
+                        for point in obj.scanned:
+                            if "L2" not in obj.scanned[f"{point}"]["energy"]:
+                                if obj.scanned[f"{point}"]["opt"].shir != 1 or obj.scanned[f"{point}"]["opt"].shigh != 1:  # last stage in optimize
                                     opts_done = 0 # Wait for all points of scan to finish
-                                    obj.relaxed[f"{point}"]["opt"].do_optimization()
+                                    obj.scanned[f"{point}"]["opt"].do_optimization()
                                 else:
-                                    err, energy = self.qc.get_qc_energy(f"{obj.relaxed[point]['stationary_point'].name}_high")
+                                    err, energy = self.qc.get_qc_energy(f"{obj.scanned[point]['stationary_point'].name}_high")
                                     if err == 0:
-                                        obj.relaxed[f"{point}"]["energy"]["L2"] =  energy
-                                if obj.relaxed[f"{point}"]["opt"].shigh == -999:
+                                        obj.scanned[f"{point}"]["energy"]["L2"] =  energy
+                                if obj.scanned[f"{point}"]["opt"].shigh == -999:
                                     logger.info('\tScan {} point {} failed for high level calculation.'
                                                                         .format(obj.instance_name, point))
                                     if int(point) not in obj.removed:
                                         obj.points_to_remove.append(int(point))
                         for point in reversed(obj.points_to_remove):
-                            obj.relaxed.pop(str(point))
+                            obj.scanned.pop(str(point))
                             obj.scan_list = np.delete(obj.scan_list, int(point))
                             if point not in obj.removed:
                                 obj.removed.append(point)

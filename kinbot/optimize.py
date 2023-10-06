@@ -478,7 +478,7 @@ class Optimize:
         If conf is >= 0, then we are testing for conformer number conf in the conf/ directory.
         """
 
-        if not self.VTS:
+        if not self.VTS:#Bypass geom_check for VTS
             # creating a species for the L2
             err, new_geom = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom, wait=self.wait)
             dummy = StationaryPoint('dummy',
@@ -559,7 +559,7 @@ class Optimize:
 
         if conf == -1:
             # update properties for base structure
-            if same_geom or  and freq_ok:
+            if same_geom and freq_ok:
                 err, self.species.geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom)
                 err, self.species.energy = self.qc.get_qc_energy(self.log_name(1))
                 err, self.species.freq = self.qc.get_qc_freq(self.log_name(1), self.species.natom)   # TODO use fr variable

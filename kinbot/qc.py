@@ -131,7 +131,7 @@ class QuantumChemistry:
                     if self.par['guessmix'] == 1 or \
                         'barrierless_saddle' in job or \
                         (mult == 1 and 'R_Addition_MultipleBond' in job):
-                        kwargs['guess'] = 'Read,Mix'
+                        kwargs['guess'] = 'Read,Mix,Always'
                     if self.par['bimol']:
                         kwargs['method'] = self.method
                         kwargs['basis'] = self.basis
@@ -155,7 +155,7 @@ class QuantumChemistry:
                         kwargs["oldchk"] = f"{job.split('pt')[0]}pt{int(job.split('pt')[1])-1}" #L1 reads from previous L1 point
                         kwargs['guess'] = 'Read,Mix'
                 kwargs['freq'] = 'freq'
-            if scan or 'R_Addition_MultipleBond' in job:
+            if (scan or 'R_Addition_MultipleBond' in job) and not VTS:
                 kwargs['method'] = self.scan_method 
                 kwargs['basis'] = self.scan_basis
             if 'barrierless_saddle' in job or 'bls' in job:
@@ -643,7 +643,7 @@ orient,noorient;"""
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
-               fdir=None, do_vdW=False, vrc_tst=False, frozen_bonds=None):
+               fdir=None, do_vdW=False, vrc_tst=False, frozen_param=None):
         """
         Creates a geometry optimization input and runs it.
         """
@@ -694,9 +694,9 @@ orient,noorient;"""
                     kwargs['opt'] += ", ModRedun"
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
-                if frozen_bonds == None or not isinstance(frozen_bonds, list):
-                    frozen_bonds = [[]]
-                for bond in frozen_bonds:
+                if frozen_param == None or not isinstance(frozen_param, list):
+                    frozen_param = [[]]
+                for bond in frozen_param:
                     kwargs['addsec'] += f"{' '.join(str(atom) for atom in bond)} F\n"
         elif self.qc == 'qchem':
             code = 'qchem'
@@ -724,9 +724,9 @@ orient,noorient;"""
                     kwargs['opt'] += ", MaxCycle=999"
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
-                if frozen_bonds == None or not isinstance(frozen_bonds, list):
-                    frozen_bonds = [[]]
-                for bond in frozen_bonds:
+                if frozen_param == None or not isinstance(frozen_param, list):
+                    frozen_param = [[]]
+                for bond in frozen_param:
                     kwargs['addsec'] += f"{' '.join(str(atom) for atom in bond)} F\n"
         if species.natom < 3:
             kwargs.pop('Symm', None)

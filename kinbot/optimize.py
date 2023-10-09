@@ -29,12 +29,17 @@ class Optimize:
     4. Repeat steps 2-3 as long as lower energy structures are found
     """
 
-    def __init__(self, species, par, qc, wait=0, just_high=False, frozen_bonds=None):
+    def __init__(self, species, par, qc, wait=0, just_high=False, frozen_param=None):
+        """
+        just_high: ony do high_level calculation
+        frozen_param: list of list of atom indexes for which a bond, angle, dihed should be fixed
+        """
         self.species = species
-        if frozen_bonds == None or not isinstance(frozen_bonds, list):
-            self.frozen_bonds = [[]]
+
+        if frozen_param == None or not isinstance(frozen_param, list):
+            self.frozen_param = [[]]
         else:
-            self.frozen_bonds = frozen_bonds
+            self.frozen_param = frozen_param
 
         try:
             delattr(self.species, 'cycle_chain')
@@ -223,7 +228,7 @@ class Optimize:
                                         if status == "normal":
                                             self.shigh = 0
                                         else:
-                                            self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True, frozen_bonds=self.frozen_bonds)
+                                            self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True, frozen_param=self.frozen_param)
                                     else:
                                         self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
                                 else:

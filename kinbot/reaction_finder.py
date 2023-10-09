@@ -2089,11 +2089,14 @@ class ReactionFinder:
         """
 
         name = 'vrc_tst_scan'
+        fname = 'vrc_tst_scan_frozen'
 
         if not name in self.reactions:
             self.reactions[name] = []
+            self.reactions[fname] = []
         if self.vrc_tst_scan is not None:
             self.new_reaction(self.vrc_tst_scan, name, a=0, b=-1, cross=True)# defined by the user: [[reactant_name, reaction_name, products_name],[...]]
+            self.new_reaction(self.vrc_tst_scan, fname, a=0, b=-1, cross=True)
             return 0
         else:
             return 0
@@ -2312,15 +2315,18 @@ class ReactionFinder:
                 self.species.reac_obj.append(BarrierlessSaddle(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'vrc_tst_scan':
                 if len(reac_list[i]) != 2:
-                    logger.warning(f"{reac_id} for {reac_list[i]} ignored: try [reaction_name, products_chemids]")
+                    logger.warning(f"{reac_id} for {reac_list[i]} ignored: try "+ "{chemid: [[reaction_name, products_chemids]]}")
                 else:
                     if reac_list[i][0].split("_")[0] == str(self.species.chemid):
                         name =  f"{reac_list[i][0]}_{reac_id}_{reac_list[i][1]}"
+                        fname =  f"{reac_list[i][0]}_{reac_id}_frozen_{reac_list[i][1]}"
                     else:
                         name =  f"{self.species.chemid}_{reac_list[i][0]}_{reac_id}_{reac_list[i][1]}"
+                        fname = f"{self.species.chemid}_{reac_list[i][0]}_{reac_id}_frozen_{reac_list[i][1]}"
                     self.species.reac_name.append(name)
                     self.species.reac_obj.append(VrcTstScan(self.species, self.qc, self.par, reac_list[i], name))
-                    self.species.reac_obj.append(VrcTstScanFrozen(self.species, self.qc, self.par, reac_list[i], name))
+                    self.species.reac_name.append(fname)
+                    self.species.reac_obj.append(VrcTstScanFrozen(self.species, self.qc, self.par, reac_list[i], fname))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)

@@ -42,6 +42,7 @@ class VrcTstScan(GeneralReac):
         self.max_step = len(self.scan_list) - 1 #Step starts at 0
         self.removed = []
         self.points_to_remove = []
+        self.frozen_param = [[ index+1 for index in self.instance]]
     
     def set_scan_list(self):
         if self.par["vrc_tst_scan_parameters"]["distances"] == None or\
@@ -155,14 +156,8 @@ class VrcTstScan(GeneralReac):
         change = []
         release = []
 
-        if step < self.max_step:
-            if step == 0:
-                delta = 0
-            else:
-                delta = self.scan_list[step] - self.scan_list[step-1]
-
-            val = np.linalg.norm(geom[self.instance[0]] - geom[self.instance[1]]) + delta
-            self.set_bond(0, 1, val, change)
+        val = self.scan_list[step]
+        self.set_bond(0, 1, val, change)
 
         self.clean_constraints(change, fix)
         

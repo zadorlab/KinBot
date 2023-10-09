@@ -172,17 +172,19 @@ class ReactionGenerator:
                                                 if point not in obj.scanned:
                                                     obj.scanned[f"{point}"] = {"energy": {"L1": energy}}
                                                     if int(self.par["high_level"]): #Submit L2 level of vrc tst scan
-                                                        obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
+
+                                                        if "frozen" in obj.instance_name:
+                                                            #Keep L1 orientation, but use L2 fragments geometries
+                                                            obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L2", distance=obj.scan_list[int(point)])
+                                                        else:
+                                                            #full fragment reoptmization
+                                                            obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
+                                                        
                                                         obj.scanned[f"{point}"]["opt"] = Optimize(obj.scanned[f"{point}"]["stationary_point"],\
                                                                                                 self.par, self.qc,\
                                                                                                 just_high=True,\
-                                                                                                frozen_bonds=[[ index+1 for index in obj.instance]])
+                                                                                                frozen_param=obj.frozen_param)
                                                         obj.scanned[f"{point}"]["opt"].do_optimization()
-                                                        if obj.scanned[f"{point}"]["opt"].shigh == -999: 
-                                                            logger.info('\tScan {} point {} failed for high level calculation.'
-                                                                .format(point, obj.instance_name))
-                                                    #if point == "0":
-                                                    #    obj.species.wellorts = 1 #Species becomes a TS for the rest of the scan.
                                         else:
                                             self.species.reac_scan_energy[index].append(energy)
                                             logger.debug(f'Scan energy for {obj.instance_name} in step {self.species.reac_step[index]}:')
@@ -245,16 +247,17 @@ class ReactionGenerator:
                                             if err == 0:
                                                 err, geom = self.qc.get_qc_geom(obj.instance_name, obj.species.natom)
                                                 obj.species.geom = geom #Uptdate species from last L1 optimized point.
-                                                obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
+                                                if "frozen" in obj.instance_name:
+                                                    #Keep L1 orientation, but use L2 fragments geometries
+                                                    obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L2", distance=obj.scan_list[int(point)])
+                                                else:
+                                                    #full fragment reoptmization
+                                                    obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
                                                 obj.scanned[f"{point}"]["opt"] = Optimize(obj.scanned[f"{point}"]["stationary_point"],\
                                                                                           self.par, self.qc,\
                                                                                           just_high=True,\
-                                                                                          frozen_bonds=[[ index+1 for index in obj.instance]])
+                                                                                          frozen_param=obj.frozen_param)
                                                 obj.scanned[f"{point}"]["opt"].do_optimization()
-                                                if obj.scanned[f"{point}"]["opt"].shigh == -999: 
-                                                    logger.info('\tScan {} point {} failed for high level calculation.'
-                                                        .format(obj.instance_name, point ))
-                                                    self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
                                         else:
                                             self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
                                             obj.finish_vrc_tst_scan(level="L1")
@@ -563,7 +566,13 @@ class ReactionGenerator:
                                 fails = 1
                             continue
                     #Check if vrc tst scan is done:
-                    else:
+                    else:                        
+                        for point in reversed(obj.points_to_remove):
+                            obj.scanned.pop(str(point))
+                            obj.scan_list = np.delete(obj.scan_list, int(point))
+                            if point not in obj.removed:
+                                obj.removed.append(point)
+                        obj.points_to_remove = []
                         for point in obj.scanned:
                             if "L2" not in obj.scanned[f"{point}"]["energy"]:
                                 if obj.scanned[f"{point}"]["opt"].shir != 1 or obj.scanned[f"{point}"]["opt"].shigh != 1:  # last stage in optimize
@@ -573,21 +582,12 @@ class ReactionGenerator:
                                     err, energy = self.qc.get_qc_energy(f"{obj.scanned[point]['stationary_point'].name}_high")
                                     if err == 0:
                                         obj.scanned[f"{point}"]["energy"]["L2"] =  energy
-                                if obj.scanned[f"{point}"]["opt"].shigh == -999:
-                                    logger.info('\tScan {} point {} failed for high level calculation.'
-                                                                        .format(obj.instance_name, point))
                                     if int(point) not in obj.removed:
                                         obj.points_to_remove.append(int(point))
-                        for point in reversed(obj.points_to_remove):
-                            obj.scanned.pop(str(point))
-                            obj.scan_list = np.delete(obj.scan_list, int(point))
-                            if point not in obj.removed:
-                                obj.removed.append(point)
-                        obj.points_to_remove = []
                         if opts_done: #If finished, print results, but don't go to step 5: obj.products undefined
                             self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
                             obj.finish_vrc_tst_scan(level="L2")
-                            continue # avoid going to reac_ts_done = 5
+                            continue # avoids going to reac_ts_done = 5
                             
                     if fails:
                         self.species.reac_ts_done[index] = -999

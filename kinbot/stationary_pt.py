@@ -598,7 +598,6 @@ class StationaryPoint:
                       
         for i in range(self.natom):
             self.start_id(i) 
-        
         for i in range(self.natom):
             self.chemid += self.atomid[i]
         self.chemid *= 10

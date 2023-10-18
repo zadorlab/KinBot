@@ -61,7 +61,6 @@ def is_linear(geom, bond):
                 dummy.append(pos + p / np.linalg.norm(p))
     return dummy
 
-
 def calc_out_of_plane_angle(a, b, c, d):
     """
     Calculate the out of plane angle of the A-D vector

@@ -122,7 +122,7 @@ class VrcTstScan(GeneralReac):
                                                                 name=self.scanned[point]["stationary_point"])
     
     def filter_points(self, level="L1"):
-        for point in self .scanned:
+        for point in self.scanned:
             if self.scanned[f"{point}"]["energy"][level] == 0.0:
                 self.points_to_remove.append(point)
         for point in self.points_to_remove:

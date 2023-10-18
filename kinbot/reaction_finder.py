@@ -2319,14 +2319,20 @@ class ReactionFinder:
                 else:
                     if reac_list[i][0].split("_")[0] == str(self.species.chemid):
                         name =  f"{reac_list[i][0]}_{reac_id}_{reac_list[i][1]}"
-                        fname =  f"{reac_list[i][0]}_{reac_id}_frozen_{reac_list[i][1]}"
                     else:
                         name =  f"{self.species.chemid}_{reac_list[i][0]}_{reac_id}_{reac_list[i][1]}"
-                        fname = f"{self.species.chemid}_{reac_list[i][0]}_{reac_id}_frozen_{reac_list[i][1]}"
                     self.species.reac_name.append(name)
                     self.species.reac_obj.append(VrcTstScan(self.species, self.qc, self.par, reac_list[i], name))
-                    self.species.reac_name.append(fname)
-                    self.species.reac_obj.append(VrcTstScanFrozen(self.species, self.qc, self.par, reac_list[i], fname))
+            elif reac_id == 'vrc_tst_scan_frozen':
+                if len(reac_list[i]) != 2:
+                    logger.warning(f"{reac_id} for {reac_list[i]} ignored: try "+ "{chemid: [[reaction_name, products_chemids]]}")
+                else:
+                    if reac_list[i][0].split("_")[0] == str(self.species.chemid):
+                        name =  f"{reac_list[i][0]}_{reac_id}_{reac_list[i][1]}"
+                    else:
+                        name = f"{self.species.chemid}_{reac_list[i][0]}_{reac_id}_{reac_list[i][1]}"
+                    self.species.reac_name.append(name)
+                    self.species.reac_obj.append(VrcTstScanFrozen(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'combinatorial':
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)

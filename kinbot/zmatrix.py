@@ -149,30 +149,6 @@ def make_zmat_from_cart(species, rotor, cart, mode):
 
     return zmat_atom, zmat_ref, zmat, zmatorder
 
-def make_simple_zmat_from_cart(stationary_pt):
-    distances = np.empty((0,1))
-    angles = np.empty((0,1))
-    dihedrals = np.empty((0,1))
-    index_distances = np.empty((stationary_pt.natom-1,2), dtype=int)
-    index_angles = np.empty((stationary_pt.natom-2,3), dtype=int)
-    index_dihedrals = np.empty((stationary_pt.natom-3,4), dtype=int)
-    
-
-    for atom_index in range(1, stationary_pt.natom):
-        point_B = stationary_pt.geom[atom_index-1]
-        point_A = stationary_pt.geom[atom_index]
-        distances = np.append(distances, np.linalg.norm(point_A - point_B))
-        index_distances[atom_index-1] = np.array([atom_index-1, atom_index])
-        if atom_index > 1:
-            point_C = stationary_pt.geom[atom_index-2]
-            angles = np.append(angles, np.degrees(geometry.calc_angle(point_C, point_B, point_A)))
-            index_angles[atom_index-2] = np.array([atom_index-2, atom_index-1, atom_index])
-        if atom_index > 2:
-            point_D = stationary_pt.geom[atom_index-3]
-            dihedrals = np.append(dihedrals, np.degrees(geometry.calc_dihedral(point_D, point_C, point_B, point_A)))
-            index_dihedrals[atom_index-3] = np.array([atom_index-3, atom_index-2, atom_index-1, atom_index])
-    return [distances, angles, dihedrals], [index_distances, index_angles, index_dihedrals]
-
 def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, atom, cart, mode):
     """
     Rearrange geometry defined in Cartesian into a Z-matrix,

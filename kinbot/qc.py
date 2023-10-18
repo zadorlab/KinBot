@@ -153,7 +153,7 @@ class QuantumChemistry:
                     kwargs['opt'] = 'ModRedun,Loose,CalcFC'
                     if step != 0 :
                         kwargs["oldchk"] = f"{job.split('pt')[0]}pt{int(job.split('pt')[1])-1}" #L1 reads from previous L1 point
-                        kwargs['guess'] = 'Read,Mix'
+                        kwargs['guess'] = 'Mix, Always'
                 kwargs['freq'] = 'freq'
             if (scan or 'R_Addition_MultipleBond' in job) and not VTS:
                 kwargs['method'] = self.scan_method 

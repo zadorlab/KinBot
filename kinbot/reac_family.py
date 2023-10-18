@@ -92,7 +92,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         c_new.append(c[-1])
         change_starting_zero.append(c_new)
 
-    if len(change_starting_zero) > 0:
+    if len(change_starting_zero) > 0 and "frozen" not in rxn.instance_name:
         success, geom = modify_geom.modify_coordinates(rxn.species, 
                                                        rxn.instance_name, geom, 
                                                        change_starting_zero,
@@ -101,9 +101,9 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         for c in change:
             fix.append(c[:-1])
         change = []
-
-    # atom, geom, dummy = rxn.qc.add_dummy(rxn.species.atom, geom,
-    #                                      rxn.species.bond)
+    elif "frozen" in rxn.instance_name:
+        tmp_species = rxn.get_frozen_species(distance=rxn.scan_list[step])
+        geom = tmp_species.geom
 
     if rxn.qc.qc == 'gauss' or (rxn.qc.qc == 'nn_pes' and step < rxn.max_step):
         code = 'gaussian'

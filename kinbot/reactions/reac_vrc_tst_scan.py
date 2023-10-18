@@ -47,8 +47,8 @@ class VrcTstScan(GeneralReac):
     def set_scan_list(self):
         if self.par["vrc_tst_scan_parameters"]["distances"] == None or\
            not isinstance(self.par["vrc_tst_scan_parameters"]["distances"], list):
-            if self.shortest*constants.BOHRtoANGSTROM < self.par["vrc_tst_scan_parameters"]["start"]:
-                self.scan_list = np.arange(self.shortest*constants.BOHRtoANGSTROM,\
+            if self.shortest < self.par["vrc_tst_scan_parameters"]["start"]:
+                self.scan_list = np.arange(self.shortest,\
                                            self.par["vrc_tst_scan_parameters"]["start"],\
                                            self.par["vrc_tst_scan_parameters"]["step"])
                 self.scan_list = np.append(self.scan_list,\
@@ -60,8 +60,8 @@ class VrcTstScan(GeneralReac):
                                         self.par["vrc_tst_scan_parameters"]["stop"],\
                                         self.par["vrc_tst_scan_parameters"]["step"])
         else:
-            if self.shortest*constants.BOHRtoANGSTROM < self.par["vrc_tst_scan_parameters"]["distances"][0]:
-                self.scan_list = np.arange(self.shortest*constants.BOHRtoANGSTROM,\
+            if self.shortest < self.par["vrc_tst_scan_parameters"]["distances"][0]:
+                self.scan_list = np.arange(self.shortest,\
                                            self.par["vrc_tst_scan_parameters"]["distances"][0],\
                                            self.par["vrc_tst_scan_parameters"]["step"])
                 self.scan_list = np.append(self.scan_list,\
@@ -69,9 +69,9 @@ class VrcTstScan(GeneralReac):
             else:
                 self.scan_list = self.par["vrc_tst_scan_parameters"]["distances"]
         for index, dist in enumerate(self.scan_list):
-            if dist < self.shortest * constants.BOHRtoANGSTROM:
+            if dist < self.shortest:
                 self.scan_list.pop(index)
-        self.scan_list = self.scan_list / constants.BOHRtoANGSTROM
+        self.scan_list = self.scan_list
 
     def find_bond_to_scan(self):
         reaction_name, products = self.instance

@@ -102,8 +102,11 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             fix.append(c[:-1])
         change = []
     elif "frozen" in rxn.instance_name:
-        tmp_species = rxn.get_frozen_species(distance=rxn.scan_list[step])
-        geom = tmp_species.geom
+        if step != 0:
+            tmp_species = rxn.get_frozen_species(distance=rxn.scan_list[step])
+            geom = tmp_species.geom
+        else:
+            geom = rxn.species.geom
 
     if rxn.qc.qc == 'gauss' or (rxn.qc.qc == 'nn_pes' and step < rxn.max_step):
         code = 'gaussian'

@@ -162,8 +162,39 @@ class VrcTstScanFrozen(VrcTstScan):
         tmp_species.geom = bimolecular_geom
         tmp_species.characterize()
 
+        #self.print_dif(tmp_species, interfragments_param, distance)
         return tmp_species
 
+    def print_dif(self, species, interfragments_param, distance): #debugging funtion
+        #recreate bimolecular system with frag geometries in same order as parent
+        
+
+        myatom = Atoms(species.atom, positions=species.geom)
+
+        changes = []
+        for frozen_coords in self.frozen["coord"]["L1"].values():
+            changes.extend(frozen_coords)
+
+        changes.extend(interfragments_param)
+        changes.append(copy.copy(self.instance))
+        changes[-1].append(distance)
+
+        for index, frozen_coord in enumerate(changes):
+            target = frozen_coord[-1]
+            match len(frozen_coord[:-1]):
+                case 2:
+                    diff = myatom.get_distance(frozen_coord[0], frozen_coord[1]) - target
+                    coord_type = 'bond'
+                case 3:
+                    diff = myatom.get_angle(frozen_coord[0], frozen_coord[1], frozen_coord[2])%360 - target
+                    coord_type = 'angle'
+                case 4:
+                    diff = myatom.get_dihedral(frozen_coord[0], frozen_coord[1], frozen_coord[2], frozen_coord[3])%360 - target
+                    coord_type = 'dihedral'
+            message = "Diff for {coord_type:9s} {indexes}".format(coord_type=coord_type, indexes=frozen_coord[:-1])
+            print(f"{message:35s}: {diff:11.6f}")
+        print("=======================================")
+    
     def set_frozen_coord(self, level="L1", frag=None, internals=None, frag_number=None):
         """
         Function which saves the internal parameters of the individually optimized fragments.

@@ -150,9 +150,9 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L1"]
                     kwargs["basis"] = self.VTS_basis["L1"]
-                    kwargs['opt'] = 'ModRedun,Loose,CalcFC'
+                    kwargs['opt'] = 'ModRedun,Loose,CalcFC,MaxCycle=999,MaxStep=500'
                     if step != 0 :
-                        kwargs["oldchk"] = f"{job.split('pt')[0]}pt{int(job.split('pt')[1])-1}" #L1 reads from previous L1 point
+                        #kwargs["oldchk"] = f"{job.split('pt')[0]}pt{int(job.split('pt')[1])-1}" #L1 reads from previous L1 point
                         kwargs['guess'] = 'Mix, Always'
                 kwargs['freq'] = 'freq'
             if (scan or 'R_Addition_MultipleBond' in job) and not VTS:
@@ -195,8 +195,8 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L2"]
                     kwargs["basis"] = self.VTS_basis["L2"]
-                    kwargs["oldchk"] = f"{job.split('_high')[0]}" #L2 reads from last L1 point
-                    kwargs['opt'] = 'ModRedun,CalcAll,NoEigentest,MaxCycle=999'
+                    #kwargs["oldchk"] = f"{job.split('_high')[0]}" #L2 reads from last L1 point
+                    kwargs['opt'] = 'ModRedun,CalcAll,NoEigentest,MaxCycle=999,MaxStep=500'
                     try:
                         kwargs.pop('freq', None)
                     except KeyError:

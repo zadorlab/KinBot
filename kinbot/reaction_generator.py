@@ -582,7 +582,7 @@ class ReactionGenerator:
                                     err, energy = self.qc.get_qc_energy(f"{obj.scanned[point]['stationary_point'].name}_high")
                                     if err == 0:
                                         obj.scanned[f"{point}"]["energy"]["L2"] =  energy
-                                    if int(point) not in obj.removed:
+                                    elif int(point) not in obj.removed:
                                         obj.points_to_remove.append(point)
                         if opts_done: #If finished, print results, but don't go to step 5: obj.products undefined
                             self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?

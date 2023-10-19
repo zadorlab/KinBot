@@ -136,7 +136,7 @@ class VrcTstScan(GeneralReac):
         x_label = f"{self.species.atom[self.instance[0]]}{self.instance[0]} - {self.species.atom[self.instance[1]]}{self.instance[1]} distance ($\AA$)"
         y_label = f"Energy $(kcal/mol)$"
         y = list([self.get_e_in_kcal(level="L1")])
-        x = list(np.array(self.scan_list) * constants.BOHRtoANGSTROM)
+        x = list(np.array(self.scan_list))
         data_legends = []
         data_legends.append(f"{self.qc.VTS_methods['L1']}/{self.qc.VTS_basis['L1']}")
         if level == "L2":

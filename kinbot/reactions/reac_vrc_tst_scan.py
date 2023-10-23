@@ -110,26 +110,28 @@ class VrcTstScan(GeneralReac):
         self.filter_points()
         if level != "L1":
             self.filter_points(level=level)
+        self.removed.sort()
+        for point in reversed(self.removed):
+            self.scan_list = np.delete(self.scan_list, int(point))
         e_in_kcal = self.get_e_in_kcal(level)
         logger.info('\tSuccessful scan for {}.'.format(self.instance_name))
         logger.info(f"\tEnergies: {e_in_kcal}")
         logger.info(f"Points removed: {self.removed}")
         self.print_scan_results(level=level)
-        if level == "L2":
-            for point in self.scanned:
-                self.scanned[point]["molp"] = Molpro(self.scanned[point]["stationary_point"])
-                self.scanned[point]["molp"].create_molpro_input(VTS=True,\
-                                                                name=self.scanned[point]["stationary_point"])
+        #if level == "L2":
+        #    for point in self.scanned:
+        #        self.scanned[point]["molp"] = Molpro(self.scanned[point]["stationary_point"])
+        #        self.scanned[point]["molp"].create_molpro_input(VTS=True,\
+        #                                                        name=self.scanned[point]["stationary_point"])
     
     def filter_points(self, level="L1"):
         for point in self.scanned:
-            if self.scanned[f"{point}"]["energy"][level] == 0.0:
+            if self.scanned[f"{point}"]["energy"][level] == 0.0 and point not in self.points_to_remove and point not in self.removed:
                 self.points_to_remove.append(point)
         for point in self.points_to_remove:
-            self.scanned.pop(str(point))
-            self.scan_list = np.delete(self.scan_list, int(point))
+            self.scanned.pop(point)
             if point not in self.removed:
-                self.removed.append(point)
+                self.removed.append(int(point))
         self.points_to_remove = []
 
     def print_scan_results(self, level="L1"):
@@ -142,7 +144,7 @@ class VrcTstScan(GeneralReac):
         if level == "L2":
             y.append(list(self.get_e_in_kcal(level="L2")))
             data_legends.append(f"{self.qc.VTS_methods['L2']}/{self.qc.VTS_basis['L2']}")
-        utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_name}", x_label=x_label, y_label=y_label, data_legends=data_legends)
+        utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_basename}", x_label=x_label, y_label=y_label, data_legends=data_legends)
 
     def get_e_in_kcal(self, level="L1"):
         e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - 

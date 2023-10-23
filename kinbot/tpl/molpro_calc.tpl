@@ -1,4 +1,4 @@
-***,{name}
+***,{fname}
 {options}
 
 text, Molpro input generated automatically by KinBot
@@ -7,11 +7,8 @@ text, Molpro input generated automatically by KinBot
 
 {geometry_block}
 
-{rhf;wf,{nelectron},{symm},{spin},{charge}}
-{methods_block}
+{methods}
 
-{key} = energy
-
-{put_block}
+{key} = energy(1)
 
 ---

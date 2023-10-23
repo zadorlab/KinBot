@@ -1,6 +1,5 @@
 from kinbot.reactions.reac_vrc_tst_scan import VrcTstScan
 from kinbot import geometry
-from kinbot.molpro import Molpro
 from sella import Internals
 from kinbot import geometry
 import numpy as np

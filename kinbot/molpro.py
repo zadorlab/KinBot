@@ -6,6 +6,7 @@ from kinbot import kb_path
 from kinbot import constants
 from kinbot import zmatrix
 
+
 logger = logging.getLogger('KinBot')
 
 
@@ -18,7 +19,7 @@ class Molpro:
         self.species = species
         self.par = par
 
-    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None, do_vdW=False, VTS=False, options=None, method=None, displacements=None, put=None, variables=""):
+    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None, do_vdW=False, VTS=False):
         """
         Create the input for molpro based on the template,
         which is either the one in the system, or provided
@@ -28,23 +29,6 @@ class Molpro:
         : shift_vec is for bls to define the direction of shift in prod scan
         : natom1 is the number of atoms in the second fragment
         """
-        if displacements == None or not isinstance(displacements, dict):
-            self.displacements={"optg":False,\
-                                "active":[],\
-                                "inactive":[],\
-                                "freq":False}
-        
-        if put == None and not isinstance(put, dict):
-                self.put={"xml": False,\
-                         "molden": False,\
-                         "xyz": False}
-        else:
-                if "xml" not in put:
-                        self.put["xml"] = False
-                if "molden" not in put:
-                        self.put["molden"] = False
-                if "xyz" not in put:
-                        self.put["xyz"] = False
             
         if bls == 1:
             if shift_vec is None:
@@ -72,26 +56,24 @@ class Molpro:
             geom += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
             nelectron += constants.znumber[at]
 
-        variables_block = f"{variables}\n"
-
         geometry_block = "geometry={ \n"
         if geom_type == "xyz":
             geometry_block += f"{self.species.natom};\n{self.species.name};\n{geom}\n"
-        elif geom_type == "zmat":
-            distances, angles, dihedrals = zmatrix.make_simple_zmat_from_cart(self.species)
-            for index in range(self.species.natom):
-                geometry_block += f"{self.species.atom[index]}{index}"
-                if index > 0:
-                        geometry_block += f", {self.species.atom[index-1]}{index-1}, dist_{index}"
-                        variables_block += f"{'dist_':>10s}{index} = {distances[index-1]:>12.5f};\n"
-                if index > 1:
-                        geometry_block += f", {self.species.atom[index-2]}{index-2}, angle_{index}"
-                        variables_block += f"{'angle_':>10s}{index} = {angles[index-2]:>12.5f};\n"
-                if index > 2:
-                        geometry_block += f", {self.species.atom[index-3]}{index-3}, dihed_{index}"
-                        variables_block += f"{'dihed_':>10s}{index} = {dihedrals[index-3]:>12.5f};\n"
-                geometry_block += "\n"
-        geometry_block += "}\n" #+ "{put,molden,input_geom.molden}\n"
+        #elif geom_type == "zmat":
+        #    distances, angles, dihedrals = zmatrix.make_simple_zmat_from_cart(self.species)
+        #    for index in range(self.species.natom):
+        #        geometry_block += f"{self.species.atom[index]}{index}"
+        #        if index > 0:
+        #                geometry_block += f", {self.species.atom[index-1]}{index-1}, dist_{index}"
+        #                variables_block += f"{'dist_':>10s}{index} = {distances[index-1]:>12.5f};\n"
+        #        if index > 1:
+        #                geometry_block += f", {self.species.atom[index-2]}{index-2}, angle_{index}"
+        #                variables_block += f"{'angle_':>10s}{index} = {angles[index-2]:>12.5f};\n"
+        #        if index > 2:
+        #                geometry_block += f", {self.species.atom[index-3]}{index-3}, dihed_{index}"
+        #                variables_block += f"{'dihed_':>10s}{index} = {dihedrals[index-3]:>12.5f};\n"
+        #        geometry_block += "\n"
+        geometry_block += "}\n" 
 
         nelectron -= self.species.charge
         symm = self.molpro_symm()
@@ -166,50 +148,35 @@ class Molpro:
                                        occ=occ
                                        ))
         elif VTS:
-            if options == None:
-                options = "GPRINT,ORBITALS,ORBEN,CIVECTOR;\nGTHRESH,energy=1.d-7;\nbohr;\norient,noorient;\n"
+            options = "GPRINT,ORBITALS,ORBEN,CIVECTOR \nGTHRESH,energy=1.d-7 \nangstrom \n orient,noorient\n nosym"
             
-            basis = f"basis = {self.par['vrc_tst_scan_basis']['L3']}"
+            if "frozen" in name:
+                basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][0]}"
+            else:
+                basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][1]}"
+            active_orbitals = 4
+            active_electrons = 4
+            closed_orbitals = (nelectron-active_electrons)/2
+            occ_obitals = closed_orbitals + active_orbitals
+            
+            method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
 
-            method_block = f"rhf;\n {method}"
-            if displacements["optg"]:
-                method_block += ";\n\n{optg"
-                if isinstance(self.displacements["inactive"], list) and self.displacements["inactive"] != []:
-                        method_block += ";\ninactive, "
-                        for variable in displacements["inactive"]:
-                                method_block += variable
-                                if variable != displacements["inactive"][-1]:
-                                        method_block += ","
-                        method_block += ";"
-                elif isinstance(self.displacements["active"], list) and self.displacements["active"] != [] :
-                        method_block += ";\nactive, "
-                        for variable in displacements["active"]:
-                                method_block += variable
-                                if variable != displacements["active"][-1]:
-                                        method_block += ","
-                        method_block += ";"
-                method_block += "}"
+            if "caspt2" in self.par["vrc_tst_scan_methods"]["L3"]:
+                method += " {multi,\n" + f" occ,{occ_obitals}\n closed,{closed_orbitals}\n" + " }\n\n"
+                if spin == 0:
+                    method += " {rs2c, shift=0.3}\n"
+                else:
+                    method += " {rs2, shift=0.3}\n"
 
-            put_block = ""
-            if put["xml"]:
-                    put_block += "{put,xml," + f"{fname}" + ".xml}\n"
-            if put["molden"]:
-                    put_block += "{put,molden," + f"{fname}" + ".molden}\n"
-            if put["xyz"]:
-                    put_block += "{put,xyz," + f"{fname}" + "_opt.xyz}\n"
 
             with open('molpro/' + fname + '.inp', 'w') as f:
-                    f.write(tpl.format(name=fname,
-                                       options=options,
+                    f.write(tpl.format(options=options,
+                                       fname=fname,
                                        basis=basis,
                                        geometry_block=geometry_block,
-                                       nelectron=nelectron,
-                                       symm=symm,
-                                       spin=spin,
-                                       charge=self.species.charge,
-                                       methods_block=method_block,
-                                       put_block=put_block
-                                       ))
+                                       methods=method,
+                                       key=self.par["single_point_key"]))
+                                       
         return 0
 
     def get_molpro_energy(self, key, name='', do_vdW=False):

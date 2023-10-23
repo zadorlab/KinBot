@@ -374,7 +374,7 @@ class Optimize:
                             molp.create_molpro_input(bls=1)
                         if self.VTS:
                             key = self.par['vrc_tst_scan_parameters']["molpro_key"].upper()
-                            #molp.create_molpro_input(VTS=1)
+                            molp.create_molpro_input(VTS=1)
                         else:
                             key = self.par['single_point_key']
                             molp.create_molpro_input(do_vdW=self.just_high)

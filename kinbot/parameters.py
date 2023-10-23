@@ -200,14 +200,14 @@ class Parameters:
             'vrc_tst_scan': {},
             # Method to scan bonds in vrc_tst_scan
             'vrc_tst_scan_methods': {
-                "L1": "b3lyp", 
-                "L2": "b3lyp", 
-                "L3": "casscf"},
+                "L1": "ub3lyp", 
+                "L2": "ub3lyp", 
+                "L3": "caspt2"},
             # Basis set to scan bonds in vrc_tst_scan
             'vrc_tst_scan_basis': {
                 "L1": "6-31G", 
                 "L2": "6-31G", 
-                "L3": "cc-pVTZ"},
+                "L3": ["cc-pVDZ","aug-cc-pVTZ"]},
             # Parameters for the vrc_tst scan
             "vrc_tst_scan_parameters": None,
             # for Gaussian, request CalcAll for TS optimization
@@ -237,7 +237,7 @@ class Parameters:
             'single_point_template': '',
             # The keyword to be searched for in Molpro for the desired
             # energy. Compulsory if Molpro energies are used.
-            'single_point_key': '',
+            'single_point_key': 'mytza',
             # L3 for barrierless template, CASPT2-like molpro is expected
             'barrierless_saddle_single_point_template': '',
             # L3 for barrierless template for product, CASPT2-like molpro is expected

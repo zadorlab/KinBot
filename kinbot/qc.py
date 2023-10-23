@@ -152,7 +152,6 @@ class QuantumChemistry:
                     kwargs["basis"] = self.VTS_basis["L1"]
                     kwargs['opt'] = 'ModRedun,Loose,CalcFC,MaxCycle=999,MaxStep=500'
                     kwargs['guess'] = 'Mix, Always'
-                    kwargs["geom"] = "ModRedun, GIC"
                 kwargs['freq'] = 'freq'
             if (scan or 'R_Addition_MultipleBond' in job) and not VTS:
                 kwargs['method'] = self.scan_method 
@@ -685,13 +684,10 @@ orient,noorient;"""
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
-            if "CalcFC" not in kwargs['opt']:
-                kwargs['opt'] += ', CalcFC'
-            if self.par['opt'].casefold() == 'Tight'.casefold() and not high_level:
-                if not "Tight" in kwargs['opt']:
-                    kwargs['opt'] += ', Tight'
-            if kwargs["opt"].startswith(","):
-                kwargs["opt"] = kwargs["opt"][1:]
+            if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                kwargs['opt'] = 'CalcFC, Tight'
+            else:
+                kwargs['opt'] = 'CalcFC'
             if "vrc_tst_scan" in species.name and not self.use_sella:
                 if not "ModRedun" in kwargs['opt']:
                     kwargs['opt'] += ", ModRedun"
@@ -717,18 +713,9 @@ orient,noorient;"""
             kwargs['method'] = self.scan_method
             kwargs['basis'] = self.scan_basis
         if high_level and self.qc == 'gauss' and self.opt:
-            kwargs['opt'] += ', {}'.format(self.opt)
+            kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
             if "vrc_tst_scan" in species.name and not self.use_sella:
-                if not "ModRedun" in kwargs['opt']:
-                    kwargs['opt'] += ", ModRedun"
-                if not "NoEigentest" in kwargs['opt']:
-                    kwargs['opt'] += ", NoEigentest"
-                if not "MaxCycle" in kwargs['opt']:
-                    kwargs['opt'] += ", MaxCycle=999"
-                if not "MaxStep" in kwargs['opt']:
-                    kwargs['opt'] += ", MaxStep=200"
-                if "Cartesian" in kwargs['opt']:
-                    kwargs.rstrip(",Cartesian")
+                kwargs['opt'] = 'ModRedun,CalcFC,NoEigentest,MaxCycle=999,MaxStep=200, {}'.format(self.opt)
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
                 if frozen_param == None or not isinstance(frozen_param, list):

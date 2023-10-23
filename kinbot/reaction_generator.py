@@ -567,23 +567,22 @@ class ReactionGenerator:
                             continue
                     #Check if vrc tst scan is done:
                     else:                        
-                        for point in reversed(obj.points_to_remove):
-                            obj.scanned.pop(str(point))
-                            obj.scan_list = np.delete(obj.scan_list, int(point))
-                            if point not in obj.removed:
-                                obj.removed.append(point)
-                        obj.points_to_remove = []
                         for point in obj.scanned:
                             if "L2" not in obj.scanned[f"{point}"]["energy"]:
-                                if obj.scanned[f"{point}"]["opt"].shir != 1 or obj.scanned[f"{point}"]["opt"].shigh != 1:  # last stage in optimize
+                                if obj.scanned[f"{point}"]["opt"].shigh == -999:
+                                    if point not in obj.points_to_remove:
+                                        obj.points_to_remove.append(point)
+                                elif obj.scanned[f"{point}"]["opt"].shir != 1 or obj.scanned[f"{point}"]["opt"].shigh != 1:  # last stage in optimize
                                     opts_done = 0 # Wait for all points of scan to finish
                                     obj.scanned[f"{point}"]["opt"].do_optimization()
                                 else:
                                     err, energy = self.qc.get_qc_energy(f"{obj.scanned[point]['stationary_point'].name}_high")
                                     if err == 0:
                                         obj.scanned[f"{point}"]["energy"]["L2"] =  energy
-                                    elif int(point) not in obj.removed:
-                                        obj.points_to_remove.append(point)
+                                    else:
+                                        if point not in obj.points_to_remove:
+                                            obj.points_to_remove.append(point)
+                                    
                         if opts_done: #If finished, print results, but don't go to step 5: obj.products undefined
                             self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
                             obj.finish_vrc_tst_scan(level="L2")

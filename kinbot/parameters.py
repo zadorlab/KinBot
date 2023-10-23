@@ -89,6 +89,8 @@ class Parameters:
             'hom_sci_threshold_add': 5.,
             # Number of 0.1 Angstrom steps in bond scans
             'scan_step': 30,
+            # Block certain reactions beyond this distace in A 
+            'rigid_reaction_cutoff': 3.0,
             # Do a full PES scan instead of one well
             'pes': 0,
             # Maximum number of simultaneous kinbot runs in a pes search

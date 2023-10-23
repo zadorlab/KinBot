@@ -1989,7 +1989,7 @@ class ReactionFinder:
 
     def search_h2_elim(self, natom, atom, bond, rad):
         """ 
-        This is not an RMG class.
+        This is not an RMG class. Now extended for general H2 elimination, not just 1,2
 
 
         H   H
@@ -2005,12 +2005,24 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
 
-        motif = ['H','X','X','H']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
-        for instance in instances: 
-            rxns += [instance]
+#        motif = ['H','X','X','H']
+#        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+#        for instance in instances: 
+#            rxns += [instance]
 
+#        self.new_reaction(rxns, name, a=0, b=-1, cross=True)
+
+        for ringsize in self.ringrange:
+            motif = ['X' for i in range(ringsize)]
+            motif[0] = 'H'
+            motif[-1] = 'H'
+            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            for instance in instances: 
+                rxns += [instance]
+
+        rxns = self.clean_rigid(name, rxns, 0, -1)
         self.new_reaction(rxns, name, a=0, b=-1, cross=True)
+
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != {frozenset({inst[0], inst[1]}), frozenset({inst[2], inst[3]})} or self.prod_bonds != {frozenset({inst[0], inst[3]})}:
@@ -2298,7 +2310,7 @@ class ReactionFinder:
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BetaDelta(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'h2_elim':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][3] + 1)
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(H2Elim(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'hom_sci':
@@ -2353,7 +2365,7 @@ class ReactionFinder:
         Not applied to all families.
         """
 
-        cutoff = 3.  # Angstrom
+        #cutoff = 3.  # Angstrom
         mask = [True] * len(instances)
         try:
             self.species.maxbond
@@ -2361,10 +2373,10 @@ class ReactionFinder:
             self.species.calc_maxbond()
         for inst, instance in enumerate(instances):
             if all(self.species.maxbond[instance[ii]][instance[ii + 1]] > 1 for ii in range(len(instance) - 2)):
-                if np.linalg.norm(self.species.geom[instance[pivot1]] - self.species.geom[instance[pivot2]]) > cutoff:
+                if np.linalg.norm(self.species.geom[instance[pivot1]] - self.species.geom[instance[pivot2]]) > self.par['rigid_reaction_cutoff']:
                     mask[inst] = False
                     numbers = [ii + 1 for ii in instance]
-                    logger.info(f'{name} reaction {numbers} over rigid backbone with cutoff {cutoff} A is removed.')
+                    logger.info(f'{name} reaction {numbers} over rigid backbone with cutoff {self.par["rigid_reaction_cutoff"]} A is removed.')
         return list(np.array(instances, dtype=object)[mask])
 
 

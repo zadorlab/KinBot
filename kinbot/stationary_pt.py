@@ -107,18 +107,25 @@ class StationaryPoint:
             StationaryPoint: A Stationary point object with the properties of 
                 the ase.Atoms properties
         """
-        if 'name' not in kwargs:
+        
+        name = kwargs.get('name')
+        charge = kwargs.get('charge')
+        mult = kwargs.get('mult')
+        geom = kwargs.get('geom')
+        symbols = kwargs.get('symbols')
+
+        if name is None:
             name = 'StationaryPoint'
         else:
             name = kwargs["name"]
 
-        if 'charge' not in kwargs:
+        if charge is None:
             if atoms.calc is None or 'charge' not in atoms.calc.parameters:
                 charge = sum(atoms.get_initial_charges())
             else:
                 charge = atoms.calc.parameters['charge']
 
-        if 'mult' not in kwargs:
+        if mult is None:
             if atoms.calc is None or 'mult' not in atoms.calc.parameters:
                 mult = cls.calc_multiplicity(cls, np.array(atoms.symbols))
             else:
@@ -213,6 +220,7 @@ class StationaryPoint:
                     raise ValueError(err_msg)
 
         self.bond = np.zeros((self.natom, self.natom), dtype=int)
+        self.bonds = []  # unique list of bond matrices in case of resonance
 
         for i in range(self.natom):
             for j in range(self.natom):
@@ -592,7 +600,6 @@ class StationaryPoint:
                       
         for i in range(self.natom):
             self.start_id(i) 
-        
         for i in range(self.natom):
             self.chemid += self.atomid[i]
         self.chemid *= 10

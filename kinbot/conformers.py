@@ -205,13 +205,14 @@ class Conformers:
                 return geom, -1
             else:
                 # check if all the bond lenghts are withing 10% or the original bond lengths
-                temp = StationaryPoint('temp',
+                dummy = StationaryPoint('dummy',
                                        self.species.charge,
                                        self.species.mult,
                                        atom=self.species.atom,
                                        geom=geom)
-                temp.bond_mx()
-                if geometry.equal_geom(self.species, temp, 0.10):
+                dummy.bond_mx()
+                dummy.calc_chemid()
+                if geometry.equal_geom(self.species, dummy, 0.10):
                     logger.debug('Successfully finished conformer {}'.format(job))
                     return geom, 0
                 else:
@@ -383,6 +384,7 @@ class Conformers:
                                     atom=self.species.atom,
                                     geom=geom)
             dummy.bond_mx()
+            dummy.calc_chemid()
             if geometry.equal_geom(self.species, dummy, 0.10):
                 return geom, 0
             else:
@@ -418,7 +420,7 @@ class Conformers:
                 else:
                     lowest_job = name
                 *_, last_row = self.db.select(name=f'{lowest_job}')
-                # The following refer to the conformer with lowest E + ZPE, 
+                # The following refers to the conformer with lowest E + ZPE, 
                 # not the individual lowest.
                 lowest_energy = np.inf
                 lowest_zpe = np.inf
@@ -427,7 +429,7 @@ class Conformers:
                 totenergies = []
                 frequencies = []
 
-                if status[-1]:  # Last confomer (initial structure)
+                if all(status):  # if all conformers are invalid, 1 (different) or fail (-1)
                     copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),
@@ -512,8 +514,19 @@ class Conformers:
                             frequencies.append(np.zeros(self.species.natom * 3 - 6))
 
                 self.write_profile(status, final_geoms, totenergies)
-               
 
+                # Check if at least one conformer has the same enrgy as the L1 parent structure
+                if self.species.wellorts:
+                    *_, l1_last_row = self.db.select(name=self.species.name)
+                else:
+                    *_, l1_last_row = self.db.select(name=f'{self.species.name}_well')
+                l1energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
+                l1energy += l1_last_row.data.get('zpe')
+                if not any([abs(en - l1energy) < 1.6e-4 for en in totenergies]): # 0.1 kcal/mol
+                    logger.warning(f'None of {self.species.name} conformers '
+                                   'has the same energy as its parent structure. '
+                                   'This might be a result of SCF convergence '
+                                   'issues.')
                 try:
                     if self.qc.qc == 'gauss':
                         copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))

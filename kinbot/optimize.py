@@ -492,6 +492,7 @@ class Optimize:
                                     atom=self.species.atom,
                                     geom=new_geom)
             dummy.bond_mx()
+            dummy.calc_chemid()
 
             # comparing L1 and L2 geometries and imaginary mode if TS
             if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation

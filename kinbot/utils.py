@@ -166,8 +166,8 @@ def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label
         content += f"ax.plot(x, y{index}, label='{legend}')\n"
 
     content += f"""
-ax.legend(loc='bottom right')
-plt.xlabel(r'{x_label}')
+ax.legend(loc='lower right')
+ax.set_xlabel(r'{x_label}')
 ax.set_ylabel(r'{y_label}')
 plt.show()"""
 

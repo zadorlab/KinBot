@@ -107,6 +107,9 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             geom = tmp_species.geom
         else:
             geom = rxn.species.geom
+        for c in change:
+            fix.append(c[:-1])
+        change = []
 
     if rxn.qc.qc == 'gauss' or (rxn.qc.qc == 'nn_pes' and step < rxn.max_step):
         code = 'gaussian'
@@ -147,7 +150,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                     fix_type = 'tors'
                     val = geometry.calc_dihedral(geom[fixi[0]-1], geom[fixi[1]-1], geom[fixi[2]-1],
                                                  geom[fixi[3]-1])[0]
-                kwargs['addsec'] += f"{fix_type} {' '.join(str(f) for f in fixi)} {val}\n"
+                    kwargs['addsec'] += f"{fix_type} {' '.join(str(f) for f in fixi)} {val}\n"
             for chi in change:
                 dist = np.linalg.norm(geom[chi[0] - 1] - geom[chi[1] - 1])
                 kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} {dist}\n"

@@ -6,24 +6,6 @@ from rotd_py.flux.fluxbase import FluxBase
 from ase.atoms import Atoms
 
 import numpy as np
-# # Parallel debugging stuff
-# import os
-# from mpi4py import MPI
-# import pydevd_pycharm
-#
-# print(os.getpid())
-# size = MPI.COMM_WORLD.Get_size()
-# rank = MPI.COMM_WORLD.Get_rank()
-# port_mapping = [58244, 58269]
-# pydevd_pycharm.settrace('localhost', port=port_mapping[rank],
-#                         stdoutToServer=True, stderrToServer=True)
-# if (rank == 0):
-#     print(size, rank)
-#     print('Master')
-# else:
-#     print(size, rank)
-#     print('Slave')
-
 
 def generate_grid(start, interval, factor, num_point):
     """Return a grid needed for the simulation of length equal to num_point

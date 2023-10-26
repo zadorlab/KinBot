@@ -150,8 +150,9 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L1"]
                     kwargs["basis"] = self.VTS_basis["L1"]
-                    kwargs['opt'] = 'ModRedun,Loose,CalcFC,MaxCycle=999,MaxStep=500'
+                    kwargs['opt'] = 'ModRedun,Expert,Loose,NoEigentest,CalcFC,MaxCycle=999,MaxStep=200,NRScale'
                     kwargs['guess'] = 'Mix, Always'
+                    kwargs["integral"] = "SuperFineGrid"
                 kwargs['freq'] = 'freq'
             if (scan or 'R_Addition_MultipleBond' in job) and not VTS:
                 kwargs['method'] = self.scan_method 
@@ -193,7 +194,8 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L2"]
                     kwargs["basis"] = self.VTS_basis["L2"]
-                    kwargs['opt'] = 'Redundant,ModRedun,CalcAll,NoEigentest,MaxCycle=999,MaxStep=200'
+                    kwargs['opt'] = 'Redundant,ModRedun,Expert,CalcAll,NoEigentest,MaxCycle=999,MaxStep=200'
+                    kwargs["integral"] = "SuperFineGrid"
                     try:
                         kwargs.pop('freq', None)
                     except KeyError:
@@ -715,7 +717,9 @@ orient,noorient;"""
         if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
             if "vrc_tst_scan" in species.name and not self.use_sella:
-                kwargs['opt'] = 'ModRedun,CalcFC,NoEigentest,MaxCycle=999,MaxStep=200, {}'.format(self.opt)
+                kwargs['opt'] = 'ModRedun,Expert,CalcFC,MaxCycle=999,MaxStep=200,{}'.format(self.opt)
+                kwargs["integral"] = "SuperFineGrid"
+                kwargs["IOp"] = "1/8=2"
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
                 if frozen_param == None or not isinstance(frozen_param, list):

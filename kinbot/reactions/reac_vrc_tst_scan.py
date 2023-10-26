@@ -19,9 +19,9 @@ class VrcTstScan(GeneralReac):
         self.skip = 0
         self.family_name = 'VrcTstScan'
         self.instance_basename = self.instance_name
-        #self.scan is a dict such as each key is a point of the scan.
+        #self.scanned is a dict such as each key is a point of the scan.
         #Each point value is a dict itself such as:
-        #self.scan = {
+        #self.scanned = {
         #   "0": {
         #       "energy": {
         #           "L1": energyL1
@@ -84,11 +84,13 @@ class VrcTstScan(GeneralReac):
         else: #For vdW well, find the direction, and find the closest atoms between fragments
             for direction in ["F","R"]:
                 status, geom = self.qc.get_qc_geom(f"{reaction_name}_IRC_{direction}_prod", self.species.natom)
-                if status == 0:                    
+                if status == 0:
                     vdW_name = f"{reaction_name}_IRC_{direction}_prod"
                     initial_well = StationaryPoint(vdW_name, self.species.charge, self.species.mult, natom=self.species.natom, atom=self.species.atom, geom=geom)
                     initial_well.characterize()
                     fragments, maps = initial_well.start_multi_molecular()
+                    if len(fragments) == 2:
+                        break
             if status != 0 : #Could not find the vdW_well, don't do the scan
                 self.scan = 0
         #Additional check to see if this is the correct vdW well

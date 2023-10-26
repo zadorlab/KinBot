@@ -566,7 +566,7 @@ class ReactionGenerator:
                                 fails = 1
                             continue
                     #Check if vrc tst scan is done:
-                    else:                        
+                    else:
                         for point in obj.scanned:
                             if "L2" not in obj.scanned[f"{point}"]["energy"]:
                                 if obj.scanned[f"{point}"]["opt"].shigh == -999:

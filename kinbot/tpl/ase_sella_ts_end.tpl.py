@@ -55,6 +55,7 @@ opt = Sella(mol, order=1,
             trajectory='{label}.traj',
             logfile='{label}_sella.log',
             **sella_kwargs)
+freqs = []
 try:
     converged = False
     fmax = 1e-4
@@ -83,7 +84,10 @@ try:
     if not converged:
         raise RuntimeError
 except (RuntimeError, ValueError):
-   db.write(mol, name='{label}', data={{'status': 'error'}})
+    data = {{'status': 'error'}}
+    if freqs:
+        data['frequencies'] = freqs
+    db.write(mol, name='{label}', data=data)
 
 with open('{label}.log', 'a') as f:
     f.write('done\n')

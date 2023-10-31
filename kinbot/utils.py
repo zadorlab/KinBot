@@ -155,15 +155,22 @@ def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label
     if not isinstance(x, list) and not isinstance(data, list):
         return 
     
-    content = f"import matplotlib.pyplot as plt\n\nx = {x}\n"
+    content = """import matplotlib.pyplot as plt
+from scipy.interpolate import make_interp_spline\n\n"""
+    
+    content += f"x = {x}\n"
+    content += "x_spln = np.arange(min(x), max(x), 0.1)"
 
     for index, y in enumerate(data):
         content += f"y{index} = {list(y)}\n"
+        content += f"spln{index} = make_interp_spline(x, y{index})\n"
+        content += f"y_spln{index} = spln{index}(x_spln)"
 
     content += "\nfig, ax = plt.subplots()\n"
 
     for index, legend in enumerate(data_legends):
-        content += f"ax.plot(x, y{index}, label='{legend}')\n"
+        content += f"ax.scatter(x, y{index}, label='{legend}', marker='x')\n"
+        content += f"ax.plot(x_spln, y_spln{index}, label='spln_{legend}')\n"
 
     content += f"""
 ax.legend(loc='lower right')

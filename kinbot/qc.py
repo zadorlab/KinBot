@@ -150,9 +150,10 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L1"]
                     kwargs["basis"] = self.VTS_basis["L1"]
-                    kwargs['opt'] = 'ModRedun,Expert,Loose,NoEigentest,CalcFC,MaxCycle=999,MaxStep=200,NRScale'
+                    kwargs['opt'] = 'ModRedun,recalcfc=4,MaxCycle=999,loose'
                     kwargs['guess'] = 'Mix, Always'
                     kwargs["integral"] = "SuperFineGrid"
+                    kwargs["iop"] = "1/8=3"
                 kwargs['freq'] = 'freq'
             if (scan or 'R_Addition_MultipleBond' in job) and not VTS:
                 kwargs['method'] = self.scan_method 
@@ -339,45 +340,6 @@ class QuantumChemistry:
                 kwargs = {'fname': self.par["nn_model"]}
             else:
                 kwargs = {}
-        
-        elif self.qc == 'molpro':
-            kwargs["options"] = """nosym;
-GPRINT,ORBITALS,ORBEN,CIVECTOR;
-bohr;
-orient,noorient;"""
-            kwargs["opt"] = {}
-            if VTS:
-                kwargs["key"] = self.VTS_parameters["molpro_key"]
-                kwargs["tpl"] = self.VTS_parameters["molpro_tpl"]
-            else:
-                kwargs["key"] = self.single_point_key
-                kwargs["tpl"] = self.single_point_tpl
-
-            if ts and not L3:
-                kwargs["opt"]["value"] = True
-                kwargs["opt"]["root"] = 2
-                kwargs["opt"]["method"] = "QSD, ITYPE=2"
-                kwargs["freq"]["value"] = True
-            if L3:
-                kwargs["option"] += "\nGTHRESH,energy=1.d-7;"
-                if VTS:
-                    kwargs["method"] = self.VTS_methods["L3"]
-                    kwargs["basis"] = self.VTS_basis["L3"]
-            elif high_level:
-                kwargs["option"] += "\nGTHRESH,energy=1.d-7;"
-                if VTS:
-                    kwargs["method"] = self.VTS_methods["L2"]
-                    kwargs["basis"] = self.VTS_basis["L2"]
-                else:
-                    kwargs['method'] = self.high_level_method
-                    kwargs['basis'] = self.high_level_basis
-            else:
-                if VTS:
-                    kwargs["method"] = self.VTS_methods["L1"]
-                    kwargs["basis"] = self.VTS_basis["L1"]
-                else:
-                    kwargs['method'] = self.method
-                    kwargs['basis'] = self.basis
 
         return kwargs
 
@@ -642,7 +604,7 @@ orient,noorient;"""
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
-               fdir=None, do_vdW=False, vrc_tst=False, frozen_param=None):
+               fdir=None, do_vdW=False, frozen_param=None):
         """
         Creates a geometry optimization input and runs it.
         """
@@ -657,10 +619,7 @@ orient,noorient;"""
                 job = str(species.chemid) + '_well_mp2'
             if bls:
                 job = str(species.chemid) + '_well_bls'
-            if vrc_tst:
-                job = f"{species.name}_well_VTS"
-                if high_level:
-                    job += "_high"
+
         else:
             job = str(species.chemid) + ext
 
@@ -717,9 +676,9 @@ orient,noorient;"""
         if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
             if "vrc_tst_scan" in species.name and not self.use_sella:
-                kwargs['opt'] = 'ModRedun,Expert,CalcFC,MaxCycle=999,MaxStep=200,{}'.format(self.opt)
+                kwargs['opt'] = 'ModRedun,CalcAll,MaxCycle=999,{}'.format(self.opt)
                 kwargs["integral"] = "SuperFineGrid"
-                kwargs["IOp"] = "1/8=2"
+                kwargs["IOp"] = "1/8=1,1/19=10"
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
                 if frozen_param == None or not isinstance(frozen_param, list):

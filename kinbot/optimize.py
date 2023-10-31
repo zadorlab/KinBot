@@ -373,16 +373,16 @@ class Optimize:
                             key = self.par['barrierless_saddle_single_point_key']
                             molp.create_molpro_input(bls=1)
                         if self.VTS:
-                            key = self.par['vrc_tst_scan_parameters']["molpro_key"].upper()
                             molp.create_molpro_input(VTS=1)
                         else:
                             key = self.par['single_point_key']
                             molp.create_molpro_input(do_vdW=self.just_high)
                         if self.par['queuing'] != 'local':
                             molp.create_molpro_submit(do_vdW=self.just_high)
-                        status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.just_high)
-                        if status:
-                            self.species.energy = molpro_energy
+                        if not self.VTS:
+                            status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.just_high)
+                            if status:
+                                self.species.energy = molpro_energy
 
                     elif self.par['single_point_qc'] == 'orca':
                         orca = Orca(self.species, self.par)

@@ -171,15 +171,17 @@ class ReactionGenerator:
                                                 point = f"{self.species.reac_step[index] - 1}" #L1 point_n-1 finished, about to start point_n
                                                 if point not in obj.scanned:
                                                     obj.scanned[f"{point}"] = {"energy": {"L1": energy}}
-                                                    if int(self.par["high_level"]): #Submit L2 level of vrc tst scan
-
+                                                    if "frozen" in obj.instance_name:
+                                                        #Keep L1 orientation, but use L2 fragments geometries
+                                                        obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L1", distance=obj.scan_list[int(point)])
+                                                    else:
+                                                        #full fragment reoptmization
+                                                        obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
+                                                    #Submit L2 level of vrc tst scan
+                                                    if int(self.par["high_level"]):
                                                         if "frozen" in obj.instance_name:
-                                                            #Keep L1 orientation, but use L2 fragments geometries
+                                                        #Keep L1 orientation, but use L2 fragments geometries
                                                             obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L2", distance=obj.scan_list[int(point)])
-                                                        else:
-                                                            #full fragment reoptmization
-                                                            obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
-                                                        
                                                         obj.scanned[f"{point}"]["opt"] = Optimize(obj.scanned[f"{point}"]["stationary_point"],\
                                                                                                 self.par, self.qc,\
                                                                                                 just_high=True,\

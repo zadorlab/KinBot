@@ -4,8 +4,8 @@ from kinbot import constants
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.molpro import Molpro
 from kinbot import geometry
-from kinbot import modify_geom
-from kinbot import zmatrix
+from sella import Internals
+from ase import Atoms
 import numpy as np
 import copy
 import logging
@@ -35,6 +35,21 @@ class VrcTstScan(GeneralReac):
         #   "1": {...}
         #   }
         self.scanned = {}
+        self.long_range = {
+            "coord":{
+                "L1": {},
+                "L2": {}
+                },
+            "geom":{
+                "L1": {},
+                "L2": {}
+                },
+            "energies":{
+                "L1": {},
+                "L2": {},
+                "L3": {}
+                }
+                }
         self.e_in_kcal = {}
         #Reset the species to have the broken bond between fragments
         self.species, self.instance, self.shortest = self.find_bond_to_scan()
@@ -43,7 +58,130 @@ class VrcTstScan(GeneralReac):
         self.removed = []
         self.points_to_remove = []
         self.frozen_param = [[ index+1 for index in self.instance]]
-    
+        self.prepare_scan()
+
+    def prepare_scan(self):
+        fragments, self.long_range["maps"] = self.species.start_multi_molecular()
+        fragments_optimized = 0
+        hl_opt = 0
+        #Recover the LR frozen fragments geometries
+        while fragments_optimized < len(fragments) or hl_opt < len(fragments):
+            fragments_optimized = 0
+            hl_opt = 0
+            for frag_number, frag in enumerate(fragments):
+                frag.characterize()
+                err, geom = self.qc.get_qc_geom(f"{frag.chemid}_well_VTS", frag.natom)
+                if err == 0:
+                    frag.geom = geom
+                    frag.characterize()
+                    broken_frag, broken_maps = frag.start_multi_molecular()
+                    if len(broken_frag) != 1:
+                        logger.warning(f"Optimization of {frag.name} has failed. Cancelling scan {self.name}.")
+                        fragments_optimized = len(fragments)
+                        self.scan = 0
+                        break
+                    frag_atom = Atoms(frag.atom, positions=frag.geom)
+
+                    #Only define internals here. Use same set for L2.
+                    internals = Internals(frag_atom)
+                    internals.find_all_bonds()
+                    internals.find_all_angles()
+                    internals.find_all_dihedrals()
+                    self.set_frozen_coord(level="L1", frag=frag, internals=internals, frag_number=frag_number)#Must only be called once before start of the scan
+                    fragments_optimized += 1
+                    #Save the cartesian coordinates
+                    self.long_range["geom"]["L1"][f"{frag_number}"] = frag.geom
+                    err, self.long_range["energies"]["L1"][f"{frag_number}"] = self.qc.get_qc_energy(f"{frag.chemid}_well_VTS")
+                else:
+                    self.qc.qc_opt(frag, frag.geom, ext="_well_VTS")
+                if self.par["high_level"]:
+                    err, geom = self.qc.get_qc_geom(f"{frag.name}_well_VTS_high", frag.natom)
+                    if err == 0:
+                        frag.geom = geom
+                        frag.characterize()
+                        broken_frag, broken_maps = frag.start_multi_molecular()
+                        if len(broken_frag) != 1:
+                            logger.warning(f"Optimization of {frag.name} has failed. Cancelling scan {self.name}.")
+                            self.scan = 0
+                            hl_opt = len(fragments)
+                            break
+                        self.set_frozen_coord(level="L2", frag=frag, internals=internals, frag_number=frag_number) #Must only be called once before start of the scan
+                        hl_opt += 1
+                        #Save the cartesian coordinates
+                        self.long_range["geom"]["L2"][f"{frag_number}"] = frag.geom
+                        err, self.long_range["energies"]["L2"][f"{frag_number}"] = self.qc.get_qc_energy(f"{frag.chemid}_well_VTS_high")
+                    else:
+                        self.qc.qc_opt(frag, frag.geom, ext="_well_VTS_high", high_level=1)
+
+                    # write the L3 input and read the L3 energy, if available
+                    if self.par['L3_calc'] == 1:
+                        key = self.par['vrc_tst_scan_parameters']["molpro_key"].upper()
+                        molp = Molpro(self.species, self.par)
+                        molp.create_molpro_input(name=f"{frag.chemid}_well_VTS", VTS=True)
+                        status, molpro_energy = molp.get_molpro_energy(key, name=f"{frag.chemid}_well_VTS")
+                        if status:
+                            self.long_range["energies"]["L3"][f"{frag_number}"] = molpro_energy
+                            self.try_l3 = True
+                        else:
+                            self.try_l3 = False
+
+            if not self.par["high_level"]:
+                hl_opt = fragments_optimized
+
+    def set_frozen_coord(self, level="L1", frag=None, internals=None, frag_number=None):
+        """
+        Function which saves the internal parameters of the individually optimized fragments.
+        The internal coordinates are defined by Sella.
+        self.long_range["coord"] is specific to frozen scans
+        self.frozen_param exists both in frozen and relaxed scans and is used reaction generator.
+        """
+
+        #Save the bonds
+        self.long_range["coord"][level][f"{frag_number}"] = []
+        for bond in internals.internals["bonds"]:
+            point_A = frag.geom[bond.indices[0]]
+            point_B = frag.geom[bond.indices[1]]
+            bond_length = np.linalg.norm(point_B - point_A)
+            self.long_range["coord"][level][f"{frag_number}"].append([self.long_range["maps"][frag_number][bond.indices[0]],
+                                                                      self.long_range["maps"][frag_number][bond.indices[1]],
+                                                                      bond_length])
+            if level == "L1":
+                self.frozen_param.append([self.long_range["maps"][frag_number][bond.indices[0]]+1,
+                                          self.long_range["maps"][frag_number][bond.indices[1]]+1])
+
+        #Save the angles
+        for angle in internals.internals["angles"]:
+            point_A = frag.geom[angle.indices[0]]
+            point_B = frag.geom[angle.indices[1]]
+            point_C = frag.geom[angle.indices[2]]
+            angle_value = np.degrees(geometry.calc_angle(point_A, point_B, point_C))
+            self.long_range["coord"][level][f"{frag_number}"].append([self.long_range["maps"][frag_number][angle.indices[0]],
+                                                                  self.long_range["maps"][frag_number][angle.indices[1]],
+                                                                  self.long_range["maps"][frag_number][angle.indices[2]],
+                                                                  angle_value])
+            if level == "L1":
+                self.frozen_param.append([self.long_range["maps"][frag_number][angle.indices[0]]+1,
+                                          self.long_range["maps"][frag_number][angle.indices[1]]+1,
+                                          self.long_range["maps"][frag_number][angle.indices[2]]+1])
+
+        #Save the dihedrals
+        for dihedral in internals.internals["dihedrals"]:
+            point_A = frag.geom[dihedral.indices[0]]
+            point_B = frag.geom[dihedral.indices[1]]
+            point_C = frag.geom[dihedral.indices[2]]
+            point_D = frag.geom[dihedral.indices[3]]
+            dihedral_value = geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]
+            self.long_range["coord"][level][f"{frag_number}"].append([self.long_range["maps"][frag_number][dihedral.indices[0]],
+                                                                  self.long_range["maps"][frag_number][dihedral.indices[1]],
+                                                                  self.long_range["maps"][frag_number][dihedral.indices[2]],
+                                                                  self.long_range["maps"][frag_number][dihedral.indices[3]],
+                                                                  dihedral_value])
+            if level == "L1":
+                self.frozen_param.append([self.long_range["maps"][frag_number][dihedral.indices[0]]+1,
+                                          self.long_range["maps"][frag_number][dihedral.indices[1]]+1,
+                                          self.long_range["maps"][frag_number][dihedral.indices[2]]+1,
+                                          self.long_range["maps"][frag_number][dihedral.indices[3]]+1])
+
     def set_scan_list(self):
         if self.par["vrc_tst_scan_parameters"]["distances"] == None or\
            not isinstance(self.par["vrc_tst_scan_parameters"]["distances"], list):
@@ -109,9 +247,24 @@ class VrcTstScan(GeneralReac):
         return [initial_well, atoms_index, shortest]
     
     def finish_vrc_tst_scan(self, level):
+
         self.filter_points()
         if level != "L1":
             self.filter_points(level=level)
+            if self.try_l3:
+                key = self.par['vrc_tst_scan_parameters']["molpro_key"].upper()
+                L3 = 1
+                for point in self.scanned:
+                    self.scanned[point]["molp"] = Molpro(self.scanned[point]["stationary_point"], self.par)
+                    status, molpro_energy = self.scanned[point]["molp"].get_molpro_energy(key, name=self.scanned[point]["stationary_point"].name)
+                    if not status:
+                        logger.info(f"Missing {self.scanned[point]['stationary_point'].name} at L3")
+                        L3 = 0
+                        break
+                    else:
+                        self.scanned[point]["energy"]["L3"] = molpro_energy
+                if L3:
+                    level = "L3"
         self.removed.sort()
         for point in reversed(self.removed):
             self.scan_list = np.delete(self.scan_list, int(point))
@@ -120,11 +273,6 @@ class VrcTstScan(GeneralReac):
         logger.info(f"\tEnergies: {e_in_kcal}")
         logger.info(f"Points removed: {self.removed}")
         self.print_scan_results(level=level)
-        #if level == "L2":
-        #    for point in self.scanned:
-        #        self.scanned[point]["molp"] = Molpro(self.scanned[point]["stationary_point"])
-        #        self.scanned[point]["molp"].create_molpro_input(VTS=True,\
-        #                                                        name=self.scanned[point]["stationary_point"])
     
     def filter_points(self, level="L1"):
         for point in self.scanned:
@@ -146,11 +294,17 @@ class VrcTstScan(GeneralReac):
         if level == "L2":
             y.append(list(self.get_e_in_kcal(level="L2")))
             data_legends.append(f"{self.qc.VTS_methods['L2']}/{self.qc.VTS_basis['L2']}")
+            if level == "L3":
+                y.append(list(self.get_e_in_kcal(level="L3")))
+                if "frozen" in self.instance_basename:
+                    data_legends.append(f"{self.qc.VTS_methods['L3']}/{self.qc.VTS_basis['L3'][0]}")
+                else:
+                    data_legends.append(f"{self.qc.VTS_methods['L3']}/{self.qc.VTS_basis['L3'][1]}")
         utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_basename}", x_label=x_label, y_label=y_label, data_legends=data_legends)
 
     def get_e_in_kcal(self, level="L1"):
-        e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - 
-                                self.scanned["0"]["energy"][level]) 
+        assymptote = self.long_range["energies"][level]["0"] + self.long_range["energies"][level]["1"]
+        e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - assymptote)
                     for point in self.scanned]
         e_in_kcal = list(np.round(e_in_kcal, 2))
         return e_in_kcal

@@ -373,7 +373,7 @@ class Optimize:
                             key = self.par['barrierless_saddle_single_point_key']
                             molp.create_molpro_input(bls=1)
                         if self.VTS:
-                            molp.create_molpro_input(VTS=1)
+                            molp.create_molpro_input(name=self.species.name, VTS=1)
                         else:
                             key = self.par['single_point_key']
                             molp.create_molpro_input(do_vdW=self.just_high)

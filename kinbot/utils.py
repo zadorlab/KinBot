@@ -159,12 +159,12 @@ def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label
 from scipy.interpolate import make_interp_spline\n\n"""
     
     content += f"x = {x}\n"
-    content += "x_spln = np.arange(min(x), max(x), 0.1)"
+    content += "x_spln = np.arange(min(x), max(x), 0.1)\n\n"
 
     for index, y in enumerate(data):
         content += f"y{index} = {list(y)}\n"
         content += f"spln{index} = make_interp_spline(x, y{index})\n"
-        content += f"y_spln{index} = spln{index}(x_spln)"
+        content += f"y_spln{index} = spln{index}(x_spln)\n"
 
     content += "\nfig, ax = plt.subplots()\n"
 

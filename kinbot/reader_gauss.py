@@ -25,7 +25,7 @@ def read_energy(outfile):
     return energy
 
 
-def read_geom(outfile, mol, max2frag=False, charge=None, mult=None):
+def read_geom(outfile, mol, max2frag=False, charge=None, mult=None, from_line=0):
     """
     Read the final geometry from a Gaussian file.
     max2frag: if set to true, the last geometry is taken where
@@ -36,7 +36,7 @@ def read_geom(outfile, mol, max2frag=False, charge=None, mult=None):
     with open(outfile) as f:
         lines = f.readlines()
 
-    start = 0  # start reading here
+    start = from_line  # start reading here
     while 1:
         geom = np.zeros((len(mol), 3))
         if start == 0:
@@ -131,6 +131,36 @@ def read_convergence(outfile):
                         return 2
 
     return 0  # will look through the whole file
+
+def read_converged_geom_energy(outfile, mol):
+    """
+    Return the lowest energy geometry during an optimization, with its energy
+    """
+
+    with open(outfile) as f:
+        lines = f.readlines()
+    
+    msg = "Lowest energy point so far.  Saving SCF results."
+
+    for n, line in enumerate(reversed(lines)):
+        if 'Item               Value     Threshold  Converged?' in line:
+            if 'YES' in lines[len(lines)-n+1]:
+                if 'YES' in lines[len(lines)-n+2]:
+                    forces_converged = True
+                else:
+                    forces_converged = False
+            else:
+                forces_converged = False
+
+            if forces_converged:
+                if msg in lines[len(lines)-n+6] or lines[len(lines)-n+7]:
+                    geom = read_geom(outfile, mol, from_line=n)
+                    for lline in reversed(lines[n:]):
+                        if "SCF Done:" in lline:
+                            e = lline.split("=")[1].split("A.U.")[0].astype(float)
+                            break
+                    return e, geom
+
 
 
 def constraint(mol, fix, change):

@@ -150,10 +150,9 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L1"]
                     kwargs["basis"] = self.VTS_basis["L1"]
-                    kwargs['opt'] = 'ModRedun,recalcfc=4,MaxCycle=999,loose'
+                    kwargs['opt'] = 'ModRedun,CalcFC,MaxCycle=999,Loose'
                     kwargs['guess'] = 'Mix, Always'
                     kwargs["integral"] = "SuperFineGrid"
-                    kwargs["iop"] = "1/8=3"
                 kwargs['freq'] = 'freq'
             if (scan or 'R_Addition_MultipleBond' in job) and not VTS:
                 kwargs['method'] = self.scan_method 
@@ -676,9 +675,8 @@ class QuantumChemistry:
         if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
             if "vrc_tst_scan" in species.name and not self.use_sella:
-                kwargs['opt'] = 'ModRedun,CalcAll,MaxCycle=999,{}'.format(self.opt)
+                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycle=999,{}'.format(self.opt)
                 kwargs["integral"] = "SuperFineGrid"
-                kwargs["IOp"] = "1/8=1,1/19=10"
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
                 if frozen_param == None or not isinstance(frozen_param, list):
@@ -694,6 +692,8 @@ class QuantumChemistry:
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
             template_file = f'{kb_path}/tpl/ase_sella_opt_well.tpl.py'
+        elif "vrc_tst_scan" in species.name and not self.use_sella:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_vrc_tst.tpl.py'
         else:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         

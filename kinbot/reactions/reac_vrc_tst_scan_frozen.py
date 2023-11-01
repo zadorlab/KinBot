@@ -12,13 +12,11 @@ logger = logging.getLogger('KinBot')
 
 class VrcTstScanFrozen(VrcTstScan):
     def __init__(self, species, qc, par, instance, instance_name):
-        super().__init__(species, qc, par, instance, instance_name)
+        super().__init__(species, qc, par, instance, instance_name, scan_type="sample")
         """
         Frozen fragments are updated at each step of the scan.
         The internal geometry shouldn't change, but 
         """
-
-        self.prepare_scan()
         self.species = self.get_frozen_species()
 
     def get_frozen_species(self, level="L1", distance=None):

@@ -148,10 +148,9 @@ class Molpro:
                                        occ=occ
                                        ))
         elif VTS:
-            fname = self.species.name
             options = "GPRINT,ORBITALS,ORBEN,CIVECTOR \nGTHRESH,energy=1.d-7 \nangstrom \n orient,noorient\n nosym"
             
-            if "frozen" in name:
+            if "sample" in fname or "frozen" in fname:
                 basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][0]}"
             else:
                 basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][1]}"

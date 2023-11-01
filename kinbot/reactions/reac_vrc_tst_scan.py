@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger('KinBot')
 
 class VrcTstScan(GeneralReac):
-    def __init__(self, species, qc, par, instance, instance_name):
+    def __init__(self, species, qc, par, instance, instance_name, scan_type="trust"):
         super().__init__(species, qc, par, instance, instance_name)
         self.scan = 1
         self.skip = 0
@@ -58,9 +58,9 @@ class VrcTstScan(GeneralReac):
         self.removed = []
         self.points_to_remove = []
         self.frozen_param = [[ index+1 for index in self.instance]]
-        self.prepare_scan()
+        self.prepare_scan(scan_type)
 
-    def prepare_scan(self):
+    def prepare_scan(self, scan_type):
         fragments, self.long_range["maps"] = self.species.start_multi_molecular()
         fragments_optimized = 0
         hl_opt = 0
@@ -113,17 +113,19 @@ class VrcTstScan(GeneralReac):
                     else:
                         self.qc.qc_opt(frag, frag.geom, ext="_well_VTS_high", high_level=1)
 
-                    # write the L3 input and read the L3 energy, if available
-                    if self.par['L3_calc'] == 1:
-                        key = self.par['vrc_tst_scan_parameters']["molpro_key"].upper()
-                        molp = Molpro(self.species, self.par)
-                        molp.create_molpro_input(name=f"{frag.chemid}_well_VTS", VTS=True)
-                        status, molpro_energy = molp.get_molpro_energy(key, name=f"{frag.chemid}_well_VTS")
-                        if status:
-                            self.long_range["energies"]["L3"][f"{frag_number}"] = molpro_energy
-                            self.try_l3 = True
-                        else:
-                            self.try_l3 = False
+        for frag_number, frag in enumerate(fragments):
+            frag.characterize()
+            # write the L3 input and read the L3 energy, if available
+            if self.par['L3_calc'] == 1:
+                key = self.par['vrc_tst_scan_parameters']["molpro_key"].upper()
+                molp = Molpro(self.species, self.par)
+                molp.create_molpro_input(name=f"{frag.chemid}_well_VTS_{scan_type}", VTS=True)
+                status, molpro_energy = molp.get_molpro_energy(key, name=f"{frag.chemid}_well_VTS_{scan_type}")
+                if status:
+                    self.long_range["energies"]["L3"][f"{frag_number}"] = molpro_energy
+                    self.try_l3 = True
+                else:
+                    self.try_l3 = False
 
             if not self.par["high_level"]:
                 hl_opt = fragments_optimized

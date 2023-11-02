@@ -1326,7 +1326,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
             try:
                 new_energy = row.data.get('energy') * constants.EVtoHARTREE
                 new_zpe = row.data.get('zpe')
-            except UnboundLocalError or TypeError:
+            except (UnboundLocalError, TypeError):
                 continue
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
                 energy = new_energy

@@ -155,7 +155,8 @@ def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label
     if not isinstance(x, list) and not isinstance(data, list):
         return 
     
-    content = """import matplotlib.pyplot as plt
+    content = """import numpy as np
+import matplotlib.pyplot as plt
 from scipy.interpolate import make_interp_spline\n\n"""
     
     content += f"x = {x}\n"

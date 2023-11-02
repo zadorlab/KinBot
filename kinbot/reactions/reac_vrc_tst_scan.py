@@ -112,6 +112,8 @@ class VrcTstScan(GeneralReac):
                         err, self.long_range["energies"]["L2"][f"{frag_number}"] = self.qc.get_qc_energy(f"{frag.chemid}_well_VTS_high")
                     else:
                         self.qc.qc_opt(frag, frag.geom, ext="_well_VTS_high", high_level=1)
+                else:
+                    hl_opt = fragments_optimized
 
         for frag_number, frag in enumerate(fragments):
             frag.characterize()
@@ -126,9 +128,6 @@ class VrcTstScan(GeneralReac):
                     self.try_l3 = True
                 else:
                     self.try_l3 = False
-
-            if not self.par["high_level"]:
-                hl_opt = fragments_optimized
 
     def set_frozen_coord(self, level="L1", frag=None, internals=None, frag_number=None):
         """

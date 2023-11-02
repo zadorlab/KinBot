@@ -26,9 +26,9 @@ def generate_grid(start, interval, factor, num_point):
 
 
 # temperature, energy grid and angular momentum grid
-temperature = generate_grid(10, 10, 1.05, 2)
-energy = generate_grid(0, 10, 1.05, 2)
-angular_mom = generate_grid(0, 1, 1.1, 2)
+temperature = generate_grid(10, 10, 1.05, 10)
+energy = generate_grid(0, 10, 1.05, 10)
+angular_mom = generate_grid(0, 1, 1.1, 10)
 
 # fragment info
 {Fragments_block}
@@ -43,9 +43,16 @@ angular_mom = generate_grid(0, 1, 1.1, 2)
 # calc = 'amp.amp'
 {calc_block}
 
-r_inf = -79.47971696  # RS2/cc-pvtz
+{scan_ref}
+{scan_trust}
+{scan_sample}
+
+inf_energy = {inf_energy}
+
 _{job_name} = MultiSample(fragments={frag_names}, inf_energy=r_inf,
-                         energy_size=1, min_fragments_distance={min_dist})
+                         energy_size=1, min_fragments_distance={min_dist},
+                         x_sample=x_sample, y_sample=y_sample,
+                         x_trust=x_trust, y_trust=y_trust, scan_ref=scan_ref)
 
 # the flux info
 {flux_block}

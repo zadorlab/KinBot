@@ -153,7 +153,7 @@ def read_converged_geom_energy(outfile, mol):
                 forces_converged = False
 
             if forces_converged:
-                if msg in lines[len(lines)-n+6] or lines[len(lines)-n+7]:
+                if msg in lines[len(lines)-n+6] or msg in lines[len(lines)-n+7]:
                     geom = read_geom(outfile, mol, from_line=n)
                     for lline in reversed(lines[n:]):
                         if "SCF Done:" in lline:

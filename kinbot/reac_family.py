@@ -170,11 +170,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             kwargs.pop('addsec', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_search.tpl.py'
+        elif VTS:
+            template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_opt_vrc_tst.tpl.py'
         else:
-            if rxn.qc.qc != "molpro": #ASE doesn't have molpro calculator, use internal Molpro_calc class instead
-                template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
-            else:
-                template_file = f'{kb_path}/tpl/{rxn.qc.qc}_ts_search.tpl.py'
+            template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
         template = template.format(label=rxn.instance_name, 
                                    kwargs=kwargs, 

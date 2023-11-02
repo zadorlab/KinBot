@@ -4,6 +4,7 @@ a full PES instead of only the reactions of one well
 """
 import sys
 import os
+import re
 import stat
 import shutil
 import datetime
@@ -1264,6 +1265,37 @@ def create_rotdPy_inputs(par, bless, vdW):
         if len(products) == 2: #Check if the barrierless reaction has 2 fragments
             tot_frag = len(products)
 
+
+            scan_trust = ""
+            scan_sample = ""
+            for scan_type in ["","_frozen"]:
+                if "IRC" in job_name:
+                    plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
+                    if not os.path.isfile(plt_file):
+                        logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
+
+                with open(plt_file) as f:
+                    lines = f.readlines()
+
+                for line in lines:
+                    if re.search("^y[0-2] = \[", line):
+                        y_data = line
+                    if re.search("^x =", line):
+                        x_data = line
+                    if re.search("x_label", line):
+                        indexes = re.findall("[0-9][0-9]*", line)
+                        scan_ref = f"scan_ref = [{indexes[0].astype(int)}, {indexes[1].astype(int)}]" + "\n"
+
+                match scan_type:
+                    case "":
+                        y_data.replace(re.findall("^y[0-2]", y_data)[0], f"y_trust")
+                        x_data.replace("x", f"x_trust")
+                        scan_trust += y_data + "\n" + x_data + "\n"
+                    case "_frozen":
+                        y_data.replace(re.findall("^y[0-2]", y_data)[0], f"y_sample")
+                        x_data.replace("x", f"x_sample")
+                        scan_sample += y_data + "\n" + x_data + "\n"
+                        
             fragments = []
             for frag_number in range(tot_frag):
                 chemid = products[frag_number]
@@ -1349,13 +1381,13 @@ def create_rotdPy_inputs(par, bless, vdW):
             Calc_block = "calc = {\n" +\
                         "'code': 'molpro',\n" +\
                         f"'scratch': '/scratch/{whoami}',\n" +\
-                        f"'processors': {par['single_point_ppn']},\n" +\
+                        f"'processors': 1,\n" +\
                         f"'queue': '{par['queuing']}',\n" +\
-                        "'max_jobs': 20}"
+                        "'max_jobs': 100}"
 
             #Flux block:
-            Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 2,\
-                  'tot_smp_max': 10000, 'tot_smp_min': 50,\
+            Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 200,\
+                  'tot_smp_max': 10000," + f" 'tot_smp_min': {len(surfaces*200)}" + ",\
                   'flux_rel_err': 10.0, 'smp_len': 1}"
             
         else:
@@ -1374,7 +1406,10 @@ def create_rotdPy_inputs(par, bless, vdW):
                                    frag_names = '[' + ', '.join(fragnames) + ']',
                                    calc_block = Calc_block,
                                    flux_block = Flux_block,
-                                   min_dist = par['vrc_tst_dist_list'][0])
+                                   min_dist = par['vrc_tst_dist_list'][0],
+                                   scan_trust = scan_trust,
+                                   scan_sample = scan_sample,
+                                   scan_ref=scan_ref)
         if not os.path.exists(folder):
             # Create a new directory because it does not exist
             os.makedirs(folder)

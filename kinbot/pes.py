@@ -1307,6 +1307,7 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
 def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
     if ts:
         j = job
+        wells = [job.split('_')[0]]
     else:
         j = job + '_well'
     if conf and not high_level and not mp2:
@@ -1329,6 +1330,14 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
             except (UnboundLocalError, TypeError):
                 continue
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
+                if not ts:
+                    # Avoid getting energies from calculations that converged to another structure
+                    atoms = row.toatoms()
+                    st_pt = StationaryPoint.from_ase_atoms(atoms)
+                    st_pt.characterize()
+                    chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
+                    if chemid_wo_mult != job[:-1]:
+                        continue
                 energy = new_energy
                 zpe = new_zpe
     if np.isinf(energy) or np.isinf(zpe):

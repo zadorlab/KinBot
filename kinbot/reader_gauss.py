@@ -144,8 +144,8 @@ def read_converged_geom_energy(outfile, mol):
 
     for n, line in enumerate(reversed(lines)):
         if 'Item               Value     Threshold  Converged?' in line:
-            if 'YES' in lines[len(lines)-n+1]:
-                if 'YES' in lines[len(lines)-n+2]:
+            if 'YES' in lines[len(lines)-n]:
+                if 'YES' in lines[len(lines)-n+1]:
                     forces_converged = True
                 else:
                     forces_converged = False
@@ -153,11 +153,11 @@ def read_converged_geom_energy(outfile, mol):
                 forces_converged = False
 
             if forces_converged:
-                if msg in lines[len(lines)-n+6] or msg in lines[len(lines)-n+7]:
+                if msg in lines[len(lines)-n+5] or msg in lines[len(lines)-n+6]:
                     geom = read_geom(outfile, mol, from_line=n)
-                    for lline in reversed(lines[n:]):
+                    for lline in reversed(lines[:len(lines)-n]):
                         if "SCF Done:" in lline:
-                            e = lline.split("=")[1].split("A.U.")[0].astype(float)
+                            e = float(lline.split("=")[1].split("A.U.")[0])
                             break
                     return e, geom
 

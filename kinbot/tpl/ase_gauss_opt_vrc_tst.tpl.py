@@ -57,6 +57,7 @@ except RuntimeError:
                                              'zpe': zpe, 'status': 'normal'}})
         except RuntimeError:
             if i == 2:
+                iowait(logfile, 'gauss')
                 #Save in db the lowest energy geometry if forces are converged
                 if reader_gauss.read_convergence(logfile) != 0:
                     e, geom = reader_gauss.read_converged_geom_energy(logfile, mol)

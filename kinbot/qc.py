@@ -168,8 +168,8 @@ class QuantumChemistry:
                     kwargs.pop('freq', None)
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
-                if (not ts) or (ts and (not self.par['calcall_ts'])):
-                    kwargs.pop('freq', None)
+                #if (not ts) or (ts and (not self.par['calcall_ts'])):
+                kwargs.pop('freq', None)
                 if ts:
                     if self.par['hir_maxcycle'] is None:
                         kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest'

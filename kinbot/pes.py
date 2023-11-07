@@ -1061,23 +1061,22 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
-            # check if barrrieless
+            # check if barrieless
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
-                if prod == bl_prod and parent[prod] == bl[0]:
+                if prod == bl_prod:
+                    with open(bl[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                        s.append(f.read().format(name=name,
+                                                 blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
+                                                 wellname=well_short[bl[0]],
+                                                 prodname=pr_short[prod],
+                                                 ground_energy=round(energy, 2),
+                                                 **fr_names))
                     bless = 1
-                    break
-            with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                if not bless:
+            if not bless:
+                with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
                     s.append(f.read().format(name=name,
-                                             ground_energy=round(energy, 2),
-                                             **fr_names))
-                else:
-                    s.append(f.read().format(name=name,
-                                             blessname=nobar_short[f'{parent[prod]}_{bl_prod}'],
-                                             wellname=well_short[parent[prod]],
-                                             prodname=pr_short[prod],
                                              ground_energy=round(energy, 2),
                                              **fr_names))
             s.append(divider)

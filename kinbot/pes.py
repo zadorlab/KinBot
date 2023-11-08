@@ -1288,12 +1288,12 @@ def create_rotdPy_inputs(par, bless, vdW):
 
                 match scan_type:
                     case "":
-                        y_data.replace(re.findall("^y[0-2]", y_data)[0], f"y_trust")
-                        x_data.replace("x", f"x_trust")
+                        y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_trust")
+                        x_data.replace("x", f"r_trust")
                         scan_trust += y_data + "\n" + x_data + "\n"
                     case "_frozen":
-                        y_data.replace(re.findall("^y[0-2]", y_data)[0], f"y_sample")
-                        x_data.replace("x", f"x_sample")
+                        y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_sample")
+                        x_data.replace("x", f"r_sample")
                         scan_sample += y_data + "\n" + x_data + "\n"
                         
             fragments = []
@@ -1309,7 +1309,7 @@ def create_rotdPy_inputs(par, bless, vdW):
 
                 #Create ase.atoms objects for each fragments
                 db = connect(f"{parent_chemid}/kinbot.db")
-                *_, last_row = db.select(name=f"{basename}", sort="-1")
+                *_, last_row = db.select(name=f"{basename}")
                 atoms = last_row.toatoms() #This is an ase.atoms object
                 fragments.append(Fragment.from_ase_atoms(atoms=atoms,
                                                         frag_number=frag_number,

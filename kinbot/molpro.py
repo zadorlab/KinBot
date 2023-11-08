@@ -161,13 +161,40 @@ class Molpro:
             
             method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
 
-            if "caspt2" in self.par["vrc_tst_scan_methods"]["L3"]:
-                method += " {multi,\n" + f" occ,{occ_obitals}\n closed,{closed_orbitals}\n" + " }\n\n"
-                if spin == 0:
-                    method += " {rs2c, shift=0.3}\n"
-                else:
-                    method += " {rs2, shift=0.3}\n"
-
+            if "sample" in fname or "frozen" in fname:
+                l3_method = self.par["vrc_tst_scan_methods"]["L3"][0]
+            else:
+                l3_method = self.par["vrc_tst_scan_methods"]["L3"][1]
+            match l3_method:
+                case "caspt2":
+                    method += " {multi,\n" + f" occ,{occ_obitals}\n closed,{closed_orbitals}\n" + " }\n\n"
+                    if spin == 0:
+                        method += " {rs2c, shift=0.3}\n"
+                    else:
+                        method += " {rs2, shift=0.3}\n"
+                case "ccsd(t)":
+                    method += " {ccsd(t)-f12}\n"
+                case "uwb97xd":
+                    method += " omega=0.2    !range-separation parameter\n"
+                    method += " rx=0.222036 !short-range exchange\n"
+                    method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
+                    method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
+                    method += " uks,HYB_GGA_XC_WB97X_D\n"
+                case "wb97xd":
+                    method += " omega=0.2    !range-separation parameter\n"
+                    method += " rx=0.222036 !short-range exchange\n"
+                    method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
+                    method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
+                    method += " ks,HYB_GGA_XC_WB97X_D\n"
+                case "ub3lyp":
+                    method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
+                    method += " uks,HYB_GGA_XC_B3LYP\n"
+                case "b3lyp":
+                    method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
+                    method += " ks,HYB_GGA_XC_B3LYP\n"
+                case _:
+                    raise NotImplementedError
+                
 
             with open('molpro/' + fname + '.inp', 'w') as f:
                     f.write(tpl.format(options=options,

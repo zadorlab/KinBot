@@ -120,7 +120,8 @@ class VrcTstScan(GeneralReac):
             # write the L3 input and read the L3 energy, if available
             if self.par['L3_calc'] == 1:
                 key = self.par['vrc_tst_scan_parameters']["molpro_key"].upper()
-                molp = Molpro(self.species, self.par)
+                molp = Molpro(frag, self.par)
+                molp.create_molpro_submit(name=f"{frag.chemid}_well_VTS_{scan_type}")
                 molp.create_molpro_input(name=f"{frag.chemid}_well_VTS_{scan_type}", VTS=True)
                 status, molpro_energy = molp.get_molpro_energy(key, name=f"{frag.chemid}_well_VTS_{scan_type}")
                 if status:
@@ -270,6 +271,7 @@ class VrcTstScan(GeneralReac):
         for point in reversed(self.removed):
             self.scan_list = np.delete(self.scan_list, int(point))
         e_in_kcal = self.get_e_in_kcal(level)
+        self.scan_list = np.append(self.scan_list, 25.0)
         logger.info('\tSuccessful scan for {}.'.format(self.instance_name))
         logger.info(f"\tEnergies: {e_in_kcal}")
         logger.info(f"Points removed: {self.removed}")
@@ -277,7 +279,9 @@ class VrcTstScan(GeneralReac):
     
     def filter_points(self, level="L1"):
         for point in self.scanned:
-            if self.scanned[f"{point}"]["energy"][level] == 0.0 and point not in self.points_to_remove and point not in self.removed:
+            if self.scanned[f"{point}"]["energy"][level] == 0.0 or\
+            self.scanned[f"{point}"]["energy"][level] > self.assymptote(level) and\
+            point not in self.points_to_remove and point not in self.removed:
                 self.points_to_remove.append(point)
         for point in self.points_to_remove:
             self.scanned.pop(point)
@@ -303,11 +307,14 @@ class VrcTstScan(GeneralReac):
                     data_legends.append(f"{self.qc.VTS_methods['L3']}/{self.qc.VTS_basis['L3'][1]}")
         utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_basename}", x_label=x_label, y_label=y_label, data_legends=data_legends)
 
+    def assymptote(self, level):
+        return self.long_range["energies"][level]["0"] + self.long_range["energies"][level]["1"]
+
     def get_e_in_kcal(self, level="L1"):
-        assymptote = self.long_range["energies"][level]["0"] + self.long_range["energies"][level]["1"]
-        e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - assymptote)
+        e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - self.assymptote(level))
                     for point in self.scanned]
         e_in_kcal = list(np.round(e_in_kcal, 2))
+        e_in_kcal.append(0.00)
         return e_in_kcal
 
     def get_constraints(self, step, geom):

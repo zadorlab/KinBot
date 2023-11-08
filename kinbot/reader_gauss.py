@@ -9,7 +9,7 @@ Functions to read Gaussian output files.
 """
 
 
-def read_energy(outfile):
+def read_energy(outfile, from_line=0):
     """
     Read the last SCF Done line.
     """
@@ -18,7 +18,7 @@ def read_energy(outfile):
         lines = f.readlines()
 
     energy = np.NAN
-    for line in reversed(lines):
+    for line in reversed(lines[:-from_line+1]):
         if 'SCF Done' in line:
             energy = float(line.split()[4]) / constants.EVtoHARTREE
 
@@ -155,10 +155,8 @@ def read_converged_geom_energy(outfile, mol):
             if forces_converged:
                 if msg in lines[len(lines)-n+5] or msg in lines[len(lines)-n+6]:
                     geom = read_geom(outfile, mol, from_line=n)
-                    for lline in reversed(lines[:len(lines)-n]):
-                        if "SCF Done:" in lline:
-                            e = float(lline.split("=")[1].split("A.U.")[0])
-                            break
+                    e = read_energy(outfile, from_line=n)
+
                     return e, geom
 
 

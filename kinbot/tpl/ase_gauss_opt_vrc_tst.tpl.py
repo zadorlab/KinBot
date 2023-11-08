@@ -55,20 +55,20 @@ except RuntimeError:
             db.write(mol, name=label, data={{'energy': e,
                                              'frequencies': np.asarray(freq),
                                              'zpe': zpe, 'status': 'normal'}})
+            break
         except RuntimeError:
+            iowait(logfile, 'gauss')
+            #Save in db the lowest energy geometry if forces are converged
+            if reader_gauss.read_convergence(logfile) != 0:
+                e, geom = reader_gauss.read_converged_geom_energy(logfile, mol)
+                freq = reader_gauss.read_freq(logfile, {atom})
+                zpe = reader_gauss.read_zpe(logfile)
+                db.write(mol, name=label, data={{'energy': e,
+                                            'frequencies': np.asarray(freq),
+                                            'zpe': zpe, 'status': 'normal'}})
+                break
             if i == 2:
-                iowait(logfile, 'gauss')
-                #Save in db the lowest energy geometry if forces are converged
-                if reader_gauss.read_convergence(logfile) != 0:
-                    e, geom = reader_gauss.read_converged_geom_energy(logfile, mol)
-                    freq = reader_gauss.read_freq(logfile, {atom})
-                    zpe = reader_gauss.read_zpe(logfile)
-                    db.write(mol, name=label, data={{'energy': e,
-                                             'frequencies': np.asarray(freq),
-                                             'zpe': zpe, 'status': 'normal'}})
-                else:
-                    db.write(mol, name=label, data={{'status': 'error'}})
-            pass
+                db.write(mol, name=label, data={{'status': 'error'}})
         else:
             break
 

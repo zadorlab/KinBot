@@ -204,11 +204,11 @@ class Parameters:
             'vrc_tst_scan_methods': {
                 "L1": "ub3lyp", 
                 "L2": "ub3lyp", 
-                "L3": "caspt2"},
+                "L3": ["uwb97xd","ccsd(t)"]},
             # Basis set to scan bonds in vrc_tst_scan
             'vrc_tst_scan_basis': {
                 "L1": "6-31G", 
-                "L2": "6-31G", 
+                "L2": "6-311++G(d,p)", 
                 "L3": ["cc-pVDZ","aug-cc-pVTZ"]},
             # Parameters for the vrc_tst scan
             "vrc_tst_scan_parameters": None,

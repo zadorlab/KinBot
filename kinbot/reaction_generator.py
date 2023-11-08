@@ -328,7 +328,7 @@ class ReactionGenerator:
                                         obj.products[fri].energy = frag.energy
                                         obj.products[fri].zpe = frag.zpe
 
-                    if ndone == len(obj.products):  # all currently recognized fragments are done
+                    if ndone == len(obj.products) and self.species.reac_ts_done[index] != -999:  # all currently recognized fragments are done
                         # delete invalid ones
                         obj.products = list(np.array(obj.products)[obj.valid_prod])
                         if self.species.charge != 0:  # select the lower energy combination

@@ -29,6 +29,7 @@ from kinbot.vrc_tst_surfaces import VRC_TST_Surface
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
+from kinbot.molpro import Molpro
 
 
 def main():
@@ -1271,20 +1272,67 @@ def create_rotdPy_inputs(par, bless, vdW):
             for scan_type in ["","_frozen"]:
                 if "IRC" in job_name:
                     plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
-                    if not os.path.isfile(plt_file):
+                    if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
                         logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan_{scan_type} results not found.")
 
-                with open(plt_file) as f:
+                with open(f"{parent_chemid}/{plt_file}") as f:
                     lines = f.readlines()
 
                 for line in lines:
                     if re.search("^y[0-2] = \[", line):
                         y_data = line
+                        if y_data.startswith("y0"):
+                            level = "L1"
+                        elif y_data.startswith("y1"):
+                            level = "L2"
+                        elif y_data.startswith("y2"):
+                            level = "L3"
                     if re.search("^x =", line):
                         x_data = line
-                    if re.search("x_label", line):
+                    if re.search("set_xlabel", line):
                         indexes = re.findall("[0-9][0-9]*", line)
-                        scan_ref = f"scan_ref = [{indexes[0].astype(int)}, {indexes[1].astype(int)}]" + "\n"
+                        if par['high_level']:
+                            #Will read info from L2 structure
+                            basename = f"{reaction_name}_high"
+                        else:
+                            #Will read info from L1 structure
+                            basename = f"{reaction_name}"
+                        db = connect(f"{parent_chemid}/kinbot.db")
+                        *_, last_row = db.select(name=f"{basename}")
+                        atoms = last_row.toatoms()
+                        stationary_point = StationaryPoint.from_ase_atoms(atoms)
+                        stationary_point.characterize()
+                        fragments, maps = stationary_point.start_multi_molecular()
+                        inf_energy = 0
+                        for frag in fragments:
+                            frag.characterize()
+                            if level == "L1":
+                                *_, last_row = db.select(name=f"{frag.chemid}_well_VTS")
+                                inf_energy += last_row.data.get('energy')*constants.EVtoHARTREE
+                            elif level == "L2":
+                                *_, last_row = db.select(name=f"{frag.chemid}_well_VTS_high")
+                                inf_energy += last_row.data.get('energy')*constants.EVtoHARTREE
+                            elif level == "L3":
+                                molp = Molpro(frag, par)
+                                status, molpro_energy = molp.get_molpro_energy(par["single_point_key"].upper(), name=f"{frag.chemid}_well_VTS_sample")
+                                if status:
+                                    inf_energy += molpro_energy
+                        frag0_index, position0 = np.where(np.asarray(maps) == int(indexes[0]))
+                        frag1_index, position1 = np.where(np.asarray(maps) == int(indexes[1]))
+                        scan_ref = [0, 0]
+                        if str(fragments[0].chemid) != products[0]: #True is fragments are swapped
+                            if frag0_index == 0:
+                                scan_ref = f"scan_ref = [{int(position1)}, {int(position0)}]" + "\n"
+                            else:
+                                scan_ref = f"scan_ref = [{int(position0)}, {int(position1)}]" + "\n"
+                        else:
+                            if frag0_index == 0:
+                                scan_ref = f"scan_ref = [{int(position0)}, {int(position1)}]" + "\n"
+                            else:
+                                scan_ref = f"scan_ref = [{int(position1)}, {int(position0)}]" + "\n"
+
+
+                        
 
                 match scan_type:
                     case "":
@@ -1409,7 +1457,8 @@ def create_rotdPy_inputs(par, bless, vdW):
                                    min_dist = par['vrc_tst_dist_list'][0],
                                    scan_trust = scan_trust,
                                    scan_sample = scan_sample,
-                                   scan_ref=scan_ref)
+                                   scan_ref=scan_ref,
+                                   inf_energy=inf_energy)
         if not os.path.exists(folder):
             # Create a new directory because it does not exist
             os.makedirs(folder)

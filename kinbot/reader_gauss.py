@@ -140,7 +140,8 @@ def read_converged_geom_energy(outfile, mol):
     with open(outfile) as f:
         lines = f.readlines()
     
-    msg = "Lowest energy point so far.  Saving SCF results."
+    msg1 = "Lowest energy point so far.  Saving SCF results."
+    msg2 = "Optimization completed on the basis of negligible forces."
 
     for n, line in enumerate(reversed(lines)):
         if 'Item               Value     Threshold  Converged?' in line:
@@ -153,7 +154,11 @@ def read_converged_geom_energy(outfile, mol):
                 forces_converged = False
 
             if forces_converged:
-                if msg in lines[len(lines)-n+5] or msg in lines[len(lines)-n+6]:
+                if msg1 in lines[len(lines)-n+5] or\
+                msg1 in lines[len(lines)-n+6] or\
+                msg2 in lines[len(lines)-n+5] or\
+                msg2 in lines[len(lines)-n+6] or\
+                read_convergence(outfile) == 1:
                     geom = read_geom(outfile, mol, from_line=n)
                     e = read_energy(outfile, from_line=n)
 

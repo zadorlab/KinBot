@@ -283,7 +283,7 @@ class VrcTstScan(GeneralReac):
     def filter_points(self, level="L1"):
         for point in self.scanned:
             if self.scanned[f"{point}"]["energy"][level] == 0.0 or\
-            self.scanned[f"{point}"]["energy"][level] > self.assymptote(level) and\
+            (self.scanned[f"{point}"]["energy"][level] > self.assymptote(level) and level != "L1") and\
             point not in self.points_to_remove and point not in self.removed:
                 self.points_to_remove.append(point)
         for point in self.points_to_remove:

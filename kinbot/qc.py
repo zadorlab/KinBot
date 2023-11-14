@@ -199,7 +199,7 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L2"]
                     kwargs["basis"] = self.VTS_basis["L2"]
-                    kwargs['opt'] = 'Redundant,ModRedun,Expert,CalcAll,NoEigentest,MaxCycle=999,MaxStep=200'
+                    kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=30,{}'.format(self.opt)
                     kwargs["integral"] = "SuperFineGrid"
                     try:
                         kwargs.pop('freq', None)

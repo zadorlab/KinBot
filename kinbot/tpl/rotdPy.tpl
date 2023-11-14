@@ -54,7 +54,13 @@ _{job_name} = MultiSample(fragments={frag_names}, inf_energy=r_inf,
                          x_sample=x_sample, y_sample=y_sample,
                          x_trust=x_trust, y_trust=y_trust, scan_ref=scan_ref)
 
-# the flux info
+# the flux info per surface
+#flux_rel_err: flux accuracy in 'nu' (1=90% certitude, 2=99%, ...)
+#pot_smp_max: maximum number of sampling for each facet
+#pot_smp_min: minimum number of sampling for each facet
+#rtot_smp_max: maximum number of total sampling
+#tot_smp_min: minimum number of total sampling
+
 {flux_block}
 
 flux_base = FluxBase(temp_grid=temperature,

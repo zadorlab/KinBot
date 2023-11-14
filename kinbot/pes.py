@@ -1272,7 +1272,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                 if "IRC" in job_name:
                     plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
                     if not os.path.isfile(plt_file):
-                        logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
+                        logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan_{scan_type} results not found.")
 
                 with open(plt_file) as f:
                     lines = f.readlines()
@@ -1383,12 +1383,12 @@ def create_rotdPy_inputs(par, bless, vdW):
                         f"'scratch': '/scratch/{whoami}',\n" +\
                         f"'processors': 1,\n" +\
                         f"'queue': '{par['queuing']}',\n" +\
-                        "'max_jobs': 100}"
+                        "'max_jobs': 500}"
 
             #Flux block:
-            Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 200,\
-                  'tot_smp_max': 10000," + f" 'tot_smp_min': {len(surfaces*200)}" + ",\
-                  'flux_rel_err': 10.0, 'smp_len': 1}"
+            Flux_block = "flux_parameter = {'pot_smp_max': 500, 'pot_smp_min': 200,\
+                  'tot_smp_max': 10000," + f" 'tot_smp_min': 200" + ",\
+                  'flux_rel_err': 1, 'smp_len': 1}"
             
         else:
             logger.warning("The creation of rotdPy inputs currently only work for bimolecular products.")

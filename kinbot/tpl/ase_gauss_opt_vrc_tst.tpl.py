@@ -10,13 +10,14 @@ def correct_kwargs(kwargs, iteration):
     """Funtion that refine the optimization parameters depending on the number of trials"""
     match iteration:
         case 0:
-            kwargs["iop"] = "1/8=1"
+            kwargs["iop"] = "1/8=2"
+            kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'ReCalcFC=5')
         case 1:
-            kwargs["iop"] = "1/8=1" #Use smaller max step
-            kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'CalcAll')
+            kwargs["iop"] = "1/8=2" #Use smaller max step
+            kwargs['opt'] = kwargs['opt'].replace('ReCalcFC=5', 'CalcAll')
             kwargs['opt'] = kwargs['opt'].replace("MaxCycles=30", "MaxCycles=50")
         case 2:
-            kwargs["iop"] = "1/8=1,1/19=10" #Use different optimization procedure
+            kwargs["iop"] = "1/8=2,1/19=10" #Use different optimization procedure
             kwargs['opt'] = kwargs['opt'].replace("MaxCycles=50", "MaxCycles=999")
     return kwargs
 
@@ -44,7 +45,7 @@ except RuntimeError:
     for i in range(3):
         try:
             iowait(logfile, 'gauss')
-            mol.positions = reader_gauss.read_geom(logfile, mol)
+            e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
             kwargs = correct_kwargs(kwargs, i)
             mol.calc = Gaussian(**kwargs)
             e = mol.get_potential_energy()  # use the Gaussian optimizer
@@ -60,7 +61,7 @@ except RuntimeError:
             iowait(logfile, 'gauss')
             #Save in db the lowest energy geometry if forces are converged
             if reader_gauss.read_convergence(logfile) != 0:
-                e, geom = reader_gauss.read_converged_geom_energy(logfile, mol)
+                e, mol.positions = reader_gauss.read_converged_geom_energy(logfile, mol)
                 freq = reader_gauss.read_freq(logfile, {atom})
                 zpe = reader_gauss.read_zpe(logfile)
                 db.write(mol, name=label, data={{'energy': e,
@@ -68,6 +69,9 @@ except RuntimeError:
                                             'zpe': zpe, 'status': 'normal'}})
                 break
             if i == 2:
+                mol.positions = reader_gauss.read_geom(logfile, mol)
+                freq = reader_gauss.read_freq(logfile, {atom})
+                zpe = reader_gauss.read_zpe(logfile)
                 db.write(mol, name=label, data={{'status': 'error'}})
         else:
             break

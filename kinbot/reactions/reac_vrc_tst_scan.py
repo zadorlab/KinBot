@@ -87,7 +87,8 @@ class VrcTstScan(GeneralReac):
                     internals.find_all_bonds()
                     internals.find_all_angles()
                     internals.find_all_dihedrals()
-                    self.set_frozen_coord(level="L1", frag=frag, internals=internals, frag_number=frag_number)#Must only be called once before start of the scan
+                    if scan_type=="sample":
+                        self.set_frozen_coord(level="L1", frag=frag, internals=internals, frag_number=frag_number)#Must only be called once before start of the scan
                     fragments_optimized += 1
                     #Save the cartesian coordinates
                     self.long_range["geom"]["L1"][f"{frag_number}"] = frag.geom
@@ -105,7 +106,9 @@ class VrcTstScan(GeneralReac):
                             self.scan = 0
                             hl_opt = len(fragments)
                             break
-                        self.set_frozen_coord(level="L2", frag=frag, internals=internals, frag_number=frag_number) #Must only be called once before start of the scan
+
+                        if scan_type=="sample":
+                            self.set_frozen_coord(level="L2", frag=frag, internals=internals, frag_number=frag_number) #Must only be called once before start of the scan
                         hl_opt += 1
                         #Save the cartesian coordinates
                         self.long_range["geom"]["L2"][f"{frag_number}"] = frag.geom
@@ -178,7 +181,7 @@ class VrcTstScan(GeneralReac):
                                                                   self.long_range["maps"][frag_number][dihedral.indices[2]],
                                                                   self.long_range["maps"][frag_number][dihedral.indices[3]],
                                                                   dihedral_value])
-            if level == "L1":
+            if level == "L1" and "frozen" in self.instance_name:
                 self.frozen_param.append([self.long_range["maps"][frag_number][dihedral.indices[0]]+1,
                                           self.long_range["maps"][frag_number][dihedral.indices[1]]+1,
                                           self.long_range["maps"][frag_number][dihedral.indices[2]]+1,

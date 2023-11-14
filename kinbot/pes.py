@@ -1331,17 +1331,14 @@ def create_rotdPy_inputs(par, bless, vdW):
                             else:
                                 scan_ref = f"scan_ref = [{int(position1)}, {int(position0)}]" + "\n"
 
-
-                        
-
                 match scan_type:
                     case "":
-                        y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_trust")
-                        x_data.replace("x", f"r_trust")
+                        y_data = y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_trust")
+                        x_data = x_data.replace("x", f"r_trust")
                         scan_trust += y_data + "\n" + x_data + "\n"
                     case "_frozen":
-                        y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_sample")
-                        x_data.replace("x", f"r_sample")
+                        y_data = y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_sample")
+                        x_data = x_data.replace("x", f"r_sample")
                         scan_sample += y_data + "\n" + x_data + "\n"
                         
             fragments = []

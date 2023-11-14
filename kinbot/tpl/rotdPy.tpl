@@ -26,9 +26,9 @@ def generate_grid(start, interval, factor, num_point):
 
 
 # temperature, energy grid and angular momentum grid
-temperature = generate_grid(10, 10, 1.05, 10)
-energy = generate_grid(0, 10, 1.05, 10)
-angular_mom = generate_grid(0, 1, 1.1, 10)
+temperature = generate_grid(10, 10, 1.05, 20)
+energy = generate_grid(0, 10, 1.05, 20)
+angular_mom = generate_grid(0, 1, 1.1, 20)
 
 # fragment info
 {Fragments_block}
@@ -49,10 +49,10 @@ angular_mom = generate_grid(0, 1, 1.1, 10)
 
 inf_energy = {inf_energy}
 
-_{job_name} = MultiSample(fragments={frag_names}, inf_energy=r_inf,
+_{job_name} = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
                          energy_size=1, min_fragments_distance={min_dist},
-                         x_sample=x_sample, y_sample=y_sample,
-                         x_trust=x_trust, y_trust=y_trust, scan_ref=scan_ref)
+                         r_sample=r_sample, e_sample=e_sample,
+                         r_trust=r_trust, e_trust=e_trust, scan_ref=scan_ref)
 
 # the flux info per surface
 #flux_rel_err: flux accuracy in 'nu' (1=90% certitude, 2=99%, ...)

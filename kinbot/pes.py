@@ -1330,6 +1330,8 @@ def create_rotdPy_inputs(par, bless, vdW):
                                 scan_ref = f"scan_ref = [{int(position0)}, {int(position1)}]" + "\n"
                             else:
                                 scan_ref = f"scan_ref = [{int(position1)}, {int(position0)}]" + "\n"
+                    if "VRC TST Sampling recommended start: " in line:
+                        vrc_tst_start = float(line.split("start: ")[1])
 
                 match scan_type:
                     case "":
@@ -1391,21 +1393,25 @@ def create_rotdPy_inputs(par, bless, vdW):
                 logger.warning("No reactive atom detected for this reaction. Pivot points on COMs.")
                 
             for dist in par['vrc_tst_dist_list']:
-                n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
-                if len(reactive_atoms) == 0:
-                    for frag in fragments: #Pivot points directly on COM for vdW
-                        frag.set_pp_on_com()
-                        n_pp.append(len(frag.pivot_points))
-                else:
-                    for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
-                        frag.set_pivot_points(dist, atom)
-                        n_pp.append(len(frag.pivot_points))
-                pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                pp_dist[:] = dist
-                
-                surfaces.append(VRC_TST_Surface(fragments, pp_dist))
-                for frag in fragments:
-                    frag.pivot_points = [] #Reset the pivot points of each fragments for next surface.
+                if dist < vrc_tst_start:
+                    logger.info(f"Removing sampling surface {dist} for reaction {reaction_name}")
+                    continue
+                elif dist >= vrc_tst_start:
+                    n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
+                    if len(reactive_atoms) == 0:
+                        for frag in fragments: #Pivot points directly on COM for vdW
+                            frag.set_pp_on_com()
+                            n_pp.append(len(frag.pivot_points))
+                    else:
+                        for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
+                            frag.set_pivot_points(dist, atom)
+                            n_pp.append(len(frag.pivot_points))
+                    pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                    pp_dist[:] = dist
+                    
+                    surfaces.append(VRC_TST_Surface(fragments, pp_dist))
+                    for frag in fragments:
+                        frag.pivot_points = [] #Reset the pivot points of each fragments for next surface.
                     
             #Creating the strings to print input file
             #Fragments block:
@@ -1431,9 +1437,9 @@ def create_rotdPy_inputs(par, bless, vdW):
                         "'max_jobs': 500}"
 
             #Flux block:
-            Flux_block = "flux_parameter = {'pot_smp_max': 500, 'pot_smp_min': 200,\
-                  'tot_smp_max': 10000," + f" 'tot_smp_min': 200" + ",\
-                  'flux_rel_err': 1, 'smp_len': 1}"
+            Flux_block = "flux_parameter = {'pot_smp_max': 1000, 'pot_smp_min': 40, #per facet\n" +\
+                         "                  'tot_smp_max': 1500, 'tot_smp_min': 40, #per surface\n" +\
+                         "                  'flux_rel_err': 1, 'smp_len': 1}\n"
             
         else:
             logger.warning("The creation of rotdPy inputs currently only work for bimolecular products.")

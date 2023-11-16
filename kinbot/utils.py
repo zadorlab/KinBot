@@ -149,7 +149,7 @@ def clean_files():
                     logger.info(f'All coordinates of file {ll} are 0, hence '
                                  f'it is deleted.')
                     
-def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label="x", y_label="y", data_legends=["y0"]):
+def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label="x", y_label="y", data_legends=["y0"], comments=[""]):
     """Function that create the input for a 2D matplotlib plot."""
 
     if not isinstance(x, list) and not isinstance(data, list):
@@ -158,6 +158,9 @@ def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label
     content = """import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import make_interp_spline\n\n"""
+
+    for comment in comments:
+        content += f"# {comment}\n"
     
     content += f"x = {x}\n"
     content += "x_spln = np.arange(min(x), max(x), 0.1)\n\n"

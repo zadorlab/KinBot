@@ -202,7 +202,7 @@ class Molpro:
                                        basis=basis,
                                        geometry_block=geometry_block,
                                        methods=method,
-                                       key=self.par["single_point_key"]))
+                                       key=self.par['vrc_tst_scan_parameters']["molpro_key"].upper()))
                                        
         return 0
 

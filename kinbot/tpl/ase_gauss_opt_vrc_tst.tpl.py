@@ -12,13 +12,13 @@ def correct_kwargs(kwargs, iteration):
         case 0:
             kwargs["iop"] = "1/8=2"
             kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'ReCalcFC=5')
+            kwargs['opt'] = kwargs['opt'].replace("MaxCycles=30", "MaxCycles=70")
         case 1:
             kwargs["iop"] = "1/8=2" #Use smaller max step
             kwargs['opt'] = kwargs['opt'].replace('ReCalcFC=5', 'CalcAll')
-            kwargs['opt'] = kwargs['opt'].replace("MaxCycles=30", "MaxCycles=50")
         case 2:
-            kwargs["iop"] = "1/8=2,1/19=10" #Use different optimization procedure
-            kwargs['opt'] = kwargs['opt'].replace("MaxCycles=50", "MaxCycles=999")
+            kwargs["iop"] = "1/8=1,1/19=10" #Use different optimization procedure
+            kwargs['opt'] = kwargs['opt'].replace("MaxCycles=70", "MaxCycles=50")
     return kwargs
 
 db = connect('{working_dir}/kinbot.db')

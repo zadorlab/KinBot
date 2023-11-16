@@ -18,9 +18,10 @@ def read_energy(outfile, from_line=0):
         lines = f.readlines()
 
     energy = np.NAN
-    for line in reversed(lines[:-from_line+1]):
+    for line in reversed(lines[:-from_line]):
         if 'SCF Done' in line:
             energy = float(line.split()[4]) / constants.EVtoHARTREE
+            break
 
     return energy
 
@@ -42,7 +43,7 @@ def read_geom(outfile, mol, max2frag=False, charge=None, mult=None, from_line=0)
         if start == 0:
             data = lines
         else:
-            data = lines[:-start+1]
+            data = lines[:-start]
         for index, line in enumerate(reversed(data)):
             if 'Input orientation:' in line:
                 for n in range(len(mol)):
@@ -141,7 +142,8 @@ def read_converged_geom_energy(outfile, mol):
         lines = f.readlines()
     
     msg1 = "Lowest energy point so far.  Saving SCF results."
-    msg2 = "Optimization completed on the basis of negligible forces."
+    msg2 = "Optimization completed"
+    
 
     for n, line in enumerate(reversed(lines)):
         if 'Item               Value     Threshold  Converged?' in line:

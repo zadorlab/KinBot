@@ -102,19 +102,16 @@ class ReactionGenerator:
                     if obj.scan == 0:  # don't do a scan of a bond
                         if self.species.reac_step[index] == obj.max_step + 1:
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
-                            if status == 0 and freq[0] < 0. and freq[1] > 0.:
+                            if status == 0 and (np.count_nonzero(np.array(freq) < 0) >= 3  # Three or more imag frequencies
+                                                or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
+                                                or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies
+                                logger.info(f'\tReaction search failed for {obj.instance_name}: '
+                                            'Wrong number of imaginary frequencies.')
+                                self.species.reac_ts_done[index] = -999
+                            elif status == 0:
                                 self.species.reac_ts_done[index] = 1
-                            elif status == 0 and freq[0] > 0.:
-                                logger.info('\tRxn search failed for {}, no imaginary freq.'
-                                             .format(obj.instance_name))
-                                self.species.reac_ts_done[index] = -999
-                            elif status == 0 and freq[1] < 0.:
-                                logger.info('\tRxn search failed for {}, more than one imaginary freq.'
-                                             .format(obj.instance_name))
-                                self.species.reac_ts_done[index] = -999
                             elif status == -1: 
-                                logger.info('\tRxn search failed for {}'
-                                             .format(obj.instance_name))
+                                logger.info(f'\tReaction search failed for {obj.instance_name}.')
                                 self.species.reac_ts_done[index] = -999
                         else:
                             self.species.reac_step[index] = reac_family.carry_out_reaction(
@@ -122,23 +119,24 @@ class ReactionGenerator:
                                                             bimol=self.par['bimol'])
                             if self.species.reac_step[index] == -1:
                                 self.species.reac_ts_done[index] = -999
-                                logger.info('\tRxn search failed for {} because of 0 0 0 geometry.'
-                                             .format(obj.instance_name))
+                                logger.info(f'\tReaction search failed for {obj.instance_name}: '
+                                            'Invalid geometry.')
 
                     elif obj.scan ==1: # do a bond scan # vrc tst scan lenght does not depend on par[max_step]
 
                         if (self.species.reac_step[index] == self.par['scan_step'] + 1 and obj.family_name != "VrcTstScan"):
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
-                            if status == 0 and freq[0] < 0. and freq[1] > 0. :
+                            if status == 0 and (np.count_nonzero(np.array(freq) < 0) >= 3  # More than two imag frequencies
+                                                or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
+                                                or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies
+                                logger.info(f'\tReaction search failed for {obj.instance_name}: '
+                                            'wrong number of imaginary frequencies.')
+                                self.species.reac_ts_done[index] = -999
+                            elif status == 0:
                                 self.species.reac_ts_done[index] = 1
-                            elif status == 0 and freq[0] > 0.:
-                                logger.info('\tRxn search failed for {}, no imaginary freq.'.format(obj.instance_name))
-                                self.species.reac_ts_done[index] = -999
-                            elif status == 0 and freq[1] < 0.:
-                                logger.info('\tRxn search failed for {}, more than one imaginary freq.'.format(obj.instance_name))
-                                self.species.reac_ts_done[index] = -999
                             elif status == -1:
-                                logger.info('\tRxn search using scan failed for {} in TS optimization stage.'.format(obj.instance_name))
+                                logger.info(f'\tRxn search using scan failed for {obj.instance_name} '
+                                            'in TS optimization stage.')
                                 self.species.reac_ts_done[index] = -999
                         else:
                             # First point of the scan

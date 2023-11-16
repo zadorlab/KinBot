@@ -4,6 +4,7 @@ import logging
 import time
 
 import rmsd
+import numpy as np
 
 from kinbot import frequencies
 from kinbot import geometry
@@ -545,23 +546,24 @@ class Optimize:
         #bypass freq check for VTS for now
         if not self.VTS:
         # checking if L2 frequencies are okay
-            err, fr = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
-            if self.species.natom == 1:
-                freq_ok = 1
-            elif len(fr) == 1 and fr[0] == 0:
-                freq_ok = 0
-            elif self.species.wellorts == 0 and fr[0] > -1. * self.par['imagfreq_threshold']:
-                freq_ok = 1
-                if fr[0] < 0.:
-                    logger.warning(f'Negative frequency {fr[0]} cm-1 detected in '
-                                f'{self.name}. Flipped to {-fr[0]}.')
-                    fr[0] *= -1.
-            elif self.species.wellorts == 1 and fr[0] < 0. and fr[1] > 0.:
-                freq_ok = 1
-            else:
-                freq_ok = 0
-        else:
+        err, freq = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
+        if self.species.natom == 1:
             freq_ok = 1
+        elif len(freq) == 1 and freq[0] == 0:
+            freq_ok = 0
+        elif self.species.wellorts == 0 and freq[0] > -1. * self.par['imagfreq_threshold']:
+            freq_ok = 1
+            if freq[0] < 0.:
+                logger.warning(f'Negative frequency {freq[0]} cm-1 detected in '
+                               f'{self.name}. Flipped to {-freq[0]}.')
+                freq[0] *= -1.
+        elif self.species.wellorts == 1 \
+                and not (np.count_nonzero(np.array(freq) < 0) >= 3  # Three or more imag frequencies
+                         or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
+                         or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies:
+            freq_ok = 1
+        else:
+            freq_ok = 0
 
         if conf == -1:
             # update properties for base structure

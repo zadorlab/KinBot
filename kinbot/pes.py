@@ -292,14 +292,12 @@ def postprocess(par, jobs, task, names, mass):
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
-    base_energy = get_energy(jobs[0], jobs[0], 0, par['high_level'],
-                             conf=par['conformer_search'])
+    base_energy, base_zpe = get_energy(jobs, jobs[0], 0, par['high_level'],
+                                       conf=par['conformer_search'])
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
         l3done = 0
-    # L2 ZPE
-    base_zpe = get_zpe(jobs[0], jobs[0], 0, par['high_level'])
     # list of lists with four elements
     # 0. reactant chemid
     # 1. reaction name
@@ -357,20 +355,16 @@ def postprocess(par, jobs, task, names, mass):
                 if any([mm in reaction_name for mm in mp2_list]) \
                        and not par['high_level'] \
                        and par['qc'] != 'nn_pes':
-                    base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
-                                                 par['high_level'], mp2=1,
-                                                 conf=par['conformer_search'])
-                    base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
-                                            par['high_level'], mp2=1)
+                    mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
+                                              mp2=1, conf=par['conformer_search'])
+                    base_energy_mp2, base_zpe_mp2 = mp2_energies
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
-                if 'barrierless_saddle' in reaction_name and not par[ 'high_level']:
-                    base_energy_bls = get_energy(jobs[0], jobs[0], 0,
-                                                 par['high_level'], bls=1,
-                                                 conf=par['conformer_search'])
-                    base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
-                                            par['high_level'], bls=1)
+                if 'barrierless_saddle' in ts and not par['high_level']:
+                    bls_energies = get_energy(jobs, jobs[0], 0, par['high_level'],
+                                              bls=1, conf=par['conformer_search'])
+                    base_energy_bls, base_zpe_bls = bls_energies
                     barrier = 0. - base_energy_bls - base_zpe_bls
 
                 #Different treatment between homolytic scission and normal reaction
@@ -378,10 +372,10 @@ def postprocess(par, jobs, task, names, mass):
                     barrier = float(ts_energy)
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
-                    ts_energy = get_energy(reactant, reaction_name, 1, par['high_level'], 
-                                       conf=par['conformer_search'])
-                    ts_zpe = get_zpe(reactant, reaction_name, 1, par['high_level'])
-                    barrier += (ts_energy + ts_zpe)*constants.AUtoKCAL
+                    ts_energy, ts_zpe = get_energy(jobs, ts, 1, par['high_level'], 
+                                               conf=par['conformer_search'])
+                    barrier += ts_energy + ts_zpe
+                    barrier *= constants.AUtoKCAL
                     
                 if reactant not in wells:
                     wells.append(reactant)
@@ -466,9 +460,9 @@ def postprocess(par, jobs, task, names, mass):
     well_energies = {}
     well_l3energies = {}
     for index, well in enumerate(wells):
-        energy = get_energy(parent[well], well, do_vdW[index], par['high_level'], 
-                            conf=par['conformer_search']) # from the db
-        zpe = get_zpe(parent[well], well, do_vdW[index], par['high_level'])
+        energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
+                            conf=par['conformer_search'])  # from the db
+        zpe = get_zpe(parent[well], well, 0, par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -484,10 +478,9 @@ def postprocess(par, jobs, task, names, mass):
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
-            energy += get_energy(parent[prods], pr, 0, par['high_level'], 
-                                 conf=par['conformer_search'])
-            zpe = get_zpe(parent[prods], pr, 0, par['high_level'])
-            energy += zpe
+            pr_energy, pr_zpe = get_energy(jobs, pr, 0, par['high_level'], 
+                                           conf=par['conformer_search'])
+            energy += pr_energy + pr_zpe
             status, l3e = get_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
@@ -1594,12 +1587,11 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     return 0
 
 
-def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0):
-    if "IRC" in directory:
-        directory = directory.split("_")[0]
-    db = connect(directory + '/kinbot.db')
+def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
+    
     if ts:
         j = job
+        wells = [job.split('_')[0]]
     else:
         j = job + '_well'
     if conf and not high_level and not mp2:
@@ -1610,22 +1602,34 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0):
         j += '_bls'
     if high_level:
         j += '_high'
-    rows = db.select(name=j)
-    for row in rows:
-        if hasattr(row, 'data'):
-            energy = row.data.get('energy')
-    try:
-        # ase energies are always in eV, convert to Hartree
-        energy *= constants.EVtoHARTREE
-    except UnboundLocalError or TypeError:
-        # this happens when the job is not found in the database
-        logger.error('Could not find {} in directory {} database.'.format(j, directory))
-        logger.error('Exiting...')
-        sys.exit(-1)
-    except TypeError:
-        logger.warning('Could not find {} in directory {}'.format(job, directory))
-        energy = 0.
-    return energy
+    energy = np.inf
+    zpe = np.inf
+    for well in wells:
+        if "IRC" in well:
+            well = well.split("_")[0]
+        db = connect(well + '/kinbot.db')
+        rows = db.select(name=j)
+        for row in rows:
+            try:
+                new_energy = row.data.get('energy') * constants.EVtoHARTREE
+                new_zpe = row.data.get('zpe')
+            except (UnboundLocalError, TypeError):
+                continue
+            if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
+                if not ts:
+                    # Avoid getting energies from calculations that converged to another structure
+                    atoms = row.toatoms()
+                    st_pt = StationaryPoint.from_ase_atoms(atoms)
+                    st_pt.characterize()
+                    chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
+                    if chemid_wo_mult != job[:-1]:
+                        continue
+                energy = new_energy
+                zpe = new_zpe
+    if np.isinf(energy) or np.isinf(zpe):
+        raise ValueError(f'Unable to find an energy for {j}.')
+
+    return energy, zpe
 
 
 def get_l3energy(job, par, bls=0):

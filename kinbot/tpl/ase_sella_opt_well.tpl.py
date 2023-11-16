@@ -66,6 +66,7 @@ opt = Sella(mol,
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)
+freqs = []
 try:
     converged = False
     fmax = 1e-4
@@ -77,22 +78,23 @@ try:
         freqs, zpe, hessian = calc_vibrations(mol)
         if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                            or np.count_nonzero(np.array(freqs) < -50) >= 1):
+            print(f'Found one or more imaginary frequencies. {{freqs[1:6]}}')
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
             if attempts <= 3:
-                print('Found one or more imaginary frequencies. Retrying with '
-                      f'a tighter criterion: fmax={{fmax}}.')
+                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
         elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
                              or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
                              or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+            print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
-            print("Found more than one imaginary frequency. Retrying with a " \
-                  f"tighter criterion: fmax={{fmax}}.")
+            if attempts <= 3:
+                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
         else:
             converged = True
             e = mol.get_potential_energy()
@@ -102,7 +104,10 @@ try:
     if not converged:
         raise RuntimeError
 except (RuntimeError, ValueError):
-    db.write(mol, name='{label}', data={{'status': 'error'}})
+    data = {{'status': 'error'}}
+    if freqs:
+        data['frequencies'] = freqs
+    db.write(mol, name='{label}', data=data)
 
 with open('{label}.log', 'a') as f:
     f.write('done\n')

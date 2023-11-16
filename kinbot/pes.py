@@ -472,7 +472,7 @@ def postprocess(par, jobs, task, names, mass):
             elif not par['L3_calc']:
                 pass
             else:
-                l3energy += l3e + zpe
+                l3energy += l3e + pr_zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
         prod_l3energies[prods] = l3energy * constants.AUtoKCAL
 

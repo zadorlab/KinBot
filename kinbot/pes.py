@@ -559,7 +559,7 @@ def postprocess(par, jobs, task, names, mass):
         
     # if L3 was done and requested, everything below is done with that
     # filter according to tasks
-    filtered_stpts = filter_stat_points(par, wells, bimol_products, products, reactions, conn,
+    filtered_stpts = filter_stat_points(par, wells, bimol_products, reactions, conn,
                                         bars, well_energies, task, names)
     wells, products, reactions, highlight = filtered_stpts
 
@@ -612,13 +612,13 @@ def postprocess(par, jobs, task, names, mass):
                           mass,
                           l3done)
 
-    if par['single_point_qc'].lower() == 'molpro':
-        if l3done:
-            check_l3_l2(par['single_point_key'], parent, reactions)
-        t1_analysis(par['single_point_key'])
+    #if par['single_point_qc'].lower() == 'molpro':
+    #    if l3done:
+    #        check_l3_l2(par['single_point_key'], parent, reactions)
+    #    t1_analysis(par['single_point_key'])
 
 
-def filter_stat_points(par, wells, bimol_products, products, reactions, conn, bars, well_energies, task,
+def filter_stat_points(par, wells, products, reactions, conn, bars, well_energies, task,
            names):
     """Filter the wells, products and reactions according to their task and name."""
     # list of reactions to highlight

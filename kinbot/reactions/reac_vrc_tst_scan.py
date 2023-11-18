@@ -308,17 +308,18 @@ class VrcTstScan(GeneralReac):
                     data_legends.append(f"{self.qc.VTS_methods['L3'][0]}/{self.qc.VTS_basis['L3'][0]}")
                 else:
                     data_legends.append(f"{self.qc.VTS_methods['L3'][1]}/{self.qc.VTS_basis['L3'][1]}")
+        comments = [f"inf_energy: {self.assymptote(level)}"]
         if min(y[-1]) < -10:
             surfaces_start = 5 # Energy at which the vrc tst surfaces should start
             diff = min(y[-1]) + surfaces_start
             for index, energy in enumerate(y[-1]):
                 if (energy + surfaces_start) < 0:
                     if (energy + surfaces_start) > diff:
-                        comment = f"VRC TST Sampling recommended start: {x[index]}"
+                        comments.append(f"VRC TST Sampling recommended start: {x[index]}")
                 else:
                     break
     
-        utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_basename}", x_label=x_label, y_label=y_label, data_legends=data_legends, comments=[comment])
+        utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_basename}", x_label=x_label, y_label=y_label, data_legends=data_legends, comments=comments)
 
     def assymptote(self, level):
         return self.long_range["energies"][level]["0"] + self.long_range["energies"][level]["1"]

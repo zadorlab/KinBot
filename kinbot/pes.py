@@ -361,7 +361,7 @@ def postprocess(par, jobs, task, names, mass):
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
-                if 'barrierless_saddle' in ts and not par['high_level']:
+                if 'barrierless_saddle' in reaction_name and not par['high_level']:
                     bls_energies = get_energy(jobs, jobs[0], 0, par['high_level'],
                                               bls=1, conf=par['conformer_search'])
                     base_energy_bls, base_zpe_bls = bls_energies
@@ -372,7 +372,7 @@ def postprocess(par, jobs, task, names, mass):
                     barrier = float(ts_energy)
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
-                    ts_energy, ts_zpe = get_energy(jobs, ts, 1, par['high_level'], 
+                    ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
                                                conf=par['conformer_search'])
                     barrier += ts_energy + ts_zpe
                     barrier *= constants.AUtoKCAL
@@ -551,7 +551,7 @@ def postprocess(par, jobs, task, names, mass):
         for prod in bimol_products:
             logger.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
         for ts in ts_l3energies:
-            logger.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
+            logger.info('{}   {:.2f}'.format(reaction_name, ts_l3energies[ts]))
     else:
         logger.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
                      f'{par["high_level_basis"]}) level of theory.')
@@ -1262,6 +1262,7 @@ def create_rotdPy_inputs(par, bless, vdW):
 
             scan_trust = ""
             scan_sample = ""
+            vrc_tst_start = 0
             for scan_type in ["","_frozen"]:
                 if "IRC" in job_name:
                     plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
@@ -1271,7 +1272,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                 with open(f"{parent_chemid}/{plt_file}") as f:
                     lines = f.readlines()
 
-                for line in lines:
+                for line in lines[4:]:
                     if re.search("^y[0-2] = \[", line):
                         y_data = line
                         if y_data.startswith("y0"):
@@ -1307,7 +1308,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                                 inf_energy += last_row.data.get('energy')*constants.EVtoHARTREE
                             elif level == "L3":
                                 molp = Molpro(frag, par)
-                                status, molpro_energy = molp.get_molpro_energy(par["single_point_key"].upper(), name=f"{frag.chemid}_well_VTS_sample")
+                                status, molpro_energy = molp.get_molpro_energy(par['vrc_tst_scan_parameters']["molpro_key"].upper(), name=f"{frag.chemid}_well_VTS_sample")
                                 if status:
                                     inf_energy += molpro_energy
                         frag0_index, position0 = np.where(np.asarray(maps) == int(indexes[0]))
@@ -1323,8 +1324,9 @@ def create_rotdPy_inputs(par, bless, vdW):
                                 scan_ref = f"scan_ref = [{int(position0)}, {int(position1)}]" + "\n"
                             else:
                                 scan_ref = f"scan_ref = [{int(position1)}, {int(position0)}]" + "\n"
-                    if "VRC TST Sampling recommended start: " in line:
-                        vrc_tst_start = float(line.split("start: ")[1])
+                    if "VRC TST Sampling recommended start: " in line :
+                        if float(line.split("start: ")[1]) > vrc_tst_start:
+                            vrc_tst_start = float(line.split("start: ")[1])
 
                 match scan_type:
                     case "":

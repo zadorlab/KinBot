@@ -222,6 +222,9 @@ class Molpro:
             status = os.path.exists('../molpro/' + fname + '.out')
             if status:
                 molpro_dir = "../molpro/"
+            else:
+                molpro_dir = f"{fname.split('_')[0]}/molpro/"
+                status = os.path.exists(molpro_dir + fname + '.out')
         if fname == '10000000000000000001':  # proton
             return 1, 0.0
         if status:

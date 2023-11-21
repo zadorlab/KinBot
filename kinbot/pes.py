@@ -1328,10 +1328,10 @@ def create_rotdPy_inputs(par, bless, vdW):
 
                 if par['high_level']:
                     #Will read info from L2 structure
-                    basename = f"{chemid}_well_high"
+                    basename = f"{chemid}_well_VTS_high"
                 else:
                     #Will read info from L1 structure
-                    basename = f"{chemid}_well"
+                    basename = f"{chemid}_well_VTS"
 
                 #Create ase.atoms objects for each fragments
                 db = connect(f"{parent_chemid}/kinbot.db")

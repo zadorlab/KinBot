@@ -154,8 +154,8 @@ class Molpro:
                 basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][0]}"
             else:
                 basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][1]}"
-            active_orbitals = 4
-            active_electrons = 4
+            active_orbitals = 2
+            active_electrons = 2
             closed_orbitals = (nelectron-active_electrons)/2
             occ_obitals = closed_orbitals + active_orbitals
             

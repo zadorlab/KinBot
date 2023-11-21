@@ -1251,8 +1251,13 @@ def create_rotdPy_inputs(par, bless, vdW):
 
     for index, reac in enumerate(barrierless):
         reactant, reaction_name, products, barrier = reac
-        job_name = f"{reaction_name}_{'_'.join(products)}"
-        if job_name not in par["rotdPy_inputs"]:
+        job_name = f"{reaction_name}_{'_'.join(sorted(products))}"
+        if len(par["rotdPy_inputs"]) != 0:
+            rotdpy_inputs = []
+            for this_input in par["rotdPy_inputs"]:
+                inp_products = this_input.split("_")[-2:]
+                rotdpy_inputs.append(f"{'_'.join(this_input.split('_')[:-2])}_{'_'.join(sorted(inp_products))}")
+        if job_name not in rotdpy_inputs:
             continue
         logger.info(f"Creating rotdPy input for reaction {job_name}")
         parent_chemid = reactant
@@ -1263,80 +1268,59 @@ def create_rotdPy_inputs(par, bless, vdW):
             scan_trust = ""
             scan_sample = ""
             vrc_tst_start = 0
+            do_correction = True
             for scan_type in ["","_frozen"]:
                 if "IRC" in job_name:
                     plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
                     if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
                         logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan_{scan_type} results not found.")
+                        do_correction = False
+                elif "hom_sci" in job_name: #301020900180000000001_hom_sci_1_3_vrc_tst_scan_frozen_290890730120000000002_10000000000000000002_plt
+                    plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[0]}_{inp_products[1]}_plt.py"
+                    if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
+                        plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[1]}_{inp_products[0]}_plt.py"
+                        if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
+                            logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan_{scan_type} results not found.")
+                            do_correction = False
+                
+                if do_correction:
+                    with open(f"{parent_chemid}/{plt_file}") as f:
+                        lines = f.readlines()
 
-                with open(f"{parent_chemid}/{plt_file}") as f:
-                    lines = f.readlines()
+                    for line in lines[4:]:
+                        if re.search("^y[0-2] = \[", line):
+                            y_data = line
+                            if y_data.startswith("y0"):
+                                level = "L1"
+                            elif y_data.startswith("y1"):
+                                level = "L2"
+                            elif y_data.startswith("y2"):
+                                level = "L3"
+                        if re.search("^x =", line):
+                            x_data = line
+                        if "inf_energy" in line:
+                            inf_energy = float(line.split("energy: ")[1])
+                        if "scan_ref" in line:
+                            scan_ref = [int(line.split("ref = ")[1].split(",")[0][1:]), int(line.split("ref = ")[1].split(",")[1][:-2])]
+                        if "VRC TST Sampling recommended start: " in line :
+                            if float(line.split("start: ")[1]) > vrc_tst_start:
+                                vrc_tst_start = float(line.split("start: ")[1])
 
-                for line in lines[4:]:
-                    if re.search("^y[0-2] = \[", line):
-                        y_data = line
-                        if y_data.startswith("y0"):
-                            level = "L1"
-                        elif y_data.startswith("y1"):
-                            level = "L2"
-                        elif y_data.startswith("y2"):
-                            level = "L3"
-                    if re.search("^x =", line):
-                        x_data = line
-                    if re.search("set_xlabel", line):
-                        indexes = re.findall("[0-9][0-9]*", line)
-                        if par['high_level']:
-                            #Will read info from L2 structure
-                            basename = f"{reaction_name}_high"
-                        else:
-                            #Will read info from L1 structure
-                            basename = f"{reaction_name}"
-                        db = connect(f"{parent_chemid}/kinbot.db")
-                        *_, last_row = db.select(name=f"{basename}")
-                        atoms = last_row.toatoms()
-                        stationary_point = StationaryPoint.from_ase_atoms(atoms)
-                        stationary_point.characterize()
-                        fragments, maps = stationary_point.start_multi_molecular()
-                        inf_energy = 0
-                        for frag in fragments:
-                            frag.characterize()
-                            if level == "L1":
-                                *_, last_row = db.select(name=f"{frag.chemid}_well_VTS")
-                                inf_energy += last_row.data.get('energy')*constants.EVtoHARTREE
-                            elif level == "L2":
-                                *_, last_row = db.select(name=f"{frag.chemid}_well_VTS_high")
-                                inf_energy += last_row.data.get('energy')*constants.EVtoHARTREE
-                            elif level == "L3":
-                                molp = Molpro(frag, par)
-                                status, molpro_energy = molp.get_molpro_energy(par['vrc_tst_scan_parameters']["molpro_key"].upper(), name=f"{frag.chemid}_well_VTS_sample")
-                                if status:
-                                    inf_energy += molpro_energy
-                        frag0_index, position0 = np.where(np.asarray(maps) == int(indexes[0]))
-                        frag1_index, position1 = np.where(np.asarray(maps) == int(indexes[1]))
-                        scan_ref = [0, 0]
-                        if str(fragments[0].chemid) != products[0]: #True is fragments are swapped
-                            if frag0_index == 0:
-                                scan_ref = f"scan_ref = [{int(position1)}, {int(position0)}]" + "\n"
-                            else:
-                                scan_ref = f"scan_ref = [{int(position0)}, {int(position1)}]" + "\n"
-                        else:
-                            if frag0_index == 0:
-                                scan_ref = f"scan_ref = [{int(position0)}, {int(position1)}]" + "\n"
-                            else:
-                                scan_ref = f"scan_ref = [{int(position1)}, {int(position0)}]" + "\n"
-                    if "VRC TST Sampling recommended start: " in line :
-                        if float(line.split("start: ")[1]) > vrc_tst_start:
-                            vrc_tst_start = float(line.split("start: ")[1])
-
-                match scan_type:
-                    case "":
-                        y_data = y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_trust")
-                        x_data = x_data.replace("x", f"r_trust")
-                        scan_trust += y_data + "\n" + x_data + "\n"
-                    case "_frozen":
-                        y_data = y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_sample")
-                        x_data = x_data.replace("x", f"r_sample")
-                        scan_sample += y_data + "\n" + x_data + "\n"
+                    match scan_type:
+                        case "":
+                            y_data = y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_trust")
+                            x_data = x_data.replace("x", f"r_trust")
+                            scan_trust += y_data + "\n" + x_data + "\n"
+                        case "_frozen":
+                            y_data = y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_sample")
+                            x_data = x_data.replace("x", f"r_sample")
+                            scan_sample += y_data + "\n" + x_data + "\n"
+                    
+                else:
+                    inf_energy = 0.0
+                    scan_ref = [0, 0]
+                    scan_trust = "e_trust = [0., 0.]\n r_trust = [0., 25]\n"
+                    scan_sample = "e_sample = [0., 0.]\n r_sample = [0., 25]\n"
                         
             fragments = []
             for frag_number in range(tot_frag):

@@ -219,11 +219,17 @@ class VrcTstScan(GeneralReac):
     def find_bond_to_scan(self):
         reaction_name, products = self.instance
         if "hom_sci" in reaction_name: #The two numbers at the end of a hom_sci reaction should be where the bond was broken
-            atoms_index = list(reaction_name.split("_")[-2:])
-            initial_well = copy.deepcopy(self.species)
+            atoms_index = []
+            for idx in reaction_name.split("_")[-2:]:
+                atoms_index.append(int(idx)-1)
+            initial_well = StationaryPoint(self.species.name, self.species.charge, self.species.mult, natom=self.species.natom, atom=self.species.atom, geom=self.species.geom)
+            initial_well.characterize()
             initial_well.bond[atoms_index[0], atoms_index[1]] = 0
             initial_well.bond[atoms_index[1], atoms_index[0]] = 0
+            initial_well.bonds[0][atoms_index[0], atoms_index[1]] = 0
+            initial_well.bonds[0][atoms_index[1], atoms_index[0]] = 0
             fragments, maps = initial_well.start_multi_molecular()
+            shortest = initial_well.dist[atoms_index[0], atoms_index[1]]
         else: #For vdW well, find the direction, and find the closest atoms between fragments
             for direction in ["F","R"]:
                 status, geom = self.qc.get_qc_geom(f"{reaction_name}_IRC_{direction}_prod", self.species.natom)
@@ -237,18 +243,42 @@ class VrcTstScan(GeneralReac):
             if status != 0 : #Could not find the vdW_well, don't do the scan
                 self.scan = 0
         #Additional check to see if this is the correct vdW well
-        frag_chemids = [str(frag.chemid) for frag in fragments]
-        prod_chemids = list(products.split("_"))
-        for frag_chemid, prod_chemid in zip(sorted(frag_chemids), sorted(prod_chemids)):
-            if frag_chemid != prod_chemid:
-                self.scan = 0 #products from db and from input are different, don't do the scan
-                break
-        shortest = np.inf
-        for atom1 in maps[0]:
-            for atom2 in maps[1]:
-                if initial_well.dist[atom1, atom2] < shortest:
-                    shortest = initial_well.dist[atom1, atom2]
-                    atoms_index = [atom1, atom2]
+            frag_chemids = [str(frag.chemid) for frag in fragments]
+            prod_chemids = list(products.split("_"))
+            for frag_chemid, prod_chemid in zip(sorted(frag_chemids), sorted(prod_chemids)):
+                if frag_chemid != prod_chemid:
+                    logger.info(f"Cancelling scan {self.instance_basename}: reaction's products in db and in input are differents.")
+                    self.scan = 0 #products from db and from input are different, don't do the scan
+                    break
+            shortest = np.inf
+            for atom1 in maps[0]:
+                for atom2 in maps[1]:
+                    if initial_well.dist[atom1, atom2] < shortest:
+                        shortest = initial_well.dist[atom1, atom2]
+                        atoms_index = [atom1, atom2]
+
+        #Make the maps the same length for np.asarray (needs homogen lists)
+        if len(maps[0]) != len(maps[1]):
+            len_dif = len(maps[0]) - len(maps[1])
+            while len_dif < 0:
+                maps[0] = np.append(maps[0], 999)
+                len_dif = len(maps[0]) - len(maps[1])
+            while len_dif > 0:
+                maps[1] = np.append(maps[1], 999)
+                len_dif = len(maps[0]) - len(maps[1])
+                
+        frag0_index, position0 = np.where(np.asarray(maps) == atoms_index[0])
+        frag1_index, position1 = np.where(np.asarray(maps) == atoms_index[1])
+        if str(fragments[0].chemid) != products[0]: #True is fragments are swapped
+            if frag0_index == 0:
+                self.scan_ref = [int(position1), int(position0)]
+            else:
+                self.scan_ref = [int(position0), int(position1)]
+        else:
+            if frag0_index == 0:
+                self.scan_ref = [int(position0), int(position1)]
+            else:
+                self.scan_ref = [int(position1), int(position0)]
         return [initial_well, atoms_index, shortest]
     
     def finish_vrc_tst_scan(self, level):
@@ -308,16 +338,17 @@ class VrcTstScan(GeneralReac):
                     data_legends.append(f"{self.qc.VTS_methods['L3'][0]}/{self.qc.VTS_basis['L3'][0]}")
                 else:
                     data_legends.append(f"{self.qc.VTS_methods['L3'][1]}/{self.qc.VTS_basis['L3'][1]}")
-        comments = [f"inf_energy: {self.assymptote(level)}"]
+        comments = [f"inf_energy: {self.assymptote(level)}", f"scan_ref = {self.scan_ref}"]
         if min(y[-1]) < -10:
             surfaces_start = 5 # Energy at which the vrc tst surfaces should start
             diff = min(y[-1]) + surfaces_start
             for index, energy in enumerate(y[-1]):
                 if (energy + surfaces_start) < 0:
                     if (energy + surfaces_start) > diff:
-                        comments.append(f"VRC TST Sampling recommended start: {x[index]}")
+                        start_index = index
                 else:
                     break
+            comments.append(f"VRC TST Sampling recommended start: {x[start_index]}")
     
         utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_basename}", x_label=x_label, y_label=y_label, data_legends=data_legends, comments=comments)
 

@@ -224,7 +224,7 @@ class QuantumChemistry:
                         kwargs.pop('opt', None)
                     except KeyError:
                         pass
-            if 'hom_sci' in job:
+            if 'hom_sci' in job and not VTS:
                 try:
                     kwargs.pop('opt', None)
                 except KeyError:

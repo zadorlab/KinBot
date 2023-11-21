@@ -136,8 +136,16 @@ class VrcTstScanFrozen(VrcTstScan):
         Function that selects the neighbourgs of the closest atom in each fragment,
         and returns the values of the interfragments angles and dihedrals.
         """
+        save_name = copy.copy(self.species.name)
         closest_to_RA = [[],[]] #each list contains the 2 (or less) closest atoms to the reactive atom in their respective fragment
         fragments, maps = self.species.start_multi_molecular()
+        if len(fragments) == 1:
+            self.species.name = save_name
+            self.species.bond[self.instance[0], self.instance[1]] = 0
+            self.species.bond[self.instance[1], self.instance[0]] = 0
+            self.species.bonds[0][self.instance[0], self.instance[1]] = 0
+            self.species.bonds[0][self.instance[1], self.instance[0]] = 0
+            fragments, maps = self.species.start_multi_molecular()
         for frag_number, ra in enumerate(self.instance):
             for neighbourg_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == ra)[0][0]]):
                 if bond != 0:

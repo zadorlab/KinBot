@@ -2107,7 +2107,7 @@ class ReactionFinder:
             self.reactions[name] = []
             self.reactions[fname] = []
         if self.vrc_tst_scan is not None:
-            self.new_reaction(self.vrc_tst_scan, name, a=0, b=-1, cross=True)# defined by the user: [[reactant_name, reaction_name, products_name],[...]]
+            self.new_reaction(self.vrc_tst_scan, name, a=0, b=-1, cross=True)# defined by the user: [[reaction_name, products_name],[...]]
             self.new_reaction(self.vrc_tst_scan, fname, a=0, b=-1, cross=True)
             return 0
         else:

@@ -1,3 +1,4 @@
+import numpy as np
 
 class VRC_TST_Surface:
     def __init__(self, fragments, pp_dist):
@@ -5,7 +6,13 @@ class VRC_TST_Surface:
         for frag in fragments:
             self.centers[f"{frag.frag_number}"] = frag.pivot_points
 
-        self.distances = pp_dist
+        self.distances = []
+        for index, element in enumerate(pp_dist):
+            self.distances.append(list(element))
 
     def __repr__(self):
-        return f"Surface(pivotpoints={self.centers},\n          distances={self.distances}),".replace("[[", "np.array([[").replace("]]","]])").replace("]]),","]]),\n                    ").replace("])),","])),\n\n")
+        return f"Surface(pivotpoints={self.centers},\n          distances={self.distances}),"\
+            .replace("[[", "np.array([[")\
+            .replace("]]","]])")\
+            .replace("]]),","]]),\n                    ")\
+            .replace("])),","])),\n\n")

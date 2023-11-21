@@ -1301,7 +1301,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                         if "inf_energy" in line:
                             inf_energy = float(line.split("energy: ")[1])
                         if "scan_ref" in line:
-                            scan_ref = [int(line.split("ref = ")[1].split(",")[0][1:]), int(line.split("ref = ")[1].split(",")[1][:-2])]
+                            scan_ref = f"scan_ref = [{[int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]}]"
                         if "VRC TST Sampling recommended start: " in line :
                             if float(line.split("start: ")[1]) > vrc_tst_start:
                                 vrc_tst_start = float(line.split("start: ")[1])
@@ -1388,7 +1388,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                     pp_dist = np.zeros(tuple(n_pp), dtype=float)
                     pp_dist[:] = dist
                     
-                    surfaces.append(VRC_TST_Surface(fragments, pp_dist))
+                    surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
                     for frag in fragments:
                         frag.pivot_points = [] #Reset the pivot points of each fragments for next surface.
                     
@@ -1416,8 +1416,8 @@ def create_rotdPy_inputs(par, bless, vdW):
                         "'max_jobs': 500}"
 
             #Flux block:
-            Flux_block = "flux_parameter = {'pot_smp_max': 1000, 'pot_smp_min': 40, #per facet\n" +\
-                         "                  'tot_smp_max': 1500, 'tot_smp_min': 40, #per surface\n" +\
+            Flux_block = "flux_parameter = {'pot_smp_max': 500, 'pot_smp_min': 50, #per facet\n" +\
+                         "                  'tot_smp_max': 1500, 'tot_smp_min': 100, \n" +\
                          "                  'flux_rel_err': 1, 'smp_len': 1}\n"
             
         else:

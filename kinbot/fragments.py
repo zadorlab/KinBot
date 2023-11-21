@@ -113,7 +113,9 @@ class Fragment(StationaryPoint):
         return all_elem
     
     def set_pivot_points(self, dist, ra_indexes_in_parent):
-        if dist >= 12:
+        if self.natom == 1:
+            self.set_pp_on_com()
+        elif dist >= 12:
             self.set_pp_on_com()
         elif dist >= 10 and dist < 12:
             self.set_pp_on_com()

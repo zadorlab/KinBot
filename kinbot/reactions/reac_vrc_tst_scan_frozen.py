@@ -1,7 +1,5 @@
 from kinbot.reactions.reac_vrc_tst_scan import VrcTstScan
 from kinbot import geometry
-from sella import Internals
-from kinbot import geometry
 import numpy as np
 import logging
 import copy
@@ -30,7 +28,7 @@ class VrcTstScanFrozen(VrcTstScan):
         if distance == None or not isinstance(distance, float):
             distance = self.scan_list[0]
 
-        interfragments_param = self.get_interfragments_param()
+        interfragments_param = self.get_interfragments_param(level=level)
 
         geometries = [geom for geom in self.long_range["geom"][level].values()]
 
@@ -131,10 +129,11 @@ class VrcTstScanFrozen(VrcTstScan):
         ase.io.write(filename="print_dif.xyz", images=myatom, format="xyz")
 
                 
-    def get_interfragments_param(self):
+    def get_interfragments_param(self, level="L1"):
         """
         Function that selects the neighbourgs of the closest atom in each fragment,
         and returns the values of the interfragments angles and dihedrals.
+        The level is only used as small orientation correction for planar fragments.
         """
         save_name = copy.copy(self.species.name)
         closest_to_RA = [[],[]] #each list contains the 2 (or less) closest atoms to the reactive atom in their respective fragment
@@ -161,6 +160,7 @@ class VrcTstScanFrozen(VrcTstScan):
                             break
         changes = []
         #Calculate the angles values:
+        modif_angle = self.check_deformation_into_planar(fragments[0], self.long_range["geom"][level][f"{0}"], maps[0], self.instance[0])
         if len(closest_to_RA[0]) != 0:
             point_A = self.species.geom[closest_to_RA[0][0]]
             point_B = self.species.geom[self.instance[0]]
@@ -168,7 +168,8 @@ class VrcTstScanFrozen(VrcTstScan):
             changes.append([closest_to_RA[0][0],
                                    self.instance[0],
                                    self.instance[1],
-                                   np.degrees(geometry.calc_angle(point_A, point_B, point_C))%360])
+                                   (np.degrees(geometry.calc_angle(point_A, point_B, point_C))%360)- modif_angle])
+        modif_angle = self.check_deformation_into_planar(fragments[1], self.long_range["geom"][level][f"{1}"], maps[1], self.instance[1])
         if len(closest_to_RA[1]) != 0:
             point_A = self.species.geom[closest_to_RA[1][0]]
             point_B = self.species.geom[self.instance[1]]
@@ -176,7 +177,7 @@ class VrcTstScanFrozen(VrcTstScan):
             changes.append([closest_to_RA[1][0],
                                    self.instance[1],
                                    self.instance[0],
-                                   np.degrees(geometry.calc_angle(point_A, point_B, point_C))%360])
+                                   (np.degrees(geometry.calc_angle(point_A, point_B, point_C))%360)- modif_angle])
         
         #Calculate the dihedrals values:
         if len(closest_to_RA[0]) != 0 and len(closest_to_RA[1]) != 0:
@@ -211,6 +212,34 @@ class VrcTstScanFrozen(VrcTstScan):
                             geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]%360])
         
         return changes
+    
+    def check_deformation_into_planar(self, stationary_point, geom, stp_map, reactive_atom):
+        """Function that checks the planarity of individualy optimised fragments around the reactive atom,
+        and returns the out-of-plane angle of the short-range optimized fragment"""
+        neighbourgs = 0
+        neighbourgs_index = []
+        for index, bond in enumerate(stationary_point.bond[np.where(stp_map == reactive_atom)[0][0]]):
+            if bond > 0:
+                neighbourgs += 1
+                neighbourgs_index.append(index)
+        neighbourgs_index.append(np.where(stp_map == reactive_atom)[0][0])
+
+        if neighbourgs == 3:
+            point_A = stationary_point.geom[neighbourgs_index[0]]
+            point_B = stationary_point.geom[neighbourgs_index[1]]
+            point_C = stationary_point.geom[neighbourgs_index[2]]
+            point_D = stationary_point.geom[neighbourgs_index[3]]
+            original_angle, colinear = np.degrees(geometry.calc_out_of_plane_angle(point_A, point_B, point_C, point_D))
+
+            point_A = geom[neighbourgs_index[0]]
+            point_B = geom[neighbourgs_index[1]]
+            point_C = geom[neighbourgs_index[2]]
+            point_D = geom[neighbourgs_index[3]]
+            new_angle, colinear = np.degrees(geometry.calc_out_of_plane_angle(point_A, point_B, point_C, point_D))
+            angle = original_angle - new_angle
+            return angle
+        else:
+            return 0.
 
     def get_constraints(self, step, geom):
         fix = []

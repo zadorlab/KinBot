@@ -1,11 +1,12 @@
 import os
 import logging
 import numpy as np
+import re
+from dataclasses import dataclass
 
 from kinbot import kb_path
 from kinbot import constants
-from kinbot import zmatrix
-
+import math
 
 logger = logging.getLogger('KinBot')
 
@@ -59,20 +60,8 @@ class Molpro:
         geometry_block = "geometry={ \n"
         if geom_type == "xyz":
             geometry_block += f"{self.species.natom};\n{self.species.name};\n{geom}\n"
-        #elif geom_type == "zmat":
-        #    distances, angles, dihedrals = zmatrix.make_simple_zmat_from_cart(self.species)
-        #    for index in range(self.species.natom):
-        #        geometry_block += f"{self.species.atom[index]}{index}"
-        #        if index > 0:
-        #                geometry_block += f", {self.species.atom[index-1]}{index-1}, dist_{index}"
-        #                variables_block += f"{'dist_':>10s}{index} = {distances[index-1]:>12.5f};\n"
-        #        if index > 1:
-        #                geometry_block += f", {self.species.atom[index-2]}{index-2}, angle_{index}"
-        #                variables_block += f"{'angle_':>10s}{index} = {angles[index-2]:>12.5f};\n"
-        #        if index > 2:
-        #                geometry_block += f", {self.species.atom[index-3]}{index-3}, dihed_{index}"
-        #                variables_block += f"{'dihed_':>10s}{index} = {dihedrals[index-3]:>12.5f};\n"
-        #        geometry_block += "\n"
+        elif geom_type == "zmat":
+            raise NotImplementedError
         geometry_block += "}\n" 
 
         nelectron -= self.species.charge
@@ -154,10 +143,6 @@ class Molpro:
                 basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][0]}"
             else:
                 basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][1]}"
-            active_orbitals = 2
-            active_electrons = 2
-            closed_orbitals = (nelectron-active_electrons)/2
-            occ_obitals = closed_orbitals + active_orbitals
             
             method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
 
@@ -165,8 +150,14 @@ class Molpro:
                 l3_method = self.par["vrc_tst_scan_methods"]["L3"][0]
             else:
                 l3_method = self.par["vrc_tst_scan_methods"]["L3"][1]
-            match l3_method:
-                case "caspt2":
+
+            
+            match regex_in(l3_method):
+                case r".*caspt2\([0-9]+,[0-9]+\)":
+                    active_electrons = int(l3_method.split("caspt2(")[1].split(",")[0])
+                    active_orbitals = int(l3_method.split("caspt2(")[1].split(",")[1][:-1])
+                    closed_orbitals = int(math.trunc(nelectron-active_electrons)/2)
+                    occ_obitals = closed_orbitals + active_orbitals
                     method += " {multi,\n" + f" occ,{occ_obitals}\n closed,{closed_orbitals}\n" + " }\n\n"
                     if spin == 0:
                         method += " {rs2c, shift=0.3}\n"
@@ -291,3 +282,14 @@ class Molpro:
         else:
             fname = str(self.species.chemid)
         return fname
+
+@dataclass
+class regex_in:
+    string: str
+
+    def __eq__(self, other: str | re.Pattern):
+        if isinstance(other, str):
+            other = re.compile(other)
+        assert isinstance(other, re.Pattern)
+        # TODO extend for search and match variants
+        return other.fullmatch(self.string) is not None

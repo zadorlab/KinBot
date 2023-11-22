@@ -1265,7 +1265,7 @@ def create_rotdPy_inputs(par, bless, vdW):
             tot_frag = len(products)
 
 
-            scan_trust = ""
+            scan_trust = "#Scan energies are in Kcal/mol. The 0 is the assymptotic energy.\n#Scan distances are in Angstrom"
             scan_sample = ""
             vrc_tst_start = 0
             do_correction = True
@@ -1394,12 +1394,12 @@ def create_rotdPy_inputs(par, bless, vdW):
                     
             #Creating the strings to print input file
             #Fragments block:
-            Fragments_block = ""
+            Fragments_block = "#Fragments geometries are in Angstroms"
             for frag in fragments:
                 Fragments_block = Fragments_block + (repr(frag)) + "\n"
 
             #Surfaces block:
-            Surfaces_block = "divid_surf = [\n"
+            Surfaces_block = "#Pivot_points and distances are in Bohr\ndivid_surf = [\n"
             for surf in surfaces:
                 Surfaces_block = Surfaces_block + (repr(surf))
                 if surf == surfaces[-1]:

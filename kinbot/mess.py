@@ -409,6 +409,7 @@ class MESS:
             bimol = self.blbimoltpl.format(barrier='{blessname}',
                                            reactant='{wellname}',
                                            prod='{prodname}',
+                                           chemids=name,
                                            pstsymm=pstsymm_factor,
                                            stoich=stoich,
                                            frag1=frag1,

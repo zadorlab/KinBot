@@ -327,6 +327,9 @@ def postprocess(par, jobs, task, names, mass):
                     continue
                 reactant = ji
                 prod = pieces[3:]  # this is the chemid of the product
+                if 'none' not in par['keep_chemids']:
+                    if len(prod) == 1 and prod[0] not in par['keep_chemids']:
+                        continue
                 # calculate the barrier based on the new energy base
                 barrier = 0. - base_energy - base_zpe
 
@@ -1107,11 +1110,21 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name.append(rxn[1])
             energy = rxn[3] + uq.calc_factor('barrier', uq_iter)
             welldepth1 = energy - well_energies_current[rxn[0]] 
+            if welldepth1 < 0 and par['correct_submerged']== 1:  # submerged, not allowed in MESS
+                # tunneling block for submerged is cleaned later
+                energy = well_energies_current[rxn[0]]
+                logger.warning(f'Submerged barrier corrected for {name}')
             if len(rxn[2]) == 1:
                 welldepth2 = energy - well_energies_current[rxn[2][0]] 
+                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                    energy = well_energies_current[rxn[2][0]]
+                    logger.warning(f'Submerged barrier corrected for {name}')
             else:
                 prodname = '_'.join(sorted(rxn[2]))
                 welldepth2 = energy - prod_energies_current[prodname] 
+                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                    energy = prod_energies_current[prodname]
+                    logger.warning(f'Submerged barrier corrected for {name}')
             cutoff = min(welldepth1, welldepth2)
             with open(rxn[0] + '/' + rxn[1] + '_' + mess_iter + '.mess') as f:
                 s.append(f.read().format(name=' '.join(name), 
@@ -1370,7 +1383,8 @@ def get_l3energy(job, par, bls=0):
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:
                 lines = f.readlines()
-                for line in reversed(lines):
+                #for line in reversed(lines):
+                for line in lines:
                     if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
                         logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))

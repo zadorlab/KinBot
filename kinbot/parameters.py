@@ -287,6 +287,8 @@ class Parameters:
             'epsilon': 0.0,
             'epsilon_unit': 'K',  # can be K or J/mol or cm-1
             'sigma': 0.0,
+            # correct submerged barrier
+            'correct_submerged': 0,
             # MESS specific keywords
             'mess_command': 'mess',
             'TemperatureList': [300. + 100. * i for i in range(18)],

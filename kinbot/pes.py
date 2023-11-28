@@ -1404,7 +1404,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                 Surfaces_block = Surfaces_block + (repr(surf))
                 if surf == surfaces[-1]:
                     Surfaces_block = Surfaces_block[:-3]
-            Surfaces_block= Surfaces_block + "]\n"
+            Surfaces_block += "]\n"
 
             #Calc_block:
             whoami = getpass.getuser()
@@ -1418,7 +1418,7 @@ def create_rotdPy_inputs(par, bless, vdW):
             #Flux block:
             Flux_block = "flux_parameter = {'pot_smp_max': 500, 'pot_smp_min': 50, #per facet\n" +\
                          "                  'tot_smp_max': 1500, 'tot_smp_min': 100, \n" +\
-                         "                  'flux_rel_err': 1, 'smp_len': 1}\n"
+                         "                  'flux_rel_err': 10, 'smp_len': 1}\n"
             
         else:
             logger.warning("The creation of rotdPy inputs currently only work for bimolecular products.")

@@ -30,9 +30,19 @@ class VrcTstScanFrozen(VrcTstScan):
 
         interfragments_param = self.get_interfragments_param(level=level)
 
+        #Recover the geometry of the frozen fragments for desired level
         geometries = [geom for geom in self.long_range["geom"][level].values()]
 
-        #modify dihedrals and angles
+        #Set inter-fragment distance
+        frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range["maps"]) if atom_index in fmap][0] for atom_index in self.instance]
+        point_A = geometries[frag_number[0]][np.where(self.long_range["maps"][frag_number[0]] == self.instance[0])[0]][0]
+        point_B = geometries[frag_number[1]][np.where(self.long_range["maps"][frag_number[1]] == self.instance[1])[0]][0]
+
+        current_distance = point_B - point_A + 0.0000001 #avoids superposition of identical fragments
+        shift = geometry.unit_vector(current_distance)*distance - current_distance
+        geometries[frag_number[1]] += shift
+
+        #modify relative orientation of frozen fragments (dihedrals and angles)
         for modif in reversed(interfragments_param):
             match len(modif):
                 case 5:
@@ -48,7 +58,7 @@ class VrcTstScanFrozen(VrcTstScan):
 
                     axis = geometry.unit_vector(point_C - point_B)
 
-                    current_dihedral = geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]%360
+                    current_dihedral = geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]
                     rotation_angle = np.radians(modif[-1] - current_dihedral)
 
                     geometries[frag_number[0]] = np.dot(coord, geometry.rotation_matrix(axis, rotation_angle)) + point_B
@@ -64,10 +74,11 @@ class VrcTstScanFrozen(VrcTstScan):
 
                     axis = geometry.unit_vector(np.cross(point_A - point_B, point_C - point_B))
 
-                    current_angle = np.degrees(geometry.calc_angle(point_A, point_B, point_C))%360
+                    current_angle = np.degrees(geometry.calc_angle(point_A, point_B, point_C))
                     rotation_angle = np.radians(modif[-1] - current_angle)
 
                     geometries[frag_number[0]] = np.dot(coord, geometry.rotation_matrix(axis, rotation_angle)) + point_B
+
         #Set inter-fragment distance
         frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range["maps"]) if atom_index in fmap][0] for atom_index in self.instance]
         point_A = geometries[frag_number[0]][np.where(self.long_range["maps"][frag_number[0]] == self.instance[0])[0]][0]
@@ -88,7 +99,7 @@ class VrcTstScanFrozen(VrcTstScan):
         tmp_species.geom = bimolecular_geom
         tmp_species.characterize()
 
-        #self.print_dif(tmp_species, interfragments_param, distance)
+        # self.print_dif(tmp_species, interfragments_param, distance)
         return tmp_species
 
     def print_dif(self, geometries, interfragments_param, distance): #debugging funtion
@@ -118,10 +129,10 @@ class VrcTstScanFrozen(VrcTstScan):
                     diff = myatom.get_distance(frozen_coord[0], frozen_coord[1]) - target
                     coord_type = 'bond'
                 case 3:
-                    diff = myatom.get_angle(frozen_coord[0], frozen_coord[1], frozen_coord[2])%360 - target
+                    diff = myatom.get_angle(frozen_coord[0], frozen_coord[1], frozen_coord[2]) - target
                     coord_type = 'angle'
                 case 4:
-                    diff = myatom.get_dihedral(frozen_coord[0], frozen_coord[1], frozen_coord[2], frozen_coord[3])%360 - target
+                    diff = myatom.get_dihedral(frozen_coord[0], frozen_coord[1], frozen_coord[2], frozen_coord[3]) - target
                     coord_type = 'dihedral'
             message = "Diff for {coord_type:9s} {indexes}".format(coord_type=coord_type, indexes=frozen_coord[:-1])
             print(f"{message:35s}: {diff:11.6f}")
@@ -168,7 +179,7 @@ class VrcTstScanFrozen(VrcTstScan):
             changes.append([closest_to_RA[0][0],
                                    self.instance[0],
                                    self.instance[1],
-                                   (np.degrees(geometry.calc_angle(point_A, point_B, point_C))%360)- modif_angle])
+                                   (np.degrees(geometry.calc_angle(point_A, point_B, point_C)))- modif_angle])
         modif_angle = self.check_deformation_into_planar(fragments[1], self.long_range["geom"][level][f"{1}"], maps[1], self.instance[1])
         if len(closest_to_RA[1]) != 0:
             point_A = self.species.geom[closest_to_RA[1][0]]
@@ -177,7 +188,7 @@ class VrcTstScanFrozen(VrcTstScan):
             changes.append([closest_to_RA[1][0],
                                    self.instance[1],
                                    self.instance[0],
-                                   (np.degrees(geometry.calc_angle(point_A, point_B, point_C))%360)- modif_angle])
+                                   (np.degrees(geometry.calc_angle(point_A, point_B, point_C)))- modif_angle])
         
         #Calculate the dihedrals values:
         if len(closest_to_RA[0]) != 0 and len(closest_to_RA[1]) != 0:
@@ -189,7 +200,8 @@ class VrcTstScanFrozen(VrcTstScan):
                             self.instance[0],
                             self.instance[1],
                             closest_to_RA[1][0],
-                            geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]%360])
+                            geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]])
+        modif_angle = self.check_deformation_into_planar(fragments[0], self.long_range["geom"][level][f"{0}"], maps[0], self.instance[0])
         if len(closest_to_RA[0]) == 2:
             point_A = self.species.geom[closest_to_RA[0][1]]
             point_B = self.species.geom[closest_to_RA[0][0]]
@@ -199,7 +211,8 @@ class VrcTstScanFrozen(VrcTstScan):
                             closest_to_RA[0][0],
                             self.instance[0],
                             self.instance[1],
-                            geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]%360])
+                            self.calc_corrected_dihedral(point_A, point_B, point_C, point_D, modif_angle)[0]])
+        modif_angle = self.check_deformation_into_planar(fragments[1], self.long_range["geom"][level][f"{1}"], maps[1], self.instance[1])
         if len(closest_to_RA[1]) == 2:
             point_A = self.species.geom[closest_to_RA[1][1]]
             point_B = self.species.geom[closest_to_RA[1][0]]
@@ -209,10 +222,46 @@ class VrcTstScanFrozen(VrcTstScan):
                             closest_to_RA[1][0],
                             self.instance[1],
                             self.instance[0],
-                            geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]%360])
+                            self.calc_corrected_dihedral(point_A, point_B, point_C, point_D, modif_angle)[0]])
         
         return changes
     
+    def calc_corrected_dihedral(self, a, b, c, d, alpha):
+        """
+        Calculate the A - B - C - D dihedral angle in radians.
+        For collinear or close to collinear structures return a warning.
+        alpha: Deformation angle (from out-of-plane to planar, in degree) 
+        between long-range and short range geometry (ex: ch3)
+
+        Returns the value in degrees
+        np.arctan2 returns a value on the [-Pi,+Pi] interval
+        """
+        collinear_cutoff = 175./180.
+        collinear = 0
+        if (abs(geometry.calc_angle(a, b, c)) > np.pi * collinear_cutoff or
+                abs(geometry.calc_angle(b, c, d)) > np.pi * collinear_cutoff):
+            collinear = 1
+
+        b0 = a - b  # reversed on purpose
+        b1 = c - b
+        b2 = d - c
+
+        # normalize b1 so that it does not influence magnitude of vector
+        b1 /= np.linalg.norm(b1)
+
+        # v = projection of b0 onto plane perpendicular to b1
+        #   = b0 minus component that aligns with b1
+        # w = projection of b2 onto plane perpendicular to b1
+        #   = b2 minus component that aligns with b1
+        v = b0 - np.dot(b0, b1)*b1
+        w = b2 - np.dot(b2, b1)*b1
+
+        # angle between v and w in a plane is the torsion angle
+        # v and w may not be normalized but that's fine since tan is y/x
+        x = np.dot(v, w)
+        y = np.dot(np.cross(b1, v), (w+ np.sin(np.deg2rad(alpha))*np.linalg.norm(c - b)*geometry.unit_vector(b0))/np.cos(np.deg2rad(alpha))) 
+        return np.degrees(np.arctan2(y, x)), collinear
+
     def check_deformation_into_planar(self, stationary_point, geom, stp_map, reactive_atom):
         """Function that checks the planarity of individualy optimised fragments around the reactive atom,
         and returns the out-of-plane angle of the short-range optimized fragment"""

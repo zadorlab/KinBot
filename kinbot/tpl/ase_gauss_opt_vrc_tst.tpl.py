@@ -41,7 +41,7 @@ try:
     db.write(mol, name=label, data={{'energy': e, 'frequencies': np.asarray(freq),
                                      'zpe': zpe, 'status': 'normal'}})
 
-except RuntimeError:
+except:
     for i in range(3):
         try:
             iowait(logfile, 'gauss')
@@ -57,7 +57,7 @@ except RuntimeError:
                                              'frequencies': np.asarray(freq),
                                              'zpe': zpe, 'status': 'normal'}})
             break
-        except RuntimeError:
+        except:
             iowait(logfile, 'gauss')
             #Save in db the lowest energy geometry if forces are converged
             if reader_gauss.read_convergence(logfile) != 0:
@@ -68,6 +68,8 @@ except RuntimeError:
                                             'frequencies': np.asarray(freq),
                                             'zpe': zpe, 'status': 'normal'}})
                 break
+            else:
+                e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
             if i == 2:
                 mol.positions = reader_gauss.read_geom(logfile, mol)
                 freq = reader_gauss.read_freq(logfile, {atom})

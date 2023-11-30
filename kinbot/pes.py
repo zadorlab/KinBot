@@ -1394,7 +1394,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                     
             #Creating the strings to print input file
             #Fragments block:
-            Fragments_block = "#Fragments geometries are in Angstroms"
+            Fragments_block = "#Fragments geometries are in Angstroms\n"
             for frag in fragments:
                 Fragments_block = Fragments_block + (repr(frag)) + "\n"
 

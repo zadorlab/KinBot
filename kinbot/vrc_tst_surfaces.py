@@ -5,7 +5,8 @@ class VRC_TST_Surface:
     def __init__(self, fragments, pp_dist):
         self.centers = {}
         for frag in fragments:
-            self.centers[f"{frag.frag_number}"] = frag.pivot_points/ constants.BOHRtoANGSTROM
+
+            self.centers[f"{frag.frag_number}"] = np.ndarray.tolist(np.asarray(frag.pivot_points)/ constants.BOHRtoANGSTROM)
 
         self.distances = []
         for index, element in enumerate(pp_dist):

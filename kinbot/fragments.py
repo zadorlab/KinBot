@@ -92,7 +92,8 @@ class Fragment(StationaryPoint):
             self.frag_name = f"{self.frag_name}_{self.frag_number}"
         elif self.frag_name in cls._fragnames:
             index = cls._fragnames.index(self.frag_name)
-            cls._instances[index].frag_name = f"{self.frag_name}_{index}"
+            cls._instances[:-1][index].frag_name = f"{self.frag_name}_{index}"
+            cls._fragnames = [inst.frag_name for inst in cls._instances[:-1]]
             self.frag_name = f"{self.frag_name}_{self.frag_number}"
         cls._fragnames.append(self.frag_name)
 
@@ -128,18 +129,12 @@ class Fragment(StationaryPoint):
                 self.set_pp_on_ra(index)
         elif dist >= 5 and dist < 6:
             self.set_ra(ra_indexes_in_parent)
+            self.set_pp_next_to_ra()
             for index in self.ra:
                 self.set_pp_on_ra(index)
-            if self.natom == 1:
-                self.set_pp_on_com()
-            else:
-                self.set_pp_next_to_ra()
         elif dist < 5:
             self.set_ra(ra_indexes_in_parent)
-            if self.natom == 1:
-                self.set_pp_on_com()
-            else:
-                self.set_pp_next_to_ra()
+            self.set_pp_next_to_ra()
         else:
             pass
                 
@@ -159,7 +154,9 @@ class Fragment(StationaryPoint):
             self.pivot_points.append(np.round(self.com, decimals=4).tolist())
 
     def set_pp_on_ra(self, index):
-            self.pivot_points.append(np.round(self.geom[index], decimals=4).tolist())
+            new_pp = np.round(self.geom[index], decimals=4).tolist()
+            if new_pp not in self.pivot_points: #In case RA on COM
+                self.pivot_points.append(new_pp)
 
     def set_pp_next_to_ra(self):
         for index in self.ra:

@@ -1265,7 +1265,7 @@ def create_rotdPy_inputs(par, bless, vdW):
             tot_frag = len(products)
 
 
-            scan_trust = "#Scan energies are in Kcal/mol. The 0 is the assymptotic energy.\n#Scan distances are in Angstrom"
+            scan_trust = "#Scan energies are in Kcal/mol. The 0 is the assymptotic energy.\n#Scan distances are in Angstrom\n"
             scan_sample = ""
             vrc_tst_start = 0
             do_correction = True

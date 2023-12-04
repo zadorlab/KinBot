@@ -163,7 +163,7 @@ class Molpro:
                         method += " {rs2c, shift=0.3}\n"
                     else:
                         method += " {rs2, shift=0.3}\n"
-                case "ccsd(t)":
+                case "ccsd\(t\)":
                     method += " {ccsd(t)-f12}\n"
                 case "uwb97xd":
                     method += " omega=0.2    !range-separation parameter\n"

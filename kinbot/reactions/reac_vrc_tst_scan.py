@@ -303,7 +303,6 @@ class VrcTstScan(GeneralReac):
         for point in reversed(self.removed):
             self.scan_list = np.delete(self.scan_list, int(point))
         e_in_kcal = self.get_e_in_kcal(level)
-        self.scan_list = np.append(self.scan_list, 25.0)
         logger.info('\tSuccessful scan for {}.'.format(self.instance_name))
         logger.info(f"\tEnergies: {e_in_kcal}")
         logger.info(f"Points removed: {self.removed}")
@@ -358,7 +357,6 @@ class VrcTstScan(GeneralReac):
         e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - self.assymptote(level))
                     for point in self.scanned]
         e_in_kcal = list(np.round(e_in_kcal, 2))
-        e_in_kcal.append(0.00)
         return e_in_kcal
 
     def get_constraints(self, step, geom):

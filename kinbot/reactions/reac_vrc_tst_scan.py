@@ -295,7 +295,6 @@ class VrcTstScan(GeneralReac):
                     if not status:
                         logger.info(f"Missing {self.scanned[point]['stationary_point'].name} at L3")
                         L3 = 0
-                        break
                     else:
                         self.scanned[point]["energy"]["L3"] = molpro_energy
                 if L3:

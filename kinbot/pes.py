@@ -1413,12 +1413,12 @@ def create_rotdPy_inputs(par, bless, vdW):
                         f"'scratch': '/scratch/{whoami}',\n" +\
                         f"'processors': 1,\n" +\
                         f"'queue': '{par['queuing']}',\n" +\
-                        "'max_jobs': 500}"
+                        "'max_jobs': 2000}"
 
             #Flux block:
-            Flux_block = "flux_parameter = {'pot_smp_max': 500, 'pot_smp_min': 50, #per facet\n" +\
-                         "                  'tot_smp_max': 1500, 'tot_smp_min': 100, \n" +\
-                         "                  'flux_rel_err': 10, 'smp_len': 1}\n"
+            Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 50, #per facet\n" +\
+                         "                  'tot_smp_max': 3000, 'tot_smp_min': 100, \n" +\
+                         "                  'flux_rel_err': 5, 'smp_len': 1}\n"
             
         else:
             logger.warning("The creation of rotdPy inputs currently only work for bimolecular products.")

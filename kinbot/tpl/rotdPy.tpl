@@ -26,21 +26,17 @@ def generate_grid(start, interval, factor, num_point):
 
 
 # temperature, energy grid and angular momentum grid
-temperature = generate_grid(10, 10, 1.05, 20)
-energy = generate_grid(0, 10, 1.05, 20)
-angular_mom = generate_grid(0, 1, 1.1, 20)
+temperature = generate_grid(10, 10, 1.05, 51)
+energy = generate_grid(0, 10, 1.05, 169)
+angular_mom = generate_grid(0, 1, 1.1, 40)
 
 # fragment info
 {Fragments_block}
 
 # Setting the dividing surfaces
-# This creates an output file, as much as the given dividing surface.
-# The output file contains temperature and the flux based on the temperature.
-# 
+
 {Surfaces_block}
 
-# how to sample the two fragments
-# calc = 'amp.amp'
 {calc_block}
 
 {scan_ref}
@@ -52,13 +48,14 @@ inf_energy = {inf_energy}
 _{job_name} = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
                          energy_size=1, min_fragments_distance={min_dist},
                          r_sample=r_sample, e_sample=e_sample,
-                         r_trust=r_trust, e_trust=e_trust, scan_ref=scan_ref)
+                         r_trust=r_trust, e_trust=e_trust, scan_ref=scan_ref,
+                         name='_{job_name}')
 
 # the flux info per surface
-#flux_rel_err: flux accuracy in 'nu' (1=90% certitude, 2=99%, ...)
+#flux_rel_err: flux accuracy (1=99% certitude, 2=98%, ...)
 #pot_smp_max: maximum number of sampling for each facet
 #pot_smp_min: minimum number of sampling for each facet
-#rtot_smp_max: maximum number of total sampling
+#tot_smp_max: maximum number of total sampling
 #tot_smp_min: minimum number of total sampling
 
 {flux_block}
@@ -66,21 +63,12 @@ _{job_name} = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
 flux_base = FluxBase(temp_grid=temperature,
                      energy_grid=energy,
                      angular_grid=angular_mom,
-                     flux_type='MICROCANONICAL',
+                     flux_type='EJ-RESOLVED',
                      flux_parameter=flux_parameter)
 
 # start the final run
+# Will read from the restart db
 multi = Multi(sample=_{job_name}, dividing_surfaces=divid_surf,
               fluxbase=flux_base, calculator=calc)
 multi.run()
-# multi.total_flux['0'].flux_array[0].run(50)
-# multi.total_flux['0'].save_file(0)
-print(multi.total_flux['0'].flux_array[0].acct_smp())
-print(multi.total_flux['0'].flux_array[0].fail_smp())
-print(multi.total_flux['0'].flux_array[0].face_smp())
-print(multi.total_flux['0'].flux_array[0].close_smp())
 
-print(multi.total_flux['1'].flux_array[0].acct_smp())
-print(multi.total_flux['1'].flux_array[0].fail_smp())
-print(multi.total_flux['1'].flux_array[0].face_smp())
-print(multi.total_flux['1'].flux_array[0].close_smp())

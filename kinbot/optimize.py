@@ -534,7 +534,7 @@ class Optimize:
                     #    same_geom = 0
                 else:
                     result_rmsd = 'not done'
-                logger.info(f'\t{self.name} high level rmsd: {result_rmsd:.2f}, '\
+                logger.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
                             f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
                             f'corr: {geometry.matrix_corr(imagmode, imagmode_high):.2f}, '\
                             f'same: {same_geom}')

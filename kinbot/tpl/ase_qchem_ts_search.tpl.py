@@ -24,7 +24,6 @@ try:
     iowait(logfile, 'qchem')
     mol.positions = reader_qchem.read_geom(logfile, mol)
     db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
-    break
 except RuntimeError:
     success = False
 

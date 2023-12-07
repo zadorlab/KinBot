@@ -979,7 +979,8 @@ class QuantumChemistry:
 
         if self.use_sella:
             db = connect('kinbot.db')
-            *_, last_row = db.select(name=job)
+            for row in db.select(name=job):
+                last_row = row
             hess = last_row.data['hess']
         elif self.qc == 'gauss':
             hess = np.zeros((3 * natom, 3 * natom))
@@ -1007,7 +1008,16 @@ class QuantumChemistry:
                             n += 1
                     break
             else:
-                raise FileNotFoundError(f'Hessian matrix not found on {fchk}.')
+                # Try to see if the Hessian is the database.
+                db = connect('kinbot.db')
+                for row in db.select(name=job):
+                    last_row = row
+                if 'hess' in last_row.data:
+                    hess = last_row.data['hess']
+                    logger.warning(f'Hessian matrix not found on {fchk}. '
+                                   'Reading from kinbot.db database.')
+                else:
+                    raise FileNotFoundError(f'Hessian matrix not found on {fchk}.')
         elif self.qc == 'qchem':
             hess = []
             row = 0

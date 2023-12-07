@@ -202,7 +202,7 @@ class MESS:
                     species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
                     if self.species.reac_ts_done[index] == -1:
                         ts_zeroenergy = (reaction.ts.energy + reaction.ts.zpe) * constants.AUtoKCAL
-                        if not self.par['high_level'] and reaction.mp2 == 1:
+                        if not self.par['high_level'] and reaction.mp2 == 1 and self.par['qc'] != 'nn_pes':
                             jobname = '{}_well_mp2'.format(str(self.species.chemid))
                             well_zeroenergy = self.get_zeroenergy(jobname, qc)
                         elif not self.par['high_level'] and self.species.reac_type[index] == 'barrierless_saddle':

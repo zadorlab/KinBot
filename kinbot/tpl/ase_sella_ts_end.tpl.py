@@ -55,6 +55,7 @@ opt = Sella(mol, order=1,
             trajectory='{label}.traj',
             logfile='{label}_sella.log',
             **sella_kwargs)
+freqs = []
 try:
     converged = False
     fmax = 1e-4
@@ -65,15 +66,15 @@ try:
         converged = opt.run(fmax=fmax, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
         if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
-            or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
-            or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+                or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
+                or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+            print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
             if attempts <= 3:
-                print('Found more than one imaginary frequencies. Retrying with '
-                      f'a tighter criterion: fmax={{fmax}}.')
+                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
         else:
             converged = True
             e = mol.get_potential_energy()
@@ -83,7 +84,10 @@ try:
     if not converged:
         raise RuntimeError
 except (RuntimeError, ValueError):
-   db.write(mol, name='{label}', data={{'status': 'error'}})
+    data = {{'status': 'error'}}
+    if freqs:
+        data['frequencies'] = freqs
+    db.write(mol, name='{label}', data=data)
 
 with open('{label}.log', 'a') as f:
     f.write('done\n')

@@ -95,6 +95,7 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 * Carles Martí (cmartia@sandia.gov)
 
 ## Papers using KinBot
+* Li, H., Lang, J., Foley, C. D., Zádor, J., Suits, A. G.: _Sulfur (3P) reaction with conjugated dienes gives cyclization to thiophenes under single collision conditions._ J. Phys. Chem. Letters, **2023** 14, 7611–7617. https://doi.org/10.1021/acs.jpclett.3c01953
 * Martí, C., Michelsen, H. A., Najm, H. N., Zádor, J.: _Comprehensive kinetics on the C7H7 potential energy surface under combustion conditions._ J. Phys. Chem. A, **2023**, 127, 1941–1959. https://pubs.acs.org/doi/full/10.1021/acs.jpca.2c08035  
 * Zádor, J, Martí, C., Van de Vijver, R., Johansen, S. L., Yang, Y., Michelsen, H. A., Najm, H. N.: _Automated reaction kinetics of gas-phase organic species over multiwell potential energy surfaces._ J. Phys. Chem. A, **2023**, 127, 565–588. https://doi.org/10.1021/acs.jpca.2c06558
 * Lockwood, K. S., Ahmed, S. F., Huq, N. A., Stutzman, S. C., Foust, T. D., Labbe, N. J.: _Advances in predictive chemistry enable a multi-scale rational design approach for biofuels with advantaged properties_ Sustainable Energy Fuels, **2022**, 6, 5371-5383. https://doi.org/10.1039/D2SE00773H 

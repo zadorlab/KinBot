@@ -462,7 +462,7 @@ def postprocess(par, jobs, task, names, mass):
     for index, well in enumerate(wells):
         energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
                             conf=par['conformer_search'])  # from the db
-        zpe = get_zpe(parent[well], well, 0, par['high_level'])
+        zpe = get_zpe(parent[well], well, do_vdW[index], par['high_level'])
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -1252,8 +1252,8 @@ def create_rotdPy_inputs(par, bless, vdW):
     for index, reac in enumerate(barrierless):
         reactant, reaction_name, products, barrier = reac
         job_name = f"{reaction_name}_{'_'.join(sorted(products))}"
+        rotdpy_inputs = []
         if len(par["rotdPy_inputs"]) != 0:
-            rotdpy_inputs = []
             for this_input in par["rotdPy_inputs"]:
                 inp_products = this_input.split("_")[-2:]
                 rotdpy_inputs.append(f"{'_'.join(this_input.split('_')[:-2])}_{'_'.join(sorted(inp_products))}")
@@ -1275,7 +1275,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                     if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
                         logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan_{scan_type} results not found.")
                         do_correction = False
-                elif "hom_sci" in job_name: #301020900180000000001_hom_sci_1_3_vrc_tst_scan_frozen_290890730120000000002_10000000000000000002_plt
+                elif "hom_sci" in job_name: 
                     plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[0]}_{inp_products[1]}_plt.py"
                     if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
                         plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[1]}_{inp_products[0]}_plt.py"
@@ -1413,12 +1413,12 @@ def create_rotdPy_inputs(par, bless, vdW):
                         f"'scratch': '/scratch/{whoami}',\n" +\
                         f"'processors': 1,\n" +\
                         f"'queue': '{par['queuing']}',\n" +\
-                        "'max_jobs': 500}"
+                        "'max_jobs': 2000}"
 
             #Flux block:
-            Flux_block = "flux_parameter = {'pot_smp_max': 500, 'pot_smp_min': 50, #per facet\n" +\
-                         "                  'tot_smp_max': 1500, 'tot_smp_min': 100, \n" +\
-                         "                  'flux_rel_err': 10, 'smp_len': 1}\n"
+            Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 50, #per facet\n" +\
+                         "                  'tot_smp_max': 3000, 'tot_smp_min': 100, \n" +\
+                         "                  'flux_rel_err': 5, 'smp_len': 1}\n"
             
         else:
             logger.warning("The creation of rotdPy inputs currently only work for bimolecular products.")
@@ -1676,8 +1676,8 @@ def get_l3energy(job, par, bls=0):
 
 
 def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
-    if "IRC" in jobdir:
-        jobdir = jobdir.split("_")[0]
+    if "IRC" in job:
+        jobdir = job.split("_")[0]
     db = connect(jobdir + '/kinbot.db')
     if ts:
         j = job

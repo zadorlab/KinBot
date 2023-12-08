@@ -74,7 +74,7 @@ class Parameters:
             # step size in Å
             'barrierless_saddle_step': 0.2,
             # List of distance in Å for vrc_tst surfaces
-            'vrc_tst_dist_list': [2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 11, 12, 13, 14, 15, 16, 18, 20],
+            'vrc_tst_dist_list': [2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8, 5.0, 5.2, 5.4, 5.6, 5.8, 6.0,6.2, 6.4, 6.6, 6.8, 7.0, 7.2, 7.4, 7.6, 7.8, 8.0, 8.2, 8.4, 8.6, 9.0, 9.2, 9.4, 9.6, 9.8, 10.0, 10.2, 10.4, 10.6, 10.8, 11.0, 11.2, 11.4, 11.6, 11.8, 12.0, 12.2, 12.4, 12.6, 12.8, 13.0, 13.5, 14.0, 14.5, 15.0, 15.5, 16.0],
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
             # if requested with specific_reaction = 1
@@ -102,7 +102,7 @@ class Parameters:
             # Detect vdW wells deeper than threshold (kcal/mol)
             'vdW_detection': 0.5,
             #List of barrierless reactions for which rotdPy inputs must be created
-            'rotdPy_inputs': [],
+            'rotdPy_inputs': None,
 
             # CONFORMATIONAL SEARCH
             # Do a conformational search
@@ -432,6 +432,8 @@ class Parameters:
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
 
+        if self.par['rotdPy_inputs'] == None:
+            self.par['rotdPy_inputs'] = []
         VTS_defaults= {
                 "step": 0.1,
                 "start": 2.0,

@@ -119,6 +119,7 @@ class VrcTstScan(GeneralReac):
                     hl_opt = fragments_optimized
 
         for frag_number, frag in enumerate(fragments):
+            #Frag has L2 geometry here
             frag.characterize()
             # write the L3 input and read the L3 energy, if available
             if self.par['L3_calc'] == 1:

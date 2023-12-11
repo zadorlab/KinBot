@@ -333,7 +333,7 @@ def postprocess(par, jobs, task, names, mass):
             failedwells.append(ji)
             continue
         # read the summary file
-        for line in summary:
+        for line in summary[5:]:
             if line.startswith("SUCCESS"):
                 #Unpack the succesfull lines
                 if 'vdW' not in line :

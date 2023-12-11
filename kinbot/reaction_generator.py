@@ -297,6 +297,8 @@ class ReactionGenerator:
                                          .format(barrier, obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
+                            logger.info('\tRxn barrier is ({0:.2f} kcal/mol) for {1}'
+                                         .format(barrier, obj.instance_name))
                             obj.irc = IRC(obj, self.par)  
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
@@ -392,7 +394,7 @@ class ReactionGenerator:
                                         obj.products[fri].zpe = frag.zpe
                                         obj.products[fri].geom = frag.geom
 
-                    if ndone == len(obj.products):  # all currently recognized fragments are done
+                    if ndone == len(obj.products) and self.species.reac_ts_done[index] != -999:  # all currently recognized fragments are done
                         # delete invalid ones
                         obj.products = list(np.array(obj.products)[obj.valid_prod])
                         if self.species.charge != 0:  # select the lower energy combination

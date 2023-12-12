@@ -332,7 +332,7 @@ def postprocess(par, jobs, task, names, mass):
         except:
             failedwells.append(ji)
             continue
-        # read the summary file
+        # read the summary file from after corporate message
         for line in summary[5:]:
             if line.startswith("SUCCESS"):
                 #Unpack the succesfull lines
@@ -378,7 +378,7 @@ def postprocess(par, jobs, task, names, mass):
                     ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
                                                conf=par['conformer_search'])
                     barrier += ts_energy + ts_zpe
-                    barrier *= constants.AUtoKCAL
+                barrier *= constants.AUtoKCAL
                     
                 if reactant not in wells:
                     wells.append(reactant)
@@ -403,7 +403,8 @@ def postprocess(par, jobs, task, names, mass):
                             wells.append(vdW_well)
                             do_vdW.append(True)
                             parent[vdW_well] = reactant
-                            parent[prod_name] = vdW_well
+                            if prod_name not in parent:
+                                parent[prod_name] = vdW_well
                 new = 1
                 temp = None
 
@@ -429,8 +430,23 @@ def postprocess(par, jobs, task, names, mass):
                             reactions.pop(temp)
                             if "vdW" not in line:
                                 reactions.append([reactant, reaction_name, products, barrier])
+                                if len(reactions[temp]) == 6: #True when reactions[temp] has a vdW well
+                                    parent[prod_name] = reactant
                             else:
+                                #replace the prod parent by the vdW well
+                                parent[prod_name] = vdW_well 
                                 reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
+                        elif reactions[temp][3] < barrier and "vdW" in line:
+                            wells.pop(-1)
+                            parent.pop(vdW_well)
+                        elif reactions[temp][3] == barrier:
+                            if "vdW" in line:
+                                reactions.pop(temp)
+                                parent[prod_name] = vdW_well 
+                                reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
+                            else:
+                                #If reaction exitst with same barrier/products, but with a vdW well, keep it and discard new one.
+                                continue
                         elif "hom_sci" in reactions[temp][1]:
                             reactions.pop(temp)
 
@@ -1074,7 +1090,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name = well_short[well] + ' ! ' + well
             energy = well_energies[well] + uq.calc_factor('energy', uq_iter)
             well_energies_current[well] = energy
-            if 'IRC' not in parent[well]:
+            if 'IRC' not in well:
                 with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
                     s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
                 s.append(divider)
@@ -1534,7 +1550,6 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
         barrierless_lines.append('{name} {react} {prod}'.format(name='nobar_' + str(index + len(barrierless)),
                                                                     react=vdW_name,
                                                                     prod=prod_name))
-
 
     well_lines = '\n'.join(well_lines)
     bimol_lines = '\n'.join(bimol_lines)

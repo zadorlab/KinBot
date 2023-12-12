@@ -350,7 +350,7 @@ def postprocess(par, jobs, task, names, mass):
                     if len(products) == 1 and products[0] not in par['keep_chemids']:
                         continue
                 # calculate the barrier based on the new energy base
-                barrier = (0. - base_energy - base_zpe)*constants.AUtoKCAL
+                barrier = 0. - base_energy - base_zpe
 
                 # overwrite energies with mp2 energy if needed
                 mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 

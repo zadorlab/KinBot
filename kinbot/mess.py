@@ -149,8 +149,11 @@ class MESS:
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
                 rxnProds = []
-                for x in reaction.products:
-                    rxnProds.append(x.chemid)
+                if reaction.do_vdW:
+                    rxnProds.append(reaction.irc_prod.name)
+                else:
+                    for x in reaction.products:
+                        rxnProds.append(x.chemid)
                 rxnProds.sort()
                 prod_name = '_'.join([str(pi) for pi in rxnProds])
                 new = 1
@@ -213,8 +216,11 @@ class MESS:
                         left_zeroenergy = ts_zeroenergy - well_zeroenergy
 
                         prod_zeroenergy = 0
-                        for opt in reaction.prod_opt:
-                            prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
+                        if reaction.do_vdW:
+                            prod_zeroenergy += (reaction.irc_prod_opt.species.energy + reaction.irc_prod_opt.species.zpe) * constants.AUtoKCAL
+                        else:
+                            for opt in reaction.prod_opt:
+                                prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
                         right_zeroenergy = ts_zeroenergy - prod_zeroenergy
 
                     allTS[reaction.instance_name], zeroenergy = self.write_barrier(reaction,
@@ -229,7 +235,27 @@ class MESS:
                 # Only write products once, stops duplicate product writing
                 if reaction.instance_name in ts_unique:
                     ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
-                    if len(reaction.products) == 1:
+                    if reaction.do_vdW:
+                        st_pt = reaction.irc_prod_opt.species
+                        energy_add = uq.calc_factor('energy', uq_iter)
+                        freq_factor = uq.calc_factor('freq', uq_iter)
+                        well_blocks[st_pt.name] = self.write_well(st_pt,
+                                                                    energy_add,
+                                                                    freq_factor,
+                                                                    uq_iter)
+                        bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                        energy_add = uq.calc_factor('energy', uq_iter)
+                        freq_factor = uq.calc_factor('freq', uq_iter)
+                        bless = 1
+                        pstsymm_factor = uq.calc_factor('pstsymm', uq_iter)
+                        bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
+                                                                      energy_add,
+                                                                      freq_factor,
+                                                                      pstsymm_factor,
+                                                                      uq_iter,
+                                                                      bless=bless)
+                        written_bimol_names.append(bimol_name)
+                    elif len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
                         energy_add = uq.calc_factor('energy', uq_iter)
                         freq_factor = uq.calc_factor('freq', uq_iter)

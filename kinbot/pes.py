@@ -1074,9 +1074,14 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name = well_short[well] + ' ! ' + well
             energy = well_energies[well] + uq.calc_factor('energy', uq_iter)
             well_energies_current[well] = energy
-            with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
-                s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
-            s.append(divider)
+            if 'IRC' not in parent[well]:
+                with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
+                    s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
+                s.append(divider)
+            else:
+                with open(parent[parent[well]] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
+                    s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
+                s.append(divider)
 
         # write the products and barrierless reactions
         s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)

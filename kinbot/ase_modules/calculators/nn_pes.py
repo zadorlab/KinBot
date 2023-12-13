@@ -18,45 +18,36 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 class Nn_surr(Calculator):
     implemented_properties = ['energy', 'forces']
 
-    def __init__(self, fname=None, restart=None, label='surrogate', atoms=None, 
-                 tnsr=False, **kwargs):
-        Calculator.__init__(self, restart=restart, label=label, atoms=atoms, 
-                            tnsr=tnsr, **kwargs)
-        torch.set_default_dtype(torch.float64)
-        torch.set_printoptions(precision=12)
+    def __init__(self, fname, restart=None, ignore_bad_restart_file=False, 
+                 label='surrogate', atoms=None, tnsr=True, **kwargs):
+        Calculator.__init__(self, restart=restart, 
+                            ignore_bad_restart_file=ignore_bad_restart_file, 
+                            label=label,
+                            atoms=atoms, tnsr=tnsr, **kwargs)
         if isinstance(fname, list) and fname.__len__() > 1:
             self.multinn = True
-        elif fname is None:
-            self.multinn = True
-            fname = [util_path + '/models/C5H5_SAE/2023_05_19/comp_r0-0500.pt',
-                     util_path + '/models/C5H5_SAE/2023_05_19/comp_r2-0500.pt',
-                     util_path + '/models/C5H5_SAE/2023_05_19/comp_r4-0500.pt',
-                     util_path + '/models/C5H5_SAE/2023_05_19/comp_r6-0500.pt',
-                     util_path + '/models/C5H5_SAE/2023_05_19/comp_r8-0500.pt']
-            warnings.warn('No NN model provided. Falling back to C5H5. This '
-                          'might lead to incorrect results. Model used: '
-                          f'{fname}.')
         else:
             self.multinn = False
         self.surrogate = Nnpes_calc(fname, self.multinn)
         self.tnsr = tnsr
     
     def calculate(self, atoms=None, properties=['energy', 'forces'], 
-                  system_changes=all_changes, args=None):
+                  system_changes=all_changes, loaddb=None, args=None, xid=None):
         Calculator.calculate(self, atoms, properties, system_changes)
         if 'forces' in properties:
             favail = True
         else:
             favail = False
+
         xyzd = [[[s for s in atoms.symbols], np.array(atoms.positions)]]
-        self.surrogate.dpes.aev_from_xyz(xyzd, 32, 8, 8, [6.0, 4.0], False, 
+        self.surrogate.dpes.aev_from_xyz(xyzd, 32, 8, 8, [4.6,3.1], False, 
                                          self.surrogate.myaev)
         self.surrogate.nforce = self.surrogate.dpes.full_symb_data[0].__len__() * 3
 
         if self.multinn:
-            energy, Estd = self.surrogate.eval()
+            energy, Estd, E_hf = self.surrogate.eval()
             if favail:
-                force, Fstd = self.surrogate.evalforce()
+                force, Fstd, force_ind = self.surrogate.evalforce()
         else:
             energy = self.surrogate.eval()[0][0]
             Estd = torch.tensor(0.)
@@ -67,16 +58,24 @@ class Nn_surr(Calculator):
         if self.tnsr:
             self.results['energy'] = energy
             self.results['energy_std'] = Estd
+            if self.multinn:
+                self.results['all_energies'] = E_hf
             if favail:
                 self.results['forces'] = force.view(-1, 3)
                 self.results['forces_std'] = Fstd
+                if self.multinn:
+                    self.results['all_forces'] = force_ind
         else:
-            self.results['energy'] = float(energy)
-            self.results['energy_std'] = float(Estd)
+            self.results['energy'] = energy.detach().numpy()
+            self.results['energy_std'] = Estd.detach().numpy()
+            if self.multinn:
+                self.results['all_energies'] = E_hf.detach().numpy()
             if favail:
                 self.results['forces'] = np.reshape(force.detach().numpy(), 
                                                     (-1, 3))
                 self.results['forces_std'] = Fstd.detach().numpy()
+                if self.multinn:
+                    self.results['all_forces'] = force_ind.detach().numpy()
 
 
 class My_args():
@@ -96,16 +95,13 @@ class My_args():
         self.savepth_pars = None
         self.device = torch.device('cpu')
 
-
 class Nnpes_calc():
 
     def __init__(self, fname, multinn=False):
         self.dpes = data.Data_pes(['C', 'H'])
-        # self.myaev = self.dpes.prep_aev()  # Normal AEV
-        self.myaev = self.dpes.prep_aev(nrho_rad=16, nrho_ang=8, nalpha=8, 
-                                        R_c=[5.2,3.8])  # AEV modification
-        # self.myaev = self.dpes.prep_aev(nrho_rad=16, nrho_ang=4, nalpha=8)  # Small net
+        self.myaev = self.dpes.prep_aev()
         if multinn:
+            print('MULTINET!!!')
             self.nmodel = fname.__len__()
             options = [My_args('Comp', fnm, 'hfonly') for fnm in fname]
             self.dpes.device = options[0].device
@@ -116,6 +112,7 @@ class Nnpes_calc():
             options = My_args('Comp', fname, 'hfonly')
             self.dpes.device = options.device
             self.nn_pes = pes.prep_model(True, options, load_opt=False)
+            #print('SAE energies: ', self.nn_pes.sae_energies)
 
     def eval(self, indvout=False):
         idl = list(range(0, self.dpes.ndat))
@@ -136,7 +133,7 @@ class Nnpes_calc():
                 self.E_hf[:, i] = E_hf.reshape(-1)
             E_pred = torch.mean(self.E_hf)
             Estd = torch.std(self.E_hf, 1)
-            return E_pred, Estd
+            return E_pred, Estd, self.E_hf
 
     def evalgrad(self):
         if self.nmodel == 1:
@@ -149,15 +146,15 @@ class Nnpes_calc():
                 dEdxyz[:, i] = tmp
             gmean = torch.mean(dEdxyz, 1).reshape(-1)
             gstd  = torch.std(dEdxyz, 1).reshape(-1)
-            return gmean, gstd
+            return gmean, gstd, dEdxyz
 
     def evalforce(self):
         if self.nmodel == 1:
             gradient = self.evalgrad()
             return -gradient
         else:
-            gmean, gstd = self.evalgrad()
-            return -gmean, gstd
+            gmean, gstd, dEdxyz = self.evalgrad()
+            return -gmean, gstd, -dEdxyz
 
 
 def main():

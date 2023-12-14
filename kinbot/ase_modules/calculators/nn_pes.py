@@ -19,7 +19,7 @@ class Nn_surr(Calculator):
     implemented_properties = ['energy', 'forces']
 
     def __init__(self, fname, restart=None, ignore_bad_restart_file=False, 
-                 label='surrogate', atoms=None, tnsr=True, **kwargs):
+                 label='surrogate', atoms=None, tnsr=False, **kwargs):
         Calculator.__init__(self, restart=restart, 
                             ignore_bad_restart_file=ignore_bad_restart_file, 
                             label=label,
@@ -66,7 +66,7 @@ class Nn_surr(Calculator):
                 if self.multinn:
                     self.results['all_forces'] = force_ind
         else:
-            self.results['energy'] = energy.detach().numpy()
+            self.results['energy'] = float(energy)
             self.results['energy_std'] = Estd.detach().numpy()
             if self.multinn:
                 self.results['all_energies'] = E_hf.detach().numpy()
@@ -101,7 +101,6 @@ class Nnpes_calc():
         self.dpes = data.Data_pes(['C', 'H'])
         self.myaev = self.dpes.prep_aev()
         if multinn:
-            print('MULTINET!!!')
             self.nmodel = fname.__len__()
             options = [My_args('Comp', fnm, 'hfonly') for fnm in fname]
             self.dpes.device = options[0].device

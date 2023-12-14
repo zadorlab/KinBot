@@ -625,6 +625,7 @@ def postprocess(par, jobs, task, names, mass):
                           bimol_products,
                           rxns,
                           barrierless,
+                          vdW,
                           well_energies,
                           prod_energies,
                           parent,
@@ -955,7 +956,7 @@ def get_rxn(prods, rxns):
             return rxn
 
 
-def create_short_names(wells, products, reactions, barrierless):
+def create_short_names(wells, products, reactions, barrierless, vdW):
     """
     Create a short name for all the wells, all the
     bimolecular products and all the transition states
@@ -1005,11 +1006,21 @@ def create_short_names(wells, products, reactions, barrierless):
         key = f'{rxn[0]}_{rxn[2][0]}_{rxn[2][1]}'
         nobar_short[key] = nobar_name
         n = n + 1
+    
+    for vdw in vdW:
+        if f"{vdw[1]}{vdw[5].split('vdW')[1]}" not in well_short:
+            short_name = 'w_' + str(len(well_short) + 1)
+            well_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}"] = short_name
+        nobar_name = 'nobar_' + str(n)
+        key = f"{vdw[1]}{vdw[5].split('vdW')[1]}_{vdw[2][0]}_{vdw[2][1]}"
+        nobar_short[key] = nobar_name
+        n = n + 1
+        
 
     return well_short, pr_short, fr_short, ts_short, nobar_short
 
 
-def create_mess_input(par, wells, products, reactions, barrierless,
+def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                       well_energies, prod_energies, parent, mass, l3done):
     """When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
@@ -1023,7 +1034,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     """
 
     logger.info(f"uq value: {par['uq']}")
-    short_names = create_short_names(wells, products, reactions, barrierless)
+    short_names = create_short_names(wells, products, reactions, barrierless, vdW)
     well_short, pr_short, fr_short, ts_short, nobar_short = short_names
 
     # list of the strings to write to mess input file
@@ -1095,7 +1106,7 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                     s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
                 s.append(divider)
             else:
-                with open(parent[parent[well]] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
+                with open(parent[well] + '/' + parent[well] + '_' + mess_iter + '.mess', 'r') as f:
                     s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
                 s.append(divider)
 
@@ -1132,11 +1143,38 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                                                      ground_energy=round(energy, 2),
                                                      **fr_names))
                             s.append(stemp[stemp.find('Barrier '):])
+            for vdw in vdW:
+                vdw_prod = f'{vdw[2][0]}_{vdw[2][1]}'
+                if prod == vdw_prod:
+                    with open(vdw[0] + '/' + vdw[1] + vdw[5][3:] + '_' + mess_iter + '.mess') as f:
+                        if bless == 0:
+                            s.append(f.read().format(name=name,
+                                                     blessname=nobar_short[f'{vdw[1] + vdw[5][3:]}_{bl_prod}'],
+                                                     wellname=well_short[f'{vdw[1] + vdw[5][3:]}'],
+                                                     prodname=pr_short[prod],
+                                                     ground_energy=round(energy, 2),
+                                                     **fr_names))
+                            bless = 1
+                        else:
+                            stemp = (f.read().format(name=name,
+                                                     blessname=nobar_short[f'{vdw[1] + vdw[5][3:]}_{bl_prod}'],
+                                                     wellname=well_short[f'{vdw[1] + vdw[5][3:]}'],
+                                                     prodname=pr_short[prod],
+                                                     ground_energy=round(energy, 2),
+                                                     **fr_names))
+                            s.append(stemp[stemp.find('Barrier '):])
             if not bless:
-                with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                    s.append(f.read().format(name=name,
-                                             ground_energy=round(energy, 2),
-                                             **fr_names))
+                if 'IRC' not in parent[prod]:
+                    with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                        s.append(f.read().format(name=name,
+                                                ground_energy=round(energy, 2),
+                                                **fr_names))
+                else:
+                    with open(parent[parent[prod]] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                        s.append(f.read().format(name=name,
+                                                ground_energy=round(energy, 2),
+                                                **fr_names))
+                
             s.append(divider)
 
         # write the barrier

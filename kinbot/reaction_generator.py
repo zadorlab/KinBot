@@ -483,7 +483,7 @@ class ReactionGenerator:
                                 # check the barrier height again at L2 if requested
                                 ts_energy = self.qc.get_qc_energy(f'{obj.instance_name}_high')[1]
                                 ts_zpe = self.qc.get_qc_zpe(f'{obj.instance_name}_high')[1]
-                                valid = ts_energy + ts_zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL - self.par['barrier_threshold_L2']
+                                valid = (ts_energy + ts_zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL - self.par['barrier_threshold_L2']
                                 if  valid > 0. :
                                     logger.info(f'\t{obj.instance_name} is higher than the L2 threshold by {valid}, not launching new KinBot.')
                                     self.species.reac_ts_done[index] = -999

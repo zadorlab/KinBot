@@ -80,8 +80,12 @@ class Parameters:
             'specific_reaction': 0,
             'break_bonds': [],
             'form_bonds': [],
-            # Threshold above which barriers are deemed unimportant
-            'barrier_threshold': 100.,
+            # Threshold above which barriers are deemed unimportant at L1
+            'barrier_threshold': None,
+            # Additional threshold if L2 screening is desired instead of L1
+            'barrier_threshold_L2': None,
+            # Threshold allowance for L1 relative to L2
+            'barrier_threshold_add': 10.,
             # Additional barrier allowance for homolytic scissions
             'hom_sci_threshold_add': 5.,
             # Number of 0.1 Angstrom steps in bond scans
@@ -407,6 +411,17 @@ class Parameters:
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
+
+        if self.par['barrier_threshold'] == 'none':
+            self.par['barrier_threshold'] = None
+        if self.par['barrier_threshold_L2'] == 'none':
+            self.par['barrier_threshold_L2'] = None
+        if self.par['barrier_threshold'] is None and self.par['barrier_threshold_L2'] is None:
+            err = 'One of barrier_threshold or barrier_threshold_L2 needs to be set.'
+        elif self.par['barrier_threshold'] is not None and self.par['barrier_threshold_L2'] is not None:
+            err = 'Only one of barrier_threshold or barrier_threshold_L2 can be set.'
+        elif self.par['barrier_threshold'] is None and self.par['barrier_threshold_L2'] is not None:
+            self.par['barrier_threshold'] = self.par['barrier_threshold_L2'] + self.par['barrier_threshold_add']
 
         if err is not None:
             logger.error(err)

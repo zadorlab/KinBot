@@ -82,7 +82,7 @@ def main():
                             smiles=par['smiles'],
                             structure=par['structure'])
     well0.characterize()
-    write_input(input_file, well0, par['barrier_threshold'], os.getcwd(), par['me'])
+    write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
@@ -1507,7 +1507,7 @@ def submit_job(chemid, par):
     return pid
 
 
-def write_input(input_file, species, threshold, root, me):
+def write_input(input_file, species, threshold, threshold_L2, root, me):
     # directory for this particular species
     directory = root + '/' + str(species.chemid) + '/'
     if not os.path.exists(directory):
@@ -1529,6 +1529,8 @@ def write_input(input_file, species, threshold, root, me):
     par2['smiles'] = ''
     # overwrite the barrier threshold
     par2['barrier_threshold'] = threshold
+    # overwrite the barrier threshold for L2
+    par2['barrier_threshold_L2'] = threshold_L2
     # set the pes option to 1
     par2['pes'] = 1
     # don't do ME for these kinbots but write the files
@@ -1555,6 +1557,7 @@ def write_input_keep(input_file, keepchemid, root):
     par_new['title'] = par_keep['title']
     par_new['structure'] = par_keep['structure']
     par_new['barrier_threshold'] = par_keep['barrier_threshold']
+    par_new['barrier_threshold_L2'] = par_keep['barrier_threshold_L2']
     par_new['pes'] = 1
     par_new['me'] = 2
 

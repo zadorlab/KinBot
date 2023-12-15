@@ -230,17 +230,16 @@ class ReactionGenerator:
                         except TypeError:
                             logger.error(f'Faulty calculations, check or delete files for {obj.instance_name}.')
                             sys.exit(-1)
-                        # only apply the L1 threshold is L2 is not set or L2 is not requested
-                        if barrier > thresh and (self.par['barrier_threshold_L2'] == None or not self.par['high_level']):
-                            logger.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'
+                        if barrier > thresh:
+                            logger.info('\tRxn barrier too high ({0:.2f} kcal/mol) at L1 for {1}'
                                          .format(barrier, obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
-                            logger.info('\tRxn barrier is ({0:.2f} kcal/mol) at L1 for {1}'
-                                         .format(barrier, obj.instance_name))
                             obj.irc = IRC(obj, self.par)  
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
+                                logger.info('\tRxn barrier is ({0:.2f} kcal/mol) at L1 for {1}'
+                                             .format(barrier, obj.instance_name))
                                 # No IRC started yet, start the IRC now
                                 logger.info('\tStarting IRC calculations for {}'
                                              .format(obj.instance_name))
@@ -479,20 +478,20 @@ class ReactionGenerator:
                     if self.par['pes']:
                         # verify if product is monomolecular, and if it is new
                         if len(obj.products) == 1:
-                            if self.par['barrier_threshold_L2'] is not None and self.par['high_level']:
+                            if self.par['barrier_threshold_L2'] and self.par['high_level']:
                                 # check the barrier height again at L2 if requested
                                 ts_energy = self.qc.get_qc_energy(f'{obj.instance_name}_high')[1]
                                 ts_zpe = self.qc.get_qc_zpe(f'{obj.instance_name}_high')[1]
                                 valid = (ts_energy + ts_zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL - self.par['barrier_threshold_L2']
                                 if  valid > 0. :
-                                    logger.info(f'\t{obj.instance_name} is higher than the L2 threshold by {valid}, not launching new KinBot.')
+                                    logger.info(f'\t{obj.instance_name} is higher than the L2 threshold by {valid} kcal/mol, not launching new KinBot.')
                                     self.species.reac_ts_done[index] = -999
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
                             # if high level was requested, it is L2, otherwise L1
                             rel_en = (st_pt.energy + st_pt.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL 
                             logger.info(f'\tProduct {obj.instance_name} energy is {np.round(rel_en, 2)} kcal/mol.')
-                            if self.par['barrier_threshold_L2'] is not None and self.par['high_level']:
+                            if self.par['barrier_threshold_L2'] and self.par['high_level']:
                                 new_barrier_threshold = None
                                 new_barrier_threshold_L2 = self.par['barrier_threshold_L2'] - rel_en 
                             else:

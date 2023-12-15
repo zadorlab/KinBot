@@ -416,11 +416,11 @@ class Parameters:
             self.par['barrier_threshold'] = None
         if self.par['barrier_threshold_L2'] == 'none':
             self.par['barrier_threshold_L2'] = None
-        if self.par['barrier_threshold'] is None and self.par['barrier_threshold_L2'] is None:
+        if not self.par['barrier_threshold'] and not self.par['barrier_threshold_L2']:
             err = 'One of barrier_threshold or barrier_threshold_L2 needs to be set.'
-        elif self.par['barrier_threshold'] is not None and self.par['barrier_threshold_L2'] is not None:
-            err = 'Only one of barrier_threshold or barrier_threshold_L2 can be set.'
-        elif self.par['barrier_threshold'] is None and self.par['barrier_threshold_L2'] is not None:
+        elif self.par['barrier_threshold'] and self.par['barrier_threshold_L2']:
+            logger.warning('L1 threshold is overwritten.')
+        elif self.par['barrier_threshold_L2']:
             self.par['barrier_threshold'] = self.par['barrier_threshold_L2'] + self.par['barrier_threshold_add']
 
         if err is not None:

@@ -484,7 +484,7 @@ class ReactionGenerator:
                                 ts_zpe = self.qc.get_qc_zpe(f'{obj.instance_name}_high')[1]
                                 valid = (ts_energy + ts_zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL - self.par['barrier_threshold_L2']
                                 if  valid > 0. :
-                                    logger.info(f'\t{obj.instance_name} is higher than the L2 threshold by {valid} kcal/mol, not launching new KinBot.')
+                                    logger.info(f'\t{obj.instance_name} is higher than the L2 threshold by {np.round(valid, 2)} kcal/mol, not launching new KinBot.')
                                     self.species.reac_ts_done[index] = -999
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid

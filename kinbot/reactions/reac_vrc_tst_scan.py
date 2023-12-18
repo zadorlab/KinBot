@@ -338,7 +338,7 @@ class VrcTstScan(GeneralReac):
                 else:
                     data_legends.append(f"{self.qc.VTS_methods['L3'][1]}/{self.qc.VTS_basis['L3'][1]}")
         comments = [f"inf_energy: {self.assymptote(level)}", f"scan_ref = {self.scan_ref}"]
-        surfaces_start = -0.9 * min(y[-1]) * # Energy at which the vrc tst surfaces should start
+        surfaces_start = -0.9 * min(y[-1]) # Energy at which the vrc tst surfaces should start
         diff = min(y[-1]) + surfaces_start
         for index, energy in enumerate(y[-1]):
             if (energy + surfaces_start) < 0:
@@ -347,7 +347,7 @@ class VrcTstScan(GeneralReac):
             else:
                 break
         comments.append(f"VRC TST Sampling recommended start: {x[start_index]}")
-        comments.append(f"Distance in Angstrom between active atoms.")
+        comments.append("Distance in Angstrom between active atoms.")
     
         utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_basename}", x_label=x_label, y_label=y_label, data_legends=data_legends, comments=comments)
 

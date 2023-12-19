@@ -486,6 +486,7 @@ class ReactionGenerator:
                                 if  valid > 0. :
                                     logger.info(f'\t{obj.instance_name} is higher than the L2 threshold by {np.round(valid, 2)} kcal/mol, not launching new KinBot.')
                                     self.species.reac_ts_done[index] = -999
+                                    continue
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
                             # if high level was requested, it is L2, otherwise L1

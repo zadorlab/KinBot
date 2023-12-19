@@ -1344,12 +1344,9 @@ def create_rotdPy_inputs(par, bless, vdW):
         if len(products) == 2: #Check if the barrierless reaction has 2 fragments
             tot_frag = len(products)
 
-
-            scan_trust = "#Scan energies are in Kcal/mol. The 0 is the assymptotic energy.\n#Scan distances are in Angstrom\n"
-            scan_sample = ""
             vrc_tst_start = 0
             do_correction = True
-            corrections = {}
+            corrections = {"1d":{}}
             for scan_type in ["","_frozen"]:
                 if "IRC" in job_name:
                     plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
@@ -1365,7 +1362,6 @@ def create_rotdPy_inputs(par, bless, vdW):
                             do_correction = False
                 
                 if do_correction:
-                    corrections["1d"] = {}
                     with open(f"{parent_chemid}/{plt_file}") as f:
                         lines = f.readlines()
 
@@ -1383,18 +1379,20 @@ def create_rotdPy_inputs(par, bless, vdW):
                         if "inf_energy" in line:
                             inf_energy = float(line.split("energy: ")[1])
                         if "scan_ref" in line:
-                            corrections["1d"]["scan_ref"] = [int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]
+                            corrections["1d"]["scan_ref"] = [[int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]]
                         if "VRC TST Sampling recommended start: " in line :
                             if float(line.split("start: ")[1]) > vrc_tst_start:
                                 vrc_tst_start = float(line.split("start: ")[1])
 
                     match scan_type:
                         case "":
-                            corrections["1d"]["e_trust"] = list(y_data.split("=")[1:])
-                            corrections["1d"]["r_trust"] = list(x_data.split("=")[1:])
+                            corrections["1d"]["e_trust"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
+                            corrections["1d"]["r_trust"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
                         case "_frozen":
-                            corrections["1d"]["e_sample"] = list(y_data.split("=")[1:])
-                            corrections["1d"]["r_sample"] = list(x_data.split("=")[1:])                    
+                            corrections["1d"]["e_sample"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
+                            corrections["1d"]["r_sample"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
+                else:
+                    corrections = {}
                         
             fragments = []
             for frag_number in range(tot_frag):
@@ -1486,12 +1484,12 @@ def create_rotdPy_inputs(par, bless, vdW):
             Surfaces_block += "]\n"
 
             #Corrections block
-            corrections_block = "corrections = {\n"
+            corrections_block = "#Scan energies are in Kcal/mol. The 0 is the assymptotic energy.\n#Scan distances are in Angstrom\ncorrections = {\n"
             for correction in corrections:
                 corrections_block += f"'{correction}' : " + "{\n"
                 for ckey, cvalue in corrections[correction].items():
                     corrections_block += f"'{ckey}' : {cvalue},\n"
-                corrections_block = corrections_block[:-3]
+                corrections_block = corrections_block[:-2]
                 corrections_block += "\n}\n"
             corrections_block += "}\n"
 

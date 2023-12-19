@@ -356,7 +356,7 @@ class VrcTstScan(GeneralReac):
         except UnboundLocalError:
             logger.warning("Could not find starting distance for {self.instance_basename}.")
             if level == "L3":
-                logger.warning("It is likely that the L3 VTS fragments energies are incorrect.")
+                logger.warning("It is likely that the L3 energies are incorrect.")
             
             comments.append(f"VRC TST Sampling recommended start: {x[1]}")
         comments.append("Distance in Angstrom between active atoms.")

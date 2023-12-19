@@ -1349,6 +1349,7 @@ def create_rotdPy_inputs(par, bless, vdW):
             scan_sample = ""
             vrc_tst_start = 0
             do_correction = True
+            corrections = {}
             for scan_type in ["","_frozen"]:
                 if "IRC" in job_name:
                     plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
@@ -1364,6 +1365,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                             do_correction = False
                 
                 if do_correction:
+                    corrections["1d"] = {}
                     with open(f"{parent_chemid}/{plt_file}") as f:
                         lines = f.readlines()
 
@@ -1381,26 +1383,18 @@ def create_rotdPy_inputs(par, bless, vdW):
                         if "inf_energy" in line:
                             inf_energy = float(line.split("energy: ")[1])
                         if "scan_ref" in line:
-                            scan_ref = f"scan_ref = [{[int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]}]"
+                            corrections["1d"]["scan_ref"] = [int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]
                         if "VRC TST Sampling recommended start: " in line :
                             if float(line.split("start: ")[1]) > vrc_tst_start:
                                 vrc_tst_start = float(line.split("start: ")[1])
 
                     match scan_type:
                         case "":
-                            y_data = y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_trust")
-                            x_data = x_data.replace("x", f"r_trust")
-                            scan_trust += y_data + "\n" + x_data + "\n"
+                            corrections["1d"]["e_trust"] = list(y_data.split("=")[1:])
+                            corrections["1d"]["r_trust"] = list(x_data.split("=")[1:])
                         case "_frozen":
-                            y_data = y_data.replace(re.findall("^y[0-2]", y_data)[0], f"e_sample")
-                            x_data = x_data.replace("x", f"r_sample")
-                            scan_sample += y_data + "\n" + x_data + "\n"
-                    
-                else:
-                    inf_energy = 0.0
-                    scan_ref = [0, 0]
-                    scan_trust = "e_trust = [0., 0.]\n r_trust = [0., 25]\n"
-                    scan_sample = "e_sample = [0., 0.]\n r_sample = [0., 25]\n"
+                            corrections["1d"]["e_sample"] = list(y_data.split("=")[1:])
+                            corrections["1d"]["r_sample"] = list(x_data.split("=")[1:])                    
                         
             fragments = []
             for frag_number in range(tot_frag):
@@ -1450,7 +1444,7 @@ def create_rotdPy_inputs(par, bless, vdW):
 
             if len(reactive_atoms) == 0:
                 logger.warning("No reactive atom detected for this reaction. Pivot points on COMs.")
-                
+    
             for dist in par['vrc_tst_dist_list']:
                 if dist < vrc_tst_start:
                     logger.info(f"Removing sampling surface {dist} for reaction {reaction_name}")
@@ -1461,12 +1455,17 @@ def create_rotdPy_inputs(par, bless, vdW):
                         for frag in fragments: #Pivot points directly on COM for vdW
                             frag.set_pp_on_com()
                             n_pp.append(len(frag.pivot_points))
+                        pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                        if "1d" in corrections.keys():
+                            pp_dist[:] = dist \
+                                        + np.linalg.norm(fragments[0].com-fragments[0].geom[corrections["1d"]["scan_ref"][0]]) \
+                                        + np.linalg.norm(fragments[1].com-fragments[1].geom[corrections["1d"]["scan_ref"][1]])
                     else:
                         for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
                             frag.set_pivot_points(dist, atom)
                             n_pp.append(len(frag.pivot_points))
-                    pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                    pp_dist[:] = dist
+                        pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                        pp_dist[:] = dist
                     
                     surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
                     for frag in fragments:
@@ -1485,6 +1484,16 @@ def create_rotdPy_inputs(par, bless, vdW):
                 if surf == surfaces[-1]:
                     Surfaces_block = Surfaces_block[:-3]
             Surfaces_block += "]\n"
+
+            #Corrections block
+            corrections_block = "corrections = {\n"
+            for correction in corrections:
+                corrections_block += f"'{correction}' : " + "{\n"
+                for ckey, cvalue in corrections[correction].items():
+                    corrections_block += f"'{ckey}' : {cvalue},\n"
+                corrections_block = corrections_block[:-3]
+                corrections_block += "\n}\n"
+            corrections_block += "}\n"
 
             #Calc_block:
             whoami = getpass.getuser()
@@ -1517,9 +1526,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                                    calc_block = Calc_block,
                                    flux_block = Flux_block,
                                    min_dist = par['vrc_tst_dist_list'][0],
-                                   scan_trust = scan_trust,
-                                   scan_sample = scan_sample,
-                                   scan_ref=scan_ref,
+                                   corrections_block=corrections_block,
                                    inf_energy=inf_energy)
         if not os.path.exists(folder):
             # Create a new directory because it does not exist

@@ -9,7 +9,7 @@ logger = logging.getLogger('KinBot')
 
 class Fragment(StationaryPoint):
     """
-    Class that creates fragments in the form of Atom objects from the ASE package.
+    Class that creates stationnary points with specific methods to setup VRC TST calculations.
 
     """
     _instances = []
@@ -20,10 +20,10 @@ class Fragment(StationaryPoint):
         """
         Fragment._instances.append(self)
 
-        self.frag_number = kwargs["frag_number"]
-        self.max_frag = kwargs["max_frag"]
-        self.chemid= kwargs["chemid"]
-        self.parent_chemid = kwargs["parent_chemid"]
+        self.frag_number = int(kwargs["frag_number"])
+        self.max_frag = int(kwargs["max_frag"])
+        self.chemid= int(kwargs["chemid"])
+        self.parent_chemid = int(kwargs["parent_chemid"])
         self.formula = kwargs["formula"]
         self.frag_name = kwargs["frag_name"]
         self.charge = kwargs["charge"]

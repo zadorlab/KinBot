@@ -39,16 +39,13 @@ angular_mom = generate_grid(0, 1, 1.1, 40)
 
 {calc_block}
 
-{scan_ref}
-{scan_trust}
-{scan_sample}
+{corrections_block}
 
 inf_energy = {inf_energy}
 
 _{job_name} = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
                          energy_size=1, min_fragments_distance={min_dist},
-                         r_sample=r_sample, e_sample=e_sample,
-                         r_trust=r_trust, e_trust=e_trust, scan_ref=scan_ref,
+                         corrections=corrections,
                          name='_{job_name}')
 
 # the flux info per surface

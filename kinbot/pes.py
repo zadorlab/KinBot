@@ -1346,7 +1346,7 @@ def create_rotdPy_inputs(par, bless, vdW):
 
             vrc_tst_start = 0
             do_correction = True
-            corrections = {"1d":{}}
+            corrections = {"1d":{"type": "1d"}}
             for scan_type in ["","_frozen"]:
                 if "IRC" in job_name:
                     plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
@@ -1456,8 +1456,8 @@ def create_rotdPy_inputs(par, bless, vdW):
                         pp_dist = np.zeros(tuple(n_pp), dtype=float)
                         if "1d" in corrections.keys():
                             pp_dist[:] = dist \
-                                        + np.linalg.norm(fragments[0].com-fragments[0].geom[corrections["1d"]["scan_ref"][0]]) \
-                                        + np.linalg.norm(fragments[1].com-fragments[1].geom[corrections["1d"]["scan_ref"][1]])
+                                        + np.linalg.norm(fragments[0].com-fragments[0].geom[corrections["1d"]["scan_ref"][0][0]])/2 \
+                                        + np.linalg.norm(fragments[1].com-fragments[1].geom[corrections["1d"]["scan_ref"][0][1]])/2
                     else:
                         for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
                             frag.set_pivot_points(dist, atom)
@@ -1503,8 +1503,8 @@ def create_rotdPy_inputs(par, bless, vdW):
                         "'max_jobs': 2000}"
 
             #Flux block:
-            Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 50, #per facet\n" +\
-                         "                  'tot_smp_max': 3000, 'tot_smp_min': 100, \n" +\
+            Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 150, #per facet\n" +\
+                         "                  'tot_smp_max': 3000, 'tot_smp_min': 200, \n" +\
                          "                  'flux_rel_err': 5, 'smp_len': 1}\n"
             
         else:

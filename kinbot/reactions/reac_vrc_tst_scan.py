@@ -339,11 +339,11 @@ class VrcTstScan(GeneralReac):
                     data_legends.append(f"{self.qc.VTS_methods['L3'][1]}/{self.qc.VTS_basis['L3'][1]}")
         comments = [f"inf_energy: {self.assymptote(level)}", f"scan_ref = {self.scan_ref}"]
         if min(y[-1]) < -50.0:
-            surfaces_start = -0.7 * min(y[-1]) # Energy at which the vrc tst surfaces should start
+            surfaces_start = -0.6 * min(y[-1]) # Energy at which the vrc tst surfaces should start
         elif min(y[-1]) < -20.0:
             surfaces_start = -0.8 * min(y[-1]) # Energy at which the vrc tst surfaces should start
         else:
-            surfaces_start = -0.9 * min(y[-1]) # Energy at which the vrc tst surfaces should start
+            surfaces_start = -0.95 * min(y[-1]) # Energy at which the vrc tst surfaces should start
         diff = min(y[-1]) + surfaces_start
         for index, energy in enumerate(y[-1]):
             if (energy + surfaces_start) < 0:

@@ -122,16 +122,16 @@ class Fragment(StationaryPoint):
             self.set_pp_on_com()
             self.set_ra(ra_indexes_in_parent)
             for index in self.ra:
-                self.set_pp_on_ra(index)
+                self.set_pp_on_atom(index)
         elif dist >= 6 and dist < 10:
             self.set_ra(ra_indexes_in_parent)
             for index in self.ra:
-                self.set_pp_on_ra(index)
+                self.set_pp_on_atom(index)
         elif dist >= 5 and dist < 6:
             self.set_ra(ra_indexes_in_parent)
             self.set_pp_next_to_ra()
             for index in self.ra:
-                self.set_pp_on_ra(index)
+                self.set_pp_on_atom(index)
         elif dist < 5:
             self.set_ra(ra_indexes_in_parent)
             self.set_pp_next_to_ra()
@@ -153,7 +153,7 @@ class Fragment(StationaryPoint):
     def set_pp_on_com(self):
             self.pivot_points.append(np.round(self.com, decimals=4).tolist())
 
-    def set_pp_on_ra(self, index):
+    def set_pp_on_atom(self, index):
             new_pp = np.round(self.geom[index], decimals=4).tolist()
             if new_pp not in self.pivot_points: #In case RA on COM
                 self.pivot_points.append(new_pp)
@@ -187,7 +187,7 @@ class Fragment(StationaryPoint):
         match atom_type:
             case 'H' | 'C' | 'O' | 'S':
                 #Create pivot point on atom
-                self.set_pp_on_ra(index)
+                self.set_pp_on_atom(index)
             case 'C_lin':
                 pp_coord = self.create_pp_aligned_with_bond(index)
                 return pp_coord

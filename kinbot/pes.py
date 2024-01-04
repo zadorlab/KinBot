@@ -1451,13 +1451,13 @@ def create_rotdPy_inputs(par, bless, vdW):
                     n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
                     if len(reactive_atoms) == 0:
                         for frag in fragments: #Pivot points directly on COM for vdW
-                            frag.set_pp_on_com()
+                            frag.set_pp_on_com()#TODO: Add pp on atom for the two closest atoms of each fragments.
                             n_pp.append(len(frag.pivot_points))
                         pp_dist = np.zeros(tuple(n_pp), dtype=float)
                         if "1d" in corrections.keys():
-                            pp_dist[:] = dist \
-                                        + np.linalg.norm(fragments[0].com-fragments[0].geom[corrections["1d"]["scan_ref"][0][0]])/2 \
-                                        + np.linalg.norm(fragments[1].com-fragments[1].geom[corrections["1d"]["scan_ref"][0][1]])/2
+                            pp_dist[:] = dist # \
+                                        # + np.linalg.norm(fragments[0].com-fragments[0].geom[corrections["1d"]["scan_ref"][0][0]])/2 \
+                                        # + np.linalg.norm(fragments[1].com-fragments[1].geom[corrections["1d"]["scan_ref"][0][1]])/2
                     else:
                         for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
                             frag.set_pivot_points(dist, atom)
@@ -1503,8 +1503,8 @@ def create_rotdPy_inputs(par, bless, vdW):
                         "'max_jobs': 2000}"
 
             #Flux block:
-            Flux_block = "flux_parameter = {'pot_smp_max': 2000, 'pot_smp_min': 150, #per facet\n" +\
-                         "                  'tot_smp_max': 3000, 'tot_smp_min': 200, \n" +\
+            Flux_block = "flux_parameter = {'pot_smp_max': 6000, 'pot_smp_min': 500, #per facet\n" +\
+                         "                  'tot_smp_max': 15000, 'tot_smp_min': 500, \n" +\
                          "                  'flux_rel_err': 5, 'smp_len': 1}\n"
             
         else:

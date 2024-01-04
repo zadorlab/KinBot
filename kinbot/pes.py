@@ -1451,7 +1451,11 @@ def create_rotdPy_inputs(par, bless, vdW):
                     n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
                     if len(reactive_atoms) == 0:
                         for frag in fragments: #Pivot points directly on COM for vdW
-                            frag.set_pp_on_com()#TODO: Add pp on atom for the two closest atoms of each fragments.
+                            if dist > 15.:
+                                frag.set_pp_on_com()#TODO: Add pp on atom for the two closest atoms of each fragments.
+                            else:
+                                frag.set_pp_on_atom(0)
+                                frag.set_pp_on_atom(1)
                             n_pp.append(len(frag.pivot_points))
                         pp_dist = np.zeros(tuple(n_pp), dtype=float)
                         if "1d" in corrections.keys():
@@ -1488,7 +1492,10 @@ def create_rotdPy_inputs(par, bless, vdW):
             for correction in corrections:
                 corrections_block += f"'{correction}' : " + "{\n"
                 for ckey, cvalue in corrections[correction].items():
-                    corrections_block += f"'{ckey}' : {cvalue},\n"
+                    if isinstance(cvalue, str):
+                        corrections_block += f"'{ckey}' : '{cvalue}',\n"
+                    else:
+                        corrections_block += f"'{ckey}' : {cvalue},\n"
                 corrections_block = corrections_block[:-2]
                 corrections_block += "\n}\n"
             corrections_block += "}\n"

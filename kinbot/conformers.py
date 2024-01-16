@@ -430,7 +430,13 @@ class Conformers:
                 frequencies = []
 
                 if all(status):  # if all conformers are invalid, 1 (different) or fail (-1)
-                    copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
+                    if self.qc.qc == 'gauss':
+                        ext = 'log'
+                    elif self.qc.qc == 'qchem':
+                        ext = 'out'
+                    else:
+                        raise NotImplementedError(f'Code {self.qc.qc} not available.')
+                    copyfile(f'{lowest_job}.{ext}', f'conf/{name}_low.{ext}')
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),
                             'frequencies': last_row.data.get('frequencies'),
@@ -438,7 +444,7 @@ class Conformers:
                             'status': last_row.data.get('status')}
                     self.db.write(mol, name='conf/{}_low'.format(name), 
                                   data=data)
-                    logger.warning(f'All conformer optimizations failed for {name}.')
+                    #logger.warning(f'All conformer optimizations failed for {name}.')
 
                     return 1, lowest_conf, lowest_e_geom, last_row.data.get('energy'),\
                            final_geoms, totenergies, frequencies, status
@@ -529,11 +535,13 @@ class Conformers:
                                    'issues.')
                 try:
                     if self.qc.qc == 'gauss':
-                        copyfile('{}.log'.format(lowest_job), 'conf/{}_low.log'.format(name))
+                        copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
+                    elif self.qc.qc == 'qchem':
+                        copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
                     elif self.qc.qc == 'nn_pes':
                         pass
                     else:
-                        raise NotImplementedError('Code {self.qc.qc} not available.')
+                        raise NotImplementedError(f'Code {self.qc.qc} not available.')
                     rows = self.db.select(name='{}'.format(lowest_job))
                     for row in rows:
                         row_last = row

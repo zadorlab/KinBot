@@ -101,19 +101,16 @@ class ReactionGenerator:
                     if obj.scan == 0:  # don't do a scan of a bond
                         if self.species.reac_step[index] == obj.max_step + 1:
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
-                            if status == 0 and freq[0] < 0. and freq[1] > 0.:
+                            if status == 0 and (np.count_nonzero(np.array(freq) < 0) >= 3  # Three or more imag frequencies
+                                                or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
+                                                or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies
+                                logger.info(f'\tReaction search failed for {obj.instance_name}: '
+                                            'Wrong number of imaginary frequencies.')
+                                self.species.reac_ts_done[index] = -999
+                            elif status == 0:
                                 self.species.reac_ts_done[index] = 1
-                            elif status == 0 and freq[0] > 0.:
-                                logger.info('\tRxn search failed for {}, no imaginary freq.'
-                                             .format(obj.instance_name))
-                                self.species.reac_ts_done[index] = -999
-                            elif status == 0 and freq[1] < 0.:
-                                logger.info('\tRxn search failed for {}, more than one imaginary freq.'
-                                             .format(obj.instance_name))
-                                self.species.reac_ts_done[index] = -999
                             elif status == -1: 
-                                logger.info('\tRxn search failed for {}'
-                                             .format(obj.instance_name))
+                                logger.info(f'\tReaction search failed for {obj.instance_name}.')
                                 self.species.reac_ts_done[index] = -999
                         else:
                             self.species.reac_step[index] = reac_family.carry_out_reaction(
@@ -121,22 +118,23 @@ class ReactionGenerator:
                                                             bimol=self.par['bimol'])
                             if self.species.reac_step[index] == -1:
                                 self.species.reac_ts_done[index] = -999
-                                logger.info('\tRxn search failed for {} because of 0 0 0 geometry.'
-                                             .format(obj.instance_name))
+                                logger.info(f'\tReaction search failed for {obj.instance_name}: '
+                                            'Invalid geometry.')
 
                     else:  # do a bond scan
                         if self.species.reac_step[index] == self.par['scan_step'] + 1:
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
-                            if status == 0 and freq[0] < 0. and freq[1] > 0.:
+                            if status == 0 and (np.count_nonzero(np.array(freq) < 0) >= 3  # More than two imag frequencies
+                                                or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
+                                                or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies
+                                logger.info(f'\tReaction search failed for {obj.instance_name}: '
+                                            'wrong number of imaginary frequencies.')
+                                self.species.reac_ts_done[index] = -999
+                            elif status == 0:
                                 self.species.reac_ts_done[index] = 1
-                            elif status == 0 and freq[0] > 0.:
-                                logger.info('\tRxn search failed for {}, no imaginary freq.'.format(obj.instance_name))
-                                self.species.reac_ts_done[index] = -999
-                            elif status == 0 and freq[1] < 0.:
-                                logger.info('\tRxn search failed for {}, more than one imaginary freq.'.format(obj.instance_name))
-                                self.species.reac_ts_done[index] = -999
                             elif status == -1:
-                                logger.info('\tRxn search using scan failed for {} in TS optimization stage.'.format(obj.instance_name))
+                                logger.info(f'\tRxn search using scan failed for {obj.instance_name} '
+                                            'in TS optimization stage.')
                                 self.species.reac_ts_done[index] = -999
                         else:
                             if self.species.reac_step[index] == 0:
@@ -233,13 +231,15 @@ class ReactionGenerator:
                             logger.error(f'Faulty calculations, check or delete files for {obj.instance_name}.')
                             sys.exit(-1)
                         if barrier > thresh:
-                            logger.info('\tRxn barrier too high ({0:.2f} kcal/mol) for {1}'
+                            logger.info('\tRxn barrier too high ({0:.2f} kcal/mol) at L1 for {1}'
                                          .format(barrier, obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:
                             obj.irc = IRC(obj, self.par)  
                             irc_status = obj.irc.check_irc()
                             if 0 in irc_status:
+                                logger.info('\tRxn barrier is ({0:.2f} kcal/mol) at L1 for {1}'
+                                             .format(barrier, obj.instance_name))
                                 # No IRC started yet, start the IRC now
                                 logger.info('\tStarting IRC calculations for {}'
                                              .format(obj.instance_name))
@@ -330,7 +330,7 @@ class ReactionGenerator:
                                         obj.products[fri].energy = frag.energy
                                         obj.products[fri].zpe = frag.zpe
 
-                    if ndone == len(obj.products):  # all currently recognized fragments are done
+                    if ndone == len(obj.products) and self.species.reac_ts_done[index] != -999:  # all currently recognized fragments are done
                         # delete invalid ones
                         obj.products = list(np.array(obj.products)[obj.valid_prod])
                         if self.species.charge != 0:  # select the lower energy combination
@@ -473,16 +473,32 @@ class ReactionGenerator:
 
                 elif self.species.reac_ts_done[index] == 5:
                     # Finilize the calculations
-                    # continue to PES search in case a new well was found
                     st_pt = obj.prod_opt[0].species
+                    # kill reaction if higher than L2 threshold
+                    if self.par['barrier_threshold_L2'] and self.par['high_level'] and 'hom_sci' not in obj.instance_name:
+                        # check the barrier height again at L2 if requested
+                        ts_energy = self.qc.get_qc_energy(f'{obj.instance_name}_high')[1]
+                        ts_zpe = self.qc.get_qc_zpe(f'{obj.instance_name}_high')[1]
+                        valid = (ts_energy + ts_zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL - self.par['barrier_threshold_L2']
+                        if  valid > 0. :
+                            logger.info(f'\t{obj.instance_name} is higher than the L2 threshold by {np.round(valid, 2)} kcal/mol, reaction is deleted.')
+                            self.species.reac_ts_done[index] = -999
+                            continue
+                    # continue to PES search in case a new well was found
                     if self.par['pes']:
                         # verify if product is monomolecular, and if it is new
                         if len(obj.products) == 1:
                             st_pt = obj.prod_opt[0].species
                             chemid = st_pt.chemid
-                            rel_en = (st_pt.energy - self.species.energy) * constants.AUtoKCAL  # energy contains ZPE! check!!
+                            # if high level was requested, it is L2, otherwise L1
+                            rel_en = (st_pt.energy + st_pt.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL 
                             logger.info(f'\tProduct {obj.instance_name} energy is {np.round(rel_en, 2)} kcal/mol.')
-                            new_barrier_threshold = self.par['barrier_threshold'] - rel_en 
+                            if self.par['barrier_threshold_L2'] and self.par['high_level']:
+                                new_barrier_threshold = None
+                                new_barrier_threshold_L2 = self.par['barrier_threshold_L2'] - rel_en 
+                            else:
+                                new_barrier_threshold = self.par['barrier_threshold'] - rel_en 
+                                new_barrier_threshold_L2 = None
                             dirwell = os.path.dirname(os.getcwd())
                             jobs = open(dirwell + '/chemids', 'r').read().split('\n')
                             jobs = [ji for ji in jobs]
@@ -492,7 +508,7 @@ class ReactionGenerator:
                                     try:
                                         # try to open the file and write to it
                                         logger.info(f'\tLaunching new KinBot as {chemid}')
-                                        pes.write_input(self.inp, obj.products[0], new_barrier_threshold, dirwell, self.par['me'])
+                                        pes.write_input(self.inp, obj.products[0], new_barrier_threshold, new_barrier_threshold_L2, dirwell, self.par['me'])
                                         with open(dirwell + '/chemids', 'a') as f:
                                             f.write('{}\n'.format(chemid))
                                         break

@@ -82,7 +82,7 @@ def main():
                             smiles=par['smiles'],
                             structure=par['structure'])
     well0.characterize()
-    write_input(input_file, well0, par['barrier_threshold'], os.getcwd(), par['me'])
+    write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
@@ -285,14 +285,12 @@ def postprocess(par, jobs, task, names, mass):
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
-    base_energy = get_energy(jobs[0], jobs[0], 0, par['high_level'],
-                             conf=par['conformer_search'])
+    base_energy, base_zpe = get_energy(jobs, jobs[0], 0, par['high_level'],
+                                       conf=par['conformer_search'])
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
         l3done = 0
-    # L2 ZPE
-    base_zpe = get_zpe(jobs[0], jobs[0], 0, par['high_level'])
     # list of lists with four elements
     # 0. reactant chemid
     # 1. reaction name
@@ -327,6 +325,9 @@ def postprocess(par, jobs, task, names, mass):
                     continue
                 reactant = ji
                 prod = pieces[3:]  # this is the chemid of the product
+                if 'none' not in par['keep_chemids']:
+                    if len(prod) == 1 and prod[0] not in par['keep_chemids']:
+                        continue
                 # calculate the barrier based on the new energy base
                 barrier = 0. - base_energy - base_zpe
 
@@ -336,25 +337,20 @@ def postprocess(par, jobs, task, names, mass):
                 if any([mm in ts for mm in mp2_list]) \
                        and not par['high_level'] \
                        and par['qc'] != 'nn_pes':
-                    base_energy_mp2 = get_energy(jobs[0], jobs[0], 0, 
-                                                 par['high_level'], mp2=1,
-                                                 conf=par['conformer_search'])
-                    base_zpe_mp2 = get_zpe(jobs[0], jobs[0], 0, 
-                                           par['high_level'], mp2=1)
+                    mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
+                                              mp2=1, conf=par['conformer_search'])
+                    base_energy_mp2, base_zpe_mp2 = mp2_energies
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
                 if 'barrierless_saddle' in ts and not par['high_level']:
-                    base_energy_bls = get_energy(jobs[0], jobs[0], 0,
-                                                 par['high_level'], bls=1,
-                                                 conf=par['conformer_search'])
-                    base_zpe_bls = get_zpe(jobs[0], jobs[0], 0,
-                                           par['high_level'], bls=1)
+                    bls_energies = get_energy(jobs, jobs[0], 0, par['high_level'],
+                                              bls=1, conf=par['conformer_search'])
+                    base_energy_bls, base_zpe_bls = bls_energies
                     barrier = 0. - base_energy_bls - base_zpe_bls
 
-                ts_energy = get_energy(reactant, ts, 1, par['high_level'], 
-                                       conf=par['conformer_search'])
-                ts_zpe = get_zpe(reactant, ts, 1, par['high_level'])
+                ts_energy, ts_zpe = get_energy(jobs, ts, 1, par['high_level'], 
+                                               conf=par['conformer_search'])
                 barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
                 if reactant not in wells:
@@ -452,9 +448,8 @@ def postprocess(par, jobs, task, names, mass):
     well_energies = {}
     well_l3energies = {}
     for well in wells:
-        energy = get_energy(parent[well], well, 0, par['high_level'], 
-                            conf=par['conformer_search'])  # from the db
-        zpe = get_zpe(parent[well], well, 0, par['high_level'])
+        energy, zpe = get_energy(wells, well, 0, par['high_level'], 
+                                 conf=par['conformer_search'])  # from the db
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -470,10 +465,9 @@ def postprocess(par, jobs, task, names, mass):
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
-            energy += get_energy(parent[prods], pr, 0, par['high_level'], 
-                                 conf=par['conformer_search'])
-            zpe = get_zpe(parent[prods], pr, 0, par['high_level'])
-            energy += zpe
+            pr_energy, pr_zpe = get_energy(jobs, pr, 0, par['high_level'], 
+                                           conf=par['conformer_search'])
+            energy += pr_energy + pr_zpe
             status, l3e = get_l3energy(pr, par)
             if not status:
                 l3done = 0  # not all L3 calculations are done
@@ -481,7 +475,7 @@ def postprocess(par, jobs, task, names, mass):
             elif not par['L3_calc']:
                 pass
             else:
-                l3energy += l3e + zpe
+                l3energy += l3e + pr_zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
         prod_l3energies[prods] = l3energy * constants.AUtoKCAL
 
@@ -1061,23 +1055,31 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
-            # check if barrrieless
+            # check if barrieless
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
-                if prod == bl_prod and parent[prod] == bl[0]:
-                    bless = 1
-                    break
-            with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                if not bless:
+                if prod == bl_prod:
+                    with open(bl[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                        if bless == 0:
+                            s.append(f.read().format(name=name,
+                                                     blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
+                                                     wellname=well_short[bl[0]],
+                                                     prodname=pr_short[prod],
+                                                     ground_energy=round(energy, 2),
+                                                     **fr_names))
+                            bless = 1
+                        else:
+                            stemp = (f.read().format(name=name,
+                                                     blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
+                                                     wellname=well_short[bl[0]],
+                                                     prodname=pr_short[prod],
+                                                     ground_energy=round(energy, 2),
+                                                     **fr_names))
+                            s.append(stemp[stemp.find('Barrier '):])
+            if not bless:
+                with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
                     s.append(f.read().format(name=name,
-                                             ground_energy=round(energy, 2),
-                                             **fr_names))
-                else:
-                    s.append(f.read().format(name=name,
-                                             blessname=nobar_short[f'{parent[prod]}_{bl_prod}'],
-                                             wellname=well_short[parent[prod]],
-                                             prodname=pr_short[prod],
                                              ground_energy=round(energy, 2),
                                              **fr_names))
             s.append(divider)
@@ -1099,11 +1101,21 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name.append(rxn[1])
             energy = rxn[3] + uq.calc_factor('barrier', uq_iter)
             welldepth1 = energy - well_energies_current[rxn[0]] 
+            if welldepth1 < 0 and par['correct_submerged']== 1:  # submerged, not allowed in MESS
+                # tunneling block for submerged is cleaned later
+                energy = well_energies_current[rxn[0]]
+                logger.warning(f'Submerged barrier corrected for {name}')
             if len(rxn[2]) == 1:
                 welldepth2 = energy - well_energies_current[rxn[2][0]] 
+                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                    energy = well_energies_current[rxn[2][0]]
+                    logger.warning(f'Submerged barrier corrected for {name}')
             else:
                 prodname = '_'.join(sorted(rxn[2]))
                 welldepth2 = energy - prod_energies_current[prodname] 
+                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                    energy = prod_energies_current[prodname]
+                    logger.warning(f'Submerged barrier corrected for {name}')
             cutoff = min(welldepth1, welldepth2)
             with open(rxn[0] + '/' + rxn[1] + '_' + mess_iter + '.mess') as f:
                 s.append(f.read().format(name=' '.join(name), 
@@ -1313,10 +1325,10 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     return 0
 
 
-def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0):
-    db = connect(directory + '/kinbot.db')
+def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
     if ts:
         j = job
+        wells = [job.split('_')[0]]
     else:
         j = job + '_well'
     if conf and not high_level and not mp2:
@@ -1327,22 +1339,32 @@ def get_energy(directory, job, ts, high_level, mp2=0, bls=0, conf=0):
         j += '_bls'
     if high_level:
         j += '_high'
-    rows = db.select(name=j)
-    for row in rows:
-        if hasattr(row, 'data'):
-            energy = row.data.get('energy')
-    try:
-        # ase energies are always in eV, convert to Hartree
-        energy *= constants.EVtoHARTREE
-    except UnboundLocalError or TypeError:
-        # this happens when the job is not found in the database
-        logger.error('Could not find {} in directory {} database.'.format(j, directory))
-        logger.error('Exiting...')
-        sys.exit(-1)
-    except TypeError:
-        logger.warning('Could not find {} in directory {}'.format(job, directory))
-        energy = 0.
-    return energy
+    energy = np.inf
+    zpe = np.inf
+    for well in wells:
+        db = connect(well + '/kinbot.db')
+        rows = db.select(name=j)
+        for row in rows:
+            try:
+                new_energy = row.data.get('energy') * constants.EVtoHARTREE
+                new_zpe = row.data.get('zpe')
+            except (UnboundLocalError, TypeError):
+                continue
+            if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
+                if not ts:
+                    # Avoid getting energies from calculations that converged to another structure
+                    atoms = row.toatoms()
+                    st_pt = StationaryPoint.from_ase_atoms(atoms)
+                    st_pt.characterize()
+                    chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
+                    if chemid_wo_mult != job[:-1]:
+                        continue
+                energy = new_energy
+                zpe = new_zpe
+    if np.isinf(energy) or np.isinf(zpe):
+        raise ValueError(f'Unable to find an energy for {j}.')
+
+    return energy, zpe
 
 
 def get_l3energy(job, par, bls=0):
@@ -1362,7 +1384,8 @@ def get_l3energy(job, par, bls=0):
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:
                 lines = f.readlines()
-                for line in reversed(lines):
+                #for line in reversed(lines):
+                for line in lines:
                     if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
                         logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
@@ -1484,7 +1507,7 @@ def submit_job(chemid, par):
     return pid
 
 
-def write_input(input_file, species, threshold, root, me):
+def write_input(input_file, species, threshold, threshold_L2, root, me):
     # directory for this particular species
     directory = root + '/' + str(species.chemid) + '/'
     if not os.path.exists(directory):
@@ -1506,6 +1529,8 @@ def write_input(input_file, species, threshold, root, me):
     par2['smiles'] = ''
     # overwrite the barrier threshold
     par2['barrier_threshold'] = threshold
+    # overwrite the barrier threshold for L2
+    par2['barrier_threshold_L2'] = threshold_L2
     # set the pes option to 1
     par2['pes'] = 1
     # don't do ME for these kinbots but write the files
@@ -1532,6 +1557,7 @@ def write_input_keep(input_file, keepchemid, root):
     par_new['title'] = par_keep['title']
     par_new['structure'] = par_keep['structure']
     par_new['barrier_threshold'] = par_keep['barrier_threshold']
+    par_new['barrier_threshold_L2'] = par_keep['barrier_threshold_L2']
     par_new['pes'] = 1
     par_new['me'] = 2
 

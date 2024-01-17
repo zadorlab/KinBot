@@ -1451,11 +1451,17 @@ def create_rotdPy_inputs(par, bless, vdW):
                     n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
                     if len(reactive_atoms) == 0:
                         for frag in fragments: #Pivot points directly on COM for vdW
-                            if dist > 15.:
-                                frag.set_pp_on_com()#TODO: Add pp on atom for the two closest atoms of each fragments.
+                            if frag.atom[1] == 'H':
+                                coord = frag.create_pp_aligned_with_bond(1)
+                                frag.pivot_points.append(np.round(coord, decimals=4).tolist())
                             else:
-                                frag.set_pp_on_atom(0)
                                 frag.set_pp_on_atom(1)
+                            if dist > 4. and dist < 9. :
+                                frag.set_pp_on_atom(3)
+
+                            #     frag.set_pp_on_atom(3)#TODO: Add pp on atom for the two closest atoms of each fragments.
+                            # if dist < 10.0:
+                            #     #frag.set_pp_on_atom(0)
                             n_pp.append(len(frag.pivot_points))
                         pp_dist = np.zeros(tuple(n_pp), dtype=float)
                         if "1d" in corrections.keys():

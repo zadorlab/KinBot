@@ -129,12 +129,12 @@ class Fragment(StationaryPoint):
                 self.set_pp_on_atom(index)
         elif dist >= 5 and dist < 6:
             self.set_ra(ra_indexes_in_parent)
-            self.set_pp_next_to_ra()
+            self.set_pp_next_to_ra(self.ra)
             for index in self.ra:
                 self.set_pp_on_atom(index)
         elif dist < 5:
             self.set_ra(ra_indexes_in_parent)
-            self.set_pp_next_to_ra()
+            self.set_pp_next_to_ra(self.ra)
         else:
             pass
                 
@@ -158,8 +158,8 @@ class Fragment(StationaryPoint):
             if new_pp not in self.pivot_points: #In case RA on COM
                 self.pivot_points.append(new_pp)
 
-    def set_pp_next_to_ra(self):
-        for index in self.ra:
+    def set_pp_next_to_ra(self, ra):
+        for index in ra:
             atom_type = self.get_atom_type(index)
             coord = self.get_pp_coord(index, atom_type)
             if type(coord) is list:
@@ -174,7 +174,8 @@ class Fragment(StationaryPoint):
         ndouble = 0
         ntriple = 0
         for this_bond in np.array(self.bond)[ index]:
-            nconnect += this_bond
+            if this_bond != 0:
+                nconnect += 1
             match this_bond:
                 case 2:
                     ndouble += 1

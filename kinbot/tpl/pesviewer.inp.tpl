@@ -28,9 +28,10 @@ well_color         blue      # color of the energy values of the wells
 ts_color           green     # color or the energy values of the ts, put to 'none' to use same color as line
 show_images        1         # boolean tells whether the molecule images should be shown on the graph
 rdkit4depict       1         # boolean that specifies which code was used for the 2D depiction
-axes_size          10        # font size of the axes
+axes_size          15        # font size of the axes
 text_size          10        # font size of the energy values on the graph
 graph_edge_color   black     # color of graph edge, if set to 'energy', will be scaled accordingly
+reso_2d            1         # generate resonant structures and choose the best
 
 > <wells> 
 {wells}

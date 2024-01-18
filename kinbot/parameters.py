@@ -80,8 +80,12 @@ class Parameters:
             'specific_reaction': 0,
             'break_bonds': [],
             'form_bonds': [],
-            # Threshold above which barriers are deemed unimportant
-            'barrier_threshold': 100.,
+            # Threshold above which barriers are deemed unimportant at L1
+            'barrier_threshold': None,
+            # Additional threshold if L2 screening is desired instead of L1
+            'barrier_threshold_L2': None,
+            # Threshold allowance for L1 relative to L2
+            'barrier_threshold_add': 10.,
             # Additional barrier allowance for homolytic scissions
             'hom_sci_threshold_add': 5.,
             # Number of 0.1 Angstrom steps in bond scans
@@ -287,6 +291,8 @@ class Parameters:
             'epsilon': 0.0,
             'epsilon_unit': 'K',  # can be K or J/mol or cm-1
             'sigma': 0.0,
+            # correct submerged barrier
+            'correct_submerged': 0,
             # MESS specific keywords
             'mess_command': 'mess',
             'TemperatureList': [300. + 100. * i for i in range(18)],
@@ -405,6 +411,17 @@ class Parameters:
         self.par['barrier_uq'] = float(self.par['barrier_uq'])
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
+
+        if self.par['barrier_threshold'] == 'none':
+            self.par['barrier_threshold'] = None
+        if self.par['barrier_threshold_L2'] == 'none':
+            self.par['barrier_threshold_L2'] = None
+        if not self.par['barrier_threshold'] and not self.par['barrier_threshold_L2']:
+            err = 'One of barrier_threshold or barrier_threshold_L2 needs to be set.'
+        elif self.par['barrier_threshold'] and self.par['barrier_threshold_L2']:
+            logger.warning('L1 threshold is overwritten.')
+        elif self.par['barrier_threshold_L2']:
+            self.par['barrier_threshold'] = self.par['barrier_threshold_L2'] + self.par['barrier_threshold_add']
 
         if err is not None:
             logger.error(err)

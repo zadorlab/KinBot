@@ -138,7 +138,8 @@ class Molpro:
         if status:
             with open('molpro/' + fname + '.out') as f:
                 lines = f.readlines()
-            for index, line in enumerate(reversed(lines)):
+#            for index, line in enumerate(reversed(lines)):
+            for index, line in enumerate(lines):
                 if ('SETTING ' + key) in line:
                     return 1, float(line.split()[3])
         return 0, -1

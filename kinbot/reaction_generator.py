@@ -385,15 +385,16 @@ class ReactionGenerator:
                         for j in range(self.species.natom):
                             bond_mx[i][j] = max(self.species.bond[i][j], obj.irc_prod.bonds[0][i][j])
 
-                    if self.species.reac_type[index] != 'hom_sci':  
+                    if self.species.reac_type[index] != 'hom_sci':
                         err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
                         ts = StationaryPoint(obj.instance_name, self.species.charge, self.species.mult,
                                              atom=self.species.atom, geom=geom, wellorts=1)
                         err, ts.energy = self.qc.get_qc_energy(obj.instance_name)
-                        err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)  
-                        err, ts.freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom) 
+                        err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)
+                        err, ts.freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
                         ts.distance_mx()
-                        ts.bond = bond_mx
+                        ts.bond_mx()
+                        ts.bond = np.maximum(ts.bond, bond_mx)
                         ts.find_cycle()
                         ts.find_conf_dihedral()
                         obj.ts = ts

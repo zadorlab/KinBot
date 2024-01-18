@@ -16,8 +16,8 @@ mol.calc = {Code}(**kwargs)
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
-irc = IRC(mol, trajectory='{label}.traj', dx=0.1, eta=1e-4, gamma=0.4, 
-           logfile='{label}_sella.log')
+irc = IRC(mol, trajectory='{label}.traj', dx=0.1, eta=1e-4, gamma=0, 
+          logfile='{label}_sella.log')
 if '{label}'.endswith('F'):
     direction = 'forward'
 elif '{label}'.endswith('R'):

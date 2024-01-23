@@ -476,7 +476,7 @@ class Optimize:
             # maybe we need to do IRC at the high level as well...
             same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
                     (geometry.equal_geom(self.species, dummy, 0.3))) \
-                    or (geometry.equal_geom(self.species, dummy, 0.15))
+                    or (geometry.equal_geom(self.species, dummy, 0.2))
             if self.par['multi_conf_tst'] != 1:  # for now skipping this
                 p_coord = copy.deepcopy(self.species.geom)
                 q_coord = copy.deepcopy(dummy.geom)

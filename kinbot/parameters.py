@@ -278,6 +278,9 @@ class Parameters:
             'username': '',
             # Max. number of job from user in queue, if negative, ignored
             'queue_job_limit': -1,
+            # Whether to raise an error when 'queuing' is set to 'local' and the 
+            # files and db entries are missing, otherwise just show a warning.
+            'error_missing_local': True,
 
             # MASTER EQUATION
             # Assemble the ME

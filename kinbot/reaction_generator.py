@@ -452,14 +452,16 @@ class ReactionGenerator:
                     fails = 0
                     # check if ts is done
                     if self.species.reac_type[index] != 'hom_sci':
-                        if not obj.ts_opt.shir == 1:  # last stage in optimize
+                        is_tshir_done = obj.ts_opt.species.hir.check_hir(wait=0)
+                        if not is_tshir_done:  # last stage in optimize
                             opts_done = 0
                             obj.ts_opt.do_optimization()
                         if obj.ts_opt.shigh == -999:
                             logger.warning("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
                             fails = 1
                     for pr_opt in obj.prod_opt:
-                        if not pr_opt.shir == 1:
+                        is_prhir_done = pr_opt.species.hir.check_hir(wait=0)
+                        if not is_prhir_done:
                             opts_done = 0
                             pr_opt.do_optimization()
                         if pr_opt.shigh == -999:

@@ -82,7 +82,7 @@ def main():
                             smiles=par['smiles'],
                             structure=par['structure'])
     well0.characterize()
-    write_input(input_file, well0, par['barrier_threshold'], os.getcwd(), par['me'])
+    write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
@@ -325,6 +325,9 @@ def postprocess(par, jobs, task, names, mass):
                     continue
                 reactant = ji
                 prod = pieces[3:]  # this is the chemid of the product
+                if 'none' not in par['keep_chemids']:
+                    if len(prod) == 1 and prod[0] not in par['keep_chemids']:
+                        continue
                 # calculate the barrier based on the new energy base
                 barrier = 0. - base_energy - base_zpe
 
@@ -472,7 +475,7 @@ def postprocess(par, jobs, task, names, mass):
             elif not par['L3_calc']:
                 pass
             else:
-                l3energy += l3e + zpe
+                l3energy += l3e + pr_zpe
         prod_energies[prods] = energy * constants.AUtoKCAL
         prod_l3energies[prods] = l3energy * constants.AUtoKCAL
 
@@ -1052,23 +1055,31 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
-            # check if barrrieless
+            # check if barrieless
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
-                if prod == bl_prod and parent[prod] == bl[0]:
-                    bless = 1
-                    break
-            with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                if not bless:
+                if prod == bl_prod:
+                    with open(bl[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                        if bless == 0:
+                            s.append(f.read().format(name=name,
+                                                     blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
+                                                     wellname=well_short[bl[0]],
+                                                     prodname=pr_short[prod],
+                                                     ground_energy=round(energy, 2),
+                                                     **fr_names))
+                            bless = 1
+                        else:
+                            stemp = (f.read().format(name=name,
+                                                     blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
+                                                     wellname=well_short[bl[0]],
+                                                     prodname=pr_short[prod],
+                                                     ground_energy=round(energy, 2),
+                                                     **fr_names))
+                            s.append(stemp[stemp.find('Barrier '):])
+            if not bless:
+                with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
                     s.append(f.read().format(name=name,
-                                             ground_energy=round(energy, 2),
-                                             **fr_names))
-                else:
-                    s.append(f.read().format(name=name,
-                                             blessname=nobar_short[f'{parent[prod]}_{bl_prod}'],
-                                             wellname=well_short[parent[prod]],
-                                             prodname=pr_short[prod],
                                              ground_energy=round(energy, 2),
                                              **fr_names))
             s.append(divider)
@@ -1090,11 +1101,21 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name.append(rxn[1])
             energy = rxn[3] + uq.calc_factor('barrier', uq_iter)
             welldepth1 = energy - well_energies_current[rxn[0]] 
+            if welldepth1 < 0 and par['correct_submerged']== 1:  # submerged, not allowed in MESS
+                # tunneling block for submerged is cleaned later
+                energy = well_energies_current[rxn[0]]
+                logger.warning(f'Submerged barrier corrected for {name}')
             if len(rxn[2]) == 1:
                 welldepth2 = energy - well_energies_current[rxn[2][0]] 
+                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                    energy = well_energies_current[rxn[2][0]]
+                    logger.warning(f'Submerged barrier corrected for {name}')
             else:
                 prodname = '_'.join(sorted(rxn[2]))
                 welldepth2 = energy - prod_energies_current[prodname] 
+                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                    energy = prod_energies_current[prodname]
+                    logger.warning(f'Submerged barrier corrected for {name}')
             cutoff = min(welldepth1, welldepth2)
             with open(rxn[0] + '/' + rxn[1] + '_' + mess_iter + '.mess') as f:
                 s.append(f.read().format(name=' '.join(name), 
@@ -1329,6 +1350,8 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
                 new_zpe = row.data.get('zpe')
             except (UnboundLocalError, TypeError):
                 continue
+            if new_zpe == None:
+                continue
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
                 if not ts:
                     # Avoid getting energies from calculations that converged to another structure
@@ -1363,7 +1386,8 @@ def get_l3energy(job, par, bls=0):
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:
                 lines = f.readlines()
-                for line in reversed(lines):
+                #for line in reversed(lines):
+                for line in lines:
                     if ('SETTING ' + key) in line:
                         e = float(line.split()[3])
                         logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
@@ -1485,7 +1509,7 @@ def submit_job(chemid, par):
     return pid
 
 
-def write_input(input_file, species, threshold, root, me):
+def write_input(input_file, species, threshold, threshold_L2, root, me):
     # directory for this particular species
     directory = root + '/' + str(species.chemid) + '/'
     if not os.path.exists(directory):
@@ -1507,6 +1531,8 @@ def write_input(input_file, species, threshold, root, me):
     par2['smiles'] = ''
     # overwrite the barrier threshold
     par2['barrier_threshold'] = threshold
+    # overwrite the barrier threshold for L2
+    par2['barrier_threshold_L2'] = threshold_L2
     # set the pes option to 1
     par2['pes'] = 1
     # don't do ME for these kinbots but write the files
@@ -1533,6 +1559,7 @@ def write_input_keep(input_file, keepchemid, root):
     par_new['title'] = par_keep['title']
     par_new['structure'] = par_keep['structure']
     par_new['barrier_threshold'] = par_keep['barrier_threshold']
+    par_new['barrier_threshold_L2'] = par_keep['barrier_threshold_L2']
     par_new['pes'] = 1
     par_new['me'] = 2
 

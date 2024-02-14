@@ -13,16 +13,14 @@ basis=cc-pvdz-f12
 rhf
 CCSD(T)-F12
 
-myenergy(1) = energy(1)
-myenb(1) = energy(2)
-
----
+mydza = energy(1)
+mydzb = energy(2)
 
 basis=cc-pvtz-f12
 rhf
 CCSD(T)-F12
 
-myenergy(2) = energy(1)
-myenb(2) = energy(2)
+mytza = energy(1)
+mytzb = energy(2)
 ---
 

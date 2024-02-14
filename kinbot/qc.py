@@ -331,7 +331,7 @@ class QuantumChemistry:
             if not self.use_sella:
                 dihedral = calc_dihedral(geom[fix[0][0]-1], geom[fix[0][1]-1], 
                                          geom[fix[0][2]-1], geom[fix[0][3]-1])[0]
-                kwargs['addsec'] = "$opt\nCONSTRAINT\ntors " \
+                kwargs['addsec'] = "\n$opt\nCONSTRAINT\ntors " \
                                    f"{' '.join(str(f) for f in fix[0])} " \
                                    f"{dihedral}\nENDCONSTRAINT\n$end"
         elif self.qc == 'nwchem':

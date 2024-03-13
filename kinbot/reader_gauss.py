@@ -165,6 +165,8 @@ def read_converged_geom_energy(outfile, mol):
                     e = read_energy(outfile, from_line=n)
 
                     return e, geom
+            else:
+                raise Exception('Forces are not converged for the lowest energy geometry.')
                 
 def read_lowest_geom_energy(outfile, mol):
     """
@@ -175,6 +177,8 @@ def read_lowest_geom_energy(outfile, mol):
         lines = f.readlines()
     
     msg = "Lowest energy point so far.  Saving SCF results."
+
+    geom = mol.positions
 
     for n, line in enumerate(reversed(lines)):
         if 'Item               Value     Threshold  Converged?' in line:

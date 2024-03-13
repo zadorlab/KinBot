@@ -37,7 +37,7 @@ def iowait(logfile, qc_code):
     """Wait for I/O to be done to a specific file.
     There is a maxtime.
     """
-    maxtime = 10  # s
+    maxtime = 30  # s
     clock = 0
 
     if qc_code == 'gauss':

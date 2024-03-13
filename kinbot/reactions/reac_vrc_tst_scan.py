@@ -19,6 +19,7 @@ class VrcTstScan(GeneralReac):
         self.skip = 0
         self.family_name = 'VrcTstScan'
         self.instance_basename = self.instance_name
+        self.species.instance = instance
         #self.scanned is a dict such as each key is a point of the scan.
         #Each point value is a dict itself such as:
         #self.scanned = {
@@ -338,6 +339,8 @@ class VrcTstScan(GeneralReac):
                 else:
                     data_legends.append(f"{self.qc.VTS_methods['L3'][1]}/{self.qc.VTS_basis['L3'][1]}")
         comments = [f"inf_energy: {self.assymptote(level)}", f"scan_ref = {self.scan_ref}"]
+        if "frozen" in self.instance_basename:
+            comments.extend(self.select_pivot_points(level))
         if min(y[-1]) < -50.0:
             surfaces_start = -0.6 * min(y[-1]) # Energy at which the vrc tst surfaces should start
         elif min(y[-1]) < -20.0:

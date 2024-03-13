@@ -1,3 +1,5 @@
+import numpy as np
+from kinbot import constants
 
 def atom_type_table(element, nconnect, ndouble, ntriple):
     #print(f"{element}, {nconnect}, {ndouble}, {ntriple}")
@@ -133,14 +135,15 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                                 atom_type = 'S_bip_quad_t' #Ex: SF5 (+)(-)? -> SF6
     return atom_type
 
-def pp_lenght_table(element):
-    match element:
-        case 'H':
-            return 0.5
-        case 'C':
-            return 0.5
-        case 'N':
-            return 0.5
-        case 'O':
-            return 0.5
+def pp_lenght_table(element, dist=None):
+        match element:
+            case 'H':
+                return 0.1*constants.BOHRtoANGSTROM
+            case 'C':
+                return 0.1*constants.BOHRtoANGSTROM
+            case 'N':
+                return 0.1*constants.BOHRtoANGSTROM
+            case 'O':
+                return 0.1*constants.BOHRtoANGSTROM
+
         

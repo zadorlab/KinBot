@@ -233,7 +233,7 @@ class Optimize:
                                     else:
                                         self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
                                     #Set conformer_zeroenergy to the species zero-energy if no conformer analysis has been done
-                                    self.species.conformer_zeroenergy = [self.species.energy + self.qc.get_qc_zpe(f"{self.species.name}_high")[1]]
+                                    self.species.conformer_zeroenergy = [self.species.energy + self.qc.get_qc_zpe(f"{self.species.name}_high", wait=0)[1]]
                                 else:
                                     name = self.species.chemid
                                     self.qc.qc_opt(self.species, self.species.geom, high_level=1)

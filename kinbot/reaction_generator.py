@@ -164,27 +164,27 @@ class ReactionGenerator:
                                     err, energy = self.qc.get_qc_energy(obj.instance_name)
                                     if err == 0:
                                         if obj.family_name == "VrcTstScan":
-                                                err, geom = self.qc.get_qc_geom(obj.instance_name, obj.species.natom)
-                                                obj.species.geom = geom #Uptdate species from last L1 optimized point.
-                                                point = f"{self.species.reac_step[index] - 1}" #L1 point_n-1 finished, about to start point_n
-                                                if point not in obj.scanned:
-                                                    obj.scanned[f"{point}"] = {"energy": {"L1": energy}}
+                                            err, geom = self.qc.get_qc_geom(obj.instance_name, obj.species.natom)
+                                            obj.species.geom = geom #Uptdate species from last L1 optimized point.
+                                            point = f"{self.species.reac_step[index] - 1}" #L1 point_n-1 finished, about to start point_n
+                                            if point not in obj.scanned:
+                                                obj.scanned[f"{point}"] = {"energy": {"L1": energy}}
+                                                if "frozen" in obj.instance_name:
+                                                    #Keep L1 orientation, but use L2 fragments geometries
+                                                    obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L1", distance=obj.scan_list[int(point)])
+                                                else:
+                                                    #full fragment reoptmization
+                                                    obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
+                                                #Submit L2 level of vrc tst scan
+                                                if int(self.par["high_level"]):
                                                     if "frozen" in obj.instance_name:
-                                                        #Keep L1 orientation, but use L2 fragments geometries
-                                                        obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L1", distance=obj.scan_list[int(point)])
-                                                    else:
-                                                        #full fragment reoptmization
-                                                        obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
-                                                    #Submit L2 level of vrc tst scan
-                                                    if int(self.par["high_level"]):
-                                                        if "frozen" in obj.instance_name:
-                                                        #Keep L1 orientation, but use L2 fragments geometries
-                                                            obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L2", distance=obj.scan_list[int(point)])
-                                                        obj.scanned[f"{point}"]["opt"] = Optimize(obj.scanned[f"{point}"]["stationary_point"],\
-                                                                                                self.par, self.qc,\
-                                                                                                just_high=True,\
-                                                                                                frozen_param=obj.frozen_param)
-                                                        obj.scanned[f"{point}"]["opt"].do_optimization()
+                                                    #Keep L1 orientation, but use L2 fragments geometries
+                                                        obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L2", distance=obj.scan_list[int(point)])
+                                                    obj.scanned[f"{point}"]["opt"] = Optimize(obj.scanned[f"{point}"]["stationary_point"],\
+                                                                                            self.par, self.qc,\
+                                                                                            just_high=True,\
+                                                                                            frozen_param=obj.frozen_param)
+                                                    obj.scanned[f"{point}"]["opt"].do_optimization()
                                         else:
                                             self.species.reac_scan_energy[index].append(energy)
                                             logger.debug(f'Scan energy for {obj.instance_name} in step {self.species.reac_step[index]}:')
@@ -260,6 +260,7 @@ class ReactionGenerator:
                                                 obj.scanned[f"{point}"]["opt"].do_optimization()
                                         else:
                                             self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
+                                            obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
                                             obj.finish_vrc_tst_scan(level="L1")
 
                 elif self.species.reac_ts_done[index] == 1:

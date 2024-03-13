@@ -110,7 +110,6 @@ class QuantumChemistry:
             if self.par['guessmix'] == 1 or \
                 'barrierless_saddle' in job or \
                 'bls' in job or \
-                VTS or \
                 (mult == 1 and 'R_Addition_MultipleBond' in job):
                 kwargs['guess'] = 'Mix,Always'
             if ts:
@@ -150,9 +149,9 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L1"]
                     kwargs["basis"] = self.VTS_basis["L1"]
-                    kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=30,Loose'
-                    kwargs['guess'] = 'Mix, Always'
-                    kwargs["integral"] = "SuperFineGrid"
+                    kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=15,Loose'
+                    # kwargs['guess'] = 'Mix, Always'
+                    kwargs["integral"] = "Grid=SuperFine"
                     try:
                         kwargs.pop('freq', None)
                     except KeyError:
@@ -199,8 +198,8 @@ class QuantumChemistry:
                 if VTS:
                     kwargs["method"] = self.VTS_methods["L2"]
                     kwargs["basis"] = self.VTS_basis["L2"]
-                    kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=30,{}'.format(self.opt)
-                    kwargs["integral"] = "SuperFineGrid"
+                    kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=15,{}'.format(self.opt)
+                    kwargs["integral"] = "Grid=SuperFine"
                     try:
                         kwargs.pop('freq', None)
                     except KeyError:
@@ -680,8 +679,8 @@ class QuantumChemistry:
         if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
             if "vrc_tst_scan" in species.name and not self.use_sella:
-                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=30,{}'.format(self.opt)
-                kwargs["integral"] = "SuperFineGrid"
+                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=15,{}'.format(self.opt)
+                kwargs["integral"] = "Grid=SuperFine"
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
                 if frozen_param == None or not isinstance(frozen_param, list):

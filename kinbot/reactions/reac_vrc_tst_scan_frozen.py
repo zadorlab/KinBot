@@ -15,6 +15,7 @@ class VrcTstScanFrozen(VrcTstScan):
         Frozen fragments are updated at each step of the scan.
         The internal geometry shouldn't change, but 
         """
+        self.pivot_points_info = []
         self.species = self.get_frozen_species()
 
     def get_frozen_species(self, level="L1", distance=None):
@@ -289,6 +290,92 @@ class VrcTstScanFrozen(VrcTstScan):
             return angle
         else:
             return 0.
+        
+    def select_pivot_points(self, level):
+        for point in self.scanned:
+            if level == 'L1':
+                species = self.scanned[point]['stationary_point']
+            else:
+                species = self.scanned[point]['opt'].species
+            fragments, maps = species.start_multi_molecular()
+            for frag in fragments:
+                frag.characterize()
+
+            min_dist = np.inf
+            for index1, atom1 in enumerate(maps[0]):
+                for index2, atom2 in enumerate(maps[1]):
+                    if species.dist[atom1][atom2] < min_dist:
+                        min_dist = species.dist[atom1][atom2]
+                        min_idx1 = [index1]
+                        min_idx2 = [index2]
+
+            #Detect equivalent atoms
+            if len(fragments[0].atom_uniq) != fragments[0].natom:
+                for eq_atms_idx in fragments[0].atom_eqv:
+                    if min_idx1[0] in eq_atms_idx:
+                        for equivalent_atom in eq_atms_idx:
+                            if equivalent_atom not in min_idx1:
+                                min_idx1.append(equivalent_atom)
+                        break
+                min_idx1 = sorted(min_idx1)
+            if len(fragments[1].atom_uniq) != fragments[1].natom:
+                for eq_atms_idx in fragments[1].atom_eqv:
+                    if min_idx2[0] in eq_atms_idx:
+                        for equivalent_atom in eq_atms_idx:
+                            if equivalent_atom not in min_idx2:
+                                min_idx2.append(equivalent_atom)
+                        break 
+                min_idx2 = sorted(min_idx2)
+
+            if min_dist < 5.0:
+                pp_type = 'from_atom'
+            elif min_dist < 10.0:
+                pp_type = 'on_atom'
+            elif min_dist >= 10.0:
+                continue
+            
+            add_new_pivot_point = True
+            #Actualize the min/max distances at which to look for each pivot points
+            for pivot_point in self.pivot_points_info:
+                if pivot_point["type"] != pp_type:
+                    continue
+                if pivot_point["0"] == fragments[0].chemid and pivot_point["1"] == fragments[1].chemid:
+                    if [min_idx1, min_idx2] == pivot_point['indexes']:
+                        add_new_pivot_point = False
+                        if pivot_point["min"] > min_dist-0.2 :
+                            pivot_point["min"] = min_dist-0.2
+                            break
+                        if pivot_point["max"] < min_dist+0.2 :
+                            pivot_point["max"] = min_dist+0.2
+                            break
+                elif pivot_point["1"] == fragments[0].chemid and pivot_point["0"] == fragments[1].chemid:
+                    if [min_idx2, min_idx1] == pivot_point['indexes']:
+                        add_new_pivot_point = False
+                        if pivot_point["min"] > min_dist-0.2 :
+                            pivot_point["min"] = min_dist-0.2
+                            break
+                        if pivot_point["max"] < min_dist+0.2 :
+                            pivot_point["max"] = min_dist+0.2
+                            break
+
+            if add_new_pivot_point:
+                #Here it is assumed this is a new pivot point:
+                self.pivot_points_info.append({
+                    '0': fragments[0].chemid,
+                    '1': fragments[1].chemid,
+                    'type': pp_type,
+                    'indexes': [min_idx1, min_idx2],
+                    'min': min_dist-0.2,
+                    'max': min_dist+0.2
+                })
+                    
+        comments = [f'Number of unique sets of pivot points: {len(self.pivot_points_info)}']
+        for pivot_point in self.pivot_points_info:
+            for key, value in pivot_point.items():
+                comments.append(f'{key}: {value}')
+        return comments   
+                        
+
 
     def get_constraints(self, step, geom):
         fix = []

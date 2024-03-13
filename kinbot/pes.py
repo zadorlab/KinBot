@@ -1341,189 +1341,326 @@ def create_rotdPy_inputs(par, bless, vdW):
             continue
         logger.info(f"Creating rotdPy input for reaction {job_name}")
         parent_chemid = reactant
-        if len(products) == 2: #Check if the barrierless reaction has 2 fragments
-            tot_frag = len(products)
-
-            vrc_tst_start = 0
-            do_correction = True
-            corrections = {"1d":{"type": "1d"}}
-            for scan_type in ["","_frozen"]:
-                if "IRC" in job_name:
-                    plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
-                    if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
-                        logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan_{scan_type} results not found.")
-                        do_correction = False
-                elif "hom_sci" in job_name: 
-                    plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[0]}_{inp_products[1]}_plt.py"
-                    if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
-                        plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[1]}_{inp_products[0]}_plt.py"
-                        if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
-                            logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan_{scan_type} results not found.")
-                            do_correction = False
-                
-                if do_correction:
-                    with open(f"{parent_chemid}/{plt_file}") as f:
-                        lines = f.readlines()
-
-                    for line in lines[4:]:
-                        if re.search("^y[0-2] = \[", line):
-                            y_data = line
-                            if y_data.startswith("y0"):
-                                level = "L1"
-                            elif y_data.startswith("y1"):
-                                level = "L2"
-                            elif y_data.startswith("y2"):
-                                level = "L3"
-                        if re.search("^x =", line):
-                            x_data = line
-                        if "inf_energy" in line:
-                            inf_energy = float(line.split("energy: ")[1])
-                        if "scan_ref" in line:
-                            corrections["1d"]["scan_ref"] = [[int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]]
-                        if "VRC TST Sampling recommended start: " in line :
-                            if float(line.split("start: ")[1]) > vrc_tst_start:
-                                vrc_tst_start = float(line.split("start: ")[1])
-
-                    match scan_type:
-                        case "":
-                            corrections["1d"]["e_trust"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
-                            corrections["1d"]["r_trust"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
-                        case "_frozen":
-                            corrections["1d"]["e_sample"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
-                            corrections["1d"]["r_sample"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
-                else:
-                    corrections = {}
-                        
-            fragments = []
-            for frag_number in range(tot_frag):
-                chemid = products[frag_number]
-
-                if par['high_level']:
-                    #Will read info from L2 structure
-                    basename = f"{chemid}_well_VTS_high"
-                else:
-                    #Will read info from L1 structure
-                    basename = f"{chemid}_well_VTS"
-
-                #Create ase.atoms objects for each fragments
-                db = connect(f"{parent_chemid}/kinbot.db")
-                *_, last_row = db.select(name=f"{basename}")
-                atoms = last_row.toatoms() #This is an ase.atoms object
-                fragments.append(Fragment.from_ase_atoms(atoms=atoms,
-                                                        frag_number=frag_number,
-                                                        max_frag=tot_frag,
-                                                        chemid=chemid,
-                                                        parent_chemid=parent_chemid,
-                                                            ))
-            if par['high_level']:
-                #Will read info from L2 structure
-                basename = f"{parent_chemid}_well_high"
-            else:
-                #Will read info from L1 structure
-                basename = f"{parent_chemid}_well"
-
-            db = connect(f"{parent_chemid}/kinbot.db")
-            *_, last_row = db.select(name=f"{basename}", sort="-1")
-            parent = StationaryPoint.from_ase_atoms(last_row.toatoms())#This is an ase.atoms object
-            parent.characterize()
-
-            #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
-            fragnames = Fragment.get_fragnames()
-            reactive_atoms = []
-            reactive_atoms = pp_settings.get_ra(reac) 
-            if index < number_of_barrierless:
-                #Map the long range fragments with the index of the parent to find 
-                pp_settings.set_order(parent, reactive_atoms, fragments)
-                #Make sure the reactive atoms are in the same order as the fragments
-                reactive_atoms = pp_settings.reset_reactive_atoms(reactive_atoms,[frag.map for frag in fragments])
-
-            #Set the pivot points on each fragments and create the surfaces
-            surfaces = []
-
-            if len(reactive_atoms) == 0:
-                logger.warning("No reactive atom detected for this reaction. Pivot points on COMs.")
-    
-            for dist in par['vrc_tst_dist_list']:
-                if dist < vrc_tst_start:
-                    logger.info(f"Removing sampling surface {dist} for reaction {reaction_name}")
-                    continue
-                elif dist >= vrc_tst_start:
-                    n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
-                    if len(reactive_atoms) == 0:
-                        for frag in fragments: #Pivot points directly on COM for vdW
-                            if frag.atom[1] == 'H':
-                                coord = frag.create_pp_aligned_with_bond(1)
-                                frag.pivot_points.append(np.round(coord, decimals=4).tolist())
-                            else:
-                                frag.set_pp_on_atom(1)
-                            if dist > 4. and dist < 9. :
-                                frag.set_pp_on_atom(3)
-
-                            #     frag.set_pp_on_atom(3)#TODO: Add pp on atom for the two closest atoms of each fragments.
-                            # if dist < 10.0:
-                            #     #frag.set_pp_on_atom(0)
-                            n_pp.append(len(frag.pivot_points))
-                        pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                        if "1d" in corrections.keys():
-                            pp_dist[:] = dist # \
-                                        # + np.linalg.norm(fragments[0].com-fragments[0].geom[corrections["1d"]["scan_ref"][0][0]])/2 \
-                                        # + np.linalg.norm(fragments[1].com-fragments[1].geom[corrections["1d"]["scan_ref"][0][1]])/2
-                    else:
-                        for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
-                            frag.set_pivot_points(dist, atom)
-                            n_pp.append(len(frag.pivot_points))
-                        pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                        pp_dist[:] = dist
-                    
-                    surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
-                    for frag in fragments:
-                        frag.pivot_points = [] #Reset the pivot points of each fragments for next surface.
-                    
-            #Creating the strings to print input file
-            #Fragments block:
-            Fragments_block = "#Fragments geometries are in Angstroms\n"
-            for frag in fragments:
-                Fragments_block = Fragments_block + (repr(frag)) + "\n"
-
-            #Surfaces block:
-            Surfaces_block = "#Pivot_points and distances are in Bohr\ndivid_surf = [\n"
-            for surf in surfaces:
-                Surfaces_block = Surfaces_block + (repr(surf))
-                if surf == surfaces[-1]:
-                    Surfaces_block = Surfaces_block[:-3]
-            Surfaces_block += "]\n"
-
-            #Corrections block
-            corrections_block = "#Scan energies are in Kcal/mol. The 0 is the assymptotic energy.\n#Scan distances are in Angstrom\ncorrections = {\n"
-            for correction in corrections:
-                corrections_block += f"'{correction}' : " + "{\n"
-                for ckey, cvalue in corrections[correction].items():
-                    if isinstance(cvalue, str):
-                        corrections_block += f"'{ckey}' : '{cvalue}',\n"
-                    else:
-                        corrections_block += f"'{ckey}' : {cvalue},\n"
-                corrections_block = corrections_block[:-2]
-                corrections_block += "\n}\n"
-            corrections_block += "}\n"
-
-            #Calc_block:
-            whoami = getpass.getuser()
-            Calc_block = "calc = {\n" +\
-                        "'code': 'molpro',\n" +\
-                        f"'scratch': '/scratch/{whoami}',\n" +\
-                        f"'processors': 1,\n" +\
-                        f"'queue': '{par['queuing']}',\n" +\
-                        "'max_jobs': 2000}"
-
-            #Flux block:
-            Flux_block = "flux_parameter = {'pot_smp_max': 6000, 'pot_smp_min': 500, #per facet\n" +\
-                         "                  'tot_smp_max': 15000, 'tot_smp_min': 500, \n" +\
-                         "                  'flux_rel_err': 5, 'smp_len': 1}\n"
-            
-        else:
+        if len(products) != 2: #Check if the barrierless reaction has 2 fragments
             logger.warning("The creation of rotdPy inputs currently only work for bimolecular products.")
             logger.warning(f"Skiping rotdPy input creation for reac {job_name}.")
             continue
+        tot_frag = len(products)
+
+        vrc_tst_start = 0
+        do_correction = True
+        corrections = {"1d":{"type": "1d"}}
+        for scan_type in ["","_frozen"]:
+            if "IRC" in job_name:
+                plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
+                if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
+                    logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
+                    do_correction = False
+            elif "hom_sci" in job_name: 
+                plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[0]}_{inp_products[1]}_plt.py"
+                if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
+                    plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[1]}_{inp_products[0]}_plt.py"
+                    if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
+                        logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
+                        do_correction = False
+            
+            pivot_points_info = []
+            
+            if do_correction:
+                with open(f"{parent_chemid}/{plt_file}") as f:
+                    lines = f.readlines()
+
+                for lidx, line in enumerate(lines[4:]):
+                    if re.search("^y[0-2] = \[", line):
+                        y_data = line
+                        if y_data.startswith("y0"):
+                            level = "L1"
+                        elif y_data.startswith("y1"):
+                            level = "L2"
+                        elif y_data.startswith("y2"):
+                            level = "L3"
+                    if re.search("^x =", line):
+                        x_data = line
+                    if "inf_energy" in line:
+                        inf_energy = float(line.split("energy: ")[1])
+                    if "scan_ref" in line:
+                        corrections["1d"]["scan_ref"] = [[int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]]
+                    if "VRC TST Sampling recommended start: " in line :
+                        vrc_tst_start = float(line.split("start: ")[1])
+                    if 'Number of unique sets of pivot points: ' in line:
+                        for pp_number in range(int(line.split()[-1])):
+                            indexes0 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('[[')[1].split('],')[0].split(',')]
+                            indexes1 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('], [')[1].split(']]')[0].split(',')]
+                            pivot_points_info.append({
+                                '0': int(lines[4:][lidx+1+6*pp_number].split()[-1]),
+                                '1': int(lines[4:][lidx+2+6*pp_number].split()[-1]),
+                                'type': lines[4:][lidx+3+6*pp_number].split()[-1],
+                                'indexes': [indexes0, indexes1],
+                                'min': float(lines[4:][lidx+5+6*pp_number].split()[-1]),
+                                'max': float(lines[4:][lidx+6+6*pp_number].split()[-1])
+                            })
+
+                match scan_type:
+                    case "":
+                        corrections["1d"]["e_trust"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
+                        corrections["1d"]["r_trust"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
+                    case "_frozen":
+                        corrections["1d"]["e_sample"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
+                        corrections["1d"]["r_sample"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
+            else:
+                corrections = {}
+                    
+        fragments = []
+        for frag_number in range(tot_frag):
+            chemid = products[frag_number]
+
+            if par['high_level']:
+                #Will read info from L2 structure
+                basename = f"{chemid}_well_VTS_high"
+            else:
+                #Will read info from L1 structure
+                basename = f"{chemid}_well_VTS"
+
+            #Create ase.atoms objects for each fragments
+            db = connect(f"{parent_chemid}/kinbot.db")
+            *_, last_row = db.select(name=f"{basename}")
+            atoms = last_row.toatoms() #This is an ase.atoms object
+            fragments.append(Fragment.from_ase_atoms(atoms=atoms,
+                                                    frag_number=frag_number,
+                                                    max_frag=tot_frag,
+                                                    chemid=chemid,
+                                                    parent_chemid=parent_chemid,
+                                                    par=par))
+        if par['high_level']:
+            #Will read info from L2 structure
+            basename = f"{parent_chemid}_well_high"
+        else:
+            #Will read info from L1 structure
+            basename = f"{parent_chemid}_well"
+
+        db = connect(f"{parent_chemid}/kinbot.db")
+        *_, last_row = db.select(name=f"{basename}", sort="-1")
+        parent = StationaryPoint.from_ase_atoms(last_row.toatoms())#This is an ase.atoms object
+        parent.characterize()
+
+        #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
+        fragnames = Fragment.get_fragnames()
+        reactive_atoms = []
+        reactive_atoms = pp_settings.get_ra(reac) 
+        if index < number_of_barrierless:
+            #Map the long range fragments with the index of the parent to find 
+            pp_settings.set_order(parent, reactive_atoms, fragments)
+            #Make sure the reactive atoms are in the same order as the fragments
+            reactive_atoms = pp_settings.reset_reactive_atoms(reactive_atoms,[frag.map for frag in fragments])
+
+        #Set the pivot points on each fragments and create the surfaces
+        surfaces = []
+        comments = []
+        if len(reactive_atoms) == 0:
+            logger.warning("No reactive atom detected for this reaction. Pivot points on COMs.")
+
+        for dist in par['vrc_tst_dist_list']:
+            if dist < vrc_tst_start:
+                logger.info(f"Removing sampling surface {dist} for reaction {reaction_name}")
+                continue
+            elif dist >= vrc_tst_start:
+                n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
+                if len(reactive_atoms) == 0:
+                    if dist <= 7.:
+                        # for pp_length1 in par['pp_length']:
+                        for pp_length2 in par['pp_length']:
+                            # coord = fragments[0].create_pp_aligned_with_bond( 1, length=pp_length1*constants.BOHRtoANGSTROM, angle=240, last_neighbours=2)
+                            fragments[0].set_pp_on_atom(1)
+                            coord = fragments[1].create_pp_aligned_with_bond(1,length=pp_length2*constants.BOHRtoANGSTROM)
+                            fragments[1].pivot_points.append(np.round(coord, decimals=4).tolist())
+                            n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
+                            pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                            pp_dist[:] = dist - (pp_length2)*constants.BOHRtoANGSTROM
+                            surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
+                            for frag in fragments:
+                                frag.pivot_points = []
+                            n_pp = []
+                            comments.append(f'# PP on frag 1: [1] ' + '\n' +\
+                                            f'# PP from frag 2: [1] with length {pp_length2} bohrs' + '\n' +\
+                                            f'# distance: {dist} Angstrom' + '\n')
+                        # for pivot_point in pivot_points_info:
+                        #     if pivot_point['type'] == 'from_atom':
+                        #         if dist > pivot_point['min'] and dist < pivot_point['max']:
+                        #             if pivot_point["0"] == fragments[0].chemid and pivot_point["1"] == fragments[1].chemid:
+                        #                 frag1_reactive_atoms = pivot_point["indexes"][0]
+                        #                 frag2_reactive_atoms = pivot_point["indexes"][1]
+                        #             else:
+                        #                 frag1_reactive_atoms = pivot_point["indexes"][1]
+                        #                 frag2_reactive_atoms = pivot_point["indexes"][0]
+                        #             for pp_length1 in par['pp_length']:
+                        #                 for pp_length2 in par['pp_length']:
+                        #                     skip = False
+                        #                     for ra1 in frag1_reactive_atoms:
+                        #                         if fragments[0].atom[ra1] == 'H':
+                        #                             if pp_length1 != par['pp_length'][0] and pp_length1 != 0.0:
+                        #                                     skip = True
+                        #                                     continue
+                        #                             pp_length1 = 0.0
+                        #                             atom_type = fragments[0].get_atom_type(ra1)
+                        #                             fragments[0].get_pp_coord(ra1, atom_type, dist_from_ra=pp_length1*constants.BOHRtoANGSTROM)
+                        #                         elif fragments[0].atom[ra1] == 'O':
+                        #                             coord = fragments[0].create_pp_aligned_with_bond( 1, length=pp_length1*constants.BOHRtoANGSTROM, angle=240, last_neighbours=2)
+                        #                             fragments[0].pivot_points.append(np.round(coord, decimals=4).tolist())
+                        #                         else:
+                        #                             atom_type = fragments[0].get_atom_type(ra1)
+                        #                             coord = fragments[0].get_pp_coord(ra1, atom_type, dist_from_ra=pp_length1*constants.BOHRtoANGSTROM)
+                        #                             fragments[0].pivot_points.append(np.round(coord, decimals=4).tolist())   
+                        #                     for ra2 in frag2_reactive_atoms:
+                        #                         if fragments[1].atom[ra2] == 'H':
+                        #                             if ra2 == 1:
+                        #                                 coord = fragments[1].create_pp_aligned_with_bond(ra2,length=pp_length2*constants.BOHRtoANGSTROM)
+                        #                                 fragments[1].pivot_points.append(np.round(coord, decimals=4).tolist())
+                        #                             else:
+                        #                                 if pp_length2 != par['pp_length'][0] and pp_length2 != 0.0:
+                        #                                     skip = True
+                        #                                 else:
+                        #                                     pp_length2 = 0.0
+                        #                                     atom_type = fragments[1].get_atom_type(ra2)
+                        #                                     fragments[1].get_pp_coord(ra2, atom_type, dist_from_ra=pp_length2*constants.BOHRtoANGSTROM)
+                        #                         else:
+                        #                             atom_type = fragments[1].get_atom_type(ra2)
+                        #                             coord = fragments[1].get_pp_coord(ra2, atom_type, dist_from_ra=pp_length2*constants.BOHRtoANGSTROM)
+                        #                             fragments[1].pivot_points.append(np.round(coord, decimals=4).tolist())
+                        #                     if skip:
+                        #                         for frag in fragments:
+                        #                             frag.pivot_points = []
+                        #                         continue
+                        #                     n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
+                        #                     pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                        #                     pp_dist[:] = dist - (pp_length2 + pp_length1)*constants.BOHRtoANGSTROM
+                        #                     surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
+                        #                     comments.append(f'# PP from frag 1: {frag1_reactive_atoms} with length {pp_length1} bohrs' + '\n' +\
+                        #                                     f'# PP from frag 2: {frag2_reactive_atoms} with length {pp_length2} bohrs' + '\n' +\
+                        #                                     f'# distance: {dist} Angstrom' + '\n')
+                        #                     for frag in fragments:
+                        #                         frag.pivot_points = []
+                        #                     n_pp = []
+                                            
+                    if dist >= 4.0 and dist < 12.0:
+                        fragments[1].set_pp_on_atom(1)
+                        fragments[0].set_pp_on_atom(1)
+                        n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
+                        pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                        pp_dist[:] = dist
+                        surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
+                        for frag in fragments:
+                            frag.pivot_points = []
+                        n_pp = []
+                        comments.append(f'# PP on frag 1: [1]' + '\n' +\
+                                        f'# PP on frag 2: [1]' + '\n' +\
+                                        f'# distance: {dist} Angstrom' + '\n')
+                        # for pivot_point in pivot_points_info:
+                        #     if pivot_point['type'] == 'on_atom':
+                        #         if dist > pivot_point['min'] and dist < pivot_point['max']:
+                        #             if pivot_point["0"] == int(fragments[0].chemid) and pivot_point["1"] == int(fragments[1].chemid):
+                        #                 frag1_reactive_atoms = pivot_point["indexes"][0]
+                        #                 frag2_reactive_atoms = pivot_point["indexes"][1]
+                        #             else:
+                        #                 frag1_reactive_atoms = pivot_point["indexes"][1]
+                        #                 frag2_reactive_atoms = pivot_point["indexes"][0]
+                        #             for ra1 in frag1_reactive_atoms:
+                        #                 fragments[0].set_pp_on_atom(ra1)
+                        #             for ra2 in frag2_reactive_atoms:
+                        #                 fragments[1].set_pp_on_atom(ra2)
+                        #             n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
+                        #             pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                        #             pp_dist[:] = dist
+                        #             surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
+                        #             for frag in fragments:
+                        #                 frag.pivot_points = []
+                        #             n_pp = []
+                        #             comments.append(f'# PP on frag 1: {frag1_reactive_atoms}' + '\n' +\
+                        #                             f'# PP on frag 2: {frag2_reactive_atoms}' + '\n' +\
+                        #                             f'# distance: {dist} Angstrom' + '\n')
+                    if dist >= 10.0 :
+                        fragments[0].set_pp_on_com()
+                        fragments[1].set_pp_on_com()
+                        n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
+                        pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                        pp_dist[:] = dist
+                        surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
+                        for frag in fragments:
+                            frag.pivot_points = []
+                        n_pp = []
+                        comments.append('# PP on COM for frag 1\n' +\
+                                        '# PP on COM for frag 2\n' +\
+                                        f'# distance: {dist} Angstrom' + '\n')
+                    # for frag in fragments: #Pivot points directly on COM for vdW
+                    #     if frag.atom[1] == 'H':
+                    #         frag.pivot_points.append(np.round(coord, decimals=4).tolist())
+                    #     else:
+                    #         frag.set_pp_on_atom(1)
+                    #     if dist > 4. and dist < 9. :
+                    #         frag.set_pp_on_atom(3)
+
+                    #     #     frag.set_pp_on_atom(3)#TODO: Add pp on atom for the two closest atoms of each fragments.
+                    #     # if dist < 10.0:
+                    #     #     #frag.set_pp_on_atom(0)
+                    #     n_pp.append(len(frag.pivot_points))
+                    # pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                    # if "1d" in corrections.keys():
+                    #     pp_dist[:] = dist # \
+                                    # + np.linalg.norm(fragments[0].com-fragments[0].geom[corrections["1d"]["scan_ref"][0][0]])/2 \
+                                    # + np.linalg.norm(fragments[1].com-fragments[1].geom[corrections["1d"]["scan_ref"][0][1]])/2
+                else:
+                    for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
+                        frag.set_pivot_points(dist, atom)
+                        n_pp.append(len(frag.pivot_points))
+                    pp_dist = np.zeros(tuple(n_pp), dtype=float)
+                    pp_dist[:] = dist
+                
+                    surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
+                    for frag in fragments:
+                        frag.pivot_points = [] #Reset the pivot points of each fragments for next surface.
+                
+        #Creating the strings to print input file
+        #Fragments block:
+        Fragments_block = "#Fragments geometries are in Angstroms\n"
+        for frag in fragments:
+            Fragments_block = Fragments_block + (repr(frag)) + "\n"
+
+        #Surfaces block:
+        Surfaces_block = "#Pivot_points and distances are in Bohr\ndivid_surf = [\n"
+        for index, surf in enumerate(surfaces):
+            Surfaces_block = Surfaces_block + f"# Surface ID: {index}" + '\n'
+            Surfaces_block = Surfaces_block + comments[index]
+            Surfaces_block = Surfaces_block + (repr(surf))
+            if surf == surfaces[-1]:
+                Surfaces_block = Surfaces_block[:-3]
+        Surfaces_block += "]\n"
+
+        #Corrections block
+        corrections_block = "#Scan energies are in Kcal/mol. The 0 is the assymptotic energy.\n#Scan distances are in Angstrom\ncorrections = {\n"
+        for correction in corrections:
+            corrections_block += f"'{correction}' : " + "{\n"
+            for ckey, cvalue in corrections[correction].items():
+                if isinstance(cvalue, str):
+                    corrections_block += f"'{ckey}' : '{cvalue}',\n"
+                else:
+                    corrections_block += f"'{ckey}' : {cvalue},\n"
+            corrections_block = corrections_block[:-2]
+            corrections_block += "\n}\n"
+        corrections_block += "}\n"
+
+        #Calc_block:
+        whoami = getpass.getuser()
+        Calc_block = "calc = {\n" +\
+                    "'code': 'molpro',\n" +\
+                    f"'scratch': '/scratch/{whoami}',\n" +\
+                    f"'processors': 1,\n" +\
+                    f"'queue': '{par['queuing']}',\n" +\
+                    "'max_jobs': 2000}"
+
+        #Flux block:
+        Flux_block = "flux_parameter = {'pot_smp_max': 6000, 'pot_smp_min': 500, #per facet\n" +\
+                        "                  'tot_smp_max': 15000, 'tot_smp_min': 500, \n" +\
+                        "                  'flux_rel_err': 5, 'smp_len': 1}\n"
+
 
         fname = f"{job_name}.py"
         folder = "rotdPy"

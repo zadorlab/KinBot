@@ -102,7 +102,10 @@ class Parameters:
             # Detect vdW wells deeper than threshold (kcal/mol)
             'vdW_detection': 0.5,
             #List of barrierless reactions for which rotdPy inputs must be created
+            #Ex: 882363063562220240001_bimol_disproportionation_R_5_4_IRC_R_prod_441041030570000000001_441080860640060000001
             'rotdPy_inputs': None,
+            #Distances in bohr at which pivot points are generated when at a distance from an atom
+            'pp_length': [0.1],
 
             # CONFORMATIONAL SEARCH
             # Do a conformational search

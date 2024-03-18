@@ -444,7 +444,7 @@ class Conformers:
                             'status': last_row.data.get('status')}
                     self.db.write(mol, name='conf/{}_low'.format(name), 
                                   data=data)
-                    logger.warning(f'All conformer optimizations failed for {name}.')
+                    #logger.warning(f'All conformer optimizations failed for {name}.')
 
                     return 1, lowest_conf, lowest_e_geom, last_row.data.get('energy'),\
                            final_geoms, totenergies, frequencies, status

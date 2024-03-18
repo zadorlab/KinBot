@@ -49,7 +49,7 @@ KinBot can be installed both in three different ways, from the PyPI index (`pip 
     pip install kinbot
 
 > **Note**
->  KinBot only works with Python >= 3.8.
+>  KinBot only works with Python >= 3.10.
 
 ### conda-forge
 
@@ -95,6 +95,7 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 * Carles Martí (cmartia@sandia.gov)
 
 ## Papers using KinBot
+* Wang, D., Tian, Z.-Y., Zheng, Z.-H., Li, W., Wu, L.-N., Kuang, J.-J., Yang, J.-Z.: _Experimental and modeling study of the n, n-dimethylformamide pyrolysis at atmospheric pressure_. Combust. Flame, **2024**, 260, 113240. https://doi.org/10.1016/j.combustflame.2023.113240
 * Doner, A. C., Zádor, J., Rotavera, B.: _Unimolecular reactions of 2,4-dimethyloxetanyl radicals._ J. Phys. Chem A, **2023**, 127, 2591–2600 https://doi.org/10.1021/acs.jpca.2c08290
 * Li, H., Lang, J., Foley, C. D., Zádor, J., Suits, A. G.: _Sulfur (3P) reaction with conjugated dienes gives cyclization to thiophenes under single collision conditions._ J. Phys. Chem. Letters, **2023**, 14, 7611–7617. https://doi.org/10.1021/acs.jpclett.3c01953
 * Martí, C., Michelsen, H. A., Najm, H. N., Zádor, J.: _Comprehensive kinetics on the C7H7 potential energy surface under combustion conditions._ J. Phys. Chem. A, **2023**, 127, 1941–1959. https://pubs.acs.org/doi/full/10.1021/acs.jpca.2c08035  

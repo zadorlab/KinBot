@@ -195,7 +195,7 @@ class ReactionGenerator:
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
                                                 logger.info(f'\tMaximum found for {obj.instance_name}.')
                                                 e_in_kcal = [constants.AUtoKCAL * (self.species.reac_scan_energy[index][ii] - 
-                                                               self.species.reac_scan_energy[index][0]) 
+                                                               self.species.reac_scan_energy[index][0])
                                                                for ii in range(len(self.species.reac_scan_energy[index]))]
                                                 e_in_kcal = np.round(e_in_kcal, 2)
                                                 logger.info(f'\tEnergies: {e_in_kcal}')

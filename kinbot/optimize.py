@@ -263,7 +263,7 @@ class Optimize:
                                         min_ai = -1
                                         for rotor in range(len(self.species.dihed)):
                                             for ai in range(self.species.hir.nrotation):
-                                                # use a 0.1kcal/mol cutoff for numerical noise
+                                                # use a 0.1 kcal/mol cutoff for numerical noise
                                                 if self.species.hir.hir_energies[rotor][ai] < min_en - 1.6E-4:
                                                     min_en = self.species.hir.hir_energies[rotor][ai]
                                                     min_rotor = rotor
@@ -291,7 +291,7 @@ class Optimize:
                                                 self.shigh = -1
                                                 self.shir = -1
                                             else:
-                                                logger.warning('Lower energy conformer, but reached max restart for {}'.format(self.name))
+                                                logger.warning(f'Lower energy conformer found, but reached max restart for {self.name}')
                                                 self.shir = 1
                                         else:
                                             self.shir = 1

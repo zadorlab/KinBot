@@ -49,7 +49,7 @@ KinBot can be installed both in three different ways, from the PyPI index (`pip 
     pip install kinbot
 
 > **Note**
->  KinBot only works with Python >= 3.8.
+>  KinBot only works with Python >= 3.10.
 
 ### conda-forge
 

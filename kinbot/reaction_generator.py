@@ -435,17 +435,20 @@ class ReactionGenerator:
                         if len(obj.products) == 2 and "hom_sci" not in obj.instance_name:
                             logger.info("\tChecking vdW well for {}.".format(obj.instance_name))
                             obj.irc_prod.characterize()
-                            e, obj.irc_prod.energy = self.qc.get_qc_energy(f"{obj.irc_prod.name}") #e is the error code: should be 0 (success) at this point.
-                            e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}")
-                            e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
-                            e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
-                            for this_frag in obj.irc_fragments:
-                                e, this_frag.freq = self.qc.get_qc_freq(f"{this_frag.name}_well", this_frag.natom) 
-                            fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
-                            obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe))*constants.AUtoKCAL
-                            if obj.vdW_depth > self.par["vdW_detection"]:
-                                logger.info("\tvdW well detected for {}: {:.2f}>threshold ({:.2f}) Kcal/mol.".format(obj.irc_prod.name, obj.vdW_depth, self.par["vdW_detection"]))
-                                obj.do_vdW = True
+                            try:
+                                e, obj.irc_prod.energy = self.qc.get_qc_energy(f"{obj.irc_prod.name}") #e is the error code: should be 0 (success) at this point.
+                                e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}")
+                                e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
+                                e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
+                                for this_frag in obj.irc_fragments:
+                                    e, this_frag.freq = self.qc.get_qc_freq(f"{this_frag.name}_well", this_frag.natom) 
+                                fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
+                                obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe))*constants.AUtoKCAL
+                                if obj.vdW_depth > self.par["vdW_detection"]:
+                                    logger.info("\tvdW well detected for {}: {:.2f}>threshold ({:.2f}) Kcal/mol.".format(obj.irc_prod.name, obj.vdW_depth, self.par["vdW_detection"]))
+                                    obj.do_vdW = True
+                            except:
+                                logger.info("\t{} was not succesfull, vdW search stopped for this well.".format(obj.irc_prod.name))
                             
                         if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                             hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL

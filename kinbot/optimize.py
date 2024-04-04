@@ -297,6 +297,8 @@ class Optimize:
                                             self.shir = 1
                                     else:
                                         self.shir = 1
+                                else:
+                                    self.shir = 1
                         else:
                             # no hir calculations necessary, set status to finished
                             self.shir = 1

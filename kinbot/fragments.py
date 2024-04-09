@@ -116,33 +116,6 @@ class Fragment(StationaryPoint):
         for elem in self.atom:
             all_elem += f"{elem}"
         return all_elem
-    
-    def get_pivot_points(self, dist, ra_indexes_in_parent=None, dist_from_ra=None):
-        if dist_from_ra == None:
-            dist_from_ra == 0.0
-        if self.natom == 1:
-            self.set_pp_on_com()
-        elif dist >= 12:
-            self.set_pp_on_com()
-        elif dist >= 10 and dist < 12:
-            self.set_pp_on_com()
-            self.set_ra(ra_indexes_in_parent)
-            for index in self.ra:
-                self.set_pp_on_atom(index)
-        elif dist >= 6 and dist < 10:
-            self.set_ra(ra_indexes_in_parent)
-            for index in self.ra:
-                self.set_pp_on_atom(index)
-        elif dist >= 5 and dist < 6:
-            self.set_ra(ra_indexes_in_parent)
-            self.set_pp_next_to_ra(self.ra, dist_from_ra)
-            for index in self.ra:
-                self.set_pp_on_atom(index)
-        elif dist < 5:
-            self.set_ra(ra_indexes_in_parent)
-            self.set_pp_next_to_ra(self.ra, dist_from_ra)
-        else:
-            pass
                 
     def set_ra(self, ra_indexes_in_parent=None, ra_indexes_in_frag=None): 
         if ra_indexes_in_frag == None:

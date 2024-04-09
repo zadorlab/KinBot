@@ -117,7 +117,9 @@ class Fragment(StationaryPoint):
             all_elem += f"{elem}"
         return all_elem
     
-    def set_pivot_points(self, dist, ra_indexes_in_parent=None):
+    def get_pivot_points(self, dist, ra_indexes_in_parent=None, dist_from_ra=None):
+        if dist_from_ra == None:
+            dist_from_ra == 0.0
         if self.natom == 1:
             self.set_pp_on_com()
         elif dist >= 12:
@@ -133,12 +135,12 @@ class Fragment(StationaryPoint):
                 self.set_pp_on_atom(index)
         elif dist >= 5 and dist < 6:
             self.set_ra(ra_indexes_in_parent)
-            self.set_pp_next_to_ra(self.ra)
+            self.set_pp_next_to_ra(self.ra, dist_from_ra)
             for index in self.ra:
                 self.set_pp_on_atom(index)
         elif dist < 5:
             self.set_ra(ra_indexes_in_parent)
-            self.set_pp_next_to_ra(self.ra)
+            self.set_pp_next_to_ra(self.ra, dist_from_ra)
         else:
             pass
                 
@@ -155,23 +157,20 @@ class Fragment(StationaryPoint):
                         ra_indexes_in_frag.append(equivalent_atom)
         self.ra = np.array(ra_indexes_in_frag, dtype=int)
 
-    def set_pp_on_com(self):
-            self.pivot_points.append(np.round(self.com.copy(), decimals=4).tolist())
+    def get_pp_on_com(self):
+            return np.round(copy.copy(self.com),\
+                            decimals=5).tolist()
 
-    def set_pp_on_atom(self, index):
-            new_pp = np.round(self.geom[index], decimals=4).tolist()
-            if new_pp not in self.pivot_points: #In case RA on COM
-                self.pivot_points.append(new_pp)
+    def get_pp_on_atom(self, index):
+            return np.round(copy.copy(self.geom[index]),\
+                            decimals=5).tolist()
 
-    def set_pp_next_to_ra(self, ra, dist_from_ra=None):
-        for index in ra:
-            atom_type = self.get_atom_type(index)
-            coord = self.get_pp_coord(index, atom_type, dist_from_ra=dist_from_ra)
-            if type(coord) is list:
-                for this_pp in coord:
-                    self.pivot_points.append(np.round(this_pp, decimals=4).tolist())
-            else:
-                self.pivot_points.append(np.round(coord, decimals=4).tolist())
+    def get_pp_next_to_ra(self, index, dist_from_ra=0.0):
+        atom_type = self.get_atom_type(index)
+        coord = self.get_pp_coord(index,\
+                                  atom_type,\
+                                  dist_from_ra=dist_from_ra)
+        return np.round(coord, decimals=5).tolist()
 
     def get_atom_type(self, index):
         element = self.atom[index]
@@ -190,10 +189,16 @@ class Fragment(StationaryPoint):
         return atom_type
     
     def get_pp_coord(self, index, atom_type, dist_from_ra=None):
+        if dist_from_ra == None:
+            #Return a list of relevant distances to try
+            dist_from_ra = pp_tables.pp_length_table(atom_type[0])
         match atom_type:
             case 'H' | 'C' | 'O' | 'S':
                 #Create pivot point on atom
-                self.set_pp_on_atom(index)
+                return [self.get_pp_on_atom(index)]
+            case 'H_lin':
+                pp_coord = self.create_pp_aligned_with_bond(index, length=dist_from_ra)
+                return pp_coord
             case 'C_lin':
                 pp_coord = self.create_pp_aligned_with_bond(index, length=dist_from_ra)
                 return pp_coord
@@ -262,14 +267,9 @@ class Fragment(StationaryPoint):
             axis = geometry.unit_vector(np.cross(v2, v1))
             pp_orient = np.dot(geometry.rotation_matrix(axis, math.radians(angle)), v1)
             
-        if length == None:
-            length = pp_tables.pp_lenght_table(self.atom[index])
-        try:
-            pp_vect = length * geometry.unit_vector(pp_orient)
-        except NameError:
-            logger.warning(f"Length of pivot point not defined yet for atom {self.atom[index]}. Setting it to 0.1 Bohr.")
-            length = 0.1*constants.BOHRtoANGSTROM
-            pp_vect = length * geometry.unit_vector(pp_orient)
+        #Multiply unit vector with correct orientation with desired length
+        pp_vect = np.asarray(length) * geometry.unit_vector(pp_orient)
+        #Place pivots point in molecular frame
         pp_coord = np.add(ra_pos, pp_vect)
         return pp_coord
 
@@ -289,7 +289,7 @@ class Fragment(StationaryPoint):
         axis = geometry.unit_vector(np.cross(v2, v1))
         pp_orient = np.dot(geometry.rotation_matrix(axis, angle), v1)
         if length == None:
-            length = pp_tables.pp_lenght_table(self.atom[index], par=self.par)
+            length = pp_tables.pp_length_table(self.atom[index], par=self.par)
         pp_vect = length * geometry.unit_vector(pp_orient)
         pp_coord = np.add(ra_pos, pp_vect)
         return pp_coord
@@ -314,7 +314,7 @@ class Fragment(StationaryPoint):
         #To know in which direction to place the pivot point
         plane_direction = geometry.unit_vector(np.dot(plane[0], ra_pos))
         if length == None:
-            length = pp_tables.pp_lenght_table(self.atom[index],par=self.par)
+            length = pp_tables.pp_length_table(self.atom[index],par=self.par)
         for i in range(n_pp):
             pp_orient = np.array(geometry.unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
             try:

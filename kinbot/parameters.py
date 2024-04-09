@@ -8,8 +8,11 @@ initializer.
 import sys
 import json
 import logging
+import numpy as np
 from ase import units
 from kinbot import kb_path
+from kinbot import pp_tables
+from kinbot import constants
 
 logger = logging.getLogger('KinBot')
 
@@ -108,8 +111,15 @@ class Parameters:
             #List of barrierless reactions for which rotdPy inputs must be created
             #Ex: 882363063562220240001_bimol_disproportionation_R_5_4_IRC_R_prod_441041030570000000001_441080860640060000001
             'rotdPy_inputs': None,
-            #Distances in bohr at which pivot points are generated when at a distance from an atom
-            'pp_length': [0.1],
+            #Dictionary of distances in bohr at which pivot points are generated for each atom
+            'pp_length': None,
+            #List [start, stop] in angstrom of the pp_next_to_atom procedure
+            'pp_next_to_atom': None,
+            #List [start, stop] in angstrom of the pp_on_atom procedure
+            'pp_on_atom': None,
+            #Start value in angstrom of the pp_on_COM procedure
+            'pp_on_COM': 10.0,
+            
 
             # CONFORMATIONAL SEARCH
             # Do a conformational search
@@ -458,7 +468,38 @@ class Parameters:
             for key in VTS_defaults:
                 if key not in self.VTS_parameters:
                     self.VTS_parameters[key] = VTS_defaults[key]
+        
+        #Check user input
+        if self.par['pp_length'] != None and\
+            not isinstance(self.par['pp_length'], dict):
+            logger.info('User defined pp_length should be a dict. Using default values.')
+            self.par['pp_length'] = pp_tables.pp_length_table()
+        #Check keys
+        elif self.par['pp_length'] != None and\
+            isinstance(self.par['pp_length'], dict):
+            for element in pp_tables.pp_length_table():
+                if element not in self.par['pp_length']:
+                    self.par['pp_length'][element] = pp_tables.pp_length_table()[element]
+                else:
+                    self.par['pp_length'][element] = (np.array(self.par['pp_length'][element])\
+                                                    * constants.BOHRtoANGSTROM).tolist()
+        elif self.par['pp_length'] == None:
+            self.par['pp_length'] = pp_tables.pp_length_table()
 
+        if self.par['pp_next_to_atom'] != None and\
+            not isinstance(self.par['pp_next_to_atom'], list):
+            logger.info('User defined pp_next_to_atom should be a list. Using default values.')
+            self.par['pp_next_to_atom'] = [1.5, 6]
+        elif self.par['pp_next_to_atom'] == None:
+            self.par['pp_next_to_atom'] = [1.5, 6]
+        if self.par['pp_on_atom'] != None and\
+            not isinstance(self.par['pp_on_atom'], list):
+            logger.info('User defined pp_on_atom should be a list. Using default values.')
+            self.par['pp_on_atom'] = [5.0, 12.0]
+        elif self.par['pp_on_atom'] == None:
+            self.par['pp_on_atom'] = [5.0, 12.0]
+
+            
         if self.par['barrier_threshold'] == 'none':
             self.par['barrier_threshold'] = None
         if self.par['barrier_threshold_L2'] == 'none':

@@ -27,7 +27,7 @@ def generate_grid(start, interval, factor, num_point):
 
 # temperature, energy grid and angular momentum grid
 temperature = generate_grid(10, 10, 1.05, 51)
-energy = generate_grid(0, 10, 1.05, 169)
+energy = generate_grid(0, 10, 1.05, 190)
 angular_mom = generate_grid(0, 1, 1.1, 40)
 
 # fragment info
@@ -60,7 +60,7 @@ _{job_name} = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
 flux_base = FluxBase(temp_grid=temperature,
                      energy_grid=energy,
                      angular_grid=angular_mom,
-                     flux_type='EJ-RESOLVED',
+                     flux_type='MICROCANONICAL',
                      flux_parameter=flux_parameter)
 
 # start the final run

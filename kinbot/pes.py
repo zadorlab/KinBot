@@ -25,11 +25,9 @@ from kinbot import pp_settings
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
-from kinbot.vrc_tst_surfaces import VRC_TST_Surface
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
-from kinbot.molpro import Molpro
 
 
 def main():
@@ -438,6 +436,7 @@ def postprocess(par, jobs, task, names, mass):
                                 reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
                         elif reactions[temp][3] < barrier and "vdW" in line:
                             wells.pop(-1)
+                            do_vdW.pop(-1)
                             parent.pop(vdW_well)
                         elif reactions[temp][3] == barrier:
                             if "vdW" in line:
@@ -1433,25 +1432,32 @@ def create_rotdPy_inputs(par, bless, vdW):
                                                     par=par))
         if par['high_level']:
             #Will read info from L2 structure
-            basename = f"{parent_chemid}_well_high"
+            if '_IRC_' in reaction_name:
+                basename = f"{reaction_name}_high"
+            else:
+                basename = f"{parent_chemid}_well_high"
         else:
             #Will read info from L1 structure
-            basename = f"{parent_chemid}_well"
+            if '_IRC_' in reaction_name:
+                basename = f"{reaction_name}"
+            else:
+                basename = f"{parent_chemid}_well"
 
         db = connect(f"{parent_chemid}/kinbot.db")
         *_, last_row = db.select(name=f"{basename}", sort="-1")
         parent = StationaryPoint.from_ase_atoms(last_row.toatoms())#This is an ase.atoms object
         parent.characterize()
 
-        #Create the list of pivot points and pivot points' distance matrices for each distances along the scan
         fragnames = Fragment.get_fragnames()
         reactive_atoms = []
-        reactive_atoms = pp_settings.get_ra(reac) 
-        if index < number_of_barrierless:
+        reactive_atoms = pp_settings.get_ra(reac, parent_chemid)
+        #if index < number_of_barrierless:
             #Map the long range fragments with the index of the parent to find 
-            pp_settings.set_order(parent, reactive_atoms, fragments)
+        pp_settings.set_parent_map(parent, reactive_atoms, fragments)
             #Make sure the reactive atoms are in the same order as the fragments
-            reactive_atoms = pp_settings.reset_reactive_atoms(reactive_atoms,[frag.map for frag in fragments])
+            #Shouldn't be needed anymore
+            #reactive_atoms = pp_settings.reset_reactive_atoms(reactive_atoms,[frag.map for frag in fragments])
+        #endif
 
         #Set the pivot points on each fragments and create the surfaces
         surfaces = []
@@ -1464,159 +1470,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                 logger.info(f"Removing sampling surface {dist} for reaction {reaction_name}")
                 continue
             elif dist >= vrc_tst_start:
-                n_pp = [] #Dimension of the distance matrix depending on the number of pivot points
-                if len(reactive_atoms) == 0:
-                    if dist <= 7.:
-                        # for pp_length1 in par['pp_length']:
-                        for pp_length2 in par['pp_length']:
-                            # coord = fragments[0].create_pp_aligned_with_bond( 1, length=pp_length1*constants.BOHRtoANGSTROM, angle=240, last_neighbours=2)
-                            fragments[0].set_pp_on_atom(1)
-                            coord = fragments[1].create_pp_aligned_with_bond(1,length=pp_length2*constants.BOHRtoANGSTROM)
-                            fragments[1].pivot_points.append(np.round(coord, decimals=4).tolist())
-                            n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
-                            pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                            pp_dist[:] = dist - (pp_length2)*constants.BOHRtoANGSTROM
-                            surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
-                            for frag in fragments:
-                                frag.pivot_points = []
-                            n_pp = []
-                            comments.append(f'# PP on frag 1: [1] ' + '\n' +\
-                                            f'# PP from frag 2: [1] with length {pp_length2} bohrs' + '\n' +\
-                                            f'# distance: {dist} Angstrom' + '\n')
-                        # for pivot_point in pivot_points_info:
-                        #     if pivot_point['type'] == 'from_atom':
-                        #         if dist > pivot_point['min'] and dist < pivot_point['max']:
-                        #             if pivot_point["0"] == fragments[0].chemid and pivot_point["1"] == fragments[1].chemid:
-                        #                 frag1_reactive_atoms = pivot_point["indexes"][0]
-                        #                 frag2_reactive_atoms = pivot_point["indexes"][1]
-                        #             else:
-                        #                 frag1_reactive_atoms = pivot_point["indexes"][1]
-                        #                 frag2_reactive_atoms = pivot_point["indexes"][0]
-                        #             for pp_length1 in par['pp_length']:
-                        #                 for pp_length2 in par['pp_length']:
-                        #                     skip = False
-                        #                     for ra1 in frag1_reactive_atoms:
-                        #                         if fragments[0].atom[ra1] == 'H':
-                        #                             if pp_length1 != par['pp_length'][0] and pp_length1 != 0.0:
-                        #                                     skip = True
-                        #                                     continue
-                        #                             pp_length1 = 0.0
-                        #                             atom_type = fragments[0].get_atom_type(ra1)
-                        #                             fragments[0].get_pp_coord(ra1, atom_type, dist_from_ra=pp_length1*constants.BOHRtoANGSTROM)
-                        #                         elif fragments[0].atom[ra1] == 'O':
-                        #                             coord = fragments[0].create_pp_aligned_with_bond( 1, length=pp_length1*constants.BOHRtoANGSTROM, angle=240, last_neighbours=2)
-                        #                             fragments[0].pivot_points.append(np.round(coord, decimals=4).tolist())
-                        #                         else:
-                        #                             atom_type = fragments[0].get_atom_type(ra1)
-                        #                             coord = fragments[0].get_pp_coord(ra1, atom_type, dist_from_ra=pp_length1*constants.BOHRtoANGSTROM)
-                        #                             fragments[0].pivot_points.append(np.round(coord, decimals=4).tolist())   
-                        #                     for ra2 in frag2_reactive_atoms:
-                        #                         if fragments[1].atom[ra2] == 'H':
-                        #                             if ra2 == 1:
-                        #                                 coord = fragments[1].create_pp_aligned_with_bond(ra2,length=pp_length2*constants.BOHRtoANGSTROM)
-                        #                                 fragments[1].pivot_points.append(np.round(coord, decimals=4).tolist())
-                        #                             else:
-                        #                                 if pp_length2 != par['pp_length'][0] and pp_length2 != 0.0:
-                        #                                     skip = True
-                        #                                 else:
-                        #                                     pp_length2 = 0.0
-                        #                                     atom_type = fragments[1].get_atom_type(ra2)
-                        #                                     fragments[1].get_pp_coord(ra2, atom_type, dist_from_ra=pp_length2*constants.BOHRtoANGSTROM)
-                        #                         else:
-                        #                             atom_type = fragments[1].get_atom_type(ra2)
-                        #                             coord = fragments[1].get_pp_coord(ra2, atom_type, dist_from_ra=pp_length2*constants.BOHRtoANGSTROM)
-                        #                             fragments[1].pivot_points.append(np.round(coord, decimals=4).tolist())
-                        #                     if skip:
-                        #                         for frag in fragments:
-                        #                             frag.pivot_points = []
-                        #                         continue
-                        #                     n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
-                        #                     pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                        #                     pp_dist[:] = dist - (pp_length2 + pp_length1)*constants.BOHRtoANGSTROM
-                        #                     surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
-                        #                     comments.append(f'# PP from frag 1: {frag1_reactive_atoms} with length {pp_length1} bohrs' + '\n' +\
-                        #                                     f'# PP from frag 2: {frag2_reactive_atoms} with length {pp_length2} bohrs' + '\n' +\
-                        #                                     f'# distance: {dist} Angstrom' + '\n')
-                        #                     for frag in fragments:
-                        #                         frag.pivot_points = []
-                        #                     n_pp = []
-                                            
-                    if dist >= 4.0 and dist < 12.0:
-                        fragments[1].set_pp_on_atom(1)
-                        fragments[0].set_pp_on_atom(1)
-                        n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
-                        pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                        pp_dist[:] = dist
-                        surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
-                        for frag in fragments:
-                            frag.pivot_points = []
-                        n_pp = []
-                        comments.append(f'# PP on frag 1: [1]' + '\n' +\
-                                        f'# PP on frag 2: [1]' + '\n' +\
-                                        f'# distance: {dist} Angstrom' + '\n')
-                        # for pivot_point in pivot_points_info:
-                        #     if pivot_point['type'] == 'on_atom':
-                        #         if dist > pivot_point['min'] and dist < pivot_point['max']:
-                        #             if pivot_point["0"] == int(fragments[0].chemid) and pivot_point["1"] == int(fragments[1].chemid):
-                        #                 frag1_reactive_atoms = pivot_point["indexes"][0]
-                        #                 frag2_reactive_atoms = pivot_point["indexes"][1]
-                        #             else:
-                        #                 frag1_reactive_atoms = pivot_point["indexes"][1]
-                        #                 frag2_reactive_atoms = pivot_point["indexes"][0]
-                        #             for ra1 in frag1_reactive_atoms:
-                        #                 fragments[0].set_pp_on_atom(ra1)
-                        #             for ra2 in frag2_reactive_atoms:
-                        #                 fragments[1].set_pp_on_atom(ra2)
-                        #             n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
-                        #             pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                        #             pp_dist[:] = dist
-                        #             surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
-                        #             for frag in fragments:
-                        #                 frag.pivot_points = []
-                        #             n_pp = []
-                        #             comments.append(f'# PP on frag 1: {frag1_reactive_atoms}' + '\n' +\
-                        #                             f'# PP on frag 2: {frag2_reactive_atoms}' + '\n' +\
-                        #                             f'# distance: {dist} Angstrom' + '\n')
-                    if dist >= 10.0 :
-                        fragments[0].set_pp_on_com()
-                        fragments[1].set_pp_on_com()
-                        n_pp = (len(fragments[1].pivot_points), len(fragments[0].pivot_points))
-                        pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                        pp_dist[:] = dist
-                        surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
-                        for frag in fragments:
-                            frag.pivot_points = []
-                        n_pp = []
-                        comments.append('# PP on COM for frag 1\n' +\
-                                        '# PP on COM for frag 2\n' +\
-                                        f'# distance: {dist} Angstrom' + '\n')
-                    # for frag in fragments: #Pivot points directly on COM for vdW
-                    #     if frag.atom[1] == 'H':
-                    #         frag.pivot_points.append(np.round(coord, decimals=4).tolist())
-                    #     else:
-                    #         frag.set_pp_on_atom(1)
-                    #     if dist > 4. and dist < 9. :
-                    #         frag.set_pp_on_atom(3)
-
-                    #     #     frag.set_pp_on_atom(3)#TODO: Add pp on atom for the two closest atoms of each fragments.
-                    #     # if dist < 10.0:
-                    #     #     #frag.set_pp_on_atom(0)
-                    #     n_pp.append(len(frag.pivot_points))
-                    # pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                    # if "1d" in corrections.keys():
-                    #     pp_dist[:] = dist # \
-                                    # + np.linalg.norm(fragments[0].com-fragments[0].geom[corrections["1d"]["scan_ref"][0][0]])/2 \
-                                    # + np.linalg.norm(fragments[1].com-fragments[1].geom[corrections["1d"]["scan_ref"][0][1]])/2
-                else:
-                    for frag, atom in zip(fragments, reactive_atoms): #This line assume one reactive atom by fragment
-                        frag.set_pivot_points(dist, atom)
-                        n_pp.append(len(frag.pivot_points))
-                    pp_dist = np.zeros(tuple(n_pp), dtype=float)
-                    pp_dist[:] = dist
-                
-                    surfaces.append(VRC_TST_Surface(fragments, np.transpose(pp_dist)))
-                    for frag in fragments:
-                        frag.pivot_points = [] #Reset the pivot points of each fragments for next surface.
+                surfaces.extend(pp_settings.create_all_surf_for_dist(dist, fragments, par, reactive_atoms))
                 
         #Creating the strings to print input file
         #Fragments block:
@@ -1627,8 +1481,6 @@ def create_rotdPy_inputs(par, bless, vdW):
         #Surfaces block:
         Surfaces_block = "#Pivot_points and distances are in Bohr\ndivid_surf = [\n"
         for index, surf in enumerate(surfaces):
-            Surfaces_block = Surfaces_block + f"# Surface ID: {index}" + '\n'
-            Surfaces_block = Surfaces_block + comments[index]
             Surfaces_block = Surfaces_block + (repr(surf))
             if surf == surfaces[-1]:
                 Surfaces_block = Surfaces_block[:-3]

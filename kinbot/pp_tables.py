@@ -7,7 +7,10 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
     #Charges: (+)(-)
 
     atom_type = 'H'
-    if element == 'C':
+    if element == 'H':
+        if nconnect == 1:
+            atom_type = 'H_lin'
+    elif element == 'C':
         match nconnect:
             case 0:
                 atom_type = 'C'
@@ -135,15 +138,8 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                                 atom_type = 'S_bip_quad_t' #Ex: SF5 (+)(-)? -> SF6
     return atom_type
 
-def pp_lenght_table(element, dist=None):
-        match element:
-            case 'H':
-                return 0.1*constants.BOHRtoANGSTROM
-            case 'C':
-                return 0.1*constants.BOHRtoANGSTROM
-            case 'N':
-                return 0.1*constants.BOHRtoANGSTROM
-            case 'O':
-                return 0.1*constants.BOHRtoANGSTROM
-
-        
+def pp_length_table():
+    return {'H': (np.array([0.1, 0.2, 0.3])*constants.BOHRtoANGSTROM).tolist(),\
+            'C': (np.array([0.1, 0.2, 0.3])*constants.BOHRtoANGSTROM).tolist(),\
+            'N': (np.array([0.1, 0.2, 0.3])*constants.BOHRtoANGSTROM).tolist(),\
+            'O': (np.array([0.1, 0.2, 0.3])*constants.BOHRtoANGSTROM).tolist()}

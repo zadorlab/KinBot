@@ -2,19 +2,26 @@ import numpy as np
 from kinbot import constants
 
 class VRC_TST_Surface:
-    def __init__(self, fragments, pp_dist):
-        self.centers = {}
-        for frag in fragments:
+    __id__ = 0
+    def __init__(self, pp_coords, dist_matrix, info):
+        """Surface object characterized by a distance matrix and pivot points coordinates."""
+        self.dist_matrix = (dist_matrix / constants.BOHRtoANGSTROM).tolist()
+        self.centers = {"0" : np.ndarray.tolist(np.asarray(pp_coords[0])/ constants.BOHRtoANGSTROM),
+                        "1" : np.ndarray.tolist(np.asarray(pp_coords[1])/ constants.BOHRtoANGSTROM)}
+        self.overhead = f"""
+#Surface id: {VRC_TST_Surface.__id__}
+#{info[0]}
+#{info[1]}
+#{info[2]}"""
+        VRC_TST_Surface.__id__ += 1
 
-            self.centers[f"{frag.frag_number}"] = np.ndarray.tolist(np.asarray(frag.pivot_points)/ constants.BOHRtoANGSTROM)
-
-        self.distances = []
-        for index, element in enumerate(pp_dist):
-            self.distances.append(list(element/ constants.BOHRtoANGSTROM))
 
     def __repr__(self):
-        return f"Surface(pivotpoints={self.centers},\n          distances={self.distances}),"\
+        string_rpr = f"{self.overhead}" + "\n" +\
+                  f"Surface(pivotpoints={self.centers}" + ",\n" +\
+                  f"          distances={self.dist_matrix}),"\
             .replace("[[", "np.array([[")\
             .replace("]]","]])")\
             .replace("]]),","]]),\n                    ")\
             .replace("])),","])),\n\n")
+        return string_rpr

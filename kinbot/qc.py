@@ -735,7 +735,7 @@ class QuantumChemistry:
             self.limit_jobs()
 
         try:
-            if jobtype == 'am1':
+            if jobtype == 'am1' and self.par['q_temp_am1']:
                 template_head_file = self.par['q_temp_am1']
             elif job.endswith('mp2') and self.par['q_temp_mp2']:
                 template_head_file = self.par['q_temp_mp2']

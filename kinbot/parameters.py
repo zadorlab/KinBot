@@ -104,6 +104,8 @@ class Parameters:
             # CONFORMATIONAL SEARCH
             # Do a conformational search
             'conformer_search': 0,
+            # Threshold to differentiate two structures, kcal/mol
+            'difference_threshold': 0.1,
             # The angular grid for dihedrals, angle = 360 / grid
             'conf_grid': 3,
             # Do a semi empirical conformational search and select the lowest conformers

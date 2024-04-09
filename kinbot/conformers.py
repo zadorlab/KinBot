@@ -41,6 +41,7 @@ class Conformers:
         self.sconf = -1
 
         self.grid = par['conf_grid']
+        self.diffthrs = par['difference_threshold']
 
         # final geometries of the cyclic search
         self.cyc_conf_geoms = []
@@ -528,7 +529,7 @@ class Conformers:
                     *_, l1_last_row = self.db.select(name=f'{self.species.name}_well')
                 l1energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
                 l1energy += l1_last_row.data.get('zpe')
-                if not any([abs(en - l1energy) < 1.6e-4 for en in totenergies]): # 0.1 kcal/mol
+                if not any([abs(en - l1energy) < self.diffthrs * constants.KCALtoHARTREE for en in totenergies]): # 0.1 kcal/mol
                     logger.warning(f'None of {self.species.name} conformers '
                                    'has the same energy as its parent structure. '
                                    'This might be a result of SCF convergence '

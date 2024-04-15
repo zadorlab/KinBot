@@ -18,10 +18,9 @@ class MESS:
     """
 
 
-    def __init__(self, par, species, parent=None):
+    def __init__(self, par, species):
         self.par = par
         self.species = species
-        self.parent = parent
         self.well_names = {}
         self.bimolec_names = {}
         self.fragment_names = {}
@@ -79,6 +78,10 @@ class MESS:
         """
         Create the header block for MESS
         """
+        if 'prod' in self.species.name:
+            reactant = self.species.name
+        else:
+            reactant = self.species.chemid
         header = self.headertpl.format(LevelOfTheory=lot,
                                        TemperatureList=' '.join([str(ti) for ti in self.par['TemperatureList']]),
                                        PressureList=' '.join([str(pi) for pi in self.par['PressureList']]),
@@ -87,7 +90,7 @@ class MESS:
                                        ModelEnergyLimit=self.par['ModelEnergyLimit'],
                                        CalculationMethod=self.par['CalculationMethod'],
                                        ChemicalEigenvalueMax=self.par['ChemicalEigenvalueMax'],
-                                       Reactant=self.well_names[self.species.chemid],
+                                       Reactant=self.well_names[reactant],
                                        EnergyRelaxationFactor=self.par['EnergyRelaxationFactor'],
                                        EnergyRelaxationPower=self.par['EnergyRelaxationPower'],
                                        EnergyRelaxationExponentCutoff=self.par['EnergyRelaxationExponentCutoff'],
@@ -107,50 +110,34 @@ class MESS:
         """
         # add the initial well to the well names:
 
-        if self.parent == None:
-            # add the initial well to the well names:
-            self.well_names[self.species.chemid] = 'w_1'
-            for index, reaction in enumerate(self.species.reac_obj):
-                if self.species.reac_ts_done[index] == -1:
-                    self.ts_names[reaction.instance_name] = 'ts_{}'.format(len(self.ts_names) + 1)
-                    if len(reaction.products) == 1:
-                        st_pt = reaction.products[0]
-                        if st_pt.chemid not in self.well_names:
-                            self.well_names[st_pt.chemid] = 'w_{}'.format(len(self.well_names) + 1)
-                    elif len(reaction.products) == 2:
-                        for st_pt in reaction.products:
-                            if st_pt.chemid not in self.fragment_names:
-                                self.fragment_names[st_pt.chemid] = 'fr_{}'.format(len(self.fragment_names) + 1)
-                        bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        if bimol_name not in self.bimolec_names:
-                            self.bimolec_names[bimol_name] = 'b_{}'.format(len(self.bimolec_names) + 1)
-                    else:
-                        # TERMOLECULAR
-                        for st_pt in reaction.products:
-                            if st_pt.chemid not in self.fragment_names:
-                                self.fragment_names[st_pt.chemid] = 'fr_{}'.format(len(self.fragment_names) + 1)
-                        termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                        if termol_name not in self.termolec_names:
-                            self.termolec_names[termol_name] = 't_{}'.format(len(self.termolec_names) + 1)
-        else:
-            # add the initial well to the well names:
-            self.well_names[self.species.name] = 'w_1'
-            for index, reaction in enumerate(self.parent.reac_obj):
-                if reaction.do_vdW:
-                    if reaction.irc_prod == self.species:
-                        self.ts_names[f"{reaction.instance_name}_vdW"] = 'ts_{}'.format(len(self.ts_names) + 1)
-                        if len(reaction.products) == 2:
-                            for st_pt in reaction.products:
-                                if st_pt.chemid not in self.fragment_names:
-                                    self.fragment_names[st_pt.chemid] = 'fr_{}'.format(len(self.fragment_names) + 1)
-                            bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
-                            if bimol_name not in self.bimolec_names:
-                                self.bimolec_names[bimol_name] = 'b_{}'.format(len(self.bimolec_names) + 1)
-                            break
-                        else:
-                            raise NotImplementedError
-
-
+        # add the initial well to the well names:
+        self.well_names[self.species.chemid] = 'w_1'
+        for index, reaction in enumerate(self.species.reac_obj):
+            if self.species.reac_ts_done[index] == -1:
+                self.ts_names[reaction.instance_name] = 'ts_{}'.format(len(self.ts_names) + 1)
+                if len(reaction.products) == 1:
+                    st_pt = reaction.products[0]
+                    if st_pt.chemid not in self.well_names:
+                        self.well_names[st_pt.chemid] = 'w_{}'.format(len(self.well_names) + 1)
+                elif len(reaction.products) == 2:
+                    if reaction.do_vdW:
+                        vdW_well = reaction.irc_prod
+                        if vdW_well.name not in self.well_names:
+                            self.well_names[vdW_well.name] = 'w_{}'.format(len(self.well_names) + 1)
+                    for st_pt in reaction.products:
+                        if st_pt.chemid not in self.fragment_names:
+                            self.fragment_names[st_pt.chemid] = 'fr_{}'.format(len(self.fragment_names) + 1)
+                    bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                    if bimol_name not in self.bimolec_names:
+                        self.bimolec_names[bimol_name] = 'b_{}'.format(len(self.bimolec_names) + 1)
+                else:
+                    # TERMOLECULAR
+                    for st_pt in reaction.products:
+                        if st_pt.chemid not in self.fragment_names:
+                            self.fragment_names[st_pt.chemid] = 'fr_{}'.format(len(self.fragment_names) + 1)
+                    termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                    if termol_name not in self.termolec_names:
+                        self.termolec_names[termol_name] = 't_{}'.format(len(self.termolec_names) + 1)
 
     def write_input(self, qc):
         """
@@ -167,37 +154,35 @@ class MESS:
         # filter ts's with the same reactants and products:
         ts_unique = {}  # key: ts name, value: [prod_name, energy]
         ts_all = {}
-        if self.parent == None:
-            for index, reaction in enumerate(self.species.reac_obj):
-                if self.species.reac_ts_done[index] == -1:
-                    rxnProds = []
-                    if reaction.do_vdW:
-                        rxnProds.append(reaction.irc_prod.name)
-                    else:
-                        for x in reaction.products:
-                            rxnProds.append(x.chemid)
-                    rxnProds.sort()
-                    prod_name = '_'.join([str(pi) for pi in rxnProds])
-                    new = 1
-                    remove = []
-                    ts_all[reaction.instance_name] = [prod_name, reaction.ts.energy
-                                                    + reaction.ts.zpe]
-                    for ts in ts_unique:
-                        if ts_unique[ts][0] == prod_name:
-                            # check for the barrier with the lowest energy  # check if hom_sci is first
-                            if (ts_unique[ts][1] > reaction.ts.energy + reaction.ts.zpe
-                                    or 'hom_sci' in ts) \
-                                    and 'hom_sci' not in reaction.instance_name:
-                                # remove the current barrier
-                                remove.append(ts)
-                            else:
-                                new = 0
-                    for ts in remove:
-                        ts_unique.pop(ts, None)
-                    if new:
-                        ts_unique[reaction.instance_name] = [prod_name, reaction.ts.energy + reaction.ts.zpe]
-        else:
-            pass
+
+        for index, reaction in enumerate(self.species.reac_obj):
+            if self.species.reac_ts_done[index] == -1:
+                rxnProds = []
+                if reaction.do_vdW:
+                    rxnProds.append(reaction.irc_prod.name)
+                else:
+                    for x in reaction.products:
+                        rxnProds.append(x.chemid)
+                rxnProds.sort()
+                prod_name = '_'.join([str(pi) for pi in rxnProds])
+                new = 1
+                remove = []
+                ts_all[reaction.instance_name] = [prod_name, reaction.ts.energy
+                                                + reaction.ts.zpe]
+                for ts in ts_unique:
+                    if ts_unique[ts][0] == prod_name:
+                        # check for the barrier with the lowest energy  # check if hom_sci is first
+                        if (ts_unique[ts][1] > reaction.ts.energy + reaction.ts.zpe
+                                or 'hom_sci' in ts) \
+                                and 'hom_sci' not in reaction.instance_name:
+                            # remove the current barrier
+                            remove.append(ts)
+                        else:
+                            new = 0
+                for ts in remove:
+                    ts_unique.pop(ts, None)
+                if new:
+                    ts_unique[reaction.instance_name] = [prod_name, reaction.ts.energy + reaction.ts.zpe]
 
         # write the mess input for the different blocks
         for uq_iter in range(self.par['uq_n']):
@@ -331,7 +316,10 @@ class MESS:
             for rxn in barrierless_blocks:
                 barrierless += barrierless_blocks[rxn] + divider
 
-            dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
+            if 'prod' in self.species.name:
+                dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.name], dummy='d1')
+            else:
+                dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
             mess_iter = "{0:04d}".format(uq_iter)
 
@@ -486,11 +474,17 @@ class MESS:
         if self.par['pes']:
             name = '{name}'
             zeroenergy = '{zeroenergy}'
+            if 'prod' not in species.name:
+                norot = None
+            else:
+                norot = str(species.name)
         else:
-            if self.parent == None:
+            if 'prod' not in species.name:
                 name = self.well_names[species.chemid] + ' ! ' + str(species.chemid)
+                norot = None
             else:
                 name = self.well_names[species.name] + ' ! ' + str(species.name)
+                norot = str(species.name)
             zeroenergy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
             zeroenergy += well_add
             zeroenergy = round(zeroenergy, 2)
@@ -508,7 +502,7 @@ class MESS:
                                             symm=float(species.sigma_ext) / float(species.nopt),
                                             nfreq=len(species.reduced_freqs),
                                             freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
-                                            hinderedrotor=self.make_rotors(species, freq_factor),
+                                            hinderedrotor=self.make_rotors(species, freq_factor, norot=norot),
                                             nelec=1,
                                             mult=species.mult,
                                             zeroenergy=zeroenergy)
@@ -534,7 +528,7 @@ class MESS:
                                                  smi=species.smiles,
                                                  nunion=nunq_confs,
                                                  rrho=rrho)
-        if self.parent == None:
+        if 'prod' not in species.name:
             with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
                 f.write(mess_well)
         else:
@@ -693,12 +687,10 @@ class MESS:
                                                        nunion=nunq_confs,
                                                        model=rrho)
 
-        if self.parent == None:
-            with open('{}_{:04d}.mess'.format(reaction.instance_name, uq_iter), 'w') as f:
-                f.write(mess_barrier)
-        else:
-            with open('{}_vdW_{:04d}.mess'.format(reaction.instance_name, uq_iter), 'w') as f:
-                f.write(mess_barrier)
+
+        with open('{}_{:04d}.mess'.format(reaction.instance_name, uq_iter), 'w') as f:
+            f.write(mess_barrier)
+
     
         return mess_barrier, zeroenergy 
 

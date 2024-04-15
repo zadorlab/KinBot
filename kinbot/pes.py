@@ -392,10 +392,6 @@ def postprocess(par, jobs, task, names, mass):
                         do_vdW.append(False)
                 else:
                     prod_name = '_'.join(sorted(products))
-                    if prod_name not in bimol_products:
-                        if prod_name not in parent:
-                            parent[prod_name] = reactant
-                        bimol_products.append('_'.join(sorted(products)))
                     if 'vdW' in line:
                         if vdW_well not in wells:
                             wells.append(vdW_well)
@@ -403,6 +399,10 @@ def postprocess(par, jobs, task, names, mass):
                             parent[vdW_well] = reactant
                             if prod_name not in parent:
                                 parent[prod_name] = vdW_well
+                    if prod_name not in bimol_products:
+                        if prod_name not in parent:
+                            parent[prod_name] = reactant
+                        bimol_products.append('_'.join(sorted(products)))
                 new = 1
                 temp = None
 
@@ -1122,7 +1122,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                 fr_names[key] = value
             # check if barrieless
             bless = 0
-            for bl in barrierless:
+            new_bless = deepcopy(barrierless)
+            new_bless.extend([vdw for vdw in vdW])
+            for bl in new_bless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
                 if prod == bl_prod:
                     with open(bl[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
@@ -1142,26 +1144,26 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                                                      ground_energy=round(energy, 2),
                                                      **fr_names))
                             s.append(stemp[stemp.find('Barrier '):])
-            for vdw in vdW:
-                vdw_prod = f'{vdw[2][0]}_{vdw[2][1]}'
-                if prod == vdw_prod:
-                    with open(vdw[0] + '/' + vdw[1] + vdw[5][3:] + '_' + mess_iter + '.mess') as f:
-                        if bless == 0:
-                            s.append(f.read().format(name=name,
-                                                     blessname=nobar_short[f'{vdw[1] + vdw[5][3:]}_{bl_prod}'],
-                                                     wellname=well_short[f'{vdw[1] + vdw[5][3:]}'],
-                                                     prodname=pr_short[prod],
-                                                     ground_energy=round(energy, 2),
-                                                     **fr_names))
-                            bless = 1
-                        else:
-                            stemp = (f.read().format(name=name,
-                                                     blessname=nobar_short[f'{vdw[1] + vdw[5][3:]}_{bl_prod}'],
-                                                     wellname=well_short[f'{vdw[1] + vdw[5][3:]}'],
-                                                     prodname=pr_short[prod],
-                                                     ground_energy=round(energy, 2),
-                                                     **fr_names))
-                            s.append(stemp[stemp.find('Barrier '):])
+            # for vdw in vdW:
+            #     vdw_prod = f'{vdw[2][0]}_{vdw[2][1]}'
+            #     if prod == vdw_prod:
+            #         with open(vdw[0] + '/' + vdw[1] + vdw[5][3:] + '_' + mess_iter + '.mess') as f:
+            #             if bless == 0:
+            #                 s.append(f.read().format(name=name,
+            #                                          blessname=nobar_short[f'{vdw[1] + vdw[5][3:]}_{vdw_prod}'],
+            #                                          wellname=well_short[f'{vdw[1] + vdw[5][3:]}'],
+            #                                          prodname=pr_short[prod],
+            #                                          ground_energy=round(energy, 2),
+            #                                          **fr_names))
+            #                 bless = 1
+            #             else:
+            #                 stemp = (f.read().format(name=name,
+            #                                          blessname=nobar_short[f'{vdw[1] + vdw[5][3:]}_{vdw_prod}'],
+            #                                          wellname=well_short[f'{vdw[1] + vdw[5][3:]}'],
+            #                                          prodname=pr_short[prod],
+            #                                          ground_energy=round(energy, 2),
+            #                                          **fr_names))
+            #                 s.append(stemp[stemp.find('Barrier '):])
             if not bless:
                 if 'IRC' not in parent[prod]:
                     with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
@@ -1723,12 +1725,12 @@ def get_l3energy(job, par, bls=0):
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:
                 lines = f.readlines()
-                #for line in reversed(lines):
-                for line in lines:
-                    if ('SETTING ' + key) in line:
-                        e = float(line.split()[3])
-                        logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
-                        return 1, e  # energy was found
+            for line in reversed(lines):
+            #for line in lines:
+                if ('SETTING ' + key) in line:
+                    e = float(line.split()[3])
+                    logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                    return 1, e  # energy was found
     elif par['single_point_qc'] == 'orca':
         if os.path.exists(f'orca/{job}_property.txt'):
             with open(f'orca/{job}_property.txt', 'r') as f:

@@ -264,11 +264,11 @@ def main():
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
         mess = MESS(par, well0)
         mess.write_input(qc)
-        vdW_wells = []
-        for reac in well0.reac_obj:
-            if reac.do_vdW:
-                vdW_wells.append(MESS(par, reac.irc_prod, parent=well0))
-                vdW_wells[-1].write_input(qc)
+        # vdW_wells = []
+        # for reac in well0.reac_obj:
+        #     if reac.do_vdW:
+        #         vdW_wells.append(MESS(par, reac.irc_prod, parent=well0))
+        #         vdW_wells[-1].write_input(qc)
 
         if par['me'] == 1:
             logger.info('Starting Master Equation calculations')

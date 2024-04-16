@@ -85,6 +85,10 @@ def create_summary_file(species, qc, par):
     # add the license message to the file
     s.append(license_message.message)
 
+    max_len = 0
+    for index in range(len(species.reac_inst)):
+        if len(species.reac_name[index]) > max_len:
+            max_len = len(species.reac_name[index])
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             ts = species.reac_obj[index].ts
@@ -106,22 +110,30 @@ def create_summary_file(species, qc, par):
             prod_name = ' '.join(sorted(name))
             status = "SUCCESS"
             if species.reac_obj[index].do_vdW:   
-                vdW_energy = (species.reac_obj[index].irc_prod.energy + species.reac_obj[index].irc_prod.zpe - (species.energy + species.zpe))*constants.AUtoKCAL             
-                s.append('{status:7s}{energy:>8.2f}\t{name:60s}{prod}{vdW_energy:>8.2f}\t{db_name}'.format(status=status,
+                vdW_energy = (species.reac_obj[index].irc_prod.energy +\
+                              species.reac_obj[index].irc_prod.zpe -\
+                              (species.energy + species.zpe))*constants.AUtoKCAL
+                direction ="vdW{}".format(species.reac_obj[index]\
+                                          .irc_prod.name.split(species.reac_obj[index]\
+                                                               .instance_name)[1])        
+                s.append('{status:7s}{energy:> 7.2f}\t{name:{max_len}s} {prod}{vdW_energy:> 7.2f}\t{direction}'.format(status=status,
                                                                     energy=energy,
+                                                                    max_len=max_len+1,
                                                                     name=species.reac_name[index],
                                                                     prod=prod_name,
                                                                     vdW_energy=vdW_energy,
-                                                                    db_name=f"vdW{species.reac_obj[index].irc_prod.name.split(species.reac_obj[index].instance_name)[1]}"))
+                                                                    direction=direction))
             else:
-                s.append('{status:7s}{energy:>8.2f}\t{name:60s}{prod}'.format(status=status,
+                s.append('{status:7s}{energy:> 7.2f}\t{name:{max_len}s} {prod}'.format(status=status,
                                                                     energy=energy,
                                                                     name=species.reac_name[index],
-                                                                    prod=prod_name))
+                                                                    prod=prod_name,
+                                                                    max_len=max_len+1))
         else:
             status = "FAILED"
-            s.append('{status:14s}\t{name:60s}'.format(status=status,
-                                                 name=species.reac_name[index]))
+            s.append('{status:15s}\t{name:{max_len}s}'.format(status=status,
+                                                 name=species.reac_name[index],
+                                                 max_len=max_len+1))
 
     # make a string out of all the lines
     s = '\n'.join(s)

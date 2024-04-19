@@ -68,6 +68,16 @@ def main():
 
         # characterize the initial reactant
         well0.characterize()
+        if par['cluster']:
+            well0.make_hbonds()
+            while 1:
+                frags, maps = well0.start_multi_molecular(bond_mx=well0.bond)
+                if len(frags) > 1:
+                    p1, p2 = well0.make_extra_bond(frags[:2], maps[:2])
+                    logger.info(f'Added extra bond between {p1} and {p2}')
+                else:
+                    break
+#        well0.characterize()
         well0.name = str(well0.chemid)
         start_name = well0.name
         if well0.name in par['skip_chemids']:
@@ -108,8 +118,17 @@ def main():
                                 geom=copy.deepcopy(well0.geom))
         well0.short_name = 'w1'
         well0.characterize()
+        if par['cluster']:
+            well0.make_hbonds()
+            while 1:
+                frags, maps = well0.start_multi_molecular(bond_mx=well0.bond)
+                if len(frags) > 1:
+                    well0.make_extra_bond(frags[:2], maps[:2])
+                else:
+                    break
+#        well0.characterize()
         well0.name = str(well0.chemid)
-        if well0.name != start_name:
+        if well0.name != start_name and not par['cluster']:
             logger.error('The first well optimized to a structure different from the input.')
             return
 
@@ -139,6 +158,15 @@ def main():
 
         # characterize again and look for differences
         well0.characterize()
+        if par['cluster']:
+            well0.make_hbonds()
+            while 1:
+                frags, maps = well0.start_multi_molecular(bond_mx=well0.bond)
+                if len(frags) > 1:
+                    well0.make_extra_bond(frags[:2], maps[:2])
+                else:
+                    break
+#        well0.characterize()
         well0.name = str(well0.chemid)
 
         err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)

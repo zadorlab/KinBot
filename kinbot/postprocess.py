@@ -79,6 +79,9 @@ def create_summary_file(species, qc, par):
     2. the barrier height
     3. the reaction name
     4. the product identifiers
+    optionally:
+    5. the depth of vdW well
+    6. the IRC direction to go to the vdW well
     """
     # list of strings which will be put together for the output
     s = []
@@ -116,7 +119,7 @@ def create_summary_file(species, qc, par):
                 direction ="vdW{}".format(species.reac_obj[index]\
                                           .irc_prod.name.split(species.reac_obj[index]\
                                                                .instance_name)[1])        
-                s.append('{status:7s}{energy:> 7.2f}\t{name:{max_len}s} {prod}{vdW_energy:> 7.2f}\t{direction}'.format(status=status,
+                s.append('{status:7s}{energy:> 9.2f}  {name:{max_len}s} {prod} {vdW_energy:> 7.2f}  {direction}'.format(status=status,
                                                                     energy=energy,
                                                                     max_len=max_len+1,
                                                                     name=species.reac_name[index],
@@ -124,14 +127,14 @@ def create_summary_file(species, qc, par):
                                                                     vdW_energy=vdW_energy,
                                                                     direction=direction))
             else:
-                s.append('{status:7s}{energy:> 7.2f}\t{name:{max_len}s} {prod}'.format(status=status,
+                s.append('{status:7s}{energy:> 9.2f}  {name:{max_len}s} {prod}'.format(status=status,
                                                                     energy=energy,
                                                                     name=species.reac_name[index],
                                                                     prod=prod_name,
                                                                     max_len=max_len+1))
         else:
             status = "FAILED"
-            s.append('{status:15s}\t{name:{max_len}s}'.format(status=status,
+            s.append('{status:16s}  {name:{max_len}s}'.format(status=status,
                                                  name=species.reac_name[index],
                                                  max_len=max_len+1))
 

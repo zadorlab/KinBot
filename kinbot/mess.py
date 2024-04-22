@@ -205,7 +205,7 @@ class MESS:
                                                                uq_iter)
             
             for index, reaction in enumerate(self.species.reac_obj):
-                if reaction.instance_name in ts_all:
+                if reaction.instance_name in ts_all: #should be TS unique?
                     barrier_add = uq.calc_factor('barrier', uq_iter)
                     freq_factor = uq.calc_factor('freq', uq_iter)
                     imagfreq_factor = uq.calc_factor('imagfreq', uq_iter)
@@ -262,7 +262,8 @@ class MESS:
                                                                       freq_factor,
                                                                       pstsymm_factor,
                                                                       uq_iter,
-                                                                      bless=bless)
+                                                                      bless=bless,
+                                                                      vdW=True)
                         written_bimol_names.append(bimol_name)
                     elif len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
@@ -342,7 +343,7 @@ class MESS:
         return termol
 
 
-    def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor, uq_iter, bless):
+    def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor, uq_iter, bless, vdW=False):
         """
         Create the block for MESS for a bimolecular product.
         In case of a barrierless reaction (bless=1) also add a phase-space theory barrier.

@@ -604,7 +604,6 @@ def postprocess(par, jobs, task, names, mass):
         elif len(rxn) > 4: #vdW for now, find better condition latter?
             #in rxn: [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
             vdW.append([rxn[0], rxn[1], rxn[2], rxn[3], rxn[4], rxn[5]])
-            rxns.append([rxn[0], rxn[1], [f"{rxn[1]}{rxn[5].split('vdW')[1]}"], rxn[3]])
         else:
             rxns.append([rxn[0], rxn[1], rxn[2], rxn[3]])
 
@@ -628,9 +627,9 @@ def postprocess(par, jobs, task, names, mass):
         create_mess_input(par,
                           wells,
                           bimol_products,
-                          rxns,
-                          barrierless,
-                          vdW,
+                          deepcopy(rxns),
+                          deepcopy(barrierless),
+                          deepcopy(vdW),
                           well_energies,
                           prod_energies,
                           parent,
@@ -1039,6 +1038,10 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
     """
 
     logger.info(f"uq value: {par['uq']}")
+    for vdw in vdW:
+        vdW_well_reac = [vdw[0], vdw[1], [f"{vdw[1]}{vdw[5].split('vdW')[1]}"], vdw[3]]
+        if vdW_well_reac not in reactions:
+            reactions.append(vdW_well_reac)
     short_names = create_short_names(wells, products, reactions, barrierless, vdW)
     well_short, pr_short, fr_short, ts_short, nobar_short = short_names
 
@@ -1106,14 +1109,14 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             name = well_short[well] + ' ! ' + well
             energy = well_energies[well] + uq.calc_factor('energy', uq_iter)
             well_energies_current[well] = energy
-            if 'IRC' not in well:
-                with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
-                    s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
-                s.append(divider)
-            else:
-                with open(parent[well] + '/' + parent[well] + '_' + mess_iter + '.mess', 'r') as f:
-                    s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
-                s.append(divider)
+            # if 'IRC' not in well:
+            with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
+                s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
+            s.append(divider)
+            # else:
+                # with open(parent[well] + '/' + parent[well] + '_' + mess_iter + '.mess', 'r') as f:
+                    # s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
+                # s.append(divider)
 
         # write the products and barrierless reactions
         s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
@@ -1126,7 +1129,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                 key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
-            # check if barrieless
+            # check if is obtained by barrieless reaction
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
@@ -1148,6 +1151,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                                                      ground_energy=round(energy, 2),
                                                      **fr_names))
                             s.append(stemp[stemp.find('Barrier '):])
+            # check if is obtained by vdW dissociation
             for vdw in vdW:
                 bl_prod = f'{vdw[2][0]}_{vdw[2][1]}'
                 if prod == bl_prod:
@@ -1168,12 +1172,27 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                                                      ground_energy=round(energy, 2),
                                                      **fr_names))
                             s.append(stemp[stemp.find('Barrier '):])
+            #The product is directly obtained after a reaction with a barrier
             if not bless:
                 if 'IRC' not in parent[prod]:
-                    with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                        s.append(f.read().format(name=name,
-                                                ground_energy=round(energy, 2),
-                                                **fr_names))
+                    try:
+                        with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                            s.append(f.read().format(name=name,
+                                                    ground_energy=round(energy, 2),
+                                                    **fr_names))
+                    except:#When bimolecular template is used both for barrierless and with barrier
+                        with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                            file = f.readlines()
+                        f = ''
+                        for line in file:
+                            if "Barrier" in line:
+                                break
+                            else:
+                                f += line
+                        s.append(f.format(name=name,
+                                          ground_energy=round(energy, 2),
+                                          **fr_names))
+
                 else:
                     with open(parent[parent[prod]] + '/' + prod + '_' + mess_iter + '.mess') as f:
                         s.append(f.read().format(name=name,

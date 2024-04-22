@@ -754,7 +754,8 @@ class QuantumChemistry:
         if self.queuing == 'local':
             err_msg = f'Job {job} is missing in the database or the output ' \
                       'file is not present. Unable to run calculations when ' \
-                      'queuing is \'local\'.'
+                      'queuing is \'local\'. To ignore calculations that have ' \
+                      'not finished set "error_missing_local" to False.'
             if self.par['error_missing_local']:
                 logger.error(err_msg)
                 raise FileNotFoundError(err_msg)

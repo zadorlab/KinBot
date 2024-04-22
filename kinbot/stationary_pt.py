@@ -368,6 +368,8 @@ class StationaryPoint:
         n is the nth fragment and i is the ith atom in this fragment 
         """
 
+        if len(parts) == 1:
+            return -1 -1
         mindist = 100.  # large initial value
         for i, cooi in enumerate(parts[0].geom): 
             for j, cooj in enumerate(parts[1].geom):
@@ -378,7 +380,43 @@ class StationaryPoint:
                     pivot2 = maps[1][j]
         self.bond[pivot1][pivot2] = 1
         self.bond[pivot2][pivot1] = 1
+        for b in self.bonds:
+            b[pivot1][pivot2] = 1
+            b[pivot2][pivot1] = 1
         return pivot1, pivot2
+
+    def make_hbonds(self):
+        """
+        Add all hydrogen bonds. Criteria:
+        - has to be an X1-H-X2 pattern
+        - X1-H is already bonded 
+        - X2-H is less than 1.8 A
+        - X2 has free valence
+        - H only has one bond (to X1)
+        - X1-H-X2 angle is > 150 degrees
+        - X1 and X2 have to be one of O, N, F
+        """
+
+        self.hbonds = []
+        for hi, symb in enumerate(self.atom):
+            if symb == 'H':
+                if np.sum(self.bond[hi]) == 1:  # X1-H is already bonded 
+                    if self.atom[np.where(self.bond[hi] == 1)] in ['O', 'N', 'F']:  # H only has one bond (to X1), and X1 has to be one of O, N, F
+                        x1 = np.where(self.bond[hi] == 1)
+                        for x2, symb in enumerate(self.atom):
+                            if symb in ['O', 'N', 'F']:  # X2 has to be one of O, N, F
+                                if self.bond[hi][x2] == 0:  # they are not yet bonded
+                                    if np.sum(self.bond[x2]) <= constants.st_bond[symb]:  # X2 has free valence
+                                        if self.dist[hi][x2] < 1.8:  # X2-H is less than 1.8 A
+                                            if geometry.calc_angle(self.geom[x1],self.geom[hi],self.geom[x2]) > np.pi * 150. / 180.: 
+                                                self.bond[hi][x2] = 1
+                                                self.bond[x2][hi] = 1
+                                                logger.info(f'Adding H-bonds between {hi + 1} and {x2 + 1}')
+                                                self.hbonds.append([hi, x2])
+                                                for b in self.bonds:
+                                                    b[hi][x2] = 1
+                                                    b[x2][hi] = 1
+        return 0
 
     def calc_multiplicity(self, atomlist):
         """ 
@@ -401,9 +439,11 @@ class StationaryPoint:
 
         return 1 + mult % 2
 
-    def start_multi_molecular(self, vary_charge=False):
+    def start_multi_molecular(self, vary_charge=False, bond_mx=None):
         """
         Iterative method to find all the separate products from a bond matrix
+        vary_charge: to identify fragments with charge on either of them
+        bond_mx: assume a known bond_mx at the characterization - needed in cluter mode for H bonds
         """
         bond_mtx = copy.deepcopy(self.bond)
         assigned_atoms = [0 for i in range(self.natom)]  # 1: part of the fragment, 0: not part of a fragment
@@ -437,7 +477,7 @@ class StationaryPoint:
                         delattr(self, 'cycle_chain')
                     except AttributeError:
                         pass
-                    self.characterize()  
+                    self.characterize(bond_mx=self.bond)
                     self.name = str(self.chemid)
                     st_pt_prodlist.append(self)
                     break

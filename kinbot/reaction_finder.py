@@ -264,7 +264,6 @@ class ReactionFinder:
                     instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
             for instance in instances:
                 rxns.append(instance)
-        
         rxns = self.clean_rigid(name, rxns, 0, -1)
 
         self.new_reaction(rxns, name, a=0, b=-1)
@@ -2345,6 +2344,7 @@ class ReactionFinder:
         equivalency between elements that are interchangeable (cross=True)
         if aid is True, then it will throw away reactions where there is already one
            with the same atom IDs involved - at least important for hom_sci
+        now also filters non-solute reactions in cluster mode
         """
 
         for inst in rxns:
@@ -2390,8 +2390,16 @@ class ReactionFinder:
                 new = False
                 continue
             if new:
-                self.reactions[name].append(inst)
-    
+                if self.par['cluster']:  # only append is solute is part of it
+                    labels = [a, b, c, d, e]
+                    testing = []
+                    for ll in labels:
+                        if ll != None:
+                            testing.append(inst[ll]) 
+                    if len([tt for tt in testing if tt in self.par['solute']]) > 0:
+                        self.reactions[name].append(inst)
+                else:
+                    self.reactions[name].append(inst)
         return 0
 
 def main():

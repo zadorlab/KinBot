@@ -46,6 +46,12 @@ class Parameters:
             'mult': 0,
             # Whether it is a bimolecular reaction
             'bimol': 0,
+            # Cluster
+            'cluster' : 0,
+            # Atom numbers of the solute, only used in cluster mode
+            'solute': [],
+            # H-bond recognition as bond
+            'hbond': 0,
 
             # WHICH STEPS TO TAKE
             # Do a reaction search

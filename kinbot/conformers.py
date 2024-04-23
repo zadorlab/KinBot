@@ -530,10 +530,12 @@ class Conformers:
                 l1energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
                 l1energy += l1_last_row.data.get('zpe')
                 if not any([abs(en - l1energy) < self.diffthrs * constants.KCALtoHARTREE for en in totenergies]): # 0.1 kcal/mol
-                    logger.warning(f'None of {self.species.name} conformers '
-                                   'has the same energy as its parent structure. '
-                                   'This might be a result of SCF convergence '
-                                   'issues.')
+                    logger.warning(f'\tNone of {self.species.name} conformers '
+                                   'has the same energy as its parent structure.')
+                    lowest_job = l1_last_row.name
+                    lowest_conf = 'low'
+                    lowest_e_geom = l1_last_row.positions
+                    lowest_energy = l1energy
                 try:
                     if self.qc.qc == 'gauss':
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')

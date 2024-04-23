@@ -536,6 +536,11 @@ class Conformers:
                     lowest_conf = 'low'
                     lowest_e_geom = l1_last_row.positions
                     lowest_energy = l1energy
+                
+                low_row = None
+                low_rows = self.db.select(name='conf/{}_low'.format(name))
+                for lrow in low_rows:
+                    low_row = lrow
                 try:
                     if self.qc.qc == 'gauss':
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
@@ -553,8 +558,11 @@ class Conformers:
                             'frequencies': row_last.data.get('frequencies'),
                             'zpe': row_last.data.get('zpe'),
                             'status': row_last.data.get('status')}
-                    self.db.write(mol, name='conf/{}_low'.format(name), 
-                                  data=data)
+                    if low_row and hasattr(low_row, 'data') and low_row.data == data:
+                        pass
+                    else:
+                        self.db.write(mol, name='conf/{}_low'.format(name), 
+                                      data=data)
                 except UnboundLocalError:
                     pass
 

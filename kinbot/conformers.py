@@ -585,9 +585,15 @@ class Conformers:
         name = self.get_name()
 
         job = 'conf/{}_low'.format(name)
-        err, energy = self.qc.get_qc_energy(job)
-        err, zpe = self.qc.get_qc_zpe(job)
-        err, geom = self.qc.get_qc_geom(job, self.species.natom)
+        try:
+            err, energy = self.qc.get_qc_energy(job)
+            err, zpe = self.qc.get_qc_zpe(job)
+            err, geom = self.qc.get_qc_geom(job, self.species.natom)
+        except ValueError:
+            _ = self.check_conformers()
+            err, energy = self.qc.get_qc_energy(job)
+            err, zpe = self.qc.get_qc_zpe(job)
+            err, geom = self.qc.get_qc_geom(job, self.species.natom)
                 
         return geom, energy, zpe 
 

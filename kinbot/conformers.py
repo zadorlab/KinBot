@@ -558,7 +558,9 @@ class Conformers:
                             'frequencies': row_last.data.get('frequencies'),
                             'zpe': row_last.data.get('zpe'),
                             'status': row_last.data.get('status')}
-                    if low_row and hasattr(low_row, 'data') and low_row.data == data:
+                    if low_row and hasattr(low_row, 'data') \
+                            and all((np.all(data.get(k) == v) 
+                                     for k, v in low_row.data.items())):
                         pass
                     else:
                         self.db.write(mol, name='conf/{}_low'.format(name), 

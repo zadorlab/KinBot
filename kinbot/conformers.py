@@ -91,6 +91,7 @@ class Conformers:
 
         self.imagfreq_threshold = par['imagfreq_threshold']
         self.flat_ring_dih_angle = par['flat_ring_dih_angle']
+        self.print_warning = True
 
     def generate_ring_conformers(self, cart):
         """
@@ -530,8 +531,11 @@ class Conformers:
                 l1energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
                 l1energy += l1_last_row.data.get('zpe')
                 if not any([abs(en - l1energy) < self.diffthrs * constants.KCALtoHARTREE for en in totenergies]): # 0.1 kcal/mol
-                    logger.warning(f'\tNone of {self.species.name} conformers '
-                                   'has the same energy as its parent structure.')
+                    if self.print_warning:
+                        logger.warning(f'\tNone of {self.species.name} '
+                                       'conformers has the same energy as its '
+                                       'parent structure.')
+                        self.print_warning = False
                     lowest_job = l1_last_row.name
                     lowest_conf = 'low'
                     lowest_e_geom = l1_last_row.positions

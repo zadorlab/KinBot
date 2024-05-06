@@ -51,7 +51,10 @@ def config_log(label, mode='kinbot', level='info'):
     if os.path.isfile(fname):
         with open(fname) as log_fh:
             first_line = log_fh.readline()
-        dt = parser.parse(first_line.replace('-INFO: \n', ''))
+        try:
+            dt = parser.parse(first_line.replace('-INFO: \n', ''))
+        except ValueError:
+            dt = 'old'
         date = str(dt).replace(' ', '_')
         os.rename(fname, f'{mode}_{date}.log')
     log_handler = logging.FileHandler(fname, mode='w')

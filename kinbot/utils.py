@@ -141,7 +141,7 @@ def clean_files():
         else:
             try:
                 atoms = read(ll)
-            except StopIteration:
+            except (StopIteration, ValueError):
                 continue
             else:
                 if len(atoms.positions) > 1 and np.all(atoms.positions == 0):

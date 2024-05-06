@@ -823,10 +823,16 @@ class QuantumChemistry:
             sys.exit()
 
         if self.queuing == 'local':
-            logger.error(f'Job {job} is missing in the database or the output '
-                         'file is not present. Unable to run calculations when '
-                         'queuing is \'local\'.')
-            sys.exit()
+            err_msg = f'Job {job} is missing in the database or the output ' \
+                      'file is not present. Unable to run calculations when ' \
+                      'queuing is \'local\'. To ignore calculations that have ' \
+                      'not finished set "error_missing_local" to False.'
+            if self.par['error_missing_local']:
+                logger.error(err_msg)
+                raise FileNotFoundError(err_msg)
+            else:
+                logger.warning(err_msg)
+                return -1
 
         template_file = f'{kb_path}/tpl/{self.queuing}_python.tpl'
         python_file = f'{job}.py'
@@ -1195,16 +1201,22 @@ class QuantumChemistry:
                         try:
                             last_line = f.readlines()[-1]
                             if 'done' not in last_line:
+                                if self.queuing == 'local' and not self.par['error_missing_local']:
+                                    return 'error'
                                 logger.debug(f'Log file {log_file} is present, '
                                              'but has no "done" stamp.')
                                 return 0
                         except IndexError:
                             logger.debug(f'Log file {log_file} is present, but it is empty.')
+                            if self.queuing == 'local' and not self.par['error_missing_local']:
+                                return 'error'
                             return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
                 elif self.qc == 'nn_pes':
                     pass
                 else:
+                    if self.queuing == 'local' and not self.par['error_missing_local']:
+                        return 'error'
                     logger.debug('Checking againg for log file')
                     time.sleep(1)
                     log_file_exists = os.path.exists(log_file)
@@ -1230,6 +1242,8 @@ class QuantumChemistry:
             logger.debug('log file {} does not exist'.format(log_file))
             return 0
         else:
+            if self.queuing == 'local' and not self.par['error_missing_local']:
+                return 'error'
             logger.debug('job {} is not in database'.format(job))
             return 0
 

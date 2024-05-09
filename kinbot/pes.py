@@ -614,11 +614,11 @@ def postprocess(par, jobs, task, names, mass):
 
     # write full pesviewer input
     create_pesviewer_input(par,
-                           wells,
-                           bimol_products,
-                           rxns,
-                           barrierless,
-                           vdW,
+                           deepcopy(wells),
+                           deepcopy(bimol_products),
+                           deepcopy(rxns),
+                           deepcopy(barrierless),
+                           deepcopy(vdW),
                            well_energies,
                            prod_energies,
                            highlight)
@@ -1563,6 +1563,58 @@ def create_rotdPy_inputs(par, bless, vdW):
         #Erase the fragments for this reaction
         Fragment._instances = []
 
+def is_unique_vdW(well, vdW):
+    #Return boolean
+    if 'prod' not in well:
+        return True
+    
+    #Find well's reaction
+    for idx, vdw in enumerate(vdW):
+        vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
+        if vdw_name == well:
+            products = '_'.join(sorted(vdw[2]))
+            break
+
+    #Compare products with other reactions
+    other_vdW = vdW[:idx]
+    if idx+1 < len(vdW):
+        other_vdW.extend(vdW[idx+1:])
+    for vdw in other_vdW[:idx]:
+        other_prod = '_'.join(sorted(vdw[2]))
+        if other_prod == products:
+            return False
+    #No other reaction with a vdW well lead to the same prod.
+    return True
+    
+def find_min_vdW(vdW: list, well_energies: dict) -> dict:
+    #Dict linking each vdW well to the lowest equivalent
+    min_vdW = {}
+    for idx, vdw in enumerate(vdW):
+        vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
+        products = '_'.join(sorted(vdw[2]))
+        vdw_energy = well_energies[vdw_name]
+
+        #Minimum set to itself
+        if vdw_name not in min_vdW:
+            min_vdW[vdw_name] = vdw_name
+
+        other_vdW = vdW[:idx]
+        if idx+1 < len(vdW):
+            other_vdW.extend(vdW[idx+1:])
+        
+        for other_vdw in other_vdW[:idx]:
+            other_name = other_vdw[1] + other_vdw[-1].split('vdW')[1]
+            other_prod = '_'.join(sorted(other_vdw[2]))
+            other_energy = well_energies[other_name]
+
+            #Minimum set to a different well if found
+            if other_prod == products:
+                if other_energy < well_energies[min_vdW[vdw_name]]:
+                    min_vdW[vdw_name] = other_name
+    return min_vdW
+        
+        
+
 def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
                            well_energies, prod_energies, highlight):
     """
@@ -1577,10 +1629,21 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
     if highlight is None:
         highlight = []
 
+    #Dictionary
+    #Key: 'vdW_name'
+    #Value: 'min_vdW_name' 
+    min_vdW = find_min_vdW(vdW, well_energies)
+
     well_lines = []
     for well in wells:
-        energy = well_energies[well]
-        well_lines.append('{} {:.2f}'.format(well, energy))
+        if is_unique_vdW(well, vdW):
+            energy = well_energies[well]
+            well_lines.append('{} {:.2f}'.format(well, energy))
+        else:
+            energy = well_energies[min_vdW[well]]
+            line = '{} {:.2f}'.format(well, energy)
+            if line not in well_lines:
+                well_lines.append(line)
 
     bimol_lines = []
     for prods in products:
@@ -1612,13 +1675,14 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
             high = 'red'
         vdW_name = f"{rxn[1]}{rxn[5].split('vdW')[1]}"
         prod_name = '_'.join(sorted(rxn[2]))
+        
         ts_lines.append('{} {:.2f} {} {} {}'.format(rxn[1],
                                                     rxn[3],
                                                     rxn[0],
-                                                    vdW_name,
+                                                    min_vdW[vdW_name],
                                                     high))
         barrierless_lines.append('{name} {react} {prod}'.format(name='nobar_' + str(index + len(barrierless)),
-                                                                    react=vdW_name,
+                                                                    react=min_vdW[vdW_name],
                                                                     prod=prod_name))
 
     well_lines = '\n'.join(well_lines)

@@ -614,18 +614,18 @@ def postprocess(par, jobs, task, names, mass):
 
     # write full pesviewer input
     create_pesviewer_input(par,
-                           deepcopy(wells),
-                           deepcopy(bimol_products),
-                           deepcopy(rxns),
-                           deepcopy(barrierless),
-                           deepcopy(vdW),
+                           wells,
+                           bimol_products,
+                           rxns,
+                           barrierless,
+                           vdW,
                            well_energies,
                            prod_energies,
                            highlight)
     
     if par['me']:
         create_mess_input(par,
-                          wells,
+                          deepcopy(wells),
                           bimol_products,
                           deepcopy(rxns),
                           deepcopy(barrierless),
@@ -1037,9 +1037,17 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
     others are corrected with their DeltaL2 energies.
     """
 
+    min_vdW = find_min_vdW(vdW, well_energies)
+
+    for well in wells:
+        if well in min_vdW and\
+        min_vdW[well] != well:
+            wells.pop(wells.index(well))
+
     logger.info(f"uq value: {par['uq']}")
     for vdw in vdW:
-        vdW_well_reac = [vdw[0], vdw[1], [f"{vdw[1]}{vdw[5].split('vdW')[1]}"], vdw[3]]
+        vdw_name = f"{vdw[1]}{vdw[5].split('vdW')[1]}"
+        vdW_well_reac = [vdw[0], vdw[1], [min_vdW[vdw_name]], vdw[3]]
         if vdW_well_reac not in reactions:
             reactions.append(vdW_well_reac)
     short_names = create_short_names(wells, products, reactions, barrierless, vdW)
@@ -1121,6 +1129,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
         # write the products and barrierless reactions
         s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
         for prod in products:
+            linked_bless_wells = []
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod] + uq.calc_factor('energy', uq_iter)
             prod_energies_current[prod] = energy
@@ -1134,6 +1143,9 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
                 if prod == bl_prod:
+                    if bl[0] in linked_bless_wells:
+                        continue
+                    linked_bless_wells.append(bl[0])
                     with open(bl[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
                         if bless == 0:
                             s.append(f.read().format(name=name,
@@ -1155,11 +1167,15 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             for vdw in vdW:
                 bl_prod = f'{vdw[2][0]}_{vdw[2][1]}'
                 if prod == bl_prod:
+                    #Skip this vdW well is bless already added with similar well
+                    if min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"] in linked_bless_wells:
+                        continue
+                    linked_bless_wells.append(min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"])
                     with open(vdw[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
                         if bless == 0:
                             s.append(f.read().format(name=name,
                                                      blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
-                                                     wellname=well_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}"],
+                                                     wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
                                                      prodname=pr_short[prod],
                                                      ground_energy=round(energy, 2),
                                                      **fr_names))
@@ -1167,7 +1183,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                         else:
                             stemp = (f.read().format(name=name,
                                                      blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
-                                                     wellname=well_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}"],
+                                                     wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
                                                      prodname=pr_short[prod],
                                                      ground_energy=round(energy, 2),
                                                      **fr_names))
@@ -1681,9 +1697,12 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
                                                     rxn[0],
                                                     min_vdW[vdW_name],
                                                     high))
-        barrierless_lines.append('{name} {react} {prod}'.format(name='nobar_' + str(index + len(barrierless)),
-                                                                    react=min_vdW[vdW_name],
-                                                                    prod=prod_name))
+        line = '{name} {react} {prod}'.format(name='nobar_' + str(index + len(barrierless)),
+                                                                react=min_vdW[vdW_name],
+                                                                prod=prod_name)
+        if line not in barrierless_lines:
+            barrierless_lines.append(line)
+            
 
     well_lines = '\n'.join(well_lines)
     bimol_lines = '\n'.join(bimol_lines)

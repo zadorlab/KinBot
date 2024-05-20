@@ -702,7 +702,9 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         
         template = open(template_file, 'r').read()
-        template = template.format(label=job,
+        if "vrc_tst_scan" in species.name:
+            template = template.format(label=job,
+                                    instance=frozen_param[0],
                                    kwargs=kwargs,
                                    atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
@@ -714,6 +716,19 @@ class QuantumChemistry:
                                    order=0,      # Sella
                                    sella_kwargs=self.par['sella_kwargs'] # Sella
                                    )
+        else:
+            template = template.format(label=job,
+                                    kwargs=kwargs,
+                                    atom=list(species.atom),
+                                    geom=list([list(gi) for gi in geom]),
+                                    ppn=self.ppn,  # QChem and NWChem
+                                    qc_command=self.qc_command,
+                                    working_dir=os.getcwd(),
+                                    code=code,    # Sella
+                                    Code=Code,    # Sella
+                                    order=0,      # Sella
+                                    sella_kwargs=self.par['sella_kwargs'] # Sella
+                                    )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)

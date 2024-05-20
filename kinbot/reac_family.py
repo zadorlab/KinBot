@@ -175,20 +175,37 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         else:
             template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
-        template = template.format(label=rxn.instance_name, 
-                                   kwargs=kwargs, 
-                                   atom=list(rxn.species.atom),
-                                   geom=list([list(gi) for gi in geom]),
-                                   bimol=bimol,
-                                   ppn=rxn.qc.ppn,
-                                   qc_command=command,
-                                   working_dir=os.getcwd(),
-                                   scan=rxn.scan,
-                                   code=code,  # Sella
-                                   Code=Code,  # Sella
-                                   fix=fix,  # Sella
-                                   sella_kwargs=rxn.par['sella_kwargs']  # Sella
-                                   )
+        if VTS:
+            template = template.format(label=rxn.instance_name, 
+                                       instance=rxn.instance,
+                                       kwargs=kwargs, 
+                                       atom=list(rxn.species.atom),
+                                       geom=list([list(gi) for gi in geom]),
+                                       bimol=bimol,
+                                       ppn=rxn.qc.ppn,
+                                       qc_command=command,
+                                       working_dir=os.getcwd(),
+                                       scan=rxn.scan,
+                                       code=code,  # Sella
+                                       Code=Code,  # Sella
+                                       fix=fix,  # Sella
+                                       sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                       )
+        else:
+            template = template.format(label=rxn.instance_name, 
+                                    kwargs=kwargs, 
+                                    atom=list(rxn.species.atom),
+                                    geom=list([list(gi) for gi in geom]),
+                                    bimol=bimol,
+                                    ppn=rxn.qc.ppn,
+                                    qc_command=command,
+                                    working_dir=os.getcwd(),
+                                    scan=rxn.scan,
+                                    code=code,  # Sella
+                                    Code=Code,  # Sella
+                                    fix=fix,  # Sella
+                                    sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                    )
     else:
         if rxn.par['calc_kwargs']:
             kwargs = rxn.qc.merge_kwargs(kwargs)

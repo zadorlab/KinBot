@@ -59,7 +59,7 @@ def create_all_surf_for_dist(dist, fragments, par, reactive_atoms):
             frag.set_ra(reactive_atoms[findex]) #detect equivalent atoms
     
     #Create 'next_to_atom' surfaces
-    if dist <= max(par['pp_next_to_atom']):
+    if dist <= max(par['pp_oriented']):
         for findex, frag in enumerate(fragments):
             for ra in frag.ra:
                 #Creates the list of pp_length to use for each ra

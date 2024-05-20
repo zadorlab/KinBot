@@ -194,22 +194,22 @@ class VrcTstScan(GeneralReac):
            not isinstance(self.par["vrc_tst_scan_parameters"]["distances"], list):
             if self.shortest < self.par["vrc_tst_scan_parameters"]["start"]:
                 self.scan_list = np.arange(self.shortest,\
-                                           self.par["vrc_tst_scan_parameters"]["start"],\
+                                           self.par["vrc_tst_scan_parameters"]["start"],
                                            self.par["vrc_tst_scan_parameters"]["step"])
                 self.scan_list = np.append(self.scan_list,\
-                                np.arange(self.par["vrc_tst_scan_parameters"]["start"],\
-                                        self.par["vrc_tst_scan_parameters"]["stop"],\
+                                np.arange(self.par["vrc_tst_scan_parameters"]["start"],
+                                        self.par["vrc_tst_scan_parameters"]["stop"],
                                         self.par["vrc_tst_scan_parameters"]["step"]))
             else:
-                self.scan_list = np.arange(self.par["vrc_tst_scan_parameters"]["start"],\
-                                        self.par["vrc_tst_scan_parameters"]["stop"],\
+                self.scan_list = np.arange(self.par["vrc_tst_scan_parameters"]["start"],
+                                        self.par["vrc_tst_scan_parameters"]["stop"],
                                         self.par["vrc_tst_scan_parameters"]["step"])
         else:
             if self.shortest < self.par["vrc_tst_scan_parameters"]["distances"][0]:
                 self.scan_list = np.arange(self.shortest,\
-                                           self.par["vrc_tst_scan_parameters"]["distances"][0],\
+                                           self.par["vrc_tst_scan_parameters"]["distances"][0],
                                            self.par["vrc_tst_scan_parameters"]["step"])
-                self.scan_list = np.append(self.scan_list,\
+                self.scan_list = np.append(self.scan_list,
                                            self.par["vrc_tst_scan_parameters"]["distances"])
             else:
                 self.scan_list = self.par["vrc_tst_scan_parameters"]["distances"]

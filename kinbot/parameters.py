@@ -119,8 +119,8 @@ class Parameters:
             'rotdPy_inputs': None,
             #Dictionary of distances in bohr at which pivot points are generated for each atom
             'pp_length': None,
-            #List [start, stop] in angstrom of the pp_next_to_atom procedure
-            'pp_next_to_atom': None,
+            #List [start, stop] in angstrom of the pp_oriented procedure
+            'pp_oriented': None,
             #List [start, stop] in angstrom of the pp_on_atom procedure
             'pp_on_atom': None,
             #Start value in angstrom of the pp_on_COM procedure
@@ -222,19 +222,19 @@ class Parameters:
             # Basis set to scan bonds in barrierless_saddle family
             'barrierless_saddle_basis_high': '6-31G',
             # {chemid1: [["reaction_name", "products_chemids"],[]], chemid2: [[..]]}
-            #Ex: {chemid1:[["hom_sci_3_4", "prod1chemid_prod2chemid"],
+            # Ex: {chemid1:[["hom_sci_3_4", "prod1chemid_prod2chemid"],
             #              ["inta_H_migration_1_3", "prod1chemid_prod2chemid"]]}
             'vrc_tst_scan': {},
             # Method to scan bonds in vrc_tst_scan
             'vrc_tst_scan_methods': {
-                "L1": "ub3lyp", 
-                "L2": "ub3lyp", 
-                "L3": ["uwb97xd","ccsd(t)"]},
+                "L1": "ub3lyp",
+                "L2": "ub3lyp",
+                "L3": ["uwb97xd", "ccsd(t)"]},
             # Basis set to scan bonds in vrc_tst_scan
             'vrc_tst_scan_basis': {
-                "L1": "6-31G", 
-                "L2": "6-311++G(d,p)", 
-                "L3": ["cc-pVDZ","aug-cc-pVTZ"]},
+                "L1": "6-31G",
+                "L2": "6-311++G(d,p)",
+                "L3": ["cc-pVDZ", "aug-cc-pVTZ"]},
             # Parameters for the vrc_tst scan
             "vrc_tst_scan_parameters": None,
             # for Gaussian, request CalcAll for TS optimization
@@ -497,12 +497,12 @@ class Parameters:
         elif self.par['pp_length'] is None:
             self.par['pp_length'] = pp_tables.pp_length_table()
 
-        if self.par['pp_next_to_atom'] != None and\
-            not isinstance(self.par['pp_next_to_atom'], list):
-            logger.info('User defined pp_next_to_atom should be a list. Using default values.')
-            self.par['pp_next_to_atom'] = [1.5, 6]
-        elif self.par['pp_next_to_atom'] is None:
-            self.par['pp_next_to_atom'] = [1.5, 6]
+        if self.par['pp_oriented'] != None and\
+            not isinstance(self.par['pp_oriented'], list):
+            logger.info('User defined pp_oriented should be a list. Using default values.')
+            self.par['pp_oriented'] = [1.5, 6]
+        elif self.par['pp_oriented'] is None:
+            self.par['pp_oriented'] = [1.5, 6]
         if self.par['pp_on_atom'] != None and\
             not isinstance(self.par['pp_on_atom'], list):
             logger.info('User defined pp_on_atom should be a list. Using default values.')

@@ -180,7 +180,7 @@ except:
         try:
             iowait(logfile, 'gauss')
             e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
-            new_inter_frag = get_interfragments_param(mol, [1,3])
+            new_inter_frag = get_interfragments_param(mol, instance={instance})
             if (not same_orientation(initial_inter_frag, new_inter_frag) and not constrain_orientation) or i == 3:
                 constrain_orientation = True
                 i = -1

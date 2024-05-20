@@ -129,7 +129,7 @@ logfile = '{label}.log'
 
 mol = Atoms(symbols={atom}, positions={geom})
 
-initial_inter_frag = get_interfragments_param(mol, [1,3])
+initial_inter_frag = get_interfragments_param(mol, instance={instance})
 
 kwargs = {kwargs}
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
@@ -141,7 +141,7 @@ try:
     e = mol.get_potential_energy()  # use the Gaussian optimizer
     iowait(logfile, 'gauss')
     mol.positions = reader_gauss.read_geom(logfile, mol)
-    new_inter_frag = get_interfragments_param(mol, [1,3])
+    new_inter_frag = get_interfragments_param(mol, instance={instance})
     if same_orientation(initial_inter_frag, new_inter_frag):
         freq = reader_gauss.read_freq(logfile, {atom})
         zpe = reader_gauss.read_zpe(logfile)
@@ -166,7 +166,7 @@ try:
         #recalculate
         e = mol.get_potential_energy()  # use the Gaussian optimizer
         mol.positions = reader_gauss.read_geom(logfile, mol)
-        new_inter_frag = get_interfragments_param(mol, [1,3])
+        new_inter_frag = get_interfragments_param(mol, instance={instance})
         if same_orientation(initial_inter_frag, new_inter_frag):
             freq = reader_gauss.read_freq(logfile, {atom})
             zpe = reader_gauss.read_zpe(logfile)
@@ -201,7 +201,7 @@ except:
             #recalculate
             e = mol.get_potential_energy()  # use the Gaussian optimizer
             mol.positions = reader_gauss.read_geom(logfile, mol)
-            new_inter_frag = get_interfragments_param(mol, [1,3])
+            new_inter_frag = get_interfragments_param(mol, instance={instance})
             if same_orientation(initial_inter_frag, new_inter_frag):
                 freq = reader_gauss.read_freq(logfile, {atom})
                 zpe = reader_gauss.read_zpe(logfile)
@@ -217,7 +217,7 @@ except:
             if reader_gauss.read_convergence(logfile) != 0:
                 try:
                     e, mol.positions = reader_gauss.read_converged_geom_energy(logfile, mol)
-                    new_inter_frag = get_interfragments_param(mol, [1,3])
+                    new_inter_frag = get_interfragments_param(mol, instance={instance})
                     if same_orientation(initial_inter_frag, new_inter_frag):
                         freq = reader_gauss.read_freq(logfile, {atom})
                         zpe = reader_gauss.read_zpe(logfile)

@@ -479,6 +479,7 @@ class Parameters:
             for key in VTS_defaults:
                 if key not in self.VTS_parameters:
                     self.VTS_parameters[key] = VTS_defaults[key]
+        self.par["vrc_tst_scan_parameters"] = self.VTS_parameters
         
         #Check user input
         if self.par['pp_length'] != None and\

@@ -125,21 +125,21 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                     case 1:
                         match ndouble:
                             case 1:
-                                atom_type = 'S_pyr' #Ex: NSO -> NSOF
+                                atom_type = 'S_pyr'  # Ex: NSO -> NSOF
                             case 0:
-                                atom_type = 'S_quad' #Ex: NSF2 -> NSF3
+                                atom_type = 'S_quad'  # Ex: NSF2 -> NSF3
                     case 0:
                         match ndouble:
                             case 2:
-                                atom_type = 'S_pyr' #Ex: SO2F -> SO2F2
+                                atom_type = 'S_pyr'  # Ex: SO2F -> SO2F2
                             case 1:
-                                atom_type = 'S_bip_tri_l' #Ex: SOF3 -> SOF4
+                                atom_type = 'S_bip_tri_l'  # Ex: SOF3 -> SOF4
                             case 0:
-                                atom_type = 'S_bip_quad_t' #Ex: SF5 (+)(-)? -> SF6
+                                atom_type = 'S_bip_quad_t'  # Ex: SF5 (+)(-)? -> SF6
     return atom_type
 
 def pp_length_table():
-    return {'H': (np.array([0.1, 0.2, 0.3])*constants.BOHRtoANGSTROM).tolist(),\
-            'C': (np.array([0.1, 0.2, 0.3])*constants.BOHRtoANGSTROM).tolist(),\
-            'N': (np.array([0.1, 0.2, 0.3])*constants.BOHRtoANGSTROM).tolist(),\
-            'O': (np.array([0.1, 0.2, 0.3])*constants.BOHRtoANGSTROM).tolist()}
+    return {'H': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
+            'C': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
+            'N': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
+            'O': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist()}

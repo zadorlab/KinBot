@@ -1795,7 +1795,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
                 new_zpe = row.data.get('zpe')
             except (UnboundLocalError, TypeError):
                 continue
-            if new_zpe == None:
+            if new_zpe is None:
                 continue
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
                 if not ts:
@@ -1891,7 +1891,7 @@ def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
     for row in rows:
         if hasattr(row, 'data'):
             zpe = row.data.get('zpe')
-    if zpe == None: 
+    if zpe is None: 
         logger.warning('Could not find zpe for {} in directory {}'.format(job, jobdir))
         zpe = 1.  # a large value
     return zpe

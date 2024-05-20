@@ -159,7 +159,7 @@ def create_surface(dist, fragments=None, pps_dists=None):
                 pps_coords[findex].append(frag.get_pp_on_com())
                 info[findex] += 'COM'
                 continue
-            elif pps_dists == None:
+            elif pps_dists is None:
                 info[findex] += 'on atom'
                 for ra in frag.ra:
                     pps_coords[findex].append(frag.get_pp_on_atom(ra))

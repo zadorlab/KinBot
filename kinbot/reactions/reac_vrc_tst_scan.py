@@ -190,7 +190,7 @@ class VrcTstScan(GeneralReac):
                                           self.long_range["maps"][frag_number][dihedral.indices[3]]+1])
 
     def set_scan_list(self):
-        if self.par["vrc_tst_scan_parameters"]["distances"] == None or\
+        if self.par["vrc_tst_scan_parameters"]["distances"] is None or\
            not isinstance(self.par["vrc_tst_scan_parameters"]["distances"], list):
             if self.shortest < self.par["vrc_tst_scan_parameters"]["start"]:
                 self.scan_list = np.arange(self.shortest,\

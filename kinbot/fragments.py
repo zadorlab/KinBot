@@ -118,7 +118,7 @@ class Fragment(StationaryPoint):
         return all_elem
                 
     def set_ra(self, ra_indexes_in_parent=None, ra_indexes_in_frag=None): 
-        if ra_indexes_in_frag == None:
+        if ra_indexes_in_frag is None:
             #Find the atomid of all reactive atoms
             ra_indexes_in_frag = [ i for i, x in enumerate(self.map) if x == ra_indexes_in_parent]
         #Find all equivalent atoms
@@ -162,7 +162,7 @@ class Fragment(StationaryPoint):
         return atom_type
     
     def get_pp_coord(self, index, atom_type, dist_from_ra=None):
-        if dist_from_ra == None:
+        if dist_from_ra is None:
             #Return a list of relevant distances to try
             dist_from_ra = pp_tables.pp_length_table(atom_type[0])
         match atom_type:
@@ -225,8 +225,8 @@ class Fragment(StationaryPoint):
                 neighbour_pos.append(self.geom[neighbour_index])
                 break
 
-        if angle == None or not isinstance(angle, (float, int)) \
-        or last_neighbours == None or not isinstance(last_neighbours, int):
+        if angle is None or not isinstance(angle, (float, int)) \
+        or last_neighbours is None or not isinstance(last_neighbours, int):
             try:
                 pp_orient = np.subtract(ra_pos, neighbour_pos[0])
             except NameError:
@@ -257,11 +257,11 @@ class Fragment(StationaryPoint):
         v2 = np.subtract(neighbour_pos[1], ra_pos)
         small_angle = geometry.calc_angle(neighbour_pos[0], ra_pos, neighbour_pos[1])
         big_angle = 2*pi - small_angle
-        if angle == None or not isinstance(angle, (float, int)):
+        if angle is None or not isinstance(angle, (float, int)):
             angle = big_angle/2
         axis = geometry.unit_vector(np.cross(v2, v1))
         pp_orient = np.dot(geometry.rotation_matrix(axis, angle), v1)
-        if length == None:
+        if length is None:
             length = pp_tables.pp_length_table(self.atom[index], par=self.par)
         pp_vect = length * geometry.unit_vector(pp_orient)
         pp_coord = np.add(ra_pos, pp_vect)
@@ -286,7 +286,7 @@ class Fragment(StationaryPoint):
         pp_list = []
         #To know in which direction to place the pivot point
         plane_direction = geometry.unit_vector(np.dot(plane[0], ra_pos))
-        if length == None:
+        if length is None:
             length = pp_tables.pp_length_table(self.atom[index],par=self.par)
         for i in range(n_pp):
             pp_orient = np.array(geometry.unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)

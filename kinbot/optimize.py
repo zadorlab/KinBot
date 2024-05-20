@@ -37,7 +37,7 @@ class Optimize:
         """
         self.species = species
 
-        if frozen_param == None or not isinstance(frozen_param, list):
+        if frozen_param is None or not isinstance(frozen_param, list):
             self.frozen_param = [[]]
         else:
             self.frozen_param = frozen_param

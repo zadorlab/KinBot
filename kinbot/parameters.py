@@ -462,7 +462,7 @@ class Parameters:
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
 
-        if self.par['rotdPy_inputs'] == None:
+        if self.par['rotdPy_inputs'] is None:
             self.par['rotdPy_inputs'] = []
         VTS_defaults= {
                 "step": 0.1,
@@ -494,20 +494,20 @@ class Parameters:
                 else:
                     self.par['pp_length'][element] = (np.array(self.par['pp_length'][element])\
                                                     * constants.BOHRtoANGSTROM).tolist()
-        elif self.par['pp_length'] == None:
+        elif self.par['pp_length'] is None:
             self.par['pp_length'] = pp_tables.pp_length_table()
 
         if self.par['pp_next_to_atom'] != None and\
             not isinstance(self.par['pp_next_to_atom'], list):
             logger.info('User defined pp_next_to_atom should be a list. Using default values.')
             self.par['pp_next_to_atom'] = [1.5, 6]
-        elif self.par['pp_next_to_atom'] == None:
+        elif self.par['pp_next_to_atom'] is None:
             self.par['pp_next_to_atom'] = [1.5, 6]
         if self.par['pp_on_atom'] != None and\
             not isinstance(self.par['pp_on_atom'], list):
             logger.info('User defined pp_on_atom should be a list. Using default values.')
             self.par['pp_on_atom'] = [5.0, 12.0]
-        elif self.par['pp_on_atom'] == None:
+        elif self.par['pp_on_atom'] is None:
             self.par['pp_on_atom'] = [5.0, 12.0]
 
             

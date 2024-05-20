@@ -26,7 +26,7 @@ class VrcTstScanFrozen(VrcTstScan):
         The orientation between the fragments is kept the same as in self.species.
         """
         #distance between the two fragments
-        if distance == None or not isinstance(distance, float):
+        if distance is None or not isinstance(distance, float):
             distance = self.scan_list[0]
 
         interfragments_param = self.get_interfragments_param(level=level)

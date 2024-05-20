@@ -657,7 +657,7 @@ class QuantumChemistry:
                     kwargs['opt'] += ", ModRedun"
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
-                if frozen_param == None or not isinstance(frozen_param, list):
+                if frozen_param is None or not isinstance(frozen_param, list):
                     frozen_param = [[]]
                 for bond in frozen_param:
                     kwargs['addsec'] += f"{' '.join(str(atom) for atom in bond)} F\n"
@@ -683,7 +683,7 @@ class QuantumChemistry:
                 kwargs["integral"] = "Grid=SuperFine"
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
-                if frozen_param == None or not isinstance(frozen_param, list):
+                if frozen_param is None or not isinstance(frozen_param, list):
                     frozen_param = [[]]
                 for internal_coordinate in frozen_param:
                     kwargs['addsec'] += f"{' '.join(str(atom) for atom in internal_coordinate)} F\n"

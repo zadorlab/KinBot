@@ -19,8 +19,8 @@ from kinbot.config_log import config_log
 
 
 def main():
-    if sys.version_info.major < 3 or sys.version_info.minor < 8:
-        print('KinBot only runs with python 3.8 or higher. You have python '
+    if sys.version_info.major < 3 or sys.version_info.minor < 10:
+        print('KinBot only runs with python 3.10 or higher. You have python '
               f'{sys.version_info.major}.{sys.version_info.minor}. '
               'Please update python to run KinBot!')
         sys.exit(-1)

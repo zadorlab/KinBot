@@ -83,7 +83,7 @@ class Parameters:
             # step size in Å
             'barrierless_saddle_step': 0.2,
             # List of distance in Å for vrc_tst surfaces
-            'vrc_tst_dist_list': [2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8, 5.0, 5.2, 5.4, 5.6, 5.8, 6.0,6.2, 6.4, 6.6, 6.8, 7.0, 7.2, 7.4, 7.6, 7.8, 8.0, 8.2, 8.4, 8.6, 9.0, 9.2, 9.4, 9.6, 9.8, 10.0, 10.2, 10.4, 10.6, 10.8, 11.0, 11.2, 11.4, 11.6, 11.8, 12.0, 12.2, 12.4, 12.6, 12.8, 13.0, 13.5, 14.0, 14.5, 15.0, 15.5, 16.0],
+            'vrc_tst_dist_list': np.append(np.arange(2.2, 13.0, 0.2), np.arange(13.0, 16.0, 0.5)),
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
             # if requested with specific_reaction = 1

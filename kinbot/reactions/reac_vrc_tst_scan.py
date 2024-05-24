@@ -54,7 +54,7 @@ class VrcTstScan(GeneralReac):
         self.e_in_kcal = {}
         #Reset the species to have the broken bond between fragments
         self.species, self.instance, self.shortest = self.find_bond_to_scan()
-        self.set_scan_list() #Internally, the list is in bhor
+        self.set_scan_list() #Internally, the list is in bohr
         self.max_step = len(self.scan_list) - 1 #Step starts at 0
         self.removed = []
         self.points_to_remove = []

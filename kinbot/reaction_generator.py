@@ -122,7 +122,7 @@ class ReactionGenerator:
                                 logger.info(f'\tReaction search failed for {obj.instance_name}: '
                                             'Invalid geometry.')
 
-                    elif obj.scan ==1: # do a bond scan # vrc tst scan lenght does not depend on par[max_step]
+                    elif obj.scan == 1: # do a bond scan # vrc tst scan lenght does not depend on par[max_step]
 
                         if (self.species.reac_step[index] == self.par['scan_step'] + 1 and obj.family_name != 'VrcTstScan'):
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
@@ -166,20 +166,20 @@ class ReactionGenerator:
                                     if err == 0:
                                         if obj.family_name == 'VrcTstScan':
                                             err, geom = self.qc.get_qc_geom(obj.instance_name, obj.species.natom)
-                                            obj.species.geom = geom #Uptdate species from last L1 optimized point.
-                                            point = f'{self.species.reac_step[index] - 1}' #L1 point_n-1 finished, about to start point_n
+                                            obj.species.geom = geom  # Update species from last L1 optimized point.
+                                            point = f'{self.species.reac_step[index] - 1}'  # L1 point_n-1 finished, about to start point_n
                                             if point not in obj.scanned:
                                                 obj.scanned[f'{point}'] = {'energy': {'L1': energy}}
                                                 if 'frozen' in obj.instance_name:
-                                                    #Keep L1 orientation, but use L2 fragments geometries
+                                                    # Keep L1 orientation, but use L2 fragments geometries
                                                     obj.scanned[f'{point}']['stationary_point'] = obj.get_frozen_species(level='L1', distance=obj.scan_list[int(point)])
                                                 else:
-                                                    #full fragment reoptmization
+                                                    # full fragment reoptmization
                                                     obj.scanned[f'{point}']['stationary_point'] = copy.deepcopy(obj.species)
-                                                #Submit L2 level of vrc tst scan
+                                                # Submit L2 level of vrc tst scan
                                                 if int(self.par['high_level']):
                                                     if 'frozen' in obj.instance_name:
-                                                    #Keep L1 orientation, but use L2 fragments geometries
+                                                    # Keep L1 orientation, but use L2 fragments geometries
                                                         obj.scanned[f'{point}']['stationary_point'] = obj.get_frozen_species(level='L2', distance=obj.scan_list[int(point)])
                                                     obj.scanned[f'{point}']['opt'] = Optimize(obj.scanned[f'{point}']['stationary_point'],\
                                                                                             self.par, self.qc,\

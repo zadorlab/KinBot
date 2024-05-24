@@ -82,7 +82,7 @@ class Parameters:
             'barrierless_saddle_start': 2.0,
             # step size in Å
             'barrierless_saddle_step': 0.2,
-            # List of distance in Å for vrc_tst surfaces
+            # List of distance in angstrom for vrc_tst surfaces
             'vrc_tst_dist_list': list(np.append(np.arange(2.2, 13.0, 0.2), np.arange(13.0, 16.0, 0.5))),
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
@@ -388,8 +388,8 @@ class Parameters:
         if self.input_file is not None:
             self.read_user_input()
 
-        if 'vrc_tst_scan' in par['families'] and 'vrc_tst_scan_frozen' not in par['families']:
-            par['families'].append('vrc_tst_scan_frozen')
+        if 'vrc_tst_scan' in self.par['families'] and 'vrc_tst_scan_frozen' not in self.par['families']:
+            self.par['families'].append('vrc_tst_scan_frozen')
 
         err = None
         if self.par['me'] == 1:

@@ -143,10 +143,7 @@ try:
     mol.positions = reader_gauss.read_geom(logfile, mol)
     new_inter_frag = get_interfragments_param(mol, instance={instance})
     if same_orientation(initial_inter_frag, new_inter_frag):
-        freq = reader_gauss.read_freq(logfile, {atom})
-        zpe = reader_gauss.read_zpe(logfile)
-        db.write(mol, name=label, data={{'energy': e, 'frequencies': np.asarray(freq),
-                                        'zpe': zpe, 'status': 'normal'}})
+        db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
     else:
         constrain_orientation = True
         #Change kwargs
@@ -168,10 +165,7 @@ try:
         mol.positions = reader_gauss.read_geom(logfile, mol)
         new_inter_frag = get_interfragments_param(mol, instance={instance})
         if same_orientation(initial_inter_frag, new_inter_frag):
-            freq = reader_gauss.read_freq(logfile, {atom})
-            zpe = reader_gauss.read_zpe(logfile)
-            db.write(mol, name=label, data={{'energy': e, 'frequencies': np.asarray(freq),
-                                            'zpe': zpe, 'status': 'normal'}})
+            db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
         else:
             raise Exception("Has converged to a different reaction coordinate.")
 except:
@@ -203,10 +197,7 @@ except:
             mol.positions = reader_gauss.read_geom(logfile, mol)
             new_inter_frag = get_interfragments_param(mol, instance={instance})
             if same_orientation(initial_inter_frag, new_inter_frag):
-                freq = reader_gauss.read_freq(logfile, {atom})
-                zpe = reader_gauss.read_zpe(logfile)
-                db.write(mol, name=label, data={{'energy': e, 'frequencies': np.asarray(freq),
-                                                'zpe': zpe, 'status': 'normal'}})
+                db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
                 break
             elif constrain_orientation:
                 db.write(mol, name=label, data={{'status': 'error'}})
@@ -219,10 +210,7 @@ except:
                     e, mol.positions = reader_gauss.read_converged_geom_energy(logfile, mol)
                     new_inter_frag = get_interfragments_param(mol, instance={instance})
                     if same_orientation(initial_inter_frag, new_inter_frag):
-                        freq = reader_gauss.read_freq(logfile, {atom})
-                        zpe = reader_gauss.read_zpe(logfile)
-                        db.write(mol, name=label, data={{'energy': e, 'frequencies': np.asarray(freq),
-                                                        'zpe': zpe, 'status': 'normal'}})
+                        db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
                         break
                     elif constrain_orientation:
                         db.write(mol, name=label, data={{'status': 'error'}})
@@ -233,8 +221,6 @@ except:
                 pass
             if i == 2 and os.path.getsize(logfile) != 0 and constrain_orientation:
                 e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
-                freq = reader_gauss.read_freq(logfile, {atom})
-                zpe = reader_gauss.read_zpe(logfile)
                 db.write(mol, name=label, data={{'status': 'error'}})
                 break
             elif i == 2 and constrain_orientation:

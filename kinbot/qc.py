@@ -145,19 +145,15 @@ class QuantumChemistry:
                     else:
                         kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
                         kwargs['freq'] = 'freq'
+            elif VTS:
+                kwargs['method'] = self.VTS_methods['L1']
+                kwargs['basis'] = self.VTS_basis['L1']
+                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=15,Loose'
+                # kwargs['guess'] = 'Mix, Always'
+                # kwargs['integral'] = 'Grid=SuperFine'
+                kwargs.pop('freq', None)
             else:
-                if VTS:
-                    kwargs['method'] = self.VTS_methods['L1']
-                    kwargs['basis'] = self.VTS_basis['L1']
-                    kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=15,Loose'
-                    # kwargs['guess'] = 'Mix, Always'
-                    # kwargs['integral'] = 'Grid=SuperFine'
-                    try:
-                        kwargs.pop('freq', None)
-                    except KeyError:
-                        pass
-                    kwargs['freq'] = 'freq'
-                kwargs['freq'] = 'freq'
+                kwargs['freq'] = 'freq'  # ? 
             if (scan or 'R_Addition_MultipleBond' in job) and not VTS:
                 kwargs['method'] = self.scan_method 
                 kwargs['basis'] = self.scan_basis
@@ -200,11 +196,7 @@ class QuantumChemistry:
                     kwargs['basis'] = self.VTS_basis['L2']
                     kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=15,{}'.format(self.opt)
                     # kwargs['integral'] = 'Grid=SuperFine'
-                    try:
-                        kwargs.pop('freq', None)
-                    except KeyError:
-                        pass
-                    kwargs['freq'] = 'freq'
+                    kwargs.pop('freq', None)
             if hir:
                 kwargs['opt'] = 'ModRedun,CalcFC'
                 #if (not ts) or (ts and (not self.par['calcall_ts'])):
@@ -215,19 +207,10 @@ class QuantumChemistry:
                     else:
                         kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest,MaxCycle={}'.format(self.par['hir_maxcycle'])
                 if rigid == 1:
-                    try:
-                        kwargs.pop('freq', None)
-                    except KeyError:
-                        pass
-                    try:
-                        kwargs.pop('opt', None)
-                    except KeyError:
-                        pass
-            if 'hom_sci' in job and not VTS:
-                try:
+                    kwargs.pop('freq', None)
                     kwargs.pop('opt', None)
-                except KeyError:
-                    pass
+            if 'hom_sci' in job and not VTS:
+                kwargs.pop('opt', None)
             if aie:
                 kwargs = {
                     'method': 'cbs-qb3',

@@ -12,7 +12,7 @@ from kinbot import geometry
 import copy
 
 def correct_kwargs(kwargs, iteration):
-    """Funtion that refine the optimization parameters depending on the number of trials"""
+    """Funtion that refines the optimization parameters depending on the number of trials"""
     if 'opt' not in kwargs or iteration == -1:
         return kwargs
     match iteration:
@@ -30,7 +30,7 @@ def get_interfragments_param(atoms, instance):
     species = StationaryPoint.from_ase_atoms(atoms)
     species.characterize()
     """
-    Function that selects the neighbourgs of the closest atom in each fragment,
+    Function that selects the neighbors of the closest atom in each fragment,
     and returns the values of the interfragments angles and dihedrals.
     The level is only used as small orientation correction for planar fragments.
     """
@@ -45,20 +45,20 @@ def get_interfragments_param(atoms, instance):
         species.bonds[0][instance[1], instance[0]] = 0
         fragments, maps = species.start_multi_molecular()
     for frag_number, ra in enumerate(instance):
-        for neighbourg_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == ra)[0][0]]):
+        for neighbor_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == ra)[0][0]]):
             if bond != 0:
-                closest_to_RA[frag_number].append(neighbourg_index)
+                closest_to_RA[frag_number].append(neighbor_index)
                 if len(closest_to_RA[frag_number]) == 2:
                     break
-        #If no neighbourgs atoms were found, the fragment has to be mono-atomic
+        #If no neighbor atoms were found, the fragment has to be mono-atomic
         if len(closest_to_RA[frag_number]) == 1 and fragments[frag_number].natom > 2:
-            for neighbourg_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == closest_to_RA[frag_number][0])[0][0]]):
-                if bond != 0 and neighbourg_index != instance[frag_number]:
-                    closest_to_RA[frag_number].append(neighbourg_index)
+            for neighbor_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == closest_to_RA[frag_number][0])[0][0]]):
+                if bond != 0 and neighbor_index != instance[frag_number]:
+                    closest_to_RA[frag_number].append(neighbor_index)
                     if len(closest_to_RA[frag_number]) == 2:
                         break
     changes = []
-    #Calculate the angles values:
+    #Calculate the angle values:
     if len(closest_to_RA[0]) != 0:
         point_A = species.geom[closest_to_RA[0][0]]
         point_B = species.geom[instance[0]]
@@ -76,7 +76,7 @@ def get_interfragments_param(atoms, instance):
                                 instance[0],
                                 (np.degrees(geometry.calc_angle(point_A, point_B, point_C)))])
     
-    #Calculate the dihedrals values:
+    #Calculate the dihedral values:
     if len(closest_to_RA[0]) != 0 and len(closest_to_RA[1]) != 0:
         point_A = species.geom[closest_to_RA[0][0]]
         point_B = species.geom[instance[0]]

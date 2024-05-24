@@ -146,6 +146,8 @@ class VrcTstScan(GeneralReac):
         #Save the bonds
         self.long_range["coord"][level][f"{frag_number}"] = []
         for bond in internals.internals["bonds"]:
+            if any(i >= frag.natom for i in bond.indices):  # to skip dummy atoms
+                continue
             point_A = frag.geom[bond.indices[0]]
             point_B = frag.geom[bond.indices[1]]
             bond_length = np.linalg.norm(point_B - point_A)
@@ -158,6 +160,8 @@ class VrcTstScan(GeneralReac):
 
         #Save the angles
         for angle in internals.internals["angles"]:
+            if any(i >= frag.natom for i in angle.indices):  # to skip dummy atoms
+                continue
             point_A = frag.geom[angle.indices[0]]
             point_B = frag.geom[angle.indices[1]]
             point_C = frag.geom[angle.indices[2]]
@@ -173,6 +177,8 @@ class VrcTstScan(GeneralReac):
 
         #Save the dihedrals
         for dihedral in internals.internals["dihedrals"]:
+            if any(i >= frag.natom for i in dihedral.indices):  # to skip dummy atoms
+                continue
             point_A = frag.geom[dihedral.indices[0]]
             point_B = frag.geom[dihedral.indices[1]]
             point_C = frag.geom[dihedral.indices[2]]

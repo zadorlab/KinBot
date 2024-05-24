@@ -83,7 +83,7 @@ class Parameters:
             # step size in Å
             'barrierless_saddle_step': 0.2,
             # List of distance in Å for vrc_tst surfaces
-            'vrc_tst_dist_list': np.append(np.arange(2.2, 13.0, 0.2), np.arange(13.0, 16.0, 0.5)),
+            'vrc_tst_dist_list': list(np.append(np.arange(2.2, 13.0, 0.2), np.arange(13.0, 16.0, 0.5))),
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
             # if requested with specific_reaction = 1
@@ -388,6 +388,9 @@ class Parameters:
         if self.input_file is not None:
             self.read_user_input()
 
+        if 'vrc_tst_scan' in par['families'] and 'vrc_tst_scan_frozen' not in par['families']:
+            par['families'].append('vrc_tst_scan_frozen')
+
         err = None
         if self.par['me'] == 1:
             if self.par['calc_aie'] and not self.par['conformer_search']:
@@ -470,7 +473,7 @@ class Parameters:
                 "stop": 20.0,
                 "distances": None,
                 "molpro_key": "VTS_energy",
-                "molpro_tpl": f"{kb_path}/tpl/molpro_calc.tpl"
+                "molpro_tpl": ""
         }
         if not isinstance(self.par["vrc_tst_scan_parameters"], dict):
             self.VTS_parameters = VTS_defaults
@@ -484,7 +487,7 @@ class Parameters:
         #Check user input
         if self.par['pp_length'] != None and\
             not isinstance(self.par['pp_length'], dict):
-            logger.info('User defined pp_length should be a dict. Using default values.')
+            err = 'User defined pp_length should be a dict. Using default values.'
             self.par['pp_length'] = pp_tables.pp_length_table()
         #Check keys
         elif self.par['pp_length'] != None and\
@@ -500,17 +503,21 @@ class Parameters:
 
         if self.par['pp_oriented'] != None and\
             not isinstance(self.par['pp_oriented'], list):
-            logger.info('User defined pp_oriented should be a list. Using default values.')
+            err = 'User defined pp_oriented should be a list. Using default values.'
             self.par['pp_oriented'] = [1.5, 6]
         elif self.par['pp_oriented'] is None:
             self.par['pp_oriented'] = [1.5, 6]
         if self.par['pp_on_atom'] != None and\
             not isinstance(self.par['pp_on_atom'], list):
-            logger.info('User defined pp_on_atom should be a list. Using default values.')
+            err = 'User defined pp_on_atom should be a list. Using default values.'
             self.par['pp_on_atom'] = [5.0, 12.0]
         elif self.par['pp_on_atom'] is None:
             self.par['pp_on_atom'] = [5.0, 12.0]
 
+        for well, reactions in self.par['vrc_tst_scan'].items():
+            for reac in reactions:
+                if len(reac) != 2:
+                    err = f'Format of VRC-TST input is incorrect for {reac}'
             
         if self.par['barrier_threshold'] == 'none':
             self.par['barrier_threshold'] = None

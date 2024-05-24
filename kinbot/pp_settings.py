@@ -187,7 +187,7 @@ def create_surface(dist, fragments=None, pps_dists=None):
 
 def reset_reactive_atoms(reactive_atoms, maps):
     '''
-    Function that reorder the list of the reactive atoms to be sure they are in the same
+    Function that reorders the list of the reactive atoms to make sure they are in the same
     order as the maps of the fragments.
     '''
     new_list = [[None] * len(reactive_atoms[0]), [None] * len(reactive_atoms[1])]
@@ -202,7 +202,7 @@ def reset_reactive_atoms(reactive_atoms, maps):
 
 def set_parent_map(parent, reactive_atoms, fragments):
     '''
-    Funtion that map the ids of the long-range fragments' atoms
+    Funtion that maps the ids of the long-range fragments' atoms
     from the ids of the parent.
     '''
     for ra_f1 in reactive_atoms[0]:

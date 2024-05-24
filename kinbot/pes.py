@@ -1944,6 +1944,9 @@ def submit_job(chemid, par):
                         .format(chemid, par['barrierless_saddle_single_point_template']))
         shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
                         .format(chemid, par['barrierless_saddle_prod_single_point_template']))
+    if par['vrc_tst_scan_parameters']['molpro_tpl'] != '':
+        shutil.copyfile('{}'.format(par['vrc_tst_scan_parameters']['molpro_tpl']), 
+                        '{}/{}'.format(chemid, par['vrc_tst_scan_parameters']['molpro_tpl']))
     outfile = open(f'{chemid}/kinbot.out', 'w')
     errfile = open(f'{chemid}/kinbot.err', 'w')
     process = subprocess.Popen(command,

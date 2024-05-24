@@ -24,11 +24,11 @@ from ase import Atoms
 logger = logging.getLogger('KinBot')
 
 class ReactionGenerator:
-    """
+    '''
     This class generates the reactions using the qc codes
     It builds an initial guess for the ts, runs that ts towards a saddle point
     and does IRC calculations
-    """
+    '''
 
     def __init__(self, species, par, qc, input_file):
         self.species = species
@@ -37,7 +37,7 @@ class ReactionGenerator:
         self.qc = qc
 
     def generate(self):
-        """
+        '''
         Creates the input for each reaction, runs them, and tests for success.
         If successful, it creates the barrier and product objects.
         It also then does the conformational search, and finally, the hindered rotor scans.
@@ -57,7 +57,7 @@ class ReactionGenerator:
 
         If at any times the calculation fails, reac_ts_done is set to -999.
         If all steps are successful, reac_ts_done is set to -1.
-        """
+        '''
         deleted = []
         if len(self.species.reac_inst) > 0:
             alldone = 1
@@ -77,7 +77,7 @@ class ReactionGenerator:
                         and self.species.reac_ts_done[index] != -999:
                     logger.info(f'\tRemoving reaction {obj.instance_name}.')
                     self.species.reac_ts_done[index] = -999
-                if obj.family_name == "VrcTstScan" and obj.scan == 0:
+                if obj.family_name == 'VrcTstScan' and obj.scan == 0:
                     self.species.reac_ts_done[index] = -999
                 # START REACTION SEARCH
                 if self.species.reac_ts_done[index] == 0 and self.species.reac_step[index] == 0:
@@ -124,7 +124,7 @@ class ReactionGenerator:
 
                     elif obj.scan ==1: # do a bond scan # vrc tst scan lenght does not depend on par[max_step]
 
-                        if (self.species.reac_step[index] == self.par['scan_step'] + 1 and obj.family_name != "VrcTstScan"):
+                        if (self.species.reac_step[index] == self.par['scan_step'] + 1 and obj.family_name != 'VrcTstScan'):
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
                             if status == 0 and (np.count_nonzero(np.array(freq) < 0) >= 3  # More than two imag frequencies
                                                 or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
@@ -141,8 +141,8 @@ class ReactionGenerator:
                         else:
                             # First point of the scan
                             if self.species.reac_step[index] == 0:
-                                if obj.family_name == "VrcTstScan":
-                                    command = self.qc.VTS_qc_command["L1"]
+                                if obj.family_name == 'VrcTstScan':
+                                    command = self.qc.VTS_qc_command['L1']
                                 else:
                                     command = self.par['qc_command']
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(
@@ -153,44 +153,45 @@ class ReactionGenerator:
                                     logger.info('\tRxn search failed for {} because of 0 0 0 geometry.'
                                                  .format(obj.instance_name))
                             # Middle points of the scan
-                            if (self.species.reac_step[index] < self.par['scan_step'] and obj.family_name != "VrcTstScan") or\
-                            (obj.family_name == "VrcTstScan" and self.species.reac_step[index] < obj.max_step + 1):
+                            if (self.species.reac_step[index] < self.par['scan_step'] and obj.family_name != 'VrcTstScan') or\
+                            (obj.family_name == 'VrcTstScan' and self.species.reac_step[index] < obj.max_step + 1):
                                 status = self.qc.check_qc(obj.instance_name)
                                 if status == 'error':
                                     logger.info('\tRxn search using scan failed for {} in step {}'
                                                  .format(obj.instance_name, self.species.reac_step[index]))
                                     self.species.reac_ts_done[index] = -999
                                 else:
+                                    print(obj.instance_name)
                                     err, energy = self.qc.get_qc_energy(obj.instance_name)
                                     if err == 0:
-                                        if obj.family_name == "VrcTstScan":
+                                        if obj.family_name == 'VrcTstScan':
                                             err, geom = self.qc.get_qc_geom(obj.instance_name, obj.species.natom)
                                             obj.species.geom = geom #Uptdate species from last L1 optimized point.
-                                            point = f"{self.species.reac_step[index] - 1}" #L1 point_n-1 finished, about to start point_n
+                                            point = f'{self.species.reac_step[index] - 1}' #L1 point_n-1 finished, about to start point_n
                                             if point not in obj.scanned:
-                                                obj.scanned[f"{point}"] = {"energy": {"L1": energy}}
-                                                if "frozen" in obj.instance_name:
+                                                obj.scanned[f'{point}'] = {'energy': {'L1': energy}}
+                                                if 'frozen' in obj.instance_name:
                                                     #Keep L1 orientation, but use L2 fragments geometries
-                                                    obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L1", distance=obj.scan_list[int(point)])
+                                                    obj.scanned[f'{point}']['stationary_point'] = obj.get_frozen_species(level='L1', distance=obj.scan_list[int(point)])
                                                 else:
                                                     #full fragment reoptmization
-                                                    obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
+                                                    obj.scanned[f'{point}']['stationary_point'] = copy.deepcopy(obj.species)
                                                 #Submit L2 level of vrc tst scan
-                                                if int(self.par["high_level"]):
-                                                    if "frozen" in obj.instance_name:
+                                                if int(self.par['high_level']):
+                                                    if 'frozen' in obj.instance_name:
                                                     #Keep L1 orientation, but use L2 fragments geometries
-                                                        obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L2", distance=obj.scan_list[int(point)])
-                                                    obj.scanned[f"{point}"]["opt"] = Optimize(obj.scanned[f"{point}"]["stationary_point"],\
+                                                        obj.scanned[f'{point}']['stationary_point'] = obj.get_frozen_species(level='L2', distance=obj.scan_list[int(point)])
+                                                    obj.scanned[f'{point}']['opt'] = Optimize(obj.scanned[f'{point}']['stationary_point'],\
                                                                                             self.par, self.qc,\
                                                                                             just_high=True,\
                                                                                             frozen_param=obj.frozen_param)
-                                                    obj.scanned[f"{point}"]["opt"].do_optimization()
+                                                    obj.scanned[f'{point}']['opt'].do_optimization()
                                         else:
                                             self.species.reac_scan_energy[index].append(energy)
                                             logger.debug(f'Scan energy for {obj.instance_name} in step {self.species.reac_step[index]}:')
                                             logger.debug(f'{self.species.reac_scan_energy[index][-1]} Hartree.')
                                         # need at least 3 points for a maximum
-                                        if len(self.species.reac_scan_energy[index]) >= 3 and obj.family_name != "VrcTstScan":
+                                        if len(self.species.reac_scan_energy[index]) >= 3 and obj.family_name != 'VrcTstScan':
                                             ediff = np.diff(self.species.reac_scan_energy[index])
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
                                                 logger.info(f'\tMaximum found for {obj.instance_name}.')
@@ -224,7 +225,7 @@ class ReactionGenerator:
                                 status = self.qc.check_qc(obj.instance_name)
                                 if status == 'running':
                                     continue
-                                if obj.family_name != "VrcTstScan":
+                                if obj.family_name != 'VrcTstScan':
                                     logger.info('\tRxn search using scan failed for {}, no saddle guess found.'
                                                 .format(obj.instance_name))
                                     db = connect('{}/kinbot.db'.format(os.getcwd()))
@@ -239,29 +240,29 @@ class ReactionGenerator:
                                                     .format(obj.instance_name, self.species.reac_step[index]))
                                         self.species.reac_ts_done[index] = -999
                                     else:
-                                        point = f"{self.species.reac_step[index] - 1}" #L1 point_n-1 finished, about to start point_n
-                                        obj.scanned[f"{point}"] = {"energy": {"L1": energy}}
-                                        if int(self.par["high_level"]): #Submit L2 level of vrc tst scan
+                                        point = f'{self.species.reac_step[index] - 1}' #L1 point_n-1 finished, about to start point_n
+                                        obj.scanned[f'{point}'] = {'energy': {'L1': energy}}
+                                        if int(self.par['high_level']): #Submit L2 level of vrc tst scan
                                             self.species.reac_ts_done[index] = 4
                                             err, energy = self.qc.get_qc_energy(obj.instance_name)
                                             if err == 0:
                                                 err, geom = self.qc.get_qc_geom(obj.instance_name, obj.species.natom)
                                                 obj.species.geom = geom #Uptdate species from last L1 optimized point.
-                                                if "frozen" in obj.instance_name:
+                                                if 'frozen' in obj.instance_name:
                                                     #Keep L1 orientation, but use L2 fragments geometries
-                                                    obj.scanned[f"{point}"]["stationary_point"] = obj.get_frozen_species(level="L2", distance=obj.scan_list[int(point)])
+                                                    obj.scanned[f'{point}']['stationary_point'] = obj.get_frozen_species(level='L2', distance=obj.scan_list[int(point)])
                                                 else:
                                                     #full fragment reoptmization
-                                                    obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
-                                                obj.scanned[f"{point}"]["opt"] = Optimize(obj.scanned[f"{point}"]["stationary_point"],\
+                                                    obj.scanned[f'{point}']['stationary_point'] = copy.deepcopy(obj.species)
+                                                obj.scanned[f'{point}']['opt'] = Optimize(obj.scanned[f'{point}']['stationary_point'],\
                                                                                           self.par, self.qc,\
                                                                                           just_high=True,\
                                                                                           frozen_param=obj.frozen_param)
-                                                obj.scanned[f"{point}"]["opt"].do_optimization()
+                                                obj.scanned[f'{point}']['opt'].do_optimization()
                                         else:
                                             self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
-                                            obj.scanned[f"{point}"]["stationary_point"] = copy.deepcopy(obj.species)
-                                            obj.finish_vrc_tst_scan(level="L1")
+                                            obj.scanned[f'{point}']['stationary_point'] = copy.deepcopy(obj.species)
+                                            obj.finish_vrc_tst_scan(level='L1')
 
                 elif self.species.reac_ts_done[index] == 1:
                     status = self.qc.check_qc(obj.instance_name)
@@ -432,23 +433,23 @@ class ReactionGenerator:
                         prods_energy = sum([p.energy + p.zpe for p in obj.products])
 
                         # Select reactions potentially leading to vdW wells
-                        if len(obj.products) == 2 and "hom_sci" not in obj.instance_name:
-                            logger.info("\tChecking vdW well for {}.".format(obj.instance_name))
+                        if len(obj.products) == 2 and 'hom_sci' not in obj.instance_name:
+                            logger.info('\tChecking vdW well for {}.'.format(obj.instance_name))
                             obj.irc_prod.characterize()
                             try:
-                                e, obj.irc_prod.energy = self.qc.get_qc_energy(f"{obj.irc_prod.name}") #e is the error code: should be 0 (success) at this point.
-                                e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f"{obj.irc_prod.name}")
+                                e, obj.irc_prod.energy = self.qc.get_qc_energy(f'{obj.irc_prod.name}') #e is the error code: should be 0 (success) at this point.
+                                e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f'{obj.irc_prod.name}')
                                 e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
                                 e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
                                 for this_frag in obj.irc_fragments:
-                                    e, this_frag.freq = self.qc.get_qc_freq(f"{this_frag.name}_well", this_frag.natom) 
+                                    e, this_frag.freq = self.qc.get_qc_freq(f'{this_frag.name}_well', this_frag.natom) 
                                 fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
                                 obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe))*constants.AUtoKCAL
-                                if obj.vdW_depth > self.par["vdW_detection"]:
-                                    logger.info("\tvdW well detected for {}: {:.2f}>threshold ({:.2f}) Kcal/mol.".format(obj.irc_prod.name, obj.vdW_depth, self.par["vdW_detection"]))
+                                if obj.vdW_depth > self.par['vdW_detection']:
+                                    logger.info('\tvdW well detected for {}: {:.2f}>threshold ({:.2f}) Kcal/mol.'.format(obj.irc_prod.name, obj.vdW_depth, self.par['vdW_detection']))
                                     obj.do_vdW = True
                             except:
-                                logger.info("\t{} was not succesfull, vdW search stopped for this well.".format(obj.irc_prod.name))
+                                logger.info('\t{} was not succesfull, vdW search stopped for this well.'.format(obj.irc_prod.name))
                             
                         if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                             hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
@@ -548,18 +549,18 @@ class ReactionGenerator:
                     # check up on the TS and product optimizations
                     opts_done = 1
                     fails = 0
-                    if obj.family_name != "VrcTstScan":
+                    if obj.family_name != 'VrcTstScan':
                         # check if ts and vdW are done
                         if self.species.reac_type[index] != 'hom_sci':
                             if not obj.ts_opt.shir == 1:  # last stage in optimize
                                 opts_done = 0
                                 obj.ts_opt.do_optimization()
                             if obj.ts_opt.shigh == -999:
-                                logger.warning("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
+                                logger.warning('Reaction {} ts_opt_shigh failure'.format(obj.instance_name))
                                 fails = 1
                             if obj.do_vdW:
                                 if obj.irc_prod_opt.shigh == -999:
-                                    logger.warning("High level vdW well optimization of {} failed".format(obj.irc_prod.name))
+                                    logger.warning('High level vdW well optimization of {} failed'.format(obj.irc_prod.name))
                                     obj.do_vdW = False
                                 if not obj.irc_prod_opt.shir == 1:
                                     opts_done = 0
@@ -569,30 +570,30 @@ class ReactionGenerator:
                                 opts_done = 0
                                 pr_opt.do_optimization()
                             if pr_opt.shigh == -999:
-                                logger.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
+                                logger.warning('Reaction {} pr_opt_shigh failure'.format(obj.instance_name))
                                 fails = 1
                             continue
                     #Check if vrc tst scan is done:
                     else:
                         for point in obj.scanned:
-                            if "L2" not in obj.scanned[f"{point}"]["energy"]:
-                                if obj.scanned[f"{point}"]["opt"].shigh == -999:
+                            if 'L2' not in obj.scanned[f'{point}']['energy']:
+                                if obj.scanned[f'{point}']['opt'].shigh == -999:
                                     if point not in obj.points_to_remove:
                                         obj.points_to_remove.append(point)
-                                elif obj.scanned[f"{point}"]["opt"].shir != 1 or obj.scanned[f"{point}"]["opt"].shigh != 1:  # last stage in optimize
+                                elif obj.scanned[f'{point}']['opt'].shir != 1 or obj.scanned[f'{point}']['opt'].shigh != 1:  # last stage in optimize
                                     opts_done = 0 # Wait for all points of scan to finish
-                                    obj.scanned[f"{point}"]["opt"].do_optimization()
+                                    obj.scanned[f'{point}']['opt'].do_optimization()
                                 else:
-                                    err, energy = self.qc.get_qc_energy(f"{obj.scanned[point]['stationary_point'].name}_high")
+                                    err, energy = self.qc.get_qc_energy(f'{obj.scanned[point]["stationary_point"].name}_high')
                                     if err == 0:
-                                        obj.scanned[f"{point}"]["energy"]["L2"] =  energy
+                                        obj.scanned[f'{point}']['energy']['L2'] =  energy
                                     else:
                                         if point not in obj.points_to_remove:
                                             obj.points_to_remove.append(point)
                                     
                         if opts_done: #If finished, print results, but don't go to step 5: obj.products undefined
                             self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
-                            obj.finish_vrc_tst_scan(level="L2")
+                            obj.finish_vrc_tst_scan(level='L2')
                             continue # avoids going to reac_ts_done = 5
                             
                     if fails:
@@ -789,7 +790,7 @@ class ReactionGenerator:
             with open('combinatorial.txt', 'w') as f:
                 f.write('\n'.join(s) + '\n')
 
-        logger.info("Reaction generation done!")
+        logger.info('Reaction generation done!')
 
     def delete_files(self, name):
         # job names
@@ -814,7 +815,7 @@ class ReactionGenerator:
 
     def get_stereochemistry(self, atom, geom):
         inchi = cheminfo.create_inchi_from_geom(atom, geom)
-        if "/t" in str(inchi):
+        if '/t' in str(inchi):
             stereochem = inchi.split('/t')[1].split('/')[0]
         else:
             stereochem = ''

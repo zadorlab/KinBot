@@ -161,7 +161,6 @@ class ReactionGenerator:
                                                  .format(obj.instance_name, self.species.reac_step[index]))
                                     self.species.reac_ts_done[index] = -999
                                 else:
-                                    print(obj.instance_name)
                                     err, energy = self.qc.get_qc_energy(obj.instance_name)
                                     if err == 0:
                                         if obj.family_name == 'VrcTstScan':

@@ -185,7 +185,7 @@ except:
                 if 'frozen' in label:
                     kwargs.pop('opt', None)
                 else:
-                    kwargs['addsec'] = ''
+                    kwargs['addsec'] = kwargs['addsec'].split('\n')[0]  # keep the part for the fixed bond
                     for param in initial_inter_frag:
                         for indx in param[:-1]:
                             kwargs['addsec'] += f'{{indx+1}} '
@@ -229,7 +229,6 @@ except:
         else:
             break
     i += 1
-
 
 time.sleep(1) #Avoid db errors
 with open(logfile, 'a') as f:

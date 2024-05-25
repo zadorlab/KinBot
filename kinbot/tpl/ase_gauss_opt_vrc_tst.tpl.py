@@ -196,7 +196,7 @@ except:
             e = mol.get_potential_energy()  # use the Gaussian optimizer
             mol.positions = reader_gauss.read_geom(logfile, mol)
             new_inter_frag = get_interfragments_param(mol, instance={instance})
-            if same_orientation(initial_inter_frag, new_inter_frag):
+            if same_orientation(initial_inter_frag, new_inter_frag) or 'frozen' in label:
                 db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
                 break
             elif constrain_orientation:

@@ -226,7 +226,7 @@ class StationaryPoint:
                     continue
                 elif self.dist[i][j] < 0.5:
                     err_msg = f'Incorrect geometry for {self.name}: Found an ' \
-                              'interatomic distance smaller than 0.5 Å.'
+                              'interatomic distance smaller than 0.5 Angstrom.'
                     logger.error(err_msg)
                     raise ValueError(err_msg)
 

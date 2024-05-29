@@ -143,7 +143,7 @@ class VrcTstScanFrozen(VrcTstScan):
                 
     def get_interfragments_param(self, level="L1"):
         """
-        Function that selects the neighbourgs of the closest atom in each fragment,
+        Function that selects the neighbors of the closest atom in each fragment,
         and returns the values of the interfragments angles and dihedrals.
         The level is only used as small orientation correction for planar fragments.
         """
@@ -158,16 +158,16 @@ class VrcTstScanFrozen(VrcTstScan):
             self.species.bonds[0][self.instance[1], self.instance[0]] = 0
             fragments, maps = self.species.start_multi_molecular()
         for frag_number, ra in enumerate(self.instance):
-            for neighbourg_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == ra)[0][0]]):
+            for neighbor_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == ra)[0][0]]):
                 if bond != 0:
-                    closest_to_RA[frag_number].append(neighbourg_index)
+                    closest_to_RA[frag_number].append(neighbor_index)
                     if len(closest_to_RA[frag_number]) == 2:
                         break
-            #If no neighbourgs atoms were found, the fragment has to be mono-atomic
+            #If no neighbors atoms were found, the fragment has to be mono-atomic
             if len(closest_to_RA[frag_number]) == 1 and fragments[frag_number].natom > 2:
-                for neighbourg_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == closest_to_RA[frag_number][0])[0][0]]):
-                    if bond != 0 and neighbourg_index != self.instance[frag_number]:
-                        closest_to_RA[frag_number].append(neighbourg_index)
+                for neighbor_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == closest_to_RA[frag_number][0])[0][0]]):
+                    if bond != 0 and neighbor_index != self.instance[frag_number]:
+                        closest_to_RA[frag_number].append(neighbor_index)
                         if len(closest_to_RA[frag_number]) == 2:
                             break
         changes = []
@@ -266,25 +266,25 @@ class VrcTstScanFrozen(VrcTstScan):
     def check_deformation_into_planar(self, stationary_point, geom, stp_map, reactive_atom):
         """Function that checks the planarity of individualy optimised fragments around the reactive atom,
         and returns the out-of-plane angle of the short-range optimized fragment"""
-        neighbourgs = 0
-        neighbourgs_index = []
+        neighbors = 0
+        neighbors_index = []
         for index, bond in enumerate(stationary_point.bond[np.where(stp_map == reactive_atom)[0][0]]):
             if bond > 0:
-                neighbourgs += 1
-                neighbourgs_index.append(index)
-        neighbourgs_index.append(np.where(stp_map == reactive_atom)[0][0])
+                neighbors += 1
+                neighbors_index.append(index)
+        neighbors_index.append(np.where(stp_map == reactive_atom)[0][0])
 
-        if neighbourgs == 3:
-            point_A = stationary_point.geom[neighbourgs_index[0]]
-            point_B = stationary_point.geom[neighbourgs_index[1]]
-            point_C = stationary_point.geom[neighbourgs_index[2]]
-            point_D = stationary_point.geom[neighbourgs_index[3]]
+        if neighbors == 3:
+            point_A = stationary_point.geom[neighbors_index[0]]
+            point_B = stationary_point.geom[neighbors_index[1]]
+            point_C = stationary_point.geom[neighbors_index[2]]
+            point_D = stationary_point.geom[neighbors_index[3]]
             original_angle, colinear = np.degrees(geometry.calc_out_of_plane_angle(point_A, point_B, point_C, point_D))
 
-            point_A = geom[neighbourgs_index[0]]
-            point_B = geom[neighbourgs_index[1]]
-            point_C = geom[neighbourgs_index[2]]
-            point_D = geom[neighbourgs_index[3]]
+            point_A = geom[neighbors_index[0]]
+            point_B = geom[neighbors_index[1]]
+            point_C = geom[neighbors_index[2]]
+            point_D = geom[neighbors_index[3]]
             new_angle, colinear = np.degrees(geometry.calc_out_of_plane_angle(point_A, point_B, point_C, point_D))
             angle = original_angle - new_angle
             return angle

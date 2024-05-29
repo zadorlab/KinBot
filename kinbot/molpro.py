@@ -37,7 +37,10 @@ class Molpro:
             elif shift_vec is not None:
                 tpl_file = self.par['barrierless_saddle_prod_single_point_template']
         elif VTS:
-            tpl_file = self.par["vrc_tst_scan_parameters"]["molpro_tpl"]
+            if self.par['vrc_tst_scan_parameters']['molpro_tpl'] == '':
+                tpl_file = f'{kb_path}/tpl/molpro_calc.tpl'
+            else:
+                tpl_file = self.par['vrc_tst_scan_parameters']['molpro_tpl']
         elif self.par['single_point_template'] == '':
             tpl_file = f'{kb_path}/tpl/molpro.tpl'
         else:

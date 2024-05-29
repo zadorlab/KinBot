@@ -52,10 +52,10 @@ class VrcTstScan(GeneralReac):
                 }
                 }
         self.e_in_kcal = {}
-        #Reset the species to have the broken bond between fragments
+        # Reset the species to have the broken bond between fragments
         self.species, self.instance, self.shortest = self.find_bond_to_scan()
-        self.set_scan_list() #Internally, the list is in bhor
-        self.max_step = len(self.scan_list) - 1 #Step starts at 0
+        self.set_scan_list()  # Internally, the list is in bohr
+        self.max_step = len(self.scan_list) - 1  # Step starts at 0
         self.removed = []
         self.points_to_remove = []
         self.frozen_param = [[ index+1 for index in self.instance]]
@@ -146,6 +146,8 @@ class VrcTstScan(GeneralReac):
         #Save the bonds
         self.long_range["coord"][level][f"{frag_number}"] = []
         for bond in internals.internals["bonds"]:
+            if any(i >= frag.natom for i in bond.indices):  # to skip dummy atoms
+                continue
             point_A = frag.geom[bond.indices[0]]
             point_B = frag.geom[bond.indices[1]]
             bond_length = np.linalg.norm(point_B - point_A)
@@ -158,6 +160,8 @@ class VrcTstScan(GeneralReac):
 
         #Save the angles
         for angle in internals.internals["angles"]:
+            if any(i >= frag.natom for i in angle.indices):  # to skip dummy atoms
+                continue
             point_A = frag.geom[angle.indices[0]]
             point_B = frag.geom[angle.indices[1]]
             point_C = frag.geom[angle.indices[2]]
@@ -173,6 +177,8 @@ class VrcTstScan(GeneralReac):
 
         #Save the dihedrals
         for dihedral in internals.internals["dihedrals"]:
+            if any(i >= frag.natom for i in dihedral.indices):  # to skip dummy atoms
+                continue
             point_A = frag.geom[dihedral.indices[0]]
             point_B = frag.geom[dihedral.indices[1]]
             point_C = frag.geom[dihedral.indices[2]]
@@ -192,31 +198,16 @@ class VrcTstScan(GeneralReac):
     def set_scan_list(self):
         if self.par["vrc_tst_scan_parameters"]["distances"] is None or\
            not isinstance(self.par["vrc_tst_scan_parameters"]["distances"], list):
-            if self.shortest < self.par["vrc_tst_scan_parameters"]["start"]:
+            if self.shortest > self.par["vrc_tst_scan_parameters"]["start"]:
                 self.scan_list = np.arange(self.shortest,\
-                                           self.par["vrc_tst_scan_parameters"]["start"],
+                                           self.par["vrc_tst_scan_parameters"]["stop"],
                                            self.par["vrc_tst_scan_parameters"]["step"])
-                self.scan_list = np.append(self.scan_list,\
-                                np.arange(self.par["vrc_tst_scan_parameters"]["start"],
-                                        self.par["vrc_tst_scan_parameters"]["stop"],
-                                        self.par["vrc_tst_scan_parameters"]["step"]))
             else:
                 self.scan_list = np.arange(self.par["vrc_tst_scan_parameters"]["start"],
                                         self.par["vrc_tst_scan_parameters"]["stop"],
                                         self.par["vrc_tst_scan_parameters"]["step"])
         else:
-            if self.shortest < self.par["vrc_tst_scan_parameters"]["distances"][0]:
-                self.scan_list = np.arange(self.shortest,\
-                                           self.par["vrc_tst_scan_parameters"]["distances"][0],
-                                           self.par["vrc_tst_scan_parameters"]["step"])
-                self.scan_list = np.append(self.scan_list,
-                                           self.par["vrc_tst_scan_parameters"]["distances"])
-            else:
-                self.scan_list = self.par["vrc_tst_scan_parameters"]["distances"]
-        for index, dist in enumerate(self.scan_list):
-            if dist < self.shortest:
-                self.scan_list.pop(index)
-        self.scan_list = self.scan_list
+            self.scan_list = np.array([dd for dd in self.par["vrc_tst_scan_parameters"]["distances"] if dd > self.shortest])
 
     def find_bond_to_scan(self):
         reaction_name, products = self.instance
@@ -259,7 +250,7 @@ class VrcTstScan(GeneralReac):
                         shortest = initial_well.dist[atom1, atom2]
                         atoms_index = [atom1, atom2]
 
-        #Make the maps the same length for np.asarray (needs homogen lists)
+        # Make the maps the same length for np.asarray (needs homogeneous lists)
         if len(maps[0]) != len(maps[1]):
             len_dif = len(maps[0]) - len(maps[1])
             while len_dif < 0:
@@ -271,7 +262,7 @@ class VrcTstScan(GeneralReac):
                 
         frag0_index, position0 = np.where(np.asarray(maps) == atoms_index[0])
         frag1_index, position1 = np.where(np.asarray(maps) == atoms_index[1])
-        if str(fragments[0].chemid) != products[0]: #True is fragments are swapped
+        if str(fragments[0].chemid) != products[0]:  # True is fragments are swapped
             if frag0_index == 0:
                 self.scan_ref = [int(position1), int(position0)]
             else:
@@ -313,7 +304,7 @@ class VrcTstScan(GeneralReac):
     def filter_points(self, level="L1"):
         for point in self.scanned:
             if self.scanned[f"{point}"]["energy"][level] == 0.0 or\
-            (self.scanned[f"{point}"]["energy"][level] > self.assymptote(level) and level != "L1") and\
+            (self.scanned[f"{point}"]["energy"][level] > self.asymptote(level) and level != "L1") and\
             point not in self.points_to_remove and point not in self.removed:
                 self.points_to_remove.append(point)
         for point in self.points_to_remove:
@@ -338,7 +329,7 @@ class VrcTstScan(GeneralReac):
                     data_legends.append(f"{self.qc.VTS_methods['L3'][0]}/{self.qc.VTS_basis['L3'][0]}")
                 else:
                     data_legends.append(f"{self.qc.VTS_methods['L3'][1]}/{self.qc.VTS_basis['L3'][1]}")
-        comments = [f"inf_energy: {self.assymptote(level)}", f"scan_ref = {self.scan_ref}"]
+        comments = [f"inf_energy: {self.asymptote(level)}", f"scan_ref = {self.scan_ref}"]
         if "frozen" in self.instance_basename:
             comments.extend(self.select_pivot_points(level))
         if min(y[-1]) < -50.0:
@@ -366,11 +357,11 @@ class VrcTstScan(GeneralReac):
     
         utils.create_matplotlib_graph(x = x, data = y, name=f"{self.instance_basename}", x_label=x_label, y_label=y_label, data_legends=data_legends, comments=comments)
 
-    def assymptote(self, level):
+    def asymptote(self, level):
         return self.long_range["energies"][level]["0"] + self.long_range["energies"][level]["1"]
 
     def get_e_in_kcal(self, level="L1"):
-        e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - self.assymptote(level))
+        e_in_kcal = [constants.AUtoKCAL * (self.scanned[f"{point}"]["energy"][level] - self.asymptote(level))
                     for point in self.scanned]
         e_in_kcal = list(np.round(e_in_kcal, 2))
         return e_in_kcal

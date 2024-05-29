@@ -84,6 +84,11 @@ def make_dirs(par):
             os.mkdir('aie')
         if not os.path.exists('perm/aie'):
             os.makedirs('perm/aie')
+    if par['vrc_tst_scan'] != {}:
+        if not os.path.exists('vrctst'):
+            os.mkdir('vrctst')
+        if not os.path.exists('perm/vrctst'):
+            os.makedirs('perm/vrctst')
     if not os.path.exists('me'):
         os.mkdir('me')
 

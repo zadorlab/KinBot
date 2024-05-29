@@ -17,20 +17,19 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     """
     ts = True
 
-    if rxn.family_name != "VrcTstScan":
+    if rxn.family_name != 'VrcTstScan':
         VTS = False
     else:
         VTS = True
-        rxn.instance_name = f"{rxn.instance_basename}_pt{step}"
+        rxn.instance_name = f'{rxn.instance_basename}_pt{step}'
         rxn.species.name = rxn.instance_name
         ts = False
-
 
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error' and not VTS:
             return step
-        elif VTS and status == "normal":
+        elif VTS and status == 'normal':
             err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
             if err == 0:
                 rxn.species.geom = geom
@@ -47,7 +46,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                     err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
                     if err == 0:
                         rxn.species.geom = geom
-                        step +=1
+                        step += 1
                         return step
                 err, freq = rxn.qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
                 if err == 0 and len(freq) > 0.:  # only final calculations have frequencies
@@ -71,7 +70,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, 
                                        allow_error=1, previous=1)
     else:
-        if VTS:#Take geometry of previous point
+        if VTS:  # Take geometry of previous point
             err, geom = rxn.qc.get_qc_geom(rxn.scanned[f"{step-1}"]["stationary_point"].name, rxn.species.natom, allow_error=1)
         else:
             err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)

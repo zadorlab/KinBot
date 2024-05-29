@@ -92,6 +92,7 @@ class Conformers:
         self.imagfreq_threshold = par['imagfreq_threshold']
         self.flat_ring_dih_angle = par['flat_ring_dih_angle']
         self.print_warning = True
+        self.cluster = par['cluster']
 
     def generate_ring_conformers(self, cart):
         """
@@ -384,9 +385,9 @@ class Conformers:
                                     self.species.charge,
                                     self.species.mult,
                                     atom=self.species.atom,
-                                    geom=geom)
-            dummy.bond_mx()
-            dummy.calc_chemid()
+                                    geom=geom,
+                                    cluster=self.cluster)
+            dummy.characterize()
             if geometry.equal_geom(self.species, dummy, 0.10):
                 return geom, 0
             else:

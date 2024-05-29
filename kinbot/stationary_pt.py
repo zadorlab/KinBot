@@ -20,7 +20,8 @@ class StationaryPoint:
     """
 
     def __init__(self, name, charge, mult, smiles='', structure=None, natom=0, 
-                 atom=None, geom=None, wellorts=0, fragA=None, fragB=None):
+                 atom=None, geom=None, wellorts=0, fragA=None, fragB=None,
+                 cluster=False):
         self.name = name
         self.mult = mult
         self.charge = charge
@@ -81,7 +82,7 @@ class StationaryPoint:
         self.conformer_zeroenergy = []
         self.conformer_freq = []
         self.conformer_index = []
-        
+
         # symmetry numbers
         self.sigma_ext = -1  # extermal symmetry number
         self.sigma_int = []  # internal symmetry number around each atom
@@ -95,6 +96,8 @@ class StationaryPoint:
             self.get_geom()
         if self.natom == 0:
             self.natom = len(atom)
+        self.cluster = cluster
+        self.warn_hbonds = True
 
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
@@ -173,7 +176,7 @@ class StationaryPoint:
             self.atom = self.structure[:, 0]
             self.geom = self.structure[:, 1:4].astype(float)
 
-    def characterize(self, bond_mx=None):
+    def characterize(self, bond_mx=None, skip_cluster=False):
         """
         With one call undertake a typical set of structural characterizations.
         """
@@ -185,6 +188,14 @@ class StationaryPoint:
         self.calc_chiral()
         self.calc_mass()
         self.calc_maxbond()
+        if self.cluster and not skip_cluster:
+            self.make_hbonds()
+            while 1:
+                frags, maps = self.start_multi_molecular(bond_mx=self.bond)
+                if len(frags) > 1:
+                    self.make_extra_bond(frags[:2], maps[:2])
+                else:
+                    break
 
     def calc_mass(self):
         """ Calculate mass """
@@ -371,7 +382,7 @@ class StationaryPoint:
         """
 
         if len(parts) == 1:
-            return -1 -1
+            return -1, -1
         mindist = 100.  # large initial value
         for i, cooi in enumerate(parts[0].geom): 
             for j, cooj in enumerate(parts[1].geom):
@@ -388,10 +399,9 @@ class StationaryPoint:
         return pivot1, pivot2
 
     def make_hbonds(self):
-        """
-        Add all hydrogen bonds. Criteria:
+        """Add all hydrogen bonds. Criteria:
         - has to be an X1-H-X2 pattern
-        - X1-H is already bonded 
+        - X1-H is already bonded
         - X2-H is less than 1.8 A
         - X2 has free valence
         - H only has one bond (to X1)
@@ -401,23 +411,38 @@ class StationaryPoint:
 
         self.hbonds = []
         for hi, symb in enumerate(self.atom):
-            if symb == 'H':
-                if np.sum(self.bond[hi]) == 1:  # X1-H is already bonded 
-                    if self.atom[np.where(self.bond[hi] == 1)] in ['O', 'N', 'F']:  # H only has one bond (to X1), and X1 has to be one of O, N, F
-                        x1 = np.where(self.bond[hi] == 1)
-                        for x2, symb in enumerate(self.atom):
-                            if symb in ['O', 'N', 'F']:  # X2 has to be one of O, N, F
-                                if self.bond[hi][x2] == 0:  # they are not yet bonded
-                                    if np.sum(self.bond[x2]) <= constants.st_bond[symb]:  # X2 has free valence
-                                        if self.dist[hi][x2] < 1.8:  # X2-H is less than 1.8 A
-                                            if geometry.calc_angle(self.geom[x1],self.geom[hi],self.geom[x2]) > np.pi * 150. / 180.: 
-                                                self.bond[hi][x2] = 1
-                                                self.bond[x2][hi] = 1
-                                                logger.info(f'Adding H-bonds between {hi + 1} and {x2 + 1}')
-                                                self.hbonds.append([hi, x2])
-                                                for b in self.bonds:
-                                                    b[hi][x2] = 1
-                                                    b[x2][hi] = 1
+            if symb != 'H':
+                continue
+            if np.sum(self.bond[hi]) != 1:  # X1-H is not yet already bonded
+                continue
+            # H only has one bond (to X1), and X1 has to be one of O, N, F
+            if self.atom[np.where(self.bond[hi] == 1)] not in ['O', 'N', 'F']:
+                continue
+            x1 = np.where(self.bond[hi] == 1)
+            for x2, symb in enumerate(self.atom):
+                if symb not in ['O', 'N', 'F']:  # X2 has to be one of O, N, F
+                    continue
+                if self.bond[hi][x2] != 0:  # they are already bonded
+                    continue
+                # X2 has free valence
+                if np.sum(self.bond[x2]) <= constants.st_bond[symb]:  
+                    if self.dist[hi][x2] >= 1.8:  # X2-H is less than 1.8 A
+                        continue
+                    angle = geometry.calc_angle(self.geom[x1],
+                                                self.geom[hi],
+                                                self.geom[x2])
+                    if angle <= np.pi * 150. / 180.:
+                        continue
+                    self.bond[hi][x2] = 1
+                    self.bond[x2][hi] = 1
+                    wrn_msg = f'Adding H-bonds between {hi + 1} and {x2 + 1}'
+                    if self.warn_hbonds:
+                        logger.info(wrn_msg)
+                        self.warn_hbonds = False
+                    self.hbonds.append([hi, x2])
+                    for b in self.bonds:
+                        b[hi][x2] = 1
+                        b[x2][hi] = 1
         return 0
 
     def calc_multiplicity(self, atomlist):
@@ -472,14 +497,13 @@ class StationaryPoint:
                         if assigned == 1:
                             assigned_atoms[unass_idx[i]] = 1
                             frag_assg[unass_idx[i]] = 1
-
-                if not is_multifrag and len(st_pt_prodlist) == 0:
-                    #the bond matrix corresponds to one molecule only
+                # the bond matrix corresponds to one molecule only
+                if not is_multifrag and len(st_pt_prodlist) == 0:                    
                     try:
                         delattr(self, 'cycle_chain')
                     except AttributeError:
                         pass
-                    self.characterize(bond_mx=self.bond)
+                    self.characterize(bond_mx=self.bond, skip_cluster=True)
                     self.name = str(self.chemid)
                     st_pt_prodlist.append(self)
                     break
@@ -879,7 +903,7 @@ class StationaryPoint:
                     return 0
 
         return 0
-    
+
     def calc_chiral(self):
         """
         Calculate self.chiral. 0 if non-chiral, +1 or -1 if chiral. Each atom gets a label like this.

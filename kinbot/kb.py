@@ -56,7 +56,8 @@ def main():
                                 par['charge'],
                                 par['mult'],
                                 smiles=par['smiles'],
-                                structure=par['structure'])
+                                structure=par['structure'],
+                                cluster=par['cluster'])
         well0.short_name = 'w1'
         # write the initial reactant geometry to a file for visualization
         with open('initial_geometry.xyz', 'w') as geom_out:
@@ -68,16 +69,6 @@ def main():
 
         # characterize the initial reactant
         well0.characterize()
-        if par['cluster']:
-            well0.make_hbonds()
-            while 1:
-                frags, maps = well0.start_multi_molecular(bond_mx=well0.bond)
-                if len(frags) > 1:
-                    p1, p2 = well0.make_extra_bond(frags[:2], maps[:2])
-                    logger.info(f'Added extra bond between {p1} and {p2}')
-                else:
-                    break
-#        well0.characterize()
         well0.name = str(well0.chemid)
         start_name = well0.name
         if well0.name in par['skip_chemids']:
@@ -115,21 +106,14 @@ def main():
                                 par['charge'],
                                 par['mult'],
                                 atom=copy.deepcopy(well0.atom),
-                                geom=copy.deepcopy(well0.geom))
+                                geom=copy.deepcopy(well0.geom),
+                                cluster=par['cluster'])
         well0.short_name = 'w1'
         well0.characterize()
-        if par['cluster']:
-            well0.make_hbonds()
-            while 1:
-                frags, maps = well0.start_multi_molecular(bond_mx=well0.bond)
-                if len(frags) > 1:
-                    well0.make_extra_bond(frags[:2], maps[:2])
-                else:
-                    break
-#        well0.characterize()
         well0.name = str(well0.chemid)
-        if well0.name != start_name and not par['cluster']:
-            logger.error('The first well optimized to a structure different from the input.')
+        if well0.name != start_name:
+            logger.error('The first well optimized to a structure different '
+                         'from the input.')
             return
 
         # do an MP2 optimization of the reactant,
@@ -155,7 +139,7 @@ def main():
                     format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
             qc.qc_opt(well0, well0.geom, bls=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
-        
+
         #Initialize well for Vrc-Tst Scan (VTS)
         #if par["vrc_tst_scan"]:
         #    logger.debug('Optimization of initial well for vrc_tst scan at L1 ({}/{})'.
@@ -165,15 +149,6 @@ def main():
 
         # characterize again and look for differences
         well0.characterize()
-        if par['cluster']:
-            well0.make_hbonds()
-            while 1:
-                frags, maps = well0.start_multi_molecular(bond_mx=well0.bond)
-                if len(frags) > 1:
-                    well0.make_extra_bond(frags[:2], maps[:2])
-                else:
-                    break
-#        well0.characterize()
         well0.name = str(well0.chemid)
 
         err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)
@@ -302,7 +277,6 @@ def main():
                 mess.run()
                 # for vdw_mess in vdW_wells:
                 #     vdw_mess.run()
-
 
     postprocess.create_summary_file(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)

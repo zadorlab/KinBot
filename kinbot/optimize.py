@@ -493,9 +493,9 @@ class Optimize:
                                     self.species.charge,
                                     self.species.mult,
                                     atom=self.species.atom,
-                                    geom=new_geom)
-            dummy.bond_mx()
-            dummy.calc_chemid()
+                                    geom=new_geom,
+                                    cluster=self.par['cluster'])
+            dummy.characterize()
 
             # comparing L1 and L2 geometries and imaginary mode if TS
             if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation

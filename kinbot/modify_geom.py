@@ -14,10 +14,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import write
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.calculators.emt import EMT
-from ase.constraints import FixInternals
 from ase.data import atomic_numbers, covalent_radii
-from sella import Sella
 
 from kinbot import bfgs
 from kinbot import constants

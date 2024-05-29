@@ -45,8 +45,8 @@ class Optimize:
         try:
             delattr(self.species, 'cycle_chain')
         except AttributeError:
-            logger.debug(f"{self.species.chemid} has no cycle_chain attribute "
-                         f"to delete")
+            logger.debug(f'{self.species.chemid} has no cycle_chain attribute '
+                         f'to delete')
         if self.species.wellorts or par['cluster']:
             self.species.characterize(bond_mx=self.species.bond)
             self.name = str(self.species.name)

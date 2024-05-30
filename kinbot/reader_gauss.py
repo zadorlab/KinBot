@@ -25,6 +25,20 @@ def read_energy(outfile, from_line=0):
 
     return energy
 
+def read_all_energies(outfile, from_line=0):
+    """
+    Read all SCF Done lines.
+    """
+
+    with open(outfile) as f:
+        lines = f.readlines()
+
+    energy = []
+    for line in reversed(lines[:-from_line]):
+        if 'SCF Done' in line:
+            energy.append(float(line.split()[4]) / constants.EVtoHARTREE)
+
+    return energy
 
 def read_geom(outfile, mol, max2frag=False, charge=None, mult=None, from_line=0):
     """
@@ -67,6 +81,32 @@ def read_geom(outfile, mol, max2frag=False, charge=None, mult=None, from_line=0)
 
     return geom
 
+def read_all_geoms(outfile, mol, charge=None, mult=None, from_line=0):
+    """
+    Read all geometries from a Gaussian file.
+    """
+
+    with open(outfile) as f:
+        lines = f.readlines()
+
+    start = from_line  # start reading here
+    geoms = []
+    while 1:
+        geom = np.zeros((len(mol), 3))
+        if start == 0:
+            data = lines
+        else:
+            data = lines[:-start]
+        for index, line in enumerate(reversed(data)):
+            if 'Input orientation:' in line:
+                for n in range(len(mol)):
+                    geom[n][0:3] = np.array(data[-index+4+n].split()[3:6]).astype(float)
+                start += index  # mark end for next loop if there is
+                geoms.append(geom) 
+            if index == len(data) - 1:  # reached top
+                break
+
+    return geoms
 
 def read_zpe(outfile):
     """
@@ -187,7 +227,6 @@ def read_lowest_geom_energy(outfile, mol):
                 e = read_energy(outfile, from_line=n)
 
                 return e, geom
-
 
 def constraint(mol, fix, change):
     """

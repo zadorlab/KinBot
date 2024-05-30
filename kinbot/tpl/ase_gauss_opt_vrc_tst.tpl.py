@@ -3,28 +3,14 @@ from ase import Atoms
 from ase.db import connect
 import time
 import os
+import copy
 
 from kinbot.ase_modules.calculators.gaussian import Gaussian
 from kinbot import reader_gauss
 from kinbot.utils import iowait
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
-import copy
-
-def correct_kwargs(kwargs, iteration):
-    """Funtion that refines the optimization parameters depending on the number of trials"""
-    if 'opt' not in kwargs or iteration == -1:
-        return kwargs
-    match iteration:
-        case 0:
-            kwargs["iop"] = "1/19=4"
-            kwargs['opt'] = kwargs['opt'].replace("MaxCycles=15", "MaxCycles=40")
-        case 1:
-            kwargs['opt'] = kwargs['opt'].replace('CalcFC', 'ReCalcFC=10')
-        case 2: #Use different optimization procedure
-            kwargs['opt'] = kwargs['opt'].replace('ReCalcFC=10', 'CalcAll')
-            kwargs['opt'] = kwargs['opt'].replace("MaxCycles=40", "MaxCycles=30")
-    return kwargs
+from kinbot import zmatrix
 
 def get_interfragments_param(atoms, instance):
     species = StationaryPoint.from_ase_atoms(atoms)
@@ -34,6 +20,7 @@ def get_interfragments_param(atoms, instance):
     and returns the values of the interfragments angles and dihedrals.
     The level is only used as small orientation correction for planar fragments.
     """
+    key_dihedral = None
     save_name = copy.copy(species.name)
     closest_to_RA = [[],[]] #each list contains the 2 (or less) closest atoms to the reactive atom in their respective fragment
     # cutting up structure into two fragments
@@ -86,6 +73,7 @@ def get_interfragments_param(atoms, instance):
                         instance[1],
                         closest_to_RA[1][0],
                         geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]])
+        key_dihedral = changes[-1][:4]
     if len(closest_to_RA[0]) == 2:
         point_A = species.geom[closest_to_RA[0][1]]
         point_B = species.geom[closest_to_RA[0][0]]
@@ -107,7 +95,7 @@ def get_interfragments_param(atoms, instance):
                         instance[0],
                         geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]])
     
-    return changes
+    return changes, key_dihedral
 
 def same_orientation(initial, final):
     is_true = True
@@ -128,111 +116,79 @@ logfile = '{label}.log'
 
 mol = Atoms(symbols={atom}, positions={geom})
 
-initial_inter_frag = get_interfragments_param(mol, instance={instance})
+initial_inter_frag, key_dihedral = get_interfragments_param(mol, instance={instance})
 
 kwargs = {kwargs}
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
 mol.calc = calc
-constrain_orientation = False
 
 try:
     e = mol.get_potential_energy()  # use the Gaussian optimizer
-    iowait(logfile, 'gauss')
-    mol.positions = reader_gauss.read_geom(logfile, mol)
-    new_inter_frag = get_interfragments_param(mol, instance={instance})
-    if same_orientation(initial_inter_frag, new_inter_frag):
-        db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
-    else:
-        constrain_orientation = True
-        #Change kwargs
-        if 'frozen' in label:
-            kwargs.pop('opt', None)
-        else:
-            kwargs['addsec'] = ''
-            for param in initial_inter_frag:
-                for indx in param[:-1]:
-                    kwargs['addsec'] += f'{{indx+1}} '
-                kwargs['addsec'] += 'F\n'
-        #reinitialize molecule
-        mol = Atoms(symbols={atom}, positions={geom})
-        #reinitialize kwargs
-        calc = Gaussian(**kwargs)
-        mol.calc = calc
-        #recalculate
-        e = mol.get_potential_energy()  # use the Gaussian optimizer
-        mol.positions = reader_gauss.read_geom(logfile, mol)
-        new_inter_frag = get_interfragments_param(mol, instance={instance})
-        if same_orientation(initial_inter_frag, new_inter_frag):
-            db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
-        else:
-            raise Exception("{label} did not optimize.")
 except:
-    iowait(logfile, 'gauss')
-    e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
+    pass  # it doesn't matter if it cannot converge
+
+iowait(logfile, 'gauss')
+# both geoms and energies are in reversed order
+geoms = reader_gauss.read_all_geoms(logfile, mol)
+energies = reader_gauss.read_all_energies(logfile)
+if len(geoms) == 0:  # no optimization worked, assuming that we have at least one energy
+    db.write(mol, name=label, data={{'energy': energies[-1], 'status': 'normal'}})
+else:  # select the last geometry that was within the range of allowed change
+    for gii, geom in enumerate(geoms): 
+        mol.positions = geom  # final mol is the updated one
+        new_inter_frag, _ = get_interfragments_param(mol, instance={instance})
+        if same_orientation(initial_inter_frag, new_inter_frag):
+            db.write(mol, name=label, data={{'energy': energies(gii), 'status': 'normal'}})
+            break
+
+
+time.sleep(1)  # Avoid db errors
+with open(logfile, 'a') as f:
+    f.write('done\n')
+
+
+# the original species
+origspec = StationaryPoint.from_ase_atoms(origatoms)
+origspec.characterize()
+# the frozen species (not yet at correct geometry)
+frozenspec = StationaryPoint.from_ase_atoms(atoms)
+frozenspec.characterize()
+# zmat_atom: element symbol in order
+# zmat_ref: referencing atom for D, A, Dh
+# zmat: values
+# zmatorder: atom number in original species
+zmat_atom, zmat_ref, zmat, zmatorder = make_zmat_from_cart(frozenspec, key_dihedral, mol.positions, 2)
+# need to adjust the parameters in the zmat to the rigid values
+# but not the values that are across the fragments
+for zii, zaa in enumerate(zmat_atom):
+    if zii == 0:  # nothing to change here
+        continue
+    if zii == 1:  # fixed interfrag distance
+        continue
+    A = zmatorder[zii]  # current atom's original index
+    B, C, D = zmat_ref[zii]  # 0 indexed?
+    zmat[zii][0] = origspec.dist[A][B]  # distance
+    if zii == 2:  # fixed interfrag angle
+        continue
+    zmat[zii][1] = np.degree(geometry.calc_angle(origspec[A], origspec[B], origspec[C]))  # angle
+    if zii == 3:  # fixed interfag dihed
+        continue
+    zmat[zii][2] = np.degree(geometry.calc_dihedral(origspec[A], origspec[B], origspec[C], origspec[D]))  # dihedral
+# convert back to cartesian
+cart = make_cart_from_zmat(zmat, zmat_atom, zmat_ref, frozenspec.natom, frozenspec.atom, zmatorder)
+    
+# here creating the run for the frozen version of this geometry based on the fully optimized one
+label = '{frozen_label}'
+logfile = '{frozen_label}.log'
+kwargs.pop('opt', None)
+mol = Atoms(symbols={atom}, positions=cart)
+try:
+    e = mol.get_potential_energy()  # single point energy
     db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
+except:
+    db.write(mol, name=label, data={{'energy': 10., 'status': 'normal'}})
 
-#    i = 0
-#    while i < 3:
-#        try:
-#            iowait(logfile, 'gauss')
-#            e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
-#            new_inter_frag = get_interfragments_param(mol, instance={instance})
-#            if (not same_orientation(initial_inter_frag, new_inter_frag) and not constrain_orientation) or i == 3:
-#                constrain_orientation = True
-#                i = -1
-#                #reinitialize molecule
-#                mol = Atoms(symbols={atom}, positions={geom})
-#                #reinitialize kwargs
-#                kwargs = {kwargs}
-#                if 'frozen' in label:
-#                    kwargs.pop('opt', None)
-#                else:
-#                    kwargs['addsec'] = kwargs['addsec'].split('\n')[0] + '\n'  # keep the part for the fixed bond
-#                    for param in initial_inter_frag:
-#                        for indx in param[:-1]:
-#                            kwargs['addsec'] += f'{{indx+1}} '
-#                        kwargs['addsec'] += 'F\n'
-#            kwargs = correct_kwargs(kwargs, i)
-#            mol.calc = Gaussian(**kwargs)
-#            #recalculate
-#            e = mol.get_potential_energy()  # use the Gaussian optimizer
-#            mol.positions = reader_gauss.read_geom(logfile, mol)
-#            new_inter_frag = get_interfragments_param(mol, instance={instance})
-#            if same_orientation(initial_inter_frag, new_inter_frag) or 'frozen' in label:
-#                db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
-#                break
-#            elif constrain_orientation:
-#                db.write(mol, name=label, data={{'status': 'error'}})
-#                break
-#        except:
-#            iowait(logfile, 'gauss')
-#            #Save in db the lowest energy geometry if forces are converged
-#            if reader_gauss.read_convergence(logfile) != 0:
-#                try:
-#                    e, mol.positions = reader_gauss.read_converged_geom_energy(logfile, mol)
-#                    new_inter_frag = get_interfragments_param(mol, instance={instance})
-#                    if same_orientation(initial_inter_frag, new_inter_frag):
-#                        db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
-#                        break
-#                    elif constrain_orientation:
-#                        db.write(mol, name=label, data={{'status': 'error'}})
-#                        break
-#                except:
-#                    pass
-#            else:
-#                pass
-#            if i == 2 and os.path.getsize(logfile) != 0 and constrain_orientation:
-#                e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
-#                db.write(mol, name=label, data={{'status': 'error'}})
-#                break
-#            elif i == 2 and constrain_orientation:
-#                db.write(mol, name=label, data={{'status': 'error'}})
-#                break
-#        else:
-#            break
-#    i += 1
-
-time.sleep(1) #Avoid db errors
+time.sleep(1)  # Avoid db errors
 with open(logfile, 'a') as f:
     f.write('done\n')

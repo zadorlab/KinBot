@@ -133,12 +133,11 @@ class VrcTstScan(GeneralReac):
     def set_frozen_coord(self, level='L1', frag=None, frag_number=None):
         '''
         Function which saves the internal parameters of the individually optimized fragments.
-        The internal coordinates are defined by Sella.
+        The internal coordinates are defined by KinBot
         self.long_range['coord'] is specific to frozen scans
-        self.frozen_param exists both in frozen and relaxed scans and is used reaction generator.
+        self.frozen_param exists both in frozen and relaxed scans and is used in reaction generator.
         '''
 
-        #farg.atom, frag.geom, dummy = frag.add_dummy(frag.atom, frag.geom, frag.bond)
         # Save the bonds
         self.long_range['coord'][level][f'{frag_number}'] = []
         frag.find_bond()

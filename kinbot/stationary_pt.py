@@ -5,6 +5,7 @@ import itertools
 
 import numpy as np
 from ase.data import covalent_radii, atomic_numbers
+from ase import Atom
 
 from kinbot import cheminfo
 from kinbot import constants
@@ -19,9 +20,9 @@ class StationaryPoint:
     This object contains the properties of wells.
     """
 
-    def __init__(self, name, charge, mult, smiles='', structure=None, natom=0, 
+    def __init__(self, name, charge, mult, smiles='', structure=None, natom=0,
                  atom=None, geom=None, wellorts=0, fragA=None, fragB=None,
-                 cluster=False):
+                 cluster=False, solute_indices=None):
         self.name = name
         self.mult = mult
         self.charge = charge
@@ -98,7 +99,8 @@ class StationaryPoint:
             self.natom = len(atom)
         self.cluster = cluster
         self.warn_hbonds = True
-
+        self.solute_indices = solute_indices
+            
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
         """Builds a stationary point object from an ase.Atoms object.
@@ -110,7 +112,7 @@ class StationaryPoint:
             StationaryPoint: A Stationary point object with the properties of 
                 the ase.Atoms properties
         """
-        
+
         name = kwargs.get('name')
         charge = kwargs.get('charge')
         mult = kwargs.get('mult')
@@ -189,6 +191,8 @@ class StationaryPoint:
         self.calc_mass()
         self.calc_maxbond()
         if self.cluster and not skip_cluster:
+            self.solute = self[self.solute_indices]
+            self.solute.characterize(skip_cluster=True)
             self.make_hbonds()
             while 1:
                 frags, maps = self.start_multi_molecular(bond_mx=self.bond)
@@ -670,7 +674,7 @@ class StationaryPoint:
         self.chemid += self.mult
 
         return 0
-                                                                                                                        
+
     def start_id(self, i):
         """ 
         Initialize recursive loop for id.
@@ -687,7 +691,7 @@ class StationaryPoint:
         # self.atomid[i] = a
         
         return 0
-                                
+
     def calc_atomid(self, visit, depth, i, atomid):
         """ Caclulate chemical ID for a given atom. """        
         
@@ -1020,11 +1024,42 @@ class StationaryPoint:
 
         return
 
+    def __len__(self):
+        return len(self.geom)
+
+    def __getitem__(self, i):
+        if isinstance(i, int):
+            natoms = len(self)
+            if i < -natoms or i >= natoms:
+                raise IndexError('Index out of range.')
+            return StationaryPoint(name=self.atom[i], charge=0, mult=1,
+                                   geom=self.geom[i], atom=self.atom[i])
+        elif not isinstance(i, slice):
+            i = np.array(i)
+            if len(i) == 0:
+                i = np.array([], dtype=int)
+            # if i is a mask
+            if i.dtype == bool:
+                if len(i) != len(self):
+                    raise IndexError('Length of mask {} must equal '
+                                     'number of atoms {}'
+                                     .format(len(i), len(self)))
+                i = np.arange(len(self))[i]
+        geom = self.geom[i]
+        symbols = [symbol for idx, symbol in enumerate(self.atom) if idx in i]
+        return self.__class__(name=self.name, charge=0, mult=1, geom=geom,
+                              atom=symbols)
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
 
 def main():
     """
     This is the main object of the code, the stationary point
     """
+
 
 if __name__ == "__main__":
     main()

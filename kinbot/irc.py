@@ -56,7 +56,8 @@ class IRC:
                                    self.rxn.species.charge,
                                    self.rxn.species.mult,
                                    atom=self.rxn.species.atom,
-                                   geom=geom)
+                                   geom=geom,
+                                   cluster=self.par['cluster'])
             temp.characterize()
 
             st_pts[i] = temp
@@ -173,6 +174,10 @@ class IRC:
                 template_file = f'{kb_path}/tpl/ase_sella_irc.tpl.py'
             else:
                 template_file = f'{kb_path}/tpl/ase_{self.rxn.qc.qc}_irc.tpl.py'
+            if self.par['cluster']:
+                max2frag = False
+            else:
+                max2frag = True
             template = open(template_file, 'r').read()
             template = template.format(label=irc_name,
                                        kwargs=kwargs,
@@ -184,7 +189,8 @@ class IRC:
                                        working_dir=os.getcwd(),
                                        code=code,
                                        Code=Code,
-                                       sella_kwargs=self.par['sella_kwargs']  # Sella
+                                       sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                       max2frag=max2frag
             )
 
             with open('{}.py'.format(irc_name), 'w') as f:

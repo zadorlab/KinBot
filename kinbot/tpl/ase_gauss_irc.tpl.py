@@ -59,7 +59,7 @@ if success:
         iowait(logfile, 'gauss')
         mol_prod.positions = reader_gauss.read_geom(logfile, 
                                                     mol_prod, 
-                                                    max2frag=True, 
+                                                    max2frag={max2frag}, 
                                                     charge=kwargs['charge'],
                                                     mult=kwargs['mult'])
         freq = reader_gauss.read_freq(logfile, {atom})

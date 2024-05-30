@@ -148,7 +148,7 @@ class QuantumChemistry:
             elif VTS:
                 kwargs['method'] = self.VTS_methods['L1']
                 kwargs['basis'] = self.VTS_basis['L1']
-                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=15,Loose'
+                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=999,Loose'
                 # kwargs['guess'] = 'Mix, Always'
                 # kwargs['integral'] = 'Grid=SuperFine'
                 kwargs.pop('freq', None)
@@ -194,7 +194,7 @@ class QuantumChemistry:
                 if VTS:
                     kwargs['method'] = self.VTS_methods['L2']
                     kwargs['basis'] = self.VTS_basis['L2']
-                    kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=15,{}'.format(self.opt)
+                    kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=999,{}'.format(self.opt)
                     # kwargs['integral'] = 'Grid=SuperFine'
                     kwargs.pop('freq', None)
             if hir:
@@ -662,7 +662,7 @@ class QuantumChemistry:
         if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
             if 'vrc_tst_scan' in species.name and not self.use_sella:
-                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=15,{}'.format(self.opt)
+                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=999,{}'.format(self.opt)
                 #kwargs['integral'] = 'Grid=SuperFine'
                 # here addsec contains the constraints
                 kwargs['addsec'] = ''
@@ -687,31 +687,33 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         if 'vrc_tst_scan' in species.name:
             template = template.format(label=job,
-                                    instance=frozen_param[0],
-                                   kwargs=kwargs,
-                                   atom=list(species.atom),
-                                   geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn,  # QChem and NWChem
-                                   qc_command=self.qc_command,
-                                   working_dir=os.getcwd(),
-                                   code=code,    # Sella
-                                   Code=Code,    # Sella
-                                   order=0,      # Sella
-                                   sella_kwargs=self.par['sella_kwargs'] # Sella
-                                   )
+                                       instance=frozen_param[0],
+                                       kwargs=kwargs,
+                                       atom=list(species.atom),
+                                       geom=list([list(gi) for gi in geom]),
+                                       ppn=self.ppn,  # QChem and NWChem
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       code=code,    # Sella
+                                       Code=Code,    # Sella
+                                       order=0,      # Sella
+                                       sella_kwargs=self.par['sella_kwargs'], # Sella
+                                       bond_deviation=self.par['vrc_tst_scan_parameters']['bond_deviation'],
+                                       angle_deviation=self.par['vrc_tst_scan_parameters']['angle_deviation'],
+                                       )
         else:
             template = template.format(label=job,
-                                    kwargs=kwargs,
-                                    atom=list(species.atom),
-                                    geom=list([list(gi) for gi in geom]),
-                                    ppn=self.ppn,  # QChem and NWChem
-                                    qc_command=self.qc_command,
-                                    working_dir=os.getcwd(),
-                                    code=code,    # Sella
-                                    Code=Code,    # Sella
-                                    order=0,      # Sella
-                                    sella_kwargs=self.par['sella_kwargs'] # Sella
-                                    )
+                                       kwargs=kwargs,
+                                       atom=list(species.atom),
+                                       geom=list([list(gi) for gi in geom]),
+                                       ppn=self.ppn,  # QChem and NWChem
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       code=code,    # Sella
+                                       Code=Code,    # Sella
+                                       order=0,      # Sella
+                                       sella_kwargs=self.par['sella_kwargs'] # Sella
+                                       )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)

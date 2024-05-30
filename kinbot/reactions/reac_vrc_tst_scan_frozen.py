@@ -10,21 +10,21 @@ logger = logging.getLogger('KinBot')
 
 class VrcTstScanFrozen(VrcTstScan):
     def __init__(self, species, qc, par, instance, instance_name):
-        super().__init__(species, qc, par, instance, instance_name, scan_type="sample")
-        """
+        super().__init__(species, qc, par, instance, instance_name, scan_type='sample')
+        '''
         Frozen fragments are updated at each step of the scan.
         The internal geometry shouldn't change, but 
-        """
+        '''
         self.pivot_points_info = []
         self.species = self.get_frozen_species()
 
-    def get_frozen_species(self, level="L1", distance=None):
-        """
+    def get_frozen_species(self, level='L1', distance=None):
+        '''
         Function that returns a stationary_point object 
         with a given distance between the fragments.
         The fragments internal coordinates are optimized for the desired level.
         The orientation between the fragments is kept the same as in self.species.
-        """
+        '''
         #distance between the two fragments
         if distance is None or not isinstance(distance, float):
             distance = self.scan_list[0]
@@ -32,12 +32,12 @@ class VrcTstScanFrozen(VrcTstScan):
         interfragments_param = self.get_interfragments_param(level=level)
 
         #Recover the geometry of the frozen fragments for desired level
-        geometries = [geom for geom in self.long_range["geom"][level].values()]
+        geometries = [geom for geom in self.long_range['geom'][level].values()]
 
         #Set inter-fragment distance
-        frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range["maps"]) if atom_index in fmap][0] for atom_index in self.instance]
-        point_A = geometries[frag_number[0]][np.where(self.long_range["maps"][frag_number[0]] == self.instance[0])[0]][0]
-        point_B = geometries[frag_number[1]][np.where(self.long_range["maps"][frag_number[1]] == self.instance[1])[0]][0]
+        frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range['maps']) if atom_index in fmap][0] for atom_index in self.instance]
+        point_A = geometries[frag_number[0]][np.where(self.long_range['maps'][frag_number[0]] == self.instance[0])[0]][0]
+        point_B = geometries[frag_number[1]][np.where(self.long_range['maps'][frag_number[1]] == self.instance[1])[0]][0]
 
         current_distance = point_B - point_A + 0.0000001 #avoids superposition of identical fragments
         shift = geometry.unit_vector(current_distance)*distance - current_distance
@@ -47,14 +47,14 @@ class VrcTstScanFrozen(VrcTstScan):
         for modif in reversed(interfragments_param):
             match len(modif):
                 case 5:
-                    frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range["maps"]) if atom_index in fmap][0] for atom_index in modif[:-1]]
+                    frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range['maps']) if atom_index in fmap][0] for atom_index in modif[:-1]]
 
                     #Center the fragment coordinates on the atom to rotate around
                     
-                    point_A = geometries[frag_number[0]][np.where(self.long_range["maps"][frag_number[0]] == modif[0])[0]][0]
-                    point_B = geometries[frag_number[1]][np.where(self.long_range["maps"][frag_number[1]] == modif[1])[0]][0]
-                    point_C = geometries[frag_number[2]][np.where(self.long_range["maps"][frag_number[2]] == modif[2])[0]][0]
-                    point_D = geometries[frag_number[3]][np.where(self.long_range["maps"][frag_number[3]] == modif[3])[0]][0]
+                    point_A = geometries[frag_number[0]][np.where(self.long_range['maps'][frag_number[0]] == modif[0])[0]][0]
+                    point_B = geometries[frag_number[1]][np.where(self.long_range['maps'][frag_number[1]] == modif[1])[0]][0]
+                    point_C = geometries[frag_number[2]][np.where(self.long_range['maps'][frag_number[2]] == modif[2])[0]][0]
+                    point_D = geometries[frag_number[3]][np.where(self.long_range['maps'][frag_number[3]] == modif[3])[0]][0]
                     coord = geometries[frag_number[1]] - point_B
 
                     axis = geometry.unit_vector(point_C - point_B)
@@ -64,13 +64,13 @@ class VrcTstScanFrozen(VrcTstScan):
 
                     geometries[frag_number[0]] = np.dot(coord, geometry.rotation_matrix(axis, rotation_angle)) + point_B
                 case 4:
-                    frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range["maps"]) if atom_index in fmap][0] for atom_index in modif[:-1]]
+                    frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range['maps']) if atom_index in fmap][0] for atom_index in modif[:-1]]
 
                     #Center the fragment coordinates on the atom to rotate around
 
-                    point_A = geometries[frag_number[0]][np.where(self.long_range["maps"][frag_number[0]] == modif[0])[0]][0]
-                    point_B = geometries[frag_number[1]][np.where(self.long_range["maps"][frag_number[1]] == modif[1])[0]][0]
-                    point_C = geometries[frag_number[2]][np.where(self.long_range["maps"][frag_number[2]] == modif[2])[0]][0]
+                    point_A = geometries[frag_number[0]][np.where(self.long_range['maps'][frag_number[0]] == modif[0])[0]][0]
+                    point_B = geometries[frag_number[1]][np.where(self.long_range['maps'][frag_number[1]] == modif[1])[0]][0]
+                    point_C = geometries[frag_number[2]][np.where(self.long_range['maps'][frag_number[2]] == modif[2])[0]][0]
                     coord = geometries[frag_number[1]] - point_B
 
                     axis = geometry.unit_vector(np.cross(point_A - point_B, point_C - point_B))
@@ -80,19 +80,19 @@ class VrcTstScanFrozen(VrcTstScan):
 
                     geometries[frag_number[0]] = np.dot(coord, geometry.rotation_matrix(axis, rotation_angle)) + point_B
 
-        #Set inter-fragment distance
-        frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range["maps"]) if atom_index in fmap][0] for atom_index in self.instance]
-        point_A = geometries[frag_number[0]][np.where(self.long_range["maps"][frag_number[0]] == self.instance[0])[0]][0]
-        point_B = geometries[frag_number[1]][np.where(self.long_range["maps"][frag_number[1]] == self.instance[1])[0]][0]
+        # Set inter-fragment distance
+        frag_number = [[frag_index for frag_index, fmap in enumerate(self.long_range['maps']) if atom_index in fmap][0] for atom_index in self.instance]
+        point_A = geometries[frag_number[0]][np.where(self.long_range['maps'][frag_number[0]] == self.instance[0])[0]][0]
+        point_B = geometries[frag_number[1]][np.where(self.long_range['maps'][frag_number[1]] == self.instance[1])[0]][0]
 
         current_distance = point_B - point_A
         shift = geometry.unit_vector(current_distance)*distance - current_distance
         geometries[frag_number[1]] += shift
 
-        #recreate bimolecular system with frag geometries in same order as parent
+        # recreate bimolecular system with frag geometries in same order as parent
         bimolecular_geom = np.empty((self.species.natom,3))
         for line_number in range(self.species.natom):
-            for frag_number, frag_map in enumerate(self.long_range["maps"]):
+            for frag_number, frag_map in enumerate(self.long_range['maps']):
                 if line_number in frag_map:
                     geom = geometries[frag_number]
                     bimolecular_geom[line_number] = geom[np.where(frag_map == line_number)[0][0]]
@@ -103,12 +103,12 @@ class VrcTstScanFrozen(VrcTstScan):
         # self.print_dif(tmp_species, interfragments_param, distance)
         return tmp_species
 
-    def print_dif(self, geometries, interfragments_param, distance): #debugging funtion
-        #recreate bimolecular system with frag geometries in same order as parent
+    def print_dif(self, geometries, interfragments_param, distance):  # debugging funtion
+        # recreate bimolecular system with frag geometries in same order as parent
         
         bimolecular_geom = np.empty((self.species.natom,3))
         for line_number in range(self.species.natom):
-            for frag_number, frag_map in enumerate(self.long_range["maps"]):
+            for frag_number, frag_map in enumerate(self.long_range['maps']):
                 if line_number in frag_map:
                     geom = geometries[frag_number]
                     bimolecular_geom[line_number] = geom[np.where(frag_map == line_number)[0][0]]
@@ -116,7 +116,7 @@ class VrcTstScanFrozen(VrcTstScan):
         myatom = Atoms(self.species.atom, positions=bimolecular_geom)
 
         changes = []
-        for frozen_coords in self.long_range["coord"]["L1"].values():
+        for frozen_coords in self.long_range['coord']['L1'].values():
             changes.extend(frozen_coords)
 
         changes.extend(interfragments_param)
@@ -135,18 +135,18 @@ class VrcTstScanFrozen(VrcTstScan):
                 case 4:
                     diff = myatom.get_dihedral(frozen_coord[0], frozen_coord[1], frozen_coord[2], frozen_coord[3]) - target
                     coord_type = 'dihedral'
-            message = "Diff for {coord_type:9s} {indexes}".format(coord_type=coord_type, indexes=frozen_coord[:-1])
-            print(f"{message:35s}: {diff:11.6f}")
-        print("=======================================")
-        ase.io.write(filename="print_dif.xyz", images=myatom, format="xyz")
+            message = 'Diff for {coord_type:9s} {indexes}'.format(coord_type=coord_type, indexes=frozen_coord[:-1])
+            print(f'{message:35s}: {diff:11.6f}')
+        print('=======================================')
+        ase.io.write(filename='print_dif.xyz', images=myatom, format='xyz')
 
                 
-    def get_interfragments_param(self, level="L1"):
-        """
+    def get_interfragments_param(self, level='L1'):
+        '''
         Function that selects the neighbors of the closest atom in each fragment,
         and returns the values of the interfragments angles and dihedrals.
         The level is only used as small orientation correction for planar fragments.
-        """
+        '''
         save_name = copy.copy(self.species.name)
         closest_to_RA = [[],[]] #each list contains the 2 (or less) closest atoms to the reactive atom in their respective fragment
         fragments, maps = self.species.start_multi_molecular()
@@ -172,7 +172,7 @@ class VrcTstScanFrozen(VrcTstScan):
                             break
         changes = []
         #Calculate the angles values:
-        modif_angle = self.check_deformation_into_planar(fragments[0], self.long_range["geom"][level][f"{0}"], maps[0], self.instance[0])
+        modif_angle = self.check_deformation_into_planar(fragments[0], self.long_range['geom'][level][f'{0}'], maps[0], self.instance[0])
         if len(closest_to_RA[0]) != 0:
             point_A = self.species.geom[closest_to_RA[0][0]]
             point_B = self.species.geom[self.instance[0]]
@@ -181,7 +181,7 @@ class VrcTstScanFrozen(VrcTstScan):
                                    self.instance[0],
                                    self.instance[1],
                                    (np.degrees(geometry.calc_angle(point_A, point_B, point_C)))- modif_angle])
-        modif_angle = self.check_deformation_into_planar(fragments[1], self.long_range["geom"][level][f"{1}"], maps[1], self.instance[1])
+        modif_angle = self.check_deformation_into_planar(fragments[1], self.long_range['geom'][level][f'{1}'], maps[1], self.instance[1])
         if len(closest_to_RA[1]) != 0:
             point_A = self.species.geom[closest_to_RA[1][0]]
             point_B = self.species.geom[self.instance[1]]
@@ -202,7 +202,7 @@ class VrcTstScanFrozen(VrcTstScan):
                             self.instance[1],
                             closest_to_RA[1][0],
                             geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]])
-        modif_angle = self.check_deformation_into_planar(fragments[0], self.long_range["geom"][level][f"{0}"], maps[0], self.instance[0])
+        modif_angle = self.check_deformation_into_planar(fragments[0], self.long_range['geom'][level][f'{0}'], maps[0], self.instance[0])
         if len(closest_to_RA[0]) == 2:
             point_A = self.species.geom[closest_to_RA[0][1]]
             point_B = self.species.geom[closest_to_RA[0][0]]
@@ -213,7 +213,7 @@ class VrcTstScanFrozen(VrcTstScan):
                             self.instance[0],
                             self.instance[1],
                             self.calc_corrected_dihedral(point_A, point_B, point_C, point_D, modif_angle)[0]])
-        modif_angle = self.check_deformation_into_planar(fragments[1], self.long_range["geom"][level][f"{1}"], maps[1], self.instance[1])
+        modif_angle = self.check_deformation_into_planar(fragments[1], self.long_range['geom'][level][f'{1}'], maps[1], self.instance[1])
         if len(closest_to_RA[1]) == 2:
             point_A = self.species.geom[closest_to_RA[1][1]]
             point_B = self.species.geom[closest_to_RA[1][0]]
@@ -228,7 +228,7 @@ class VrcTstScanFrozen(VrcTstScan):
         return changes
     
     def calc_corrected_dihedral(self, a, b, c, d, alpha):
-        """
+        '''
         Calculate the A - B - C - D dihedral angle in radians.
         For collinear or close to collinear structures return a warning.
         alpha: Deformation angle (from out-of-plane to planar, in degree) 
@@ -236,7 +236,7 @@ class VrcTstScanFrozen(VrcTstScan):
 
         Returns the value in degrees
         np.arctan2 returns a value on the [-Pi,+Pi] interval
-        """
+        '''
         collinear_cutoff = 175./180.
         collinear = 0
         if (abs(geometry.calc_angle(a, b, c)) > np.pi * collinear_cutoff or
@@ -264,8 +264,8 @@ class VrcTstScanFrozen(VrcTstScan):
         return np.degrees(np.arctan2(y, x)), collinear
 
     def check_deformation_into_planar(self, stationary_point, geom, stp_map, reactive_atom):
-        """Function that checks the planarity of individualy optimised fragments around the reactive atom,
-        and returns the out-of-plane angle of the short-range optimized fragment"""
+        '''Function that checks the planarity of individualy optimised fragments around the reactive atom,
+        and returns the out-of-plane angle of the short-range optimized fragment'''
         neighbors = 0
         neighbors_index = []
         for index, bond in enumerate(stationary_point.bond[np.where(stp_map == reactive_atom)[0][0]]):
@@ -337,25 +337,25 @@ class VrcTstScanFrozen(VrcTstScan):
             add_new_pivot_point = True
             #Actualize the min/max distances at which to look for each pivot points
             for pivot_point in self.pivot_points_info:
-                if pivot_point["type"] != pp_type:
+                if pivot_point['type'] != pp_type:
                     continue
-                if pivot_point["0"] == fragments[0].chemid and pivot_point["1"] == fragments[1].chemid:
+                if pivot_point['0'] == fragments[0].chemid and pivot_point['1'] == fragments[1].chemid:
                     if [min_idx1, min_idx2] == pivot_point['indexes']:
                         add_new_pivot_point = False
-                        if pivot_point["min"] > min_dist-0.2 :
-                            pivot_point["min"] = min_dist-0.2
+                        if pivot_point['min'] > min_dist-0.2 :
+                            pivot_point['min'] = min_dist-0.2
                             break
-                        if pivot_point["max"] < min_dist+0.2 :
-                            pivot_point["max"] = min_dist+0.2
+                        if pivot_point['max'] < min_dist+0.2 :
+                            pivot_point['max'] = min_dist+0.2
                             break
-                elif pivot_point["1"] == fragments[0].chemid and pivot_point["0"] == fragments[1].chemid:
+                elif pivot_point['1'] == fragments[0].chemid and pivot_point['0'] == fragments[1].chemid:
                     if [min_idx2, min_idx1] == pivot_point['indexes']:
                         add_new_pivot_point = False
-                        if pivot_point["min"] > min_dist-0.2 :
-                            pivot_point["min"] = min_dist-0.2
+                        if pivot_point['min'] > min_dist-0.2 :
+                            pivot_point['min'] = min_dist-0.2
                             break
-                        if pivot_point["max"] < min_dist+0.2 :
-                            pivot_point["max"] = min_dist+0.2
+                        if pivot_point['max'] < min_dist+0.2 :
+                            pivot_point['max'] = min_dist+0.2
                             break
 
             if add_new_pivot_point:
@@ -374,8 +374,6 @@ class VrcTstScanFrozen(VrcTstScan):
             for key, value in pivot_point.items():
                 comments.append(f'{key}: {value}')
         return comments   
-                        
-
 
     def get_constraints(self, step, geom):
         fix = []
@@ -386,11 +384,14 @@ class VrcTstScanFrozen(VrcTstScan):
         self.set_bond(0, 1, val, change)
 
         self.clean_constraints(change, fix)
-        for frozen_coords in self.long_range["coord"]["L1"].values():
+        for frozen_coords in self.long_range['coord']['L1'].values():
             for c in frozen_coords:
-                c_new = [ci + 1 for ci in c[:-1]]
+                if c[0] == 'L':
+                    c_new = [ci + 1 for ci in c[1:-1]]
+                    c_new = ['L'] + c_new
+                else:
+                    c_new = [ci + 1 for ci in c[:-1]]
                 c_new.append(c[-1])
                 change.append(c_new)
 
         return step, fix, change, release
-    

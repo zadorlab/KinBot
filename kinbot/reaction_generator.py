@@ -122,7 +122,7 @@ class ReactionGenerator:
                                 logger.info(f'\tReaction search failed for {obj.instance_name}: '
                                             'Invalid geometry.')
 
-                    elif obj.scan == 1: # do a bond scan # vrc tst scan lenght does not depend on par[max_step]
+                    elif obj.scan == 1:  # do a bond scan # vrc tst scan lenght does not depend on par[max_step]
 
                         if (self.species.reac_step[index] == self.par['scan_step'] + 1 and obj.family_name != 'VrcTstScan'):
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
@@ -181,9 +181,9 @@ class ReactionGenerator:
                                                     # Keep L1 orientation, but use L2 fragments geometries
                                                         obj.scanned[f'{point}']['stationary_point'] = obj.get_frozen_species(level='L2', distance=obj.scan_list[int(point)])
                                                     obj.scanned[f'{point}']['opt'] = Optimize(obj.scanned[f'{point}']['stationary_point'],\
-                                                                                            self.par, self.qc,\
-                                                                                            just_high=True,\
-                                                                                            frozen_param=obj.frozen_param)
+                                                                                              self.par, self.qc,\
+                                                                                              just_high=True,\
+                                                                                              frozen_param=obj.frozen_param)
                                                     obj.scanned[f'{point}']['opt'].do_optimization()
                                         else:
                                             self.species.reac_scan_energy[index].append(energy)

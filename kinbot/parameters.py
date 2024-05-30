@@ -473,7 +473,9 @@ class Parameters:
                 "stop": 20.0,
                 "distances": None,
                 "molpro_key": "VTS_energy",
-                "molpro_tpl": ""
+                "molpro_tpl": "",
+                "angle_deviation": 10.0,
+                "bond_deviation": 0.05,
         }
         if not isinstance(self.par["vrc_tst_scan_parameters"], dict):
             self.VTS_parameters = VTS_defaults

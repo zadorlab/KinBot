@@ -36,14 +36,13 @@ def get_interfragments_param(atoms, instance):
     """
     save_name = copy.copy(species.name)
     closest_to_RA = [[],[]] #each list contains the 2 (or less) closest atoms to the reactive atom in their respective fragment
+    # cutting up structure into two fragments
+    species.name = save_name
+    species.bond[instance[0], instance[1]] = 0
+    species.bond[instance[1], instance[0]] = 0
+    species.bonds[0][instance[0], instance[1]] = 0
+    species.bonds[0][instance[1], instance[0]] = 0
     fragments, maps = species.start_multi_molecular()
-    if len(fragments) == 1:
-        species.name = save_name
-        species.bond[instance[0], instance[1]] = 0
-        species.bond[instance[1], instance[0]] = 0
-        species.bonds[0][instance[0], instance[1]] = 0
-        species.bonds[0][instance[1], instance[0]] = 0
-        fragments, maps = species.start_multi_molecular()
     for frag_number, ra in enumerate(instance):
         for neighbor_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == ra)[0][0]]):
             if bond != 0:
@@ -114,11 +113,11 @@ def same_orientation(initial, final):
     is_true = True
     for initial_parameter, final_parameter in zip(initial, final):
         if len(initial_parameter) == 3: #Parameter is a bond
-            if final_parameter[-1]/initial_parameter[-1] < 0.95 or final_parameter[-1]/initial_parameter[-1] > 1.05:
+            if final_parameter[-1]/initial_parameter[-1] < 1 - {bond_deviation} or final_parameter[-1]/initial_parameter[-1] > 1 + {bond_deviation}:
                 is_true = False
                 break
         else:
-            if final_parameter[-1] < initial_parameter[-1] - 10 or final_parameter[-1] > initial_parameter[-1] + 10:
+            if final_parameter[-1] < initial_parameter[-1] - {angle_deviation} or final_parameter[-1] > initial_parameter[-1] + {angle_deviation}:
                 is_true = False
                 break
     return is_true
@@ -167,68 +166,72 @@ try:
         if same_orientation(initial_inter_frag, new_inter_frag):
             db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
         else:
-            raise Exception("Has converged to a different reaction coordinate.")
+            raise Exception("{label} did not optimize.")
 except:
-    i = 0
-    while i < 3:
-        try:
-            iowait(logfile, 'gauss')
-            e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
-            new_inter_frag = get_interfragments_param(mol, instance={instance})
-            if (not same_orientation(initial_inter_frag, new_inter_frag) and not constrain_orientation) or i == 3:
-                constrain_orientation = True
-                i = -1
-                #reinitialize molecule
-                mol = Atoms(symbols={atom}, positions={geom})
-                #reinitialize kwargs
-                kwargs = {kwargs}
-                if 'frozen' in label:
-                    kwargs.pop('opt', None)
-                else:
-                    kwargs['addsec'] = kwargs['addsec'].split('\n')[0] + '\n'  # keep the part for the fixed bond
-                    for param in initial_inter_frag:
-                        for indx in param[:-1]:
-                            kwargs['addsec'] += f'{{indx+1}} '
-                        kwargs['addsec'] += 'F\n'
-            kwargs = correct_kwargs(kwargs, i)
-            mol.calc = Gaussian(**kwargs)
-            #recalculate
-            e = mol.get_potential_energy()  # use the Gaussian optimizer
-            mol.positions = reader_gauss.read_geom(logfile, mol)
-            new_inter_frag = get_interfragments_param(mol, instance={instance})
-            if same_orientation(initial_inter_frag, new_inter_frag) or 'frozen' in label:
-                db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
-                break
-            elif constrain_orientation:
-                db.write(mol, name=label, data={{'status': 'error'}})
-                break
-        except:
-            iowait(logfile, 'gauss')
-            #Save in db the lowest energy geometry if forces are converged
-            if reader_gauss.read_convergence(logfile) != 0:
-                try:
-                    e, mol.positions = reader_gauss.read_converged_geom_energy(logfile, mol)
-                    new_inter_frag = get_interfragments_param(mol, instance={instance})
-                    if same_orientation(initial_inter_frag, new_inter_frag):
-                        db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
-                        break
-                    elif constrain_orientation:
-                        db.write(mol, name=label, data={{'status': 'error'}})
-                        break
-                except:
-                    pass
-            else:
-                pass
-            if i == 2 and os.path.getsize(logfile) != 0 and constrain_orientation:
-                e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
-                db.write(mol, name=label, data={{'status': 'error'}})
-                break
-            elif i == 2 and constrain_orientation:
-                db.write(mol, name=label, data={{'status': 'error'}})
-                break
-        else:
-            break
-    i += 1
+    iowait(logfile, 'gauss')
+    e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
+    db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
+
+#    i = 0
+#    while i < 3:
+#        try:
+#            iowait(logfile, 'gauss')
+#            e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
+#            new_inter_frag = get_interfragments_param(mol, instance={instance})
+#            if (not same_orientation(initial_inter_frag, new_inter_frag) and not constrain_orientation) or i == 3:
+#                constrain_orientation = True
+#                i = -1
+#                #reinitialize molecule
+#                mol = Atoms(symbols={atom}, positions={geom})
+#                #reinitialize kwargs
+#                kwargs = {kwargs}
+#                if 'frozen' in label:
+#                    kwargs.pop('opt', None)
+#                else:
+#                    kwargs['addsec'] = kwargs['addsec'].split('\n')[0] + '\n'  # keep the part for the fixed bond
+#                    for param in initial_inter_frag:
+#                        for indx in param[:-1]:
+#                            kwargs['addsec'] += f'{{indx+1}} '
+#                        kwargs['addsec'] += 'F\n'
+#            kwargs = correct_kwargs(kwargs, i)
+#            mol.calc = Gaussian(**kwargs)
+#            #recalculate
+#            e = mol.get_potential_energy()  # use the Gaussian optimizer
+#            mol.positions = reader_gauss.read_geom(logfile, mol)
+#            new_inter_frag = get_interfragments_param(mol, instance={instance})
+#            if same_orientation(initial_inter_frag, new_inter_frag) or 'frozen' in label:
+#                db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
+#                break
+#            elif constrain_orientation:
+#                db.write(mol, name=label, data={{'status': 'error'}})
+#                break
+#        except:
+#            iowait(logfile, 'gauss')
+#            #Save in db the lowest energy geometry if forces are converged
+#            if reader_gauss.read_convergence(logfile) != 0:
+#                try:
+#                    e, mol.positions = reader_gauss.read_converged_geom_energy(logfile, mol)
+#                    new_inter_frag = get_interfragments_param(mol, instance={instance})
+#                    if same_orientation(initial_inter_frag, new_inter_frag):
+#                        db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
+#                        break
+#                    elif constrain_orientation:
+#                        db.write(mol, name=label, data={{'status': 'error'}})
+#                        break
+#                except:
+#                    pass
+#            else:
+#                pass
+#            if i == 2 and os.path.getsize(logfile) != 0 and constrain_orientation:
+#                e, mol.positions = reader_gauss.read_lowest_geom_energy(logfile, mol)
+#                db.write(mol, name=label, data={{'status': 'error'}})
+#                break
+#            elif i == 2 and constrain_orientation:
+#                db.write(mol, name=label, data={{'status': 'error'}})
+#                break
+#        else:
+#            break
+#    i += 1
 
 time.sleep(1) #Avoid db errors
 with open(logfile, 'a') as f:

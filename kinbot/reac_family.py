@@ -87,7 +87,11 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     # apply the geometry changes here and fix the coordinates that changed
     change_starting_zero = []
     for c in change:
-        c_new = [ci - 1 for ci in c[:-1]]
+        if c[0] == 'L':
+            c_new = [ci - 1 for ci in c[1:-1]]
+            c_new = ['L'] + c_new
+        else:
+            c_new = [ci - 1 for ci in c[:-1]]
         c_new.append(c[-1])
         change_starting_zero.append(c_new)
 
@@ -188,7 +192,9 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                        code=code,  # Sella
                                        Code=Code,  # Sella
                                        fix=fix,  # Sella
-                                       sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                       sella_kwargs=rxn.par['sella_kwargs'],  # Sella
+                                       angle_deviation=rxn.par['vrc_tst_scan_parameters']['angle_deviation'], 
+                                       bond_deviation=rxn.par['vrc_tst_scan_parameters']['bond_deviation'], 
                                        )
         else:
             template = template.format(label=rxn.instance_name, 

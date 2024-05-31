@@ -158,13 +158,6 @@ def main():
             qc.qc_opt(well0, well0.geom, bls=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
         
-        #Initialize well for Vrc-Tst Scan (VTS)
-        #if par["vrc_tst_scan"]:
-        #    logger.debug('Optimization of initial well for vrc_tst scan at L1 ({}/{})'.
-        #            format(par['vrc_tst_scan_methods']["L1"], par['vrc_tst_scan_basis']["L2"]))
-        #    qc.qc_opt(well0, well0.geom, vrc_tst=True)
-        #    err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_VTS', well0.natom, 1)
-
         # characterize again and look for differences
         well0.characterize()
         if par['cluster']:
@@ -190,15 +183,19 @@ def main():
             logger.error('Error with high level optimization of initial structure.')
             return
 
-        # if par['pes']:
-        #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
-
         if par['reaction_search'] == 1:
             logger.info('Starting reaction search...')
             rf = ReactionFinder(well0, par, qc)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
+
+        if par['vrc_tst_scan'] is not {}:
+            logger.info('Setting up scans for VRC-TST...')
+            vts = VrcTstScan(well0, par, qc)
+            vts.do_scans()
+            rotd = RotdPy(vts, par)
+            rotd.make_input
 
     # BIMOLECULAR REACTANTS
     elif par['bimol'] == 1:

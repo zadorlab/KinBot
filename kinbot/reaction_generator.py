@@ -138,7 +138,7 @@ class ReactionGenerator:
                                 logger.info(f'\tRxn search using scan failed for {obj.instance_name} '
                                             'in TS optimization stage.')
                                 self.species.reac_ts_done[index] = -999
-                        else:
+                        else:  
                             # First point of the scan
                             if self.species.reac_step[index] == 0:
                                 if obj.family_name == 'VrcTstScan':
@@ -259,7 +259,7 @@ class ReactionGenerator:
                                                                                           frozen_param=obj.frozen_param)
                                                 obj.scanned[f'{point}']['opt'].do_optimization()
                                         else:
-                                            self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
+                                            self.species.reac_ts_done[index] = -999  # Find a better way to stop this reaction?
                                             obj.scanned[f'{point}']['stationary_point'] = copy.deepcopy(obj.species)
                                             obj.finish_vrc_tst_scan(level='L1')
 
@@ -590,8 +590,8 @@ class ReactionGenerator:
                                         if point not in obj.points_to_remove:
                                             obj.points_to_remove.append(point)
                                     
-                        if opts_done: #If finished, print results, but don't go to step 5: obj.products undefined
-                            self.species.reac_ts_done[index] = -999# Find a better way to stop this reaction?
+                        if opts_done:  # If finished, print results, but don't go to step 5: obj.products undefined
+                            self.species.reac_ts_done[index] = -999  # Find a better way to stop this reaction?
                             obj.finish_vrc_tst_scan(level='L2')
                             continue # avoids going to reac_ts_done = 5
                             

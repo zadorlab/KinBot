@@ -78,12 +78,10 @@ class Parameters:
             # this is a dictionary written as:
             # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
             'barrierless_saddle': {},
-            # starting distance for barrierless_saddle searches in Å
+            # starting distance for barrierless_saddle searches in A
             'barrierless_saddle_start': 2.0,
-            # step size in Å
+            # step size in A 
             'barrierless_saddle_step': 0.2,
-            # List of distance in angstrom for vrc_tst surfaces
-            'vrc_tst_dist_list': list(np.append(np.arange(2.2, 13.0, 0.2), np.arange(13.0, 16.0, 0.5))),
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
             # if requested with specific_reaction = 1
@@ -198,9 +196,6 @@ class Parameters:
             # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
             'qc': 'gauss',  # or nwchem or nn_pes
-            # Which quantum chemistry code to use for vrc_tst_scan
-            "vrc_tst_scan_qc": {"L1": "gauss", "L2": "gauss", "L3": "molpro"},
-            'vrc_tst_scan_qc_command': {"L1": "g16", "L2": "g16", "L3": "molpro"}, 
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
@@ -221,22 +216,6 @@ class Parameters:
             'barrierless_saddle_method_high': 'b3lyp',
             # Basis set to scan bonds in barrierless_saddle family
             'barrierless_saddle_basis_high': '6-31G',
-            # {chemid1: [["reaction_name", "products_chemids"],[]], chemid2: [[..]]}
-            # Ex: {chemid1:[["hom_sci_3_4", "prod1chemid_prod2chemid"],
-            #              ["inta_H_migration_1_3", "prod1chemid_prod2chemid"]]}
-            'vrc_tst_scan': {},
-            # Method to scan bonds in vrc_tst_scan
-            'vrc_tst_scan_methods': {
-                "L1": "ub3lyp",
-                "L2": "ub3lyp",
-                "L3": ["uwb97xd", "ccsd(t)"]},
-            # Basis set to scan bonds in vrc_tst_scan
-            'vrc_tst_scan_basis': {
-                "L1": "6-31G",
-                "L2": "6-311++G(d,p)",
-                "L3": ["cc-pVDZ", "aug-cc-pVTZ"]},
-            # Parameters for the vrc_tst scan
-            "vrc_tst_scan_parameters": None,
             # for Gaussian, request CalcAll for TS optimization
             'calcall_ts': 0,
             # Quantum chemistry method to use for high-level L2
@@ -293,6 +272,28 @@ class Parameters:
             'imagfreq_threshold': 50.,
             # List of files containing the parameters for the NN model. 
             'nn_model': None,
+
+            # VRC-TST PARAMETERS
+            # Distances in A for vrc_tst surfaces that go into rotdPy
+            'rotdpy_dist': list(np.append(np.arange(2.2, 13.0, 0.2), np.arange(13.0, 16.0, 0.5))),
+            # Define the species and the reactions for which scans are requested
+            # {chemid1: ["reaction_name1", "reaction_name2"], chemid2: [...]}
+            'vrc_tst_scan': {},
+            # Method to scan bonds in vrc_tst_scan
+            'vrc_tst_scan_method': "uwb97xd",
+            'vrc_tst_scan_method_L3': "caspt2(2,2)",
+            # Basis set to scan bonds in vrc_tst_scan
+            'vrc_tst_scan_basis': "6-311++G(d,p)",
+            'vrc_tst_scan_basis_L3': "pvdz",
+            # Parameters for the vrc_tst scan
+            "vrc_tst_scan_points": np.arange(2.5, 20.0, 0.2),
+            "vrc_tst_scan_molpro_key": "VTS_energy",
+            # Must be provided
+            "vrc_tst_scan_molpro_tpl": "",
+            # In degree
+            "vrc_tst_scan_angle_deviation": 10.0,
+            # In A
+            "vrc_tst_scan_bond_deviation": 0.05},
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -388,9 +389,6 @@ class Parameters:
         if self.input_file is not None:
             self.read_user_input()
 
-        if 'vrc_tst_scan' in self.par['families'] and 'vrc_tst_scan_frozen' not in self.par['families']:
-            self.par['families'].append('vrc_tst_scan_frozen')
-
         err = None
         if self.par['me'] == 1:
             if self.par['calc_aie'] and not self.par['conformer_search']:
@@ -467,24 +465,6 @@ class Parameters:
 
         if self.par['rotdPy_inputs'] is None:
             self.par['rotdPy_inputs'] = []
-        VTS_defaults= {
-                "step": 0.1,
-                "start": 2.0,
-                "stop": 20.0,
-                "distances": None,
-                "molpro_key": "VTS_energy",
-                "molpro_tpl": "",
-                "angle_deviation": 10.0,
-                "bond_deviation": 0.05,
-        }
-        if not isinstance(self.par["vrc_tst_scan_parameters"], dict):
-            self.VTS_parameters = VTS_defaults
-        else:
-            self.VTS_parameters = self.par["vrc_tst_scan_parameters"]
-            for key in VTS_defaults:
-                if key not in self.VTS_parameters:
-                    self.VTS_parameters[key] = VTS_defaults[key]
-        self.par["vrc_tst_scan_parameters"] = self.VTS_parameters
         
         #Check user input
         if self.par['pp_length'] != None and\

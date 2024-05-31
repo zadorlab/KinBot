@@ -149,10 +149,11 @@ with open(logfile, 'a') as f:
 
 
 # the original species
-origspec = StationaryPoint.from_ase_atoms(origatoms)
+origmol = Atoms(symbols={atom}, positions={frozen_geom})
+origspec = StationaryPoint.from_ase_atoms(origmol)
 origspec.characterize()
 # the frozen species (not yet at correct geometry)
-frozenspec = StationaryPoint.from_ase_atoms(atoms)
+frozenspec = StationaryPoint.from_ase_atoms(mol)
 frozenspec.characterize()
 # zmat_atom: element symbol in order
 # zmat_ref: referencing atom for D, A, Dh

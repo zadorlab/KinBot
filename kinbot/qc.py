@@ -13,6 +13,7 @@ from ase.db import connect
 from kinbot import kb_path
 from kinbot import constants
 from kinbot import geometry
+from kinbot import exceptions
 
 logger = logging.getLogger('KinBot')
 
@@ -27,7 +28,6 @@ class QuantumChemistry:
     def __init__(self, par):
         self.par = par
         self.qc = par['qc'].lower()
-        #self.vrc_tst_qc = dict((key, value.lower()) for key, value in par['vrc_tst_qc'].items() )
         self.method = par['method']
         self.basis = par['basis']
         self.scan_method = par['scan_method']
@@ -38,11 +38,10 @@ class QuantumChemistry:
         self.high_level_basis = par['high_level_basis']
         self.bls_high_level_method = par['barrierless_saddle_method_high']
         self.bls_high_level_basis = par['barrierless_saddle_basis_high']
-        self.VTS_basis = par['vrc_tst_scan_basis']
-        self.VTS_methods = par['vrc_tst_scan_methods']
-        self.VTS_parameters = par['vrc_tst_scan_parameters']
-        self.VTS_qc=par['vrc_tst_scan_qc']
-        self.VTS_qc_command=par['vrc_tst_scan_qc_command']
+        self.vts_method = par['vrc_tst_scan_method']
+        self.vts_method_L3 = par['vrc_tst_scan_method_L3']
+        self.vts_basis = par['vrc_tst_scan_basis']
+        self.vts_basis_L3 = par['vrc_tst_scan_basis_L3']
         self.single_point_template = par['single_point_template']
         self.single_point_key = par['single_point_key']
         self.integral = par['integral']
@@ -70,7 +69,7 @@ class QuantumChemistry:
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
-                         start_from_geom=0, rigid=0, aie=0, L3=False):
+                         start_from_geom=0, rigid=0, aie=0, L3=False, vts=0):
         '''
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
@@ -83,15 +82,6 @@ class QuantumChemistry:
         irc: direction of the irc, None if this is not an irc job
         scan: this calculation is part of a scan of a bond length
         '''
-        if 'vrc_tst_scan' in job or 'VTS' in job:
-            VTS = True
-        else:
-            VTS = False
-        if VTS:
-            if high_level:
-                self.qc = self.par['vrc_tst_scan_qc']['L2']
-            else:
-                self.qc = self.par['vrc_tst_scan_qc']['L1']
 
         if self.qc == 'gauss' or (self.qc == 'nn_pes' and step < max_step):
             # arguments for Gaussian
@@ -590,7 +580,7 @@ class QuantumChemistry:
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
-               fdir=None, do_vdW=False, frozen_param=None):
+               fdir=None, do_vdW=False):
         '''
         Creates a geometry optimization input and runs it.
         '''
@@ -614,14 +604,7 @@ class QuantumChemistry:
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
-        # O2
-        if species.chemid == '320320000000000000001':
-            mult = 3
-        # CH2
-        elif species.chemid == '140260020000000000001':
-            mult = 3
-        else:
-            mult = species.mult
+        mult = get_multiplicity(species.chemid, mult)
 
         kwargs = self.get_qc_arguments(job, mult, species.charge,
                                        high_level=high_level)
@@ -635,15 +618,6 @@ class QuantumChemistry:
                 kwargs['opt'] = 'CalcFC, Tight'
             else:
                 kwargs['opt'] = 'CalcFC'
-            if 'vrc_tst_scan' in species.name and not self.use_sella:
-                if not 'ModRedun' in kwargs['opt']:
-                    kwargs['opt'] += ', ModRedun'
-                # here addsec contains the constraints
-                kwargs['addsec'] = ''
-                if frozen_param is None or not isinstance(frozen_param, list):
-                    frozen_param = [[]]
-                for bond in frozen_param:
-                    kwargs['addsec'] += f'{" ".join(str(atom) for atom in bond)} F\n'
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
@@ -661,15 +635,6 @@ class QuantumChemistry:
             kwargs['basis'] = self.scan_basis
         if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
-            if 'vrc_tst_scan' in species.name and not self.use_sella:
-                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=999,{}'.format(self.opt)
-                #kwargs['integral'] = 'Grid=SuperFine'
-                # here addsec contains the constraints
-                kwargs['addsec'] = ''
-                if frozen_param is None or not isinstance(frozen_param, list):
-                    frozen_param = [[]]
-                for internal_coordinate in frozen_param:
-                    kwargs['addsec'] += f'{" ".join(str(atom) for atom in internal_coordinate)} F\n'
         if species.natom < 3:
             kwargs.pop('Symm', None)
         # the integral is set in the get_qc_arguments parts, bad design
@@ -685,35 +650,18 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         
         template = open(template_file, 'r').read()
-        if 'vrc_tst_scan' in species.name:
-            template = template.format(label=job,
-                                       instance=frozen_param[0],
-                                       kwargs=kwargs,
-                                       atom=list(species.atom),
-                                       geom=list([list(gi) for gi in geom]),
-                                       ppn=self.ppn,  # QChem and NWChem
-                                       qc_command=self.qc_command,
-                                       working_dir=os.getcwd(),
-                                       code=code,    # Sella
-                                       Code=Code,    # Sella
-                                       order=0,      # Sella
-                                       sella_kwargs=self.par['sella_kwargs'], # Sella
-                                       bond_deviation=self.par['vrc_tst_scan_parameters']['bond_deviation'],
-                                       angle_deviation=self.par['vrc_tst_scan_parameters']['angle_deviation'],
-                                       )
-        else:
-            template = template.format(label=job,
-                                       kwargs=kwargs,
-                                       atom=list(species.atom),
-                                       geom=list([list(gi) for gi in geom]),
-                                       ppn=self.ppn,  # QChem and NWChem
-                                       qc_command=self.qc_command,
-                                       working_dir=os.getcwd(),
-                                       code=code,    # Sella
-                                       Code=Code,    # Sella
-                                       order=0,      # Sella
-                                       sella_kwargs=self.par['sella_kwargs'] # Sella
-                                       )
+        template = template.format(label=job,
+                                   kwargs=kwargs,
+                                   atom=list(species.atom),
+                                   geom=list([list(gi) for gi in geom]),
+                                   ppn=self.ppn,  # QChem and NWChem
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd(),
+                                   code=code,    # Sella
+                                   Code=Code,    # Sella
+                                   order=0,      # Sella
+                                   sella_kwargs=self.par['sella_kwargs'] # Sella
+                                   )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -780,6 +728,104 @@ class QuantumChemistry:
         self.submit_qc(job)
 
         return 0
+
+    def qc_vts(self, species, geom, frozen_param=None):
+        '''
+        Creates a geometry optimization along a scan and runs it.
+        '''
+        job = f'vrctst/{str(species.chemid)}_vts'
+
+        mult = get_multiplicity(species.chemid, mult)
+
+        kwargs = self.get_qc_arguments(job, mult, species.charge,
+                                       high_level=high_level)
+        if 'opt' not in kwargs:
+            kwargs['opt'] = ''
+
+        if self.qc == 'gauss':
+            code = 'gaussian'
+            Code = 'Gaussian'
+            if self.par['opt'].casefold() == 'Tight'.casefold(): 
+                kwargs['opt'] = 'CalcFC, Tight'
+            else:
+                kwargs['opt'] = 'CalcFC'
+            if 'vts' in species.name and not self.use_sella:
+                if not 'ModRedun' in kwargs['opt']:
+                    kwargs['opt'] += ', ModRedun'
+                # here addsec contains the constraints
+                kwargs['addsec'] = ''
+                for bond in frozen_param:
+                    kwargs['addsec'] += f'{" ".join(str(atom) for atom in bond)} F\n'
+        elif self.qc == 'qchem':
+            code = 'qchem'
+            Code = 'QChem'
+        elif self.qc == 'nwchem':
+            code = 'nwchem'
+            Code = 'NWChem'   
+        elif self.qc == 'nn_pes':
+            code = 'nn_pes'
+            Code = 'Nn_surr'
+        else:
+            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+        
+        if mp2:
+            kwargs['method'] = self.scan_method
+            kwargs['basis'] = self.scan_basis
+        if high_level and self.qc == 'gauss' and self.opt:
+            kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
+        if species.natom < 3:
+            kwargs.pop('Symm', None)
+        # the integral is set in the get_qc_arguments parts, bad design
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
+        if self.use_sella:
+            kwargs.pop('opt', None)
+            kwargs.pop('freq', None)
+            template_file = f'{kb_path}/tpl/ase_sella_opt_well.tpl.py'
+        elif 'vrc_tst_scan' in species.name and not self.use_sella:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_vrc_tst.tpl.py'
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
+        
+        template = open(template_file, 'r').read()
+        if 'vrc_tst_scan' in species.name:
+            template = template.format(label=job,
+                                       instance=frozen_param[0],
+                                       kwargs=kwargs,
+                                       atom=list(species.atom),
+                                       geom=list([list(gi) for gi in geom]),
+                                       ppn=self.ppn,  # QChem and NWChem
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       code=code,    # Sella
+                                       Code=Code,    # Sella
+                                       order=0,      # Sella
+                                       sella_kwargs=self.par['sella_kwargs'], # Sella
+                                       bond_deviation=self.par['vrc_tst_scan_bond_deviation'],
+                                       angle_deviation=self.par['vrc_tst_scan_angle_deviation'],
+                                       )
+        else:
+            template = template.format(label=job,
+                                       kwargs=kwargs,
+                                       atom=list(species.atom),
+                                       geom=list([list(gi) for gi in geom]),
+                                       ppn=self.ppn,  # QChem and NWChem
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       code=code,    # Sella
+                                       Code=Code,    # Sella
+                                       order=0,      # Sella
+                                       sella_kwargs=self.par['sella_kwargs'] # Sella
+                                       )
+
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
+
+        self.submit_qc(job)
+        return 0
+
+
+
 
     def submit_qc(self, job, singlejob=1, jobtype=None):
         '''Submit a job to the queue, unless the job:

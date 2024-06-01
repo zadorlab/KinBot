@@ -719,12 +719,14 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_vts(self, species, geom, frozen_coo=None):
+    def qc_vts(self, species, geom, frozen_coo=None, step=None):
         '''
         Creates a geometry optimization along a scan and runs it.
         '''
 
         job = f'vrctst/{str(species.chemid)}_vts'
+        if step is not None:
+            job += f'_pt{step}'
         mult = get_multiplicity(species.chemid, mult)
         kwargs = self.get_qc_arguments(job, mult, species.charge, vts=1)
 
@@ -748,27 +750,36 @@ class QuantumChemistry:
             kwargs.pop('Symm', None)
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
-
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_vrc_tst.tpl.py'
-        template = open(template_file, 'r').read()
-        template = template.format(label=job,
-                                   frozen_coo=frozen_coo[0],
-                                   kwargs=kwargs,
-                                   atom=list(species.atom),
-                                   geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn, 
-                                   qc_command=self.qc_command,
-                                   working_dir=os.getcwd(),
-                                   bond_deviation=self.par['vrc_tst_scan_bond_deviation'],
-                                   angle_deviation=self.par['vrc_tst_scan_angle_deviation'],
-                                   )
+        
+        if frozen_coo == None:  # this is the fragment_opt
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
+            template = open(template_file, 'r').read()
+            template = template.format(label=job,
+                                       kwargs=kwargs,
+                                       atom=list(species.atom),
+                                       geom=list([list(gi) for gi in geom]),
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       )
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_vrc_tst.tpl.py'
+            template = open(template_file, 'r').read()
+            template = template.format(label=job,
+                                       frozen_coo=frozen_coo[0],
+                                       kwargs=kwargs,
+                                       atom=list(species.atom),
+                                       geom=list([list(gi) for gi in geom]),
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       bond_deviation=self.par['vrc_tst_scan_bond_deviation'],
+                                       angle_deviation=self.par['vrc_tst_scan_angle_deviation'],
+                                       )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
         self.submit_qc(job)
         return 0
-
 
     def submit_qc(self, job, singlejob=1, jobtype=None):
         '''Submit a job to the queue, unless the job:

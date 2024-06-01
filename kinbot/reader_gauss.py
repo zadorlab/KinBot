@@ -134,10 +134,9 @@ def read_freq(outfile, atom):
 
     natom = len(atom)
 
+    freq = []
     if natom == 1:
-        freq = []
     else:
-        freq = []
         for line in lines:
             if 'Frequencies' in line:
                 if natom == 2:

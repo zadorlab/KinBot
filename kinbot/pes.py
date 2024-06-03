@@ -479,7 +479,7 @@ def postprocess(par, jobs, task, names, mass):
     well_l3energies = {}
     for index, well in enumerate(wells):
         energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
-                            conf=par['conformer_search'])  # from the db
+                                 conf=par['conformer_search'])  # from the db
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -550,10 +550,9 @@ def postprocess(par, jobs, task, names, mass):
     batch_submit.reverse()
     batch_submit = '\n'.join(batch_submit)
     batch = f'{par["single_point_qc"]}/batch_L3_{par["queuing"]}.sub'
-    if par['queuing'] != 'local':
-        with open(batch, 'w') as f:
-            f.write(batch_submit)
-        os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
+    with open(batch, 'w') as f:
+        f.write(batch_submit)
+    os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
 
     if l3done == 1 and par['L3_calc']:
         logger.info('Energies are updated to L3 in ME and PESViewer.')
@@ -1787,6 +1786,8 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
     for well in wells:
         if "IRC" in well:
             well = well.split("_")[0]
+        if not os.path.isfile(well + '/kinbot.db'):
+            continue
         db = connect(well + '/kinbot.db')
         rows = db.select(name=j)
         for row in rows:

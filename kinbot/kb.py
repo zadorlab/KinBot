@@ -52,12 +52,7 @@ def main():
 
     if par['bimol'] == 0:
         # initialize the reactant
-        well0 = StationaryPoint('well0',
-                                par['charge'],
-                                par['mult'],
-                                smiles=par['smiles'],
-                                structure=par['structure'],
-                                cluster=par['cluster'])
+        well0 = StationaryPoint('well0', **par)
         well0.short_name = 'w1'
         # write the initial reactant geometry to a file for visualization
         with open('initial_geometry.xyz', 'w') as geom_out:
@@ -103,11 +98,9 @@ def main():
 
         # characterize again and look for differences
         well0 = StationaryPoint('well0',
-                                par['charge'],
-                                par['mult'],
                                 atom=copy.deepcopy(well0.atom),
                                 geom=copy.deepcopy(well0.geom),
-                                cluster=par['cluster'])
+                                **par)
         well0.short_name = 'w1'
         well0.characterize()
         well0.name = str(well0.chemid)

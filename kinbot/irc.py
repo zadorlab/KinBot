@@ -57,7 +57,8 @@ class IRC:
                                    self.rxn.species.mult,
                                    atom=self.rxn.species.atom,
                                    geom=geom,
-                                   cluster=self.par['cluster'])
+                                   cluster=self.par['cluster'],
+                                   solute_indices=self.par['solute_indices'])
             temp.characterize()
 
             st_pts[i] = temp

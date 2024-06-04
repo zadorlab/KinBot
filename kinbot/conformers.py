@@ -209,10 +209,12 @@ class Conformers:
             else:
                 # check if all the bond lenghts are withing 10% or the original bond lengths
                 dummy = StationaryPoint('dummy',
-                                       self.species.charge,
-                                       self.species.mult,
-                                       atom=self.species.atom,
-                                       geom=geom)
+                                        self.species.charge,
+                                        self.species.mult,
+                                        atom=self.species.atom,
+                                        geom=geom,
+                                        cluster=self.species.cluster,
+                                        solute_indices=self.species.solute_indices)
                 dummy.bond_mx()
                 dummy.calc_chemid()
                 if geometry.equal_geom(self.species, dummy, 0.10):
@@ -386,7 +388,8 @@ class Conformers:
                                     self.species.mult,
                                     atom=self.species.atom,
                                     geom=geom,
-                                    cluster=self.cluster)
+                                    cluster=self.cluster,
+                                    solute_indices=self.species.solute_indices)
             dummy.characterize()
             if geometry.equal_geom(self.species, dummy, 0.10):
                 return geom, 0

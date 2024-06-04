@@ -22,7 +22,7 @@ class StationaryPoint:
 
     def __init__(self, name, charge, mult, smiles='', structure=None, natom=0,
                  atom=None, geom=None, wellorts=0, fragA=None, fragB=None,
-                 cluster=False, solute_indices=None):
+                 cluster=False, solute_indices=None, **kwargs):
         self.name = name
         self.mult = mult
         self.charge = charge
@@ -99,8 +99,10 @@ class StationaryPoint:
             self.natom = len(atom)
         self.cluster = cluster
         self.warn_hbonds = True
-        self.solute_indices = solute_indices
-            
+        if cluster:
+            self.solute_indices = solute_indices
+            self.solute = self[solute_indices]
+
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
         """Builds a stationary point object from an ase.Atoms object.
@@ -191,7 +193,6 @@ class StationaryPoint:
         self.calc_mass()
         self.calc_maxbond()
         if self.cluster and not skip_cluster:
-            self.solute = self[self.solute_indices]
             self.solute.characterize(skip_cluster=True)
             self.make_hbonds()
             while 1:
@@ -1047,8 +1048,8 @@ class StationaryPoint:
                 i = np.arange(len(self))[i]
         geom = self.geom[i]
         symbols = [symbol for idx, symbol in enumerate(self.atom) if idx in i]
-        return self.__class__(name=self.name, charge=0, mult=1, geom=geom,
-                              atom=symbols)
+        return self.__class__(name=self.name, charge=self.charge,
+                              mult=self.mult, geom=geom, atom=symbols)
 
     def __iter__(self):
         for i in range(len(self)):

@@ -80,11 +80,7 @@ def main():
     msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
     logger.info(msg)
 
-    well0 = StationaryPoint('well0',
-                            par['charge'],
-                            par['mult'],
-                            smiles=par['smiles'],
-                            structure=par['structure'])
+    well0 = StationaryPoint('well0', **par)
     well0.characterize()
     write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
 
@@ -1060,11 +1056,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
     frame = '######################\n' 
     divider = '! ****************************************\n'
     
-    dummy = StationaryPoint('dummy',
-                            par['charge'],
-                            par['mult'],
-                            smiles=par['smiles'],
-                            structure=par['structure'])
+    dummy = StationaryPoint('dummy', **par)
 
     mess = MESS(par, dummy)
     uq = UQ(par)

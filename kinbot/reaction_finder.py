@@ -2433,7 +2433,7 @@ class ReactionFinder:
                     for ll in labels:
                         if ll != None:
                             testing.append(inst[ll]) 
-                    if len([tt for tt in testing if tt in self.par['solute']]) > 0:
+                    if len([tt for tt in testing if tt in self.par['solute_indices']]) > 0:
                         self.reactions[name].append(inst)
                 else:
                     self.reactions[name].append(inst)

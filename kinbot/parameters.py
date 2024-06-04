@@ -53,7 +53,7 @@ class Parameters:
             # Cluster
             'cluster' : 0,
             # Atom numbers of the solute, only used in cluster mode
-            'solute': [],
+            'solute_indices': [],
             # H-bond recognition as bond
             'hbond': 0,
 

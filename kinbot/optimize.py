@@ -494,7 +494,8 @@ class Optimize:
                                     self.species.mult,
                                     atom=self.species.atom,
                                     geom=new_geom,
-                                    cluster=self.par['cluster'])
+                                    cluster=self.par['cluster'],
+                                    solute_indices=self.par['solute_indices'])
             dummy.characterize()
 
             # comparing L1 and L2 geometries and imaginary mode if TS

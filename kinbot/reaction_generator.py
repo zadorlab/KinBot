@@ -69,7 +69,9 @@ class ReactionGenerator:
             ro.valid_prod = []
 
         frag_unique = []
-
+        rm_keys = ('name', 'wellorts', 'geom')
+        st_pt_dict = {k: v for k, v in vars(self.species).items() 
+                      if k not in rm_keys}
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
@@ -89,8 +91,9 @@ class ReactionGenerator:
                         self.species.reac_ts_done[index] = -999
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
                     # somewhat messy manipulation to force the new bond matrix for hom_sci
-                    obj.irc_prod = StationaryPoint(f'{instance}_prod', self.species.charge, self.species.mult,
-                                                   atom=self.species.atom, geom=self.species.geom, wellorts=0)
+                    obj.irc_prod = StationaryPoint(f'{instance}_prod',
+                                                   geom=self.species.geom,
+                                                   wellorts=0, **st_pt_dict)
                     obj.irc_prod.characterize()
                     obj.irc_prod.bonds[0][obj.instance[0]][obj.instance[1]] = 0  # delete bond
                     obj.irc_prod.bonds[0][obj.instance[1]][obj.instance[0]] = 0  # delete bond
@@ -475,8 +478,8 @@ class ReactionGenerator:
 
                     if self.species.reac_type[index] != 'hom_sci':
                         err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
-                        ts = StationaryPoint(obj.instance_name, self.species.charge, self.species.mult,
-                                             atom=self.species.atom, geom=geom, wellorts=1)
+                        ts = StationaryPoint(obj.instance_name, geom=geom, 
+                                             wellorts=1, **st_pt_dict)
                         err, ts.energy = self.qc.get_qc_energy(obj.instance_name)
                         err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)
                         err, ts.freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)

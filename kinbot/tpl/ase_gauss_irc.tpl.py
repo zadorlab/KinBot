@@ -55,33 +55,34 @@ if success:
     mol_prod = Atoms(symbols={atom}, positions=mol.positions)
     mol_prod.calc = calc_prod
     try:
-        e = mol_prod.get_potential_energy() # use the Gaussian optimizer
+        e = mol_prod.get_potential_energy()  # use the Gaussian optimizer
         iowait(logfile, 'gauss')
-        mol_prod.positions = reader_gauss.read_geom(logfile, 
-                                                    mol_prod, 
-                                                    max2frag={max2frag}, 
+        mol_prod.positions = reader_gauss.read_geom(logfile,
+                                                    mol_prod,
+                                                    max2frag={max2frag},
                                                     charge=kwargs['charge'],
                                                     mult=kwargs['mult'])
         freq = reader_gauss.read_freq(logfile, {atom})
         zpe = reader_gauss.read_zpe(logfile)
         db.write(mol_prod, name=label, data={{'energy': e,
-                                         'frequencies': np.asarray(freq),
-                                         'zpe': zpe, 'status': 'normal'}})
-    except RuntimeError: 
+                                              'frequencies': np.asarray(freq),
+                                              'zpe': zpe, 'status': 'normal'}})
+    except RuntimeError:
         for i in range(3):
             try:
                 iowait(logfile, 'gauss')
-                _, mol_prod.positions = reader_gauss.read_lowest_geom_energy(logfile, mol_prod)
-                kwargs_prod = reader_gauss.correct_kwargs(logfile, kwargs_prod)
-                mol_prod.calc = Gaussian(**kwargs_prod)
-                e = mol_prod.get_potential_energy()  # use the Gaussian optimizer
+                _, mol_prod.positions = \
+                    reader_gauss.read_lowest_geom_energy(logfile, mol_prod)
+                prod_kwargs = reader_gauss.correct_kwargs(logfile, prod_kwargs)
+                mol_prod.calc = Gaussian(**prod_kwargs)
+                e = mol_prod.get_potential_energy()  # use Gaussian optimizer
                 iowait(logfile, 'gauss')
                 mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
                 freq = reader_gauss.read_freq(logfile, {atom})
                 zpe = reader_gauss.read_zpe(logfile)
-                db.write(mol_prod, name=label, data={{'energy': e,
-                                                'frequencies': np.asarray(freq),
-                                                'zpe': zpe, 'status': 'normal'}})
+                db.write(mol_prod, name=label,
+                         data={{'energy': e, 'frequencies': np.asarray(freq),
+                                'zpe': zpe, 'status': 'normal'}})
             except RuntimeError:
                 if i == 2:
                     db.write(mol, name=label, data={{'status': 'error'}})

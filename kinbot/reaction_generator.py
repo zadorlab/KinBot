@@ -397,7 +397,8 @@ class ReactionGenerator:
 
                     if ndone == len(obj.products) and self.species.reac_ts_done[index] != -999:  # all currently recognized fragments are done
                         # delete invalid ones
-                        obj.products = list(np.array(obj.products)[obj.valid_prod])
+                        obj.products = [p for i, p in enumerate(obj.products) 
+                                        if obj.valid_prod[i]]
                         if self.species.charge != 0:  # select the lower energy combination
                             # brute force all combinations for ions
                             combs = np.array([np.array(i) for i in itertools.product([0, 1], repeat = len(obj.products))])
@@ -427,7 +428,8 @@ class ReactionGenerator:
                                 if sum(comb * (ens + zpes)) < val:
                                     val = sum(comb * (ens + zpes))
                                     low_e_comb = comb
-                            obj.products = list(np.array(obj.products)[low_e_comb.astype(bool)])
+                            obj.products = [p for i, p in enumerate(obj.products) 
+                                            if low_e_comb[i].astype(bool)]
                         obj.irc_fragments = [copy.copy(this_frag) for this_frag in obj.products]
                         prods_energy = sum([p.energy + p.zpe for p in obj.products])
 

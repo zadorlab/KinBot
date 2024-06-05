@@ -51,14 +51,9 @@ class IRC:
                 # very close to one another (problem in Gaussian)
                 logger.warning('Problem with product geometry for {}'.format(instance_name))
                 return 0
-
-            temp = StationaryPoint(irc_name,
-                                   self.rxn.species.charge,
-                                   self.rxn.species.mult,
-                                   atom=self.rxn.species.atom,
-                                   geom=geom,
-                                   cluster=self.par['cluster'],
-                                   solute_indices=self.par['solute_indices'])
+            stpt_dict = {k: v for k, v in vars(self.species).items()
+                         if k not in ('wellorts', 'name', 'geom')}
+            temp = StationaryPoint(irc_name, geom=geom, **stpt_dict)
             temp.characterize()
 
             st_pts[i] = temp

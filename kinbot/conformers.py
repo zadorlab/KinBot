@@ -93,6 +93,8 @@ class Conformers:
         self.flat_ring_dih_angle = par['flat_ring_dih_angle']
         self.print_warning = True
         self.cluster = par['cluster']
+        self.stpt_dict = {k: v for k, v in vars(self.species).items()
+                          if k not in ('wellorts', 'name', 'geom')}
 
     def generate_ring_conformers(self, cart):
         """
@@ -206,15 +208,9 @@ class Conformers:
             if self.start_ring_conformer_search(index, geom):
                 logger.debug('Running the next dihedral for conformer {}'.format(job))
                 return geom, -1
+            # check if all bond lenghts are withing 10% or the original ones
             else:
-                # check if all the bond lenghts are withing 10% or the original bond lengths
-                dummy = StationaryPoint('dummy',
-                                        self.species.charge,
-                                        self.species.mult,
-                                        atom=self.species.atom,
-                                        geom=geom,
-                                        cluster=self.species.cluster,
-                                        solute_indices=self.species.solute_indices)
+                dummy = StationaryPoint('dummy', geom=geom, **self.stpt_dict)
                 dummy.bond_mx()
                 dummy.calc_chemid()
                 if geometry.equal_geom(self.species, dummy, 0.10):
@@ -381,15 +377,9 @@ class Conformers:
             return np.zeros((self.species.natom, 3)), -1
         elif status == -1:  # conformer search failed
             return np.zeros((self.species.natom, 3)), 1
+        # check if all bond lenghts are withing 10% of the original ones
         else:
-            # check if all the bond lenghts are withing 10% of the original bond lengths
-            dummy = StationaryPoint('dummy',
-                                    self.species.charge,
-                                    self.species.mult,
-                                    atom=self.species.atom,
-                                    geom=geom,
-                                    cluster=self.cluster,
-                                    solute_indices=self.species.solute_indices)
+            dummy = StationaryPoint('dummy', geom=geom, **self.stpt_dict)
             dummy.characterize()
             if geometry.equal_geom(self.species, dummy, 0.10):
                 return geom, 0

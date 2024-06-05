@@ -107,11 +107,9 @@ class HIR:
                     else:
                         # check if all the bond lenghts are within
                         # 15% or the original bond lengths
-                        temp = StationaryPoint('temp',
-                                               self.species.charge,
-                                               self.species.mult,
-                                               atom=self.species.atom,
-                                               geom=geom)
+                        stpt_dict = {k: v for k, v in vars(self.species).items()
+                                     if k not in ('wellorts', 'name', 'geom')}
+                        temp = StationaryPoint('temp', geom=geom, **stpt_dict)
                         temp.characterize()
                         if geometry.equal_geom(self.species,
                                                temp,

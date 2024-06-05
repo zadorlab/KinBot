@@ -489,13 +489,9 @@ class Optimize:
         if not self.VTS:#Bypass geom_check for VTS
             # creating a species for the L2
             err, new_geom = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom, wait=self.wait)
-            dummy = StationaryPoint('dummy',
-                                    self.species.charge,
-                                    self.species.mult,
-                                    atom=self.species.atom,
-                                    geom=new_geom,
-                                    cluster=self.par['cluster'],
-                                    solute_indices=self.par['solute_indices'])
+            stpt_dict = {k: v for k, v in vars(self.species).items()
+                         if k not in ('wellorts', 'name', 'geom')}
+            dummy = StationaryPoint('dummy', geom=new_geom, **stpt_dict)
             dummy.characterize()
 
             # comparing L1 and L2 geometries and imaginary mode if TS

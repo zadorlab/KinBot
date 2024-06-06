@@ -493,7 +493,7 @@ class StationaryPoint:
                 frag_num_atoms = len(unass_idx)
                 frag_assg = [0] * self.natom
                 if frag_num_atoms == 1:
-                    #this is a fragment containing only one atom
+                    # this is a fragment containing only one atom
                     frag_assg[unass_idx[0]] = 1
                     is_multifrag = 0
                 else:
@@ -520,7 +520,7 @@ class StationaryPoint:
                     multiply = 2  # do two versions
                 else:
                     multiply = 1
-                
+
                 for ch in range(multiply):
                     # ch == 0 is neutral, ch == 1  is ion case
                     multi = self.calc_multiplicity(frag_symbols)
@@ -532,26 +532,31 @@ class StationaryPoint:
                     if ch == 1 and multi == 3:
                         multi = 2
 
-                    if ch == 0:   
+                    if ch == 0:
                         chargei = 0
                     elif ch == 1:
-                        chargei = self.charge 
-                    moli = StationaryPoint('prod_%i'%(len(st_pt_prodlist)+1), 
-                                           chargei, multi, atom=frag_symbols, 
-                                           natom=frag_num_atoms, geom=frag_geom)
-                    moli.characterize()  
-                    moli.calc_chemid()
+                        chargei = self.charge
+
+                    numbering = np.asarray(range(self.natom))
+                    # the original atom numbers in the correct order in the fragments, it's a map
+                    mapi = numbering[np.where(np.asarray(frag_assg) == 1)]
+                    maps.append(mapi)
+
+                    solute_indices = [list(mapi).index(i)
+                                      for i in self.solute_indices
+                                      if i in mapi]
+                    moli = StationaryPoint('prod_%i'%(len(st_pt_prodlist)+1),
+                                           chargei, multi, atom=frag_symbols,
+                                           natom=frag_num_atoms, geom=frag_geom,
+                                           cluster=self.cluster,
+                                           solute_indices=solute_indices)
+                    moli.characterize()
                     moli.name = str(moli.chemid)
 
                     st_pt_prodlist.append(moli)
 
-                    numbering = np.asarray(range(self.natom))
-                    # the original atom numbers in the correct order in the fragments, it's a map
-                    mapi = numbering[np.where(np.asarray(frag_assg) == 1)]  
-                    maps.append(mapi)
-
                 if is_multifrag:
-                    continue 
+                    continue
                 else:
                     #reached the end, return the molecules
                     break

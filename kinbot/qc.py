@@ -141,6 +141,7 @@ class QuantumChemistry:
                 kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=999'
                 kwargs['guess'] = 'Mix, Always'
                 kwargs.pop('freq', None)
+                kwargs.pop('chk', None)
             else:
                 kwargs['freq'] = 'freq'  # ? 
             if (scan or 'R_Addition_MultipleBond' in job) and not vts:

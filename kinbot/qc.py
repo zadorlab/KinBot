@@ -349,7 +349,7 @@ class QuantumChemistry:
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:
-            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+            raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
 #        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
         if self.use_sella:
             kwargs.pop('chk', None)
@@ -425,7 +425,7 @@ class QuantumChemistry:
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:
-            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+            raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         if self.use_sella:
             template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
         else:
@@ -493,7 +493,7 @@ class QuantumChemistry:
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:
-            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+            raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
@@ -594,7 +594,7 @@ class QuantumChemistry:
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
-        mult = get_multiplicity(species.chemid, mult)
+        mult = exceptions.get_multiplicity(species.chemid, species.mult)
 
         kwargs = self.get_qc_arguments(job, mult, species.charge,
                                        high_level=high_level)
@@ -618,7 +618,7 @@ class QuantumChemistry:
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:
-            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+            raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
         if mp2:
             kwargs['method'] = self.scan_method
@@ -719,7 +719,7 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_vts(self, species, geom, frozen_coo=None, step=None):
+    def qc_vts(self, species, geom, scan_coo=False, step=None):
         '''
         Creates a geometry optimization along a scan and runs it.
         '''
@@ -727,31 +727,23 @@ class QuantumChemistry:
         job = f'vrctst/{str(species.chemid)}_vts'
         if step is not None:
             job += f'_pt{step}'
-        mult = get_multiplicity(species.chemid, mult)
+        mult = exceptions.get_multiplicity(species.chemid, species.mult)
         kwargs = self.get_qc_arguments(job, mult, species.charge, vts=1)
 
         if self.qc == 'gauss':
-            kwargs['addsec'] = ''
-            for bond in frozen_coo:
-                kwargs['addsec'] += f'{" ".join(str(atom) for atom in bond)} F\n'
-        elif self.qc == 'qchem':
-            code = 'qchem'
-            Code = 'QChem'
-        elif self.qc == 'nwchem':
-            code = 'nwchem'
-            Code = 'NWChem'   
-        elif self.qc == 'nn_pes':
-            code = 'nn_pes'
-            Code = 'Nn_surr'
+            if scan_coo:
+                kwargs['addsec'] = ''
+                for bond in scan_coo:
+                    kwargs['addsec'] += f'{" ".join(str(atom) for atom in bond)} F\n'
         else:
-            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+            raise ValueError(f'Only implemeted for Gaussian. Instead I got: {self.qc}')
         
         if species.natom < 3:
             kwargs.pop('Symm', None)
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
         
-        if frozen_coo == None:  # this is the fragment_opt
+        if not scan_coo:  # this is the fragment_opt
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
             template = open(template_file, 'r').read()
             template = template.format(label=job,
@@ -765,7 +757,7 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_vrc_tst.tpl.py'
             template = open(template_file, 'r').read()
             template = template.format(label=job,
-                                       frozen_coo=frozen_coo[0],
+                                       scan_coo=scan_coo[0],
                                        kwargs=kwargs,
                                        atom=list(species.atom),
                                        geom=list([list(gi) for gi in geom]),
@@ -779,7 +771,7 @@ class QuantumChemistry:
             f.write(template)
 
         self.submit_qc(job)
-        return 0
+        return job 
 
     def submit_qc(self, job, singlejob=1, jobtype=None):
         '''Submit a job to the queue, unless the job:

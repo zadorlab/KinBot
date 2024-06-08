@@ -30,17 +30,11 @@ class Optimize:
     4. Repeat steps 2-3 as long as lower energy structures are found
     """
 
-    def __init__(self, species, par, qc, wait=0, just_high=False, frozen_param=None):
+    def __init__(self, species, par, qc, wait=0, just_high=False):
         """
         just_high: ony do high_level calculation
-        frozen_param: list of list of atom indexes for which a bond, angle, dihed should be fixed
         """
         self.species = species
-
-        if frozen_param is None or not isinstance(frozen_param, list):
-            self.frozen_param = [[]]
-        else:
-            self.frozen_param = frozen_param
 
         try:
             delattr(self.species, 'cycle_chain')

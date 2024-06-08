@@ -422,6 +422,8 @@ class ReactionGenerator:
                         ts.distance_mx()
                         ts.bond_mx()
                         ts.bond = np.maximum(ts.bond, bond_mx)
+                        # -1: broken, 0: no change, +1: formed
+                        ts.reac_bond = np.array(obj.irc_prod.bond01[i][j]) - self.species.bond01  
                         ts.find_cycle()
                         ts.find_conf_dihedral()
                         obj.ts = ts

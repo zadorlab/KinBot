@@ -207,6 +207,7 @@ class StationaryPoint:
         """ 
         Create bond matrix 
         Also create smiles if possible
+        Also create a bond matrix where it's only 1 or 0 (no double bonds etc.)
         """
         self.distance_mx()
         for i in range(self.natom):
@@ -357,6 +358,12 @@ class StationaryPoint:
                     self.smiles = cheminfo.create_smi_from_geom(self.atom, self.geom)
                 except:
                     pass
+        self.bond01 = np.zeros((self.natom, self.natom), dtype=int)
+        for row in self.bond:
+            for bi in row:
+                if bi > 0:
+                    self.bond01 = 1
+
         return 0
 
     def make_extra_bond(self, parts, maps):
@@ -445,7 +452,7 @@ class StationaryPoint:
         """
         Iterative method to find all the separate products from a bond matrix
         vary_charge: to identify fragments with charge on either of them
-        bond_mx: assume a known bond_mx at the characterization - needed in cluter mode for H bonds
+        bond_mx: assume a known bond_mx at the characterization - needed in cluster mode for H bonds
         """
         bond_mtx = copy.deepcopy(self.bond)
         assigned_atoms = [0 for i in range(self.natom)]  # 1: part of the fragment, 0: not part of a fragment

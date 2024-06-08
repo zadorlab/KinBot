@@ -13,6 +13,7 @@ from kinbot.reaction_finder import ReactionFinder
 from kinbot.reaction_finder_bimol import ReactionFinderBimol
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.vrc_tst_scan import VTS
 from kinbot.qc import QuantumChemistry
 from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
@@ -192,10 +193,10 @@ def main():
 
         if par['vrc_tst_scan'] is not {}:
             logger.info('Setting up scans for VRC-TST...')
-            vts = VrcTstScan(well0, par, qc)
-            vts.do_scans()
-            rotd = RotdPy(vts, par)
-            rotd.make_input
+            vts = VTS(well0, par, qc)
+            vts.calculate_correction_potentials()
+            #rotd = RotdPy(vts, par)
+            #rotd.make_input
 
     # BIMOLECULAR REACTANTS
     elif par['bimol'] == 1:
@@ -276,8 +277,6 @@ def main():
         for frag in fragments.values():
             well0.energy += frag.energy
             well0.zpe += frag.zpe
-        # if par['pes']:
-        #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
             logger.info('\tStarting bimolecular reaction search...')

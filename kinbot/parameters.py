@@ -286,14 +286,14 @@ class Parameters:
             'vrc_tst_scan_basis': "6-311++G(d,p)",
             'vrc_tst_scan_basis_L3': "pvdz",
             # Parameters for the vrc_tst scan
-            "vrc_tst_scan_points": np.arange(2.5, 20.0, 0.2),
+            "vrc_tst_scan_points": list(np.arange(2.5, 20.0, 0.2)),
             "vrc_tst_scan_molpro_key": "VTS_energy",
             # Must be provided
             "vrc_tst_scan_molpro_tpl": "",
             # In degree
             "vrc_tst_scan_angle_deviation": 10.0,
             # In A
-            "vrc_tst_scan_bond_deviation": 0.05},
+            "vrc_tst_scan_bond_deviation": 0.05,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -496,11 +496,6 @@ class Parameters:
         elif self.par['pp_on_atom'] is None:
             self.par['pp_on_atom'] = [5.0, 12.0]
 
-        for well, reactions in self.par['vrc_tst_scan'].items():
-            for reac in reactions:
-                if len(reac) != 2:
-                    err = f'Format of VRC-TST input is incorrect for {reac}'
-            
         if self.par['barrier_threshold'] == 'none':
             self.par['barrier_threshold'] = None
         if self.par['barrier_threshold_L2'] == 'none':

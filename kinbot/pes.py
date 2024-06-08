@@ -1506,7 +1506,7 @@ def create_rotdPy_inputs(par, bless, vdW):
         if len(reactive_atoms) == 0:
             logger.warning("No reactive atom detected for this reaction. Pivot points on COMs.")
 
-        for dist in par['vrc_tst_dist_list']:
+        for dist in par['vrc_tst_scan_points']:
             if dist < vrc_tst_start:
                 logger.info(f"Removing sampling surface {dist} for reaction {reaction_name}")
                 continue
@@ -1566,7 +1566,7 @@ def create_rotdPy_inputs(par, bless, vdW):
                                    frag_names = '[' + ', '.join(fragnames) + ']',
                                    calc_block = Calc_block,
                                    flux_block = Flux_block,
-                                   min_dist = par['vrc_tst_dist_list'][0],
+                                   min_dist = par['vrc_tst_scan_points'][0],
                                    corrections_block=corrections_block,
                                    inf_energy=inf_energy)
         if not os.path.exists(folder):
@@ -1944,9 +1944,9 @@ def submit_job(chemid, par):
                         .format(chemid, par['barrierless_saddle_single_point_template']))
         shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
                         .format(chemid, par['barrierless_saddle_prod_single_point_template']))
-    if par['vrc_tst_scan_parameters']['molpro_tpl'] != '':
-        shutil.copyfile('{}'.format(par['vrc_tst_scan_parameters']['molpro_tpl']), 
-                        '{}/{}'.format(chemid, par['vrc_tst_scan_parameters']['molpro_tpl']))
+    if par['vrc_tst_scan_molpro_tpl'] != '':
+        shutil.copyfile('{}'.format(par['vrc_tst_scan_molpro_tpl']), 
+                        '{}/{}'.format(chemid, par['vrc_tst_scan_molpro_tpl']))
     outfile = open(f'{chemid}/kinbot.out', 'w')
     errfile = open(f'{chemid}/kinbot.err', 'w')
     process = subprocess.Popen(command,

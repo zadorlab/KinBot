@@ -99,8 +99,8 @@ class StationaryPoint:
             self.natom = len(atom)
         self.cluster = cluster
         self.warn_hbonds = True
-        if cluster:
-            self.solute_indices = solute_indices
+        self.solute_indices = solute_indices
+        if cluster:            
             self.solute = self[solute_indices]
 
     @classmethod

@@ -1042,7 +1042,7 @@ class StationaryPoint:
                                    geom=self.geom[i], atom=self.atom[i])
         elif not isinstance(i, slice):
             i = np.array(i)
-            if len(i) == 0:
+            if i is None or len(i) == 0:
                 i = np.array([], dtype=int)
             # if i is a mask
             if i.dtype == bool:

@@ -51,7 +51,7 @@ class IRC:
                 # very close to one another (problem in Gaussian)
                 logger.warning('Problem with product geometry for {}'.format(instance_name))
                 return 0
-            stpt_dict = {k: v for k, v in vars(self.species).items()
+            stpt_dict = {k: v for k, v in vars(self.rxn.species).items()
                          if k not in ('wellorts', 'name', 'geom')}
             temp = StationaryPoint(irc_name, geom=geom, **stpt_dict)
             temp.characterize()

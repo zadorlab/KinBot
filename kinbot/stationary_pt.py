@@ -100,7 +100,7 @@ class StationaryPoint:
         self.cluster = cluster
         self.warn_hbonds = True
         self.solute_indices = solute_indices
-        if cluster:            
+        if cluster:
             self.solute = self[solute_indices]
 
     @classmethod
@@ -193,7 +193,8 @@ class StationaryPoint:
         self.calc_mass()
         self.calc_maxbond()
         if self.cluster and not skip_cluster:
-            self.solute.characterize(skip_cluster=True)
+            if self.solute:
+                self.solute.characterize(skip_cluster=True)
             self.make_hbonds()
             while 1:
                 frags, maps = self.start_multi_molecular(bond_mx=self.bond)
@@ -1043,7 +1044,7 @@ class StationaryPoint:
         elif not isinstance(i, slice):
             i = np.array(i)
             if i is None or len(i) == 0:
-                i = np.array([], dtype=int)
+                return None
             # if i is a mask
             if i.dtype == bool:
                 if len(i) != len(self):

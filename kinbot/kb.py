@@ -75,7 +75,8 @@ def main():
         # initialize the qc instance
         qc = QuantumChemistry(par)
 
-        clean_files()
+        if qc.qc != 'nn_pes':
+            clean_files()
 
         # start the initial optimization of the reactant
         logger.info('Starting optimization of initial well...')

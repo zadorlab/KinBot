@@ -2,6 +2,8 @@ import sys
 import datetime
 import copy
 
+from os.path import isfile
+
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.parameters import Parameters
@@ -151,10 +153,17 @@ def main():
 
         # comparison for barrierless scan
         if par['barrierless_saddle']:
-            logger.debug('Optimization of intial well for barrierless at {}/{}'.
+            logger.debug('Optimization of initial well for barrierless at {}/{}'.
                     format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
             qc.qc_opt(well0, well0.geom, bls=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
+        
+        #Initialize well for Vrc-Tst Scan (VTS)
+        #if par["vrc_tst_scan"]:
+        #    logger.debug('Optimization of initial well for vrc_tst scan at L1 ({}/{})'.
+        #            format(par['vrc_tst_scan_methods']["L1"], par['vrc_tst_scan_basis']["L2"]))
+        #    qc.qc_opt(well0, well0.geom, vrc_tst=True)
+        #    err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_VTS', well0.natom, 1)
 
         # characterize again and look for differences
         well0.characterize()
@@ -283,11 +292,19 @@ def main():
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
         mess = MESS(par, well0)
         mess.write_input(qc)
+        # vdW_wells = []
+        # for reac in well0.reac_obj:
+        #     if reac.do_vdW:
+        #         vdW_wells.append(MESS(par, reac.irc_prod, parent=well0))
+        #         vdW_wells[-1].write_input(qc)
 
         if par['me'] == 1:
             logger.info('Starting Master Equation calculations')
             if par['me_code'] == 'mess':
                 mess.run()
+                # for vdw_mess in vdW_wells:
+                #     vdw_mess.run()
+
 
     postprocess.create_summary_file(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)

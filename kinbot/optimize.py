@@ -30,8 +30,18 @@ class Optimize:
     4. Repeat steps 2-3 as long as lower energy structures are found
     """
 
-    def __init__(self, species, par, qc, wait=0):
+    def __init__(self, species, par, qc, wait=0, just_high=False, frozen_param=None):
+        """
+        just_high: ony do high_level calculation
+        frozen_param: list of list of atom indexes for which a bond, angle, dihed should be fixed
+        """
         self.species = species
+
+        if frozen_param is None or not isinstance(frozen_param, list):
+            self.frozen_param = [[]]
+        else:
+            self.frozen_param = frozen_param
+
         try:
             delattr(self.species, 'cycle_chain')
         except AttributeError:
@@ -42,21 +52,34 @@ class Optimize:
             self.name = str(self.species.name)
         else:
             self.species.characterize()
-            self.name = str(self.species.chemid)
+            self.name = self.species.name
         self.par = par
         self.qc = qc
         # wait for all calculations to finish before returning
         self.wait = wait
 
-        # status of the various parts
-        # -1: not yet started
-        #  0: running
-        #  1: finished
-        # -999:failed
-        self.scycconf = -1
-        self.sconf = -1
         self.shigh = -1
-        self.shir = -1
+        self.just_high = just_high
+
+        if "vrc_tst_scan" in self.name:
+            self.VTS = True
+        else:
+            self.VTS = False
+
+        if not self.just_high:
+            # status of the various parts
+            # -1: not yet started
+            #  0: running
+            #  1: finished
+            # -999:failed
+            self.scycconf = -1
+            self.sconf = -1
+            self.shir = -1
+        else:
+            #Do not perform conformer search for vdW wells
+            self.scycconf = 1
+            self.sconf = 1
+            self.shir = 1
 
         # restart counter: number of times the high-level and hir calculations
         # has been restarted in case a lower energy structure has been found
@@ -146,7 +169,7 @@ class Optimize:
                                 or self.par['multi_conf_tst'] \
                                 or self.par['print_conf'] \
                                 or self.par['calc_aie']:
-                            status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid =\
+                            status, lowest_conf, geom, self.species.low_energy, conformers, energies, frequency_vals, valid =\
                                     self.species.confs.check_conformers(wait=self.wait)
                             if status == 1:
                                 self.species.conformer_geom, self.species.conformer_energy, \
@@ -167,7 +190,7 @@ class Optimize:
                                 # save lowest energy conformer as species geometry
                                 self.species.geom = geom
                                 # save lowest energy conformer energy
-                                self.species.energy = low_energy
+                                self.species.energy = self.species.low_energy
                                 # set conf status to finished
                                 self.sconf = 1
                         elif self.skip_conf_check == 1:
@@ -180,8 +203,8 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                if self.par['conformer_search'] == 1:
-                    status, lowest_conf, self.species.geom, low_energy, conformers, energies, frequency_vals, valid = \
+                if self.par['conformer_search'] == 1 and not self.just_high:
+                    status, lowest_conf, self.species.geom, self.species.low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
                 while self.restart <= self.par['rotation_restart']:
@@ -199,8 +222,21 @@ class Optimize:
                                                           ext=f'_{str(conindx).zfill(4)}_high',
                                                           )
                             else:
-                                name = self.species.chemid
-                                self.qc.qc_opt(self.species, self.species.geom, high_level=1)
+                                if self.just_high:
+                                    name = self.species.name
+                                    if self.VTS: #Avoid caculating high points if in db
+                                        status = self.qc.check_qc(self.log_name(1))
+                                        if status == "normal":
+                                            self.shigh = 0
+                                        else:
+                                            self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True, frozen_param=self.frozen_param)
+                                    else:
+                                        self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
+                                    #Set conformer_zeroenergy to the species zero-energy if no conformer analysis has been done
+                                    self.species.conformer_zeroenergy = [self.species.energy + self.qc.get_qc_zpe(f"{self.species.name}_high", wait=0)[1]]
+                                else:
+                                    name = self.species.chemid
+                                    self.qc.qc_opt(self.species, self.species.geom, high_level=1)
                                 if self.par['multi_conf_tst']:
                                     for ci, conindx in enumerate(self.species.conformer_index):
                                         self.qc.qc_opt(self.species, 
@@ -297,8 +333,6 @@ class Optimize:
                                             self.shir = 1
                                     else:
                                         self.shir = 1
-                                else:
-                                    self.shir = 1
                         else:
                             # no hir calculations necessary, set status to finished
                             self.shir = 1
@@ -317,7 +351,9 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                if self.par['multi_conf_tst'] == 0 and self.par['rotor_scan']:
+                if self.par['multi_conf_tst'] == 0 and self.par['rotor_scan']\
+                    and not self.VTS\
+                    and not self.just_high:
                     fr_file = self.log_name(self.par['high_level'])
                     hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                     if self.qc.qc == 'qchem':
@@ -339,14 +375,17 @@ class Optimize:
                         if 'barrierless_saddle' in self.name:
                             key = self.par['barrierless_saddle_single_point_key']
                             molp.create_molpro_input(bls=1)
+                        if self.VTS and self.shigh == 1: #Only create the molpro input when optimization is finished
+                            molp.create_molpro_input(name=self.species.name, VTS=1)
                         else:
                             key = self.par['single_point_key']
-                            molp.create_molpro_input()
+                            molp.create_molpro_input(do_vdW=self.just_high)
                         if self.par['queuing'] != 'local':
-                            molp.create_molpro_submit()
-                        status, molpro_energy = molp.get_molpro_energy(key)
-                        if status:
-                            self.species.energy = molpro_energy
+                            molp.create_molpro_submit(do_vdW=self.just_high)
+                        if not self.VTS:
+                            status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.just_high)
+                            if status:
+                                self.species.energy = molpro_energy
 
                     elif self.par['single_point_qc'] == 'orca':
                         orca = Orca(self.species, self.par)
@@ -433,7 +472,7 @@ class Optimize:
             return f'conf/{self.name}_{str(conf).zfill(4)}'
 
         name = str(self.name)
-        if not self.species.wellorts:
+        if not self.species.wellorts and not self.just_high:
             name += '_well'
         if high:
             name += '_high'
@@ -447,81 +486,88 @@ class Optimize:
         If conf is >= 0, then we are testing for conformer number conf in the conf/ directory.
         """
 
-        # creating a species for the L2
-        err, new_geom = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom, wait=self.wait)
-        dummy = StationaryPoint('dummy',
-                                self.species.charge,
-                                self.species.mult,
-                                atom=self.species.atom,
-                                geom=new_geom)
-        dummy.bond_mx()
-        dummy.calc_chemid()
+        if not self.VTS:#Bypass geom_check for VTS
+            # creating a species for the L2
+            err, new_geom = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom, wait=self.wait)
+            dummy = StationaryPoint('dummy',
+                                    self.species.charge,
+                                    self.species.mult,
+                                    atom=self.species.atom,
+                                    geom=new_geom)
+            dummy.bond_mx()
+            dummy.calc_chemid()
 
-        # comparing L1 and L2 geometries and imaginary mode if TS
-        if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
-            if self.par['conformer_search'] == 0:
-                l1_file = self.log_name(0)  # name of the original L1 TS file
-            elif self.par['multi_conf_tst'] or self.skip_conf_check == 0:
-                l1_file = self.log_name(0, conf=conf)
+            # comparing L1 and L2 geometries and imaginary mode if TS
+            if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
+                if self.par['conformer_search'] == 0:
+                    l1_file = self.log_name(0)  # name of the original L1 TS file
+                elif self.par['multi_conf_tst'] or self.skip_conf_check == 0:
+                    l1_file = self.log_name(0, conf=conf)
+                else:
+                    l1_file = 'conf/{}_low'.format(self.log_name(0))
+                l2_file = self.log_name(1, conf=conf)
+                if self.qc.qc == 'gauss':
+                    imagmode = reader_gauss.read_imag_mode(l1_file, self.species.natom)
+                    imagmode_high = reader_gauss.read_imag_mode(l2_file, self.species.natom)
+                elif self.qc.qc == 'qchem':
+                    imagmode = reader_qchem.read_imag_mode(l1_file, self.species.natom)
+                    imagmode_high = reader_qchem.read_imag_mode(l2_file, self.species.natom)
+                # either geom is roughly same with closely matching imaginary modes, or geometry is very close
+                # maybe we need to do IRC at the high level as well...
+                same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
+                        (geometry.equal_geom(self.species, dummy, 0.3))) \
+                        or (geometry.equal_geom(self.species, dummy, 0.2))
+                if self.par['multi_conf_tst'] != 1:  # for now skipping this
+                    p_coord = copy.deepcopy(self.species.geom)
+                    q_coord = copy.deepcopy(dummy.geom)
+                    p_atoms = self.species.atom
+                    q_atoms = self.species.atom
+                    p_cent = rmsd.centroid(p_coord)
+                    q_cent = rmsd.centroid(q_coord)
+                    p_coord -= p_cent
+                    q_coord -= q_cent
+                    rotation_method = rmsd.kabsch_rmsd
+                    reorder_method = rmsd.reorder_brute
+                    #q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
+                    #q_coord = q_coord[q_review]
+                    #q_atoms = q_atoms[q_review]
+                    result_rmsd = rotation_method(p_coord, q_coord)
+                    #if result_rmsd > 0.15:
+                    #    same_geom = 0
+                else:
+                    result_rmsd = 'not done'
+                logger.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
+                            f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
+                            f'corr: {geometry.matrix_corr(imagmode, imagmode_high):.2f}, '\
+                            f'same: {same_geom}')
             else:
-                l1_file = 'conf/{}_low'.format(self.log_name(0))
-            l2_file = self.log_name(1, conf=conf)
-            if self.qc.qc == 'gauss':
-                imagmode = reader_gauss.read_imag_mode(l1_file, self.species.natom)
-                imagmode_high = reader_gauss.read_imag_mode(l2_file, self.species.natom)
-            elif self.qc.qc == 'qchem':
-                imagmode = reader_qchem.read_imag_mode(l1_file, self.species.natom)
-                imagmode_high = reader_qchem.read_imag_mode(l2_file, self.species.natom)
-            # either geom is roughly same with closely matching imaginary modes, or geometry is very close
-            # maybe we need to do IRC at the high level as well...
-            same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \
-                    (geometry.equal_geom(self.species, dummy, 0.3))) \
-                    or (geometry.equal_geom(self.species, dummy, 0.15))
-            if self.par['multi_conf_tst'] != 1:  # for now skipping this
-                p_coord = copy.deepcopy(self.species.geom)
-                q_coord = copy.deepcopy(dummy.geom)
-                p_atoms = self.species.atom
-                q_atoms = self.species.atom
-                p_cent = rmsd.centroid(p_coord)
-                q_cent = rmsd.centroid(q_coord)
-                p_coord -= p_cent
-                q_coord -= q_cent
-                rotation_method = rmsd.kabsch_rmsd
-                reorder_method = rmsd.reorder_brute
-                #q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
-                #q_coord = q_coord[q_review]
-                #q_atoms = q_atoms[q_review]
-                result_rmsd = rotation_method(p_coord, q_coord)
-                #if result_rmsd > 0.15:
-                #    same_geom = 0
-            else:
-                result_rmsd = 'not done'
-            logger.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
-                         f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
-                         f'corr: {geometry.matrix_corr(imagmode, imagmode_high)}, '\
-                         f'same: {same_geom}')
+                same_geom = geometry.equal_geom(self.species, dummy, 0.1)
         else:
-            same_geom = geometry.equal_geom(self.species, dummy, 0.1)
+            same_geom = 1
 
-        # checking if L2 frequencies are okay
-        err, freq = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
-        if self.species.natom == 1:
-            freq_ok = 1
-        elif len(freq) == 1 and freq[0] == 0:
-            freq_ok = 0
-        elif self.species.wellorts == 0 and freq[0] > -1. * self.par['imagfreq_threshold']:
-            freq_ok = 1
-            if freq[0] < 0.:
-                logger.warning(f'Negative frequency {freq[0]} cm-1 detected in '
-                               f'{self.name}. Flipped to {-freq[0]}.')
-                freq[0] *= -1.
-        elif self.species.wellorts == 1 \
-                and not (np.count_nonzero(np.array(freq) < 0) >= 3  # Three or more imag frequencies
-                         or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
-                         or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies:
-            freq_ok = 1
+        #bypass freq check for VTS for now
+        if not self.VTS:
+            # checking if L2 frequencies are okay
+            err, freq = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
+            if self.species.natom == 1:
+                freq_ok = 1
+            elif len(freq) == 1 and freq[0] == 0:
+                freq_ok = 0
+            elif self.species.wellorts == 0 and freq[0] > -1. * self.par['imagfreq_threshold']:
+                freq_ok = 1
+                if freq[0] < 0.:
+                    logger.warning(f'Negative frequency {freq[0]} cm-1 detected in '
+                                f'{self.name}. Flipped to {-freq[0]}.')
+                    freq[0] *= -1.
+            elif self.species.wellorts == 1 \
+                    and not (np.count_nonzero(np.array(freq) < 0) >= 3  # Three or more imag frequencies
+                            or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
+                            or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies:
+                freq_ok = 1
+            else:
+                freq_ok = 0
         else:
-            freq_ok = 0
+            freq_ok = 1
 
         if conf == -1:
             # update properties for base structure

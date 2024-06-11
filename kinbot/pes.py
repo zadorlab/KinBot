@@ -4,6 +4,7 @@ a full PES instead of only the reactions of one well
 """
 import sys
 import os
+import re
 import stat
 import shutil
 import datetime
@@ -12,15 +13,18 @@ import subprocess
 import json
 import networkx as nx
 import numpy as np
-from copy import deepcopy
+import getpass
 
+from copy import deepcopy
 from ase.db import connect
 
 from kinbot import kb_path
 from kinbot import constants
 from kinbot import license_message
+from kinbot import pp_settings
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.fragments import Fragment
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
@@ -28,10 +32,10 @@ from kinbot.config_log import config_log
 
 def main():
     if sys.version_info.major < 3:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+        print(f'KinBot only runs with python 3.10 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
-    elif sys.version_info.minor < 8:
-        print(f'KinBot only runs with python 3.8 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
+    elif sys.version_info.minor < 10:
+        print(f'KinBot only runs with python 3.10 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)
 
     try:
@@ -260,11 +264,12 @@ def get_wells(job):
     new_wells = []
     for line in summary:
         if (line.startswith('SUCCESS') or line.startswith("HOMOLYTIC_SCISSION")):
-            pieces = line.split()
-            if line.startswith('SUCCESS'):
-                prod = pieces[3:]
-            elif line.startswith('HOMOLYTIC_SCISSION'):
-                prod = pieces[2:]
+            #Unpack the succesfull lines
+            if 'vdW' not in line :
+                success, ts_energy, reaction_name, *prod = line.split()
+            elif 'vdW' in line : #Unpack differently when a vdW well is in line
+                success, ts_energy, reaction_name, *prod, vdW_energy, vdW_direction = line.split()
+            
             if (len(prod) == 1 and
                     prod[0] not in jobs and
                     prod[0] not in new_wells):
@@ -278,7 +283,7 @@ def postprocess(par, jobs, task, names, mass):
     """
     postprocess a pes search
     par: parameters of the search
-    jobs: all of the jobs that were run
+    jobs: all of the kinbot jobs that were run
     temp: this is a temporary output file writing
     """
 
@@ -307,26 +312,40 @@ def postprocess(par, jobs, task, names, mass):
 
     wells = []
     failedwells = []
-    products = []
+    bimol_products = []
+
+
+    # list of reactions for which mp2 energies should be used at L1
+    mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
+                'reac_r12_cycloaddition', 'reac_r14_birad_scission']
+    
+    #list of booleans, length is number of wells
+    #True if the well is a vdW well
+    do_vdW = []
 
     # read all the jobs
     for ji in jobs:
         try:
-            summary = open(ji + '/summary_' + ji + '.out', 'r').readlines()
+            summary = open(f"{ji}/summary_{ji}.out", "r", newline='\n').readlines()
         except:
             failedwells.append(ji)
             continue
-        # read the summary file
-        for line in summary:
-            if line.startswith('SUCCESS') and 'hom_sci' not in line:
-                pieces = line.split()
-                ts = pieces[2]  # this is the long specific name of the reaction
-                if ts in par['skip_reactions']:
+        # read the summary file from after corporate message
+        for line in summary[5:]:
+            if line.startswith("SUCCESS"):
+                #Unpack the succesfull lines
+                if 'vdW' not in line :
+                    ts_energy, reaction_name, *products = line.split()[1:]
+                elif 'vdW' in line : #Unpack differently when a vdW well is in line
+                    ts_energy, reaction_name, *products, vdW_energy, vdW_direction = line.split()[1:]
+                    vdW_well = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
+                if reaction_name in par['skip_reactions']:
                     continue
+
                 reactant = ji
-                prod = pieces[3:]  # this is the chemid of the product
+                #products this is the chemid of the product
                 if 'none' not in par['keep_chemids']:
-                    if len(prod) == 1 and prod[0] not in par['keep_chemids']:
+                    if len(products) == 1 and products[0] not in par['keep_chemids']:
                         continue
                 # calculate the barrier based on the new energy base
                 barrier = 0. - base_energy - base_zpe
@@ -334,7 +353,7 @@ def postprocess(par, jobs, task, names, mass):
                 # overwrite energies with mp2 energy if needed
                 mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
                         'reac_r12_cycloaddition', 'reac_r14_birad_scission']
-                if any([mm in ts for mm in mp2_list]) \
+                if any([mm in reaction_name for mm in mp2_list]) \
                        and not par['high_level'] \
                        and par['qc'] != 'nn_pes':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
@@ -343,83 +362,94 @@ def postprocess(par, jobs, task, names, mass):
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
-                if 'barrierless_saddle' in ts and not par['high_level']:
+                if 'barrierless_saddle' in reaction_name and not par['high_level']:
                     bls_energies = get_energy(jobs, jobs[0], 0, par['high_level'],
                                               bls=1, conf=par['conformer_search'])
                     base_energy_bls, base_zpe_bls = bls_energies
                     barrier = 0. - base_energy_bls - base_zpe_bls
 
-                ts_energy, ts_zpe = get_energy(jobs, ts, 1, par['high_level'], 
+                #Different treatment between homolytic scission and normal reaction
+                if "hom_sci" in line:
+                    barrier = float(ts_energy)
+                else:
+                    #Save ts energy if there is a ts (eg. not barrierless reaction)
+                    ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
                                                conf=par['conformer_search'])
-                barrier += ts_energy + ts_zpe
+                    barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
+                    
                 if reactant not in wells:
                     wells.append(reactant)
                     parent[reactant] = reactant
-                if len(prod) == 1:
-                    if prod[0] not in wells:
-                        if prod[0] not in parent:
-                            parent[prod[0]] = reactant
-                        wells.append(prod[0])
+                    do_vdW.append(False)
+                
+                if len(products) == 1:
+                    product = products[0]
+                    if product not in wells:
+                        if product not in parent:
+                            parent[product] = reactant
+                        wells.append(product)
+                        do_vdW.append(False)
                 else:
-                    prod_name = '_'.join(sorted(prod))
-                    if prod_name not in products:
+                    prod_name = '_'.join(sorted(products))
+                    if 'vdW' in line:
+                        if vdW_well not in wells:
+                            wells.append(vdW_well)
+                            do_vdW.append(True)
+                            parent[vdW_well] = reactant
+                            if prod_name not in parent:
+                                parent[prod_name] = vdW_well
+                    if prod_name not in bimol_products:
                         if prod_name not in parent:
                             parent[prod_name] = reactant
-                        products.append('_'.join(sorted(prod)))
+                        bimol_products.append('_'.join(sorted(products)))
                 new = 1
                 temp = None
 
                 for i, rxn in enumerate(reactions):
                     rxn_prod_name = '_'.join(sorted(rxn[2]))
                     if (reactant == rxn[0] and
-                            '_'.join(sorted(prod)) == rxn_prod_name):
+                            '_'.join(sorted(products)) == rxn_prod_name):
                         new = 0
                         temp = i
-                    if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
+                    if reactant == ''.join(rxn[2]) and ''.join(products) == rxn[0]:
                         new = 0
                         temp = i
-                if new:
-                    reactions.append([reactant, ts, prod, barrier])
-                else:
-                    # check if the previous reaction has a lower energy or not
-                    if reactions[temp][3] > barrier:
-                        reactions.pop(temp)
-                        reactions.append([reactant, ts, prod, barrier])
 
-            elif line.startswith('SUCCESS') and 'hom_sci' in line:
-                pieces = line.split()
-                reactant = ji
-                energy = float(pieces[1])  # energy from summary
-                prod = pieces[3:]   # these are the chemids of the products
+                if new :
+                    if "vdW" not in line:
+                        reactions.append([reactant, reaction_name, products, barrier])
+                    else:
+                        reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
+                elif not new:
+                    if "hom_sci" not in reaction_name:
+                        # check if the previous reaction has a lower energy or not
+                        if reactions[temp][3] > barrier:
+                            reactions.pop(temp)
+                            if "vdW" not in line:
+                                reactions.append([reactant, reaction_name, products, barrier])
+                                if len(reactions[temp]) == 6: #True when reactions[temp] has a vdW well
+                                    parent[prod_name] = reactant
+                            else:
+                                #replace the prod parent by the vdW well
+                                parent[prod_name] = vdW_well 
+                                reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
+                        elif reactions[temp][3] < barrier and "vdW" in line:
+                            wells.pop(-1)
+                            do_vdW.pop(-1)
+                            parent.pop(vdW_well)
+                        elif reactions[temp][3] == barrier:
+                            if "vdW" in line:
+                                reactions.pop(temp)
+                                parent[prod_name] = vdW_well 
+                                reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
+                            else:
+                                #If reaction exitst with same barrier/products, but with a vdW well, keep it and discard new one.
+                                continue
+                        elif "hom_sci" in reactions[temp][1]:
+                            reactions.pop(temp)
 
-                if reactant not in wells:
-                    wells.append(reactant)
-                    parent[reactant] = reactant
 
-                if len(prod) == 1:
-                    if prod[0] not in wells:
-                        if prod[0] not in parent:
-                            parent[prod[0]] = reactant
-                        wells.append(prod[0])
-                else:
-                    prod_name = '_'.join(sorted(prod))
-                    if prod_name not in products:
-                        if prod_name not in parent:
-                            parent[prod_name] = reactant
-                        products.append('_'.join(sorted(prod)))
-                new = 1
-                for rxn in reactions:
-                    rxn_prod_name = '_'.join(sorted(rxn[2]))
-                    if (reactant == rxn[0] and
-                            '_'.join(sorted(prod)) == rxn_prod_name):
-                        new = 0
-                    if reactant == ''.join(rxn[2]) and ''.join(prod) == rxn[0]:
-                        new = 0
-                if new:
-                    ts = 'barrierless'
-                    barrier = energy
-                    reactions.append([reactant, ts, prod, barrier])
         # copy the xyz files
         copy_from_kinbot(ji, 'xyz')
         # copy the L3 calculations here, whatever was in those directories, inp, out, pbs, etc.
@@ -428,7 +458,7 @@ def postprocess(par, jobs, task, names, mass):
         except:
             logger.warning(f'L3 calculations were not copied from {ji}')
     # create a connectivity matrix for all wells and products
-    conn, bars = get_connectivity(wells, products, reactions)
+    conn, bars = get_connectivity(wells, bimol_products, reactions)
     # create a batch submission for all L3 jobs
     if par['queuing'] == 'pbs':
         cmd = 'qsub'
@@ -447,9 +477,9 @@ def postprocess(par, jobs, task, names, mass):
 
     well_energies = {}
     well_l3energies = {}
-    for well in wells:
-        energy, zpe = get_energy(wells, well, 0, par['high_level'], 
-                                 conf=par['conformer_search'])  # from the db
+    for index, well in enumerate(wells):
+        energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
+                            conf=par['conformer_search'])  # from the db
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -461,7 +491,7 @@ def postprocess(par, jobs, task, names, mass):
             well_l3energies[well] = ((l3energy + zpe) - (base_l3energy + base_zpe)) * constants.AUtoKCAL
     prod_energies = {}
     prod_l3energies = {}
-    for prods in products:
+    for prods in bimol_products:
         energy = 0. - (base_energy + base_zpe)
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
@@ -481,7 +511,10 @@ def postprocess(par, jobs, task, names, mass):
 
     ts_l3energies = {}
     for reac in reactions:
-        if reac[1] != 'barrierless':  # meaning homolytic scission
+        if "hom_sci" not in reac[1]:  # meaning homolytic scission
+            if len(reac) > 4:#vdW 
+                vdW_well = f"{reac[1]}{reac[5].split('vdW')[1]}"
+                reac[4] = well_energies[vdW_well]
             if 'barrierless_saddle' in reac[1]:
                 zpe = get_zpe(reac[0], reac[1], 1, par['high_level'])
                 status, l3energy = get_l3energy(reac[1], par, bls=1)
@@ -527,30 +560,34 @@ def postprocess(par, jobs, task, names, mass):
         well_energies = well_l3energies
         prod_energies = prod_l3energies
         for reac in reactions:  # swap out the barrier
-            if 'barrierless' not in reac[1]:
+            if 'hom_sci' not in reac[1]:
                 reac[3] = ts_l3energies[reac[1]]
             if 'barrierless_saddle' in reac[1]:
                 reac[3] = ts_l3energies[reac[1]]
+            if len(reac) > 4: #vdW 
+                vdW_well = f"{reac[1]}{reac[5].split('vdW')[1]}"
+                reac[4] = well_l3energies[vdW_well]
 
         logger.info('L3 energies in kcal/mol, incl. ZPE')
         for well in wells:
             logger.info('{}   {:.2f}'.format(well, well_l3energies[well]))
-        for prod in products:
+        for prod in bimol_products:
             logger.info('{}   {:.2f}'.format(prod, prod_l3energies[prod]))
         for ts in ts_l3energies:
-            logger.info('{}   {:.2f}'.format(ts, ts_l3energies[ts]))
+            logger.info('{}   {:.2f}'.format(reaction_name, ts_l3energies[ts]))
     else:
         logger.info(f'Energies used are at the L2 ({par["high_level_method"]}/'
                      f'{par["high_level_basis"]}) level of theory.')
 
+        
     # if L3 was done and requested, everything below is done with that
     # filter according to tasks
-    filtered_stpts = filter_stat_points(par, wells, products, reactions, conn,
+    filtered_stpts = filter_stat_points(par, wells, bimol_products, reactions, conn,
                                         bars, well_energies, task, names)
     wells, products, reactions, highlight = filtered_stpts
 
     create_interactive_graph(wells,
-                             products,
+                             bimol_products,
                              reactions,
                              par['title'],
                              well_energies,
@@ -558,38 +595,51 @@ def postprocess(par, jobs, task, names, mass):
                              )
 
     barrierless = []
+    vdW = []
     rxns = []
     for rxn in reactions:
-        if rxn[1] == 'barrierless':
+        if 'hom_sci' in rxn[1]:
+            #in rxn: [reactant, reaction_name, products, barrier]
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
+        elif len(rxn) > 4: #vdW for now, find better condition latter?
+            #in rxn: [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
+            vdW.append([rxn[0], rxn[1], rxn[2], rxn[3], rxn[4], rxn[5]])
         else:
             rxns.append([rxn[0], rxn[1], rxn[2], rxn[3]])
+
+    create_rotdPy_inputs(par,
+                         barrierless,
+                         vdW)
+
 
     # write full pesviewer input
     create_pesviewer_input(par,
                            wells,
-                           products,
+                           bimol_products,
                            rxns,
                            barrierless,
+                           vdW,
                            well_energies,
                            prod_energies,
                            highlight)
+    
     if par['me']:
         create_mess_input(par,
-                          wells,
-                          products,
-                          rxns,
-                          barrierless,
+                          deepcopy(wells),
+                          bimol_products,
+                          deepcopy(rxns),
+                          deepcopy(barrierless),
+                          deepcopy(vdW),
                           well_energies,
                           prod_energies,
                           parent,
                           mass,
                           l3done)
 
-    if par['single_point_qc'].lower() == 'molpro':
-        if l3done:
-            check_l3_l2(par['single_point_key'], parent, reactions)
-        t1_analysis(par['single_point_key'])
+    #if par['single_point_qc'].lower() == 'molpro':
+    #    if l3done:
+    #        check_l3_l2(par['single_point_key'], parent, reactions)
+    #    t1_analysis(par['single_point_key'])
 
 
 def filter_stat_points(par, wells, products, reactions, conn, bars, well_energies, task,
@@ -700,6 +750,11 @@ def filter_stat_points(par, wells, products, reactions, conn, bars, well_energie
             if well == rxn[0] or well == prod_name:
                 if well not in filtered_wells:
                     filtered_wells.append(well)
+            if "IRC" in well and (len(rxn) == 6):
+                vdW_name = f"{rxn[1]}{rxn[5].split('vdW')[1]}"
+                if well == vdW_name:
+                    if well not in filtered_wells:
+                        filtered_wells.append(well)
 
     # filter the products
     filtered_products = []
@@ -905,7 +960,7 @@ def get_rxn(prods, rxns):
             return rxn
 
 
-def create_short_names(wells, products, reactions, barrierless):
+def create_short_names(wells, products, reactions, barrierless, vdW):
     """
     Create a short name for all the wells, all the
     bimolecular products and all the transition states
@@ -955,11 +1010,21 @@ def create_short_names(wells, products, reactions, barrierless):
         key = f'{rxn[0]}_{rxn[2][0]}_{rxn[2][1]}'
         nobar_short[key] = nobar_name
         n = n + 1
+    
+    for vdw in vdW:
+        if f"{vdw[1]}{vdw[5].split('vdW')[1]}" not in well_short:
+            short_name = 'w_' + str(len(well_short) + 1)
+            well_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}"] = short_name
+        nobar_name = 'nobar_' + str(n)
+        key = f"{vdw[1]}{vdw[5].split('vdW')[1]}_{vdw[2][0]}_{vdw[2][1]}"
+        nobar_short[key] = nobar_name
+        n = n + 1
+        
 
     return well_short, pr_short, fr_short, ts_short, nobar_short
 
 
-def create_mess_input(par, wells, products, reactions, barrierless,
+def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                       well_energies, prod_energies, parent, mass, l3done):
     """When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
@@ -972,8 +1037,20 @@ def create_mess_input(par, wells, products, reactions, barrierless,
     others are corrected with their DeltaL2 energies.
     """
 
+    min_vdW = find_min_vdW(vdW, well_energies)
+
+    for well in wells:
+        if well in min_vdW and\
+        min_vdW[well] != well:
+            wells.pop(wells.index(well))
+
     logger.info(f"uq value: {par['uq']}")
-    short_names = create_short_names(wells, products, reactions, barrierless)
+    for vdw in vdW:
+        vdw_name = f"{vdw[1]}{vdw[5].split('vdW')[1]}"
+        vdW_well_reac = [vdw[0], vdw[1], [min_vdW[vdw_name]], vdw[3]]
+        if vdW_well_reac not in reactions:
+            reactions.append(vdW_well_reac)
+    short_names = create_short_names(wells, products, reactions, barrierless, vdW)
     well_short, pr_short, fr_short, ts_short, nobar_short = short_names
 
     # list of the strings to write to mess input file
@@ -1040,13 +1117,19 @@ def create_mess_input(par, wells, products, reactions, barrierless,
             name = well_short[well] + ' ! ' + well
             energy = well_energies[well] + uq.calc_factor('energy', uq_iter)
             well_energies_current[well] = energy
+            # if 'IRC' not in well:
             with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
                 s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
             s.append(divider)
+            # else:
+                # with open(parent[well] + '/' + parent[well] + '_' + mess_iter + '.mess', 'r') as f:
+                    # s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
+                # s.append(divider)
 
         # write the products and barrierless reactions
         s.append(frame + '# BIMOLECULAR PRODUCTS\n' + frame)
         for prod in products:
+            linked_bless_wells = []
             name = pr_short[prod] + ' ! ' + prod
             energy = prod_energies[prod] + uq.calc_factor('energy', uq_iter)
             prod_energies_current[prod] = energy
@@ -1055,11 +1138,14 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                 key = f'fr_name_{fr}'
                 value = fr_short[fr] + ' ! ' + fr
                 fr_names[key] = value
-            # check if barrieless
+            # check if is obtained by barrieless reaction
             bless = 0
             for bl in barrierless:
                 bl_prod = f'{bl[2][0]}_{bl[2][1]}'
                 if prod == bl_prod:
+                    if bl[0] in linked_bless_wells:
+                        continue
+                    linked_bless_wells.append(bl[0])
                     with open(bl[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
                         if bless == 0:
                             s.append(f.read().format(name=name,
@@ -1077,11 +1163,58 @@ def create_mess_input(par, wells, products, reactions, barrierless,
                                                      ground_energy=round(energy, 2),
                                                      **fr_names))
                             s.append(stemp[stemp.find('Barrier '):])
+            # check if is obtained by vdW dissociation
+            for vdw in vdW:
+                bl_prod = f'{vdw[2][0]}_{vdw[2][1]}'
+                if prod == bl_prod:
+                    #Skip this vdW well is bless already added with similar well
+                    if min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"] in linked_bless_wells:
+                        continue
+                    linked_bless_wells.append(min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"])
+                    with open(vdw[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                        if bless == 0:
+                            s.append(f.read().format(name=name,
+                                                     blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
+                                                     wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
+                                                     prodname=pr_short[prod],
+                                                     ground_energy=round(energy, 2),
+                                                     **fr_names))
+                            bless = 1
+                        else:
+                            stemp = (f.read().format(name=name,
+                                                     blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
+                                                     wellname=well_short[min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"]],
+                                                     prodname=pr_short[prod],
+                                                     ground_energy=round(energy, 2),
+                                                     **fr_names))
+                            s.append(stemp[stemp.find('Barrier '):])
+            #The product is directly obtained after a reaction with a barrier
             if not bless:
-                with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                    s.append(f.read().format(name=name,
-                                             ground_energy=round(energy, 2),
-                                             **fr_names))
+                if 'IRC' not in parent[prod]:
+                    try:
+                        with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                            s.append(f.read().format(name=name,
+                                                    ground_energy=round(energy, 2),
+                                                    **fr_names))
+                    except:#When bimolecular template is used both for barrierless and with barrier
+                        with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                            file = f.readlines()
+                        f = ''
+                        for line in file:
+                            if "Barrier" in line:
+                                break
+                            else:
+                                f += line
+                        s.append(f.format(name=name,
+                                          ground_energy=round(energy, 2),
+                                          **fr_names))
+
+                else:
+                    with open(parent[parent[prod]] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                        s.append(f.read().format(name=name,
+                                                ground_energy=round(energy, 2),
+                                                **fr_names))
+                
             s.append(divider)
 
         # write the barrier
@@ -1216,8 +1349,289 @@ def create_mess_input(par, wells, products, reactions, barrierless,
         #uq.format_uqtk_data() 
     return
 
+def create_rotdPy_inputs(par, bless, vdW):
+    """
+    Function that create an input file for rotdPy.
+    barrierless and vdW are lists of reactions.
+    barrierless reactions:
+    [reactant, reaction_name, products, barrier]
+    vdW reactions:
+    [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
+    """
 
-def create_pesviewer_input(par, wells, products, reactions, barrierless,
+    barrierless = list(bless) #Avoids modifying barrierless outside of the function
+    number_of_barrierless = len(barrierless)
+
+    #format the vdW reactions to be added to the barrierless list.
+    for reac in vdW:
+        reactant, reaction_name, products, barrier, vdW_energy, vdW_direction = reac
+        reaction_name = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
+        barrier = vdW_energy
+        barrierless.append([reactant, reaction_name, products, barrier])
+
+    for index, reac in enumerate(barrierless):
+        reactant, reaction_name, products, barrier = reac
+        job_name = f"{reaction_name}_{'_'.join(sorted(products))}"
+        rotdpy_inputs = []
+        if len(par["rotdPy_inputs"]) != 0:
+            for this_input in par["rotdPy_inputs"]:
+                inp_products = this_input.split("_")[-2:]
+                rotdpy_inputs.append(f"{'_'.join(this_input.split('_')[:-2])}_{'_'.join(sorted(inp_products))}")
+        if job_name not in rotdpy_inputs:
+            continue
+        logger.info(f"Creating rotdPy input for reaction {job_name}")
+        parent_chemid = reactant
+        if len(products) != 2: #Check if the barrierless reaction has 2 fragments
+            logger.warning("The creation of rotdPy inputs currently only work for bimolecular products.")
+            logger.warning(f"Skiping rotdPy input creation for reac {job_name}.")
+            continue
+        tot_frag = len(products)
+
+        vrc_tst_start = 0
+        do_correction = True
+        corrections = {"1d":{"type": "1d"}}
+        for scan_type in ["","_frozen"]:
+            if "IRC" in job_name:
+                plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
+                if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
+                    logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
+                    do_correction = False
+            elif "hom_sci" in job_name: 
+                plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[0]}_{inp_products[1]}_plt.py"
+                if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
+                    plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[1]}_{inp_products[0]}_plt.py"
+                    if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
+                        logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
+                        do_correction = False
+            
+            pivot_points_info = []
+            
+            if do_correction:
+                with open(f"{parent_chemid}/{plt_file}") as f:
+                    lines = f.readlines()
+
+                for lidx, line in enumerate(lines[4:]):
+                    if re.search("^y[0-2] = \[", line):
+                        y_data = line
+                        if y_data.startswith("y0"):
+                            level = "L1"
+                        elif y_data.startswith("y1"):
+                            level = "L2"
+                        elif y_data.startswith("y2"):
+                            level = "L3"
+                    if re.search("^x =", line):
+                        x_data = line
+                    if "inf_energy" in line:
+                        inf_energy = float(line.split("energy: ")[1])
+                    if "scan_ref" in line:
+                        corrections["1d"]["scan_ref"] = [[int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]]
+                    if "VRC TST Sampling recommended start: " in line :
+                        vrc_tst_start = float(line.split("start: ")[1])
+                    if 'Number of unique sets of pivot points: ' in line:
+                        for pp_number in range(int(line.split()[-1])):
+                            indexes0 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('[[')[1].split('],')[0].split(',')]
+                            indexes1 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('], [')[1].split(']]')[0].split(',')]
+                            pivot_points_info.append({
+                                '0': int(lines[4:][lidx+1+6*pp_number].split()[-1]),
+                                '1': int(lines[4:][lidx+2+6*pp_number].split()[-1]),
+                                'type': lines[4:][lidx+3+6*pp_number].split()[-1],
+                                'indexes': [indexes0, indexes1],
+                                'min': float(lines[4:][lidx+5+6*pp_number].split()[-1]),
+                                'max': float(lines[4:][lidx+6+6*pp_number].split()[-1])
+                            })
+
+                match scan_type:
+                    case "":
+                        corrections["1d"]["e_trust"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
+                        corrections["1d"]["r_trust"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
+                    case "_frozen":
+                        corrections["1d"]["e_sample"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
+                        corrections["1d"]["r_sample"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
+            else:
+                corrections = {}
+                    
+        fragments = []
+        for frag_number in range(tot_frag):
+            chemid = products[frag_number]
+
+            if par['high_level']:
+                #Will read info from L2 structure
+                basename = f"{chemid}_well_VTS_high"
+            else:
+                #Will read info from L1 structure
+                basename = f"{chemid}_well_VTS"
+
+            #Create ase.atoms objects for each fragments
+            db = connect(f"{parent_chemid}/kinbot.db")
+            *_, last_row = db.select(name=f"{basename}")
+            atoms = last_row.toatoms() #This is an ase.atoms object
+            fragments.append(Fragment.from_ase_atoms(atoms=atoms,
+                                                    frag_number=frag_number,
+                                                    max_frag=tot_frag,
+                                                    chemid=chemid,
+                                                    parent_chemid=parent_chemid,
+                                                    par=par))
+        if par['high_level']:
+            #Will read info from L2 structure
+            if '_IRC_' in reaction_name:
+                basename = f"{reaction_name}_high"
+            else:
+                basename = f"{parent_chemid}_well_high"
+        else:
+            #Will read info from L1 structure
+            if '_IRC_' in reaction_name:
+                basename = f"{reaction_name}"
+            else:
+                basename = f"{parent_chemid}_well"
+
+        db = connect(f"{parent_chemid}/kinbot.db")
+        *_, last_row = db.select(name=f"{basename}", sort="-1")
+        parent = StationaryPoint.from_ase_atoms(last_row.toatoms())#This is an ase.atoms object
+        parent.characterize()
+
+        fragnames = Fragment.get_fragnames()
+        reactive_atoms = []
+        reactive_atoms = pp_settings.get_ra(reac, parent_chemid)
+        #if index < number_of_barrierless:
+            #Map the long range fragments with the index of the parent to find 
+        pp_settings.set_parent_map(parent, reactive_atoms, fragments)
+            #Make sure the reactive atoms are in the same order as the fragments
+            #Shouldn't be needed anymore
+            #reactive_atoms = pp_settings.reset_reactive_atoms(reactive_atoms,[frag.map for frag in fragments])
+        #endif
+
+        #Set the pivot points on each fragments and create the surfaces
+        surfaces = []
+        comments = []
+        if len(reactive_atoms) == 0:
+            logger.warning("No reactive atom detected for this reaction. Pivot points on COMs.")
+
+        for dist in par['vrc_tst_dist_list']:
+            if dist < vrc_tst_start:
+                logger.info(f"Removing sampling surface {dist} for reaction {reaction_name}")
+                continue
+            elif dist >= vrc_tst_start:
+                surfaces.extend(pp_settings.create_all_surf_for_dist(dist, fragments, par, reactive_atoms))
+                
+        #Creating the strings to print input file
+        #Fragments block:
+        Fragments_block = "#Fragments geometries are in Angstroms\n"
+        for frag in fragments:
+            Fragments_block = Fragments_block + (repr(frag)) + "\n"
+
+        #Surfaces block:
+        Surfaces_block = "#Pivot_points and distances are in Bohr\ndivid_surf = [\n"
+        for index, surf in enumerate(surfaces):
+            Surfaces_block = Surfaces_block + (repr(surf))
+            if surf == surfaces[-1]:
+                Surfaces_block = Surfaces_block[:-3]
+        Surfaces_block += "]\n"
+
+        #Corrections block
+        corrections_block = "#Scan energies are in Kcal/mol. The 0 is the assymptotic energy.\n#Scan distances are in Angstrom\ncorrections = {\n"
+        for correction in corrections:
+            corrections_block += f"'{correction}' : " + "{\n"
+            for ckey, cvalue in corrections[correction].items():
+                if isinstance(cvalue, str):
+                    corrections_block += f"'{ckey}' : '{cvalue}',\n"
+                else:
+                    corrections_block += f"'{ckey}' : {cvalue},\n"
+            corrections_block = corrections_block[:-2]
+            corrections_block += "\n}\n"
+        corrections_block += "}\n"
+
+        #Calc_block:
+        whoami = getpass.getuser()
+        Calc_block = "calc = {\n" +\
+                    "'code': 'molpro',\n" +\
+                    f"'scratch': '/scratch/{whoami}',\n" +\
+                    f"'processors': 1,\n" +\
+                    f"'queue': '{par['queuing']}',\n" +\
+                    "'max_jobs': 2000}"
+
+        #Flux block:
+        Flux_block = "flux_parameter = {'pot_smp_max': 6000, 'pot_smp_min': 500, #per facet\n" +\
+                        "                  'tot_smp_max': 15000, 'tot_smp_min': 500, \n" +\
+                        "                  'flux_rel_err': 5, 'smp_len': 1}\n"
+
+
+        fname = f"{job_name}.py"
+        folder = "rotdPy"
+        template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
+        with open(template_file_path) as template_file:
+            template = template_file.read()
+            new_input = template.format(job_name = job_name,
+                                   Fragments_block = Fragments_block,
+                                   Surfaces_block = Surfaces_block,
+                                   frag_names = '[' + ', '.join(fragnames) + ']',
+                                   calc_block = Calc_block,
+                                   flux_block = Flux_block,
+                                   min_dist = par['vrc_tst_dist_list'][0],
+                                   corrections_block=corrections_block,
+                                   inf_energy=inf_energy)
+        if not os.path.exists(folder):
+            # Create a new directory because it does not exist
+            os.makedirs(folder)
+
+        with open(f"{folder}/{fname}", 'w') as f:
+            f.write(new_input)
+
+        #Erase the fragments for this reaction
+        Fragment._instances = []
+
+def is_unique_vdW(well, vdW):
+    #Return boolean
+    if 'prod' not in well:
+        return True
+    
+    #Find well's reaction
+    for idx, vdw in enumerate(vdW):
+        vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
+        if vdw_name == well:
+            products = '_'.join(sorted(vdw[2]))
+            break
+
+    #Compare products with other reactions
+    other_vdW = vdW[:idx]
+    if idx+1 < len(vdW):
+        other_vdW.extend(vdW[idx+1:])
+    for vdw in other_vdW[:idx]:
+        other_prod = '_'.join(sorted(vdw[2]))
+        if other_prod == products:
+            return False
+    #No other reaction with a vdW well lead to the same prod.
+    return True
+    
+def find_min_vdW(vdW: list, well_energies: dict) -> dict:
+    #Dict linking each vdW well to the lowest equivalent
+    min_vdW = {}
+    for idx, vdw in enumerate(vdW):
+        vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
+        products = '_'.join(sorted(vdw[2]))
+        vdw_energy = well_energies[vdw_name]
+
+        #Minimum set to itself
+        if vdw_name not in min_vdW:
+            min_vdW[vdw_name] = vdw_name
+
+        other_vdW = vdW[:idx]
+        if idx+1 < len(vdW):
+            other_vdW.extend(vdW[idx+1:])
+        
+        for other_vdw in other_vdW[:idx]:
+            other_name = other_vdw[1] + other_vdw[-1].split('vdW')[1]
+            other_prod = '_'.join(sorted(other_vdw[2]))
+            other_energy = well_energies[other_name]
+
+            #Minimum set to a different well if found
+            if other_prod == products:
+                if other_energy < well_energies[min_vdW[vdw_name]]:
+                    min_vdW[vdw_name] = other_name
+    return min_vdW
+        
+        
+
+def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
                            well_energies, prod_energies, highlight):
     """
     highlight: list of reaction names that need a red highlight
@@ -1231,10 +1645,21 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
     if highlight is None:
         highlight = []
 
+    #Dictionary
+    #Key: 'vdW_name'
+    #Value: 'min_vdW_name' 
+    min_vdW = find_min_vdW(vdW, well_energies)
+
     well_lines = []
     for well in wells:
-        energy = well_energies[well]
-        well_lines.append('{} {:.2f}'.format(well, energy))
+        if is_unique_vdW(well, vdW):
+            energy = well_energies[well]
+            well_lines.append('{} {:.2f}'.format(well, energy))
+        else:
+            energy = well_energies[min_vdW[well]]
+            line = '{} {:.2f}'.format(well, energy)
+            if line not in well_lines:
+                well_lines.append(line)
 
     bimol_lines = []
     for prods in products:
@@ -1253,14 +1678,31 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless,
                                                     prod_name,
                                                     high))
     barrierless_lines = []
-    index = 0
     prev_prod = []
-    for rxn in barrierless:
+    for index, rxn in enumerate(barrierless):
         prod_name = '_'.join(sorted(rxn[2]))
         barrierless_lines.append('{name} {react} {prod}'.format(name='nobar_' + str(index),
                                                                     react=rxn[0],
                                                                     prod=prod_name))
-        index = index + 1
+    
+    for index, rxn in enumerate(vdW):
+        high = ''
+        if rxn[1] in highlight:
+            high = 'red'
+        vdW_name = f"{rxn[1]}{rxn[5].split('vdW')[1]}"
+        prod_name = '_'.join(sorted(rxn[2]))
+        
+        ts_lines.append('{} {:.2f} {} {} {}'.format(rxn[1],
+                                                    rxn[3],
+                                                    rxn[0],
+                                                    min_vdW[vdW_name],
+                                                    high))
+        line = '{name} {react} {prod}'.format(name='nobar_' + str(index + len(barrierless)),
+                                                                react=min_vdW[vdW_name],
+                                                                prod=prod_name)
+        if line not in barrierless_lines:
+            barrierless_lines.append(line)
+            
 
     well_lines = '\n'.join(well_lines)
     bimol_lines = '\n'.join(bimol_lines)
@@ -1326,6 +1768,7 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
 
 
 def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
+    
     if ts:
         j = job
         wells = [job.split('_')[0]]
@@ -1342,6 +1785,8 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
     energy = np.inf
     zpe = np.inf
     for well in wells:
+        if "IRC" in well:
+            well = well.split("_")[0]
         db = connect(well + '/kinbot.db')
         rows = db.select(name=j)
         for row in rows:
@@ -1350,7 +1795,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
                 new_zpe = row.data.get('zpe')
             except (UnboundLocalError, TypeError):
                 continue
-            if new_zpe == None:
+            if new_zpe is None:
                 continue
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
                 if not ts:
@@ -1386,12 +1831,12 @@ def get_l3energy(job, par, bls=0):
         if os.path.exists(f'molpro/{job}.out'):
             with open(f'molpro/{job}.out', 'r') as f:
                 lines = f.readlines()
-                #for line in reversed(lines):
-                for line in lines:
-                    if ('SETTING ' + key) in line:
-                        e = float(line.split()[3])
-                        logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
-                        return 1, e  # energy was found
+            for line in reversed(lines):
+            #for line in lines:
+                if ('SETTING ' + key) in line:
+                    e = float(line.split()[3])
+                    logger.info('L3 electronic energy for {} is {} Hartree.'.format(job, e))
+                    return 1, e  # energy was found
     elif par['single_point_qc'] == 'orca':
         if os.path.exists(f'orca/{job}_property.txt'):
             with open(f'orca/{job}_property.txt', 'r') as f:
@@ -1428,6 +1873,8 @@ def get_l3energy(job, par, bls=0):
 
 
 def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
+    if "IRC" in job:
+        jobdir = job.split("_")[0]
     db = connect(jobdir + '/kinbot.db')
     if ts:
         j = job
@@ -1444,7 +1891,7 @@ def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
     for row in rows:
         if hasattr(row, 'data'):
             zpe = row.data.get('zpe')
-    if zpe == None: 
+    if zpe is None: 
         logger.warning('Could not find zpe for {} in directory {}'.format(job, jobdir))
         zpe = 1.  # a large value
     return zpe
@@ -1497,6 +1944,9 @@ def submit_job(chemid, par):
                         .format(chemid, par['barrierless_saddle_single_point_template']))
         shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
                         .format(chemid, par['barrierless_saddle_prod_single_point_template']))
+    if par['vrc_tst_scan_parameters']['molpro_tpl'] != '':
+        shutil.copyfile('{}'.format(par['vrc_tst_scan_parameters']['molpro_tpl']), 
+                        '{}/{}'.format(chemid, par['vrc_tst_scan_parameters']['molpro_tpl']))
     outfile = open(f'{chemid}/kinbot.out', 'w')
     errfile = open(f'{chemid}/kinbot.err', 'w')
     process = subprocess.Popen(command,

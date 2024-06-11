@@ -149,7 +149,6 @@ def make_zmat_from_cart(species, rotor, cart, mode):
 
     return zmat_atom, zmat_ref, zmat, zmatorder
 
-
 def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, atom, cart, mode):
     """
     Rearrange geometry defined in Cartesian into a Z-matrix,

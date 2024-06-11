@@ -82,7 +82,7 @@ class My_args():
 
     def __init__(self, nntype, model_name, fid):
         self.nntype = [nntype]
-        if model_name == None:
+        if model_name is None:
             self.load_model = False
         else:
             if isinstance(model_name, list):

@@ -95,7 +95,7 @@ class StationaryPoint:
             self.get_geom()
         if self.natom == 0:
             self.natom = len(atom)
-    
+
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
         """Builds a stationary point object from an ase.Atoms object.
@@ -116,6 +116,8 @@ class StationaryPoint:
 
         if name is None:
             name = 'StationaryPoint'
+        else:
+            name = kwargs["name"]
 
         if charge is None:
             if atoms.calc is None or 'charge' not in atoms.calc.parameters:
@@ -213,7 +215,7 @@ class StationaryPoint:
                     continue
                 elif self.dist[i][j] < 0.5:
                     err_msg = f'Incorrect geometry for {self.name}: Found an ' \
-                              'interatomic distance smaller than 0.5 Å.'
+                              'interatomic distance smaller than 0.5 Angstrom.'
                     logger.error(err_msg)
                     raise ValueError(err_msg)
 
@@ -690,7 +692,7 @@ class StationaryPoint:
         """ 
         Identify unique rotatable bonds in the structure 
         No rotation around ring bonds and double and triple bonds.
-        If all is set to 1, then redundant dihedrals are also found.
+        If findall is set to 1, then redundant dihedrals are also found.
         """
         
         self.calc_chemid()
@@ -699,7 +701,7 @@ class StationaryPoint:
         if len(self.bonds) == 0:
             self.bonds = [self.bond]
         self.dihed = []
-        self.dihed_all = []
+        self.dihed_allrot = []
         hit = 0
 
         if self.natom < 4: return 0
@@ -722,8 +724,38 @@ class StationaryPoint:
                                             self.dihed.append([a, b, c, d])
                                             hit = 1 
                                         else:
-                                            self.dihed_all.append([a, b, c, d])
+                                            self.dihed_allrot.append([a, b, c, d])
 
+        return 0
+
+    def find_alldihedral(self, collinear_cutoff=None): 
+        """ 
+        Identify all dihedrals
+        Also keeps the ones that are with linear angles
+        This is to be used in frozen calculations
+        """
+        
+        self.calc_chemid()
+        if not hasattr(self, 'cycle_chain'):
+            self.find_cycle()
+        if len(self.bonds) == 0:
+            self.bonds = [self.bond]
+        self.dihed = []
+        self.dihed_all = []
+
+        if self.natom < 4: return 0
+
+        # a-b-c-d, rotation around b-c
+        for b in range(self.natom):
+            for c in range(b, self.natom):
+                if self.bond[b][c] > 0:
+                    for a in range(self.natom):
+                        if self.bond[a][b] > 0 and a != c:
+                            for d in range(self.natom):
+                                if self.bond[c][d] > 0 and d != b:
+                                    dihedral_angle, warning = geometry.calc_dihedral(self.geom[a], self.geom[b], self.geom[c], self.geom[d], collinear_cutoff=collinear_cutoff)
+                                    if not warning:
+                                        self.dihed_all.append([a, b, c, d])
         return 0
 
     def find_conf_dihedral(self):

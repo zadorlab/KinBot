@@ -79,13 +79,19 @@ def create_summary_file(species, qc, par):
     2. the barrier height
     3. the reaction name
     4. the product identifiers
+    optionally:
+    5. the depth of vdW well
+    6. the IRC direction to go to the vdW well
     """
     # list of strings which will be put together for the output
     s = []
     # add the license message to the file
     s.append(license_message.message)
-    # list of the products
-    products = []
+
+    max_len = 0
+    for index in range(len(species.reac_inst)):
+        if len(species.reac_name[index]) > max_len:
+            max_len = len(species.reac_name[index])
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             ts = species.reac_obj[index].ts
@@ -100,17 +106,37 @@ def create_summary_file(species, qc, par):
                           - species.energy - species.zpe) * constants.AUtoKCAL
             else:
                 energy = (ts.energy + ts.zpe - species.energy - species.zpe) * constants.AUtoKCAL
-            prod_name = ''
+                
             name = []
             for prod in species.reac_obj[index].products:
                 name.append(str(prod.chemid))
             prod_name = ' '.join(sorted(name))
-            products.append(prod_name)
-            s.append('SUCCESS\t{energy:.2f}\t{name}\t{prod}'.format(energy=energy,
+            status = "SUCCESS"
+            if species.reac_obj[index].do_vdW:   
+                vdW_energy = (species.reac_obj[index].irc_prod.energy +\
+                              species.reac_obj[index].irc_prod.zpe -\
+                              (species.energy + species.zpe))*constants.AUtoKCAL
+                direction ="vdW{}".format(species.reac_obj[index]\
+                                          .irc_prod.name.split(species.reac_obj[index]\
+                                                               .instance_name)[1])        
+                s.append('{status:7s}{energy:> 9.2f}  {name:{max_len}s} {prod} {vdW_energy:> 7.2f}  {direction}'.format(status=status,
+                                                                    energy=energy,
+                                                                    max_len=max_len+1,
                                                                     name=species.reac_name[index],
-                                                                    prod=prod_name))
+                                                                    prod=prod_name,
+                                                                    vdW_energy=vdW_energy,
+                                                                    direction=direction))
+            else:
+                s.append('{status:7s}{energy:> 9.2f}  {name:{max_len}s} {prod}'.format(status=status,
+                                                                    energy=energy,
+                                                                    name=species.reac_name[index],
+                                                                    prod=prod_name,
+                                                                    max_len=max_len+1))
         else:
-            s.append('FAILED\t\t{name}'.format(name=species.reac_name[index]))
+            status = "FAILED"
+            s.append('{status:16s}  {name:{max_len}s}'.format(status=status,
+                                                 name=species.reac_name[index],
+                                                 max_len=max_len+1))
 
     # make a string out of all the lines
     s = '\n'.join(s)
@@ -185,6 +211,15 @@ def createPESViewerInput(species, qc, par):
             # this is for the rmg postprocessing
             make_xyz(st_pt.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
         energy = energy * constants.AUtoKCAL
+        if species.reac_obj[index].do_vdW:
+            irc_prod = species.reac_obj[index].irc_prod_opt.species
+            name = str(irc_prod.name)
+            if name in well_names:
+                continue
+            make_xyz(species.atom, irc_prod.geom, str(irc_prod.name), dir_xyz)
+            energy = (irc_prod.energy + irc_prod.zpe - well_energy) * constants.AUtoKCAL
+            wells.append(f'{irc_prod.name} {energy:.2f}')
+            well_names.append(name)
         if name not in bimolec_names:
             bimolecs.append(f'{name} {energy:.2f}')
             bimolec_names.append(name)
@@ -225,7 +260,7 @@ def createPESViewerInput(species, qc, par):
     # Barrierless reactions
     bless = []
     for index in range(len(species.reac_inst)):
-        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci':
+        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci' or species.reac_type[index] != 'vdW':
             continue
         name = []
         for st_pt in species.reac_obj[index].products:

@@ -37,7 +37,7 @@ def iowait(logfile, qc_code):
     """Wait for I/O to be done to a specific file.
     There is a maxtime.
     """
-    maxtime = 10  # s
+    maxtime = 30  # s
     clock = 0
 
     if qc_code == 'gauss':
@@ -84,6 +84,11 @@ def make_dirs(par):
             os.mkdir('aie')
         if not os.path.exists('perm/aie'):
             os.makedirs('perm/aie')
+    if par['vrc_tst_scan'] != {}:
+        if not os.path.exists('vrctst'):
+            os.mkdir('vrctst')
+        if not os.path.exists('perm/vrctst'):
+            os.makedirs('perm/vrctst')
     if not os.path.exists('me'):
         os.mkdir('me')
 
@@ -141,10 +146,46 @@ def clean_files():
         else:
             try:
                 atoms = read(ll)
-            except StopIteration:
+            except (StopIteration, ValueError):
                 continue
             else:
                 if len(atoms.positions) > 1 and np.all(atoms.positions == 0):
                     os.remove(ll)
                     logger.info(f'All coordinates of file {ll} are 0, hence '
                                  f'it is deleted.')
+                    
+def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label="x", y_label="y", data_legends=["y0"], comments=[""]):
+    """Function that create the input for a 2D matplotlib plot."""
+
+    if not isinstance(x, list) and not isinstance(data, list):
+        return 
+    
+    content = """import numpy as np
+import matplotlib.pyplot as plt
+from scipy.interpolate import make_interp_spline\n\n"""
+
+    for comment in comments:
+        content += f"# {comment}\n"
+    
+    content += f"x = {x}\n"
+    content += "x_spln = np.arange(min(x), max(x), 0.1)\n\n"
+
+    for index, y in enumerate(data):
+        content += f"y{index} = {list(y)}\n"
+        content += f"spln{index} = make_interp_spline(x, y{index})\n"
+        content += f"y_spln{index} = spln{index}(x_spln)\n"
+
+    content += "\nfig, ax = plt.subplots()\n"
+
+    for index, legend in enumerate(data_legends):
+        content += f"ax.scatter(x, y{index}, label='{legend}', marker='x')\n"
+        content += f"ax.plot(x_spln, y_spln{index}, label='spln_{legend}')\n"
+
+    content += f"""
+ax.legend(loc='lower right')
+ax.set_xlabel(r'{x_label}')
+ax.set_ylabel(r'{y_label}')
+plt.show()"""
+
+    with open(f"{name}_plt.py", "w") as plt_file:
+                plt_file.write(content)

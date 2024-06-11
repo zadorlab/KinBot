@@ -18,8 +18,9 @@ license = {file = "LICENSE"}
 # keywords = []
 authors = [
     {name="Judit Zádor", email="jzador@sandia.gov"},
-    {name="Ruben Vande Vijver", email="ruben.vandevijver@ugent.be"},
+    {name="Ruben Van de Vijver", email="ruben.vandevijver@ugent.be"},
     {name="Carles Martí", email="cmartia@sandia.gov"},
+    {name="Clément Soulié", email="csoulie@sandia.gov"},
     {name="Amanda Dewyer", email="adewyer@sandia.gov"},
 ]
 maintainers = [

@@ -720,53 +720,74 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_vts(self, species, geom, scan_coo=False, step=None):
+    def qc_vts_frag(self, frag):
         '''
-        Creates a geometry optimization along a scan and runs it.
+        Runs VTS fragment optimization
         '''
 
-        job = f'vrctst/{str(species.chemid)}_vts'
-        if step is not None:
-            job += f'_pt{step}'
-        mult = exceptions.get_multiplicity(species.chemid, species.mult)
-        kwargs = self.get_qc_arguments(job, mult, species.charge, vts=1)
+        job = f'vrctst/{str(frag.chemid)}_vts'
+        mult = exceptions.get_multiplicity(frag.chemid, frag.mult)
+        kwargs = self.get_qc_arguments(job, mult, frag.charge, vts=1)
 
-        if self.qc == 'gauss':
-            if scan_coo:
-                kwargs['addsec'] = ''
-                for bond in scan_coo:
-                    kwargs['addsec'] += f'{" ".join(str(atom) for atom in bond)} F\n'
-        else:
+        if self.qc != 'gauss':
             raise ValueError(f'Only implemeted for Gaussian. Instead I got: {self.qc}')
         
-        if species.natom < 3:
+        if frag.natom < 3:
             kwargs.pop('Symm', None)
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
         
-        if not scan_coo:  # this is the fragment_opt
-            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
-            template = open(template_file, 'r').read()
-            template = template.format(label=job,
-                                       kwargs=kwargs,
-                                       atom=list(species.atom),
-                                       geom=list([list(gi) for gi in geom]),
-                                       qc_command=self.qc_command,
-                                       working_dir=os.getcwd(),
-                                       )
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
+        template = open(template_file, 'r').read()
+        template = template.format(label=job,
+                                   kwargs=kwargs,
+                                   atom=list(frag.atom),
+                                   geom=list([list(gi) for gi in frag.geom]),
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd(),
+                                   )
+
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
+
+        self.submit_qc(job)
+        return job 
+
+    def qc_vts(self, reac, geom, step):
+        '''
+        Creates a geometry optimization along a scan and runs it.
+        '''
+
+        job = f'vrctst/{str(reac.species.chemid)}_vts_pt{step}'
+        mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
+        kwargs = self.get_qc_arguments(job, mult, reac.species.charge, vts=1)
+
+        if self.qc == 'gauss':
+            kwargs['addsec'] = f'{reac.scan_coo[0]} {reac.scan_coo[1]} F\n'
         else:
-            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_vrc_tst.tpl.py'
-            template = open(template_file, 'r').read()
-            template = template.format(label=job,
-                                       scan_coo=scan_coo[0],
-                                       kwargs=kwargs,
-                                       atom=list(species.atom),
-                                       geom=list([list(gi) for gi in geom]),
-                                       qc_command=self.qc_command,
-                                       working_dir=os.getcwd(),
-                                       bond_deviation=self.par['vrc_tst_scan_bond_deviation'],
-                                       angle_deviation=self.par['vrc_tst_scan_angle_deviation'],
-                                       )
+            raise ValueError(f'Only implemeted for Gaussian. Instead I got: {self.qc}')
+        
+        if reac.species.natom < 3:
+            kwargs.pop('Symm', None)
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
+        
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_vrc_tst.tpl.py'
+        template = open(template_file, 'r').read()
+        template = template.format(label=job,
+                                   scan_coo=reac.scan_coo,
+                                   kwargs=kwargs,
+                                   atom=list(reac.species.atom),
+                                   init_geom=list([list(gi) for gi in geom]),
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd(),
+                                   scan_deviation=self.par['vrc_tst_scan_deviation'],
+                                   frag_maps=list([list(rm) for rm in reac.maps]),
+                                   froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),
+                                   froz_A_atom=reac.products[0].atom,
+                                   froz_B_geom=list([list(gi) for gi in reac.products[1].geom]),
+                                   froz_B_atom=reac.products[1].atom,
+                                   )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)

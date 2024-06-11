@@ -11,39 +11,20 @@ from kinbot.utils import iowait
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
 from kinbot import zmatrix
+import rmsd
 
-def same_orientation(initial, final):
-    is_true = True
-    for initial_parameter, final_parameter in zip(initial, final):
-        if len(initial_parameter) == 3: #Parameter is a bond
-            if final_parameter[-1]/initial_parameter[-1] < 1 - {bond_deviation} or final_parameter[-1]/initial_parameter[-1] > 1 + {bond_deviation}:
-                is_true = False
-                break
-        else:
-            if final_parameter[-1] < initial_parameter[-1] - {angle_deviation} or final_parameter[-1] > initial_parameter[-1] + {angle_deviation}:
-                is_true = False
-                break
-    return is_true
-    
 db = connect('{working_dir}/kinbot.db')
 label = '{label}'
 logfile = '{label}.log'
 
-mol = Atoms(symbols={atom}, positions={geom})
-
-# convert to z-matrix to get the important atoms and initial interfragmental parameters
-spec = StationaryPoint.from_ase_atoms(mol)
-zmat_atom, zmat_ref, zmat, zmatorder = make_zmat_from_cart(spec, {frozen_coo}, mol.positions, 2)
-A = 
-B = {frozen_coo}[0]
-C = {frozen_coo}[1]
-
-initial_inter_frag, key_dihedral = get_interfragments_param(mol, frozen_coo={frozen_coo})
+mol = Atoms(symbols={atom}, positions={init_geom})
 
 kwargs = {kwargs}
 Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
 calc = Gaussian(**kwargs)
 mol.calc = calc
+
+# RELAXED
 
 try:
     e = mol.get_potential_energy()  # use the Gaussian optimizer
@@ -58,60 +39,72 @@ if len(geoms) == 0:  # no optimization worked, assuming that we have at least on
     db.write(mol, name=label, data={{'energy': energies[-1], 'status': 'normal'}})
 else:  # select the last geometry that was within the range of allowed change
     for gii, geom in enumerate(geoms): 
-        mol.positions = geom  # final mol is the updated one
-        new_inter_frag, _ = get_interfragments_param(mol, instance={instance})
-        if same_orientation(initial_inter_frag, new_inter_frag):
+        if rmsd.kabsch_rmsd({init_geom}, geom, translate=True) < {scan_deviation}:
+            mol.positions = geom  # update geometry
             db.write(mol, name=label, data={{'energy': energies(gii), 'status': 'normal'}})
             break
 
-
-time.sleep(1)  # Avoid db errors
+time.sleep(1)  
 with open(logfile, 'a') as f:
     f.write('done\n')
 
+# FROZEN
 
-# the original species
-origmol = Atoms(symbols={atom}, positions={frozen_geom})
-origspec = StationaryPoint.from_ase_atoms(origmol)
-origspec.characterize()
-# the frozen species (not yet at correct geometry)
-frozenspec = StationaryPoint.from_ase_atoms(mol)
-frozenspec.characterize()
-# zmat_atom: element symbol in order
-# zmat_ref: referencing atom for D, A, Dh
-# zmat: values
-# zmatorder: atom number in original species
-zmat_atom, zmat_ref, zmat, zmatorder = make_zmat_from_cart(frozenspec, key_dihedral, mol.positions, 2)
-# need to adjust the parameters in the zmat to the rigid values
-# but not the values that are across the fragments
-for zii, zaa in enumerate(zmat_atom):
-    if zii == 0:  # nothing to change here
-        continue
-    if zii == 1:  # fixed interfrag distance
-        continue
-    A = zmatorder[zii]  # current atom's original index
-    B, C, D = zmat_ref[zii]  # 0 indexed?
-    zmat[zii][0] = origspec.dist[A][B]  # distance
-    if zii == 2:  # fixed interfrag angle
-        continue
-    zmat[zii][1] = np.degree(geometry.calc_angle(origspec[A], origspec[B], origspec[C]))  # angle
-    if zii == 3:  # fixed interfag dihed
-        continue
-    zmat[zii][2] = np.degree(geometry.calc_dihedral(origspec[A], origspec[B], origspec[C], origspec[D]))  # dihedral
-# convert back to cartesian
-cart = make_cart_from_zmat(zmat, zmat_atom, zmat_ref, frozenspec.natom, frozenspec.atom, zmatorder)
+scan_coo = {scan_coo}
+
+# create fragment geometries from the relaxed scan and save scan atoms' position and index
+coo_A = [mol.positions[i] for i in {frag_maps}[0]]
+try:
+    scan_atom_A = {frag_maps}[0].index(scan_coo[0])
+except ValueError:
+    scan_atom_A = {frag_maps}[0].index(scan_coo[1])
+scan_pos_A = coo_A[scan_atom_A]
+
+coo_B = [mol.positions[i] for i in {frag_maps}[1]]
+try:
+    scan_atom_B = {frag_maps}[1].index(scan_coo[0])
+except ValueError:
+    scan_atom_B = {frag_maps}[1].index(scan_coo[1])
+scan_pos_B = coo_B[scan_atom_B]
+
+# Move fragments to own centroids (translation only)
+cent_A = rmsd.centroid(coo_A)
+cent_B = rmsd.centroid(coo_B)
+coo_A -= cent_A
+coo_B -= cent_B
+
+# Move frozen fragments to own centroids (translation only)
+cent_A_fr = rmsd.centroid({froz_A_geom})
+cent_B_fr = rmsd.centroid({froz_B_geom})
+coo_A_fr -= cent_A_fr
+coo_B_fr -= cent_B_fr
+
+# rotate each frozen fragment for maximum overlap with own relaxed version
+coo_A_fr = rmsd.kabsch_rotate(coo_A_fr, coo_A)
+coo_B_fr = rmsd.kabsch_rotate(coo_B_fr, coo_B)
+
+# move fragments back to scan position
+coo_A_fr -= coo_A_fr[scan_atom_A] - scan_pos_A
+coo_B_fr -= coo_B_fr[scan_atom_B] - scan_pos_B
+
+# reassemble full geometry from frozen fragments
+frozen_geom = np.array(len({atom}))
+for fi, fa in enumerate(frag_A_atoms):
+    frozen_geom[fa] = coo_A_fr[fi]
+for fi, fb in enumerate(frag_B_atoms):
+    frozen_geom[fb] = coo_B_fr[fi]
     
 # here creating the run for the frozen version of this geometry based on the fully optimized one
-label = '{frozen_label}'
-logfile = '{frozen_label}.log'
+label = '{label}_fr'
+logfile = '{label}_fr.log'
 kwargs.pop('opt', None)
-mol = Atoms(symbols={atom}, positions=cart)
+mol = Atoms(symbols={atom}, positions=frozen_geom)
 try:
     e = mol.get_potential_energy()  # single point energy
     db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})
 except:
     db.write(mol, name=label, data={{'energy': 10., 'status': 'normal'}})
 
-time.sleep(1)  # Avoid db errors
+time.sleep(1)  
 with open(logfile, 'a') as f:
     f.write('done\n')

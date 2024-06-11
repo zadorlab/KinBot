@@ -290,10 +290,8 @@ class Parameters:
             "vrc_tst_scan_molpro_key": "VTS_energy",
             # Must be provided
             "vrc_tst_scan_molpro_tpl": "",
-            # In degree
-            "vrc_tst_scan_angle_deviation": 10.0,
-            # In A
-            "vrc_tst_scan_bond_deviation": 0.05,
+            # Max. rmsd deviation allowed
+            "vrc_tst_scan_deviation": 100.,
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

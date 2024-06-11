@@ -1,8 +1,7 @@
 import numpy as np
 import time
-import os
 import logging
-from shutil import copyfile
+import copy
 
 from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
@@ -21,7 +20,6 @@ class VTS:
         self.qc = qc
 
         self.scan_reac = {}  # reaction object for reactions scanned 
-        self.scan_coo = {}
         self.prod_chemids = []
 
     def calculate_correction_potentials(self):
@@ -60,7 +58,7 @@ class VTS:
                                 continue
                             else:  # submit at vrc_tst level, we have the geometry and everything else, mult etc.
                                 prod_chemid.append(prod.chemid)    
-                                self.qc.qc_vts(prod, prod.geom)
+                                self.qc.qc_vts_frag(prod)
             if not hit:
                 logger.warning(f'Reaction {reac} requested to scan is not found in reaction list.')
 
@@ -86,63 +84,91 @@ class VTS:
         """
         Find bond to be scanned
         This is done in two ways
-        - If it's a real well, then we use the bond of 
+        - If it's a real well, then we use the bond of hom_sci, or the breaking ts bond (only 1 is allowed)
         - If it's a vdw well, then find the closest atoms between the two parts using the core function
         """
 
-        parts, maps = self.well.start_multi_molecular()
-        if len(parts) == 1:
+        wellparts, wellmaps = self.well.start_multi_molecular()
+        if len(wellparts) == 1:
             self.well.find_bond()
             for reac in reactions:
+                # find the fragments from the IRCs
+                self.scan_reac[reac].parts, self.scan_reac[reac].maps = self.scan_reac[reac].irc_prod.start_multi_molecular()
+                self.scan_reac[reac].parts[0].characterize()
+                self.scan_reac[reac].parts[1].characterize()
+                self.match_order(reac)
+
                 if 'hom_sci' in reac:
                     ww = self.scan_reac[reac].instance_name.split('_')
-                    self.scan_coo[reac] = [int(ww[-2]), int(ww[-1])]
-                    logger.info(f'Bond to be scanned for {reac} is {self.scan_coo[reac]}')
+                    self.scan_reac[reac].scan_coo = [int(ww[-2]) - 1, int(ww[-1]) - 1]
+                    logger.info(f'Bond to be scanned for {reac} is {np.array(self.scan_reac[reac].scan_coo)+1}')
                 else:
                     # adding up bond breaks only
                     nreacbond = np.sum(np.array([b for b in bb for bb in reac.ts.reac_bond if b < 0])) / 2
                     if nreacbond == 0:
                         logger.warning(f'No bond change detected, unable to determine scan coo for {reac}')
-                        self.scan_coo[reac] = False
+                        self.scan_reac[reac].scan_coo = False
                     elif nreacbond < -1:
                         logger.warning(f'More than one bonds changed in {reac}, unable to determine scan coo for {reac}')
-                        self.scan_coo[reac] = False
+                        self.scan_reac[reac].scan_coo = False
                     else:
                         hit = False
                         for i, bb in enumerate(self.scan_reac[reac].ts.reac_bond):
                             for j, b in bb:
                                 if b < 0:
                                     logger.info(f'Bond to be scanned for {reac} is {i+1}-{j+1}')
-                                    self.scan_coo[reac] = [i, j]
+                                    self.scan_reac[reac].scan_coo = [i, j]
                                     hit = True
                                     break
                             if hit:
                                 break
 
-        elif len(parts) == 2:  # assuming that there is just a single scan for a vdW, between the closest atoms
-            self.scan_coo[reac] = well.add_extra_bond()
-            logger.info(f'Bond to be scanned for {reac} is {self.scan_coo[reac]}')
+        elif len(wellparts) == 2:  # assuming that there is just a single scan for a vdW, between the closest atoms
+            # save the fragments based on the original split
+            for reac in reactions:
+                self.scan_reac[reac].parts, self.scan_reac[reac].maps = wellparts, wellmaps
+                self.scan_reac[reac].scan_coo = well.add_extra_bond()
+                self.match_order(reac)
+                logger.info(f'Bond to be scanned for {reac} is {self.scan_reac[reac].scan_coo}')
         else:
-            self.scan_coo[reac] = False
+            self.scan_reac[reac].scan_coo = False
             logging.warning(f'Well {well.chemid} has more than two parts. Cannot do VTS.')
 
+        return
+
+    def match_order(self, reac): 
+        '''
+        Keeps the object to be scanned intact, but rearranges the products and the atoms in the products so that:
+        1. fragment0 of scan is product0
+        2. in both fragments the order of the atoms, labeled by chemid, is identical
+        It might still scramble chirality, but that is perhaps a very rare edge case?
+        '''
+        # match product ordering with scanned fragments' order 
+        if self.scan_reac[reac].parts[0].chemid != self.scan_reac[reac].products[0].chemid:
+            self.scan_reac[reac].products = list(reversed(self.scan_reac[reac].products))
+        # match atom ordering of individual products with scanned fragment's atom order
+        for fi, frag in enumerate(self.scan_reac[reac].parts):
+            for ii, aid in enumerate(frag.atomid):
+                if aid != self.scan_reac[reac].products[fi].atomid[ii]: 
+                    # swap to something that works
+                    pos = self.scan_reac[reac].products[fi].atomid[ii:].index(aid)
+                    # need to swap atom and geom
+                    self.scan_reac[reac].products[fi].geom[ii],  self.scan_reac[reac].products[fi].geom[pos] = \
+                        self.scan_reac[reac].products[fi].geom[pos],  self.scan_reac[reac].products[fi].geom[ii]
+                    self.scan_reac[reac].products[fi].atom[ii],  self.scan_reac[reac].products[fi].atom[pos] = \
+                        self.scan_reac[reac].products[fi].atom[pos],  self.scan_reac[reac].products[fi].atom[ii]
+                    self.scan_reac[reac].products[fi].characterize()
         return
 
     def do_scan(self, reactions):
         """
         There are two different scans to be made.
         1. relaxed scan: all degrees of freedom are optimized except the B-C distance that is scanned.
-            In these scans the interfragmental degrees of freedom are saved. These are:
-            - distance B-C
-            - angles A-B-C and B-C-D
-            - dihedrals A-B-C-D, X-A-B-C (if exists) and B-C-D-Y (if exists)
-            A, D, X, and Y are selected as neighbors of B, C, A and D, respectively
-            The user can request that certain angles and bond lengths do not change more than a threshold between
-            consecutive steps to prevent sudden changes. In this case the last geometry obeying these constraints is picked
-            and the corresponding energy. Also, if the optimization crashed, the last valid point is taken.
-        2. rigid scan: no degrees of freedom are optimized. The cartesian definition is converted into
-            a z-matrix one, elements are adjusted based on saved values of internal coordinates of separated fragmens,
-            converted back to cartesian, and a single pt calculation is done.
+           Final geometry is saved in each step.. 
+           The user can request that the RMSD < then a threshold during optimization..
+           Also, if the optimization crashed, the last valid point is taken.
+        2. frozen scan: no degrees of freedom are optimized.
+           The frozen fragments are oriented in a way the minimizes RMSD relative to the relaxed scan.
         Following this, a high-level calculation is done on both set of geometries, just single pt.
         All of these calculations are invoked from a single template per point, and the points are run in sequence.
         """
@@ -155,13 +181,17 @@ class VTS:
         while 1:
             for ri, reac in enumerate(reactions):
                 if status[ri] == 'ready' and step[ri] < len(self.par['vrc_tst_scan_points']):
-                    jobs[ri] = self.qc.qc_vts(self.scan_reac[reac].species, geoms[ri], scan_coo=self.scan_coo[reac], step=step[ri])
+                    jobs[ri] = self.qc.qc_vts(self.scan_reac[reac], 
+                                              geoms[ri], 
+                                              step=step[ri],
+                                              )
                     status[ri] = 'running'
                 elif status[ri] == 'running':
                     qcst, geom = self.qc.get_qc_geom(jobs[ri], self.scan_reac[reac].species.natom, allow_error=1)
                     if qcst in ['normal', 'error']:
                         status[ri] = 'ready'
                         step[ri] += 1
+                        geoms[ri] = copy.deepcopy(geom)
                 elif step[ri] == len(self.par['vrc_tst_scan_points']):
                     status[ri] = 'done'
             if len([st for st in status if st == 'done']) == len(reactions):

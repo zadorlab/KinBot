@@ -35,13 +35,14 @@ iowait(logfile, 'gauss')
 # both geoms and energies are in reversed order
 geoms = reader_gauss.read_all_geoms(logfile, mol)
 energies = reader_gauss.read_all_energies(logfile)
+# TODO maybe use lowest E version for reading in addition to all
 if len(geoms) == 0:  # no optimization worked, assuming that we have at least one energy
     db.write(mol, name=label, data={{'energy': energies[-1], 'status': 'normal'}})
 else:  # select the last geometry that was within the range of allowed change
-    for gii, geom in enumerate(geoms): 
-        if rmsd.kabsch_rmsd({init_geom}, geom, translate=True) < {scan_deviation}:
+    for gii, geom in enumerate(geoms):  # TODO reverse enumerate
+        if rmsd.kabsch_rmsd(np.array({init_geom}), geom, translate=True) < {scan_deviation}:
             mol.positions = geom  # update geometry
-            db.write(mol, name=label, data={{'energy': energies(gii), 'status': 'normal'}})
+            db.write(mol, name=label, data={{'energy': energies[gii], 'status': 'normal'}})
             break
 
 time.sleep(1)  

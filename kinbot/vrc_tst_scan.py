@@ -5,6 +5,7 @@ import copy
 
 from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
+from kinbot import geometry
 
 logger = logging.getLogger('KinBot')
 
@@ -33,6 +34,8 @@ class VTS:
                 self.save_products(reactions)
                 self.find_scan_coos(reactions)
                 self.do_scan(reactions)
+                # TODO scan.save_results(reactions)  # print file as before 
+                # /home/csoulie/projects/acetoin/vdwtest/882363063562220240001_bimol_disproportionation_R_5_4_vrc_tst_scan_441041030570000000001_441080860640060000001_plt.py
         return
 
     def opt_products(self, reactions):
@@ -88,51 +91,38 @@ class VTS:
         - If it's a vdw well, then find the closest atoms between the two parts using the core function
         """
 
-        wellparts, wellmaps = self.well.start_multi_molecular()
-        if len(wellparts) == 1:
-            self.well.find_bond()
-            for reac in reactions:
-                # find the fragments from the IRCs
-                self.scan_reac[reac].parts, self.scan_reac[reac].maps = self.scan_reac[reac].irc_prod.start_multi_molecular()
-                self.scan_reac[reac].parts[0].characterize()
-                self.scan_reac[reac].parts[1].characterize()
-                self.match_order(reac)
+        self.well.find_bond()
+        for reac in reactions:
+            # find the fragments from the IRCs
+            self.scan_reac[reac].parts, self.scan_reac[reac].maps = self.scan_reac[reac].irc_prod.start_multi_molecular()
+            self.scan_reac[reac].parts[0].characterize()
+            self.scan_reac[reac].parts[1].characterize()
+            self.match_order(reac)
 
-                if 'hom_sci' in reac:
-                    ww = self.scan_reac[reac].instance_name.split('_')
-                    self.scan_reac[reac].scan_coo = [int(ww[-2]) - 1, int(ww[-1]) - 1]
-                    logger.info(f'Bond to be scanned for {reac} is {np.array(self.scan_reac[reac].scan_coo)+1}')
+            if 'hom_sci' in reac:
+                ww = self.scan_reac[reac].instance_name.split('_')
+                self.scan_reac[reac].scan_coo = [int(ww[-2]) - 1, int(ww[-1]) - 1]
+                logger.info(f'Bond to be scanned for {reac} is {np.array(self.scan_reac[reac].scan_coo)+1}')
+            else:
+                # adding up bond breaks only
+                nreacbond = np.sum(np.array([b for b in bb for bb in reac.ts.reac_bond if b < 0])) / 2
+                if nreacbond == 0:
+                    logger.warning(f'No bond change detected, unable to determine scan coo for {reac}')
+                    self.scan_reac[reac].scan_coo = False
+                elif nreacbond < -1:
+                    logger.warning(f'More than one bonds changed in {reac}, unable to determine scan coo for {reac}')
+                    self.scan_reac[reac].scan_coo = False
                 else:
-                    # adding up bond breaks only
-                    nreacbond = np.sum(np.array([b for b in bb for bb in reac.ts.reac_bond if b < 0])) / 2
-                    if nreacbond == 0:
-                        logger.warning(f'No bond change detected, unable to determine scan coo for {reac}')
-                        self.scan_reac[reac].scan_coo = False
-                    elif nreacbond < -1:
-                        logger.warning(f'More than one bonds changed in {reac}, unable to determine scan coo for {reac}')
-                        self.scan_reac[reac].scan_coo = False
-                    else:
-                        hit = False
-                        for i, bb in enumerate(self.scan_reac[reac].ts.reac_bond):
-                            for j, b in bb:
-                                if b < 0:
-                                    logger.info(f'Bond to be scanned for {reac} is {i+1}-{j+1}')
-                                    self.scan_reac[reac].scan_coo = [i, j]
-                                    hit = True
-                                    break
-                            if hit:
+                    hit = False
+                    for i, bb in enumerate(self.scan_reac[reac].ts.reac_bond):
+                        for j, b in bb:
+                            if b < 0:
+                                logger.info(f'Bond to be scanned for {reac} is {i+1}-{j+1}')
+                                self.scan_reac[reac].scan_coo = [i, j]
+                                hit = True
                                 break
-
-        elif len(wellparts) == 2:  # assuming that there is just a single scan for a vdW, between the closest atoms
-            # save the fragments based on the original split
-            for reac in reactions:
-                self.scan_reac[reac].parts, self.scan_reac[reac].maps = wellparts, wellmaps
-                self.scan_reac[reac].scan_coo = well.add_extra_bond()
-                self.match_order(reac)
-                logger.info(f'Bond to be scanned for {reac} is {self.scan_reac[reac].scan_coo}')
-        else:
-            self.scan_reac[reac].scan_coo = False
-            logging.warning(f'Well {well.chemid} has more than two parts. Cannot do VTS.')
+                        if hit:
+                            break
 
         return
 
@@ -146,6 +136,10 @@ class VTS:
         # match product ordering with scanned fragments' order 
         if self.scan_reac[reac].parts[0].chemid != self.scan_reac[reac].products[0].chemid:
             self.scan_reac[reac].products = list(reversed(self.scan_reac[reac].products))
+        if self.scan_reac[reac].parts[0].chemid != self.scan_reac[reac].products[0].chemid:
+            logger.warning(f'IRC prod and prod are not the same!')
+        if self.scan_reac[reac].parts[1].chemid != self.scan_reac[reac].products[1].chemid:
+            logger.warning(f'IRC prod and prod are not the same!')
         # match atom ordering of individual products with scanned fragment's atom order
         for fi, frag in enumerate(self.scan_reac[reac].parts):
             for ii, aid in enumerate(frag.atomid):
@@ -174,18 +168,31 @@ class VTS:
         """
 
         status = ['ready'] * len(reactions)
-        step = np.zeros(len(reactions))
+        step = np.zeros(len(reactions), dtype=int)
         geoms = [self.scan_reac[reac].species.geom for reac in reactions]
         jobs = [''] * len(reactions)
 
         while 1:
             for ri, reac in enumerate(reactions):
                 if status[ri] == 'ready' and step[ri] < len(self.par['vrc_tst_scan_points']):
+                    # shift geometries along the bond to next desired distance
+                    # scanning between atoms A and B
+                    pos_A = geoms[ri][self.scan_reac[reac].scan_coo[0]]
+                    pos_B = geoms[ri][self.scan_reac[reac].scan_coo[1]]
+                    dist_AB = np.linalg.norm(pos_B - pos_A)
+                    vec_AB = geometry.unit_vector(np.array(pos_B) - np.array(pos_A))
+                    # shift so that atom A is at origin
+                    geoms[ri] = list(np.array(geoms[ri]) - np.array(pos_A)) 
+                    # stretch frag B along B-A vector
+                    shift = vec_AB * (self.par['vrc_tst_scan_points'][step[ri]] - dist_AB)
+                    for mi in self.scan_reac[reac].maps[1]:
+                        geoms[ri][mi] = [gi + shift[i] for i, gi in enumerate(geoms[ri][mi])]
                     jobs[ri] = self.qc.qc_vts(self.scan_reac[reac], 
                                               geoms[ri], 
                                               step=step[ri],
                                               )
                     status[ri] = 'running'
+                    # TODO submit SL and HL
                 elif status[ri] == 'running':
                     qcst, geom = self.qc.get_qc_geom(jobs[ri], self.scan_reac[reac].species.natom, allow_error=1)
                     if qcst in ['normal', 'error']:

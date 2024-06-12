@@ -39,9 +39,7 @@ class QuantumChemistry:
         self.bls_high_level_method = par['barrierless_saddle_method_high']
         self.bls_high_level_basis = par['barrierless_saddle_basis_high']
         self.vts_method = par['vrc_tst_scan_method']
-        self.vts_method_L3 = par['vrc_tst_scan_method_L3']
         self.vts_basis = par['vrc_tst_scan_basis']
-        self.vts_basis_L3 = par['vrc_tst_scan_basis_L3']
         self.single_point_template = par['single_point_template']
         self.single_point_key = par['single_point_key']
         self.integral = par['integral']
@@ -756,9 +754,10 @@ class QuantumChemistry:
     def qc_vts(self, reac, geom, step):
         '''
         Creates a geometry optimization along a scan and runs it.
+        reac: full reaction object
         '''
 
-        job = f'vrctst/{str(reac.species.chemid)}_vts_pt{step}'
+        job = f'vrctst/{reac.instance_name}_vts_pt{step}'
         mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
         kwargs = self.get_qc_arguments(job, mult, reac.species.charge, vts=1)
 

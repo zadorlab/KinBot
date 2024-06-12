@@ -91,20 +91,19 @@ def read_all_geoms(outfile, mol, charge=None, mult=None, from_line=0):
 
     start = from_line  # start reading here
     geoms = []
-    while 1:
-        geom = np.zeros((len(mol), 3))
-        if start == 0:
-            data = lines
-        else:
-            data = lines[:-start]
-        for index, line in enumerate(reversed(data)):
-            if 'Input orientation:' in line:
-                for n in range(len(mol)):
-                    geom[n][0:3] = np.array(data[-index+4+n].split()[3:6]).astype(float)
-                start += index  # mark end for next loop if there is
-                geoms.append(geom) 
-            if index == len(data) - 1:  # reached top
-                break
+    geom = np.zeros((len(mol), 3))
+    if start == 0:
+        data = lines
+    else:
+        data = lines[:-start]
+    for index, line in enumerate(reversed(data)):
+        if 'Input orientation:' in line:
+            for n in range(len(mol)):
+                geom[n][0:3] = np.array(data[-index+4+n].split()[3:6]).astype(float)
+            start += index  # mark end for next loop if there is
+            geoms.append(geom) 
+        if index == len(data) - 1:  # reached top
+            break
 
     return geoms
 

@@ -762,7 +762,7 @@ class QuantumChemistry:
         kwargs = self.get_qc_arguments(job, mult, reac.species.charge, vts=1)
 
         if self.qc == 'gauss':
-            kwargs['addsec'] = f'{reac.scan_coo[0]} {reac.scan_coo[1]} F\n'
+            kwargs['addsec'] = f'{reac.scan_coo[0]+1} {reac.scan_coo[1]+1} F\n'
         else:
             raise ValueError(f'Only implemeted for Gaussian. Instead I got: {self.qc}')
         

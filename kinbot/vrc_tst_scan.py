@@ -194,7 +194,8 @@ class VTS:
                     status[ri] = 'running'
                     # TODO submit SL and HL
                 elif status[ri] == 'running':
-                    qcst, geom = self.qc.get_qc_geom(jobs[ri], self.scan_reac[reac].species.natom, allow_error=1)
+                    _, geom = self.qc.get_qc_geom(jobs[ri], self.scan_reac[reac].species.natom, allow_error=1)
+                    qcst = self.qc.check_qc(jobs[ri])
                     if qcst in ['normal', 'error']:
                         status[ri] = 'ready'
                         step[ri] += 1

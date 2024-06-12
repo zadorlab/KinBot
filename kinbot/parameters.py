@@ -280,14 +280,14 @@ class Parameters:
             # {chemid1: ["reaction_name1", "reaction_name2"], chemid2: [...]}
             'vrc_tst_scan': {},
             # Method to scan bonds in vrc_tst_scan
-            'vrc_tst_scan_method': "uwb97xd",  
+            'vrc_tst_scan_method': "ub3lyp",  
             # Basis set to scan bonds in vrc_tst_scan
-            'vrc_tst_scan_basis': "6-311++G(d,p)",
+            'vrc_tst_scan_basis': "6-31+G(d)",
             # Active space: minimal, automatic, values
             'vrc_tst_active_space': 'minimal',
             # Parameters for the vrc_tst scan
             "vrc_tst_scan_points": list(np.arange(2.5, 20.0, 0.2)),
-            "vrc_tst_scan_molpro_key": "VTS_energy",
+            "vrc_tst_scan_molpro_key": [],
             # Must be provided
             "vrc_tst_scan_molpro_tpl": "",
             # Max. rmsd deviation allowed

@@ -95,21 +95,17 @@ def read_all_geoms(outfile, mol, charge=None, mult=None, from_line=0):
     with open(outfile) as f:
         lines = f.readlines()
 
-    start = from_line  # start reading here
     geoms = []
     geom = np.zeros((len(mol), 3))
-    if start == 0:
+    if not from_line:
         data = lines
     else:
-        data = lines[:-start]
+        data = lines[:-from_line]
     for index, line in enumerate(reversed(data)):
         if 'Input orientation:' in line:
             for n in range(len(mol)):
                 geom[n][0:3] = np.array(data[-index+4+n].split()[3:6]).astype(float)
-            start += index  # mark end for next loop if there is
-            geoms.append(geom) 
-        if index == len(data) - 1:  # reached top
-            break
+            geoms.append(copy.deepcopy(geom)) 
 
     return geoms
 

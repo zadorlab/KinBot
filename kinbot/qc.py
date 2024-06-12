@@ -757,7 +757,7 @@ class QuantumChemistry:
         reac: full reaction object
         '''
 
-        job = f'vrctst/{reac.instance_name}_vts_pt{step}'
+        job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
         mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
         kwargs = self.get_qc_arguments(job, mult, reac.species.charge, vts=1)
 

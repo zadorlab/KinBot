@@ -17,8 +17,11 @@ def read_energy(outfile, from_line=0):
     with open(outfile) as f:
         lines = f.readlines()
 
+    if from_line:
+        lines = lines[:-from_line]
+
     energy = np.NAN
-    for line in reversed(lines[:-from_line]):
+    for line in reversed(lines):
         if 'SCF Done' in line:
             energy = float(line.split()[4]) / constants.EVtoHARTREE
             break
@@ -33,8 +36,11 @@ def read_all_energies(outfile, from_line=0):
     with open(outfile) as f:
         lines = f.readlines()
 
+    if from_line:
+        lines = lines[:-from_line]
+
     energy = []
-    for line in reversed(lines[:-from_line]):
+    for line in reversed(lines): 
         if 'SCF Done' in line:
             energy.append(float(line.split()[4]) / constants.EVtoHARTREE)
 

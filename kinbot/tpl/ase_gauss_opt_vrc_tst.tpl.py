@@ -39,7 +39,7 @@ energies = reader_gauss.read_all_energies(logfile)
 if len(geoms) == 0:  # no optimization worked, assuming that we have at least one energy
     db.write(mol, name=label, data={{'energy': energies[-1], 'status': 'normal'}})
 else:  # select the last geometry that was within the range of allowed change
-    for gii, geom in enumerate(geoms):  # TODO reverse enumerate
+    for gii, geom in enumerate(geoms):  # these geometries are already in reverse order!
         if rmsd.kabsch_rmsd(np.array({init_geom}), geom, translate=True) < {scan_deviation}:
             mol.positions = geom  # update geometry
             db.write(mol, name=label, data={{'energy': energies[gii], 'status': 'normal'}})

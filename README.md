@@ -57,7 +57,7 @@ KinBot can be installed both in three different ways, from the PyPI index (`pip 
 
 ### From Github
 
-If you want to have the very last version of KinBot without waiting for a 
+If you want to have the very last version of KinBot without waiting for a  
 release or you want to modify KinBot acccording to your needs you can clone the project 
 from github:
 

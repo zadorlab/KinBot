@@ -633,8 +633,6 @@ class QuantumChemistry:
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
             template_file = f'{kb_path}/tpl/ase_sella_opt_well.tpl.py'
-        elif 'vrc_tst_scan' in species.name and not self.use_sella:
-            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_vrc_tst.tpl.py'
         else:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         
@@ -771,7 +769,7 @@ class QuantumChemistry:
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
         
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_vrc_tst.tpl.py'
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_vts.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    scan_coo=reac.scan_coo,

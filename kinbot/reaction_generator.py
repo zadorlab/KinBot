@@ -377,7 +377,7 @@ class ReactionGenerator:
                             logger.info('\tChecking vdW well for {}.'.format(obj.instance_name))
                             obj.irc_prod.characterize()
                             try:
-                                e, obj.irc_prod.energy = self.qc.get_qc_energy(f'{obj.irc_prod.name}')  # e is the error code: should be 0 (success) at this point.
+                                e, obj.irc_prod.energy = self.qc.get_qc_energy(f'{obj.irc_prod.name}') #e is the error code: should be 0 (success) at this point.
                                 e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f'{obj.irc_prod.name}')
                                 e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
                                 e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
@@ -388,12 +388,6 @@ class ReactionGenerator:
                                 if obj.vdW_depth > self.par['vdW_detection']:
                                     logger.info('\tvdW well detected for {}: {:.2f}>threshold ({:.2f}) Kcal/mol.'.format(obj.irc_prod.name, obj.vdW_depth, self.par['vdW_detection']))
                                     obj.do_vdW = True
-
-                                    # Calculate the spin multiplicity of the vdW well
-                                    mult_p0 = obj.products[0].calc_multiplicity(obj.products[0].atom)
-                                    mult_p1 = obj.products[1].calc_multiplicity(obj.products[1].atom)
-                                    obj.irc_prod.mult = abs(mult_p0 - mult_p1) + 1
-
                             except:
                                 logger.info('\t{} was not succesfull, vdW search stopped for this well.'.format(obj.irc_prod.name))
                             

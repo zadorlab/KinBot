@@ -105,7 +105,7 @@ class VTS:
                 logger.info(f'Bond to be scanned for {reac} is {np.array(self.scan_reac[reac].scan_coo)+1}')
             else:
                 # adding up bond breaks only
-                nreacbond = np.sum(np.array([b for b in bb for bb in reac.ts.reac_bond if b < 0])) / 2
+                nreacbond = np.sum(np.array([b for bb in reac.ts.reac_bond for b in bb if b < 0])) / 2
                 if nreacbond == 0:
                     logger.warning(f'No bond change detected, unable to determine scan coo for {reac}')
                     self.scan_reac[reac].scan_coo = False

@@ -359,10 +359,10 @@ class StationaryPoint:
                 except:
                     pass
         self.bond01 = np.zeros((self.natom, self.natom), dtype=int)
-        for row in self.bond:
-            for bi in row:
+        for ri, row in enumerate(self.bond):
+            for bii, bi in enumerate(row):
                 if bi > 0:
-                    self.bond01 = 1
+                    self.bond01[ri][bii] = 1
 
         return 0
 

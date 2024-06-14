@@ -93,7 +93,8 @@ class QuantumChemistry:
                 'Symm': 'None',
                 'mult': mult,
                 'charge': charge,
-                'scf': 'xqc'
+                'scf': 'xqc',
+                'pop': 'None',
             }
             if self.par['guessmix'] == 1 or \
                 'barrierless_saddle' in job or \
@@ -349,7 +350,6 @@ class QuantumChemistry:
             Code = 'Nn_surr'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
         if self.use_sella:
             kwargs.pop('chk', None)
             kwargs.pop('opt', None)
@@ -768,11 +768,17 @@ class QuantumChemistry:
             kwargs = self.merge_kwargs(kwargs)
         
         if self.par['vrc_tst_scan_sella']:  # TODO sella globally
+            kwargs.pop('opt', None)
+            if self.qc == 'gauss':
+                code = 'gaussian'
+                Code = 'Gaussian'
+            else:
+                raise ValueError(f'Currently only Gaussian is supported: {self.qc}')
             template_file = f'{kb_path}/tpl/ase_sella_vts.tpl.py'
             template = open(template_file, 'r').read()
             template = template.format(label=job,
                                        scan_coo=reac.scan_coo,
-                                       bonds=reac.irc_prod.find_bond(),
+                                       bonds=reac.irc_prod.bondlist,
                                        kwargs=kwargs,
                                        atom=list(reac.species.atom),
                                        init_geom=list([list(gi) for gi in geom]),

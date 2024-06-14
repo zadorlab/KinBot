@@ -91,13 +91,14 @@ class VTS:
         - If it's a vdw well, then find the closest atoms between the two parts using the core function
         """
 
-        self.well.find_bond()
+        #self.well.find_bond()
         for reac in reactions:
             # find the fragments from the IRCs
             self.scan_reac[reac].parts, self.scan_reac[reac].maps = self.scan_reac[reac].irc_prod.start_multi_molecular()
             self.scan_reac[reac].parts[0].characterize()
             self.scan_reac[reac].parts[1].characterize()
             self.match_order(reac)
+            self.scan_reac[reac].irc_prod.find_bond()
 
             if 'hom_sci' in reac:
                 ww = self.scan_reac[reac].instance_name.split('_')

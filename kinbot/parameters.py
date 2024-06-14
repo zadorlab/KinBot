@@ -279,6 +279,8 @@ class Parameters:
             # Define the species and the reactions for which scans are requested
             # {chemid1: ["reaction_name1", "reaction_name2"], chemid2: [...]}
             'vrc_tst_scan': {},
+            # using sella for scan
+            'vrc_tst_scan_sella': 0,
             # Method to scan bonds in vrc_tst_scan
             'vrc_tst_scan_method': "ub3lyp",  
             # Basis set to scan bonds in vrc_tst_scan

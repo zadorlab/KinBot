@@ -741,7 +741,7 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in frag.geom]),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
-                                   )
+                                   )  # TODO add sella keywords
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -759,32 +759,53 @@ class QuantumChemistry:
         mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
         kwargs = self.get_qc_arguments(job, mult, reac.species.charge, vts=1)
 
-        if self.qc == 'gauss':
+        if self.qc == 'gauss' and not self.par['vrc_tst_scan_sella']:
             kwargs['addsec'] = f'{reac.scan_coo[0]+1} {reac.scan_coo[1]+1} F\n'
-        else:
-            raise ValueError(f'Only implemeted for Gaussian. Instead I got: {self.qc}')
         
         if reac.species.natom < 3:
             kwargs.pop('Symm', None)
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
         
-        template_file = f'{kb_path}/tpl/ase_{self.qc}_vts.tpl.py'
-        template = open(template_file, 'r').read()
-        template = template.format(label=job,
-                                   scan_coo=reac.scan_coo,
-                                   kwargs=kwargs,
-                                   atom=list(reac.species.atom),
-                                   init_geom=list([list(gi) for gi in geom]),
-                                   qc_command=self.qc_command,
-                                   working_dir=os.getcwd(),
-                                   scan_deviation=self.par['vrc_tst_scan_deviation'],
-                                   frag_maps=list([list(rm) for rm in reac.maps]),
-                                   froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),
-                                   froz_A_atom=reac.products[0].atom,
-                                   froz_B_geom=list([list(gi) for gi in reac.products[1].geom]),
-                                   froz_B_atom=reac.products[1].atom,
-                                   )
+        if self.par['vrc_tst_scan_sella']:  # TODO sella globally
+            template_file = f'{kb_path}/tpl/ase_sella_vts.tpl.py'
+            template = open(template_file, 'r').read()
+            template = template.format(label=job,
+                                       scan_coo=reac.scan_coo,
+                                       bonds=reac.irc_prod.find_bond(),
+                                       kwargs=kwargs,
+                                       atom=list(reac.species.atom),
+                                       init_geom=list([list(gi) for gi in geom]),
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       scan_deviation=self.par['vrc_tst_scan_deviation'],
+                                       frag_maps=list([list(rm) for rm in reac.maps]),
+                                       froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),
+                                       froz_A_atom=reac.products[0].atom,
+                                       froz_B_geom=list([list(gi) for gi in reac.products[1].geom]),
+                                       froz_B_atom=reac.products[1].atom,
+                                       code=code,
+                                       Code=Code,
+                                       sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                       )
+
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_vts.tpl.py'
+            template = open(template_file, 'r').read()
+            template = template.format(label=job,
+                                       scan_coo=reac.scan_coo,
+                                       kwargs=kwargs,
+                                       atom=list(reac.species.atom),
+                                       init_geom=list([list(gi) for gi in geom]),
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       scan_deviation=self.par['vrc_tst_scan_deviation'],
+                                       frag_maps=list([list(rm) for rm in reac.maps]),
+                                       froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),
+                                       froz_A_atom=reac.products[0].atom,
+                                       froz_B_geom=list([list(gi) for gi in reac.products[1].geom]),
+                                       froz_B_atom=reac.products[1].atom,
+                                       )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)

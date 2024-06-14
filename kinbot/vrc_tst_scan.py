@@ -104,9 +104,13 @@ class VTS:
                 ww = self.scan_reac[reac].instance_name.split('_')
                 self.scan_reac[reac].scan_coo = [int(ww[-2]) - 1, int(ww[-1]) - 1]
                 logger.info(f'Bond to be scanned for {reac} is {np.array(self.scan_reac[reac].scan_coo)+1}')
+            if self.scan_reac[reac].do_vdW:
+                self.scan_reac[reac].scan_coo = [None, None]
+                self.scan_reac[reac].scan_coo[0], self.scan_reac[reac].scan_coo[1] = \
+                    self.scan_reac[reac].irc_prod.make_extra_bond(self.scan_reac[reac].parts, self.scan_reac[reac].maps)
             else:
                 # adding up bond breaks only
-                nreacbond = np.sum(np.array([b for bb in reac.ts.reac_bond for b in bb if b < 0])) / 2
+                nreacbond = np.sum(np.array([b for bb in self.scan_reac[reac].ts.reac_bond for b in bb if b < 0])) / 2
                 if nreacbond == 0:
                     logger.warning(f'No bond change detected, unable to determine scan coo for {reac}')
                     self.scan_reac[reac].scan_coo = False
@@ -170,7 +174,12 @@ class VTS:
 
         status = ['ready'] * len(reactions)
         step = np.zeros(len(reactions), dtype=int)
-        geoms = [self.scan_reac[reac].species.geom for reac in reactions]
+        geoms = []
+        for reac in reactions:
+            if not self.scan_reac[reac].do_vdW:
+                geoms.append(self.scan_reac[reac].species.geom)
+            else:
+                geoms.append(self.scan_reac[reac].irc_prod.geom)
         jobs = [''] * len(reactions)
 
         while 1:

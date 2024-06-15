@@ -197,6 +197,7 @@ class VTS:
                     shift = vec_AB * (self.par['vrc_tst_scan_points'][step[ri]] - dist_AB)
                     for mi in self.scan_reac[reac].maps[1]:
                         geoms[ri][mi] = [gi + shift[i] for i, gi in enumerate(geoms[ri][mi])]
+                    logger.info(f'\trunning {jobs[ri]}')
                     jobs[ri] = self.qc.qc_vts(self.scan_reac[reac], 
                                               geoms[ri], 
                                               step=step[ri],

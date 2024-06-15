@@ -31,7 +31,15 @@ cons = Constraints(mol)
 cons.fix_bond((scan_coo[0], scan_coo[1]))
 internals = Internals(mol)
 internals.find_all_bonds()
-internals.add_bond((scan_coo[0], scan_coo[1]))
+hit = False
+for bond in internals.internals['bonds']:
+    if (bond.indices[0] == scan_coo[0] and bond.indices[1] == scan_coo[1]) or \
+       (bond.indices[1] == scan_coo[0] and bond.indices[0] == scan_coo[1]):
+        hit = True 
+        break
+if not hit:
+    internals.add_bond((scan_coo[0], scan_coo[1]))
+
 internals.find_all_angles()
 internals.find_all_dihedrals()
 opts = []
@@ -70,28 +78,27 @@ while 1:
                 break
             mol_prev = copy.deepcopy(mol)
             e = mol.get_potential_energy() 
-    except RuntimeError:
-        break
+    except (RuntimeError, AssertionError):
+        ok = False
+        pass
 
     if not ok:
         mol = copy.deepcopy(mol_prev)
         cons = Constraints(mol)
         cons.fix_bond((scan_coo[0], scan_coo[1]))
-        internals = Internals(mol)
-        internals.find_all_bonds()
-        internals.add_bond((scan_coo[0], scan_coo[1]))
-        internals.find_all_angles()
-        internals.find_all_dihedrals()
 
+        # give up internal coo optimization
         opt = Sella(mol,
                     order=0,
                     constraints=cons,
-                    internal=True,
+                    internal=False,
                     trajectory='{label}.traj', 
                     logfile='{label}_sella.log',
                     **sella_kwargs)
         opts.append(opt)
         model += 1
+    elif model == 3:
+        break
     else:
         break
 

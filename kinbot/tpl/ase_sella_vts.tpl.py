@@ -4,7 +4,7 @@ from ase.db import connect
 import time
 import os
 import copy
-from sella import Sella, Constraints
+from sella import Sella, Constraints, Internals
 from kinbot.ase_modules.calculators.{code} import {Code}
 
 from kinbot.stationary_pt import StationaryPoint
@@ -29,6 +29,11 @@ if os.path.isfile('{label}_sella.log'):
 sella_kwargs = {sella_kwargs}
 cons = Constraints(mol)
 cons.fix_bond((scan_coo[0], scan_coo[1]))
+internals = Internals(mol)
+internals.find_all_bonds()
+internals.add_bond((scan_coo[0], scan_coo[1]))
+internals.find_all_angles()
+internals.find_all_dihedrals()
 opts = []
 opt = Sella(mol, 
             order=0, 
@@ -72,6 +77,11 @@ while 1:
         mol = copy.deepcopy(mol_prev)
         cons = Constraints(mol)
         cons.fix_bond((scan_coo[0], scan_coo[1]))
+        internals = Internals(mol)
+        internals.find_all_bonds()
+        internals.add_bond((scan_coo[0], scan_coo[1]))
+        internals.find_all_angles()
+        internals.find_all_dihedrals()
 
         opt = Sella(mol,
                     order=0,

@@ -46,7 +46,7 @@ model = 0
 while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
-    for i in opts[mdodel].irun(fmax=1e-4, steps=100):
+    for i in opts[model].irun(fmax=1e-4, steps=100):
         # due to dummy atom, constraint is lost
         if abs(np.linalg.norm(mol.positions[3] - mol.positions[7]) - scan_dist) > 0.01:
             ok = False

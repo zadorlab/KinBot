@@ -104,7 +104,7 @@ class VTS:
                 ww = self.scan_reac[reac].instance_name.split('_')
                 self.scan_reac[reac].scan_coo = [int(ww[-2]) - 1, int(ww[-1]) - 1]
                 logger.info(f'Bond to be scanned for {reac} is {np.array(self.scan_reac[reac].scan_coo)+1}')
-            if self.scan_reac[reac].do_vdW:
+            elif self.scan_reac[reac].do_vdW:
                 self.scan_reac[reac].scan_coo = [None, None]
                 self.scan_reac[reac].scan_coo[0], self.scan_reac[reac].scan_coo[1] = \
                     self.scan_reac[reac].irc_prod.make_extra_bond(self.scan_reac[reac].parts, self.scan_reac[reac].maps)

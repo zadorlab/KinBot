@@ -46,24 +46,27 @@ model = 0
 while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
-    for i in opts[model].irun(fmax=1e-4, steps=100):
-        # due to dummy atom, constraint is lost
-        if abs(np.linalg.norm(mol.positions[3] - mol.positions[7]) - scan_dist) > 0.01:
-            ok = False
-            print('constraint lost')
-            break
-        if rmsd.kabsch_rmsd(np.array({init_geom}), mol.positions, translate=True) > {scan_deviation}:
-            last = False
-            print('rmsd is too large, optimization is stopped')
-            break
-        curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
-        ratio = curr_distances / distances
-        if any([True if ri > 1.1 else False for ri in ratio]):
-            last = False
-            print('a bond is more than 10% stretched, optimization is stopped')
-            break
-        mol_prev = copy.deepcopy(mol)
-        e = mol.get_potential_energy() 
+    try:
+        for i in opts[model].irun(fmax=1e-4, steps=100):
+            # due to dummy atom, constraint is lost
+            if abs(np.linalg.norm(mol.positions[3] - mol.positions[7]) - scan_dist) > 0.01:
+                ok = False
+                print('constraint lost')
+                break
+            if rmsd.kabsch_rmsd(np.array({init_geom}), mol.positions, translate=True) > {scan_deviation}:
+                last = False
+                print('rmsd is too large, optimization is stopped')
+                break
+            curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
+            ratio = curr_distances / distances
+            if any([True if ri > 1.1 else False for ri in ratio]):
+                last = False
+                print('a bond is more than 10% stretched, optimization is stopped')
+                break
+            mol_prev = copy.deepcopy(mol)
+            e = mol.get_potential_energy() 
+    except RuntimeError:
+        break
 
     if not ok:
         mol = copy.deepcopy(mol_prev)

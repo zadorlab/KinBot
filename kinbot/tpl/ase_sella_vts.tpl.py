@@ -22,12 +22,14 @@ mol.calc = {Code}(**kwargs)
 # RELAXED
 
 scan_coo = {scan_coo}
+scan_dist = np.linalg.norm(mol.positions[scan_coo[0]] - mol.positions[scan_coo[1]])
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 sella_kwargs = {sella_kwargs}
 cons = Constraints(mol)
 cons.fix_bond((scan_coo[0], scan_coo[1]))
+opts = []
 opt = Sella(mol, 
             order=0, 
             constraints=cons,
@@ -35,25 +37,50 @@ opt = Sella(mol,
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)
-
+opts.append(opt)
 mol.calc.label = '{label}'
 bonds = {bonds}
 distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
 
-last = True  # take the last geometry, otherwise the one before that
-for i in opt.irun(fmax=1e-4, steps=100):
-    if rmsd.kabsch_rmsd(np.array({init_geom}), mol.positions, translate=True) > {scan_deviation}:
-        last = False
-        print('rmsd is too large, optimization is stopped')
+model = 0
+while 1:
+    ok = True
+    last = True  # take the last geometry, otherwise the one before that
+    for i in opts[mdodel].irun(fmax=1e-4, steps=100):
+        # due to dummy atom, constraint is lost
+        if abs(np.linalg.norm(mol.positions[3] - mol.positions[7]) - scan_dist) > 0.01:
+            ok = False
+            print('constraint lost')
+            break
+        if rmsd.kabsch_rmsd(np.array({init_geom}), mol.positions, translate=True) > {scan_deviation}:
+            last = False
+            print('rmsd is too large, optimization is stopped')
+            break
+        curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
+        ratio = curr_distances / distances
+        if any([True if ri > 1.1 else False for ri in ratio]):
+            last = False
+            print('a bond is more than 10% stretched, optimization is stopped')
+            break
+        mol_prev = copy.deepcopy(mol)
+        e = mol.get_potential_energy() 
+
+    if not ok:
+        mol = copy.deepcopy(mol_prev)
+        cons = Constraints(mol)
+        cons.fix_bond((scan_coo[0], scan_coo[1]))
+
+        opt = Sella(mol,
+                    order=0,
+                    constraints=cons,
+                    internal=True,
+                    trajectory='{label}.traj', 
+                    logfile='{label}_sella.log',
+                    **sella_kwargs)
+        opts.append(opt)
+        model += 1
+    else:
         break
-    curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
-    ratio = curr_distances / distances
-    if any([True if ri > 1.1 else False for ri in ratio]):
-        last = False
-        print('a bond is more than 10% strethed, optimization is stopped')
-        break
-    mol_prev = copy.deepcopy(mol)
-    e = mol.get_potential_energy() 
 
 if not last:
     mol = mol_prev

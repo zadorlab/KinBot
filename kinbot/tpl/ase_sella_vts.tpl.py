@@ -55,12 +55,14 @@ mol.calc.label = '{label}'
 bonds = {bonds}
 distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
 
+energies = []
 model = 0
+fmax = 1.e-4
 while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
     try:
-        for i in opts[model].irun(fmax=1e-4, steps=100):
+        for i in opts[model].irun(fmax=fmax, steps=100):
             # due to dummy atom, constraint is lost
             if abs(np.linalg.norm(mol.positions[3] - mol.positions[7]) - scan_dist) > 0.01:
                 ok = False
@@ -78,6 +80,10 @@ while 1:
                 break
             mol_prev = copy.deepcopy(mol)
             e = mol.get_potential_energy() 
+            energies.append(e)
+            # when forces don't fully converge, but energy doesn't change anymore
+            if len(energies) > 6 and np.var(energies[-5:]) < 1.e-8:
+                break
     except (RuntimeError, AssertionError):
         ok = False
         pass
@@ -87,7 +93,8 @@ while 1:
         cons = Constraints(mol)
         cons.fix_bond((scan_coo[0], scan_coo[1]))
 
-        # give up internal coo optimization
+        # give up internal coo optimization and losen convergence
+        fmax *= 3.
         opt = Sella(mol,
                     order=0,
                     constraints=cons,

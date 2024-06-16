@@ -25,6 +25,11 @@ calc = Gaussian(**kwargs)
 mol.calc = calc
 
 # RELAXED
+scan_coo = {scan_coo}
+scan_dist = np.linalg.norm(mol.positions[scan_coo[0]] - mol.positions[scan_coo[1]])
+
+bonds = {bonds}
+distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
 
 try:
     e = mol.get_potential_energy()  # use the Gaussian optimizer
@@ -40,8 +45,12 @@ if len(geoms) == 0:  # no optimization worked, assuming that we have at least on
     db.write(mol, name=label, data={{'energy': energies[-1], 'status': 'normal'}})
 else:  # select the last geometry that was within the range of allowed change
     for gii, geom in enumerate(geoms):  # these geometries are already in reverse order!
-        if rmsd.kabsch_rmsd(np.array({init_geom}), geom, translate=True) < {scan_deviation}:
-            mol.positions = geom  # update geometry
+        mol.positions = geom  # update geometry
+        # first testing stretched bonds
+        curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
+        ratio = curr_distances / distances
+        if all([True if ri < 1.1 else False for ri in ratio]) and \
+                rmsd.kabsch_rmsd(np.array({init_geom}), geom, translate=True) < {scan_deviation}:
             db.write(mol, name=label, data={{'energy': energies[gii], 'status': 'normal'}})
             break
 
@@ -50,8 +59,6 @@ with open(logfile, 'a') as f:
     f.write('done\n')
 
 # FROZEN
-
-scan_coo = {scan_coo}
 
 # create fragment geometries from the relaxed scan and save scan atoms' position and index
 coo_A = np.array([mol.positions[i] for i in {frag_maps}[0]])

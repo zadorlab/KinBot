@@ -800,6 +800,7 @@ class QuantumChemistry:
             template = open(template_file, 'r').read()
             template = template.format(label=job,
                                        scan_coo=reac.scan_coo,
+                                       bonds=reac.irc_prod.bondlist,
                                        kwargs=kwargs,
                                        atom=list(reac.species.atom),
                                        init_geom=list([list(gi) for gi in geom]),

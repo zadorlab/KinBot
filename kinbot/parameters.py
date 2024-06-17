@@ -513,7 +513,7 @@ class Parameters:
             for sp in self.par['vrc_tst_scan_points']:
                 tmp.append(list(np.arange(sp[0], sp[1], sp[2])))
             self.par['vrc_tst_scan_points'] = [i for sp in tmp for i in sp]
-        except TypeError:
+        except (TypeError, IndexError):
             pass
 
         if err is not None:

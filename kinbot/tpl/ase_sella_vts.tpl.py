@@ -61,6 +61,7 @@ while 1:
     last = True  # take the last geometry, otherwise the one before that
     try:
         for i in opts[model].irun(fmax=1e-4, steps=100):
+            mol_prev = copy.deepcopy(mol)
             # due to dummy atom, constraint is lost
             if abs(np.linalg.norm(mol.positions[scan_coo[0]] - mol.positions[scan_coo[1]]) - scan_dist) > 0.01:
                 ok = False

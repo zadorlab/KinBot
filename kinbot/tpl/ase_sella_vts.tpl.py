@@ -62,7 +62,7 @@ while 1:
     try:
         for i in opts[model].irun(fmax=1e-4, steps=100):
             # due to dummy atom, constraint is lost
-            if abs(np.linalg.norm(mol.positions[3] - mol.positions[7]) - scan_dist) > 0.01:
+            if abs(np.linalg.norm(mol.positions[scan_coo[0]] - mol.positions[scan_coo[1]]) - scan_dist) > 0.01:
                 ok = False
                 print('constraint lost')
                 break

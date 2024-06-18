@@ -7,9 +7,6 @@ import copy
 from sella import Sella, Constraints, Internals
 from kinbot.ase_modules.calculators.{code} import {Code}
 
-from kinbot.stationary_pt import StationaryPoint
-from kinbot import geometry
-from kinbot import zmatrix
 import rmsd
 
 db = connect('{working_dir}/kinbot.db')
@@ -18,9 +15,13 @@ logfile = '{label}.log'
 
 mol = Atoms(symbols={atom}, positions={init_geom})
 kwargs = {kwargs}
+kwargs['chk'] = '{label}'.replace('vrctst/', '')
 mol.calc = {Code}(**kwargs)
-# RELAXED
+mol.get_potential_energy()
+kwargs['guess'] = 'Read'
+mol.calc = {Code}(**kwargs)
 
+# RELAXED
 scan_coo = {scan_coo}
 scan_dist = np.linalg.norm(mol.positions[scan_coo[0]] - mol.positions[scan_coo[1]])
 

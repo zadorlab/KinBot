@@ -82,7 +82,7 @@ while 1:
             e = mol.get_potential_energy() 
             energies.append(e)
             # when forces don't fully converge, but energy doesn't change anymore
-            if len(energies) > 6 and np.var(energies[-5:]) < 1.e-8:
+            if len(energies) > 11 and np.std(energies[-10:]) < 1.e-7:
                 break
     except (RuntimeError, AssertionError):
         ok = False

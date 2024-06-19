@@ -59,12 +59,12 @@ distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond
 energies = []
 model = 0
 fmax = 1.e-4
+mol_prev = copy.deepcopy(mol)
 while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
     try:
         for i in opts[model].irun(fmax=fmax, steps=100):
-            mol_prev = copy.deepcopy(mol)
             # due to dummy atom, constraint is lost
             if abs(np.linalg.norm(mol.positions[scan_coo[0]] - mol.positions[scan_coo[1]]) - scan_dist) > 0.01:
                 ok = False

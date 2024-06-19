@@ -6,6 +6,7 @@ import copy
 from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
+from kinbot.molpro import Molpro
 
 logger = logging.getLogger('KinBot')
 
@@ -204,6 +205,10 @@ class VTS:
                     logger.info(f'\trunning {jobs[ri]}')
                     status[ri] = 'running'
                     # TODO submit SL and HL
+                    # create Molpro object
+                    # collect the info from input
+                    # pass info to object --> write input --> submit (function needs to be written)
+                    # not wait for them
                 elif status[ri] == 'running':
                     _, geom = self.qc.get_qc_geom(jobs[ri], self.scan_reac[reac].species.natom, allow_error=1)
                     qcst = self.qc.check_qc(jobs[ri])

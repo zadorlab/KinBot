@@ -24,6 +24,7 @@ mol_prev = copy.deepcopy(mol)
 
 # RELAXED
 scan_coo = {scan_coo}
+scan_coo_equiv = {equiv}
 scan_dist = np.linalg.norm(mol.positions[scan_coo[0]] - mol.positions[scan_coo[1]])
 
 if os.path.isfile('{label}_sella.log'):
@@ -125,17 +126,34 @@ with open('{label}.log', 'a') as f:
 # create fragment geometries from the relaxed scan and save scan atoms' position and index
 coo_A = np.array([mol.positions[i] for i in {frag_maps}[0]])
 try:
-    scan_atom_A = {frag_maps}[0].index(scan_coo[0])
+    #scan_atom_A = {frag_maps}[0].index(scan_coo[0])
+    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[0])]
 except ValueError:
-    scan_atom_A = {frag_maps}[0].index(scan_coo[1])
-scan_pos_A = copy.deepcopy(coo_A[scan_atom_A])
+    #scan_atom_A = {frag_maps}[0].index(scan_coo[1])
+    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[1])]
+#scan_pos_A = copy.deepcopy(coo_A[scan_atom_A])
+scan_pos_A = copy.deepcopy(coo_A[i] for i in scan_atom_A)
 
 coo_B = np.array([mol.positions[i] for i in {frag_maps}[1]])
 try:
-    scan_atom_B = {frag_maps}[1].index(scan_coo[0])
+    #scan_atom_B = {frag_maps}[1].index(scan_coo[0])
+    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[0])]
 except ValueError:
-    scan_atom_B = {frag_maps}[1].index(scan_coo[1])
-scan_pos_B = copy.deepcopy(coo_B[scan_atom_B])
+    #scan_atom_B = {frag_maps}[1].index(scan_coo[1])
+    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[1])]
+#scan_pos_B = copy.deepcopy(coo_B[scan_atom_B])
+scan_pos_B = copy.deepcopy(coo_B[i] for i in scan_atom_B)
+
+amin = 0 
+bmin = 0
+mindist = np.linalg.norm(scan_pos_B[bmin] - scan_pos_A[amin])
+for a, apos in enumerate(scan_pos_A):
+    for b, bpos in enumerate(scan_pos_B):
+        currdist = np.linalg.nomr(bpos - apos)
+        if mindist > currdist:
+            mindist = currdist
+            amin = a
+            bmin = b
 
 # Move fragments to own centroids (translation only)
 cent_A = rmsd.centroid(coo_A)
@@ -156,8 +174,8 @@ coo_A_fr = rmsd.kabsch_rotate(coo_A_fr, coo_A)
 coo_B_fr = rmsd.kabsch_rotate(coo_B_fr, coo_B)
 
 # move fragments back to scan position
-coo_A_fr -= coo_A_fr[scan_atom_A] - scan_pos_A
-coo_B_fr -= coo_B_fr[scan_atom_B] - scan_pos_B
+coo_A_fr -= coo_A_fr[scan_atom_A[amin]] - scan_pos_A[amin]
+coo_B_fr -= coo_B_fr[scan_atom_B[bmin]] - scan_pos_B[bmin]
 
 # reassemble full geometry from frozen fragments
 frozen_geom = np.zeros((len({atom}), 3))

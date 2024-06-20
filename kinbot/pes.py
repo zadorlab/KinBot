@@ -1486,7 +1486,7 @@ def create_rotdPy_inputs(par, bless, vdW):
 
         db = connect(f"{parent_chemid}/kinbot.db")
         *_, last_row = db.select(name=f"{basename}", sort="-1")
-        parent = StationaryPoint.from_ase_atoms(last_row.toatoms())#This is an ase.atoms object
+        parent = StationaryPoint.from_ase_atoms(last_row.toatoms())  # This is an ase.atoms object
         parent.characterize()
 
         fragnames = Fragment.get_fragnames()

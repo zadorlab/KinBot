@@ -3,8 +3,9 @@ import time
 import logging
 import copy
 
-from kinbot import kb_path
+from ase.db import connect
 from kinbot.stationary_pt import StationaryPoint
+from kinbot import kb_path
 from kinbot import geometry
 from kinbot.molpro import Molpro
 
@@ -34,9 +35,8 @@ class VTS:
                 self.opt_products(reactions)
                 self.save_products(reactions)
                 self.find_scan_coos(reactions)
-                self.do_scan(reactions)
-                # TODO scan.save_results(reactions)  # print file as before 
-                # /home/csoulie/projects/acetoin/vdwtest/882363063562220240001_bimol_disproportionation_R_5_4_vrc_tst_scan_441041030570000000001_441080860640060000001_plt.py
+                jobs = self.do_scan(reactions)
+                # self.energies(reactions)
         return
 
     def opt_products(self, reactions):
@@ -136,7 +136,7 @@ class VTS:
         '''
         Keeps the object to be scanned intact, but rearranges the products and the atoms in the products so that:
         1. fragment0 of scan is product0
-        2. in both fragments the order of the atoms, labeled by chemid, is identical
+        2. in both fragments the order of the atoms, labeled by atomid, is identical
         It might still scramble chirality, but that is perhaps a very rare edge case?
         '''
         # match product ordering with scanned fragments' order 
@@ -182,6 +182,7 @@ class VTS:
             else:
                 geoms.append(self.scan_reac[reac].irc_prod.geom)
         jobs = [''] * len(reactions)
+        equiv = []
 
         while 1:
             for ri, reac in enumerate(reactions):
@@ -198,17 +199,44 @@ class VTS:
                     shift = vec_AB * (self.par['vrc_tst_scan_points'][step[ri]] - dist_AB)
                     for mi in self.scan_reac[reac].maps[1]:
                         geoms[ri][mi] = [gi + shift[i] for i, gi in enumerate(geoms[ri][mi])]
+                    if step == 0:
+                        # determine equivalent atoms
+                        equiv_A = []
+                        equiv_B = []
+                        if self.scan_reac[reac].scan_coo[0] in self.scan_reac[reac].maps[0]:
+                            # find the index of self.scan_reac[reac].scan_coo[0] in prod0 and give its atomid
+                            index_A = self.scan_reac[reac].maps[0].index(self.scan_reac[reac].scan_coo[0])
+                            atomid_A = self.scan_reac[reac].products[0].atomid[index_A]
+                            for ii, mi in enumerate(self.scan_reac[reac].maps[0]):
+                                if self.scan_reac[reac].products[0].atomid[ii] == atomid_A:
+                                    equiv_A.append(mi)  
+                            index_B = self.scan_reac[reac].maps[1].index(self.scan_reac[reac].scan_coo[1])
+                            atomid_B = self.scan_reac[reac].products[1].atomid[index_B]
+                            for ii, mi in enumerate(self.scan_reac[reac].maps[1]):
+                                if self.scan_reac[reac].products[1].atomid[ii] == atomid_B:
+                                    equiv_B.append(mi)  
+                        else:
+                            # find the index of self.scan_reac[reac].scan_coo[0] in prod0 and give its atomid
+                            index_A = self.scan_reac[reac].maps[1].index(self.scan_reac[reac].scan_coo[0])
+                            atomid_A = self.scan_reac[reac].products[1].atomid[index_A]
+                            for ii, mi in enumerate(self.scan_reac[reac].maps[1]):
+                                if self.scan_reac[reac].products[1].atomid[ii] == atomid_A:
+                                    equiv_A.append(mi)  
+                            index_B = self.scan_reac[reac].maps[0].index(self.scan_reac[reac].scan_coo[1])
+                            atomid_B = self.scan_reac[reac].products[0].atomid[index_B]
+                            for ii, mi in enumerate(self.scan_reac[reac].maps[0]):
+                                if self.scan_reac[reac].products[0].atomid[ii] == atomid_B:
+                                    equiv_B.append(mi)  
+
+                        equiv.append = [equiv_A, equiv_B]
+
                     jobs[ri] = self.qc.qc_vts(self.scan_reac[reac], 
                                               geoms[ri], 
-                                              step=step[ri],
+                                              step[ri],
+                                              equiv[ri],
                                               )
                     logger.info(f'\trunning {jobs[ri]}')
                     status[ri] = 'running'
-                    # TODO submit SL and HL
-                    # create Molpro object
-                    # collect the info from input
-                    # pass info to object --> write input --> submit (function needs to be written)
-                    # not wait for them
                 elif status[ri] == 'running':
                     _, geom = self.qc.get_qc_geom(jobs[ri], self.scan_reac[reac].species.natom, allow_error=1)
                     qcst = self.qc.check_qc(jobs[ri])
@@ -223,4 +251,31 @@ class VTS:
             else:
                 time.sleep(1)
 
+        return(jobs)
+
+        def energies(self, reactions):
+            '''
+            Create and submit molpro calculations
+            '''
+            # db = connect('kinbot.db')
+            # for reac in reactions:
+            #   for step in range(len(self.par['vrc_tst_scan_points'])):
+            #       job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
+            #       *_, last_row = db.select(name=f"{job}", sort="-1")
+            #       scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
+            #       scan_spec.characterize()
+            #        
+            #       molp = Molpro(scan_spec, self.par)
+            #       molp.create_molpro_input(name=job, VTS=True, sample=False)
+            #       molp.submit(XXX)
+            #
+            #       job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)_fr}'
+            #       *_, last_row = db.select(name=f"{job}", sort="-1")
+            #       scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
+            #       scan_spec.characterize()
+            #        
+            #       molp = Molpro(scan_spec, self.par)
+            #       molp.create_molpro_input(name=job, VTS=True, sample=True)
+            #       molp.submit(XXX)
+ 
         return

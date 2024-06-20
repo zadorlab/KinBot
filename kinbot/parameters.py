@@ -285,8 +285,11 @@ class Parameters:
             'vrc_tst_scan_method': "ub3lyp",  
             # Basis set to scan bonds in vrc_tst_scan
             'vrc_tst_scan_basis': "6-31+G(d)",
-            # Active space: minimal, automatic, values
-            'vrc_tst_active_space': 'minimal',
+            # Energy calculations 
+            'vrc_tst_sample_method': 'caspt2(2,2)',
+            'vrc_tst_high_method': 'caspt2(2,2)',
+            'vrc_tst_sample_basis': 'vdz',
+            'vrc_tst_high_basis': 'avtz',
             # Parameters for the vrc_tst scan
             "vrc_tst_scan_points": list(np.arange(2.5, 20.0, 0.2)),
             "vrc_tst_scan_molpro_key": [],

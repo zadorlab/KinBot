@@ -195,6 +195,11 @@ def main():
             logger.info('Setting up scans for VRC-TST...')
             vts = VTS(well0, par, qc)
             vts.calculate_correction_potentials()
+            # this move to pes.py
+            # wait for molpro
+            # read the molpro
+            # apply symmtery
+            # call util create_mpl ... --> .py which can be used to plot the correction
             #rotd = RotdPy(vts, par)
             #rotd.make_input
 

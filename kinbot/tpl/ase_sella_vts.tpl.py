@@ -20,6 +20,7 @@ mol.calc = {Code}(**kwargs)
 mol.get_potential_energy()
 kwargs['guess'] = 'Read'
 mol.calc = {Code}(**kwargs)
+mol_prev = copy.deepcopy(mol)
 
 # RELAXED
 scan_coo = {scan_coo}

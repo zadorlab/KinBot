@@ -36,7 +36,7 @@ class VTS:
                 self.save_products(reactions)
                 self.find_scan_coos(reactions)
                 jobs = self.do_scan(reactions)
-                # self.energies(reactions)
+                self.energies(reactions)
         return
 
     def opt_products(self, reactions):
@@ -287,25 +287,26 @@ class VTS:
             '''
             Create and submit molpro calculations
             '''
-            # db = connect('kinbot.db')
-            # for reac in reactions:
-            #   for step in range(len(self.par['vrc_tst_scan_points'])):
-            #       job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
-            #       *_, last_row = db.select(name=f"{job}", sort="-1")
-            #       scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
-            #       scan_spec.characterize()
-            #        
-            #       molp = Molpro(scan_spec, self.par)
-            #       molp.create_molpro_input(name=job, VTS=True, sample=False)
-            #       molp.submit(XXX)
-            #
-            #       job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)_fr}'
-            #       *_, last_row = db.select(name=f"{job}", sort="-1")
-            #       scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
-            #       scan_spec.characterize()
-            #        
-            #       molp = Molpro(scan_spec, self.par)
-            #       molp.create_molpro_input(name=job, VTS=True, sample=True)
-            #       molp.submit(XXX)
+            db = connect('kinbot.db')
+            for reac in reactions:
+                for step in range(len(self.par['vrc_tst_scan_points'])):
+                    job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
+                    *_, last_row = db.select(name=f"{job}", sort="-1")
+                    scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
+                    scan_spec.characterize()
+                     
+                    molp = Molpro(scan_spec, self.par)
+                    molp.create_molpro_input(name=job, VTS=True, sample=False)
+                    molp.create_molpro_submit(name=job)
+            
+                    job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)_fr}'
+                    *_, last_row = db.select(name=f"{job}", sort="-1")
+                    scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
+                    scan_spec.characterize()
+                     
+                    molp = Molpro(scan_spec, self.par)
+                    molp.create_molpro_input(name=job, VTS=True, sample=True)
+                    molp.create_molpro_submit(name=job)
+            
  
         return

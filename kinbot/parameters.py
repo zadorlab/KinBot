@@ -282,21 +282,23 @@ class Parameters:
             # using sella for scan
             'vrc_tst_scan_sella': 0,
             # Method to scan bonds in vrc_tst_scan
-            'vrc_tst_scan_method': "ub3lyp",  
+            'vrc_tst_scan_method': 'ub3lyp',  
             # Basis set to scan bonds in vrc_tst_scan
-            'vrc_tst_scan_basis': "6-31+G(d)",
+            'vrc_tst_scan_basis': '6-31+G(d)',
             # Energy calculations 
             'vrc_tst_sample_method': 'caspt2(2,2)',
             'vrc_tst_high_method': 'caspt2(2,2)',
             'vrc_tst_sample_basis': 'vdz',
             'vrc_tst_high_basis': 'avtz',
             # Parameters for the vrc_tst scan
-            "vrc_tst_scan_points": list(np.arange(2.5, 20.0, 0.2)),
-            "vrc_tst_scan_molpro_key": [],
+            'vrc_tst_scan_points': list(np.arange(2.5, 20.0, 0.2)),
+            'vrc_tst_scan_molpro_key': [],
             # Must be provided
-            "vrc_tst_scan_molpro_tpl": "",
+            'vrc_tst_scan_molpro_tpl': '',
             # Max. rmsd deviation allowed
-            "vrc_tst_scan_deviation": 100.,
+            'vrc_tst_scan_deviation': 100.,
+            # Explicit reaction center for a fragment, {'frament chemid': [atomids of centers]}
+            'vrc_tst_scan_reac_cent': {},
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use

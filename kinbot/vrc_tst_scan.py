@@ -132,6 +132,25 @@ class VTS:
 
         return
 
+    def explicit(self, prod, atomid, equiv, mapping):
+        '''
+        Add user defined reaction centers to the equivalent list to forge communication between various entrances
+        prod: product st_pt object
+        atomid: the scan point's chemid in that product
+        equiv: the list of equivalent atoms to be appended
+        mapping: each element of this list tells which atom the fragment corresponds to in the scan object
+        '''
+        try:
+            for ai in self.par['vrc_tst_scan_reac_cent'][str(prod.chemid)]: 
+                if ai != atomid:
+                    for ii, aii in enumerate(prod.atomid):
+                        if aii == ai:
+                            equiv.append(mapping[ii])
+        except KeyError:
+            pass
+
+        return
+
     def match_order(self, reac): 
         '''
         Keeps the object to be scanned intact, but rearranges the products and the atoms in the products so that:
@@ -210,11 +229,14 @@ class VTS:
                             for ii, mi in enumerate(self.scan_reac[reac].maps[0]):
                                 if self.scan_reac[reac].products[0].atomid[ii] == atomid_A:
                                     equiv_A.append(mi)  
+                            self.explicit(self.scan_reac[reac].products[0], atomid_A, equiv_A, self.scan_reac[reac].maps[0])
                             index_B = np.where(self.scan_reac[reac].maps[1]==self.scan_reac[reac].scan_coo[1])[0][0]
                             atomid_B = self.scan_reac[reac].products[1].atomid[index_B]
                             for ii, mi in enumerate(self.scan_reac[reac].maps[1]):
                                 if self.scan_reac[reac].products[1].atomid[ii] == atomid_B:
                                     equiv_B.append(mi)  
+                            self.explicit(self.scan_reac[reac].products[1], atomid_B, equiv_B, self.scan_reac[reac].maps[1])
+
                         else:
                             # find the index of self.scan_reac[reac].scan_coo[0] in prod0 and give its atomid
                             index_A = np.where(self.scan_reac[reac].maps[1]==self.scan_reac[reac].scan_coo[0])[0][0]
@@ -222,11 +244,13 @@ class VTS:
                             for ii, mi in enumerate(self.scan_reac[reac].maps[1]):
                                 if self.scan_reac[reac].products[1].atomid[ii] == atomid_A:
                                     equiv_A.append(mi)  
+                            self.explicit(self.scan_reac[reac].products[1], atomid_A, equiv_A, self.scan_reac[reac].maps[1])
                             index_B = np.where(self.scan_reac[reac].maps[0]==self.scan_reac[reac].scan_coo[1])[0][0]
                             atomid_B = self.scan_reac[reac].products[0].atomid[index_B]
                             for ii, mi in enumerate(self.scan_reac[reac].maps[0]):
                                 if self.scan_reac[reac].products[0].atomid[ii] == atomid_B:
                                     equiv_B.append(mi)  
+                            self.explicit(self.scan_reac[reac].products[0], atomid_B, equiv_B, self.scan_reac[reac].maps[0])
 
                         equiv.append([equiv_A, equiv_B])
 

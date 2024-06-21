@@ -149,7 +149,7 @@ bmin = 0
 mindist = np.linalg.norm(scan_pos_B[bmin] - scan_pos_A[amin])
 for a, apos in enumerate(scan_pos_A):
     for b, bpos in enumerate(scan_pos_B):
-        currdist = np.linalg.nomr(bpos - apos)
+        currdist = np.linalg.norm(bpos - apos)
         if mindist > currdist:
             mindist = currdist
             amin = a

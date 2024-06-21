@@ -205,30 +205,30 @@ class VTS:
                         equiv_B = []
                         if self.scan_reac[reac].scan_coo[0] in self.scan_reac[reac].maps[0]:
                             # find the index of self.scan_reac[reac].scan_coo[0] in prod0 and give its atomid
-                            index_A = self.scan_reac[reac].maps[0].index(self.scan_reac[reac].scan_coo[0])
+                            index_A = np.where(self.scan_reac[reac].maps[0]==self.scan_reac[reac].scan_coo[0])[0][0]
                             atomid_A = self.scan_reac[reac].products[0].atomid[index_A]
                             for ii, mi in enumerate(self.scan_reac[reac].maps[0]):
                                 if self.scan_reac[reac].products[0].atomid[ii] == atomid_A:
                                     equiv_A.append(mi)  
-                            index_B = self.scan_reac[reac].maps[1].index(self.scan_reac[reac].scan_coo[1])
+                            index_B = np.where(self.scan_reac[reac].maps[1]==self.scan_reac[reac].scan_coo[1])[0][0]
                             atomid_B = self.scan_reac[reac].products[1].atomid[index_B]
                             for ii, mi in enumerate(self.scan_reac[reac].maps[1]):
                                 if self.scan_reac[reac].products[1].atomid[ii] == atomid_B:
                                     equiv_B.append(mi)  
                         else:
                             # find the index of self.scan_reac[reac].scan_coo[0] in prod0 and give its atomid
-                            index_A = self.scan_reac[reac].maps[1].index(self.scan_reac[reac].scan_coo[0])
+                            index_A = np.where(self.scan_reac[reac].maps[1]==self.scan_reac[reac].scan_coo[0])[0][0]
                             atomid_A = self.scan_reac[reac].products[1].atomid[index_A]
                             for ii, mi in enumerate(self.scan_reac[reac].maps[1]):
                                 if self.scan_reac[reac].products[1].atomid[ii] == atomid_A:
                                     equiv_A.append(mi)  
-                            index_B = self.scan_reac[reac].maps[0].index(self.scan_reac[reac].scan_coo[1])
+                            index_B = np.where(self.scan_reac[reac].maps[0]==self.scan_reac[reac].scan_coo[1])[0][0]
                             atomid_B = self.scan_reac[reac].products[0].atomid[index_B]
                             for ii, mi in enumerate(self.scan_reac[reac].maps[0]):
                                 if self.scan_reac[reac].products[0].atomid[ii] == atomid_B:
                                     equiv_B.append(mi)  
 
-                        equiv.append = [equiv_A, equiv_B]
+                        equiv.append([equiv_A, equiv_B])
 
                     jobs[ri] = self.qc.qc_vts(self.scan_reac[reac], 
                                               geoms[ri], 

@@ -127,20 +127,20 @@ with open('{label}.log', 'a') as f:
 coo_A = np.array([mol.positions[i] for i in {frag_maps}[0]])
 try:
     #scan_atom_A = {frag_maps}[0].index(scan_coo[0])
-    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[0])]
+    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[0]]
 except ValueError:
     #scan_atom_A = {frag_maps}[0].index(scan_coo[1])
-    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[1])]
+    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[1]]
 #scan_pos_A = copy.deepcopy(coo_A[scan_atom_A])
 scan_pos_A = copy.deepcopy(coo_A[i] for i in scan_atom_A)
 
 coo_B = np.array([mol.positions[i] for i in {frag_maps}[1]])
 try:
     #scan_atom_B = {frag_maps}[1].index(scan_coo[0])
-    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[0])]
+    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[0]]
 except ValueError:
     #scan_atom_B = {frag_maps}[1].index(scan_coo[1])
-    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[1])]
+    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[1]]
 #scan_pos_B = copy.deepcopy(coo_B[scan_atom_B])
 scan_pos_B = copy.deepcopy(coo_B[i] for i in scan_atom_B)
 

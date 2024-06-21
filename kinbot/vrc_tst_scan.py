@@ -152,9 +152,6 @@ class VTS:
         
         # look over resonances and automatically add them
         for rad in prod.rads:
-            print(rad)
-            print(list(rad).index(1))
-            print(mapping[list(rad).index(1)])
             if mapping[list(rad).index(1)] not in equiv:  # rad is 1 at the radical
                 equiv.append(mapping[list(rad).index(1)])
 

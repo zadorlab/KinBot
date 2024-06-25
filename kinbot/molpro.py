@@ -179,7 +179,7 @@ class Molpro:
                 case _:
                     method += " l3_method\n"
 
-            with open('vrctst/' + fname + '.inp', 'w') as f:
+            with open('vrctst/molpro/' + fname + '.inp', 'w') as f:
                     f.write(tpl.format(options=options,
                                        fname=fname,
                                        basis=basis,
@@ -189,7 +189,7 @@ class Molpro:
                                        
         return 0
 
-    def get_molpro_energy(self, key, name='', do_vdW=False):
+    def get_molpro_energy(self, key, name='', do_vdW=False, VTS=False):
         """
         Verify if there is a molpro output file and if yes, read the energy
         key is the keyword for the energy we want to read
@@ -198,18 +198,23 @@ class Molpro:
         A non-object-oriented version is used in pes.py
         """
         fname = self.get_name(name, do_vdW)
-        status = os.path.exists('molpro/' + fname + '.out')
-        if status:
-            molpro_dir = "molpro/"
-        else:
-            status = os.path.exists('../molpro/' + fname + '.out')
-            if status:
-                molpro_dir = "../molpro/"
-            else:
-                molpro_dir = f"{fname.split('_')[0]}/molpro/"
-                status = os.path.exists(molpro_dir + fname + '.out')
         if fname == '10000000000000000001':  # proton
             return 1, 0.0
+        if not VTS:
+            status = os.path.exists('molpro/' + fname + '.out')
+            if status:
+                molpro_dir = "molpro/"
+            else:
+                status = os.path.exists('../molpro/' + fname + '.out')
+                if status:
+                    molpro_dir = "../molpro/"
+                else:
+                    molpro_dir = f"{fname.split('_')[0]}/molpro/"
+                    status = os.path.exists(molpro_dir + fname + '.out')
+        else:
+            status = os.path.exists('vrctst/molpro/' + fname + '.out')
+            if status:
+                molpro_dir = 'vrctst/molpro/'
         if status:
             with open(f"{molpro_dir}{fname}.out") as f:
                 lines = f.readlines()
@@ -238,7 +243,7 @@ class Molpro:
         if not VTS:
             file_string = f'molpro/{fname}.{self.par["queuing"]}'
         else:
-            file_string = f'vrctst/{fname}.{self.par["queuing"]}'
+            file_string = f'vrctst/molpro/{fname}.{self.par["queuing"]}'
         with open(file_string, 'w') as f:
             if self.par['queuing'] == 'pbs':
                 f.write((tpl_head + tpl).format(

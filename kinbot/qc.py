@@ -774,6 +774,10 @@ class QuantumChemistry:
                 Code = 'Gaussian'
             else:
                 raise ValueError(f'Currently only Gaussian is supported: {self.qc}')
+            if step == -1:
+                optstep = 0
+            else:
+                optstep = 100
             template_file = f'{kb_path}/tpl/ase_sella_vts.tpl.py'
             template = open(template_file, 'r').read()
             template = template.format(label=job,

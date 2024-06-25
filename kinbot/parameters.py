@@ -333,6 +333,8 @@ class Parameters:
             # Whether to raise an error when 'queuing' is set to 'local' and the 
             # files and db entries are missing, otherwise just show a warning.
             'error_missing_local': True,
+            # Whether to perform the initial cleanup of files.
+            'do_clean': True,
 
             # MASTER EQUATION
             # Assemble the ME

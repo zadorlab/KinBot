@@ -155,12 +155,12 @@ class VTS:
         
         # look over resonances and automatically add them
         for rad in prod.rads:
-            if mapping[list(rad).index(1)] not in equiv:  # rad is 1 at the radical
+            if any(rad == 1) and mapping[list(rad).index(1)] not in equiv:  # rad is 1 at the radical
                 equiv.append(mapping[list(rad).index(1)])
 
         return
 
-    def match_order(self, reac): 
+    def match_order(self, reac):
         '''
         Keeps the object to be scanned intact, but rearranges the products and the atoms in the products so that:
         1. fragment0 of scan is product0

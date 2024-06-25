@@ -15,10 +15,11 @@ logfile = '{label}.log'
 
 mol = Atoms(symbols={atom}, positions={init_geom})
 kwargs = {kwargs}
-kwargs['chk'] = '{label}'.replace('vrctst/', '')
-mol.calc = {Code}(**kwargs)
-mol.get_potential_energy()
-kwargs['guess'] = 'Read'
+if '{Code}' == 'Gaussian':
+    kwargs['chk'] = '{label}'.replace('vrctst/', '')
+    mol.calc = {Code}(**kwargs)
+    mol.get_potential_energy()
+    kwargs['guess'] = 'Read'
 mol.calc = {Code}(**kwargs)
 mol_prev = copy.deepcopy(mol)
 

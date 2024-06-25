@@ -13,7 +13,7 @@ mol = Atoms(symbols={atom},
 
 kwargs = {kwargs}
 mol.calc = {Code}(**kwargs)
-if {Code} == 'Gaussian':
+if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
     kwargs['guess'] = 'Read'
     mol.calc = {Code}(**kwargs)
@@ -55,7 +55,7 @@ with open('{label}.log', 'a') as f:
 if success:
     prod_kwargs = {prod_kwargs}
     mol.calc = {Code}(**prod_kwargs)
-    if {Code} == 'Gaussian':
+    if '{Code}' == 'Gaussian':
         mol.get_potential_energy()
         kwargs['guess'] = 'Read'
         mol.calc = {Code}(**prod_kwargs)

@@ -24,7 +24,7 @@ for fix in base_0_fix:
 
 kwargs = {kwargs}
 mol.calc = {Code}(**kwargs)
-if {Code} == 'Gaussian':
+if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
     kwargs['guess'] = 'Read'
     mol.calc = {Code}(**kwargs)

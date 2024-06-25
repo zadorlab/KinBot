@@ -2,12 +2,15 @@ import numpy as np
 import time
 import logging
 import copy
+import os
+import stat
 
 from ase.db import connect
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import kb_path
 from kinbot import geometry
 from kinbot.molpro import Molpro
+from kinbot.utils import queue_command 
 
 logger = logging.getLogger('KinBot')
 
@@ -283,30 +286,33 @@ class VTS:
 
         return(jobs)
 
-        def energies(self, reactions):
-            '''
-            Create and submit molpro calculations
-            '''
-            db = connect('kinbot.db')
-            for reac in reactions:
-                for step in range(len(self.par['vrc_tst_scan_points'])):
-                    job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
-                    *_, last_row = db.select(name=f"{job}", sort="-1")
+    def energies(self, reactions):
+        '''
+        Create and submit molpro calculations
+        '''
+        cmd, ext = queue_command(self.par['queuing'])
+        batch_submit = ''
+        db = connect('kinbot.db')
+        for reac in reactions:
+            for step in range(len(self.par['vrc_tst_scan_points'])):
+                for sample in [False, True]:
+                    if sample:
+                        job = f'{reac}_vts_pt{str(step).zfill(2)}_fr'
+                    else:
+                        job = f'{reac}_vts_pt{str(step).zfill(2)}'
+                    *_, last_row = db.select(name=f'vrctst/{job}', sort='-1')
                     scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
                     scan_spec.characterize()
                      
                     molp = Molpro(scan_spec, self.par)
-                    molp.create_molpro_input(name=job, VTS=True, sample=False)
-                    molp.create_molpro_submit(name=job)
+                    molp.create_molpro_input(name=job, VTS=True, sample=sample)
+                    molp.create_molpro_submit(name=job, VTS=True)
+                    if not molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'], name=f'vrctst/{job}')[0]:
+                        batch_submit += f'{cmd} {job}.{ext}\n'
             
-                    job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)_fr}'
-                    *_, last_row = db.select(name=f"{job}", sort="-1")
-                    scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
-                    scan_spec.characterize()
-                     
-                    molp = Molpro(scan_spec, self.par)
-                    molp.create_molpro_input(name=job, VTS=True, sample=True)
-                    molp.create_molpro_submit(name=job)
-            
- 
+        batch = f'vrctst/batch_vts_{self.par["queuing"]}.sub'
+        if self.par['queuing'] != 'local':
+            with open(batch, 'w') as f:
+                f.write(batch_submit)
+            os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
         return

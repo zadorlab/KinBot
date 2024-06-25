@@ -112,9 +112,6 @@ class Parameters:
             'calc_aie': 0,
             # Detect vdW wells deeper than threshold (kcal/mol)
             'vdW_detection': 0.5,
-            #List of barrierless reactions for which rotdPy inputs must be created
-            #Ex: 882363063562220240001_bimol_disproportionation_R_5_4_IRC_R_prod_441041030570000000001_441080860640060000001
-            'rotdPy_inputs': None,
             #Dictionary of distances in bohr at which pivot points are generated for each atom
             'pp_length': None,
             #List [start, stop] in angstrom of the pp_oriented procedure
@@ -279,6 +276,8 @@ class Parameters:
             # Define the species and the reactions for which scans are requested
             # {chemid1: ["reaction_name1", "reaction_name2"], chemid2: [...]}
             'vrc_tst_scan': {},
+            # for these, write rotdpy input, but don't do scan
+            'vrc_tst_noscan': {},
             # using sella for scan
             'vrc_tst_scan_sella': 0,
             # Method to scan bonds in vrc_tst_scan
@@ -292,7 +291,7 @@ class Parameters:
             'vrc_tst_high_basis': 'avtz',
             # Parameters for the vrc_tst scan
             'vrc_tst_scan_points': list(np.arange(2.5, 20.0, 0.2)),
-            'vrc_tst_scan_molpro_key': [],
+            'vrc_tst_scan_molpro_key': 'myenergy',
             # Must be provided
             'vrc_tst_scan_molpro_tpl': '',
             # Max. rmsd deviation allowed
@@ -468,9 +467,6 @@ class Parameters:
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
 
-        if self.par['rotdPy_inputs'] is None:
-            self.par['rotdPy_inputs'] = []
-        
         #Check user input
         if self.par['pp_length'] != None and\
             not isinstance(self.par['pp_length'], dict):

@@ -147,7 +147,7 @@ class Molpro:
             if sample:
                 l3_method = self.par["vrc_tst_sample_method"]
             else:
-                l3_method = self.par["vrc_tst_high__method"]
+                l3_method = self.par["vrc_tst_high_method"]
 
             
             match regex_in(l3_method):
@@ -179,7 +179,7 @@ class Molpro:
                 case _:
                     method += " l3_method\n"
 
-            with open('molpro/' + fname + '.inp', 'w') as f:
+            with open('vrctst/' + fname + '.inp', 'w') as f:
                     f.write(tpl.format(options=options,
                                        fname=fname,
                                        basis=basis,
@@ -218,7 +218,7 @@ class Molpro:
                     return 1, float(line.split()[3])
         return 0, -1
 
-    def create_molpro_submit(self, name='', do_vdW=False):
+    def create_molpro_submit(self, name='', do_vdW=False, VTS=False):
         """
         write a pbs or slurm file for the molpro input file
         """
@@ -235,7 +235,11 @@ class Molpro:
         with open(molpro_tpl) as f:
             tpl = f.read()
         # substitution
-        with open(f'molpro/{fname}.{self.par["queuing"]}', 'w') as f:
+        if not VTS:
+            file_string = f'molpro/{fname}.{self.par["queuing"]}'
+        else:
+            file_string = f'vrctst/{fname}.{self.par["queuing"]}'
+        with open(file_string, 'w') as f:
             if self.par['queuing'] == 'pbs':
                 f.write((tpl_head + tpl).format(
                         name=fname,

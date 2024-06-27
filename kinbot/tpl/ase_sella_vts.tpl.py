@@ -141,63 +141,31 @@ with open('{label}.log', 'a') as f:
 coo_A = np.array([mol.positions[i] for i in {frag_maps}[0]])
 coo_B = np.array([mol.positions[i] for i in {frag_maps}[1]])
 try:
-    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[0]]
-    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[1]]
+    scan_atom_A = {frag_maps}[0].index(scan_coo[0])
+    scan_atom_B = {frag_maps}[1].index(scan_coo[1])
 except ValueError:
-    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[1]]
-    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[0]]
-scan_pos_A = copy.deepcopy([coo_A[i] for i in scan_atom_A])
-scan_pos_B = copy.deepcopy([coo_B[i] for i in scan_atom_B])
-
-# with inequality constraint this may be obsolete to check
-# in fact, it is harmful due to numerical accuracy
-amin = 0 
-bmin = 0
-#mindist = np.linalg.norm(scan_pos_B[bmin] - scan_pos_A[amin])
-#for a, apos in enumerate(scan_pos_A):
-#    for b, bpos in enumerate(scan_pos_B):
-#        currdist = np.linalg.norm(bpos - apos)
-#        if mindist > currdist:
-#            mindist = currdist
-#            amin = a  # coordinate index of the most relevant pivot on A
-#            bmin = b
-
-# Move relaxed fragments to own centroids (translation only)
-#cent_A = rmsd.centroid(coo_A)
-#cent_B = rmsd.centroid(coo_B)
-#coo_A -= cent_A
-#coo_B -= cent_B
+    scan_atom_A = {frag_maps}[0].index(scan_coo_equiv[1])
+    scan_atom_B = {frag_maps}[1].index(scan_coo_equiv[0])
+scan_pos_A = coo_A[scan_atom_A]
+scan_pos_B = coo_B[scan_atom_B]
 
 # Move frozen fragments to own centroids (translation only)
 coo_A_fr = np.array({froz_A_geom})
 coo_B_fr = np.array({froz_B_geom})
-#cent_A_fr = rmsd.centroid(coo_A_fr)
-#cent_B_fr = rmsd.centroid(coo_B_fr)
-#coo_A_fr -= cent_A_fr
-#coo_B_fr -= cent_B_fr
 
 # set pivot atom to 1
-A_weight = copy.copy({frag_bonds_0}[amin])
-B_weight = copy.copy({frag_bonds_1}[bmin])
-A_weight[amin] = 1
-B_weight[bmin] = 1 
-
-#filtered_coo_A = coo_A[np.ix_(A_atom, A_atom)]
-#filtered_coo_B = coo_B[np.ix_(B_atom, B_atom)]
-#filtered_coo_A_fr = coo_A_fr[np.ix_(A_atom, A_atom)]
-#filtered_coo_B_fr = coo_B_fr[np.ix_(B_atom, B_atom)]
+A_weight = copy.copy({frag_bonds_0}[scan_atom_A])
+B_weight = copy.copy({frag_bonds_1}[scan_atom_B])
+A_weight[scan_atom_A] = 1
+B_weight[scan_atom_B] = 1 
 
 # rotate fragments with weight
 coo_A_fr, _ = rmsd.kabsch_weighted_fit(coo_A_fr, coo_A, W=A_weight)
 coo_B_fr, _ = rmsd.kabsch_weighted_fit(coo_B_fr, coo_B, W=B_weight)
 
-# rotate each frozen fragment for maximum overlap with own relaxed version
-#coo_A_fr = rmsd.kabsch_rotate(coo_A_fr, coo_A)
-#coo_B_fr = rmsd.kabsch_rotate(coo_B_fr, coo_B)
-
 # move fragments back to scan position
-coo_A_fr -= coo_A_fr[scan_atom_A[amin]] - scan_pos_A[amin]
-coo_B_fr -= coo_B_fr[scan_atom_B[bmin]] - scan_pos_B[bmin]
+coo_A_fr -= coo_A_fr[scan_atom_A] - scan_pos_A
+coo_B_fr -= coo_B_fr[scan_atom_B] - scan_pos_B
 
 # reassemble full geometry from frozen fragments
 frozen_geom = np.zeros((len({atom}), 3))

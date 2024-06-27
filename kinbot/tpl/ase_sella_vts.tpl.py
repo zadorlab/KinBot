@@ -150,16 +150,17 @@ scan_pos_A = copy.deepcopy([coo_A[i] for i in scan_atom_A])
 scan_pos_B = copy.deepcopy([coo_B[i] for i in scan_atom_B])
 
 # with inequality constraint this may be obsolete to check
+# in fact, it is harmful due to numerical accuracy
 amin = 0 
 bmin = 0
-mindist = np.linalg.norm(scan_pos_B[bmin] - scan_pos_A[amin])
-for a, apos in enumerate(scan_pos_A):
-    for b, bpos in enumerate(scan_pos_B):
-        currdist = np.linalg.norm(bpos - apos)
-        if mindist > currdist:
-            mindist = currdist
-            amin = a  # coordinate index of the most relevant pivot on A
-            bmin = b
+#mindist = np.linalg.norm(scan_pos_B[bmin] - scan_pos_A[amin])
+#for a, apos in enumerate(scan_pos_A):
+#    for b, bpos in enumerate(scan_pos_B):
+#        currdist = np.linalg.norm(bpos - apos)
+#        if mindist > currdist:
+#            mindist = currdist
+#            amin = a  # coordinate index of the most relevant pivot on A
+#            bmin = b
 
 # Move relaxed fragments to own centroids (translation only)
 #cent_A = rmsd.centroid(coo_A)

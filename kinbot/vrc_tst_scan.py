@@ -226,8 +226,10 @@ class VTS:
                     # stretch frag B along B-A vector
                     if step < len(self.par['vrc_tst_scan_points']): 
                         shift = vec_AB * (self.par['vrc_tst_scan_points'][step[ri]] - dist_AB)
+                        asymptote = False
                     else:
                         shift = vec_AB * (30. - dist_AB)
+                        asymptote = True
                     for mi in self.scan_reac[reac].maps[1]:
                         geoms[ri][mi] = [gi + shift[i] for i, gi in enumerate(geoms[ri][mi])]
                     if step[ri] == 0:
@@ -266,10 +268,12 @@ class VTS:
 
                         equiv.append([equiv_A, equiv_B])
 
+                    
                     jobs[ri] = self.qc.qc_vts(self.scan_reac[reac], 
                                               geoms[ri], 
                                               step[ri],
                                               equiv[ri],
+                                              asymptote,  # needed for alignment of rigid fragments later
                                               )
                     logger.info(f'\trunning {jobs[ri]}')
                     status[ri] = 'running'
@@ -297,12 +301,18 @@ class VTS:
         batch_submit = ''
         db = connect('kinbot.db')
         for reac in reactions:
-            for step in range(len(self.par['vrc_tst_scan_points'])):
+            for step in range(len(self.par['vrc_tst_scan_points']) + 1):
                 for sample in [False, True]:
                     if sample:
-                        job = f'{reac}_vts_pt{str(step).zfill(2)}_fr'
+                        if step < len(self.par['vrc_tst_scan_points']):
+                            job = f'{reac}_vts_pt{str(step).zfill(2)}_fr'
+                        else:
+                            job = f'{reac}_vts_pt_asymptote_fr'
                     else:
-                        job = f'{reac}_vts_pt{str(step).zfill(2)}'
+                        if step < len(self.par['vrc_tst_scan_points']):
+                            job = f'{reac}_vts_pt{str(step).zfill(2)}'
+                        else:
+                            continue  # this calculation is not meaningful, at large distance the _fr is valid only
                     *_, last_row = db.select(name=f'vrctst/{job}', sort='-1')
                     scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
                     scan_spec.characterize()

@@ -749,13 +749,16 @@ class QuantumChemistry:
         self.submit_qc(job)
         return job 
 
-    def qc_vts(self, reac, geom, step, equiv):
+    def qc_vts(self, reac, geom, step, equiv, asymptote):
         '''
         Creates a geometry optimization along a scan and runs it.
         reac: full reaction object
         '''
 
-        job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
+        if not asymptote:
+            job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
+        else:
+            job = f'vrctst/{reac.instance_name}_vts_pt_asymptote'
         mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
         kwargs = self.get_qc_arguments(job, mult, reac.species.charge, vts=1)
 
@@ -774,10 +777,6 @@ class QuantumChemistry:
                 Code = 'Gaussian'
             else:
                 raise ValueError(f'Currently only Gaussian is supported: {self.qc}')
-            if step == -1:
-                optstep = 0
-            else:
-                optstep = 100
             template_file = f'{kb_path}/tpl/ase_sella_vts.tpl.py'
             template = open(template_file, 'r').read()
             template = template.format(label=job,
@@ -798,6 +797,9 @@ class QuantumChemistry:
                                        Code=Code,
                                        sella_kwargs=self.par['sella_kwargs'],  # Sella
                                        equiv=equiv,
+                                       asymptote=asymptote,
+                                       frag_bonds_0=list([list(b) for b in reac.products[0].bond01]),
+                                       frag_bonds_1=list([list(b) for b in reac.products[1].bond01]),
                                        )
 
         else:

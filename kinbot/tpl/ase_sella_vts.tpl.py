@@ -17,7 +17,7 @@ mol = Atoms(symbols={atom}, positions={init_geom})
 kwargs = {kwargs}
 kwargs['chk'] = '{label}'.replace('vrctst/', '')
 mol.calc = {Code}(**kwargs)
-mol.get_potential_energy()
+e = mol.get_potential_energy()
 kwargs['guess'] = 'Read'
 mol.calc = {Code}(**kwargs)
 mol_prev = copy.deepcopy(mol)
@@ -32,8 +32,15 @@ if os.path.isfile('{label}_sella.log'):
 sella_kwargs = {sella_kwargs}
 cons = Constraints(mol)
 cons.fix_bond((scan_coo[0], scan_coo[1]))
+# do not allow other equivalent point pairs to be closer than the one scanned
+for sci in scan_coo_equiv[0]:
+    for scj in scan_coo_equiv[1]:
+        if [sci, scj] == scan_coo or [scj, sci] == scan_coo:
+            continue
+        cons.fix_bond((sci, scj), target=scan_dist, comparator='gt')
 internals = Internals(mol)
 internals.find_all_bonds()
+# add scanned bond if missing from internals - may not have any effect in the end
 hit = False
 for bond in internals.internals['bonds']:
     if (bond.indices[0] == scan_coo[0] and bond.indices[1] == scan_coo[1]) or \
@@ -64,6 +71,8 @@ fmax = 1.e-4
 while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
+    if {asymptote}:
+        break
     try:
         for i in opts[model].irun(fmax=fmax, steps=100):
             # due to dummy atom, constraint is lost
@@ -80,7 +89,7 @@ while 1:
             if any([True if ri > 1.1 else False for ri in ratio]):
                 last = False
                 print('a bond is more than 10% stretched, optimization is stopped')
-                break
+                #break
             mol_prev = copy.deepcopy(mol)
             e = mol.get_potential_energy() 
             energies.append(e)
@@ -95,7 +104,11 @@ while 1:
         mol = copy.deepcopy(mol_prev)
         cons = Constraints(mol)
         cons.fix_bond((scan_coo[0], scan_coo[1]))
-
+        for sci in scan_coo_equiv[0]:
+            for scj in scan_coo_equiv[1]:
+                if [sci, scj] == scan_coo or [scj, sci] == scan_coo:
+                    continue
+                cons.fix_bond((sci, scj), target=scan_dist, comparator='lt')
         # give up internal coo optimization and losen convergence
         fmax *= 3.
         opt = Sella(mol,
@@ -125,25 +138,17 @@ with open('{label}.log', 'a') as f:
 
 # create fragment geometries from the relaxed scan and save scan atoms' position and index
 coo_A = np.array([mol.positions[i] for i in {frag_maps}[0]])
-try:
-    #scan_atom_A = {frag_maps}[0].index(scan_coo[0])
-    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[0]]
-except ValueError:
-    #scan_atom_A = {frag_maps}[0].index(scan_coo[1])
-    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[1]]
-#scan_pos_A = copy.deepcopy(coo_A[scan_atom_A])
-scan_pos_A = copy.deepcopy([coo_A[i] for i in scan_atom_A])
-
 coo_B = np.array([mol.positions[i] for i in {frag_maps}[1]])
 try:
-    #scan_atom_B = {frag_maps}[1].index(scan_coo[0])
-    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[0]]
-except ValueError:
-    #scan_atom_B = {frag_maps}[1].index(scan_coo[1])
+    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[0]]
     scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[1]]
-#scan_pos_B = copy.deepcopy(coo_B[scan_atom_B])
+except ValueError:
+    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[1]]
+    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[0]]
+scan_pos_A = copy.deepcopy([coo_A[i] for i in scan_atom_A])
 scan_pos_B = copy.deepcopy([coo_B[i] for i in scan_atom_B])
 
+# with inequality constraint this may be obsolete to check
 amin = 0 
 bmin = 0
 mindist = np.linalg.norm(scan_pos_B[bmin] - scan_pos_A[amin])
@@ -152,26 +157,41 @@ for a, apos in enumerate(scan_pos_A):
         currdist = np.linalg.norm(bpos - apos)
         if mindist > currdist:
             mindist = currdist
-            amin = a
+            amin = a  # coordinate index of the most relevant pivot on A
             bmin = b
 
-# Move fragments to own centroids (translation only)
-cent_A = rmsd.centroid(coo_A)
-cent_B = rmsd.centroid(coo_B)
-coo_A -= cent_A
-coo_B -= cent_B
+# Move relaxed fragments to own centroids (translation only)
+#cent_A = rmsd.centroid(coo_A)
+#cent_B = rmsd.centroid(coo_B)
+#coo_A -= cent_A
+#coo_B -= cent_B
 
 # Move frozen fragments to own centroids (translation only)
 coo_A_fr = np.array({froz_A_geom})
 coo_B_fr = np.array({froz_B_geom})
-cent_A_fr = rmsd.centroid(coo_A_fr)
-cent_B_fr = rmsd.centroid(coo_B_fr)
-coo_A_fr -= cent_A_fr
-coo_B_fr -= cent_B_fr
+#cent_A_fr = rmsd.centroid(coo_A_fr)
+#cent_B_fr = rmsd.centroid(coo_B_fr)
+#coo_A_fr -= cent_A_fr
+#coo_B_fr -= cent_B_fr
+
+# set pivot atom to 1
+A_weight = copy.copy({frag_bonds_0}[amin])
+B_weight = copy.copy({frag_bonds_1}[bmin])
+A_weight[amin] = 1
+B_weight[bmin] = 1 
+
+#filtered_coo_A = coo_A[np.ix_(A_atom, A_atom)]
+#filtered_coo_B = coo_B[np.ix_(B_atom, B_atom)]
+#filtered_coo_A_fr = coo_A_fr[np.ix_(A_atom, A_atom)]
+#filtered_coo_B_fr = coo_B_fr[np.ix_(B_atom, B_atom)]
+
+# rotate fragments with weight
+coo_A_fr, _ = rmsd.kabsch_weighted_fit(coo_A_fr, coo_A, W=A_weight)
+coo_B_fr, _ = rmsd.kabsch_weighted_fit(coo_B_fr, coo_B, W=B_weight)
 
 # rotate each frozen fragment for maximum overlap with own relaxed version
-coo_A_fr = rmsd.kabsch_rotate(coo_A_fr, coo_A)
-coo_B_fr = rmsd.kabsch_rotate(coo_B_fr, coo_B)
+#coo_A_fr = rmsd.kabsch_rotate(coo_A_fr, coo_A)
+#coo_B_fr = rmsd.kabsch_rotate(coo_B_fr, coo_B)
 
 # move fragments back to scan position
 coo_A_fr -= coo_A_fr[scan_atom_A[amin]] - scan_pos_A[amin]

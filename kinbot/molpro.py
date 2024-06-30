@@ -142,7 +142,6 @@ class Molpro:
             else:
                 basis = f"basis = {self.par['vrc_tst_high_basis']}"
             
-            method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
 
             if sample:
                 l3_method = self.par["vrc_tst_sample_method"]
@@ -159,21 +158,25 @@ class Molpro:
                     method += " {multi,\n" + f" occ,{occ_obitals}\n closed,{closed_orbitals}\n" + " }\n\n"
                     method += " {rs2c, shift=0.3}\n"
                 case "uwb97xd":
+                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
                     method += " omega=0.2    !range-separation parameter\n"
                     method += " srx=0.222036 !short-range exchange\n"
                     #method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                     method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
                     method += " uks,HYB_GGA_XC_WB97X_D\n"
                 case "wb97xd":
+                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
                     method += " omega=0.2    !range-separation parameter\n"
                     method += " srx=0.222036 !short-range exchange\n"
                     # method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                     method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
                     method += " ks,HYB_GGA_XC_WB97X_D\n"
                 case "ub3lyp":
+                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
                     # method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                     method += " uks,HYB_GGA_XC_B3LYP\n"
                 case "b3lyp":
+                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
                     # method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                     method += " ks,HYB_GGA_XC_B3LYP\n"
                 case _:

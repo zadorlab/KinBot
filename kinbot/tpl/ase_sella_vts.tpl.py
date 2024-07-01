@@ -64,7 +64,6 @@ opt = Sella(mol,
             internal=False,
             trajectory='{label}.traj',
             logfile='{label}_sella.log',
-            delta0=1.3e-3,
             **sella_kwargs)
 opts.append(opt)
 mol.calc.label = '{label}'

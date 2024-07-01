@@ -192,16 +192,15 @@ for fi, fa in enumerate({frag_maps}[0]):
     frozen_geom[fa] = coo_A_fr[fi]
 for fi, fb in enumerate({frag_maps}[1]):
     frozen_geom[fb] = coo_B_fr[fi]
-    
+
 # here creating the run for the frozen version of this geometry based on the fully optimized one
 label = '{label}_fr'
 logfile = '{label}_fr.log'
 kwargs.pop('opt', None)
 kwargs.pop('addsec', None)
 kwargs['label'] = label
-calc = Gaussian(**kwargs)
 mol = Atoms(symbols={atom}, positions=frozen_geom)
-mol.calc = calc
+mol.calc = {Code}(**kwargs)
 try:
     e = mol.get_potential_energy()  # single point energy
     db.write(mol, name=label, data={{'energy': e, 'status': 'normal'}})

@@ -215,7 +215,7 @@ class VTS:
 
         while 1:
             for ri, reac in enumerate(reactions):
-                if status[ri] == 'ready' and step[ri] < len(self.par['vrc_tst_scan_points']):
+                if status[ri] == 'ready' and step[ri] < len(self.par['vrc_tst_scan_points']) + 1:
                     # shift geometries along the bond to next desired distance
                     # scanning between atoms A and B
                     pos_A = geoms[ri][self.scan_reac[reac].scan_coo[0]]
@@ -225,10 +225,15 @@ class VTS:
                     # shift so that atom A is at origin
                     geoms[ri] = list(np.array(geoms[ri]) - np.array(pos_A)) 
                     # stretch frag B along B-A vector
-                    shift = vec_AB * (self.par['vrc_tst_scan_points'][step[ri]] - dist_AB)
+                    if step < len(self.par['vrc_tst_scan_points']): 
+                        shift = vec_AB * (self.par['vrc_tst_scan_points'][step[ri]] - dist_AB)
+                        asymptote = False
+                    else:
+                        shift = vec_AB * (30. - dist_AB)
+                        asymptote = True
                     for mi in self.scan_reac[reac].maps[1]:
                         geoms[ri][mi] = [gi + shift[i] for i, gi in enumerate(geoms[ri][mi])]
-                    if step == 0:
+                    if step[ri] == 0:
                         # determine equivalent atoms
                         equiv_A = []
                         equiv_B = []
@@ -264,10 +269,12 @@ class VTS:
 
                         equiv.append([equiv_A, equiv_B])
 
+                    
                     jobs[ri] = self.qc.qc_vts(self.scan_reac[reac], 
                                               geoms[ri], 
                                               step[ri],
                                               equiv[ri],
+                                              asymptote,  # needed for alignment of rigid fragments later
                                               step0_geoms[ri].tolist()
                                               )
                     logger.info(f'\trunning {jobs[ri]}')
@@ -279,7 +286,7 @@ class VTS:
                         status[ri] = 'ready'
                         step[ri] += 1
                         geoms[ri] = copy.deepcopy(geom)
-                elif step[ri] == len(self.par['vrc_tst_scan_points']):
+                elif step[ri] == len(self.par['vrc_tst_scan_points']) + 1:
                     status[ri] = 'done'
             if len([st for st in status if st == 'done']) == len(reactions):
                 break
@@ -296,12 +303,18 @@ class VTS:
         batch_submit = ''
         db = connect('kinbot.db')
         for reac in reactions:
-            for step in range(len(self.par['vrc_tst_scan_points'])):
+            for step in range(len(self.par['vrc_tst_scan_points']) + 1):
                 for sample in [False, True]:
                     if sample:
-                        job = f'{reac}_vts_pt{str(step).zfill(2)}_fr'
+                        if step < len(self.par['vrc_tst_scan_points']):
+                            job = f'{reac}_vts_pt{str(step).zfill(2)}_fr'
+                        else:
+                            job = f'{reac}_vts_pt_asymptote_fr'
                     else:
-                        job = f'{reac}_vts_pt{str(step).zfill(2)}'
+                        if step < len(self.par['vrc_tst_scan_points']):
+                            job = f'{reac}_vts_pt{str(step).zfill(2)}'
+                        else:
+                            continue  # this calculation is not meaningful, at large distance the _fr is valid only
                     *_, last_row = db.select(name=f'vrctst/{job}', sort='-1')
                     scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
                     scan_spec.characterize()
@@ -309,10 +322,10 @@ class VTS:
                     molp = Molpro(scan_spec, self.par)
                     molp.create_molpro_input(name=job, VTS=True, sample=sample)
                     molp.create_molpro_submit(name=job, VTS=True)
-                    if not molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'], name=f'vrctst/{job}')[0]:
+                    if not molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'], name=f'vrctst/{job}', VTS=True)[0]:
                         batch_submit += f'{cmd} {job}.{ext}\n'
             
-        batch = f'vrctst/batch_vts_{self.par["queuing"]}.sub'
+        batch = f'vrctst/molpro/batch_vts_{self.par["queuing"]}.sub'
         if self.par['queuing'] != 'local':
             with open(batch, 'w') as f:
                 f.write(batch_submit)

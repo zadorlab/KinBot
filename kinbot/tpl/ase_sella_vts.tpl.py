@@ -14,7 +14,7 @@ db = connect('{working_dir}/kinbot.db')
 label = '{label}'
 logfile = '{label}.log'
 
-step0_geom = np.array({orig_geom})
+step0_geom = np.array({step0_geom})
 init_geom = {init_geom}
 
 mol = Atoms(symbols={atom}, positions=init_geom)
@@ -37,13 +37,20 @@ if os.path.isfile('{label}_sella.log'):
 sella_kwargs = {sella_kwargs}
 cons = Constraints(mol)
 cons.fix_bond((scan_coo[0], scan_coo[1]))
+# do not allow other equivalent point pairs to be closer than the one scanned
+for sci in scan_coo_equiv[0]:
+    for scj in scan_coo_equiv[1]:
+        if [sci, scj] == scan_coo or [scj, sci] == scan_coo:
+            continue
+        cons.fix_bond((sci, scj), target=scan_dist, comparator='gt')
 internals = Internals(mol)
 internals.find_all_bonds()
+# add scanned bond if missing from internals - may not have any effect in the end
 hit = False
 for bond in internals.internals['bonds']:
     if (bond.indices[0] == scan_coo[0] and bond.indices[1] == scan_coo[1]) or \
        (bond.indices[1] == scan_coo[0] and bond.indices[0] == scan_coo[1]):
-        hit = True 
+        hit = True
         break
 if not hit:
     internals.add_bond((scan_coo[0], scan_coo[1]))
@@ -54,15 +61,16 @@ opts = []
 opt = Sella(mol,
             order=0,
             constraints=cons,
-            internal=True,
-            trajectory='{label}.traj', 
+            internal=False,
+            trajectory='{label}.traj',
             logfile='{label}_sella.log',
+            delta0=1.3e-3,
             **sella_kwargs)
 opts.append(opt)
 mol.calc.label = '{label}'
 bonds = {bonds}
-step0_distances = np.array([np.linalg.norm(step0_geom[bond[0]] 
-                                           - step0_geom[bond[1]]) 
+step0_distances = np.array([np.linalg.norm(step0_geom[bond[0]]
+                                           - step0_geom[bond[1]])
                             for bond in bonds])
 
 energies = []
@@ -71,25 +79,27 @@ fmax = 1.e-4
 while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
+    if {asymptote}:
+        break
     try:
         for i in opts[attempt].irun(fmax=fmax, steps=100):
-            # Break if constraint is lost (probably due to dummy atom)
-            current_dist = np.linalg.norm(mol.positions[scan_coo[0]] 
+            # Stop if constraint is lost (probably due to dummy atom)
+            current_dist = np.linalg.norm(mol.positions[scan_coo[0]]
                                           - mol.positions[scan_coo[1]])
             if abs(current_dist - scan_dist) > 0.01:
                 ok = False
                 fmax *= 3.
                 print('constraint lost')
                 break
-            # Break if RMSD is larger than the maximum allowed.
-            rmsd = rmsd.kabsch_rmsd(np.array(init_geom), mol.positions, 
+            # Stop if RMSD is larger than the maximum allowed.
+            opt_rmsd = rmsd.kabsch_rmsd(np.array(init_geom), mol.positions,
                                     translate=True)
-            if rmsd > {scan_deviation}:
+            if opt_rmsd > {scan_deviation}:
                 last = False
                 print('rmsd is too large, optimization is stopped')
                 break
-            # Break if fragments break internal bonds.
-            curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]] 
+            # Stop if fragments break internal bonds.
+            curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]]
                                                       - mol.positions[bond[1]])
                                        for bond in bonds])
             ratio = curr_distances / step0_distances
@@ -102,7 +112,7 @@ while 1:
                     cons.fix_bond(b)
                 break
             mol_prev = copy.deepcopy(mol)
-            e = mol.get_potential_energy() 
+            e = mol.get_potential_energy()
             energies.append(e)
             # when forces don't fully converge, but energy doesn't change anymore
             if len(energies) > 11 and np.std(energies[-10:]) < 1.e-7:
@@ -113,11 +123,20 @@ while 1:
 
     if not ok:
         mol = copy.deepcopy(mol_prev)
+        cons = Constraints(mol)
+        cons.fix_bond((scan_coo[0], scan_coo[1]))
+        for sci in scan_coo_equiv[0]:
+            for scj in scan_coo_equiv[1]:
+                if [sci, scj] == scan_coo or [scj, sci] == scan_coo:
+                    continue
+                cons.fix_bond((sci, scj), target=scan_dist, comparator='lt')
+        # give up internal coo optimization and losen convergence
+        fmax *= 3.
         opt = Sella(mol,
                     order=0,
                     constraints=cons,
                     internal=False,
-                    trajectory='{label}.traj', 
+                    trajectory='{label}.traj',
                     logfile='{label}_sella.log',
                     **sella_kwargs)
         opts.append(opt)
@@ -140,57 +159,33 @@ with open('{label}.log', 'a') as f:
 
 # create fragment geometries from the relaxed scan and save scan atoms' position and index
 coo_A = np.array([mol.positions[i] for i in {frag_maps}[0]])
-try:
-    #scan_atom_A = {frag_maps}[0].index(scan_coo[0])
-    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[0]]
-except ValueError:
-    #scan_atom_A = {frag_maps}[0].index(scan_coo[1])
-    scan_atom_A = [{frag_maps}[0].index(i) for i in scan_coo_equiv[1]]
-#scan_pos_A = copy.deepcopy(coo_A[scan_atom_A])
-scan_pos_A = copy.deepcopy([coo_A[i] for i in scan_atom_A])
-
 coo_B = np.array([mol.positions[i] for i in {frag_maps}[1]])
 try:
-    #scan_atom_B = {frag_maps}[1].index(scan_coo[0])
-    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[0]]
+    scan_atom_A = {frag_maps}[0].index(scan_coo[0])
+    scan_atom_B = {frag_maps}[1].index(scan_coo[1])
 except ValueError:
-    #scan_atom_B = {frag_maps}[1].index(scan_coo[1])
-    scan_atom_B = [{frag_maps}[1].index(i) for i in scan_coo_equiv[1]]
-#scan_pos_B = copy.deepcopy(coo_B[scan_atom_B])
-scan_pos_B = copy.deepcopy([coo_B[i] for i in scan_atom_B])
-
-amin = 0 
-bmin = 0
-mindist = np.linalg.norm(scan_pos_B[bmin] - scan_pos_A[amin])
-for a, apos in enumerate(scan_pos_A):
-    for b, bpos in enumerate(scan_pos_B):
-        currdist = np.linalg.norm(bpos - apos)
-        if mindist > currdist:
-            mindist = currdist
-            amin = a
-            bmin = b
-
-# Move fragments to own centroids (translation only)
-cent_A = rmsd.centroid(coo_A)
-cent_B = rmsd.centroid(coo_B)
-coo_A -= cent_A
-coo_B -= cent_B
+    scan_atom_A = {frag_maps}[0].index(scan_coo_equiv[1])
+    scan_atom_B = {frag_maps}[1].index(scan_coo_equiv[0])
+scan_pos_A = coo_A[scan_atom_A]
+scan_pos_B = coo_B[scan_atom_B]
 
 # Move frozen fragments to own centroids (translation only)
 coo_A_fr = np.array({froz_A_geom})
 coo_B_fr = np.array({froz_B_geom})
-cent_A_fr = rmsd.centroid(coo_A_fr)
-cent_B_fr = rmsd.centroid(coo_B_fr)
-coo_A_fr -= cent_A_fr
-coo_B_fr -= cent_B_fr
 
-# rotate each frozen fragment for maximum overlap with own relaxed version
-coo_A_fr = rmsd.kabsch_rotate(coo_A_fr, coo_A)
-coo_B_fr = rmsd.kabsch_rotate(coo_B_fr, coo_B)
+# set pivot atom to 1
+A_weight = copy.copy({frag_bonds_0}[scan_atom_A])
+B_weight = copy.copy({frag_bonds_1}[scan_atom_B])
+A_weight[scan_atom_A] = 1
+B_weight[scan_atom_B] = 1
+
+# rotate fragments with weight
+coo_A_fr, _ = rmsd.kabsch_weighted_fit(coo_A_fr, coo_A, W=A_weight)
+coo_B_fr, _ = rmsd.kabsch_weighted_fit(coo_B_fr, coo_B, W=B_weight)
 
 # move fragments back to scan position
-coo_A_fr -= coo_A_fr[scan_atom_A[amin]] - scan_pos_A[amin]
-coo_B_fr -= coo_B_fr[scan_atom_B[bmin]] - scan_pos_B[bmin]
+coo_A_fr -= coo_A_fr[scan_atom_A] - scan_pos_A
+coo_B_fr -= coo_B_fr[scan_atom_B] - scan_pos_B
 
 # reassemble full geometry from frozen fragments
 frozen_geom = np.zeros((len({atom}), 3))
@@ -214,6 +209,6 @@ try:
 except:
     db.write(mol, name=label, data={{'energy': 10., 'status': 'normal'}})
 
-time.sleep(1)  
+time.sleep(1)
 with open(logfile, 'a') as f:
     f.write('done\n')

@@ -749,7 +749,7 @@ class QuantumChemistry:
         self.submit_qc(job)
         return job 
 
-    def qc_vts(self, reac, geom, step, equiv):
+    def qc_vts(self, reac, geom, step, equiv, step0_geom):
         '''
         Creates a geometry optimization along a scan and runs it.
         reac: full reaction object
@@ -794,6 +794,7 @@ class QuantumChemistry:
                                        Code=Code,
                                        sella_kwargs=self.par['sella_kwargs'],  # Sella
                                        equiv=equiv,
+                                       step0_geom=step0_geom
                                        )
 
         else:

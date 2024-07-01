@@ -211,6 +211,7 @@ class VTS:
                 geoms.append(self.scan_reac[reac].irc_prod.geom)
         jobs = [''] * len(reactions)
         equiv = []
+        step0_geoms = [np.array(geoms[ri]) for ri in range(len(reactions))]
 
         while 1:
             for ri, reac in enumerate(reactions):
@@ -267,6 +268,7 @@ class VTS:
                                               geoms[ri], 
                                               step[ri],
                                               equiv[ri],
+                                              step0_geoms[ri].tolist()
                                               )
                     logger.info(f'\trunning {jobs[ri]}')
                     status[ri] = 'running'

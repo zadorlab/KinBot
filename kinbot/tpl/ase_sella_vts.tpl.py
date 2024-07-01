@@ -1,19 +1,23 @@
-import numpy as np
-from ase import Atoms
-from ase.db import connect
 import time
 import os
 import copy
-from sella import Sella, Constraints, Internals
-from kinbot.ase_modules.calculators.{code} import {Code}
 
+import numpy as np
+from ase import Atoms
+from ase.db import connect
 import rmsd
+from sella import Sella, Constraints, Internals
+
+from kinbot.ase_modules.calculators.{code} import {Code}
 
 db = connect('{working_dir}/kinbot.db')
 label = '{label}'
 logfile = '{label}.log'
 
-mol = Atoms(symbols={atom}, positions={init_geom})
+step0_geom = np.array({orig_geom})
+init_geom = {init_geom}
+
+mol = Atoms(symbols={atom}, positions=init_geom)
 kwargs = {kwargs}
 if '{Code}' == 'Gaussian':
     kwargs['chk'] = '{label}'.replace('vrctst/', '')
@@ -47,8 +51,8 @@ if not hit:
 internals.find_all_angles()
 internals.find_all_dihedrals()
 opts = []
-opt = Sella(mol, 
-            order=0, 
+opt = Sella(mol,
+            order=0,
             constraints=cons,
             internal=True,
             trajectory='{label}.traj', 
@@ -57,30 +61,45 @@ opt = Sella(mol,
 opts.append(opt)
 mol.calc.label = '{label}'
 bonds = {bonds}
-distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
+step0_distances = np.array([np.linalg.norm(step0_geom[bond[0]] 
+                                           - step0_geom[bond[1]]) 
+                            for bond in bonds])
 
 energies = []
-model = 0
+attempt = 0
 fmax = 1.e-4
 while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
     try:
-        for i in opts[model].irun(fmax=fmax, steps=100):
-            # due to dummy atom, constraint is lost
-            if abs(np.linalg.norm(mol.positions[scan_coo[0]] - mol.positions[scan_coo[1]]) - scan_dist) > 0.01:
+        for i in opts[attempt].irun(fmax=fmax, steps=100):
+            # Break if constraint is lost (probably due to dummy atom)
+            current_dist = np.linalg.norm(mol.positions[scan_coo[0]] 
+                                          - mol.positions[scan_coo[1]])
+            if abs(current_dist - scan_dist) > 0.01:
                 ok = False
+                fmax *= 3.
                 print('constraint lost')
                 break
-            if rmsd.kabsch_rmsd(np.array({init_geom}), mol.positions, translate=True) > {scan_deviation}:
+            # Break if RMSD is larger than the maximum allowed.
+            rmsd = rmsd.kabsch_rmsd(np.array(init_geom), mol.positions, 
+                                    translate=True)
+            if rmsd > {scan_deviation}:
                 last = False
                 print('rmsd is too large, optimization is stopped')
                 break
-            curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]] - mol.positions[bond[1]]) for bond in bonds])
-            ratio = curr_distances / distances
-            if any([True if ri > 1.1 else False for ri in ratio]):
-                last = False
+            # Break if fragments break internal bonds.
+            curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]] 
+                                                      - mol.positions[bond[1]])
+                                       for bond in bonds])
+            ratio = curr_distances / step0_distances
+            if any([ri > 1.1 for ri in ratio]):
+                ok = False
                 print('a bond is more than 10% stretched, optimization is stopped')
+                mol = mol_prev
+                fix_new_bonds = [bonds[i] for i, ri in enumerate(ratio) if ri > 1.1]
+                for b in fix_new_bonds:
+                    cons.fix_bond(b)
                 break
             mol_prev = copy.deepcopy(mol)
             e = mol.get_potential_energy() 
@@ -94,11 +113,6 @@ while 1:
 
     if not ok:
         mol = copy.deepcopy(mol_prev)
-        cons = Constraints(mol)
-        cons.fix_bond((scan_coo[0], scan_coo[1]))
-
-        # give up internal coo optimization and losen convergence
-        fmax *= 3.
         opt = Sella(mol,
                     order=0,
                     constraints=cons,
@@ -107,8 +121,8 @@ while 1:
                     logfile='{label}_sella.log',
                     **sella_kwargs)
         opts.append(opt)
-        model += 1
-    elif model == 3:
+        attempt += 1
+    elif attempt == 3:
         break
     else:
         break

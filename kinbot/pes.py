@@ -1386,7 +1386,9 @@ def create_rotdpy_inputs(par, bless, vdW):
             # for any barrierless we will want to do at least one scan
         
         pivot_points_info = []
-        
+       
+        # TODO: read everything from the json file, getting rid of all the regex
+
         with open(f"{reactant}/{plt_file}") as f:
             lines = f.readlines()
 
@@ -1483,7 +1485,8 @@ def create_rotdpy_inputs(par, bless, vdW):
                 continue
             elif dist >= vrc_tst_start:
                 surfaces.extend(pp_settings.create_all_surf_for_dist(dist, fragments, par, reactive_atoms))
-                
+        
+        # TODO rewrite using templates
         # Creating the strings to print input file
         # Fragments block:
         Fragments_block = "# Fragments geometries are in Angstroms\n"

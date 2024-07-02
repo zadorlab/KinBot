@@ -11,7 +11,7 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot import kb_path
 from kinbot import geometry
 from kinbot.molpro import Molpro
-from kinbot.utils import queue_command, create_matplotlib_graph
+from kinbot.utils import queue_command, create_matplotlib_graph, NpEncoder
 from kinbot import constants
 
 logger = logging.getLogger('KinBot')
@@ -379,13 +379,3 @@ class VTS:
                 f.write(batch_submit)
             os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
         return
-
-class NpEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super(NpEncoder, self).default(obj)

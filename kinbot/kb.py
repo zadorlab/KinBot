@@ -75,7 +75,7 @@ def main():
 
         # initialize the qc instance
         qc = QuantumChemistry(par)
-        if par['do_clean'] or qc.qc != 'nn_pes':
+        if par['do_clean'] and qc.qc != 'nn_pes':
             clean_files()
 
         # start the initial optimization of the reactant

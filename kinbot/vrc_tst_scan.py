@@ -366,8 +366,8 @@ class VTS:
                         'e_high': ens[1],
                         'scan_coo': self.scan_reac[reac].scan_coo, 
                         'scan_coo_equiv': self.scan_reac[reac].equiv,
-                        'asym_samp': asyms[0],
-                        'asym_high': asyms[1],
+                        'e_inf_samp': asyms[0],
+                        'e_inf_high': asyms[1],
                         }
 
                 with open(f'corr_{reac}.json', 'w', encoding='utf-8') as f:

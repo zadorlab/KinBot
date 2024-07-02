@@ -20,7 +20,7 @@ class Molpro:
         self.species = species
         self.par = par
 
-    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None, do_vdW=False, VTS=False):
+    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None, do_vdW=False, VTS=False, sample=False):
         """
         Create the input for molpro based on the template,
         which is either the one in the system, or provided
@@ -37,10 +37,10 @@ class Molpro:
             elif shift_vec is not None:
                 tpl_file = self.par['barrierless_saddle_prod_single_point_template']
         elif VTS:
-            if self.par['vrc_tst_scan_parameters']['molpro_tpl'] == '':
-                tpl_file = f'{kb_path}/tpl/molpro_calc.tpl'
+            if self.par['vrc_tst_scan_molpro_tpl'] == '':
+                tpl_file = f'{kb_path}/tpl/molpro_vts.tpl'
             else:
-                tpl_file = self.par['vrc_tst_scan_parameters']['molpro_tpl']
+                tpl_file = self.par['vrc_tst_scan_molpro_tpl']  # currently not really supported
         elif self.par['single_point_template'] == '':
             tpl_file = f'{kb_path}/tpl/molpro.tpl'
         else:
@@ -51,8 +51,6 @@ class Molpro:
 
         fname = self.get_name(name, from_name=do_vdW)
 
-        geom_type = "xyz"
-
         geom = ''
         nelectron = 0
         for i, at in enumerate(self.species.atom):
@@ -60,18 +58,15 @@ class Molpro:
             geom += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
             nelectron += constants.znumber[at]
 
-        geometry_block = "geometry={ \n"
-        if geom_type == "xyz":
-            geometry_block += f"{self.species.natom};\n{self.species.name};\n{geom}\n"
-        elif geom_type == "zmat":
-            raise NotImplementedError
+        geometry_block = 'geometry={ \n'
+        geometry_block += f"{self.species.natom};\n{self.species.name};\n{geom}\n"
         geometry_block += "}\n" 
 
         nelectron -= self.species.charge
         symm = self.molpro_symm()
         spin = self.species.mult - 1
 
-        if bls == 0 and not VTS:
+        if not bls and not VTS:
             with open('molpro/' + fname + '.inp', 'w') as outf:
                 outf.write(tpl.format(name=fname,
                                       natom=self.species.natom,
@@ -142,19 +137,18 @@ class Molpro:
         elif VTS:
             options = "GPRINT,ORBITALS,ORBEN,CIVECTOR \nGTHRESH,energy=1.d-7 \nangstrom \n orient,noorient\n nosym"
             
-            if "sample" in fname or "frozen" in fname:
-                basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][0]}"
+            if sample:
+                basis = f"basis = {self.par['vrc_tst_sample_basis']}"
             else:
-                basis = f"basis = {self.par['vrc_tst_scan_basis']['L3'][1]}"
+                basis = f"basis = {self.par['vrc_tst_high_basis']}"
             
-            method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
 
-            if "sample" in fname or "frozen" in fname:
-                l3_method = self.par["vrc_tst_scan_methods"]["L3"][0]
+            if sample:
+                l3_method = self.par["vrc_tst_sample_method"]
             else:
-                l3_method = self.par["vrc_tst_scan_methods"]["L3"][1]
+                l3_method = self.par["vrc_tst_high_method"]
 
-            
+            method = '' 
             match regex_in(l3_method):
                 case r".*caspt2\([0-9]+,[0-9]+\)":
                     active_electrons = int(l3_method.split("caspt2(")[1].split(",")[0])
@@ -162,45 +156,43 @@ class Molpro:
                     closed_orbitals = int(math.trunc(nelectron-active_electrons)/2)
                     occ_obitals = closed_orbitals + active_orbitals
                     method += " {multi,\n" + f" occ,{occ_obitals}\n closed,{closed_orbitals}\n" + " }\n\n"
-                    if spin == 0:
-                        method += " {rs2c, shift=0.3}\n"
-                    else:
-                        method += " {rs2, shift=0.3}\n"
-                case "ccsd\(t\)":
-                    method += " {ccsd(t)-f12}\n"
+                    method += " {rs2c, shift=0.3}\n"
                 case "uwb97xd":
+                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
                     method += " omega=0.2    !range-separation parameter\n"
                     method += " srx=0.222036 !short-range exchange\n"
                     #method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                     method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
                     method += " uks,HYB_GGA_XC_WB97X_D\n"
                 case "wb97xd":
+                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
                     method += " omega=0.2    !range-separation parameter\n"
                     method += " srx=0.222036 !short-range exchange\n"
                     # method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                     method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
                     method += " ks,HYB_GGA_XC_WB97X_D\n"
                 case "ub3lyp":
+                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
                     # method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                     method += " uks,HYB_GGA_XC_B3LYP\n"
                 case "b3lyp":
+                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
                     # method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                     method += " ks,HYB_GGA_XC_B3LYP\n"
                 case _:
-                    raise NotImplementedError
-                
+                    method += " l3_method\n"
 
-            with open('molpro/' + fname + '.inp', 'w') as f:
+            with open('vrctst/molpro/' + fname + '.inp', 'w') as f:
                     f.write(tpl.format(options=options,
                                        fname=fname,
                                        basis=basis,
                                        geometry_block=geometry_block,
                                        methods=method,
-                                       key=self.par['vrc_tst_scan_parameters']["molpro_key"].upper()))
+                                       key=self.par['vrc_tst_scan_molpro_key'].upper()))
                                        
         return 0
 
-    def get_molpro_energy(self, key, name='', do_vdW=False):
+    def get_molpro_energy(self, key, name='', do_vdW=False, VTS=False):
         """
         Verify if there is a molpro output file and if yes, read the energy
         key is the keyword for the energy we want to read
@@ -209,18 +201,23 @@ class Molpro:
         A non-object-oriented version is used in pes.py
         """
         fname = self.get_name(name, do_vdW)
-        status = os.path.exists('molpro/' + fname + '.out')
-        if status:
-            molpro_dir = "molpro/"
-        else:
-            status = os.path.exists('../molpro/' + fname + '.out')
-            if status:
-                molpro_dir = "../molpro/"
-            else:
-                molpro_dir = f"{fname.split('_')[0]}/molpro/"
-                status = os.path.exists(molpro_dir + fname + '.out')
         if fname == '10000000000000000001':  # proton
             return 1, 0.0
+        if not VTS:
+            status = os.path.exists('molpro/' + fname + '.out')
+            if status:
+                molpro_dir = "molpro/"
+            else:
+                status = os.path.exists('../molpro/' + fname + '.out')
+                if status:
+                    molpro_dir = "../molpro/"
+                else:
+                    molpro_dir = f"{fname.split('_')[0]}/molpro/"
+                    status = os.path.exists(molpro_dir + fname + '.out')
+        else:
+            status = os.path.exists('vrctst/molpro/' + fname + '.out')
+            if status:
+                molpro_dir = 'vrctst/molpro/'
         if status:
             with open(f"{molpro_dir}{fname}.out") as f:
                 lines = f.readlines()
@@ -229,7 +226,7 @@ class Molpro:
                     return 1, float(line.split()[3])
         return 0, -1
 
-    def create_molpro_submit(self, name='', do_vdW=False):
+    def create_molpro_submit(self, name='', do_vdW=False, VTS=False):
         """
         write a pbs or slurm file for the molpro input file
         """
@@ -246,7 +243,11 @@ class Molpro:
         with open(molpro_tpl) as f:
             tpl = f.read()
         # substitution
-        with open(f'molpro/{fname}.{self.par["queuing"]}', 'w') as f:
+        if not VTS:
+            file_string = f'molpro/{fname}.{self.par["queuing"]}'
+        else:
+            file_string = f'vrctst/molpro/{fname}.{self.par["queuing"]}'
+        with open(file_string, 'w') as f:
             if self.par['queuing'] == 'pbs':
                 f.write((tpl_head + tpl).format(
                         name=fname,

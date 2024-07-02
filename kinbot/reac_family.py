@@ -17,24 +17,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     """
     ts = True
 
-    if rxn.family_name != 'VrcTstScan':
-        VTS = False
-    else:
-        VTS = True
-        rxn.instance_name = f'{rxn.instance_basename}_pt{step}'
-        rxn.species.name = rxn.instance_name
-        ts = False
-
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
-        if status != 'normal' and status != 'error' and not VTS:
+        if status != 'normal' and status != 'error':
             return step
-        elif VTS and status == 'normal':
-            err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
-            if err == 0:
-                rxn.species.geom = geom
-                step += 1
-                return step
   
     kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, 
                                      rxn.species.charge, ts=ts, step=step, 
@@ -42,12 +28,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
             if rxn.qc.check_qc(rxn.instance_name) == 'normal':  # log file is present and is in the db
-                if VTS:
-                    err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
-                    if err == 0:
-                        rxn.species.geom = geom
-                        step += 1
-                        return step
                 err, freq = rxn.qc.get_qc_freq(rxn.instance_name, rxn.species.natom)
                 if err == 0 and len(freq) > 0.:  # only final calculations have frequencies
                     err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
@@ -66,14 +46,11 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 # gives the reactant and product geometry guesses
                 geom, _, _ = abstraction_align(rxn.species.geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
-    elif step == rxn.max_step and rxn.scan and not VTS:
+    elif step == rxn.max_step and rxn.scan:
         err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, 
                                        allow_error=1, previous=1)
     else:
-        if VTS:  # Take geometry of previous point
-            err, geom = rxn.qc.get_qc_geom(rxn.scanned[f"{step-1}"]["stationary_point"].name, rxn.species.natom, allow_error=1)
-        else:
-            err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
+        err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
         if bimol:
             if rxn.family_name == 'abstraction':
                 # gives the reactant and product geometry guesses
@@ -87,7 +64,11 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     # apply the geometry changes here and fix the coordinates that changed
     change_starting_zero = []
     for c in change:
-        c_new = [ci - 1 for ci in c[:-1]]
+        if c[0] == 'L':
+            c_new = [ci - 1 for ci in c[1:-1]]
+            c_new = ['L'] + c_new
+        else:
+            c_new = [ci - 1 for ci in c[:-1]]
         c_new.append(c[-1])
         change_starting_zero.append(c_new)
 
@@ -136,7 +117,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     elif rxn.qc.qc == 'qchem':
         code = 'qchem'
         Code = 'QChem'
-        if (not bimol or step == 0) and (step < rxn.max_step or VTS):
+        if (not bimol or step == 0) and step < rxn.max_step:
             kwargs['addsec'] = '$opt\nCONSTRAINT\n'
             for fixi in fix:
                 if len(fixi) == 2:
@@ -164,47 +145,28 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         code = 'nn_pes'
         Code = 'Nn_surr'
 
-    if step < rxn.max_step or VTS:
+    if step < rxn.max_step:
         if rxn.qc.use_sella:
             kwargs.pop('addsec', None)
             kwargs.pop('opt', None)
             template_file = f'{kb_path}/tpl/ase_sella_ts_search.tpl.py'
-        elif VTS:
-            template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_opt_vrc_tst.tpl.py'
         else:
             template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
-        if VTS:
-            template = template.format(label=rxn.instance_name, 
-                                       instance=rxn.instance,
-                                       kwargs=kwargs, 
-                                       atom=list(rxn.species.atom),
-                                       geom=list([list(gi) for gi in geom]),
-                                       bimol=bimol,
-                                       ppn=rxn.qc.ppn,
-                                       qc_command=command,
-                                       working_dir=os.getcwd(),
-                                       scan=rxn.scan,
-                                       code=code,  # Sella
-                                       Code=Code,  # Sella
-                                       fix=fix,  # Sella
-                                       sella_kwargs=rxn.par['sella_kwargs']  # Sella
-                                       )
-        else:
-            template = template.format(label=rxn.instance_name, 
-                                    kwargs=kwargs, 
-                                    atom=list(rxn.species.atom),
-                                    geom=list([list(gi) for gi in geom]),
-                                    bimol=bimol,
-                                    ppn=rxn.qc.ppn,
-                                    qc_command=command,
-                                    working_dir=os.getcwd(),
-                                    scan=rxn.scan,
-                                    code=code,  # Sella
-                                    Code=Code,  # Sella
-                                    fix=fix,  # Sella
-                                    sella_kwargs=rxn.par['sella_kwargs']  # Sella
-                                    )
+        template = template.format(label=rxn.instance_name, 
+                                kwargs=kwargs, 
+                                atom=list(rxn.species.atom),
+                                geom=list([list(gi) for gi in geom]),
+                                bimol=bimol,
+                                ppn=rxn.qc.ppn,
+                                qc_command=command,
+                                working_dir=os.getcwd(),
+                                scan=rxn.scan,
+                                code=code,  # Sella
+                                Code=Code,  # Sella
+                                fix=fix,  # Sella
+                                sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                )
     else:
         if rxn.par['calc_kwargs']:
             kwargs = rxn.qc.merge_kwargs(kwargs)

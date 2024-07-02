@@ -89,7 +89,7 @@ def calc_out_of_plane_angle(a, b, c, d):
     return ang, collinear
 
 
-def calc_dihedral(a, b, c, d):
+def calc_dihedral(a, b, c, d, collinear_cutoff=None):
     """
     Calculate the A - B - C - D dihedral angle in radians.
     For collinear or close to collinear structures return a warning.
@@ -97,7 +97,10 @@ def calc_dihedral(a, b, c, d):
     Returns the value in degrees
     np.arctan2 returns a value on the [-Pi,+Pi] interval
     """
-    collinear_cutoff = 175./180.
+    if collinear_cutoff is None:
+        collinear_cutoff = 175. / 180.
+    else:
+        collinear_cutoff = collinear_cutoff / 180.
     collinear = 0
     if (abs(calc_angle(a, b, c)) > np.pi * collinear_cutoff or
             abs(calc_angle(b, c, d)) > np.pi * collinear_cutoff):

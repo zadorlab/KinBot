@@ -224,6 +224,7 @@ class StationaryPoint:
         """ 
         Create bond matrix 
         Also create smiles if possible
+        Also create a bond matrix where it's only 1 or 0 (no double bonds etc.)
         """
         self.distance_mx()
         for i in range(self.natom):
@@ -374,6 +375,12 @@ class StationaryPoint:
                     self.smiles = cheminfo.create_smi_from_geom(self.atom, self.geom)
                 except:
                     pass
+        self.bond01 = np.zeros((self.natom, self.natom), dtype=int)
+        for ri, row in enumerate(self.bond):
+            for bii, bi in enumerate(row):
+                if bi > 0:
+                    self.bond01[ri][bii] = 1
+
         return 0
 
     def make_extra_bond(self, parts, maps):
@@ -476,7 +483,7 @@ class StationaryPoint:
         """
         Iterative method to find all the separate products from a bond matrix
         vary_charge: to identify fragments with charge on either of them
-        bond_mx: assume a known bond_mx at the characterization - needed in cluter mode for H bonds
+        bond_mx: assume a known bond_mx at the characterization - needed in cluster mode for H bonds
         """
         bond_mtx = copy.deepcopy(self.bond)
         assigned_atoms = [0 for i in range(self.natom)]  # 1: part of the fragment, 0: not part of a fragment
@@ -727,7 +734,7 @@ class StationaryPoint:
         """ 
         Identify unique rotatable bonds in the structure 
         No rotation around ring bonds and double and triple bonds.
-        If all is set to 1, then redundant dihedrals are also found.
+        If findall is set to 1, then redundant dihedrals are also found.
         """
         
         self.calc_chemid()
@@ -736,7 +743,7 @@ class StationaryPoint:
         if len(self.bonds) == 0:
             self.bonds = [self.bond]
         self.dihed = []
-        self.dihed_all = []
+        self.dihed_allrot = []
         hit = 0
 
         if self.natom < 4: return 0
@@ -759,8 +766,38 @@ class StationaryPoint:
                                             self.dihed.append([a, b, c, d])
                                             hit = 1 
                                         else:
-                                            self.dihed_all.append([a, b, c, d])
+                                            self.dihed_allrot.append([a, b, c, d])
 
+        return 0
+
+    def find_alldihedral(self, collinear_cutoff=None): 
+        """ 
+        Identify all dihedrals
+        Also keeps the ones that are with linear angles
+        This is to be used in frozen calculations
+        """
+        
+        self.calc_chemid()
+        if not hasattr(self, 'cycle_chain'):
+            self.find_cycle()
+        if len(self.bonds) == 0:
+            self.bonds = [self.bond]
+        self.dihed = []
+        self.dihed_all = []
+
+        if self.natom < 4: return 0
+
+        # a-b-c-d, rotation around b-c
+        for b in range(self.natom):
+            for c in range(b, self.natom):
+                if self.bond[b][c] > 0:
+                    for a in range(self.natom):
+                        if self.bond[a][b] > 0 and a != c:
+                            for d in range(self.natom):
+                                if self.bond[c][d] > 0 and d != b:
+                                    dihedral_angle, warning = geometry.calc_dihedral(self.geom[a], self.geom[b], self.geom[c], self.geom[d], collinear_cutoff=collinear_cutoff)
+                                    if not warning:
+                                        self.dihed_all.append([a, b, c, d])
         return 0
 
     def find_conf_dihedral(self):

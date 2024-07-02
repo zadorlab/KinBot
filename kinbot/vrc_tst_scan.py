@@ -314,12 +314,14 @@ class VTS:
                         if step < len(self.par['vrc_tst_scan_points']):
                             job = f'{reac}_vts_pt{str(step).zfill(2)}'
                         else:
-                            continue  # this calculation is not meaningful, at large distance the _fr is valid only
+                            job = f'{reac}_vts_pt_asymptote_fr'  # take the geometry from the _fr case as well here
                     *_, last_row = db.select(name=f'vrctst/{job}', sort='-1')
                     scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
                     scan_spec.characterize()
                      
                     molp = Molpro(scan_spec, self.par)
+                    if not sample and step == len(self.par['vrc_tst_scan_points']):
+                        job = job[:-3]  # the actual job name to run
                     molp.create_molpro_input(name=job, VTS=True, sample=sample)
                     molp.create_molpro_submit(name=job, VTS=True)
                     if not molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'], name=f'vrctst/{job}', VTS=True)[0]:

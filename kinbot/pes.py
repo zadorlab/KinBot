@@ -1365,7 +1365,8 @@ def create_rotdpy_inputs(par, bless, vdW):
                 continue
         except KeyError:
             continue
-        job_name = f"{reaction_name}_{'_'.join(sorted(products))}"
+        #job_name = f"{reaction_name}_{'_'.join(sorted(products))}"
+        job_name = f"{reaction_name}"
         logger.info(f"Creating rotdPy input for reaction {job_name}")
         if len(products) != 2:  # TODO: I would change this to an error
             logger.warning("The creation of rotdPy inputs requires bimolecular products.")
@@ -1373,67 +1374,57 @@ def create_rotdpy_inputs(par, bless, vdW):
             continue
 
         vrc_tst_start = 0
-        do_correction = True
         corrections = {"1d":{"type": "1d"}}
-        for scan_type in ["", "_frozen"]:
-            if "IRC" in job_name:
-                plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
-                if not os.path.isfile(f"{reactant}/{plt_file}"):
-                    logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
-                    do_correction = False
-            elif "hom_sci" in job_name: 
-                plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[0]}_{inp_products[1]}_plt.py"
-                if not os.path.isfile(f"{reactant}/{plt_file}"):
-                    plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[1]}_{inp_products[0]}_plt.py"
-                    if not os.path.isfile(f"{reactant}/{plt_file}"):
-                        logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
-                        do_correction = False
-            
-            pivot_points_info = []
-            
-            if do_correction:
-                with open(f"{reactant}/{plt_file}") as f:
-                    lines = f.readlines()
+        if "IRC" in job_name:
+            plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"  # needs renaming!
+        elif "hom_sci" in job_name: 
+            plt_file = f"{job_name}_{scan_type}_plt.py"
+        if not os.path.isfile(f"{reactant}/{plt_file}"):
+            logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan results not found.")
+            # do_correction = False  # TODO I would make this an error rather than sticking to write an input
+            # I keep the message now, but not the option not to have this
+            # for any barrierless we will want to do at least one scan
+        
+        pivot_points_info = []
+        
+        with open(f"{reactant}/{plt_file}") as f:
+            lines = f.readlines()
 
-                for lidx, line in enumerate(lines[4:]):
-                    if re.search("^y[0-2] = \[", line):
-                        y_data = line
-                        if y_data.startswith("y0"):
-                            level = "L1"
-                        elif y_data.startswith("y1"):
-                            level = "L2"
-                        elif y_data.startswith("y2"):
-                            level = "L3"
-                    if re.search("^x =", line):
-                        x_data = line
-                    if "inf_energy" in line:
-                        inf_energy = float(line.split("energy: ")[1])
-                    if "scan_ref" in line:
-                        corrections["1d"]["scan_ref"] = [[int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]]
-                    if "VRC TST Sampling recommended start: " in line :
-                        vrc_tst_start = float(line.split("start: ")[1])
-                    if 'Number of unique sets of pivot points: ' in line:
-                        for pp_number in range(int(line.split()[-1])):
-                            indexes0 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('[[')[1].split('],')[0].split(',')]
-                            indexes1 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('], [')[1].split(']]')[0].split(',')]
-                            pivot_points_info.append({
-                                '0': int(lines[4:][lidx+1+6*pp_number].split()[-1]),
-                                '1': int(lines[4:][lidx+2+6*pp_number].split()[-1]),
-                                'type': lines[4:][lidx+3+6*pp_number].split()[-1],
-                                'indexes': [indexes0, indexes1],
-                                'min': float(lines[4:][lidx+5+6*pp_number].split()[-1]),
-                                'max': float(lines[4:][lidx+6+6*pp_number].split()[-1])
-                            })
+        for lidx, line in enumerate(lines[4:]):
+            if re.search("^y[0-2] = \[", line):
+                y_data = line
+                if y_data.startswith("y0"):
+                    level = "sample"
+                elif y_data.startswith("y1"):
+                    level = "high"
+            if re.search("^x =", line):
+                x_data = line
+            if "inf_energy" in line:
+                inf_energy = float(line.split("energy: ")[1])
+            if "scan_ref" in line:
+                corrections["1d"]["scan_ref"] = [[int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]]
+            if "VRC TST Sampling recommended start: " in line :
+                vrc_tst_start = float(line.split("start: ")[1])
+            if 'Number of unique sets of pivot points: ' in line:
+                for pp_number in range(int(line.split()[-1])):
+                    indexes0 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('[[')[1].split('],')[0].split(',')]
+                    indexes1 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('], [')[1].split(']]')[0].split(',')]
+                    pivot_points_info.append({
+                        '0': int(lines[4:][lidx+1+6*pp_number].split()[-1]),
+                        '1': int(lines[4:][lidx+2+6*pp_number].split()[-1]),
+                        'type': lines[4:][lidx+3+6*pp_number].split()[-1],
+                        'indexes': [indexes0, indexes1],
+                        'min': float(lines[4:][lidx+5+6*pp_number].split()[-1]),
+                        'max': float(lines[4:][lidx+6+6*pp_number].split()[-1])
+                    })
 
-                match scan_type:
-                    case "":
-                        corrections["1d"]["e_trust"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
-                        corrections["1d"]["r_trust"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
-                    case "_frozen":
-                        corrections["1d"]["e_sample"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
-                        corrections["1d"]["r_sample"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
-            else:
-                corrections = {}
+        match scan_type:
+            case "":
+                corrections["1d"]["e_trust"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
+                corrections["1d"]["r_trust"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
+            case "_frozen":
+                corrections["1d"]["e_sample"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
+                corrections["1d"]["r_sample"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
                     
         fragments = []
         for frag_number in range(2):

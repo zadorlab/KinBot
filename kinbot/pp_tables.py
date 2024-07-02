@@ -139,6 +139,7 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
     return atom_type
 
 def pp_length_table():
+    # TODO why is S not here?
     return {'H': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
             'C': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
             'N': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),

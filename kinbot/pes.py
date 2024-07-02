@@ -1367,7 +1367,7 @@ def create_rotdpy_inputs(par, bless, vdW):
             continue
         job_name = f"{reaction_name}_{'_'.join(sorted(products))}"
         logger.info(f"Creating rotdPy input for reaction {job_name}")
-        if len(products) != 2: 
+        if len(products) != 2:  # TODO: I would change this to an error
             logger.warning("The creation of rotdPy inputs requires bimolecular products.")
             logger.warning(f"Skiping rotdPy input creation for reac {job_name}.")
             continue
@@ -1375,7 +1375,7 @@ def create_rotdpy_inputs(par, bless, vdW):
         vrc_tst_start = 0
         do_correction = True
         corrections = {"1d":{"type": "1d"}}
-        for scan_type in ["","_frozen"]:
+        for scan_type in ["", "_frozen"]:
             if "IRC" in job_name:
                 plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
                 if not os.path.isfile(f"{reactant}/{plt_file}"):
@@ -1557,18 +1557,18 @@ def create_rotdpy_inputs(par, bless, vdW):
         Fragment._instances = []
 
 def is_unique_vdW(well, vdW):
-    #Return boolean
+    # Return boolean
     if 'prod' not in well:
         return True
     
-    #Find well's reaction
+    # Find well's reaction
     for idx, vdw in enumerate(vdW):
         vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
         if vdw_name == well:
             products = '_'.join(sorted(vdw[2]))
             break
 
-    #Compare products with other reactions
+    # Compare products with other reactions
     other_vdW = vdW[:idx]
     if idx+1 < len(vdW):
         other_vdW.extend(vdW[idx+1:])
@@ -1576,18 +1576,18 @@ def is_unique_vdW(well, vdW):
         other_prod = '_'.join(sorted(vdw[2]))
         if other_prod == products:
             return False
-    #No other reaction with a vdW well lead to the same prod.
+    # No other reaction with a vdW well lead to the same prod.
     return True
     
 def find_min_vdW(vdW: list, well_energies: dict) -> dict:
-    #Dict linking each vdW well to the lowest equivalent
+    # Dict linking each vdW well to the lowest equivalent
     min_vdW = {}
     for idx, vdw in enumerate(vdW):
         vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
         products = '_'.join(sorted(vdw[2]))
         vdw_energy = well_energies[vdw_name]
 
-        #Minimum set to itself
+        # Minimum set to itself
         if vdw_name not in min_vdW:
             min_vdW[vdw_name] = vdw_name
 
@@ -1600,12 +1600,11 @@ def find_min_vdW(vdW: list, well_energies: dict) -> dict:
             other_prod = '_'.join(sorted(other_vdw[2]))
             other_energy = well_energies[other_name]
 
-            #Minimum set to a different well if found
+            # Minimum set to a different well if found
             if other_prod == products:
                 if other_energy < well_energies[min_vdW[vdw_name]]:
                     min_vdW[vdw_name] = other_name
     return min_vdW
-        
         
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,

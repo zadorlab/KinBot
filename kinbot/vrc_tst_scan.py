@@ -10,7 +10,7 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot import kb_path
 from kinbot import geometry
 from kinbot.molpro import Molpro
-from kinbot.utils import queue_command 
+from kinbot.utils import queue_command, create_matplotlib_graph
 
 logger = logging.getLogger('KinBot')
 
@@ -300,6 +300,9 @@ class VTS:
         cmd, ext = queue_command(self.par['queuing'])
         batch_submit = ''
         db = connect('kinbot.db')
+        all_done = True
+        e_samp = []
+        e_high = []
         for reac in reactions:
             for step in range(len(self.par['vrc_tst_scan_points']) + 1):
                 for sample in [False, True]:
@@ -322,12 +325,23 @@ class VTS:
                         job = job[:-3]  # the actual job name to run
                     molp.create_molpro_input(name=job, VTS=True, sample=sample)
                     molp.create_molpro_submit(name=job, VTS=True)
-                    if not molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'], name=f'vrctst/{job}', VTS=True)[0]:
+                    stat, e = molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'], name=f'{job}', VTS=True)
+                    logger.debug(f'{job}, {stat}, {e}')
+                    if not stat:
                         batch_submit += f'{cmd} {job}.{ext}\n'
-            
-        batch = f'vrctst/molpro/batch_vts_{self.par["queuing"]}.sub'
-        if self.par['queuing'] != 'local':
-            with open(batch, 'w') as f:
-                f.write(batch_submit)
-            os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
+                        all_done = False
+                    elif sample:
+                        e_samp.append(e)
+                    else:
+                        e_high.append(e)
+
+        if all_done:
+            x = self.par['vrc_tst_scan_points'].append(30)
+            create_matplotlib_graph(x=x, data=[e_samp], name="mtpltlb", x_label="x", y_label="y", data_legends=["y0"], comments=[""])
+        else:
+            batch = f'vrctst/molpro/batch_vts_{self.par["queuing"]}.sub'
+            if self.par['queuing'] != 'local' and batch_submit != '':
+                with open(batch, 'w') as f:
+                    f.write(batch_submit)
+                os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
         return

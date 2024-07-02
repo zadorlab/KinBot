@@ -464,13 +464,12 @@ class Optimize:
         If conf is >= 0, then we are testing for conformer number conf in the conf/ directory.
         """
 
-        if not self.VTS:
-            # creating a species for the L2
-            err, new_geom = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom, wait=self.wait)
-            stpt_dict = {k: v for k, v in vars(self.species).items()
-                         if k not in ('wellorts', 'name', 'geom')}
-            dummy = StationaryPoint('dummy', geom=new_geom, **stpt_dict)
-            dummy.characterize()
+        # creating a species for the L2
+        err, new_geom = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom, wait=self.wait)
+        stpt_dict = {k: v for k, v in vars(self.species).items()
+                     if k not in ('wellorts', 'name', 'geom')}
+        dummy = StationaryPoint('dummy', geom=new_geom, **stpt_dict)
+        dummy.characterize()
 
         # comparing L1 and L2 geometries and imaginary mode if TS
         if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation

@@ -14,7 +14,10 @@ import numpy as np
 from ase import Atoms
 from ase.io import write
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.calculators.emt import EMT
+from ase.constraints import FixInternals
 from ase.data import atomic_numbers, covalent_radii
+from sella import Sella
 
 from kinbot import bfgs
 from kinbot import constants
@@ -52,11 +55,11 @@ class cost_function():
     def gradient(self, x):
         grad = np.zeros(len(x))
         for coord in self.coords:
-            i = coord[0]
-            j = coord[1]
-            d = coord[2]
+            i = coord[0] #atom1
+            j = coord[1] #atom2
+            d = coord[2] #value^2
             weight = coord[3]
-            dc = (x[3 * i] - x[3 * j]) ** 2 + (x[3 * i + 1] - x[3 * j + 1]) ** 2 + (x[3 * i + 2] - x[3 * j + 2]) ** 2
+            dc = (x[3 * i] - x[3 * j]) ** 2 + (x[3 * i + 1] - x[3 * j + 1]) ** 2 + (x[3 * i + 2] - x[3 * j + 2]) ** 2 #current dist between i and j
             if len(coord) == 5:
                 if dc < d:
                     grad[3 * i] += 2 * ((dc - d) * weight) * 2 * (x[3 * i] - x[3 * j])
@@ -76,6 +79,16 @@ class cost_function():
                 grad[3 * j + 2] += 2 * ((dc - d) * weight) * 2 * (x[3 * i + 2] - x[3 * j + 2]) * -1
 
         return grad
+    
+    def hessian(self, atoms):
+        x = np.reshape(atoms.positions, 3 * len(atoms.positions))
+        hess = np.zeros((len(x),len(x)))
+        grad = self.gradient(x)
+        for x1 in range(len(x)):
+            for x2 in range(len(x)):
+                hess[x1][x2] = grad[x1] * grad[x2]
+
+        return hess
 
 
 def append_geom(natom, step, new_e, atom, x_new, grad, atoms_list, f_out=None):
@@ -179,25 +192,26 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
                 new_geom[atj] = perform_rotation(new_geom[atj], new_geom[ci[1]], rot_ax, new_angle - orig_angle)
                 step = append_geom(species.natom, step, 1., species.atom, new_geom, np.zeros((species.natom * 3)), atoms_list, f_out=f_out)
 
-    coords = get_coords(species, bond, new_geom, changes, 0)
-    # optimize the geometry to meet the coords list
-    x0 = np.reshape(new_geom, 3 * species.natom)
-    cost_fct = cost_function(coords)
-    logger.debug('Starting BFGS')
-    gs = ''  # initial geomtry string
-    for i, at in enumerate(species.atom):
-        x, y, z = new_geom[i]
-        gs += '{}, {:.8f}, {:.8f}, {:.8f}, \n'.format(at, x, y, z)
-    logger.debug("For the following initial geometry:\n" + gs)
+        coords = get_coords(species, bond, new_geom, changes, 0)
+        # optimize the geometry to meet the coords list
+        x0 = np.reshape(new_geom, 3 * species.natom)
+        cost_fct = cost_function(coords)
+        logger.debug('Starting BFGS')
+        gs = ''  # initial geomtry string
+        for i, at in enumerate(species.atom):
+            x, y, z = new_geom[i]
+            gs += '{}, {:.8f}, {:.8f}, {:.8f}, \n'.format(at, x, y, z)
+        logger.debug("For the following initial geometry:\n" + gs)
 
-    opt = bfgs.BFGS()
-    x_opt, x_i, g_i = opt.optimize(cost_fct, x0)
+        opt = bfgs.BFGS()
+        x_opt, x_i, g_i = opt.optimize(cost_fct, x0)
 
-    new_geom = np.reshape(x_opt, (species.natom, 3))
-    for i, xi in enumerate(x_i):
-        geomi = np.reshape(xi, (species.natom, 3))
-        gradi = np.reshape(g_i[i], (species.natom, 3))
-        step = append_geom(species.natom, step, 2., species.atom, geomi, gradi, atoms_list, f_out=f_out)
+        new_geom = np.reshape(x_opt, (species.natom, 3))
+        for i, xi in enumerate(x_i):
+            geomi = np.reshape(xi, (species.natom, 3))
+            gradi = np.reshape(g_i[i], (species.natom, 3))
+            step = append_geom(species.natom, step, 2., species.atom, geomi, gradi, atoms_list, f_out=f_out)
+
 
     if write_files:
         write(fname.replace('.xyz', '.traj'), atoms_list)
@@ -238,7 +252,7 @@ def control_changes(species, name, geom, new_geom, changes, bond):
                 logger.debug("For the following initial geometry:\n" + gs)
                 logger.debug("And the following change list:\n" + cs)
                 success = 0
-        if len(ci) == 4:
+        elif len(ci) == 4:
             angle = geometry.calc_angle(new_geom[ci[0]], new_geom[ci[1]], new_geom[ci[2]])
             change_angle = np.radians(ci[3])
             if np.abs(angle - change_angle) > 0.05:  # use a 0.05 radians cutoff
@@ -257,6 +271,7 @@ def control_changes(species, name, geom, new_geom, changes, bond):
                 for ci in changes:
                     if i in ci and j in ci:
                         is_change = 1
+                        break
                 if not is_change:
                     new_bond = np.linalg.norm(new_geom[i] - new_geom[j])
                     orig_bond = np.linalg.norm(geom[i] - geom[j])
@@ -325,18 +340,18 @@ def get_coords(species, bond, geom, changes, mode):
                     change = ci
             if is_change:
                 if len(change) == 3:
-                    coords.append([i, j, change[-1] ** 2, 1.])
+                    coords.append([i, j, change[-1] ** 2, 1.]) #[atom1, atom2, value^2, 1]
                 elif len(change) == 4:
                     # calculate the bond length that corresponds to the new angle
                     b1 = np.linalg.norm(geom[i] - geom[change[1]])
                     b2 = np.linalg.norm(geom[j] - geom[change[1]])
                     a = np.radians(change[-1])
                     d = b1 ** 2 + b2 ** 2 - 2 * b1 * b2 * np.cos(a)
-                    coords.append([i, j, d, 10])
+                    coords.append([i, j, d, 10]) #[atom1, atom2, value^2, 10]
                 elif len(change) == 5:
                     # take the current interatomic distance
                     d = np.linalg.norm(geom[i] - geom[j]) ** 2
-                    coords.append([i, j, d, 10])
+                    coords.append([i, j, d, 10]) #[atom1, atom2, value^2, 10]
             else:
                 if mode == 0:
                     d = np.linalg.norm(geom[i] - geom[j]) ** 2

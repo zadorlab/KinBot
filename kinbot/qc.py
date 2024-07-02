@@ -13,16 +13,17 @@ from ase.db import connect
 from kinbot import kb_path
 from kinbot import constants
 from kinbot import geometry
+from kinbot import exceptions
 
 logger = logging.getLogger('KinBot')
 
 
 class QuantumChemistry:
-    """
+    '''
     This class provides the link between KinBot and the qc code
     It choses the write options, submits the jobs and checks
     the jobs for success or failure
-    """
+    '''
 
     def __init__(self, par):
         self.par = par
@@ -37,6 +38,10 @@ class QuantumChemistry:
         self.high_level_basis = par['high_level_basis']
         self.bls_high_level_method = par['barrierless_saddle_method_high']
         self.bls_high_level_basis = par['barrierless_saddle_basis_high']
+        self.vts_method = par['vrc_tst_scan_method']
+        self.vts_basis = par['vrc_tst_scan_basis']
+        self.single_point_template = par['single_point_template']
+        self.single_point_key = par['single_point_key']
         self.integral = par['integral']
         self.opt = par['opt']
         self.ppn = par['ppn']
@@ -62,8 +67,8 @@ class QuantumChemistry:
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
-                         start_from_geom=0, rigid=0, aie=0):
-        """
+                         start_from_geom=0, rigid=0, aie=0, L3=False, vts=0):
+        '''
         Method to get the argument to pass to ase, which are then passed to the qc codes.
         Job: name of the job
         mult: multiplicity of the job
@@ -73,8 +78,9 @@ class QuantumChemistry:
         max_step: total number of necessary steps to get to the final transition state structure
             This is different for every reaction family
         irc: direction of the irc, None if this is not an irc job
-        scan: is this calculation part of a scan of a bond length to find a maximum energy
-        """
+        scan: this calculation is part of a scan of a bond length
+        '''
+
         if self.qc == 'gauss' or (self.qc == 'nn_pes' and step < max_step):
             # arguments for Gaussian
             kwargs = {
@@ -87,7 +93,8 @@ class QuantumChemistry:
                 'Symm': 'None',
                 'mult': mult,
                 'charge': charge,
-                'scf': 'xqc'
+                'scf': 'xqc',
+                'pop': 'None',
             }
             if self.par['guessmix'] == 1 or \
                 'barrierless_saddle' in job or \
@@ -112,7 +119,7 @@ class QuantumChemistry:
                     if self.par['guessmix'] == 1 or \
                         'barrierless_saddle' in job or \
                         (mult == 1 and 'R_Addition_MultipleBond' in job):
-                        kwargs['guess'] = 'Read,Mix'
+                        kwargs['guess'] = 'Read,Mix,Always'
                     if self.par['bimol']:
                         kwargs['method'] = self.method
                         kwargs['basis'] = self.basis
@@ -127,9 +134,16 @@ class QuantumChemistry:
                     else:
                         kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,MaxCycle=999'
                         kwargs['freq'] = 'freq'
+            elif vts:
+                kwargs['method'] = self.vts_method
+                kwargs['basis'] = self.vts_basis
+                kwargs['opt'] = 'ModRedun,CalcFC,MaxCycles=999'
+                kwargs['guess'] = 'Mix, Always'
+                kwargs.pop('freq', None)
+                kwargs.pop('chk', None)
             else:
-                kwargs['freq'] = 'freq'
-            if scan or 'R_Addition_MultipleBond' in job:
+                kwargs['freq'] = 'freq'  # ? 
+            if (scan or 'R_Addition_MultipleBond' in job) and not vts:
                 kwargs['method'] = self.scan_method 
                 kwargs['basis'] = self.scan_basis
             if 'barrierless_saddle' in job or 'bls' in job:
@@ -176,19 +190,10 @@ class QuantumChemistry:
                     else:
                         kwargs['opt'] = 'ModRedun,CalcFC,TS,NoEigentest,MaxCycle={}'.format(self.par['hir_maxcycle'])
                 if rigid == 1:
-                    try:
-                        kwargs.pop('freq', None)
-                    except KeyError:
-                        pass
-                    try:
-                        kwargs.pop('opt', None)
-                    except KeyError:
-                        pass
-            if 'hom_sci' in job:
-                try:
+                    kwargs.pop('freq', None)
                     kwargs.pop('opt', None)
-                except KeyError:
-                    pass
+            if 'hom_sci' in job and not vts:
+                kwargs.pop('opt', None)
             if aie:
                 kwargs = {
                     'method': 'cbs-qb3',
@@ -279,6 +284,9 @@ class QuantumChemistry:
             if 'barrierless_saddle' in job or 'bls' in job:
                 kwargs['method'] = self.bls_method
                 kwargs['basis'] = self.bls_basis
+            if vts:
+                kwargs['method'] = self.vts_method
+                kwargs['basis'] = self.vts_basis
             if high_level:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
@@ -295,19 +303,19 @@ class QuantumChemistry:
                     kwargs['rpath_direction'] = '1'
         elif self.qc == 'nn_pes':
             if self.par['nn_model']:
-                kwargs = {'fname': self.par["nn_model"]}
+                kwargs = {'fname': self.par['nn_model']}
             else:
                 kwargs = {}
 
         return kwargs
 
     def qc_hir(self, species, geom, rot_index, ang_index, fix, rigid):
-        """Creates a constrained geometry optimization input and runs it.
+        '''Creates a constrained geometry optimization input and runs it.
         wellorts: 0 for wells and 1 for saddle points
         rot_index: index of the rotor in the molecule
         ang_index: index for the current size of the angle
         fix: four atoms of the dihedral that is currently fixed
-        """
+        '''
         from kinbot.geometry import calc_dihedral
         if species.wellorts:
             job = 'hir/' + species.name + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
@@ -323,7 +331,7 @@ class QuantumChemistry:
             code = 'gaussian'
             Code = 'Gaussian'
             if not self.use_sella:
-                kwargs['addsec'] = f"{' '.join(str(f) for f in fix[0])} F"
+                kwargs['addsec'] = f'{" ".join(str(f) for f in fix[0])} F'
                 kwargs.pop('chk', None)
         elif self.qc == 'qchem':
             code = 'qchem'
@@ -331,9 +339,9 @@ class QuantumChemistry:
             if not self.use_sella:
                 dihedral = calc_dihedral(geom[fix[0][0]-1], geom[fix[0][1]-1], 
                                          geom[fix[0][2]-1], geom[fix[0][3]-1])[0]
-                kwargs['addsec'] = "\n$opt\nCONSTRAINT\ntors " \
-                                   f"{' '.join(str(f) for f in fix[0])} " \
-                                   f"{dihedral}\nENDCONSTRAINT\n$end"
+                kwargs['addsec'] = '\n$opt\nCONSTRAINT\ntors ' \
+                                   f'{" ".join(str(f) for f in fix[0])} ' \
+                                   f'{dihedral}\nENDCONSTRAINT\n$end'
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
@@ -341,8 +349,7 @@ class QuantumChemistry:
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:
-            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
-#        atom, geom, dummy = self.add_dummy(species.atom, geom, species.bond)
+            raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         if self.use_sella:
             kwargs.pop('chk', None)
             kwargs.pop('opt', None)
@@ -373,7 +380,7 @@ class QuantumChemistry:
         return 0
 
     def qc_ring_conf(self, species, geom, fix, change, conf_nr, scan_nr):
-        """
+        '''
         Creates a constrained geometry optimization input for the
         conformational search of cyclic structures and runs it.
         Make use of the ASE optimizer LBFGS
@@ -383,7 +390,7 @@ class QuantumChemistry:
         wellorts: 0 for wells and 1 for saddle points
         conf_nr: number of the conformer in the conformer search
         scan_nr: number of the scan for this conformer
-        """
+        '''
         if species.wellorts:
             job = 'conf/' + species.name + '_r' + str(conf_nr).zfill(self.zf) \
                   + '_' + str(scan_nr).zfill(self.zf)
@@ -417,7 +424,7 @@ class QuantumChemistry:
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:
-            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+            raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         if self.use_sella:
             template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
         else:
@@ -445,12 +452,12 @@ class QuantumChemistry:
         return 0
 
     def qc_conf(self, species, geom, index, semi_emp=0):
-        """
+        '''
         Creates a geometry optimization input for the conformational search and runs it.
         qc: 'gauss' or 'nwchem' or 'qchem'
         wellorts: 0 for wells and 1 for saddle points
         index: >=0 for sampling, each job will get numbered with index
-        """
+        '''
         add = ''
         if semi_emp:
             add = 'semi_emp_'
@@ -485,7 +492,7 @@ class QuantumChemistry:
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:
-            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+            raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
         if semi_emp:
             kwargs['method'] = self.par['semi_emp_method']
@@ -522,12 +529,12 @@ class QuantumChemistry:
         return 0
 
     def qc_aie(self, species, geom, ext):
-        """
+        '''
         Sets up AIE calculations. Currently results are not digested by KinBot.
         Only for well, not for saddles!
         qc: 'gauss' or 'nwchem' or 'qchem'
         index: the index of the conformer as in conf search
-        """
+        '''
         job0 = f'aie/{str(species.chemid)}_AIE0_{ext}'  # neutral
         job1 = f'aie/{str(species.chemid)}_AIE1_{ext}'  # cation
         kwargs0 = self.get_qc_arguments(job0, species.mult, species.charge, aie=1)
@@ -562,11 +569,14 @@ class QuantumChemistry:
         return 0
 
     def qc_opt(self, species, geom, high_level=0, mp2=0, bls=0, ext=None, 
-               fdir=None):
-        """
+               fdir=None, do_vdW=False):
+        '''
         Creates a geometry optimization input and runs it.
-        """
-        if ext is None:
+        '''
+        if do_vdW:
+            if high_level:
+                job = f'{species.name}_high'
+        elif ext is None:
             job = str(species.chemid) + '_well'
             if high_level:
                 job = str(species.chemid) + '_well_high'
@@ -574,6 +584,7 @@ class QuantumChemistry:
                 job = str(species.chemid) + '_well_mp2'
             if bls:
                 job = str(species.chemid) + '_well_bls'
+
         else:
             job = str(species.chemid) + ext
 
@@ -582,17 +593,12 @@ class QuantumChemistry:
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
-        # O2
-        if species.chemid == '320320000000000000001':
-            mult = 3
-        # CH2
-        elif species.chemid == '140260020000000000001':
-            mult = 3
-        else:
-            mult = species.mult
+        mult = exceptions.get_multiplicity(species.chemid, species.mult)
 
         kwargs = self.get_qc_arguments(job, mult, species.charge,
                                        high_level=high_level)
+        if 'opt' not in kwargs:
+            kwargs['opt'] = ''
 
         if self.qc == 'gauss':
             code = 'gaussian'
@@ -611,7 +617,7 @@ class QuantumChemistry:
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:
-            raise ValueError(f'Unexpected vale for qc parameter: {self.qc}')
+            raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
         if mp2:
             kwargs['method'] = self.scan_method
@@ -651,8 +657,8 @@ class QuantumChemistry:
         return 0
 
     def qc_opt_ts(self, species, geom, high_level=0, ext=None, fdir=None):
-        """Creates a ts optimization input and runs it
-        """
+        '''Creates a ts optimization input and runs it
+        '''
 
         job = str(species.name)
         if ext is None:
@@ -681,7 +687,7 @@ class QuantumChemistry:
             code = 'nn_pes'
             Code = 'Nn_surr'
         else:
-            raise ValueError(f"Unrecognized qc option: {self.qc}")
+            raise ValueError(f'Unrecognized qc option: {self.qc}')
         
         if self.use_sella:
             kwargs.pop('addsec', None)
@@ -710,8 +716,120 @@ class QuantumChemistry:
 
         return 0
 
+    def qc_vts_frag(self, frag):
+        '''
+        Runs VTS fragment optimization
+        '''
+
+        job = f'vrctst/{str(frag.chemid)}_vts'
+        mult = exceptions.get_multiplicity(frag.chemid, frag.mult)
+        kwargs = self.get_qc_arguments(job, mult, frag.charge, vts=1)
+
+        if self.qc != 'gauss':
+            raise ValueError(f'Only implemeted for Gaussian. Instead I got: {self.qc}')
+        
+        if frag.natom < 3:
+            kwargs.pop('Symm', None)
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
+        
+        template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
+        template = open(template_file, 'r').read()
+        template = template.format(label=job,
+                                   kwargs=kwargs,
+                                   atom=list(frag.atom),
+                                   geom=list([list(gi) for gi in frag.geom]),
+                                   qc_command=self.qc_command,
+                                   working_dir=os.getcwd(),
+                                   )  # TODO add sella keywords
+
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
+
+        self.submit_qc(job)
+        return job 
+
+    def qc_vts(self, reac, geom, step, equiv, asymptote, step0_geom):
+        '''
+        Creates a geometry optimization along a scan and runs it.
+        reac: full reaction object
+        '''
+
+        if not asymptote:
+            job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
+        else:
+            job = f'vrctst/{reac.instance_name}_vts_pt_asymptote'
+        mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
+        kwargs = self.get_qc_arguments(job, mult, reac.species.charge, vts=1)
+
+        if self.qc == 'gauss' and not self.par['vrc_tst_scan_sella']:
+            kwargs['addsec'] = f'{reac.scan_coo[0]+1} {reac.scan_coo[1]+1} F\n'
+        
+        if reac.species.natom < 3:
+            kwargs.pop('Symm', None)
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
+        
+        if self.par['vrc_tst_scan_sella']:  # TODO sella globally
+            kwargs.pop('opt', None)
+            if self.qc == 'gauss':
+                code = 'gaussian'
+                Code = 'Gaussian'
+            else:
+                raise ValueError(f'Currently only Gaussian is supported: {self.qc}')
+            template_file = f'{kb_path}/tpl/ase_sella_vts.tpl.py'
+            template = open(template_file, 'r').read()
+            template = template.format(label=job,
+                                       scan_coo=reac.scan_coo,
+                                       bonds=reac.irc_prod.bondlist,
+                                       kwargs=kwargs,
+                                       atom=list(reac.species.atom),
+                                       init_geom=list([list(gi) for gi in geom]),
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       scan_deviation=self.par['vrc_tst_scan_deviation'],
+                                       frag_maps=list([list(rm) for rm in reac.maps]),
+                                       froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),
+                                       froz_A_atom=reac.products[0].atom,
+                                       froz_B_geom=list([list(gi) for gi in reac.products[1].geom]),
+                                       froz_B_atom=reac.products[1].atom,
+                                       code=code,
+                                       Code=Code,
+                                       sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                       equiv=equiv,
+                                       asymptote=asymptote,
+                                       frag_bonds_0=list([list(b) for b in reac.products[0].bond01]),
+                                       frag_bonds_1=list([list(b) for b in reac.products[1].bond01]),
+                                       step0_geom=step0_geom
+                                       )
+
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_vts.tpl.py'
+            template = open(template_file, 'r').read()
+            template = template.format(label=job,
+                                       scan_coo=reac.scan_coo,
+                                       bonds=reac.irc_prod.bondlist,
+                                       kwargs=kwargs,
+                                       atom=list(reac.species.atom),
+                                       init_geom=list([list(gi) for gi in geom]),
+                                       qc_command=self.qc_command,
+                                       working_dir=os.getcwd(),
+                                       scan_deviation=self.par['vrc_tst_scan_deviation'],
+                                       frag_maps=list([list(rm) for rm in reac.maps]),
+                                       froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),
+                                       froz_A_atom=reac.products[0].atom,
+                                       froz_B_geom=list([list(gi) for gi in reac.products[1].geom]),
+                                       froz_B_atom=reac.products[1].atom,
+                                       )
+
+        with open(f'{job}.py', 'w') as f:
+            f.write(template)
+
+        self.submit_qc(job)
+        return job 
+
     def submit_qc(self, job, singlejob=1, jobtype=None):
-        """Submit a job to the queue, unless the job:
+        '''Submit a job to the queue, unless the job:
             * has finished with Normal termination
             * has finished with Error termination
             * is currently running
@@ -720,7 +838,7 @@ class QuantumChemistry:
         This is for continuations, when the continuing jobs overwrite each other.
         If the number of jobs in the queue is larger than the user-set limit,
         KinBot will park here until resources are freed up.
-        """
+        '''
         # if the logfile already exists, copy it with another name
 
         check = self.check_qc(job)
@@ -752,10 +870,16 @@ class QuantumChemistry:
             sys.exit()
 
         if self.queuing == 'local':
-            logger.error(f'Job {job} is missing in the database or the output '
-                         'file is not present. Unable to run calculations when '
-                         'queuing is \'local\'.')
-            sys.exit()
+            err_msg = f'Job {job} is missing in the database or the output ' \
+                      'file is not present. Unable to run calculations when ' \
+                      'queuing is \'local\'. To ignore calculations that have ' \
+                      'not finished set "error_missing_local" to False.'
+            if self.par['error_missing_local']:
+                logger.error(err_msg)
+                raise FileNotFoundError(err_msg)
+            else:
+                logger.warning(err_msg)
+                return -1
 
         template_file = f'{kb_path}/tpl/{self.queuing}_python.tpl'
         python_file = f'{job}.py'
@@ -799,20 +923,20 @@ class QuantumChemistry:
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
     def get_qc_geom(self, job, natom, wait=0, allow_error=0, previous=0):
-        """
+        '''
         Get the geometry from the ase database file.
         Returns it, with the following conditions about the status of the job.
         If wait = 0, return an (1, empty array) when the job is still running (instead of the geometry).
         If wait = 1, wait for the job to finish.
         If wait = 2, return the last geometry while the job is still running.
             This option is to monitor the formation of bimolecular products.
-        If allow_error = 0, do not read the final geometry if the status is not "normal"
+        If allow_error = 0, do not read the final geometry if the status is not 'normal'
         if allow_error = 1, read the geometry even though there is an error in the output file
             This option is to read the final IRC geometry when it did not converge
-        If previous = 0, read the last geometry, this is the normal behavious
+        If previous = 0, read the last geometry, this is the normal behaviour
         if previous = 1, read the geometry before the last one, this is needed in scan types so
             that the max energy point is taken, not the one after that
-        """
+        '''
         geom = np.zeros((natom, 3))
 
         check = self.check_qc(job)
@@ -856,10 +980,10 @@ class QuantumChemistry:
             return -1, geom
 
     def get_qc_freq(self, job, natom, wait=0, allow_error=0):
-        """
+        '''
         Get the frequencies from the ase database file
         If wait is set to 1, it will wait for the job to finish.
-        """
+        '''
 
         check = self.check_qc(job)
         if check == 'error':
@@ -894,7 +1018,7 @@ class QuantumChemistry:
         return 0, freq
 
     def get_qc_energy(self, job, wait=0):
-        """
+        '''
         Read the last energy from a job.
         For Gaussian currently works for DFT and HF only.
         For NWChem it works for optimization jobs, using the @ handle.
@@ -905,7 +1029,7 @@ class QuantumChemistry:
         -1: error
          0: normal and done
          1: running
-        """
+        '''
 
         check = self.check_qc(job)
         if check == 'error':
@@ -935,10 +1059,10 @@ class QuantumChemistry:
         return 0, energy
 
     def get_qc_zpe(self, job, wait=1):
-        """
+        '''
         Read the zero point energy.
         If wait is set to 1 (default), it will wait for the job to finish.
-        """
+        '''
 
         check = self.check_qc(job)
         if check == 'error':
@@ -954,14 +1078,14 @@ class QuantumChemistry:
                 break
         zpe = 0.0  # set as default
         # open the database
-        rows = self.db.select(name=job)
+        *_, last_row = self.db.select(name=job)
         # take the last entry
-        for row in rows:
-            if hasattr(row, 'data'):
-                zpe = row.data.get('zpe')
-            else:
-                zpe = 0.0
-                logger.warning("{} has no zpe in database. ZPE SET TO 0.0".format(job))
+        
+        if hasattr(last_row, 'data'):
+            zpe = last_row.data.get('zpe')
+        else:
+            zpe = 0.0
+            logger.warning('{} has no zpe in database. ZPE SET TO 0.0'.format(job))
 
         if zpe is None:
             zpe = 0.00
@@ -969,9 +1093,9 @@ class QuantumChemistry:
         return 0, zpe
 
     def read_qc_hess(self, job, natom):
-        """
+        '''
         Read the hessian of a gaussian chk file
-        """
+        '''
 
         check = self.check_qc(job)
         if check != 'normal':
@@ -1046,9 +1170,9 @@ class QuantumChemistry:
         return hess
 
     def is_in_database(self, job):
-        """
+        '''
         Checks if the current job is in the database:
-        """
+        '''
         # open the database
         rows = self.db.select(name=job)
 
@@ -1064,7 +1188,7 @@ class QuantumChemistry:
         return 1
 
     def check_qc(self, job):
-        """
+        '''
         Checks the status of the qc job.
         Possible returns:
         running - the job is either running or is in the queue
@@ -1072,7 +1196,7 @@ class QuantumChemistry:
                  Only happens if log file had a done stamp and it was in the db.
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
-        """
+        '''
         # logger.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
@@ -1089,11 +1213,9 @@ class QuantumChemistry:
                                        stdin=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
             out, err = process.communicate()
-            out = out.decode()
-            for line in out.split('\n'):
+            out = out.decode().split('\n')[1:]
+            for line in out:
                 if len(line) > 0:
-                    while line.startswith(' '):
-                        line = line[1:]
                     pid = line.split()[0]
                     if pid == self.job_ids.get(job, '-1'):
                         logger.debug('Job is running')
@@ -1126,16 +1248,22 @@ class QuantumChemistry:
                         try:
                             last_line = f.readlines()[-1]
                             if 'done' not in last_line:
+                                if self.queuing == 'local' and not self.par['error_missing_local']:
+                                    return 'error'
                                 logger.debug(f'Log file {log_file} is present, '
                                              'but has no "done" stamp.')
                                 return 0
                         except IndexError:
                             logger.debug(f'Log file {log_file} is present, but it is empty.')
+                            if self.queuing == 'local' and not self.par['error_missing_local']:
+                                return 'error'
                             return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
                 elif self.qc == 'nn_pes':
                     pass
                 else:
+                    if self.queuing == 'local' and not self.par['error_missing_local']:
+                        return 'error'
                     logger.debug('Checking againg for log file')
                     time.sleep(1)
                     log_file_exists = os.path.exists(log_file)
@@ -1161,14 +1289,16 @@ class QuantumChemistry:
             logger.debug('log file {} does not exist'.format(log_file))
             return 0
         else:
+            if self.queuing == 'local' and not self.par['error_missing_local']:
+                return 'error'
             logger.debug('job {} is not in database'.format(job))
             return 0
 
     def limit_jobs(self):
-        """
+        '''
         Check how many jobs are in the queue from the user, and if larger than the limit,
         then wait for resources to free up.
-        """
+        '''
 
         while 1:
             if self.queuing == 'slurm':
@@ -1184,10 +1314,10 @@ class QuantumChemistry:
             time.sleep(1)
 
     def add_dummy(self, spatom, geom, spbond):
-        """
+        '''
         Add a dummy atom for each close to linear angle.
         Obsolete.
-        """
+        '''
         atom = copy.deepcopy(spatom)
         dummy = geometry.is_linear(geom, spbond)
         if len(dummy) > 0:

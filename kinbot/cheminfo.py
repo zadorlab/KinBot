@@ -247,3 +247,5 @@ def create_smiles(inchi):
 def create_smi_from_geom(atom, geom):
     inchi = create_inchi_from_geom(atom, geom)
     return create_smiles(inchi)
+
+

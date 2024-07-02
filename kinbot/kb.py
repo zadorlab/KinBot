@@ -2,6 +2,8 @@ import sys
 import datetime
 import copy
 
+from os.path import isfile
+
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.parameters import Parameters
@@ -11,6 +13,7 @@ from kinbot.reaction_finder import ReactionFinder
 from kinbot.reaction_finder_bimol import ReactionFinderBimol
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.vrc_tst_scan import VTS
 from kinbot.qc import QuantumChemistry
 from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
@@ -68,6 +71,16 @@ def main():
 
         # characterize the initial reactant
         well0.characterize()
+        if par['cluster']:
+            well0.make_hbonds()
+            while 1:
+                frags, maps = well0.start_multi_molecular(bond_mx=well0.bond)
+                if len(frags) > 1:
+                    p1, p2 = well0.make_extra_bond(frags[:2], maps[:2])
+                    logger.info(f'Added extra bond between {p1} and {p2}')
+                else:
+                    break
+#        well0.characterize()
         well0.name = str(well0.chemid)
         start_name = well0.name
         if well0.name in par['skip_chemids']:
@@ -78,8 +91,8 @@ def main():
 
         # initialize the qc instance
         qc = QuantumChemistry(par)
-
-        clean_files()
+        if par['do_clean']:
+            clean_files()
 
         # start the initial optimization of the reactant
         logger.info('Starting optimization of initial well...')
@@ -108,8 +121,17 @@ def main():
                                 geom=copy.deepcopy(well0.geom))
         well0.short_name = 'w1'
         well0.characterize()
+        if par['cluster']:
+            well0.make_hbonds()
+            while 1:
+                frags, maps = well0.start_multi_molecular(bond_mx=well0.bond)
+                if len(frags) > 1:
+                    well0.make_extra_bond(frags[:2], maps[:2])
+                else:
+                    break
+#        well0.characterize()
         well0.name = str(well0.chemid)
-        if well0.name != start_name:
+        if well0.name != start_name and not par['cluster']:
             logger.error('The first well optimized to a structure different from the input.')
             return
 
@@ -132,13 +154,22 @@ def main():
 
         # comparison for barrierless scan
         if par['barrierless_saddle']:
-            logger.debug('Optimization of intial well for barrierless at {}/{}'.
+            logger.debug('Optimization of initial well for barrierless at {}/{}'.
                     format(par['barrierless_saddle_method'], par['barrierless_saddle_basis']))
             qc.qc_opt(well0, well0.geom, bls=1)
             err, geom = qc.get_qc_geom(str(well0.chemid) + '_well_bls', well0.natom, 1)
-
+        
         # characterize again and look for differences
         well0.characterize()
+        if par['cluster']:
+            well0.make_hbonds()
+            while 1:
+                frags, maps = well0.start_multi_molecular(bond_mx=well0.bond)
+                if len(frags) > 1:
+                    well0.make_extra_bond(frags[:2], maps[:2])
+                else:
+                    break
+#        well0.characterize()
         well0.name = str(well0.chemid)
 
         err, well0.energy = qc.get_qc_energy(str(well0.chemid) + '_well', 1)
@@ -153,15 +184,24 @@ def main():
             logger.error('Error with high level optimization of initial structure.')
             return
 
-        # if par['pes']:
-        #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
-
         if par['reaction_search'] == 1:
             logger.info('Starting reaction search...')
             rf = ReactionFinder(well0, par, qc)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
+
+        if par['vrc_tst_scan'] is not {}:
+            logger.info('Setting up scans for VRC-TST...')
+            vts = VTS(well0, par, qc)
+            vts.calculate_correction_potentials()
+            # this move to pes.py
+            # wait for molpro
+            # read the molpro
+            # apply symmtery
+            # call util create_mpl ... --> .py which can be used to plot the correction
+            #rotd = RotdPy(vts, par)
+            #rotd.make_input
 
     # BIMOLECULAR REACTANTS
     elif par['bimol'] == 1:
@@ -242,8 +282,6 @@ def main():
         for frag in fragments.values():
             well0.energy += frag.energy
             well0.zpe += frag.zpe
-        # if par['pes']:
-        #    filecopying.copy_to_database_folder(well0.chemid, well0.chemid, qc)
 
         if par['reaction_search'] == 1:
             logger.info('\tStarting bimolecular reaction search...')
@@ -255,11 +293,19 @@ def main():
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
         mess = MESS(par, well0)
         mess.write_input(qc)
+        # vdW_wells = []
+        # for reac in well0.reac_obj:
+        #     if reac.do_vdW:
+        #         vdW_wells.append(MESS(par, reac.irc_prod, parent=well0))
+        #         vdW_wells[-1].write_input(qc)
 
         if par['me'] == 1:
             logger.info('Starting Master Equation calculations')
             if par['me_code'] == 'mess':
                 mess.run()
+                # for vdw_mess in vdW_wells:
+                #     vdw_mess.run()
+
 
     postprocess.create_summary_file(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)

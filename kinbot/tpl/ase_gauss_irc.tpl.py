@@ -68,16 +68,26 @@ if success:
                                          'frequencies': np.asarray(freq),
                                          'zpe': zpe, 'status': 'normal'}})
     except RuntimeError: 
-        iowait(logfile, 'gauss')
-        mol_prod.positions = reader_gauss.read_geom(logfile, 
-                                                    mol_prod, 
-                                                    max2frag=True, 
-                                                    charge=kwargs['charge'],
-                                                    mult=kwargs['mult'])
-        if mol_prod.positions is not None:
-            db.write(mol_prod, name=label, data={{'status': 'normal'}}) 
-        else:
-            db.write(mol_prod, name=label, data={{'status': 'error'}})
+        for i in range(3):
+            try:
+                iowait(logfile, 'gauss')
+                _, mol_prod.positions = reader_gauss.read_lowest_geom_energy(logfile, mol_prod)
+                kwargs_prod = reader_gauss.correct_kwargs(logfile, kwargs_prod)
+                mol_prod.calc = Gaussian(**kwargs_prod)
+                e = mol_prod.get_potential_energy()  # use the Gaussian optimizer
+                iowait(logfile, 'gauss')
+                mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)
+                freq = reader_gauss.read_freq(logfile, {atom})
+                zpe = reader_gauss.read_zpe(logfile)
+                db.write(mol_prod, name=label, data={{'energy': e,
+                                                'frequencies': np.asarray(freq),
+                                                'zpe': zpe, 'status': 'normal'}})
+            except RuntimeError:
+                if i == 2:
+                    db.write(mol, name=label, data={{'status': 'error'}})
+                pass
+            else:
+                break
 
     with open(logfile, 'a') as f:
         f.write('done\n')

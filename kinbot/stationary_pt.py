@@ -95,7 +95,7 @@ class StationaryPoint:
             self.get_geom()
         if self.natom == 0:
             self.natom = len(atom)
-    
+
     @classmethod
     def from_ase_atoms(cls, atoms, **kwargs):
         """Builds a stationary point object from an ase.Atoms object.
@@ -116,6 +116,8 @@ class StationaryPoint:
 
         if name is None:
             name = 'StationaryPoint'
+        else:
+            name = kwargs["name"]
 
         if charge is None:
             if atoms.calc is None or 'charge' not in atoms.calc.parameters:
@@ -205,6 +207,7 @@ class StationaryPoint:
         """ 
         Create bond matrix 
         Also create smiles if possible
+        Also create a bond matrix where it's only 1 or 0 (no double bonds etc.)
         """
         self.distance_mx()
         for i in range(self.natom):
@@ -213,7 +216,7 @@ class StationaryPoint:
                     continue
                 elif self.dist[i][j] < 0.5:
                     err_msg = f'Incorrect geometry for {self.name}: Found an ' \
-                              'interatomic distance smaller than 0.5 Å.'
+                              'interatomic distance smaller than 0.5 Angstrom.'
                     logger.error(err_msg)
                     raise ValueError(err_msg)
 
@@ -355,6 +358,12 @@ class StationaryPoint:
                     self.smiles = cheminfo.create_smi_from_geom(self.atom, self.geom)
                 except:
                     pass
+        self.bond01 = np.zeros((self.natom, self.natom), dtype=int)
+        for ri, row in enumerate(self.bond):
+            for bii, bi in enumerate(row):
+                if bi > 0:
+                    self.bond01[ri][bii] = 1
+
         return 0
 
     def make_extra_bond(self, parts, maps):
@@ -368,6 +377,8 @@ class StationaryPoint:
         n is the nth fragment and i is the ith atom in this fragment 
         """
 
+        if len(parts) == 1:
+            return -1 -1
         mindist = 100.  # large initial value
         for i, cooi in enumerate(parts[0].geom): 
             for j, cooj in enumerate(parts[1].geom):
@@ -378,7 +389,43 @@ class StationaryPoint:
                     pivot2 = maps[1][j]
         self.bond[pivot1][pivot2] = 1
         self.bond[pivot2][pivot1] = 1
+        for b in self.bonds:
+            b[pivot1][pivot2] = 1
+            b[pivot2][pivot1] = 1
         return pivot1, pivot2
+
+    def make_hbonds(self):
+        """
+        Add all hydrogen bonds. Criteria:
+        - has to be an X1-H-X2 pattern
+        - X1-H is already bonded 
+        - X2-H is less than 1.8 A
+        - X2 has free valence
+        - H only has one bond (to X1)
+        - X1-H-X2 angle is > 150 degrees
+        - X1 and X2 have to be one of O, N, F
+        """
+
+        self.hbonds = []
+        for hi, symb in enumerate(self.atom):
+            if symb == 'H':
+                if np.sum(self.bond[hi]) == 1:  # X1-H is already bonded 
+                    if self.atom[np.where(self.bond[hi] == 1)] in ['O', 'N', 'F']:  # H only has one bond (to X1), and X1 has to be one of O, N, F
+                        x1 = np.where(self.bond[hi] == 1)
+                        for x2, symb in enumerate(self.atom):
+                            if symb in ['O', 'N', 'F']:  # X2 has to be one of O, N, F
+                                if self.bond[hi][x2] == 0:  # they are not yet bonded
+                                    if np.sum(self.bond[x2]) <= constants.st_bond[symb]:  # X2 has free valence
+                                        if self.dist[hi][x2] < 1.8:  # X2-H is less than 1.8 A
+                                            if geometry.calc_angle(self.geom[x1],self.geom[hi],self.geom[x2]) > np.pi * 150. / 180.: 
+                                                self.bond[hi][x2] = 1
+                                                self.bond[x2][hi] = 1
+                                                logger.info(f'Adding H-bonds between {hi + 1} and {x2 + 1}')
+                                                self.hbonds.append([hi, x2])
+                                                for b in self.bonds:
+                                                    b[hi][x2] = 1
+                                                    b[x2][hi] = 1
+        return 0
 
     def calc_multiplicity(self, atomlist):
         """ 
@@ -401,9 +448,11 @@ class StationaryPoint:
 
         return 1 + mult % 2
 
-    def start_multi_molecular(self, vary_charge=False):
+    def start_multi_molecular(self, vary_charge=False, bond_mx=None):
         """
         Iterative method to find all the separate products from a bond matrix
+        vary_charge: to identify fragments with charge on either of them
+        bond_mx: assume a known bond_mx at the characterization - needed in cluster mode for H bonds
         """
         bond_mtx = copy.deepcopy(self.bond)
         assigned_atoms = [0 for i in range(self.natom)]  # 1: part of the fragment, 0: not part of a fragment
@@ -437,7 +486,7 @@ class StationaryPoint:
                         delattr(self, 'cycle_chain')
                     except AttributeError:
                         pass
-                    self.characterize()  
+                    self.characterize(bond_mx=self.bond)
                     self.name = str(self.chemid)
                     st_pt_prodlist.append(self)
                     break
@@ -650,7 +699,7 @@ class StationaryPoint:
         """ 
         Identify unique rotatable bonds in the structure 
         No rotation around ring bonds and double and triple bonds.
-        If all is set to 1, then redundant dihedrals are also found.
+        If findall is set to 1, then redundant dihedrals are also found.
         """
         
         self.calc_chemid()
@@ -659,7 +708,7 @@ class StationaryPoint:
         if len(self.bonds) == 0:
             self.bonds = [self.bond]
         self.dihed = []
-        self.dihed_all = []
+        self.dihed_allrot = []
         hit = 0
 
         if self.natom < 4: return 0
@@ -682,8 +731,38 @@ class StationaryPoint:
                                             self.dihed.append([a, b, c, d])
                                             hit = 1 
                                         else:
-                                            self.dihed_all.append([a, b, c, d])
+                                            self.dihed_allrot.append([a, b, c, d])
 
+        return 0
+
+    def find_alldihedral(self, collinear_cutoff=None): 
+        """ 
+        Identify all dihedrals
+        Also keeps the ones that are with linear angles
+        This is to be used in frozen calculations
+        """
+        
+        self.calc_chemid()
+        if not hasattr(self, 'cycle_chain'):
+            self.find_cycle()
+        if len(self.bonds) == 0:
+            self.bonds = [self.bond]
+        self.dihed = []
+        self.dihed_all = []
+
+        if self.natom < 4: return 0
+
+        # a-b-c-d, rotation around b-c
+        for b in range(self.natom):
+            for c in range(b, self.natom):
+                if self.bond[b][c] > 0:
+                    for a in range(self.natom):
+                        if self.bond[a][b] > 0 and a != c:
+                            for d in range(self.natom):
+                                if self.bond[c][d] > 0 and d != b:
+                                    dihedral_angle, warning = geometry.calc_dihedral(self.geom[a], self.geom[b], self.geom[c], self.geom[d], collinear_cutoff=collinear_cutoff)
+                                    if not warning:
+                                        self.dihed_all.append([a, b, c, d])
         return 0
 
     def find_conf_dihedral(self):

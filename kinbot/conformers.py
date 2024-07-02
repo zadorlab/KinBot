@@ -91,6 +91,7 @@ class Conformers:
 
         self.imagfreq_threshold = par['imagfreq_threshold']
         self.flat_ring_dih_angle = par['flat_ring_dih_angle']
+        self.print_warning = True
 
     def generate_ring_conformers(self, cart):
         """
@@ -530,10 +531,20 @@ class Conformers:
                 l1energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
                 l1energy += l1_last_row.data.get('zpe')
                 if not any([abs(en - l1energy) < self.diffthrs * constants.KCALtoHARTREE for en in totenergies]): # 0.1 kcal/mol
-                    logger.warning(f'None of {self.species.name} conformers '
-                                   'has the same energy as its parent structure. '
-                                   'This might be a result of SCF convergence '
-                                   'issues.')
+                    if self.print_warning:
+                        logger.warning(f'\tNone of {self.species.name} '
+                                       'conformers has the same energy as its '
+                                       'parent structure.')
+                        self.print_warning = False
+                    lowest_job = l1_last_row.name
+                    lowest_conf = 'low'
+                    lowest_e_geom = l1_last_row.positions
+                    lowest_energy = l1energy
+                
+                low_row = None
+                low_rows = self.db.select(name='conf/{}_low'.format(name))
+                for lrow in low_rows:
+                    low_row = lrow
                 try:
                     if self.qc.qc == 'gauss':
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
@@ -551,8 +562,13 @@ class Conformers:
                             'frequencies': row_last.data.get('frequencies'),
                             'zpe': row_last.data.get('zpe'),
                             'status': row_last.data.get('status')}
-                    self.db.write(mol, name='conf/{}_low'.format(name), 
-                                  data=data)
+                    if low_row and hasattr(low_row, 'data') \
+                            and all((np.all(data.get(k) == v) 
+                                     for k, v in low_row.data.items())):
+                        pass
+                    else:
+                        self.db.write(mol, name='conf/{}_low'.format(name), 
+                                      data=data)
                 except UnboundLocalError:
                     pass
 
@@ -575,9 +591,15 @@ class Conformers:
         name = self.get_name()
 
         job = 'conf/{}_low'.format(name)
-        err, energy = self.qc.get_qc_energy(job)
-        err, zpe = self.qc.get_qc_zpe(job)
-        err, geom = self.qc.get_qc_geom(job, self.species.natom)
+        try:
+            err, energy = self.qc.get_qc_energy(job)
+            err, zpe = self.qc.get_qc_zpe(job)
+            err, geom = self.qc.get_qc_geom(job, self.species.natom)
+        except ValueError:
+            _ = self.check_conformers()
+            err, energy = self.qc.get_qc_energy(job)
+            err, zpe = self.qc.get_qc_zpe(job)
+            err, geom = self.qc.get_qc_geom(job, self.species.natom)
                 
         return geom, energy, zpe 
 

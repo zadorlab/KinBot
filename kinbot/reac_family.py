@@ -15,13 +15,15 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     scan: boolean which tells if this is part of an energy scan along a bond 
         length coordinate
     """
+    ts = True
+
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error':
             return step
   
     kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, 
-                                     rxn.species.charge, ts=1, step=step, 
+                                     rxn.species.charge, ts=ts, step=step, 
                                      max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
@@ -31,7 +33,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                     err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom)
                     step = rxn.max_step + 1  # this shortcuts the search, jumps to the end
                     return step
-            if rxn.qc.check_qc(rxn.instance_name) == 'error':  # log file is present and is in the db
+            if rxn.qc.check_qc(rxn.instance_name) == 'error':  # log file is not present
                 err, geom = rxn.qc.get_qc_geom(rxn.instance_name, rxn.species.natom, allow_error=1)
                 if np.sum(geom) == 0:
                     return -1  # we don't want this to be repeated
@@ -62,20 +64,32 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     # apply the geometry changes here and fix the coordinates that changed
     change_starting_zero = []
     for c in change:
-        c_new = [ci - 1 for ci in c[:-1]]
+        if c[0] == 'L':
+            c_new = [ci - 1 for ci in c[1:-1]]
+            c_new = ['L'] + c_new
+        else:
+            c_new = [ci - 1 for ci in c[:-1]]
         c_new.append(c[-1])
         change_starting_zero.append(c_new)
-    if len(change_starting_zero) > 0:
+
+    if len(change_starting_zero) > 0 and "frozen" not in rxn.instance_name:
         success, geom = modify_geom.modify_coordinates(rxn.species, 
                                                        rxn.instance_name, geom, 
                                                        change_starting_zero,
-                                                       rxn.species.bond)
+                                                       rxn.species.bond,
+                                                       write_files=1)
         for c in change:
             fix.append(c[:-1])
         change = []
-
-    # atom, geom, dummy = rxn.qc.add_dummy(rxn.species.atom, geom,
-    #                                      rxn.species.bond)
+    elif "frozen" in rxn.instance_name:
+        if step != 0:
+            tmp_species = rxn.get_frozen_species(distance=rxn.scan_list[step])
+            geom = tmp_species.geom
+        else:
+            geom = rxn.species.geom
+        for c in change:
+            fix.append(c[:-1])
+        change = []
 
     if rxn.qc.qc == 'gauss' or (rxn.qc.qc == 'nn_pes' and step < rxn.max_step):
         code = 'gaussian'
@@ -116,7 +130,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                     fix_type = 'tors'
                     val = geometry.calc_dihedral(geom[fixi[0]-1], geom[fixi[1]-1], geom[fixi[2]-1],
                                                  geom[fixi[3]-1])[0]
-                kwargs['addsec'] += f"{fix_type} {' '.join(str(f) for f in fixi)} {val}\n"
+                    kwargs['addsec'] += f"{fix_type} {' '.join(str(f) for f in fixi)} {val}\n"
             for chi in change:
                 dist = np.linalg.norm(geom[chi[0] - 1] - geom[chi[1] - 1])
                 kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} {dist}\n"
@@ -140,21 +154,20 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
         template = template.format(label=rxn.instance_name, 
-                                   kwargs=kwargs, 
-                                   atom=list(rxn.species.atom),
-                                   geom=list([list(gi) for gi in geom]),
-                                   bimol=bimol,
-                                   ppn=rxn.qc.ppn,
-                                   qc_command=command,
-                                   working_dir=os.getcwd(),
-                                   scan=rxn.scan,
-                                   code=code,  # Sella
-                                   Code=Code,  # Sella
-                                   fix=fix,  # Sella
-                                   sella_kwargs=rxn.par['sella_kwargs']  # Sella
-                                   )
+                                kwargs=kwargs, 
+                                atom=list(rxn.species.atom),
+                                geom=list([list(gi) for gi in geom]),
+                                bimol=bimol,
+                                ppn=rxn.qc.ppn,
+                                qc_command=command,
+                                working_dir=os.getcwd(),
+                                scan=rxn.scan,
+                                code=code,  # Sella
+                                Code=Code,  # Sella
+                                fix=fix,  # Sella
+                                sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                )
     else:
-        kwargs.pop('addsec', None)
         if rxn.par['calc_kwargs']:
             kwargs = rxn.qc.merge_kwargs(kwargs)
         if rxn.qc.use_sella:

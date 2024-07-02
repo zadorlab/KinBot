@@ -4,13 +4,15 @@ import logging
 import copy
 import os
 import stat
+import json
 
 from ase.db import connect
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import kb_path
 from kinbot import geometry
 from kinbot.molpro import Molpro
-from kinbot.utils import queue_command 
+from kinbot.utils import queue_command, create_matplotlib_graph, NpEncoder
+from kinbot import constants
 
 logger = logging.getLogger('KinBot')
 
@@ -268,7 +270,7 @@ class VTS:
                             self.explicit(self.scan_reac[reac].products[0], atomid_B, equiv_B, self.scan_reac[reac].maps[0])
 
                         equiv.append([equiv_A, equiv_B])
-
+                        self.scan_reac[reac].equiv = [equiv_A, equiv_B]
                     
                     jobs[ri] = self.qc.qc_vts(self.scan_reac[reac], 
                                               geoms[ri], 
@@ -303,8 +305,11 @@ class VTS:
         batch_submit = ''
         db = connect('kinbot.db')
         for reac in reactions:
+            all_done = True
+            e_samp = []
+            e_high = []
             for step in range(len(self.par['vrc_tst_scan_points']) + 1):
-                for sample in [False, True]:
+                for sample in [True, False]:
                     if sample:
                         if step < len(self.par['vrc_tst_scan_points']):
                             job = f'{reac}_vts_pt{str(step).zfill(2)}_fr'
@@ -324,11 +329,54 @@ class VTS:
                         job = job[:-3]  # the actual job name to run
                     molp.create_molpro_input(name=job, VTS=True, sample=sample)
                     molp.create_molpro_submit(name=job, VTS=True)
-                    if not molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'], name=f'vrctst/{job}', VTS=True)[0]:
+                    stat, e = molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'], name=f'{job}', VTS=True)
+                    logger.debug(f'{job}, {stat}, {e}')
+                    if not stat:
                         batch_submit += f'{cmd} {job}.{ext}\n'
-            
+                        all_done = False
+                    elif sample:
+                        e_samp.append(e)
+                    else:
+                        e_high.append(e)
+
+            if all_done:
+                dist = self.par['vrc_tst_scan_points'] + [30]
+                ens = []  # energies for sample and high in kcal/mol
+                asyms = []  # asymptotic energies in hartree
+                comments = []
+                for sample in [True, False]:
+                    if sample: 
+                        eee = copy.copy(e_samp)
+                    else:
+                        eee = copy.copy(e_high)
+                    comments.append([f'sample: {sample}', f"inf_energy: {eee[-1]}", f"scan_ref = {self.scan_reac[reac].scan_coo}"])
+                    asyms.append(eee[-1])
+                    eee = list((np.array(eee) - eee[-1]) * constants.AUtoKCAL)
+                    ens.append(eee)
+                comments.append(f"VRC TST Sampling recommended start: {dist[0]}")
+                create_matplotlib_graph(x=dist, 
+                                        data=ens, 
+                                        name=f'{reac}', 
+                                        x_label=f"{reac}", 
+                                        y_label="Energy (kcal/mol)", 
+                                        data_legends=['sample', 'high'], 
+                                        comments=comments)
+
+                # write small file with correction data
+                corr = {'dist': dist,
+                        'e_samp': ens[0],
+                        'e_high': ens[1],
+                        'scan_coo': self.scan_reac[reac].scan_coo, 
+                        'scan_coo_equiv': self.scan_reac[reac].equiv,
+                        'e_inf_samp': asyms[0],
+                        'e_inf_high': asyms[1],
+                        }
+
+                with open(f'corr_{reac}.json', 'w', encoding='utf-8') as f:
+                    json.dump(corr, f, ensure_ascii=False, indent=4, cls=NpEncoder)
+
         batch = f'vrctst/molpro/batch_vts_{self.par["queuing"]}.sub'
-        if self.par['queuing'] != 'local':
+        if self.par['queuing'] != 'local' and batch_submit != '':
             with open(batch, 'w') as f:
                 f.write(batch_submit)
             os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner

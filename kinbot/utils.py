@@ -1,5 +1,7 @@
 import time
 import os
+import numpy as np
+import json
 
 
 def tail(file_path, lines=10):
@@ -200,3 +202,13 @@ def queue_command(qu):
     else:
         raise ValueError(f'Unexpected value for queueing: {par["queuing"]}')
     return cmd, ext
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)

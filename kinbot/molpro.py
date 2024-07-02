@@ -148,7 +148,7 @@ class Molpro:
             else:
                 l3_method = self.par["vrc_tst_high_method"]
 
-            
+            method = '' 
             match regex_in(l3_method):
                 case r".*caspt2\([0-9]+,[0-9]+\)":
                     active_electrons = int(l3_method.split("caspt2(")[1].split(",")[0])

@@ -188,7 +188,6 @@ class StationaryPoint:
             self.bond_mx()
 
         self.find_conf_dihedral()
-        self.find_atom_eqv()
         self.calc_chiral()
         self.calc_mass()
         self.calc_maxbond()
@@ -202,6 +201,7 @@ class StationaryPoint:
                     self.make_extra_bond(frags[:2], maps[:2])
                 else:
                     break
+        self.find_atom_eqv()
 
     def calc_mass(self):
         """ Calculate mass """

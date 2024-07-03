@@ -58,7 +58,7 @@ class ReactionFinder:
     '''
     Class to find all the potential reactions starting from a well.
     '''
-    
+
     def __init__(self, species, par, qc):
         self.species = species
         self.qc = qc
@@ -168,7 +168,7 @@ class ReactionFinder:
         for name in self.reactions:
             self.reaction_matrix(self.reactions[name], name) 
         
-        for index in range(len(self.species.reac_name)-1):
+        for index in range(len(self.species.reac_name) - 1):
             if self.species.reac_name[index] in self.species.reac_name[index + 1:]:
                 logger.error(f'Found reaction name {self.species.reac_name[index]} more than once')
                 logger.error('Exiting')
@@ -179,7 +179,6 @@ class ReactionFinder:
             logger.info('\t\t{}'.format(rxn))
         
         return 0  
-   
 
     def search_combinatorial(self, natom, atom, bond, rad):
         ''' 
@@ -202,7 +201,6 @@ class ReactionFinder:
         #~ ts = self.species.bond
         #~ self.reactions[name].append([reac, prod, ts])
         return 0
-
 
     def search_intra_H_migration(self, natom, atom, bond, rad):
         ''' 
@@ -306,7 +304,6 @@ class ReactionFinder:
         
         return 0
 
-    
     def search_intra_R_migration(self, natom, atom, bond, rad):
         ''' 
         This is an class that covers several RMG classes.
@@ -408,7 +405,6 @@ class ReactionFinder:
 #                    new = 0
 
         return 0
-        
 
     def search_intra_OH_migration(self, natom, atom, bond, rad):
         ''' 
@@ -477,7 +473,6 @@ class ReactionFinder:
 
         return 0
 
-
     def search_intra_OH_migration_Exocyclic_F(self, natom, atom, bond, rad):
         ''' 
         This is the same as search_intra_OH_migration but for double bonds only
@@ -527,7 +522,6 @@ class ReactionFinder:
 
         return 0
 
-
     def search_Intra_RH_Add_Endocyclic_F(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -568,7 +562,6 @@ class ReactionFinder:
 #                    new = 0
                 
         return 0
-
 
     def search_Intra_RH_Add_Endocyclic_R(self, natom, atom, bond, rad):
         ''' 
@@ -613,7 +606,6 @@ class ReactionFinder:
 
         return 0
 
-
     def search_Cyclic_Ether_Formation(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -653,7 +645,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
 
     def search_Intra_R_Add_Endocyclic_F(self, natom, atom, bond, rad):
         ''' 
@@ -697,7 +688,6 @@ class ReactionFinder:
                 
         return 0
 
-
     def search_Intra_R_Add_ExoTetCyclic_F(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -728,7 +718,6 @@ class ReactionFinder:
 #                    new = 0
 
         return 0
-
 
     def search_Intra_R_Add_Exocyclic_F(self, natom, atom, bond, rad):
         ''' 
@@ -771,7 +760,6 @@ class ReactionFinder:
 #                    new = 0
 
         return 0
-
 
     def search_Intra_RH_Add_Exocyclic_F(self, natom, atom, bond, rad):
         ''' 
@@ -834,7 +822,6 @@ class ReactionFinder:
         
         return 0
 
-
     def search_Intra_RH_Add_Exocyclic_R(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -876,7 +863,6 @@ class ReactionFinder:
 
         return 0
 
-
     def search_Retro_Ene(self, natom, atom, bond, rad):
         ''' 
         This is not an RMG class.
@@ -912,7 +898,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
 
     def search_Korcek_step2_odd(self, natom, atom, bond, rad):
         ''' 
@@ -990,7 +975,6 @@ class ReactionFinder:
 
         return 0
 
-
     def search_Korcek_step2_even(self, natom, atom, bond, rad):
         ''' 
         Korcek step 2 for cyclic peroxides with even number of atoms in the ring.
@@ -1044,7 +1028,6 @@ class ReactionFinder:
 
         return 0
 
-
     def search_Korcek_step2(self, natom, atom, bond, rad):
         ''' 
         Generalized Korcek step 
@@ -1097,7 +1080,6 @@ class ReactionFinder:
         
         return 0
 
-
     def search_r22_cycloaddition(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1138,8 +1120,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
-
 
     def search_r12_cycloaddition(self, natom, atom, bond, rad):
         ''' 
@@ -1184,8 +1164,6 @@ class ReactionFinder:
         
         return 0
 
-
-
     def search_r12_insertion_R(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1219,7 +1197,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
 
     def search_r13_insertion_CO2(self, natom, atom, bond, rad):
         ''' 
@@ -1258,7 +1235,6 @@ class ReactionFinder:
         
         return 0
 
-
     def search_r13_insertion_ROR(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1286,7 +1262,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
 
     def search_Diels_alder_addition(self, natom, atom, bond, rad):
         ''' 
@@ -1339,8 +1314,6 @@ class ReactionFinder:
         
         return 0
 
-
-
     def search_Intra_Diels_alder_R(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1391,7 +1364,6 @@ class ReactionFinder:
                 
         return 0
 
-
     def search_ketoenol(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1426,8 +1398,6 @@ class ReactionFinder:
         
         return 0
  
-
-
     def search_HO2_Elimination_from_PeroxyRadical(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1458,7 +1428,6 @@ class ReactionFinder:
         
         return 0
         
-
     def search_R_Addition_COm3_R(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1496,8 +1465,6 @@ class ReactionFinder:
 
         return 0
 
-
-        
     def search_R_Addition_MultipleBond(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1544,7 +1511,6 @@ class ReactionFinder:
         
         return 0
 
-
     def search_12_shift_S_F(self, natom, atom, bond, rad):
         '''
         This is an RMG class.
@@ -1575,7 +1541,6 @@ class ReactionFinder:
             if new:
                 self.reactions[name].append(inst)
         return 0
-
 
     def search_12_shift_S_R(self, natom, atom, bond, rad):
         '''
@@ -1613,7 +1578,6 @@ class ReactionFinder:
                 self.reactions[name].append(inst)
         return 0
 
-
     def search_r13_insertion_RSR(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1642,7 +1606,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
 
     def search_R_Addition_CSm_R(self, natom, atom, bond, rad):
         ''' 
@@ -1681,7 +1644,6 @@ class ReactionFinder:
 
         return 0
 
-
     def search_r14_birad_scission(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1718,7 +1680,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
 
     def search_r14_cyclic_birad_scission_R(self, natom, atom, bond, rad):
         ''' 
@@ -1761,7 +1722,6 @@ class ReactionFinder:
         
         return 0
 
-
     def search_birad_recombination_F(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1796,7 +1756,6 @@ class ReactionFinder:
         
         return 0
 
-
     def search_birad_recombination_R(self, natom, atom, bond, rad):
         ''' 
         This is an RMG class.
@@ -1829,7 +1788,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
 
     def search_Intra_disproportionation_F(self, natom, atom, bond, rad):
         ''' 
@@ -1864,7 +1822,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
 
     def search_Intra_disproportionation_R(self, natom, atom, bond, rad):
         ''' 
@@ -1903,7 +1860,6 @@ class ReactionFinder:
 #                    new = 0
         
         return 0
-
 
     def search_bimol_disproportionation_R(self, natom, atom, bond, rad):
         ''' 
@@ -1945,7 +1901,6 @@ class ReactionFinder:
         
         return 0
 
-
     def search_beta_delta(self, natom, atom, bond, rad):
         '''
         This is not an RMG class.
@@ -1976,7 +1931,6 @@ class ReactionFinder:
 #                    new = 0
 
         return 0
-
 
     def search_h2_elim(self, natom, atom, bond, rad):
         ''' 
@@ -2021,7 +1975,6 @@ class ReactionFinder:
 
         return 0
 
-
     def search_hom_sci(self, natom, atom, bond, rad):
         ''' 
         This is not an RMG class.
@@ -2058,7 +2011,6 @@ class ReactionFinder:
 #                    new = 0
 
         return 0
-
 
     def search_barrierless_saddle(self, natom, atom, bond, rad):
         ''' 
@@ -2325,7 +2277,6 @@ class ReactionFinder:
                     logger.info(f'{name} reaction {numbers} over rigid backbone with cutoff {self.par["rigid_reaction_cutoff"]} A is removed.')
         return list(np.array(instances, dtype=object)[mask])
 
-
     def new_reaction(self, rxns, name, a=None, b=None, c=None, d=None, e=None, 
                      length=None, full=False, cross=False, aid=False):
         '''
@@ -2392,6 +2343,7 @@ class ReactionFinder:
                 else:
                     self.reactions[name].append(inst)
         return 0
+
 
 def main():
     '''

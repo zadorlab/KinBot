@@ -98,7 +98,6 @@ class StationaryPoint:
         if self.natom == 0:
             self.natom = len(atom)
         self.cluster = cluster
-        self.warn_hbonds = True
         self.solute_indices = solute_indices
         if cluster:
             self.solute = self[solute_indices]
@@ -449,9 +448,7 @@ class StationaryPoint:
                     self.bond[hi][x2] = 1
                     self.bond[x2][hi] = 1
                     wrn_msg = f'Adding H-bonds between {hi + 1} and {x2 + 1}'
-                    if self.warn_hbonds:
-                        logger.info(wrn_msg)
-                        self.warn_hbonds = False
+                    logger.debug(wrn_msg)
                     self.hbonds.append([hi, x2])
                     for b in self.bonds:
                         b[hi][x2] = 1

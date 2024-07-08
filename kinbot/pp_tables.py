@@ -6,6 +6,7 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
     #This table does not take into account oxidation states. Neutral is assumed, unless specified in example.
     #Charges: (+)(-)
 
+    # TODO only send lin, tri, etc., not the atom type
     atom_type = 'H'
     if element == 'H':
         if nconnect == 1:

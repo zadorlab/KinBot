@@ -194,7 +194,7 @@ class VTS:
         """
         There are two different scans to be made.
         1. relaxed scan: all degrees of freedom are optimized except the B-C distance that is scanned.
-           Final geometry is saved in each step.. 
+           Final geometry is saved in each step. 
            The user can request that the RMSD < then a threshold during optimization..
            Also, if the optimization crashed, the last valid point is taken.
         2. frozen scan: no degrees of freedom are optimized.
@@ -354,6 +354,8 @@ class VTS:
                     eee = list((np.array(eee) - eee[-1]) * constants.AUtoKCAL)
                     ens.append(eee)
                 comments.append(f"VRC TST Sampling recommended start: {dist[0]}")
+                # TODO instead of writing files, create and save png
+                # TODO simple text file with 3 columns: R, e_samp, e_high 
                 create_matplotlib_graph(x=dist, 
                                         data=ens, 
                                         name=f'{reac}', 
@@ -370,6 +372,12 @@ class VTS:
                         'scan_coo_equiv': self.scan_reac[reac].equiv,
                         'e_inf_samp': asyms[0],
                         'e_inf_high': asyms[1],
+#                        'frag_A_atom': ,
+#                        'frag_A_geom': ,
+#                        'frag_B_atom': ,
+#                        'frag_B_geom': ,
+#                        'parts': self.scan_reac[reac].parts, 
+#                        'maps': self.scan_reac[reac].maps,
                         }
 
                 with open(f'corr_{reac}.json', 'w', encoding='utf-8') as f:

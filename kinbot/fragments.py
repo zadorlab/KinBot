@@ -12,7 +12,7 @@ logger = logging.getLogger('KinBot')
 
 class Fragment(StationaryPoint):
     """
-    Class that creates stationnary points with specific methods to setup VRC TST calculations.
+    Class that creates stationary points with specific methods to setup VRC TST calculations.
 
     """
     _instances = []

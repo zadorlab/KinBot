@@ -5,7 +5,6 @@ import itertools
 
 import numpy as np
 from ase.data import covalent_radii, atomic_numbers
-from ase import Atom
 
 from kinbot import cheminfo
 from kinbot import constants
@@ -22,7 +21,7 @@ class StationaryPoint:
 
     def __init__(self, name, charge, mult, smiles='', structure=None, natom=0,
                  atom=None, geom=None, wellorts=0, fragA=None, fragB=None,
-                 cluster=False, solute_indices=None, **kwargs):
+                 cluster=False, solute_indices=None, **_):
         self.name = name
         self.mult = mult
         self.charge = charge
@@ -187,6 +186,7 @@ class StationaryPoint:
             self.bond_mx()
 
         self.find_conf_dihedral()
+        self.find_atom_eqv()
         self.calc_chiral()
         self.calc_mass()
         self.calc_maxbond()
@@ -200,7 +200,7 @@ class StationaryPoint:
                     self.make_extra_bond(frags[:2], maps[:2])
                 else:
                     break
-        self.find_atom_eqv()
+            self.find_atom_eqv()
 
     def calc_mass(self):
         """ Calculate mass """

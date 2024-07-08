@@ -1,5 +1,4 @@
 import os
-import sys
 import shutil
 
 import numpy as np
@@ -16,8 +15,9 @@ from kinbot.frequencies import get_frequencies
 
 def calc_vibrations(mol):
         mol.calc.label = '{label}_vib'
-        if 'chk' in mol.calc.parameters:
-            del mol.calc.parameters['chk']
+        mol.calc.parameters.pop('chk', None)
+        if mol.calc.parameters['guess'].lower() == 'read':
+            mol.calc.parameters.pop('guess', None)
         # Compute frequencies in a separate temporary directory to avoid 
         # conflicts accessing the cache in parallel calculations.
         if not os.path.isdir('{label}_vib'):

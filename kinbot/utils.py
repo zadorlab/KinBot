@@ -2,6 +2,8 @@ import time
 import os
 import numpy as np
 import json
+import matplotlib.pyplot as plt
+from scipy.interpolate import make_interp_spline
 
 
 def tail(file_path, lines=10):
@@ -150,43 +152,66 @@ def clean_files():
                 if len(atoms.positions) > 1 and np.all(atoms.positions == 0):
                     os.remove(ll)
                     logger.info(f'All coordinates of file {ll} are 0, hence '
-                                 f'it is deleted.')
-                    
-def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label="x", y_label="y", data_legends=["y0"], comments=[""]):
+                                f'it is deleted.')
+
+
+def create_matplotlib_graph(x=[0., 1.],
+                            data=[[1., 1.]],
+                            name="mtpltlb",
+                            x_label="x",
+                            y_label="y",
+                            data_legends=["y0"],
+                            comments=[""]):
     """Function that creates the input for a 2D matplotlib plot."""
 
     if not isinstance(x, list) and not isinstance(data, list):
-        return 
-    
-    content = """import numpy as np
-import matplotlib.pyplot as plt
-from scipy.interpolate import make_interp_spline\n\n"""
+        return
 
-    for comment in comments:
-        content += f"# {comment}\n"
-    
-    content += f"x = {x}\n"
-    content += "x_spln = np.arange(min(x), max(x), 0.1)\n\n"
+    scale = 5
+    width = 3.236*scale
+    height = 2*scale
 
+    x_spln = np.arange(min(x), max(x), 0.1)
+
+    spln = []
+    y_spln = []
+    min_y = np.inf
+    max_y = -np.inf
     for index, y in enumerate(data):
-        content += f"y{index} = {list(y)}\n"
-        content += f"spln{index} = make_interp_spline(x, y{index})\n"
-        content += f"y_spln{index} = spln{index}(x_spln)\n"
+        if min(y) < min_y:
+            min_y = min(y)
+        if max(y) > max_y:
+            max_y = max(y)
+        spln.append(make_interp_spline(x, y))
+        y_spln.append(spln[index](x_spln))
 
-    content += "\nfig, ax = plt.subplots()\n"
+    fig, ax = plt.subplots()
 
+    markers = ['x', 'o', '+', 'h', '*']
     for index, legend in enumerate(data_legends):
-        content += f"ax.scatter(x, y{index}, label='{legend}', marker='x')\n"
-        content += f"ax.plot(x_spln, y_spln{index}, label='spln_{legend}')\n"
+        ax.plot(x, data[index],
+                label=legend,
+                marker=markers[index],
+                linewidth=3.0,
+                markersize=15)
+        # ax.plot(x_spln, y_spln[index], label=f'spln_{legend}')
 
-    content += f"""
-ax.legend(loc='lower right')
-ax.set_xlabel(r'{x_label}')
-ax.set_ylabel(r'{y_label}')
-plt.show()"""
+    ax.legend(loc=0)
+    ax.set_xlabel(r'{}'.format(x_label))
+    ax.set_ylabel(r'{}'.format(y_label))
+    ax.set_xlim([min(x), max(x)])
+    ax.set_ylim([min_y, max_y])
 
-    with open(f"{name}_plt.py", "w") as plt_file:
-                plt_file.write(content)
+    plt.rcParams.update({'font.size': 30})
+    fig.set_figheight(height)
+    fig.set_figwidth(width)
+
+    plt.savefig(name,
+                transparent=True,
+                dpi=500,
+                format='png',
+                )
+
 
 def queue_command(qu):
     if qu == 'pbs':

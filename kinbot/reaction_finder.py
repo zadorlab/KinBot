@@ -2376,6 +2376,8 @@ class ReactionFinder:
                     if len(inst) != len(instance):
                         continue
                 if full == True:
+                    if len(inst) != len(instance):
+                        continue
                     if any([inst[i] != instance[i] for i, _ in enumerate(inst)]):
                         continue
                 new = False

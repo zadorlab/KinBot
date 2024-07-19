@@ -46,6 +46,12 @@ class Parameters:
             'mult': 0,
             # Whether it is a bimolecular reaction
             'bimol': 0,
+            # Cluster
+            'cluster' : 0,
+            # Atom numbers of the solute, only used in cluster mode
+            'solute': [],
+            # H-bond recognition as bond
+            'hbond': 0,
 
             # WHICH STEPS TO TAKE
             # Do a reaction search
@@ -104,6 +110,8 @@ class Parameters:
             # CONFORMATIONAL SEARCH
             # Do a conformational search
             'conformer_search': 0,
+            # Threshold to differentiate two structures, kcal/mol
+            'difference_threshold': 0.1,
             # The angular grid for dihedrals, angle = 360 / grid
             'conf_grid': 3,
             # Do a semi empirical conformational search and select the lowest conformers
@@ -278,6 +286,9 @@ class Parameters:
             'username': '',
             # Max. number of job from user in queue, if negative, ignored
             'queue_job_limit': -1,
+            # Whether to raise an error when 'queuing' is set to 'local' and the 
+            # files and db entries are missing, otherwise just show a warning.
+            'error_missing_local': True,
 
             # MASTER EQUATION
             # Assemble the ME

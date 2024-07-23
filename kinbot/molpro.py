@@ -180,7 +180,8 @@ class Molpro:
                     # method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                     method += " ks,HYB_GGA_XC_B3LYP\n"
                 case _:
-                    method += " l3_method\n"
+                    method += " rhf\n"
+                    method += " {}\n".format(l3_method)
 
             with open('vrctst/molpro/' + fname + '.inp', 'w') as f:
                     f.write(tpl.format(options=options,

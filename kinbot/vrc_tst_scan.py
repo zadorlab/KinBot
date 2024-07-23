@@ -1,3 +1,4 @@
+from typing import Any
 import numpy as np
 import time
 import logging
@@ -321,7 +322,7 @@ class VTS:
                         else:
                             job = f'{reac}_vts_pt_asymptote_fr'  # take the geometry from the _fr case as well here
                     *_, last_row = db.select(name=f'vrctst/{job}', sort='-1')
-                    scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms()) 
+                    scan_spec = StationaryPoint.from_ase_atoms(last_row.toatoms())
                     scan_spec.characterize()
                      
                     molp = Molpro(scan_spec, self.par)
@@ -329,9 +330,11 @@ class VTS:
                         job = job[:-3]  # the actual job name to run
                     molp.create_molpro_input(name=job, VTS=True, sample=sample)
                     molp.create_molpro_submit(name=job, VTS=True)
-                    stat, e = molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'], name=f'{job}', VTS=True)
-                    logger.debug(f'{job}, {stat}, {e}')
-                    if not stat:
+                    e_stat, e = molp.get_molpro_energy(self.par['vrc_tst_scan_molpro_key'],
+                                                       name=f'{job}',
+                                                       VTS=True)
+                    logger.debug(f'{job}, {e_stat}, {e}')
+                    if not e_stat:
                         batch_submit += f'{cmd} {job}.{ext}\n'
                         all_done = False
                     elif sample:
@@ -343,44 +346,45 @@ class VTS:
                 dist = self.par['vrc_tst_scan_points'] + [30]
                 ens = []  # energies for sample and high in kcal/mol
                 asyms = []  # asymptotic energies in hartree
-                comments = []
+                # comments = []
                 for sample in [True, False]:
-                    if sample: 
+                    if sample:
                         eee = copy.copy(e_samp)
                     else:
                         eee = copy.copy(e_high)
-                    comments.append([f'sample: {sample}', f"inf_energy: {eee[-1]}", f"scan_ref = {self.scan_reac[reac].scan_coo}"])
+                    # comments.append([f'sample: {sample}', f"inf_energy: {eee[-1]}", f"scan_ref = {self.scan_reac[reac].scan_coo}"])
                     asyms.append(eee[-1])
                     eee = list((np.array(eee) - eee[-1]) * constants.AUtoKCAL)
                     ens.append(eee)
-                comments.append(f"VRC TST Sampling recommended start: {dist[0]}")
+                # comments.append(f"VRC TST Sampling recommended start: {dist[0]}")
                 # TODO instead of writing files, create and save png
-                # TODO simple text file with 3 columns: R, e_samp, e_high 
-                create_matplotlib_graph(x=dist, 
-                                        data=ens, 
+                # TODO simple text file with 3 columns: R, e_samp, e_high
+                create_matplotlib_graph(x=dist,
+                                        data=ens,
                                         name=f'{reac}', 
-                                        x_label=f"{reac}", 
-                                        y_label="Energy (kcal/mol)", 
-                                        data_legends=['sample', 'high'], 
-                                        comments=comments)
+                                        x_label=f"{reac}",
+                                        y_label="Energy (kcal/mol)",
+                                        data_legends=['sample', 'high'],
+                                        # comments=comments
+                                        )
 
                 # write small file with correction data
-                corr = {'dist': dist,
-                        'e_samp': ens[0],
-                        'e_high': ens[1],
-                        'scan_coo': self.scan_reac[reac].scan_coo, 
-                        'scan_coo_equiv': self.scan_reac[reac].equiv,
-                        'e_inf_samp': asyms[0],
-                        'e_inf_high': asyms[1],
-#                        'frag_A_atom': ,
-#                        'frag_A_geom': ,
-#                        'frag_B_atom': ,
-#                        'frag_B_geom': ,
-#                        'parts': self.scan_reac[reac].parts, 
-#                        'maps': self.scan_reac[reac].maps,
-                        }
+                corr: dict[str, Any] = {'dist': dist,
+                                        'e_samp': ens[0],
+                                        'e_high': ens[1],
+                                        'scan_coo': self.scan_reac[reac].scan_coo,
+                                        'scan_coo_equiv': self.scan_reac[reac].equiv,
+                                        'e_inf_samp': asyms[0],
+                                        'e_inf_high': asyms[1],
+                                        'frags_atom': [self.scan_reac[reac].products[0].atom,
+                                                        self.scan_reac[reac].products[1].atom],
+                                        'frags_geom': [self.scan_reac[reac].products[0].geom,
+                                                        self.scan_reac[reac].products[1].geom],
+                    #                        'parts': self.scan_reac[reac].parts,
+                                        'maps': self.scan_reac[reac].maps
+                                        }
 
-                with open(f'corr_{reac}.json', 'w', encoding='utf-8') as f:
+                with open(f'vrctst/corr_{reac}.json', 'w', encoding='utf-8') as f:
                     json.dump(corr, f, ensure_ascii=False, indent=4, cls=NpEncoder)
 
         batch = f'vrctst/molpro/batch_vts_{self.par["queuing"]}.sub'

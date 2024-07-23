@@ -20,7 +20,7 @@ logger = logging.getLogger('KinBot')
 class Parameters:
     """
     This class initiates all parameters to their defaults and reads in the
-    user-defined variables, which overwrite the defaults
+    user-defined variables, which overwrite the defaults.
     """
     def __init__(self, inpfile=None, show_warnings=False):
         """

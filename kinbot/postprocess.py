@@ -211,6 +211,9 @@ def createPESViewerInput(species, qc, par):
             # this is for the rmg postprocessing
             make_xyz(st_pt.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
         energy = energy * constants.AUtoKCAL
+        if name not in bimolec_names:
+            bimolecs.append(f'{name} {energy:.2f}')
+            bimolec_names.append(name)
         if species.reac_obj[index].do_vdW:
             irc_prod = species.reac_obj[index].irc_prod_opt.species
             name = str(irc_prod.name)
@@ -220,12 +223,12 @@ def createPESViewerInput(species, qc, par):
             energy = (irc_prod.energy + irc_prod.zpe - well_energy) * constants.AUtoKCAL
             wells.append(f'{irc_prod.name} {energy:.2f}')
             well_names.append(name)
-        if name not in bimolec_names:
-            bimolecs.append(f'{name} {energy:.2f}')
-            bimolec_names.append(name)
+        
 
     # list of the lines of the ts's
     tss = []
+    # list of the lines of the barrierless
+    bless = []
     # dict keeping track of the ts's
     # key: ts name
     # value: [energy,prod_names]
@@ -245,8 +248,17 @@ def createPESViewerInput(species, qc, par):
         else:
             energy = (ts.energy + ts.zpe - well_energy) * constants.AUtoKCAL
         name = []
-        for st_pt in species.reac_obj[index].products:
-            name.append(str(st_pt.chemid))
+        if species.reac_obj[index].do_vdW:
+            irc_prod = species.reac_obj[index].irc_prod_opt.species
+            name.append(irc_prod.name)
+            bimol_names = []
+            for st_pt in species.reac_obj[index].products:
+                bimol_names.append(str(st_pt.chemid))
+            bimol_prod_name = '_'.join(sorted(bimol_names))
+            bless.append(f'vdW_{index} {irc_prod.name} {bimol_prod_name}')
+        else:
+            for st_pt in species.reac_obj[index].products:
+                name.append(str(st_pt.chemid))
         prod_name = '_'.join(sorted(name))
         add = 1
         for t in ts_list:
@@ -258,9 +270,8 @@ def createPESViewerInput(species, qc, par):
                        f'{species.chemid} {prod_name}')
     
     # Barrierless reactions
-    bless = []
     for index in range(len(species.reac_inst)):
-        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci' or species.reac_type[index] != 'vdW':
+        if species.reac_ts_done[index] != -1 or species.reac_type[index] != 'hom_sci':
             continue
         name = []
         for st_pt in species.reac_obj[index].products:

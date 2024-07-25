@@ -19,6 +19,7 @@ class GeneralReac:
         
         self.ts_opt = None
         self.prod_opt = []
+        self.do_vdW = False
         
         self.qc = qc
         self.par = par

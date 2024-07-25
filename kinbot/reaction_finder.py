@@ -55,9 +55,9 @@ logger = logging.getLogger('KinBot')
 
 
 class ReactionFinder:
-    """
+    '''
     Class to find all the potential reactions starting from a well.
-    """
+    '''
     
     def __init__(self, species, par, qc):
         self.species = species
@@ -82,6 +82,7 @@ class ReactionFinder:
             self.barrierless_saddle = par['barrierless_saddle'][str(self.species.chemid)]
         except KeyError:
             self.barrierless_saddle = None
+            
         # keys: names of the families
         # values: list of instances
         # this dict is used to keep track of the unique reactions found,
@@ -89,9 +90,9 @@ class ReactionFinder:
         self.reactions = {}
 
     def find_reactions(self):
-        """
+        '''
         List all reaction types available, and find the key atoms for them.
-        """
+        '''
 
         reaction_names = {'intra_H_migration': self.search_intra_H_migration,
                           'intra_H_migration_suprafacial': self.search_intra_H_migration_suprafacial,
@@ -160,7 +161,7 @@ class ReactionFinder:
                 
             else:
                 for rn in reaction_names:
-                    if rn in self.families or 'all' in self.families:
+                    if 'all' in self.families or rn in self.families:
                         if not rn in self.skip_families:
                             reaction_names[rn](natom, atom, bond, rad)
 
@@ -169,8 +170,7 @@ class ReactionFinder:
         
         for index in range(len(self.species.reac_name)-1):
             if self.species.reac_name[index] in self.species.reac_name[index + 1:]:
-                logger.error('Found reaction name "{}" more than once'
-                               .format(self.species.reac_name[index]))
+                logger.error(f'Found reaction name {self.species.reac_name[index]} more than once')
                 logger.error('Exiting')
                 sys.exit()
 
@@ -182,11 +182,11 @@ class ReactionFinder:
    
 
     def search_combinatorial(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is a method to create all possible combinations of maximum 3 bond breakings 
         and maximum 3 bond formations.
         TODO: allow bond breaking without the atoms forming new bond (only for radicals)
-        """
+        '''
         
         name = 'combinatorial'
 
@@ -205,7 +205,7 @@ class ReactionFinder:
 
 
     def search_intra_H_migration(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         H-R~~~~~~~R* <==> R*~~~~~~~R-H
@@ -215,7 +215,7 @@ class ReactionFinder:
         * radical site
         * multiple bond
         * lone pair
-        """
+        '''
         
         name = 'intra_H_migration'
         
@@ -275,11 +275,11 @@ class ReactionFinder:
         return 0
 
     def search_intra_H_migration_suprafacial(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is a special case of H migration reactions over a double bond 
         (keto-enol type) that proceeds through a suprafacial instead of the
         common antrafacial TS.
-        """
+        '''
         
         name = 'intra_H_migration_suprafacial'
         
@@ -308,7 +308,7 @@ class ReactionFinder:
 
     
     def search_intra_R_migration(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an class that covers several RMG classes.
         
         R cannot be an H, this is already taken care of in the intra_H_migration
@@ -318,7 +318,7 @@ class ReactionFinder:
         no, because then it's hard to search for just one of the types
         TODO: this should also include migration to lone pair electrons?
         currently it moves atoms to radical sites only
-        """
+        '''
         
         if np.sum(rad) != 1: return 
 
@@ -350,12 +350,12 @@ class ReactionFinder:
         return 0
 
     def search_cpd_H_migration(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         H-C1-C=C-C=C-1 <==> C1=C-C=C-C(-H)-1
 
-        """
+        '''
         
         if not any([len(ci) == 5 for ci in self.species.cycle_chain]) : return
         
@@ -411,7 +411,7 @@ class ReactionFinder:
         
 
     def search_intra_OH_migration(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class extended.
 
         R*~~~~~~~O-OH <==> HOR~~~~~~~O*
@@ -420,7 +420,7 @@ class ReactionFinder:
         OH transfer to:
         radical sites
         double bonds on closed shell (just forward)
-        """
+        '''
         
         name = 'intra_OH_migration'
         
@@ -479,7 +479,7 @@ class ReactionFinder:
 
 
     def search_intra_OH_migration_Exocyclic_F(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is the same as search_intra_OH_migration but for double bonds only
 
           0 .....-2-1
@@ -495,7 +495,7 @@ class ReactionFinder:
         A special feature is to test both cis and trans transfer, therefore,
         in addition to testing for the extra H atom (which is deleted from the motif)
         the double bond is also registered and kept in the motif. 
-        """
+        '''
         
         name = 'intra_OH_migration_Exocyclic_F'
         
@@ -529,7 +529,7 @@ class ReactionFinder:
 
 
     def search_Intra_RH_Add_Endocyclic_F(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
                                   H
@@ -538,7 +538,7 @@ class ReactionFinder:
                           |         |
                            ---------
         This is for the forward direction.
-        """
+        '''
         
         if np.sum(rad) != 0: return
         if len(self.species.cycle_chain) > 0: return
@@ -571,7 +571,7 @@ class ReactionFinder:
 
 
     def search_Intra_RH_Add_Endocyclic_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
                 H
@@ -580,7 +580,7 @@ class ReactionFinder:
         |         |
          ---------
         This is for the reverse direction.
-        """
+        '''
         
         if len(self.species.cycle_chain) == 0: return
         if np.sum(rad) != 0: return
@@ -615,7 +615,7 @@ class ReactionFinder:
 
 
     def search_Cyclic_Ether_Formation(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         R*~~~~~~~O-OR ==> R~~~~~~~O + OR
@@ -623,7 +623,7 @@ class ReactionFinder:
 
         The OR groups are not counted in the cycle size but have to be there.
         Only the forward direction is included.
-        """
+        '''
         
         
         if np.sum(rad) == 0: return
@@ -656,13 +656,13 @@ class ReactionFinder:
 
 
     def search_Intra_R_Add_Endocyclic_F(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         *R~~~~~~~~R=R ==> R~~~~~~~~R*-R
                           |___________|
 
-        """
+        '''
         
         if np.sum(rad) == 0: return
 
@@ -699,13 +699,13 @@ class ReactionFinder:
 
 
     def search_Intra_R_Add_ExoTetCyclic_F(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         *R~~~~~~~~R-R ==> R~~~~~~~~R + R*
                           |________|
 
-        """
+        '''
 
         if np.sum(rad) == 0: return
 
@@ -731,13 +731,13 @@ class ReactionFinder:
 
 
     def search_Intra_R_Add_Exocyclic_F(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         *R~~~~~~~~R=R ==> R~~~~~~~~R-R*
                           |________|
 
-        """
+        '''
         
         if np.sum(rad) == 0: return
 
@@ -774,7 +774,7 @@ class ReactionFinder:
 
 
     def search_Intra_RH_Add_Exocyclic_F(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         The general scheme is:
@@ -804,7 +804,7 @@ class ReactionFinder:
         The carbonyl dangling R and the
         tail H are included, but are not counted as the ring size, but these two atoms are kept
         because they are needed in the geometry manipulation step.
-        """
+        '''
         
         if len(self.species.cycle_chain) > 0: return
         
@@ -836,7 +836,7 @@ class ReactionFinder:
 
 
     def search_Intra_RH_Add_Exocyclic_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
                                     H -1
@@ -845,7 +845,7 @@ class ReactionFinder:
                           |_______|
 
         This is for the reverse direction.
-        """
+        '''
         
         name = 'Intra_RH_Add_Exocyclic_R'
         
@@ -878,12 +878,12 @@ class ReactionFinder:
 
 
     def search_Retro_Ene(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is not an RMG class.
 
         R-R-R-R=R ==> R=R + R=R-R
 
-        """
+        '''
         
         
         if np.sum(rad) != 0: return
@@ -915,7 +915,7 @@ class ReactionFinder:
 
 
     def search_Korcek_step2_odd(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         Korcek step 2 for cyclic peroxides originating with odd number of atoms in the cycle.
         Ring breaks at O-O and then forms 1 three-ringatom and (ringsize-3)/2 two-ringatom 
         fragments. 
@@ -931,7 +931,7 @@ class ReactionFinder:
             all atoms in the chain, the middle atom in the triplet,
             and the atom to which the H is migrates in the triplet
             and the hydrogen itself
-        """
+        '''
 
         name = 'Korcek_step2_odd'
 
@@ -992,11 +992,11 @@ class ReactionFinder:
 
 
     def search_Korcek_step2_even(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         Korcek step 2 for cyclic peroxides with even number of atoms in the ring.
         Still, the 4 membered ring equals a 2,2 cycloaddition and is not considered here.
         Ring breaks at O-O and then at every second bond, no H shift is needed.
-        """
+        '''
 
         name = 'Korcek_step2_even'
 
@@ -1046,7 +1046,7 @@ class ReactionFinder:
 
 
     def search_Korcek_step2(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         Generalized Korcek step 
         
         The 4 membered ring equals a 2,2 cycloaddition and is not considered here (no H shift involved)
@@ -1063,7 +1063,7 @@ class ReactionFinder:
 
         Only the forward direction is included.
 
-        """
+        '''
         
         
         name = 'Korcek_step2'
@@ -1099,7 +1099,7 @@ class ReactionFinder:
 
 
     def search_r22_cycloaddition(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         R      R         R---R
@@ -1108,7 +1108,7 @@ class ReactionFinder:
 
         N.B.: only the reverse direction is available. Also, the 3 related RMG classes are treated as one.
 
-        """
+        '''
         
         
         name = 'r22_cycloaddition'
@@ -1142,7 +1142,7 @@ class ReactionFinder:
 
 
     def search_r12_cycloaddition(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
                        R--R
@@ -1151,7 +1151,7 @@ class ReactionFinder:
 
         N.B.: only the reverse direction is available. 
 
-        """
+        '''
         
         
         name = 'r12_cycloaddition'
@@ -1187,14 +1187,14 @@ class ReactionFinder:
 
 
     def search_r12_insertion_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
                           X
                           |
         X-P + R-R <==   R-P-R
 
-        """
+        '''
         
         #if np.sum(rad) != 0: return
         
@@ -1222,7 +1222,7 @@ class ReactionFinder:
 
 
     def search_r13_insertion_CO2(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
                           O
@@ -1230,7 +1230,7 @@ class ReactionFinder:
         O=C=O + R-R <== R-C-O-R
 
 
-        """
+        '''
         
         #if np.sum(rad) != 0: return
         
@@ -1260,13 +1260,13 @@ class ReactionFinder:
 
 
     def search_r13_insertion_ROR(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         R1-O-R2 + R=R <== R1-R-R-O-R2
 
 
-        """
+        '''
         
         #if np.sum(rad) != 0: return
         name = 'r13_insertion_ROR'
@@ -1289,7 +1289,7 @@ class ReactionFinder:
 
 
     def search_Diels_alder_addition(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
           R                  R
@@ -1302,7 +1302,7 @@ class ReactionFinder:
 
         N.B.: only the reverse direction is available. 
 
-        """
+        '''
         
         
         name = 'Diels_alder_addition'
@@ -1342,7 +1342,7 @@ class ReactionFinder:
 
 
     def search_Intra_Diels_alder_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
         The reaction is a lot more general now, simply requires multiple bonds that can add to each other.
         No middle double bond is required.
@@ -1359,7 +1359,7 @@ class ReactionFinder:
                             \ //
                               C
 
-        """
+        '''
         
         name = 'Intra_Diels_alder_R'
         
@@ -1393,11 +1393,11 @@ class ReactionFinder:
 
 
     def search_ketoenol(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         R=R-O-R1 <==> R1-R-R=O
-        """
+        '''
         
         name = 'ketoenol'
         
@@ -1429,13 +1429,13 @@ class ReactionFinder:
 
 
     def search_HO2_Elimination_from_PeroxyRadical(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         H-R-R-O-O* ==> R=R + HO2
 
         N.B.: only the forward direction is available.
-        """
+        '''
         
         
         if np.sum(rad) == 0: return
@@ -1460,13 +1460,13 @@ class ReactionFinder:
         
 
     def search_R_Addition_COm3_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         C#O + R* <== R-C*=O
 
         N.B.: only the reverse direction is available. 
-        """
+        '''
         
         
         if np.sum(rad) == 0: return
@@ -1499,7 +1499,7 @@ class ReactionFinder:
 
         
     def search_R_Addition_MultipleBond(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         R=R + r* <== R*-R-r 
@@ -1509,7 +1509,7 @@ class ReactionFinder:
         - this is not a scan class
         - we are also allowing to form anticipated resonance stabilized species:
             R=R-R-r ==> [R=R-R <--> R-R=R] + r 
-        """
+        '''
         
         
         name = 'R_Addition_MultipleBond'
@@ -1546,9 +1546,9 @@ class ReactionFinder:
 
 
     def search_12_shift_S_F(self, natom, atom, bond, rad):
-        """
+        '''
         This is an RMG class.
-        """
+        '''
 
         if np.sum(rad) != 1: return
         
@@ -1578,14 +1578,14 @@ class ReactionFinder:
 
 
     def search_12_shift_S_R(self, natom, atom, bond, rad):
-        """
+        '''
         This is an RMG class.
 
         C-S-R* <== *S-R-C
 
         TODO: why not forward??
 
-        """
+        '''
         
         if np.sum(rad) != 1: return
         
@@ -1615,13 +1615,13 @@ class ReactionFinder:
 
 
     def search_r13_insertion_RSR(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         R-S-R + R1=R2 <== R-R1-R2-S-R
 
 
-        """
+        '''
         
         #if np.sum(rad) != 0: return
         name = 'r13_insertion_RSR'
@@ -1645,13 +1645,13 @@ class ReactionFinder:
 
 
     def search_R_Addition_CSm_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         C#S + R* <== R-C*=S
 
         N.B.: only the reverse direction is available. 
-        """
+        '''
         
         
         if np.sum(rad) == 0: return
@@ -1683,7 +1683,7 @@ class ReactionFinder:
 
 
     def search_r14_birad_scission(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         It is now renamed to 1,4_Linear_birad_scission on the RMG website,
@@ -1692,7 +1692,7 @@ class ReactionFinder:
 
         Problematic reaction because of the biradical character.
 
-        """
+        '''
 
         if np.sum(rad) != 2: return
         
@@ -1721,7 +1721,7 @@ class ReactionFinder:
 
 
     def search_r14_cyclic_birad_scission_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         R1-R*~~~~~~R*-R2   <==  R1=R~~~~~~R=R2
@@ -1730,7 +1730,7 @@ class ReactionFinder:
 
         TODO forward?
 
-        """
+        '''
 
         if np.sum(rad) != 0: return
         
@@ -1763,13 +1763,13 @@ class ReactionFinder:
 
 
     def search_birad_recombination_F(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         *R~~~~~~~~R* ==> R~~~~~~~~R
                          |________|
 
-        """
+        '''
 
         if np.sum(rad) != 2: return
         
@@ -1798,13 +1798,13 @@ class ReactionFinder:
 
 
     def search_birad_recombination_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         *R~~~~~~~~R* <== R~~~~~~~~R
                          |________|
 
-        """
+        '''
 
         if np.sum(rad) != 0: return
         if len(self.species.cycle_chain) == 0: return
@@ -1832,12 +1832,12 @@ class ReactionFinder:
 
 
     def search_Intra_disproportionation_F(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         *R~~~~~R*-R-H ==> H-R~~~~~R=R
 
-        """
+        '''
 
         if np.sum(rad) != 2: return
         
@@ -1867,12 +1867,12 @@ class ReactionFinder:
 
 
     def search_Intra_disproportionation_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
 
         *R~~~~~R*-R-H <== H-R~~~~~R=R
 
-        """
+        '''
 
         if np.sum(rad) != 0: return
         
@@ -1906,14 +1906,14 @@ class ReactionFinder:
 
 
     def search_bimol_disproportionation_R(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is an RMG class.
           X                  X
           |                  |
         R=R  *R*-R-H <== H-R-R-R=R
           |   |              | | 
           Y   Z              Y Z
-        """
+        '''
 
         if np.sum(rad) != 0: return
         
@@ -1947,13 +1947,13 @@ class ReactionFinder:
 
 
     def search_beta_delta(self, natom, atom, bond, rad):
-        """
+        '''
         This is not an RMG class.
 
         A*-B-C-D-E ==> A=B + C=D + E* 
 
         It is the parallel breaking of not just the beta but also of the gamma bond, resulting in two unsaturated bonds and a radical.
-        """
+        '''
 
 
         if np.sum(rad) == 0: return
@@ -1979,7 +1979,7 @@ class ReactionFinder:
 
 
     def search_h2_elim(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is not an RMG class. Now extended for general H2 elimination, not just 1,2
 
 
@@ -1987,7 +1987,7 @@ class ReactionFinder:
         |   |
         X - X ==> X=X  + H2 
 
-        """
+        '''
 
         name = 'h2_elim'
 
@@ -2023,13 +2023,13 @@ class ReactionFinder:
 
 
     def search_hom_sci(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is not an RMG class.
 
         R-R ==> R + R
         
         We exclude ring bonds.
-        """
+        '''
 
         name = 'hom_sci'
 
@@ -2061,13 +2061,13 @@ class ReactionFinder:
 
 
     def search_barrierless_saddle(self, natom, atom, bond, rad):
-        """ 
+        ''' 
         This is not an RMG class.
 
         R - R ==> R + R
 
         Attempts to find a saddle point for a nominally barrierless reaction.
-        """
+        '''
 
         name = 'barrierless_saddle'
 
@@ -2079,21 +2079,12 @@ class ReactionFinder:
             return 0
 
         self.new_reaction(rxns, name, a=0, b=-1, cross=True)
-#        for inst in rxns:
-#            new = 1
-#            # filter for the same reactions
-#            for instance in self.reactions[name]:
-#                if inst[0] == instance[0] and inst[-1] == instance[-1]:
-#                    new = 0
-#                if inst[0] == instance[-1] and inst[-1] == instance[0]:
-#                    new = 0
-#            # no filter for specific reaction after this, this is a specific reaction already
 
         return 0
 
 
     def reaction_matrix(self, reac_list, reac_id):
-        """ 
+        ''' 
         Create arrays to store all reactions for species.
         input: 
         reac_list: atom motifs from individual searches
@@ -2109,7 +2100,7 @@ class ReactionFinder:
         reac_ts_geom: the geometry of the TS
         reac_ts_freq: the freqencies of the TS
         reac_name: the base name of the file to run - created for each reaction later
-        """
+        '''
         
         self.species.reac_type += [reac_id for i in range(len(reac_list))]
         self.species.reac_inst += reac_list
@@ -2310,7 +2301,7 @@ class ReactionFinder:
 
 
     def clean_rigid(self, name, instances, pivot1, pivot2):
-        """
+        '''
         Getting rid of instances where the rigid structure would not allow the 
         transfer of atoms, e.g., H transfer across a large rigid ring structure.
         It is based on the presence of (partial) double bonds along the motif.
@@ -2318,7 +2309,7 @@ class ReactionFinder:
         then the instance will be deleted from the list.
         Pivots requires manual determination for each family, where this is important.
         Not applied to all families.
-        """
+        '''
 
         #cutoff = 3.  # Angstrom
         mask = [True] * len(instances)
@@ -2337,7 +2328,7 @@ class ReactionFinder:
 
     def new_reaction(self, rxns, name, a=None, b=None, c=None, d=None, e=None, 
                      length=None, full=False, cross=False, aid=False):
-        """
+        '''
         Returns 1 if new, and 0 if not new
         Checks a variable number of identical elements
         Also can check full equivalency (full=True), same lenght (length=True), and 
@@ -2345,7 +2336,7 @@ class ReactionFinder:
         if aid is True, then it will throw away reactions where there is already one
            with the same atom IDs involved - at least important for hom_sci
         now also filters non-solute reactions in cluster mode
-        """
+        '''
 
         for inst in rxns:
             new = True
@@ -2385,6 +2376,8 @@ class ReactionFinder:
                     if len(inst) != len(instance):
                         continue
                 if full == True:
+                    if len(inst) != len(instance):
+                        continue
                     if any([inst[i] != instance[i] for i, _ in enumerate(inst)]):
                         continue
                 new = False
@@ -2403,9 +2396,9 @@ class ReactionFinder:
         return 0
 
 def main():
-    """
+    '''
     Find reaction patterns
-    """
+    '''
 
-    if __name__ == "__main__":
+    if __name__ == '__main__':
         main()

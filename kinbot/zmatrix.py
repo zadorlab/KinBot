@@ -149,7 +149,6 @@ def make_zmat_from_cart(species, rotor, cart, mode):
 
     return zmat_atom, zmat_ref, zmat, zmatorder
 
-
 def make_zmat_from_cart_all_dihedrals(bond, cycle, dihed, conf_dihed, natom, atom, cart, mode):
     """
     Rearrange geometry defined in Cartesian into a Z-matrix,
@@ -681,7 +680,7 @@ def add(j, list, zmat, zmat_atom, zmatorder, zmat_ref, atom, cart):
 
 def order_rotors(rotors, bond, natom, atom):
     """
-    Order rotors as such that the shortest path between two subsequent rotors
+    Order rotors such that the shortest path between two subsequent rotors
     does not involve atoms of other rotors
     path_length: negative in case of overlap, 0 in case of directly bonded
     and positive in case of a pathway between both subsequent rotors

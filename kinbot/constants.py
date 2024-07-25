@@ -20,9 +20,9 @@ CALtoJ = 4.184
 elements = ['C', 'H', 'O', 'N', 'S', 'F', 'Cl', 'Br', 'I']
 
 # standard bond lengths, cutoffs, and oxidation numbers
-st_bond = {'CC': 1.5*1.25}
+st_bond = {'CC': 1.5*1.2}
 # st_bond['CO'] = 1.4*1.2 # 1.4*1.54
-st_bond['CO'] = 1.9
+st_bond['CO'] = 1.4*1.4
 st_bond['CH'] = 1.09*1.2
 st_bond['CF'] = 1.37*1.2  # typical bond length = 1.37
 st_bond['CCl'] = 1.76*1.2  # typical bond length = 1.76

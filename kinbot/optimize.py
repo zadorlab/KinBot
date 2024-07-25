@@ -30,8 +30,12 @@ class Optimize:
     4. Repeat steps 2-3 as long as lower energy structures are found
     """
 
-    def __init__(self, species, par, qc, wait=0):
+    def __init__(self, species, par, qc, wait=0, just_high=False):
+        """
+        just_high: ony do high_level calculation
+        """
         self.species = species
+
         try:
             delattr(self.species, 'cycle_chain')
         except AttributeError:
@@ -42,21 +46,29 @@ class Optimize:
             self.name = str(self.species.name)
         else:
             self.species.characterize()
-            self.name = str(self.species.chemid)
+            self.name = self.species.name
         self.par = par
         self.qc = qc
         # wait for all calculations to finish before returning
         self.wait = wait
 
-        # status of the various parts
-        # -1: not yet started
-        #  0: running
-        #  1: finished
-        # -999:failed
-        self.scycconf = -1
-        self.sconf = -1
         self.shigh = -1
-        self.shir = -1
+        self.just_high = just_high
+
+        if not self.just_high:
+            # status of the various parts
+            # -1: not yet started
+            #  0: running
+            #  1: finished
+            # -999:failed
+            self.scycconf = -1
+            self.sconf = -1
+            self.shir = -1
+        else:
+            # Do not perform conformer search for vdW wells
+            self.scycconf = 1
+            self.sconf = 1
+            self.shir = 1
 
         # restart counter: number of times the high-level and hir calculations
         # has been restarted in case a lower energy structure has been found
@@ -146,7 +158,7 @@ class Optimize:
                                 or self.par['multi_conf_tst'] \
                                 or self.par['print_conf'] \
                                 or self.par['calc_aie']:
-                            status, lowest_conf, geom, low_energy, conformers, energies, frequency_vals, valid =\
+                            status, lowest_conf, geom, self.species.low_energy, conformers, energies, frequency_vals, valid =\
                                     self.species.confs.check_conformers(wait=self.wait)
                             if status == 1:
                                 self.species.conformer_geom, self.species.conformer_energy, \
@@ -167,7 +179,7 @@ class Optimize:
                                 # save lowest energy conformer as species geometry
                                 self.species.geom = geom
                                 # save lowest energy conformer energy
-                                self.species.energy = low_energy
+                                self.species.energy = self.species.low_energy
                                 # set conf status to finished
                                 self.sconf = 1
                         elif self.skip_conf_check == 1:
@@ -180,8 +192,8 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                if self.par['conformer_search'] == 1:
-                    status, lowest_conf, self.species.geom, low_energy, conformers, energies, frequency_vals, valid = \
+                if self.par['conformer_search'] == 1 and not self.just_high:
+                    status, lowest_conf, self.species.geom, self.species.low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
                 while self.restart <= self.par['rotation_restart']:
@@ -199,8 +211,14 @@ class Optimize:
                                                           ext=f'_{str(conindx).zfill(4)}_high',
                                                           )
                             else:
-                                name = self.species.chemid
-                                self.qc.qc_opt(self.species, self.species.geom, high_level=1)
+                                if self.just_high:
+                                    name = self.species.name
+                                    self.qc.qc_opt(self.species, self.species.geom, high_level=1, do_vdW=True)
+                                    #Set conformer_zeroenergy to the species zero-energy if no conformer analysis has been done
+                                    self.species.conformer_zeroenergy = [self.species.energy + self.qc.get_qc_zpe(f"{self.species.name}_high", wait=0)[1]]
+                                else:
+                                    name = self.species.chemid
+                                    self.qc.qc_opt(self.species, self.species.geom, high_level=1)
                                 if self.par['multi_conf_tst']:
                                     for ci, conindx in enumerate(self.species.conformer_index):
                                         self.qc.qc_opt(self.species, 
@@ -315,7 +333,8 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                if self.par['multi_conf_tst'] == 0 and self.par['rotor_scan']:
+                if self.par['multi_conf_tst'] == 0 and self.par['rotor_scan']\
+                    and not self.just_high:
                     fr_file = self.log_name(self.par['high_level'])
                     hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                     if self.qc.qc == 'qchem':
@@ -339,10 +358,10 @@ class Optimize:
                             molp.create_molpro_input(bls=1)
                         else:
                             key = self.par['single_point_key']
-                            molp.create_molpro_input()
+                            molp.create_molpro_input(do_vdW=self.just_high)
                         if self.par['queuing'] != 'local':
-                            molp.create_molpro_submit()
-                        status, molpro_energy = molp.get_molpro_energy(key)
+                            molp.create_molpro_submit(do_vdW=self.just_high)
+                        status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.just_high)
                         if status:
                             self.species.energy = molpro_energy
 
@@ -431,7 +450,7 @@ class Optimize:
             return f'conf/{self.name}_{str(conf).zfill(4)}'
 
         name = str(self.name)
-        if not self.species.wellorts:
+        if not self.species.wellorts and not self.just_high:
             name += '_well'
         if high:
             name += '_high'
@@ -495,9 +514,9 @@ class Optimize:
             else:
                 result_rmsd = 'not done'
             logger.info(f'\t{self.name} high level rmsd: {result_rmsd}, '\
-                         f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
-                         f'corr: {geometry.matrix_corr(imagmode, imagmode_high)}, '\
-                         f'same: {same_geom}')
+                        f'same(0.15): {geometry.equal_geom(self.species, dummy, 0.15)}, '\
+                        f'corr: {geometry.matrix_corr(imagmode, imagmode_high):.2f}, '\
+                        f'same: {same_geom}')
         else:
             same_geom = geometry.equal_geom(self.species, dummy, 0.1)
 
@@ -511,12 +530,12 @@ class Optimize:
             freq_ok = 1
             if freq[0] < 0.:
                 logger.warning(f'Negative frequency {freq[0]} cm-1 detected in '
-                               f'{self.name}. Flipped to {-freq[0]}.')
+                            f'{self.name}. Flipped to {-freq[0]}.')
                 freq[0] *= -1.
         elif self.species.wellorts == 1 \
                 and not (np.count_nonzero(np.array(freq) < 0) >= 3  # Three or more imag frequencies
-                         or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
-                         or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies:
+                        or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
+                        or np.count_nonzero(np.array(freq) < 0) == 0):  # No imaginary frequencies:
             freq_ok = 1
         else:
             freq_ok = 0

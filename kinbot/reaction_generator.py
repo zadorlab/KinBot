@@ -3,7 +3,6 @@ import shutil
 import time
 import logging
 import copy
-import pickle
 import itertools
 
 import numpy as np
@@ -25,11 +24,11 @@ from ase import Atoms
 logger = logging.getLogger('KinBot')
 
 class ReactionGenerator:
-    """
+    '''
     This class generates the reactions using the qc codes
     It builds an initial guess for the ts, runs that ts towards a saddle point
     and does IRC calculations
-    """
+    '''
 
     def __init__(self, species, par, qc, input_file):
         self.species = species
@@ -38,7 +37,7 @@ class ReactionGenerator:
         self.qc = qc
 
     def generate(self):
-        """
+        '''
         Creates the input for each reaction, runs them, and tests for success.
         If successful, it creates the barrier and product objects.
         It also then does the conformational search, and finally, the hindered rotor scans.
@@ -58,7 +57,7 @@ class ReactionGenerator:
 
         If at any times the calculation fails, reac_ts_done is set to -999.
         If all steps are successful, reac_ts_done is set to -1.
-        """
+        '''
         deleted = []
         if len(self.species.reac_inst) > 0:
             alldone = 1
@@ -121,8 +120,9 @@ class ReactionGenerator:
                                 logger.info(f'\tReaction search failed for {obj.instance_name}: '
                                             'Invalid geometry.')
 
-                    else:  # do a bond scan
-                        if self.species.reac_step[index] == self.par['scan_step'] + 1:
+                    elif obj.scan == 1:  # do a bond scan 
+
+                        if (self.species.reac_step[index] == self.par['scan_step'] + 1):
                             status, freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
                             if status == 0 and (np.count_nonzero(np.array(freq) < 0) >= 3  # More than two imag frequencies
                                                 or np.count_nonzero(np.array(freq) < -1 * self.par['imagfreq_threshold']) >= 2  # More than one imaginary frequency beyond the threshold
@@ -136,16 +136,19 @@ class ReactionGenerator:
                                 logger.info(f'\tRxn search using scan failed for {obj.instance_name} '
                                             'in TS optimization stage.')
                                 self.species.reac_ts_done[index] = -999
-                        else:
+                        else:  
+                            # First point of the scan
                             if self.species.reac_step[index] == 0:
+                                command = self.par['qc_command']
                                 self.species.reac_step[index] = reac_family.carry_out_reaction(
-                                                                obj, self.species.reac_step[index], self.par['qc_command'],
+                                                                obj, self.species.reac_step[index], command,
                                                                 bimol=self.par['bimol'])
                                 if self.species.reac_step[index] == -1:
                                     self.species.reac_ts_done[index] = -999
                                     logger.info('\tRxn search failed for {} because of 0 0 0 geometry.'
                                                  .format(obj.instance_name))
-                            elif self.species.reac_step[index] < self.par['scan_step']:
+                            # Middle points of the scan
+                            if (self.species.reac_step[index] < self.par['scan_step'] and obj.family_name):
                                 status = self.qc.check_qc(obj.instance_name)
                                 if status == 'error':
                                     logger.info('\tRxn search using scan failed for {} in step {}'
@@ -163,7 +166,7 @@ class ReactionGenerator:
                                             if ediff[-1] < 0 and ediff[-2] > 0:  # max
                                                 logger.info(f'\tMaximum found for {obj.instance_name}.')
                                                 e_in_kcal = [constants.AUtoKCAL * (self.species.reac_scan_energy[index][ii] - 
-                                                               self.species.reac_scan_energy[index][0]) 
+                                                               self.species.reac_scan_energy[index][0])
                                                                for ii in range(len(self.species.reac_scan_energy[index]))]
                                                 e_in_kcal = np.round(e_in_kcal, 2)
                                                 logger.info(f'\tEnergies: {e_in_kcal}')
@@ -182,17 +185,18 @@ class ReactionGenerator:
                                      
                                         # scan continues, and if reached scan_step, then goes for full optimization
                                         self.species.reac_step[index] = reac_family.carry_out_reaction(
-                                                                        obj, self.species.reac_step[index], self.par['qc_command'],
+                                                                        obj, self.species.reac_step[index], command,
                                                                         bimol=self.par['bimol'])
                                         if self.species.reac_step[index] == -1:
                                             self.species.reac_ts_done[index] = -999
                                             logger.info('\tRxn search failed for {} because of 0 0 0 geometry.'
                                                          .format(obj.instance_name))
                             else:  # the last step was reached, and no max or inflection was found
-                                if self.qc.check_qc(obj.instance_name) == 'running':
+                                status = self.qc.check_qc(obj.instance_name)
+                                if status == 'running':
                                     continue
                                 logger.info('\tRxn search using scan failed for {}, no saddle guess found.'
-                                             .format(obj.instance_name))
+                                            .format(obj.instance_name))
                                 db = connect('{}/kinbot.db'.format(os.getcwd()))
                                 # error line, H atom is just placeholder
                                 db.write(Atoms('H'), name=obj.instance_name, data={'status': 'error'})
@@ -276,12 +280,13 @@ class ReactionGenerator:
                         self.equate_identical(obj.products)
                         obj.valid_prod = len(obj.products) * [True]
                         
-                        self.equate_unique(obj.products, frag_unique)
+                        #make the geom of productss in frag_unique the one from the multi_molecular (not optimized)
+                        self.equate_unique(obj.products, frag_unique) 
                         obj.prod_done = 1
 
                     for frag in obj.products:
                         self.qc.qc_opt(frag, frag.geom)
-                        e, _ = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+                        e, _ = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom) #check if finished without updating geom
                         if e == 1:  # it's running
                             continue
 
@@ -329,6 +334,7 @@ class ReactionGenerator:
                                     if fr.chemid == chemid_orig:
                                         obj.products[fri].energy = frag.energy
                                         obj.products[fri].zpe = frag.zpe
+                                        obj.products[fri].geom = frag.geom
 
                     if ndone == len(obj.products) and self.species.reac_ts_done[index] != -999:  # all currently recognized fragments are done
                         # delete invalid ones
@@ -363,7 +369,28 @@ class ReactionGenerator:
                                     val = sum(comb * (ens + zpes))
                                     low_e_comb = comb
                             obj.products = list(np.array(obj.products)[low_e_comb.astype(bool)])
+                        obj.irc_fragments = [copy.copy(this_frag) for this_frag in obj.products]
                         prods_energy = sum([p.energy + p.zpe for p in obj.products])
+
+                        # Select reactions potentially leading to vdW wells
+                        if len(obj.products) == 2 and 'hom_sci' not in obj.instance_name:
+                            logger.info('\tChecking vdW well for {}.'.format(obj.instance_name))
+                            obj.irc_prod.characterize()
+                            try:
+                                e, obj.irc_prod.energy = self.qc.get_qc_energy(f'{obj.irc_prod.name}') #e is the error code: should be 0 (success) at this point.
+                                e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f'{obj.irc_prod.name}')
+                                e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
+                                e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
+                                for this_frag in obj.irc_fragments:
+                                    e, this_frag.freq = self.qc.get_qc_freq(f'{this_frag.name}_well', this_frag.natom) 
+                                fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
+                                obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe))*constants.AUtoKCAL
+                                if obj.vdW_depth > self.par['vdW_detection']:
+                                    logger.info('\tvdW well detected for {}: {:.2f}>threshold ({:.2f}) Kcal/mol.'.format(obj.irc_prod.name, obj.vdW_depth, self.par['vdW_detection']))
+                                    obj.do_vdW = True
+                            except:
+                                logger.info('\t{} was not succesfull, vdW search stopped for this well.'.format(obj.irc_prod.name))
+                            
                         if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                             hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
                             if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
@@ -395,6 +422,8 @@ class ReactionGenerator:
                         ts.distance_mx()
                         ts.bond_mx()
                         ts.bond = np.maximum(ts.bond, bond_mx)
+                        # -1: broken, 0: no change, +1: formed
+                        ts.reac_bond = np.array(obj.irc_prod.bond01) - np.array(self.species.bond01) 
                         ts.find_cycle()
                         ts.find_conf_dihedral()
                         obj.ts = ts
@@ -405,6 +434,17 @@ class ReactionGenerator:
                         obj.ts = copy.copy(obj.species)  # the TS will be for now the species itself
                         obj.ts.wellorts = 1
 
+                    # do the vdW optimizations
+                    if obj.do_vdW:
+                        # do the high level optimization if requested
+                        obj.irc_prod_opt = Optimize(obj.irc_prod, self.par, self.qc, just_high=True)
+                        obj.irc_prod_opt.do_optimization()
+                        if obj.irc_prod_opt.shigh == -999: 
+                            logger.info('\tVdW search failed for {}, prod_opt shigh fail for {}.'
+                                            .format(obj.irc_prod.name, obj.irc_prod.chemid))
+                            obj.do_vdW = False
+                        # non-conformationally optimized fragments high-level qc to be added here if we want to
+                                                  
                     # do the products optimizations
                     temp_prod_opt = []  # holding the optimization objects temporarily
                     for st_pt in obj.products:
@@ -451,22 +491,30 @@ class ReactionGenerator:
                     # check up on the TS and product optimizations
                     opts_done = 1
                     fails = 0
-                    # check if ts is done
+                    # check if ts and vdW are done
                     if self.species.reac_type[index] != 'hom_sci':
                         if not obj.ts_opt.shir == 1:  # last stage in optimize
                             opts_done = 0
                             obj.ts_opt.do_optimization()
                         if obj.ts_opt.shigh == -999:
-                            logger.warning("Reaction {} ts_opt_shigh failure".format(obj.instance_name))
+                            logger.warning('Reaction {} ts_opt_shigh failure'.format(obj.instance_name))
                             fails = 1
+                        if obj.do_vdW:
+                            if obj.irc_prod_opt.shigh == -999:
+                                logger.warning('High level vdW well optimization of {} failed'.format(obj.irc_prod.name))
+                                obj.do_vdW = False
+                            if not obj.irc_prod_opt.shigh == 1:
+                                opts_done = 0
+                                obj.irc_prod_opt.do_optimization()
                     for pr_opt in obj.prod_opt:
                         if not pr_opt.shir == 1:
                             opts_done = 0
                             pr_opt.do_optimization()
                         if pr_opt.shigh == -999:
-                            logger.warning("Reaction {} pr_opt_shigh failure".format(obj.instance_name))
+                            logger.warning('Reaction {} pr_opt_shigh failure'.format(obj.instance_name))
                             fails = 1
                         continue
+                            
                     if fails:
                         self.species.reac_ts_done[index] = -999
                     elif opts_done:
@@ -518,11 +566,6 @@ class ReactionGenerator:
                                         time.sleep(1)
                                         pass
 
-                        # copy the files of the species to an upper directory
-                        frags = obj.products
-                        #for frag in frags:
-                        #    filecopying.copy_to_database_folder(self.species.chemid, frag.chemid, self.qc)
-
                     # check for wrong number of negative frequencies
                     neg_freq = 0
                     for st_pt in obj.products:
@@ -539,7 +582,7 @@ class ReactionGenerator:
                         logger.warning(obj.ts.reduced_freqs)
                         self.species.reac_ts_done[index] = -999
                         neg_freq = 1
-
+                        
                     if not neg_freq:
                         # the reaction search is finished
                         self.species.reac_ts_done[index] = -1  # this is the success code
@@ -666,7 +709,7 @@ class ReactionGenerator:
             with open('combinatorial.txt', 'w') as f:
                 f.write('\n'.join(s) + '\n')
 
-        logger.info("Reaction generation done!")
+        logger.info('Reaction generation done!')
 
     def delete_files(self, name):
         # job names
@@ -691,7 +734,7 @@ class ReactionGenerator:
 
     def get_stereochemistry(self, atom, geom):
         inchi = cheminfo.create_inchi_from_geom(atom, geom)
-        if "/t" in str(inchi):
+        if '/t' in str(inchi):
             stereochem = inchi.split('/t')[1].split('/')[0]
         else:
             stereochem = ''

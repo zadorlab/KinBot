@@ -1,8 +1,13 @@
 import copy
 import numpy as np
+import math
 
 from kinbot import constants
 
+def unit_vector(vector):
+    """ Rescale vector to length 1.  """
+    u = vector / np.linalg.norm(vector)
+    return u
 
 def calc_angle(a, b, c):
     """ Calculate the A - B - C angle in radians"""
@@ -11,6 +16,23 @@ def calc_angle(a, b, c):
     v2 = (b-c) / np.linalg.norm(b-c)
     return np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
 
+def plane_from_points(v0, v1, v2):
+    """Create a 2D plane from 3 3D vectors"""
+    u = np.subtract(v1, v0)
+    v = np.subtract(v2, v0)
+
+    normal = np.cross(u, v)
+    d= np.dot(normal, v0)
+
+    return normal, d
+
+def dist_point_to_plane(point, plane):
+    """Return the shortest distance between a 3D point and a plane."""
+    abc, d = plane
+     
+    dist = abs((np.dot(abc, point) - d))
+    e = np.sqrt(np.sum(np.square(abc)))
+    return dist/e
 
 def is_linear(geom, bond):
     """
@@ -38,7 +60,6 @@ def is_linear(geom, bond):
                     p = [1., 0., 0.]
                 dummy.append(pos + p / np.linalg.norm(p))
     return dummy
-
 
 def calc_out_of_plane_angle(a, b, c, d):
     """
@@ -68,7 +89,7 @@ def calc_out_of_plane_angle(a, b, c, d):
     return ang, collinear
 
 
-def calc_dihedral(a, b, c, d):
+def calc_dihedral(a, b, c, d, collinear_cutoff=None):
     """
     Calculate the A - B - C - D dihedral angle in radians.
     For collinear or close to collinear structures return a warning.
@@ -76,7 +97,10 @@ def calc_dihedral(a, b, c, d):
     Returns the value in degrees
     np.arctan2 returns a value on the [-Pi,+Pi] interval
     """
-    collinear_cutoff = 175./180.
+    if collinear_cutoff is None:
+        collinear_cutoff = 175. / 180.
+    else:
+        collinear_cutoff = collinear_cutoff / 180.
     collinear = 0
     if (abs(calc_angle(a, b, c)) > np.pi * collinear_cutoff or
             abs(calc_angle(b, c, d)) > np.pi * collinear_cutoff):
@@ -205,6 +229,20 @@ def translate_and_rotate(cart, i, j):
 
     return cart
 
+def rotation_matrix(axis, theta):
+    """
+    Return the rotation matrix associated with counterclockwise rotation about
+    the given axis by theta radians.
+    """
+    axis = np.asarray(axis)
+    axis = axis / np.sqrt(np.dot(axis, axis))
+    a = math.cos(theta / 2.0)
+    b, c, d = -axis * math.sin(theta / 2.0)
+    aa, bb, cc, dd = a * a, b * b, c * c, d * d
+    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+    return np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
+                     [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
+                     [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
 
 def get_center_of_mass(geom, atom):
     com = [0., 0., 0.]

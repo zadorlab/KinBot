@@ -8,7 +8,11 @@ initializer.
 import sys
 import json
 import logging
+import numpy as np
 from ase import units
+from kinbot import kb_path
+from kinbot import pp_tables
+from kinbot import constants
 
 logger = logging.getLogger('KinBot')
 
@@ -16,7 +20,7 @@ logger = logging.getLogger('KinBot')
 class Parameters:
     """
     This class initiates all parameters to their defaults and reads in the
-    user-defined variables, which overwrite the defaults
+    user-defined variables, which overwrite the defaults.
     """
     def __init__(self, inpfile=None, show_warnings=False):
         """
@@ -74,9 +78,9 @@ class Parameters:
             # this is a dictionary written as:
             # {chemid1: [[atom1, atom2], [atom3, atom4], ...], [chemid2: [..]]}
             'barrierless_saddle': {},
-            # starting distance for barrierless_saddle searches in Å
+            # starting distance for barrierless_saddle searches in A
             'barrierless_saddle_start': 2.0,
-            # step size in Å
+            # step size in A 
             'barrierless_saddle_step': 0.2,
             # for the hom_sci family, using the same format as in barrierless_saddle
             'homolytic_bonds': {},
@@ -106,6 +110,17 @@ class Parameters:
             'high_level': 0,
             # Calculate AIE for each conformer - requires conformer search
             'calc_aie': 0,
+            # Detect vdW wells deeper than threshold (kcal/mol)
+            'vdW_detection': 0.5,
+            #Dictionary of distances in bohr at which pivot points are generated for each atom
+            'pp_length': None,
+            #List [start, stop] in angstrom of the pp_oriented procedure
+            'pp_oriented': None,
+            #List [start, stop] in angstrom of the pp_on_atom procedure
+            'pp_on_atom': None,
+            #Start value in angstrom of the pp_on_COM procedure
+            'pp_on_COM': 10.0,
+            
 
             # CONFORMATIONAL SEARCH
             # Do a conformational search
@@ -225,7 +240,7 @@ class Parameters:
             'single_point_template': '',
             # The keyword to be searched for in Molpro for the desired
             # energy. Compulsory if Molpro energies are used.
-            'single_point_key': '',
+            'single_point_key': 'mytza',
             # L3 for barrierless template, CASPT2-like molpro is expected
             'barrierless_saddle_single_point_template': '',
             # L3 for barrierless template for product, CASPT2-like molpro is expected
@@ -254,6 +269,35 @@ class Parameters:
             'imagfreq_threshold': 50.,
             # List of files containing the parameters for the NN model. 
             'nn_model': None,
+
+            # VRC-TST PARAMETERS
+            # Distances in A for vrc_tst surfaces that go into rotdPy
+            'rotdpy_dist': list(np.append(np.arange(2.2, 13.0, 0.2), np.arange(13.0, 16.0, 0.5))),
+            # Define the species and the reactions for which scans are requested
+            # {chemid1: ["reaction_name1", "reaction_name2"], chemid2: [...]}
+            'vrc_tst_scan': {},
+            # for these, write rotdpy input, but don't do scan
+            'vrc_tst_noscan': {},
+            # using sella for scan
+            'vrc_tst_scan_sella': 0,
+            # Method to scan bonds in vrc_tst_scan
+            'vrc_tst_scan_method': 'ub3lyp',  
+            # Basis set to scan bonds in vrc_tst_scan
+            'vrc_tst_scan_basis': '6-31+G(d)',
+            # Energy calculations 
+            'vrc_tst_sample_method': 'caspt2(2,2)',
+            'vrc_tst_high_method': 'caspt2(2,2)',
+            'vrc_tst_sample_basis': 'vdz',
+            'vrc_tst_high_basis': 'avtz',
+            # Parameters for the vrc_tst scan
+            'vrc_tst_scan_points': list(np.arange(2.5, 20.0, 0.2)),
+            'vrc_tst_scan_molpro_key': 'MYENERGY',
+            # Must be provided
+            'vrc_tst_scan_molpro_tpl': '',
+            # Max. rmsd deviation allowed
+            'vrc_tst_scan_deviation': 100.,
+            # Explicit reaction center for a fragment, {'frament chemid': [atomids of centers]}
+            'vrc_tst_scan_reac_cent': {},
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -289,6 +333,8 @@ class Parameters:
             # Whether to raise an error when 'queuing' is set to 'local' and the 
             # files and db entries are missing, otherwise just show a warning.
             'error_missing_local': True,
+            # Whether to perform the initial cleanup of files.
+            'do_clean': True,
 
             # MASTER EQUATION
             # Assemble the ME
@@ -423,6 +469,36 @@ class Parameters:
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
 
+        #Check user input
+        if self.par['pp_length'] != None and\
+            not isinstance(self.par['pp_length'], dict):
+            err = 'User defined pp_length should be a dict. Using default values.'
+            self.par['pp_length'] = pp_tables.pp_length_table()
+        #Check keys
+        elif self.par['pp_length'] != None and\
+            isinstance(self.par['pp_length'], dict):
+            for element in pp_tables.pp_length_table():
+                if element not in self.par['pp_length']:
+                    self.par['pp_length'][element] = pp_tables.pp_length_table()[element]
+                else:
+                    self.par['pp_length'][element] = (np.array(self.par['pp_length'][element])\
+                                                    * constants.BOHRtoANGSTROM).tolist()
+        elif self.par['pp_length'] is None:
+            self.par['pp_length'] = pp_tables.pp_length_table()
+
+        if self.par['pp_oriented'] != None and\
+            not isinstance(self.par['pp_oriented'], list):
+            err = 'User defined pp_oriented should be a list. Using default values.'
+            self.par['pp_oriented'] = [1.5, 6]
+        elif self.par['pp_oriented'] is None:
+            self.par['pp_oriented'] = [1.5, 6]
+        if self.par['pp_on_atom'] != None and\
+            not isinstance(self.par['pp_on_atom'], list):
+            err = 'User defined pp_on_atom should be a list. Using default values.'
+            self.par['pp_on_atom'] = [5.0, 12.0]
+        elif self.par['pp_on_atom'] is None:
+            self.par['pp_on_atom'] = [5.0, 12.0]
+
         if self.par['barrier_threshold'] == 'none':
             self.par['barrier_threshold'] = None
         if self.par['barrier_threshold_L2'] == 'none':
@@ -433,6 +509,15 @@ class Parameters:
             logger.warning('L1 threshold is overwritten.')
         elif self.par['barrier_threshold_L2']:
             self.par['barrier_threshold'] = self.par['barrier_threshold_L2'] + self.par['barrier_threshold_add']
+
+        try:
+            self.par['vrc_tst_scan_points'][0][0]
+            tmp = []
+            for sp in self.par['vrc_tst_scan_points']:
+                tmp.append(list(np.arange(sp[0], sp[1], sp[2])))
+            self.par['vrc_tst_scan_points'] = [i for sp in tmp for i in sp]
+        except (TypeError, IndexError):
+            pass
 
         if err is not None:
             logger.error(err)

@@ -78,6 +78,10 @@ class MESS:
         """
         Create the header block for MESS
         """
+        if 'prod' in self.species.name:
+            reactant = self.species.name
+        else:
+            reactant = self.species.chemid
         header = self.headertpl.format(LevelOfTheory=lot,
                                        TemperatureList=' '.join([str(ti) for ti in self.par['TemperatureList']]),
                                        PressureList=' '.join([str(pi) for pi in self.par['PressureList']]),
@@ -86,7 +90,7 @@ class MESS:
                                        ModelEnergyLimit=self.par['ModelEnergyLimit'],
                                        CalculationMethod=self.par['CalculationMethod'],
                                        ChemicalEigenvalueMax=self.par['ChemicalEigenvalueMax'],
-                                       Reactant=self.well_names[self.species.chemid],
+                                       Reactant=self.well_names[reactant],
                                        EnergyRelaxationFactor=self.par['EnergyRelaxationFactor'],
                                        EnergyRelaxationPower=self.par['EnergyRelaxationPower'],
                                        EnergyRelaxationExponentCutoff=self.par['EnergyRelaxationExponentCutoff'],
@@ -105,8 +109,9 @@ class MESS:
         Create a short name for all the wells, all the bimolecular products and all the transition states
         """
         # add the initial well to the well names:
-        self.well_names[self.species.chemid] = 'w_1'
 
+        # add the initial well to the well names:
+        self.well_names[self.species.chemid] = 'w_1'
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
                 self.ts_names[reaction.instance_name] = 'ts_{}'.format(len(self.ts_names) + 1)
@@ -115,6 +120,10 @@ class MESS:
                     if st_pt.chemid not in self.well_names:
                         self.well_names[st_pt.chemid] = 'w_{}'.format(len(self.well_names) + 1)
                 elif len(reaction.products) == 2:
+                    if reaction.do_vdW:
+                        vdW_well = reaction.irc_prod
+                        if vdW_well.name not in self.well_names:
+                            self.well_names[vdW_well.name] = 'w_{}'.format(len(self.well_names) + 1)
                     for st_pt in reaction.products:
                         if st_pt.chemid not in self.fragment_names:
                             self.fragment_names[st_pt.chemid] = 'fr_{}'.format(len(self.fragment_names) + 1)
@@ -129,7 +138,6 @@ class MESS:
                     termol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
                     if termol_name not in self.termolec_names:
                         self.termolec_names[termol_name] = 't_{}'.format(len(self.termolec_names) + 1)
-
 
     def write_input(self, qc):
         """
@@ -146,17 +154,21 @@ class MESS:
         # filter ts's with the same reactants and products:
         ts_unique = {}  # key: ts name, value: [prod_name, energy]
         ts_all = {}
+
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
                 rxnProds = []
-                for x in reaction.products:
-                    rxnProds.append(x.chemid)
+                if reaction.do_vdW:
+                    rxnProds.append(reaction.irc_prod.name)
+                else:
+                    for x in reaction.products:
+                        rxnProds.append(x.chemid)
                 rxnProds.sort()
                 prod_name = '_'.join([str(pi) for pi in rxnProds])
                 new = 1
                 remove = []
                 ts_all[reaction.instance_name] = [prod_name, reaction.ts.energy
-                                                  + reaction.ts.zpe]
+                                                + reaction.ts.zpe]
                 for ts in ts_unique:
                     if ts_unique[ts][0] == prod_name:
                         # check for the barrier with the lowest energy  # check if hom_sci is first
@@ -193,7 +205,7 @@ class MESS:
                                                                uq_iter)
             
             for index, reaction in enumerate(self.species.reac_obj):
-                if reaction.instance_name in ts_all:
+                if reaction.instance_name in ts_all: #should be TS unique?
                     barrier_add = uq.calc_factor('barrier', uq_iter)
                     freq_factor = uq.calc_factor('freq', uq_iter)
                     imagfreq_factor = uq.calc_factor('imagfreq', uq_iter)
@@ -213,8 +225,11 @@ class MESS:
                         left_zeroenergy = ts_zeroenergy - well_zeroenergy
 
                         prod_zeroenergy = 0
-                        for opt in reaction.prod_opt:
-                            prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
+                        if reaction.do_vdW:
+                            prod_zeroenergy += (reaction.irc_prod_opt.species.energy + reaction.irc_prod_opt.species.zpe) * constants.AUtoKCAL
+                        else:
+                            for opt in reaction.prod_opt:
+                                prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
                         right_zeroenergy = ts_zeroenergy - prod_zeroenergy
 
                     allTS[reaction.instance_name], zeroenergy = self.write_barrier(reaction,
@@ -229,7 +244,28 @@ class MESS:
                 # Only write products once, stops duplicate product writing
                 if reaction.instance_name in ts_unique:
                     ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
-                    if len(reaction.products) == 1:
+                    if reaction.do_vdW:
+                        st_pt = reaction.irc_prod_opt.species
+                        energy_add = uq.calc_factor('energy', uq_iter)
+                        freq_factor = uq.calc_factor('freq', uq_iter)
+                        well_blocks[st_pt.name] = self.write_well(st_pt,
+                                                                    energy_add,
+                                                                    freq_factor,
+                                                                    uq_iter)
+                        bimol_name = '_'.join(sorted([str(st_pt.chemid) for st_pt in reaction.products]))
+                        energy_add = uq.calc_factor('energy', uq_iter)
+                        freq_factor = uq.calc_factor('freq', uq_iter)
+                        bless = 1
+                        pstsymm_factor = uq.calc_factor('pstsymm', uq_iter)
+                        bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
+                                                                      energy_add,
+                                                                      freq_factor,
+                                                                      pstsymm_factor,
+                                                                      uq_iter,
+                                                                      bless=bless,
+                                                                      vdW=True)
+                        written_bimol_names.append(bimol_name)
+                    elif len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
                         energy_add = uq.calc_factor('energy', uq_iter)
                         freq_factor = uq.calc_factor('freq', uq_iter)
@@ -281,7 +317,10 @@ class MESS:
             for rxn in barrierless_blocks:
                 barrierless += barrierless_blocks[rxn] + divider
 
-            dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
+            if 'prod' in self.species.name:
+                dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.name], dummy='d1')
+            else:
+                dum = self.dummytpl.format(barrier='tsd', reactant=self.well_names[self.species.chemid], dummy='d1')
 
             mess_iter = "{0:04d}".format(uq_iter)
 
@@ -304,7 +343,7 @@ class MESS:
         return termol
 
 
-    def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor, uq_iter, bless):
+    def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor, uq_iter, bless, vdW=False):
         """
         Create the block for MESS for a bimolecular product.
         In case of a barrierless reaction (bless=1) also add a phase-space theory barrier.
@@ -436,8 +475,17 @@ class MESS:
         if self.par['pes']:
             name = '{name}'
             zeroenergy = '{zeroenergy}'
+            if 'prod' not in species.name:
+                norot = None
+            else:
+                norot = str(species.name)
         else:
-            name = self.well_names[species.chemid] + ' ! ' + str(species.chemid)
+            if 'prod' not in species.name:
+                name = self.well_names[species.chemid] + ' ! ' + str(species.chemid)
+                norot = None
+            else:
+                name = self.well_names[species.name] + ' ! ' + str(species.name)
+                norot = str(species.name)
             zeroenergy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
             zeroenergy += well_add
             zeroenergy = round(zeroenergy, 2)
@@ -455,7 +503,7 @@ class MESS:
                                             symm=float(species.sigma_ext) / float(species.nopt),
                                             nfreq=len(species.reduced_freqs),
                                             freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
-                                            hinderedrotor=self.make_rotors(species, freq_factor),
+                                            hinderedrotor=self.make_rotors(species, freq_factor, norot=norot),
                                             nelec=1,
                                             mult=species.mult,
                                             zeroenergy=zeroenergy)
@@ -481,9 +529,12 @@ class MESS:
                                                  smi=species.smiles,
                                                  nunion=nunq_confs,
                                                  rrho=rrho)
- 
-        with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
-            f.write(mess_well)
+        if 'prod' not in species.name:
+            with open('{}_{:04d}.mess'.format(species.chemid, uq_iter), 'w') as f:
+                f.write(mess_well)
+        else:
+            with open('{}_{:04d}.mess'.format(species.name, uq_iter), 'w') as f:
+                f.write(mess_well)
 
         return mess_well
 
@@ -637,8 +688,10 @@ class MESS:
                                                        nunion=nunq_confs,
                                                        model=rrho)
 
+
         with open('{}_{:04d}.mess'.format(reaction.instance_name, uq_iter), 'w') as f:
             f.write(mess_barrier)
+
     
         return mess_barrier, zeroenergy 
 

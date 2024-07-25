@@ -46,6 +46,10 @@ mol = Atoms(symbols={atom},
 
 kwargs = {kwargs}
 mol.calc = {Code}(**kwargs)
+if '{Code}' == 'Gaussian':
+    mol.get_potential_energy()
+    kwargs['guess'] = 'Read'
+    mol.calc = {Code}(**kwargs)
 
 const = Constraints(mol)
 base_0_fixes = [[idx - 1 for idx in fix] for fix in {fix}]

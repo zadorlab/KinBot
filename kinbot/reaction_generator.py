@@ -70,8 +70,8 @@ class ReactionGenerator:
             ro.valid_prod = []
 
         frag_unique = []
-        rm_keys = ('name', 'wellorts', 'geom')
-        st_pt_dict = {k: v for k, v in vars(self.species).items() 
+        rm_keys = ('name', 'wellorts', 'geom', 'short_name')
+        st_pt_dict = {k: v for k, v in vars(self.species).items()
                       if k not in rm_keys}
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):

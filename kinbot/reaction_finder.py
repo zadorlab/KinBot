@@ -50,6 +50,8 @@ from kinbot.reactions.reac_h2_elim import H2Elim
 from kinbot.reactions.reac_bimol_disproportionation_R import BimolDisproportionationR
 from kinbot.reactions.reac_homolytic_scission import HS
 from kinbot.reactions.reac_combinatorial import Combinatorial
+from kinbot.reactions.reac_proton_transfer import ProtonTransfer
+
 
 logger = logging.getLogger('KinBot')
 
@@ -134,6 +136,7 @@ class ReactionFinder:
                           'Intra_disproportionation_F': self.search_Intra_disproportionation_F, 
                           'Intra_disproportionation_R': self.search_Intra_disproportionation_R, 
                           'bimol_disproportionation_R': self.search_bimol_disproportionation_R, 
+                          'proton_transfer': self.search_proton_transfer
                           }
 
         if 'combinatorial' in self.families:
@@ -2033,7 +2036,40 @@ class ReactionFinder:
         self.new_reaction(rxns, name, a=0, b=-1, cross=True)
 
         return 0
+    
+    def search_proton_transfer(self, natom, atom, bond, rad):
+        """Moves a H+ along a H-bond.
+        
+        X-H···Y <==> X···H-Y
 
+        Args:
+            bond (np.ndarray): Bond matrix of the full system
+            solute_bond (np.ndarray): Bond matrix of just the solute
+        """
+
+        name = 'proton_transfer'
+        if not name in self.reactions:
+            self.reactions[name] = []
+
+        rxns = []
+        solute_indices = self.species.solute_indices
+        for i in range(natom):
+            for j in range(i):
+                if all(ij in solute_indices for ij in (i, j)) \
+                        or all(ij not in solute_indices for ij in (i, j)) \
+                        or not bond[i][j]:
+                    continue
+                sym_i = atom[i]
+                sym_j = atom[j]
+                if sym_i == 'H':
+                    rxns.append([j, i])
+                elif sym_j == 'H':
+                    rxns.append([i, j])
+                else:
+                    raise IndexError(f'Incorrect atoms found: {sym_i}, {sym_j}')
+        
+        self.new_reaction(rxns, name, a=0, b=-1)
+        return 0
 
     def reaction_matrix(self, reac_list, reac_id):
         ''' 
@@ -2247,10 +2283,13 @@ class ReactionFinder:
                 name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(Combinatorial(self.species, self.qc, self.par, reac_list[i], name))
+            elif reac_id == 'proton_transfer':
+                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                self.species.reac_name.append(name)
+                self.species.reac_obj.append(ProtonTransfer(self.species, self.qc, self.par, reac_list[i], name))
             else:
                 self.species.reac_name.append(0)
         return 0
-
 
     def clean_rigid(self, name, instances, pivot1, pivot2):
         '''

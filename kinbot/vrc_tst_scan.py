@@ -356,12 +356,18 @@ class VTS:
                     asyms.append(eee[-1])
                     eee = list((np.array(eee) - eee[-1]) * constants.AUtoKCAL)
                     ens.append(eee)
+
+                # Create scan references between all equivalent atoms:
+                scan_ref = []
+                for i in self.scan_reac[reac].equiv[0]:
+                    for j in self.scan_reac[reac].equiv[1]:
+                        scan_ref.append([i,j])
                 # comments.append(f"VRC TST Sampling recommended start: {dist[0]}")
                 # TODO instead of writing files, create and save png
                 # TODO simple text file with 3 columns: R, e_samp, e_high
                 create_matplotlib_graph(x=dist,
                                         data=ens,
-                                        name=f'{reac}', 
+                                        name=f'{reac}',
                                         x_label=f"{reac}",
                                         y_label="Energy (kcal/mol)",
                                         data_legends=['sample', 'high'],
@@ -372,7 +378,7 @@ class VTS:
                 corr: dict[str, Any] = {'dist': dist,
                                         'e_samp': ens[0],
                                         'e_high': ens[1],
-                                        'scan_coo': self.scan_reac[reac].scan_coo,
+                                        'scan_ref': scan_ref,
                                         'scan_coo_equiv': self.scan_reac[reac].equiv,
                                         'e_inf_samp': asyms[0],
                                         'e_inf_high': asyms[1],

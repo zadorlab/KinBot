@@ -206,9 +206,9 @@ def create_matplotlib_graph(x=[0., 1.],
     fig.set_figheight(height)
     fig.set_figwidth(width)
 
-    plt.savefig(name,
+    plt.savefig(f'{name}.png',
                 transparent=True,
-                dpi=500,
+                dpi=400,
                 format='png',
                 )
 

@@ -4,7 +4,6 @@ a full PES instead of only the reactions of one well
 """
 import sys
 import os
-import re
 import stat
 import shutil
 import datetime
@@ -1357,7 +1356,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
     # format the vdW reactions to be added to the barrierless list.
     for reac in vdW:
         reactant, reaction_name, products, barrier, vdW_energy, vdW_direction = reac
-        reaction_name = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
+        # reaction_name = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
         barrier = vdW_energy
         barrierless.append([reactant, reaction_name, products, barrier])
 
@@ -1374,11 +1373,8 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
             logger.warning(f"Skiping rotdPy input creation for reac {reac_name}.")
             raise KeyError(f'{reac_name} is not a bimolecular process.')
 
-        vrc_tst_start = 0
-        correc: dict[str, Any] = {'kb 1d scan':{"type": "1d"}}
-
         json_file = f"{reactant}/vrctst/corr_{reac_name}.json"
-        if not os.path.isfile(f"{reactant}/{json_file}"):
+        if not os.path.isfile(json_file):
             logger.warning(f"Results of scan for 1D correction\
                             not found for rotdPy job {reac_name}")
             raise KeyError(f"Results of scan for 1D correction\
@@ -1388,10 +1384,6 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
             pp_info: dict[str, Any] = json.load(jf)
 
         vrc_tst_start: float = pp_info['dist'][0]
-        correc['kb 1d scan']['r_trust'] = pp_info['dist']
-        correc['kb 1d scan']['e_sample'] = pp_info['e_samp']
-        correc['kb 1d scan']['e_trust'] = pp_info['e_high']
-        correc['kb 1d scan']['scan_ref'] = pp_info['scan_coo']
         inf_energy: float = pp_info['e_inf_samp']
 
         fragments = []
@@ -1414,60 +1406,50 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                 continue
             elif dist >= vrc_tst_start:
                 surfaces.extend(pp_settings.create_all_surf_for_dist(dist=dist,
-                                                                    fragments=fragments,
-                                                                    par=par))
+                                                                     fragments=fragments,
+                                                                     par=par))
 
         # TODO rewrite using templates
         # Creating the strings to print input file
-        # Fragments block:
-        Fragments_block = "# Fragments geometries are in Angstroms\n"
-        for frag in fragments:
-            Fragments_block = Fragments_block + (repr(frag)) + "\n"
 
         # Surfaces block:
-        Surfaces_block = "# Pivot_points and distances are in Bohr\ndivid_surf = [\n"
+        Surfaces_block: str = ''
         for index, surf in enumerate(surfaces):
-            Surfaces_block = Surfaces_block + (repr(surf))
+            Surfaces_block = Surfaces_block + (repr(surf)) + ',\n\n'
             if surf == surfaces[-1]:
                 Surfaces_block = Surfaces_block[:-3]
-        Surfaces_block += "]\n"
 
         # Corrections block
-        corrections_block = "# Scan energies are in kcal/mol. The 0 is the asymptotic energy.\n\
-        # Scan distances are in Angstrom\ncorrections = {\n"
-        for correction in correc:
-            corrections_block += f"'{correction}' : " + "{\n"
-            for ckey, cvalue in correc[correction].items():
-                if isinstance(cvalue, str):
-                    corrections_block += f"'{ckey}' : '{cvalue}',\n"
-                else:
-                    corrections_block += f"'{ckey}' : {cvalue},\n"
-            corrections_block = corrections_block[:-2]
-            corrections_block += "\n}\n"
-        corrections_block += "}\n"
+        tpl_1d_corr = f'{kb_path}/tpl/rotdPy_1d_corr.tpl'
+        with open(tpl_1d_corr, 'r') as f:
+            fr = f.read()
+        kb_1d_correction: str = fr.format(scan_ref=pp_info['scan_ref'],
+                                          e_trust=pp_info['e_high'],
+                                          r_trust=pp_info['dist'],
+                                          e_sample=pp_info['e_samp'],
+                                          r_sample=pp_info['dist'])
 
         # Calc_block:
-        whoami = getpass.getuser()
-        Calc_block = "calc = {\n" +\
-                    "'code': 'molpro',\n" +\
-                    f"'scratch': '/scratch/{whoami}',\n" +\
-                    f"'processors': 1,\n" +\
-                    f"'queue': '{par['queuing']}',\n" +\
-                    "'max_jobs': 2000}"
+        tpl_rotdPy_calc = f'{kb_path}/tpl/rotdPy_calc.tpl'
+        with open(tpl_rotdPy_calc, 'r') as f:
+            fr = f.read()
+        rotdPy_calc: str = fr.format(code='molpro',
+                                     whoami=getpass.getuser(),
+                                     queue={par['queuing']},
+                                     max_jobs=2000)
 
         template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
         with open(template_file_path) as template_file:
             tpl: str = template_file.read()
-            new_input: str = tpl.format(f1=repr(fragments[0]),
-                                        f2=repr(fragments[1]),
-                                        job_name=reac_name,
-                                        Fragments_block=Fragments_block,
-                                        Surfaces_block=Surfaces_block,
-                                        frag_names='[' + ', '.join(fragnames) + ']',
-                                        calc_block=Calc_block,
-                                        min_dist=par['vrc_tst_scan_points'][0],
-                                        corrections_block=corrections_block,
-                                        inf_energy=inf_energy)
+        new_input: str = tpl.format(f1=repr(fragments[0]),
+                                    f2=repr(fragments[1]),
+                                    job_name=reac_name,
+                                    Surfaces_block=Surfaces_block,
+                                    frag_names='[' + ', '.join(fragnames) + ']',
+                                    calc_block=rotdPy_calc,
+                                    min_dist=par['vrc_tst_scan_points'][0],
+                                    corrections_block=kb_1d_correction,
+                                    inf_energy=inf_energy)
         folder = "rotdPy"
         if not os.path.exists(folder):
             # Create a new directory because it does not exist

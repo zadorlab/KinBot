@@ -41,9 +41,9 @@ angular_mom = generate_grid(0, 1, 1.1, 80)
 divid_surf = [
 {Surfaces_block}
              ]
+
 {calc_block}
 
-# Scan energies are in kcal/mol. The 0 is the asymptotic energy.
 {corrections_block}
 
 inf_energy = {inf_energy} # Hartree
@@ -61,9 +61,9 @@ kb_sample = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
 #tot_smp_min: minimum number of total sampling per surface
 #smp_len: Number of valid sample asked of each subprocess
 
-flux_parameter = {'pot_smp_max': 6000, 'pot_smp_min': 500,
+flux_parameter = {{'pot_smp_max': 6000, 'pot_smp_min': 500,
                   'tot_smp_max': 15000, 'tot_smp_min': 500,
-                  'flux_rel_err': 5, 'smp_len': 1}
+                  'flux_rel_err': 5, 'smp_len': 1}}
 
 flux_base = FluxBase(temp_grid=temperature,
                      energy_grid=energy,

@@ -1,4 +1,5 @@
 from typing import Any
+from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
 from ase.atoms import Atoms
 import numpy as np
@@ -14,8 +15,8 @@ logger = logging.getLogger('KinBot')
 
 class Fragment(StationaryPoint):
     """
-    Class that creates stationary points with specific methods to setup VRC TST calculations.
-
+    Class that creates stationary points
+    with specific methods to setup VRC TST calculations.
     """
     _instances = []
 
@@ -23,7 +24,7 @@ class Fragment(StationaryPoint):
                  frag_num: int,
                  max_frag: int,
                  symbols: str,
-                 geom: ndarray,
+                 geom: list[list[float]],
                  ra: list[int],
                  par: dict[str, Any],
                  charge: int | None = None,
@@ -57,8 +58,9 @@ class Fragment(StationaryPoint):
             self.mult: int = mult
         else:
             self.mult: int = self.atom.calc.parameters['mult']
-        self.formula: str = self.atom.get_chemical_formula()
-        self.geom: ndarray[Any] = np.subtract(self.geom,
+        self.formula: str = str(self.atom.get_chemical_symbols())
+        self.frag_name: str = self.atom.get_chemical_formula()
+        self.geom: ndarray[Any] = np.subtract(geom,
                                               self.atom.get_center_of_mass())
         self.atom = Atoms(symbols=symbols,
                           positions=geom
@@ -70,20 +72,25 @@ class Fragment(StationaryPoint):
         super(Fragment, self).__init__(name=self.frag_name,
                                        charge=self.charge,
                                        mult=self.mult,
-                                       atom=self.atom,
+                                       atom=self.atom.symbols,
                                        geom=self.geom)
         self.characterize()
-        self.com: ndarray[float64] = np.zeros(3)
+        self.com: ndarray[float] = np.zeros(3)
 
     def __repr__(self) -> str:
         #TODO: Modify nonlinear by a variable that detects linearity
-        rpr = "{} = Nonlinear(Atoms('{}',\
-              positions={}))\n".format(self.frag_name,
-                                       self.formula,
-                                       np.round(np.array(self.geom),
-                                                decimals=4).tolist())
-        rpr.replace("],",
-                    "],\n                                   ")
+        with open(f'{kb_path}/tpl/rotdPy_frag.tpl', 'r') as f:
+            tpl = f.read()
+        rpr: str = tpl.format(
+            frag_name=self.frag_name,
+            frag_type='Nonlinear',
+            formula=self.formula,
+            positions=np.round(np.array(self.geom),
+                               decimals=4).tolist()
+        )
+        rpr = rpr.replace('], [',
+                          '],\n                     [')
+
         return rpr
 
     @classmethod

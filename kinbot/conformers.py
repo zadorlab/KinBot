@@ -436,6 +436,8 @@ class Conformers:
                         ext = 'log'
                     elif self.qc.qc == 'qchem':
                         ext = 'out'
+                    elif self.qc.qc == 'nn_pes':
+                        ext = 'log'
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
                     copyfile(f'{lowest_job}.{ext}', f'conf/{name}_low.{ext}')

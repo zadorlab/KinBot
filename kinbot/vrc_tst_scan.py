@@ -262,19 +262,28 @@ class VTS:
                             for ii, mi in enumerate(self.scan_reac[reac].maps[1]):
                                 if self.scan_reac[reac].products[1].atomid[ii] == atomid_A:
                                     equiv_A.append(mi)  
-                            self.explicit(self.scan_reac[reac].products[1], atomid_A, equiv_A, self.scan_reac[reac].maps[1])
-                            index_B = np.where(self.scan_reac[reac].maps[0]==self.scan_reac[reac].scan_coo[1])[0][0]
-                            atomid_B = self.scan_reac[reac].products[0].atomid[index_B]
+                            self.explicit(prod=self.scan_reac[reac].products[1],
+                                          atomid=atomid_A,
+                                          equiv=equiv_A,
+                                          mapping=self.scan_reac[reac].maps[1])
+                            index_B = np.where(self.scan_reac[reac].maps[0] ==
+                                               self.scan_reac[reac].scan_coo[1])[0][0]
+                            atomid_B = self.scan_reac[reac].\
+                                products[0].atomid[index_B]
                             for ii, mi in enumerate(self.scan_reac[reac].maps[0]):
-                                if self.scan_reac[reac].products[0].atomid[ii] == atomid_B:
-                                    equiv_B.append(mi)  
-                            self.explicit(self.scan_reac[reac].products[0], atomid_B, equiv_B, self.scan_reac[reac].maps[0])
+                                if self.scan_reac[reac].\
+                                    products[0].atomid[ii] == atomid_B:
+                                    equiv_B.append(mi)
+                            self.explicit(prod=self.scan_reac[reac].products[0],
+                                          atomid=atomid_B,
+                                          equiv=equiv_B,
+                                          mapping=self.scan_reac[reac].maps[0])
 
                         equiv.append([equiv_A, equiv_B])
                         self.scan_reac[reac].equiv = [equiv_A, equiv_B]
                     
-                    jobs[ri] = self.qc.qc_vts(self.scan_reac[reac], 
-                                              geoms[ri], 
+                    jobs[ri] = self.qc.qc_vts(self.scan_reac[reac],
+                                              geoms[ri],
                                               step[ri],
                                               equiv[ri],
                                               asymptote,  # needed for alignment of rigid fragments later
@@ -360,8 +369,10 @@ class VTS:
                 # Create scan references between all equivalent atoms:
                 scan_ref = []
                 for i in self.scan_reac[reac].equiv[0]:
+                    a: int = np.where( self.scan_reac[reac].maps[0] == i)[0][0]
                     for j in self.scan_reac[reac].equiv[1]:
-                        scan_ref.append([i,j])
+                        b: int =  np.where( self.scan_reac[reac].maps[1] == i)[0][0]
+                        scan_ref.append([a,b])
                 # comments.append(f"VRC TST Sampling recommended start: {dist[0]}")
                 # TODO instead of writing files, create and save png
                 # TODO simple text file with 3 columns: R, e_samp, e_high

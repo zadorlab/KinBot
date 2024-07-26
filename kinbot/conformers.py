@@ -585,6 +585,20 @@ class Conformers:
                            self.species.energy, np.zeros((self.species.natom, 3)), \
                            np.zeros(1), np.zeros(1), np.zeros(1)
 
+
+    def add_new_conf_from_hir(self, geom) -> None:
+        """Generate new conformer found during hir calculations.
+
+        Args:
+            geom (_type_): cartesian geometry of the lowest energy point along all hir
+        """
+        self.qc.qc_conf(self.species, geom, self.conf, semi_emp=self.semi_emp)
+        if os.path.exists(f'conf/{self.get_name()}_low.log'):
+            logger.debug(f'Removing file conf/{self.get_name()}_low.log')
+            os.remove(f'conf/{self.get_name()}_low.log')
+        self.conf += 1
+
+
     def lowest_conf_info(self):
         """
         in case conformer search was successfully skipped on restart, 

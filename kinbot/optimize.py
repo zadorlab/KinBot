@@ -133,7 +133,7 @@ class Optimize:
                     # do open chain part if cyclic (if there were any) and semi empirical (if requested) parts are done
                     if self.sconf == -1:
                         # open chain part has not started yet
-                        # if semi empirical conformer were searched for, start from those, 
+                        # if semi empirical conformer were searched for, start from those,
                         # else start from cyclic conformers
                         if self.par['semi_emp_conformer_search'] == 1:
                             self.species.confs.nconfs = 1
@@ -182,7 +182,7 @@ class Optimize:
                                 self.species.energy = self.species.low_energy
                                 # set conf status to finished
                                 self.sconf = 1
-                        elif self.skip_conf_check == 1:
+                        elif self.skip_conf_check == 1 and self.restart == 0:
                             self.species.geom, self.species.energy, self.species.zpe = self.species.confs.lowest_conf_info()
                             logger.info('\tEnergy and geometry updated based on conf/{}_low file.'.format(self.name))
                             self.sconf = 1
@@ -192,7 +192,7 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                if self.par['conformer_search'] == 1 and not self.just_high:
+                if self.par['conformer_search'] == 1 and not self.just_high and self.restart == 0:
                     status, lowest_conf, self.species.geom, self.species.low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
                         
@@ -296,6 +296,8 @@ class Optimize:
                                                 job = self.log_name(1, hir=1, r=min_rotor, s=min_ai)
 
                                                 err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
+                                                # err, geom = self.qc.get_qc_geom(job, self.species.natom)
+                                                # self.species.confs.add_new_conf_from_hir(geom)
                                                 # delete the high_level log file and the hir log files
                                                 if os.path.exists(self.log_name(1) + '.log'):
                                                     logger.debug(f'Removing file {self.log_name(1)}.log')

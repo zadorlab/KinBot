@@ -1667,6 +1667,9 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
     for well in wells:
         if "IRC" in well:
             well = well.split("_")[0]
+        if not os.path.isfile(well + '/kinbot.db'):
+            logger.warning(f'Database file missing for {well}')
+            continue
         db = connect(well + '/kinbot.db')
         rows = db.select(name=j)
         for row in rows:

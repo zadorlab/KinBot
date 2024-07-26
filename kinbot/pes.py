@@ -1361,7 +1361,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         barrierless.append([reactant, reaction_name, products, barrier])
 
     for index, reac in enumerate(barrierless):
-        reactant, reac_name, products, barrier = reac
+        reactant, reaction_name, products, barrier = reac
         try:
             if reaction_name not in par['vrc_tst_scan'][reactant]:
                 continue

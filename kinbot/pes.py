@@ -279,7 +279,7 @@ def get_wells(job):
     if len(new_wells) > 0:
         with open('chemids', 'a') as f:
             f.write('\n'.join(new_wells) + '\n')
-    
+
 
 def postprocess(par, jobs, task, names, mass):
     """
@@ -335,7 +335,7 @@ def postprocess(par, jobs, task, names, mass):
         # read the summary file from after corporate message
         for line in summary[5:]:
             if line.startswith("SUCCESS"):
-                #Unpack the succesfull lines
+                # Unpack the succesfull lines
                 if 'vdW' not in line :
                     ts_energy, reaction_name, *products = line.split()[1:]
                 elif 'vdW' in line : #Unpack differently when a vdW well is in line
@@ -345,7 +345,7 @@ def postprocess(par, jobs, task, names, mass):
                     continue
 
                 reactant = ji
-                #products this is the chemid of the product
+                # products this is the chemid of the product
                 if 'none' not in par['keep_chemids']:
                     if len(products) == 1 and products[0] not in par['keep_chemids']:
                         continue
@@ -356,8 +356,8 @@ def postprocess(par, jobs, task, names, mass):
                 mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
                         'reac_r12_cycloaddition', 'reac_r14_birad_scission']
                 if any([mm in reaction_name for mm in mp2_list]) \
-                       and not par['high_level'] \
-                       and par['qc'] != 'nn_pes':
+                        and not par['high_level'] \
+                        and par['qc'] != 'nn_pes':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
                                               mp2=1, conf=par['conformer_search'])
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
@@ -376,7 +376,7 @@ def postprocess(par, jobs, task, names, mass):
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
                     ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
-                                               conf=par['conformer_search'])
+                                                   conf=par['conformer_search'])
                     barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
                     
@@ -418,7 +418,7 @@ def postprocess(par, jobs, task, names, mass):
                         new = 0
                         temp = i
 
-                if new :
+                if new:
                     if "vdW" not in line:
                         reactions.append([reactant, reaction_name, products, barrier])
                     else:
@@ -433,7 +433,7 @@ def postprocess(par, jobs, task, names, mass):
                                 if len(reactions[temp]) == 6: #True when reactions[temp] has a vdW well
                                     parent[prod_name] = reactant
                             else:
-                                #replace the prod parent by the vdW well
+                                # Replace the prod parent by the vdW well
                                 parent[prod_name] = vdW_well 
                                 reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
                         elif reactions[temp][3] < barrier and "vdW" in line:
@@ -446,7 +446,7 @@ def postprocess(par, jobs, task, names, mass):
                                 parent[prod_name] = vdW_well 
                                 reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
                             else:
-                                #If reaction exitst with same barrier/products, but with a vdW well, keep it and discard new one.
+                                # If reaction exitst with same barrier/products, but with a vdW well, keep it and discard new one.
                                 continue
                         elif "hom_sci" in reactions[temp][1]:
                             reactions.pop(temp)
@@ -470,7 +470,7 @@ def postprocess(par, jobs, task, names, mass):
     well_l3energies = {}
     for index, well in enumerate(wells):
         energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
-                            conf=par['conformer_search'])  # from the db
+                                 conf=par['conformer_search'])  # from the db
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -503,7 +503,7 @@ def postprocess(par, jobs, task, names, mass):
     ts_l3energies = {}
     for reac in reactions:
         if "hom_sci" not in reac[1]:  # meaning homolytic scission
-            if len(reac) > 4:#vdW 
+            if len(reac) > 4:  # vdW 
                 vdW_well = f"{reac[1]}{reac[5].split('vdW')[1]}"
                 reac[4] = well_energies[vdW_well]
             if 'barrierless_saddle' in reac[1]:

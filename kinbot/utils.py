@@ -1,5 +1,9 @@
 import time
 import os
+import numpy as np
+import json
+import matplotlib.pyplot as plt
+from scipy.interpolate import make_interp_spline
 
 
 def tail(file_path, lines=10):
@@ -61,37 +65,33 @@ def make_dirs(par):
 
     @param par: Dictionary with the simulation parameters read from the input.
     """
-    if not os.path.exists('perm'):
-        os.makedirs('perm')
-    if not os.path.exists('scratch'):
-        os.makedirs('scratch')
-    if not os.path.exists(par['single_point_qc']):
-        os.mkdir(par['single_point_qc'])
+    make_dir('perm')
+    make_dir('scratch')
+    make_dir(par['single_point_qc'])
+    make_dir('me')
     if par['rotor_scan'] == 1:
-        if not os.path.exists('hir'):
-            os.mkdir('hir')
-        if not os.path.exists('hir_profiles'):
-            os.mkdir('hir_profiles')
-        if not os.path.exists('perm/hir/'):
-            os.makedirs('perm/hir/')
+        make_dir('hir')
+        make_dir('hir_profiles')
+        make_dir('perm/hir/')
     if par['conformer_search'] == 1:
-        if not os.path.exists('conf'):
-            os.mkdir('conf')
-        if not os.path.exists('perm/conf'):
-            os.makedirs('perm/conf')
+        make_dir('conf')
+        make_dir('perm/conf')
     if par['calc_aie'] == 1:
-        if not os.path.exists('aie'):
-            os.mkdir('aie')
-        if not os.path.exists('perm/aie'):
-            os.makedirs('perm/aie')
+        make_dir('aie')
+        make_dir('perm/aie')
     if par['vrc_tst_scan'] != {}:
-        if not os.path.exists('vrctst'):
-            os.mkdir('vrctst')
-        if not os.path.exists('perm/vrctst'):
-            os.makedirs('perm/vrctst')
-    if not os.path.exists('me'):
-        os.mkdir('me')
+        make_dir('vrctst')
+        make_dir('vrctst/molpro')
+        make_dir('perm/vrctst')
+        make_dir('perm/vrctst/molpro')
 
+def make_dir(name):
+    '''
+    Helper function for make_dirs
+    '''
+    if not os.path.exists(name):
+        os.makedirs(name)
+    return
 
 def clean_files():
     """Removes files from jobs that ended up erroneously.
@@ -152,40 +152,88 @@ def clean_files():
                 if len(atoms.positions) > 1 and np.all(atoms.positions == 0):
                     os.remove(ll)
                     logger.info(f'All coordinates of file {ll} are 0, hence '
-                                 f'it is deleted.')
-                    
-def create_matplotlib_graph(x=[0., 1.], data=[[1., 1.]], name="mtpltlb", x_label="x", y_label="y", data_legends=["y0"], comments=[""]):
-    """Function that create the input for a 2D matplotlib plot."""
+                                f'it is deleted.')
+
+
+def create_matplotlib_graph(x=[0., 1.],
+                            data=[[1., 1.]],
+                            name="mtpltlb",
+                            x_label="x",
+                            y_label="y",
+                            data_legends=["y0"],
+                            comments=[""]):
+    """Function that creates the input for a 2D matplotlib plot."""
 
     if not isinstance(x, list) and not isinstance(data, list):
-        return 
-    
-    content = """import numpy as np
-import matplotlib.pyplot as plt
-from scipy.interpolate import make_interp_spline\n\n"""
+        return
 
-    for comment in comments:
-        content += f"# {comment}\n"
-    
-    content += f"x = {x}\n"
-    content += "x_spln = np.arange(min(x), max(x), 0.1)\n\n"
+    scale = 5
+    width = 3.236*scale
+    height = 2*scale
 
+    x_spln = np.arange(min(x), max(x), 0.1)
+
+    spln = []
+    y_spln = []
+    min_y = np.inf
+    max_y = -np.inf
     for index, y in enumerate(data):
-        content += f"y{index} = {list(y)}\n"
-        content += f"spln{index} = make_interp_spline(x, y{index})\n"
-        content += f"y_spln{index} = spln{index}(x_spln)\n"
+        if min(y) < min_y:
+            min_y = min(y)
+        if max(y) > max_y:
+            max_y = max(y)
+        spln.append(make_interp_spline(x, y))
+        y_spln.append(spln[index](x_spln))
 
-    content += "\nfig, ax = plt.subplots()\n"
+    fig, ax = plt.subplots()
 
+    markers = ['x', 'o', '+', 'h', '*']
     for index, legend in enumerate(data_legends):
-        content += f"ax.scatter(x, y{index}, label='{legend}', marker='x')\n"
-        content += f"ax.plot(x_spln, y_spln{index}, label='spln_{legend}')\n"
+        ax.plot(x, data[index],
+                label=legend,
+                marker=markers[index],
+                linewidth=3.0,
+                markersize=15)
+        # ax.plot(x_spln, y_spln[index], label=f'spln_{legend}')
 
-    content += f"""
-ax.legend(loc='lower right')
-ax.set_xlabel(r'{x_label}')
-ax.set_ylabel(r'{y_label}')
-plt.show()"""
+    ax.legend(loc=0)
+    ax.set_xlabel(r'{}'.format(x_label))
+    ax.set_ylabel(r'{}'.format(y_label))
+    ax.set_xlim([min(x), max(x)])
+    ax.set_ylim([min_y, max_y])
 
-    with open(f"{name}_plt.py", "w") as plt_file:
-                plt_file.write(content)
+    plt.rcParams.update({'font.size': 30})
+    fig.set_figheight(height)
+    fig.set_figwidth(width)
+
+    plt.savefig(f'{name}.png',
+                transparent=True,
+                dpi=400,
+                format='png',
+                )
+
+
+def queue_command(qu):
+    if qu == 'pbs':
+        cmd = 'qsub'
+        ext = 'pbs'
+    elif qu == 'slurm':
+        cmd = 'sbatch'
+        ext = 'slurm'
+    elif qu == 'local':
+        cmd = ''
+        ext = ''
+        pass
+    else:
+        raise ValueError(f'Unexpected value for queueing: {par["queuing"]}')
+    return cmd, ext
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)

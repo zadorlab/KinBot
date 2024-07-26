@@ -17,14 +17,34 @@ def read_energy(outfile, from_line=0):
     with open(outfile) as f:
         lines = f.readlines()
 
+    if from_line:
+        lines = lines[:-from_line]
+
     energy = np.NAN
-    for line in reversed(lines[:-from_line]):
+    for line in reversed(lines):
         if 'SCF Done' in line:
             energy = float(line.split()[4]) / constants.EVtoHARTREE
             break
 
     return energy
 
+def read_all_energies(outfile, from_line=0):
+    """
+    Read all SCF Done lines.
+    """
+
+    with open(outfile) as f:
+        lines = f.readlines()
+
+    if from_line:
+        lines = lines[:-from_line]
+
+    energy = []
+    for line in reversed(lines): 
+        if 'SCF Done' in line:
+            energy.append(float(line.split()[4]) / constants.EVtoHARTREE)
+
+    return energy
 
 def read_geom(outfile, mol, max2frag=False, charge=None, mult=None, from_line=0):
     """
@@ -67,6 +87,27 @@ def read_geom(outfile, mol, max2frag=False, charge=None, mult=None, from_line=0)
 
     return geom
 
+def read_all_geoms(outfile, mol, charge=None, mult=None, from_line=0):
+    """
+    Read all geometries from a Gaussian file.
+    """
+
+    with open(outfile) as f:
+        lines = f.readlines()
+
+    geoms = []
+    geom = np.zeros((len(mol), 3))
+    if not from_line:
+        data = lines
+    else:
+        data = lines[:-from_line]
+    for index, line in enumerate(reversed(data)):
+        if 'Input orientation:' in line:
+            for n in range(len(mol)):
+                geom[n][0:3] = np.array(data[-index+4+n].split()[3:6]).astype(float)
+            geoms.append(copy.deepcopy(geom)) 
+
+    return geoms
 
 def read_zpe(outfile):
     """
@@ -94,10 +135,10 @@ def read_freq(outfile, atom):
 
     natom = len(atom)
 
+    freq = []
     if natom == 1:
-        freq = []
+        return freq
     else:
-        freq = []
         for line in lines:
             if 'Frequencies' in line:
                 if natom == 2:
@@ -187,7 +228,6 @@ def read_lowest_geom_energy(outfile, mol):
                 e = read_energy(outfile, from_line=n)
 
                 return e, geom
-
 
 def constraint(mol, fix, change):
     """

@@ -4,19 +4,20 @@ a full PES instead of only the reactions of one well
 """
 import sys
 import os
-import re
 import stat
 import shutil
 import datetime
 import time
 import subprocess
 import json
+from typing import Any
 import networkx as nx
 import numpy as np
 import getpass
 
 from copy import deepcopy
 from ase.db import connect
+from ase.atoms import Atoms
 
 from kinbot import kb_path
 from kinbot import constants
@@ -28,6 +29,7 @@ from kinbot.fragments import Fragment
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
+from kinbot.utils import queue_command 
 
 
 def main():
@@ -460,18 +462,7 @@ def postprocess(par, jobs, task, names, mass):
     # create a connectivity matrix for all wells and products
     conn, bars = get_connectivity(wells, bimol_products, reactions)
     # create a batch submission for all L3 jobs
-    if par['queuing'] == 'pbs':
-        cmd = 'qsub'
-        ext = 'pbs'
-    elif par['queuing'] == 'slurm':
-        cmd = 'sbatch'
-        ext = 'slurm'
-    elif par['queuing'] == 'local':
-        cmd = ''
-        ext = ''
-        pass
-    else:
-        raise ValueError(f'Unexpected value for queueing: {par["queuing"]}')
+    cmd, ext = queue_command(par['queuing'])
 
     batch_submit = ''
 
@@ -599,15 +590,15 @@ def postprocess(par, jobs, task, names, mass):
     rxns = []
     for rxn in reactions:
         if 'hom_sci' in rxn[1]:
-            #in rxn: [reactant, reaction_name, products, barrier]
+            # in rxn: [reactant, reaction_name, products, barrier]
             barrierless.append([rxn[0], rxn[1], rxn[2], rxn[3]])
-        elif len(rxn) > 4: #vdW for now, find better condition latter?
-            #in rxn: [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
+        elif len(rxn) > 4:  # vdW for now, find better condition latter?
+            # in rxn: [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
             vdW.append([rxn[0], rxn[1], rxn[2], rxn[3], rxn[4], rxn[5]])
         else:
             rxns.append([rxn[0], rxn[1], rxn[2], rxn[3]])
 
-    create_rotdPy_inputs(par,
+    create_rotdpy_inputs(par,
                          barrierless,
                          vdW)
 
@@ -1349,9 +1340,10 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
         #uq.format_uqtk_data() 
     return
 
-def create_rotdPy_inputs(par, bless, vdW):
+
+def create_rotdpy_inputs(par, bless, vdW) -> None:
     """
-    Function that create an input file for rotdPy.
+    Function that creates an input file for rotdPy.
     barrierless and vdW are lists of reactions.
     barrierless reactions:
     [reactant, reaction_name, products, barrier]
@@ -1359,239 +1351,128 @@ def create_rotdPy_inputs(par, bless, vdW):
     [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
     """
 
-    barrierless = list(bless) #Avoids modifying barrierless outside of the function
-    number_of_barrierless = len(barrierless)
+    barrierless = list(bless)  # Avoids modifying barrierless outside of the function
 
-    #format the vdW reactions to be added to the barrierless list.
+    # format the vdW reactions to be added to the barrierless list.
     for reac in vdW:
         reactant, reaction_name, products, barrier, vdW_energy, vdW_direction = reac
-        reaction_name = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
+        # reaction_name = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
         barrier = vdW_energy
         barrierless.append([reactant, reaction_name, products, barrier])
 
     for index, reac in enumerate(barrierless):
         reactant, reaction_name, products, barrier = reac
-        job_name = f"{reaction_name}_{'_'.join(sorted(products))}"
-        rotdpy_inputs = []
-        if len(par["rotdPy_inputs"]) != 0:
-            for this_input in par["rotdPy_inputs"]:
-                inp_products = this_input.split("_")[-2:]
-                rotdpy_inputs.append(f"{'_'.join(this_input.split('_')[:-2])}_{'_'.join(sorted(inp_products))}")
-        if job_name not in rotdpy_inputs:
+        try:
+            if reaction_name not in par['vrc_tst_scan'][reactant]:
+                continue
+        except KeyError:
             continue
-        logger.info(f"Creating rotdPy input for reaction {job_name}")
-        parent_chemid = reactant
-        if len(products) != 2: #Check if the barrierless reaction has 2 fragments
-            logger.warning("The creation of rotdPy inputs currently only work for bimolecular products.")
-            logger.warning(f"Skiping rotdPy input creation for reac {job_name}.")
-            continue
-        tot_frag = len(products)
+        logger.info(f"Creating rotdPy input for reaction {reac_name}")
+        if len(products) != 2:
+            logger.warning("The creation of rotdPy inputs requires bimolecular products.")
+            logger.warning(f"Skiping rotdPy input creation for reac {reac_name}.")
+            raise KeyError(f'{reac_name} is not a bimolecular process.')
 
-        vrc_tst_start = 0
-        do_correction = True
-        corrections = {"1d":{"type": "1d"}}
-        for scan_type in ["","_frozen"]:
-            if "IRC" in job_name:
-                plt_file = f"{job_name.split('IRC')[0]}vrc_tst_scan{scan_type}{job_name.split('prod')[1]}_plt.py"
-                if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
-                    logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
-                    do_correction = False
-            elif "hom_sci" in job_name: 
-                plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[0]}_{inp_products[1]}_plt.py"
-                if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
-                    plt_file = f"{'_'.join(job_name.split('_')[:-2])}_vrc_tst_scan{scan_type}_{inp_products[1]}_{inp_products[0]}_plt.py"
-                    if not os.path.isfile(f"{parent_chemid}/{plt_file}"):
-                        logger.warning(f"Skipping correction for rotdPy job {job_name}: vrc_tst_scan{scan_type} results not found.")
-                        do_correction = False
-            
-            pivot_points_info = []
-            
-            if do_correction:
-                with open(f"{parent_chemid}/{plt_file}") as f:
-                    lines = f.readlines()
+        json_file = f"{reactant}/vrctst/corr_{reac_name}.json"
+        if not os.path.isfile(json_file):
+            logger.warning(f"Results of scan for 1D correction\
+                            not found for rotdPy job {reac_name}")
+            raise KeyError(f"Results of scan for 1D correction\
+                            not found for rotdPy job {reaction_name}")
 
-                for lidx, line in enumerate(lines[4:]):
-                    if re.search("^y[0-2] = \[", line):
-                        y_data = line
-                        if y_data.startswith("y0"):
-                            level = "L1"
-                        elif y_data.startswith("y1"):
-                            level = "L2"
-                        elif y_data.startswith("y2"):
-                            level = "L3"
-                    if re.search("^x =", line):
-                        x_data = line
-                    if "inf_energy" in line:
-                        inf_energy = float(line.split("energy: ")[1])
-                    if "scan_ref" in line:
-                        corrections["1d"]["scan_ref"] = [[int(line.split('ref = ')[1].split(',')[0][1:]), int(line.split('ref = ')[1].split(',')[1][:-2])]]
-                    if "VRC TST Sampling recommended start: " in line :
-                        vrc_tst_start = float(line.split("start: ")[1])
-                    if 'Number of unique sets of pivot points: ' in line:
-                        for pp_number in range(int(line.split()[-1])):
-                            indexes0 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('[[')[1].split('],')[0].split(',')]
-                            indexes1 = [int(nmbr) for nmbr in lines[4:][lidx+4+6*pp_number].split('], [')[1].split(']]')[0].split(',')]
-                            pivot_points_info.append({
-                                '0': int(lines[4:][lidx+1+6*pp_number].split()[-1]),
-                                '1': int(lines[4:][lidx+2+6*pp_number].split()[-1]),
-                                'type': lines[4:][lidx+3+6*pp_number].split()[-1],
-                                'indexes': [indexes0, indexes1],
-                                'min': float(lines[4:][lidx+5+6*pp_number].split()[-1]),
-                                'max': float(lines[4:][lidx+6+6*pp_number].split()[-1])
-                            })
+        with open(json_file, 'r') as jf:
+            pp_info: dict[str, Any] = json.load(jf)
 
-                match scan_type:
-                    case "":
-                        corrections["1d"]["e_trust"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
-                        corrections["1d"]["r_trust"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
-                    case "_frozen":
-                        corrections["1d"]["e_sample"] = [float(value) for value in y_data.split("=")[1][2:-3].split(",")]
-                        corrections["1d"]["r_sample"] = [float(value) for value in x_data.split("=")[1][2:-3].split(",")]
-            else:
-                corrections = {}
-                    
+        vrc_tst_start: float = pp_info['dist'][0]
+        inf_energy: float = pp_info['e_inf_samp']
+
         fragments = []
-        for frag_number in range(tot_frag):
-            chemid = products[frag_number]
-
-            if par['high_level']:
-                #Will read info from L2 structure
-                basename = f"{chemid}_well_VTS_high"
-            else:
-                #Will read info from L1 structure
-                basename = f"{chemid}_well_VTS"
-
-            #Create ase.atoms objects for each fragments
-            db = connect(f"{parent_chemid}/kinbot.db")
-            *_, last_row = db.select(name=f"{basename}")
-            atoms = last_row.toatoms() #This is an ase.atoms object
-            fragments.append(Fragment.from_ase_atoms(atoms=atoms,
-                                                    frag_number=frag_number,
-                                                    max_frag=tot_frag,
-                                                    chemid=chemid,
-                                                    parent_chemid=parent_chemid,
-                                                    par=par))
-        if par['high_level']:
-            #Will read info from L2 structure
-            if '_IRC_' in reaction_name:
-                basename = f"{reaction_name}_high"
-            else:
-                basename = f"{parent_chemid}_well_high"
-        else:
-            #Will read info from L1 structure
-            if '_IRC_' in reaction_name:
-                basename = f"{reaction_name}"
-            else:
-                basename = f"{parent_chemid}_well"
-
-        db = connect(f"{parent_chemid}/kinbot.db")
-        *_, last_row = db.select(name=f"{basename}", sort="-1")
-        parent = StationaryPoint.from_ase_atoms(last_row.toatoms())#This is an ase.atoms object
-        parent.characterize()
+        for frag_num in range(2):
+            fragments.append(Fragment(frag_num=frag_num,
+                                      max_frag=2,
+                                      symbols=pp_info['frags_atom'][frag_num],
+                                      geom=pp_info['frags_geom'][frag_num],
+                                      ra=pp_info['scan_coo_equiv'][frag_num],
+                                      par=par))
 
         fragnames = Fragment.get_fragnames()
-        reactive_atoms = []
-        reactive_atoms = pp_settings.get_ra(reac, parent_chemid)
-        #if index < number_of_barrierless:
-            #Map the long range fragments with the index of the parent to find 
-        pp_settings.set_parent_map(parent, reactive_atoms, fragments)
-            #Make sure the reactive atoms are in the same order as the fragments
-            #Shouldn't be needed anymore
-            #reactive_atoms = pp_settings.reset_reactive_atoms(reactive_atoms,[frag.map for frag in fragments])
-        #endif
 
-        #Set the pivot points on each fragments and create the surfaces
+        # Set the pivot points on each fragments and create the surfaces
         surfaces = []
-        comments = []
-        if len(reactive_atoms) == 0:
-            logger.warning("No reactive atom detected for this reaction. Pivot points on COMs.")
 
-        for dist in par['vrc_tst_dist_list']:
+        for dist in par['vrc_tst_scan_points']:
             if dist < vrc_tst_start:
-                logger.info(f"Removing sampling surface {dist} for reaction {reaction_name}")
+                logger.info(f"Removing sampling surface {dist} for reaction {reac_name}")
                 continue
             elif dist >= vrc_tst_start:
-                surfaces.extend(pp_settings.create_all_surf_for_dist(dist, fragments, par, reactive_atoms))
-                
-        #Creating the strings to print input file
-        #Fragments block:
-        Fragments_block = "#Fragments geometries are in Angstroms\n"
-        for frag in fragments:
-            Fragments_block = Fragments_block + (repr(frag)) + "\n"
+                surfaces.extend(pp_settings.create_all_surf_for_dist(dist=dist,
+                                                                     fragments=fragments,
+                                                                     par=par))
 
-        #Surfaces block:
-        Surfaces_block = "#Pivot_points and distances are in Bohr\ndivid_surf = [\n"
+        # TODO rewrite using templates
+        # Creating the strings to print input file
+
+        # Surfaces block:
+        Surfaces_block: str = ''
         for index, surf in enumerate(surfaces):
-            Surfaces_block = Surfaces_block + (repr(surf))
+            Surfaces_block = Surfaces_block + (repr(surf)) + ',\n\n'
             if surf == surfaces[-1]:
                 Surfaces_block = Surfaces_block[:-3]
-        Surfaces_block += "]\n"
 
-        #Corrections block
-        corrections_block = "#Scan energies are in Kcal/mol. The 0 is the assymptotic energy.\n#Scan distances are in Angstrom\ncorrections = {\n"
-        for correction in corrections:
-            corrections_block += f"'{correction}' : " + "{\n"
-            for ckey, cvalue in corrections[correction].items():
-                if isinstance(cvalue, str):
-                    corrections_block += f"'{ckey}' : '{cvalue}',\n"
-                else:
-                    corrections_block += f"'{ckey}' : {cvalue},\n"
-            corrections_block = corrections_block[:-2]
-            corrections_block += "\n}\n"
-        corrections_block += "}\n"
+        # Corrections block
+        tpl_1d_corr = f'{kb_path}/tpl/rotdPy_1d_corr.tpl'
+        with open(tpl_1d_corr, 'r') as f:
+            fr = f.read()
+        kb_1d_correction: str = fr.format(scan_ref=pp_info['scan_ref'],
+                                          e_trust=pp_info['e_high'],
+                                          r_trust=pp_info['dist'],
+                                          e_sample=pp_info['e_samp'],
+                                          r_sample=pp_info['dist'])
 
-        #Calc_block:
-        whoami = getpass.getuser()
-        Calc_block = "calc = {\n" +\
-                    "'code': 'molpro',\n" +\
-                    f"'scratch': '/scratch/{whoami}',\n" +\
-                    f"'processors': 1,\n" +\
-                    f"'queue': '{par['queuing']}',\n" +\
-                    "'max_jobs': 2000}"
+        # Calc_block:
+        tpl_rotdPy_calc = f'{kb_path}/tpl/rotdPy_calc.tpl'
+        with open(tpl_rotdPy_calc, 'r') as f:
+            fr = f.read()
+        rotdPy_calc: str = fr.format(code='molpro',
+                                     whoami=getpass.getuser(),
+                                     queue={par['queuing']},
+                                     max_jobs=2000)
 
-        #Flux block:
-        Flux_block = "flux_parameter = {'pot_smp_max': 6000, 'pot_smp_min': 500, #per facet\n" +\
-                        "                  'tot_smp_max': 15000, 'tot_smp_min': 500, \n" +\
-                        "                  'flux_rel_err': 5, 'smp_len': 1}\n"
-
-
-        fname = f"{job_name}.py"
-        folder = "rotdPy"
         template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
         with open(template_file_path) as template_file:
-            template = template_file.read()
-            new_input = template.format(job_name = job_name,
-                                   Fragments_block = Fragments_block,
-                                   Surfaces_block = Surfaces_block,
-                                   frag_names = '[' + ', '.join(fragnames) + ']',
-                                   calc_block = Calc_block,
-                                   flux_block = Flux_block,
-                                   min_dist = par['vrc_tst_dist_list'][0],
-                                   corrections_block=corrections_block,
-                                   inf_energy=inf_energy)
+            tpl: str = template_file.read()
+        new_input: str = tpl.format(f1=repr(fragments[0]),
+                                    f2=repr(fragments[1]),
+                                    job_name=reac_name,
+                                    Surfaces_block=Surfaces_block,
+                                    frag_names='[' + ', '.join(fragnames) + ']',
+                                    calc_block=rotdPy_calc,
+                                    min_dist=par['vrc_tst_scan_points'][0],
+                                    corrections_block=kb_1d_correction,
+                                    inf_energy=inf_energy)
+        folder = "rotdPy"
         if not os.path.exists(folder):
             # Create a new directory because it does not exist
             os.makedirs(folder)
-
-        with open(f"{folder}/{fname}", 'w') as f:
+        with open(f"{folder}/{reac_name}.py", 'w') as f:
             f.write(new_input)
 
-        #Erase the fragments for this reaction
+        # Erase the fragments for this reaction
         Fragment._instances = []
 
 def is_unique_vdW(well, vdW):
-    #Return boolean
+    # Return boolean
     if 'prod' not in well:
         return True
     
-    #Find well's reaction
+    # Find well's reaction
     for idx, vdw in enumerate(vdW):
         vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
         if vdw_name == well:
             products = '_'.join(sorted(vdw[2]))
             break
 
-    #Compare products with other reactions
+    # Compare products with other reactions
     other_vdW = vdW[:idx]
     if idx+1 < len(vdW):
         other_vdW.extend(vdW[idx+1:])
@@ -1599,18 +1480,18 @@ def is_unique_vdW(well, vdW):
         other_prod = '_'.join(sorted(vdw[2]))
         if other_prod == products:
             return False
-    #No other reaction with a vdW well lead to the same prod.
+    # No other reaction with a vdW well lead to the same prod.
     return True
     
 def find_min_vdW(vdW: list, well_energies: dict) -> dict:
-    #Dict linking each vdW well to the lowest equivalent
+    # Dict linking each vdW well to the lowest equivalent
     min_vdW = {}
     for idx, vdw in enumerate(vdW):
         vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
         products = '_'.join(sorted(vdw[2]))
         vdw_energy = well_energies[vdw_name]
 
-        #Minimum set to itself
+        # Minimum set to itself
         if vdw_name not in min_vdW:
             min_vdW[vdw_name] = vdw_name
 
@@ -1623,12 +1504,11 @@ def find_min_vdW(vdW: list, well_energies: dict) -> dict:
             other_prod = '_'.join(sorted(other_vdw[2]))
             other_energy = well_energies[other_name]
 
-            #Minimum set to a different well if found
+            # Minimum set to a different well if found
             if other_prod == products:
                 if other_energy < well_energies[min_vdW[vdw_name]]:
                     min_vdW[vdw_name] = other_name
     return min_vdW
-        
         
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
@@ -1944,9 +1824,9 @@ def submit_job(chemid, par):
                         .format(chemid, par['barrierless_saddle_single_point_template']))
         shutil.copyfile('{}'.format(par['barrierless_saddle_prod_single_point_template']), '{}/{}'
                         .format(chemid, par['barrierless_saddle_prod_single_point_template']))
-    if par['vrc_tst_scan_parameters']['molpro_tpl'] != '':
-        shutil.copyfile('{}'.format(par['vrc_tst_scan_parameters']['molpro_tpl']), 
-                        '{}/{}'.format(chemid, par['vrc_tst_scan_parameters']['molpro_tpl']))
+    if par['vrc_tst_scan_molpro_tpl'] != '':
+        shutil.copyfile('{}'.format(par['vrc_tst_scan_molpro_tpl']), 
+                        '{}/{}'.format(chemid, par['vrc_tst_scan_molpro_tpl']))
     outfile = open(f'{chemid}/kinbot.out', 'w')
     errfile = open(f'{chemid}/kinbot.err', 'w')
     process = subprocess.Popen(command,

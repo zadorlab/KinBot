@@ -18,8 +18,9 @@ license = {file = "LICENSE"}
 # keywords = []
 authors = [
     {name="Judit Zádor", email="jzador@sandia.gov"},
-    {name="Ruben Vande Vijver", email="ruben.vandevijver@ugent.be"},
+    {name="Ruben Van de Vijver", email="ruben.vandevijver@ugent.be"},
     {name="Carles Martí", email="cmartia@sandia.gov"},
+    {name="Clément Soulié", email="csoulie@sandia.gov"},
     {name="Amanda Dewyer", email="adewyer@sandia.gov"},
 ]
 maintainers = [
@@ -36,8 +37,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry"
 ]
 dependencies = [
-        "numpy>=1.17.0",
-        "ase>=3.19",
+        "numpy>=1.17.0,<2.0",
+        "ase>=3.19,<3.23",
         "networkx",
         "rmsd>=1.5.1",
         "sella"

@@ -26,36 +26,44 @@ def generate_grid(start, interval, factor, num_point):
 
 
 # temperature, energy grid and angular momentum grid
-temperature = generate_grid(10, 10, 1.05, 51)
+temperature = generate_grid(10, 10, 1.05, 80)
 energy = generate_grid(0, 10, 1.05, 190)
-angular_mom = generate_grid(0, 1, 1.1, 40)
+angular_mom = generate_grid(0, 1, 1.1, 80)
 
 # fragment info
-{Fragments_block}
+# Coordinates in Angstrom
+{f1}
+{f2}
 
 # Setting the dividing surfaces
 
+# Pivot_points and distances are in Bohr
+divid_surf = [
 {Surfaces_block}
+             ]
 
 {calc_block}
 
 {corrections_block}
 
-inf_energy = {inf_energy}
+inf_energy = {inf_energy} # Hartree
 
-_{job_name} = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
+kb_sample = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
                          energy_size=1, min_fragments_distance={min_dist},
                          corrections=corrections,
-                         name='_{job_name}')
+                         name='kb_{job_name}')
 
-# the flux info per surface
+# Flux parameters:
 #flux_rel_err: flux accuracy (1=99% certitude, 2=98%, ...)
 #pot_smp_max: maximum number of sampling for each facet
 #pot_smp_min: minimum number of sampling for each facet
-#tot_smp_max: maximum number of total sampling
-#tot_smp_min: minimum number of total sampling
+#tot_smp_max: maximum number of total sampling per surface
+#tot_smp_min: minimum number of total sampling per surface
+#smp_len: Number of valid sample asked of each subprocess
 
-{flux_block}
+flux_parameter = {{'pot_smp_max': 6000, 'pot_smp_min': 500,
+                  'tot_smp_max': 15000, 'tot_smp_min': 500,
+                  'flux_rel_err': 5, 'smp_len': 1}}
 
 flux_base = FluxBase(temp_grid=temperature,
                      energy_grid=energy,
@@ -65,7 +73,7 @@ flux_base = FluxBase(temp_grid=temperature,
 
 # start the final run
 # Will read from the restart db
-multi = Multi(sample=_{job_name}, dividing_surfaces=divid_surf,
+multi = Multi(sample=kb_sample, dividing_surfaces=divid_surf,
               fluxbase=flux_base, calculator=calc)
 multi.run()
 

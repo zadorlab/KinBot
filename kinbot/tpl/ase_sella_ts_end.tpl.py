@@ -46,6 +46,10 @@ mol = Atoms(symbols={atom},
 
 kwargs = {kwargs}
 mol.calc = {Code}(**kwargs)
+if '{Code}' == 'Gaussian':
+    mol.get_potential_energy()
+    kwargs['guess'] = 'Read'
+    mol.calc = {Code}(**kwargs)
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')

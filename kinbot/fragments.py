@@ -1,6 +1,9 @@
+from typing import Any
+from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
-from kinbot import constants
+from ase.atoms import Atoms
 import numpy as np
+from numpy import ndarray
 from numpy import pi
 from kinbot import pp_tables
 from kinbot import geometry
@@ -12,85 +15,86 @@ logger = logging.getLogger('KinBot')
 
 class Fragment(StationaryPoint):
     """
-    Class that creates stationnary points with specific methods to setup VRC TST calculations.
-
+    Class that creates stationary points
+    with specific methods to setup VRC TST calculations.
     """
     _instances = []
 
-    def __init__(self, **kwargs):
+    def __init__(self,
+                 frag_num: int,
+                 max_frag: int,
+                 symbols: str,
+                 geom: list[list[float]],
+                 ra: list[int],
+                 par: dict[str, Any],
+                 charge: int | None = None,
+                 mult: int | None = None,
+                 atoms: Atoms | None = None
+                 ):
         """
-        Class generator. The fragment is part of an emsemble of fragments used to generate pivot points in VRC TST.
+        Class generator.
+        The fragment is part of an emsemble of fragments
+        used to generate pivot points in VRC TST.
         """
         Fragment._instances.append(self)
 
-        self.frag_number = int(kwargs["frag_number"])
-        self.max_frag = int(kwargs["max_frag"])
-        self.chemid= int(kwargs["chemid"])
-        self.parent_chemid = int(kwargs["parent_chemid"])
-        self.formula = kwargs["formula"]
-        self.frag_name = kwargs["frag_name"]
-        self.charge = kwargs["charge"]
-        self.mult = int(kwargs["mult"])
-        self.geom = np.array(kwargs["geom"])
-        self.atom = kwargs["atom"]
-        self.com = np.array(kwargs["com"])
-        self.pivot_points = []
-        self.par = kwargs["par"]
+        self.frag_number: int = frag_num
+        self.max_frag: int = max_frag
+        self.pivot_points: list[list[float]] = []
+        self.par: dict[str, Any] = par
+        self.ra: ndarray = np.array(ra, dtype=int)
+        self.atom = Atoms(symbols=symbols,
+                          positions=geom
+                          )
+        if charge is None:
+            self.charge: int = sum(self.atom.get_initial_charges())
+        else:
+            self.charge: int = charge
+        if mult is None and\
+           self.atom.calc is None or\
+           'mult' not in self.atom.calc.parameters:
+            self.mult: int = 1
+        elif mult is not None:
+            self.mult: int = mult
+        else:
+            self.mult: int = self.atom.calc.parameters['mult']
+        self.formula: str = str(self.atom.get_chemical_symbols())
+        self.frag_name: str = self.atom.get_chemical_formula()
+        self.geom: ndarray[Any] = np.subtract(geom,
+                                              self.atom.get_center_of_mass())
+        self.atom = Atoms(symbols=symbols,
+                          positions=geom
+                          )
 
-        Fragment.set_fragnames(self)        
+        self.frag_name: str
+        Fragment.set_fragnames(self)
 
-        self.geom = np.subtract(self.geom,self.com)
-        self.com = np.zeros(3)
-
-        super(Fragment, self).__init__(self.frag_name, self.charge, int(self.mult), atom=self.atom, geom=self.geom)
+        super(Fragment, self).__init__(name=self.frag_name,
+                                       charge=self.charge,
+                                       mult=self.mult,
+                                       atom=self.atom.symbols,
+                                       geom=self.geom)
         self.characterize()
+        self.com: ndarray[float] = np.zeros(3)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         #TODO: Modify nonlinear by a variable that detects linearity
-        return f"{self.frag_name} = Nonlinear(Atoms('{self.formula}', positions={np.round(np.array(self.geom), decimals=4).tolist()}))\n".replace("],", "],\n                                   ")
+        with open(f'{kb_path}/tpl/rotdPy_frag.tpl', 'r') as f:
+            tpl = f.read()
+        rpr: str = tpl.format(
+            frag_name=self.frag_name,
+            frag_type='Nonlinear',
+            formula=self.formula,
+            positions=np.round(np.array(self.geom),
+                               decimals=4).tolist()
+        )
+        rpr = rpr.replace('], [',
+                          '],\n                     [')
+
+        return rpr
 
     @classmethod
-    def from_ase_atoms(cls, atoms, **kwargs):
-        """Builds a Fragment object from an ase.Atoms object.
-
-        Args:
-            atoms (ase.Atoms): The Atoms class from the ase library.
-
-        Returns:
-            Fragment: A Fragment object with the properties of 
-                the ase.Atoms, and access to methods for VRC-TST settings
-        """
-        if 'formula' not in kwargs:
-            formula = str(atoms.symbols)
-
-        if 'frag_name' not in kwargs:
-            frag_name = formula
-
-        if 'charge' not in kwargs:
-            if atoms.calc is None or 'charge' not in atoms.calc.parameters:
-                charge = sum(atoms.get_initial_charges())
-            else:
-                charge = atoms.calc.parameters['charge']
-
-        if 'com' not in kwargs:
-            com = atoms.get_center_of_mass()
-
-        if 'mult' not in kwargs:
-            if atoms.calc is None or 'mult' not in atoms.calc.parameters:
-                mult = 1
-            else:
-                mult = atoms.calc.parameters['mult']
-
-        if 'geom' not in kwargs:
-            geom = atoms.positions
-
-        if 'symbols' not in kwargs:
-            symbols = list(atoms.symbols)
-
-        return cls(frag_name=frag_name, charge=charge, mult=mult, geom=geom, atom=symbols, formula=formula, com=com, **kwargs)
-
-    @classmethod
-    def set_fragnames(cls, self):
+    def set_fragnames(cls, self) -> None:
         cls._fragnames = [inst.frag_name for inst in cls._instances[:-1]]
         if f"{self.frag_name}_0" in cls._fragnames:
             self.frag_name = f"{self.frag_name}_{self.frag_number}"
@@ -102,33 +106,14 @@ class Fragment(StationaryPoint):
         cls._fragnames.append(self.frag_name)
 
     @classmethod
-    def get_fragnames(cls):
+    def get_fragnames(cls) -> list[str]:
         return cls._fragnames
 
-    def set_parent_chemid(self, p_chemid):
-        self.parent_chemid = p_chemid
-
-    def set_map(self, p_map):
-        self.map = np.array(p_map, dtype=int)
-
-    def get_chemical_formula(self):
+    def get_chemical_formula(self) -> str:
         all_elem = ""
         for elem in self.atom:
             all_elem += f"{elem}"
         return all_elem
-                
-    def set_ra(self, ra_indexes_in_parent=None, ra_indexes_in_frag=None): 
-        if ra_indexes_in_frag is None:
-            #Find the atomid of all reactive atoms
-            ra_indexes_in_frag = [ i for i, x in enumerate(self.map) if x == ra_indexes_in_parent]
-        #Find all equivalent atoms
-        if len(self.atom_uniq) != self.natom:
-            for atom in ra_indexes_in_frag:
-                index = self.atom_uniq.index(atom)
-                for equivalent_atom in self.atom_eqv[index]:
-                    if equivalent_atom not in ra_indexes_in_frag:
-                        ra_indexes_in_frag.append(equivalent_atom)
-        self.ra = np.array(ra_indexes_in_frag, dtype=int)
 
     def get_pp_on_com(self):
             return np.round(copy.copy(self.com),\
@@ -158,16 +143,19 @@ class Fragment(StationaryPoint):
                     ndouble += 1
                 case 3:
                     ntriple += 1
-        atom_type = pp_tables.atom_type_table(element, nconnect, ndouble, ntriple)
+        atom_type: str = pp_tables.atom_type_table(element=element,
+                                                   nconnect=nconnect,
+                                                   ndouble=ndouble,
+                                                   ntriple=ntriple)
         return atom_type
-    
+
     def get_pp_coord(self, index, atom_type, dist_from_ra=None):
         if dist_from_ra is None:
-            #Return a list of relevant distances to try
+            # Return a list of relevant distances to try
             dist_from_ra = pp_tables.pp_length_table(atom_type[0])
         match atom_type:
             case 'H' | 'C' | 'O' | 'S':
-                #Create pivot point on atom
+                # Create pivot point on atom
                 return [self.get_pp_on_atom(index)]
             case 'H_lin':
                 pp_coord = self.create_pp_aligned_with_bond(index, length=dist_from_ra)
@@ -216,7 +204,11 @@ class Fragment(StationaryPoint):
             case 'S_bip_quad_t':
                 pass
 
-    def create_pp_aligned_with_bond(self, index, length=None, angle=None, last_neighbours=None):
+    def create_pp_aligned_with_bond(self,
+                                    index,
+                                    length=None,
+                                    angle=None,
+                                    last_neighbours=None):
         #Create pivot point aligned with the bond
         ra_pos = np.array(self.geom[index], dtype=float)
         neighbour_pos = []

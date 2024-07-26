@@ -448,11 +448,13 @@ class ReactionGenerator:
                     # do the products optimizations
                     temp_prod_opt = []  # holding the optimization objects temporarily
                     for st_pt in obj.products:
+                        new = 1
                         # do the products optimizations
                         # check for products of other reactions that are the same as this product
                         # in the case such products are found, use the same Optimize object for both
                         for i, inst_i in enumerate(self.species.reac_inst):
-                            new = 1
+                            if not new:
+                                break
                             if i != index:
                                 obj_i = self.species.reac_obj[i]
                                 if self.species.reac_ts_done[i] > 2:
@@ -465,7 +467,7 @@ class ReactionGenerator:
                         if new:
                             prod_opt = Optimize(st_pt, self.par, self.qc)
                             prod_opt.do_optimization()
-                            if prod_opt.shigh == -999: 
+                            if prod_opt.shigh == -999:
                                 logger.info('\tRxn search failed for {}, prod_opt shigh fail for {}.'
                                              .format(obj.instance_name, prod_opt.species.chemid))
                                 self.species.reac_ts_done[index] = -999

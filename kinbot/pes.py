@@ -1361,9 +1361,9 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         barrierless.append([reactant, reaction_name, products, barrier])
 
     for index, reac in enumerate(barrierless):
-        reactant, reaction_name, products, barrier = reac
+        reactant, reac_name, products, barrier = reac
         try:
-            if reaction_name not in par['vrc_tst_scan'][reactant]:
+            if reac_name not in par['vrc_tst_scan'][reactant]:
                 continue
         except KeyError:
             continue
@@ -1378,7 +1378,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
             logger.warning(f"Results of scan for 1D correction\
                             not found for rotdPy job {reac_name}")
             raise KeyError(f"Results of scan for 1D correction\
-                            not found for rotdPy job {reaction_name}")
+                            not found for rotdPy job {reac_name}")
 
         with open(json_file, 'r') as jf:
             pp_info: dict[str, Any] = json.load(jf)
@@ -1392,7 +1392,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                                       max_frag=2,
                                       symbols=pp_info['frags_atom'][frag_num],
                                       geom=pp_info['frags_geom'][frag_num],
-                                      ra=pp_info['scan_coo_equiv'][frag_num],
+                                      ra=pp_info['ra'][frag_num],
                                       par=par))
 
         fragnames = Fragment.get_fragnames()

@@ -88,25 +88,47 @@ def create_summary_file(species, qc, par):
     # add the license message to the file
     s.append(license_message.message)
 
+    l3status = hasattr(species, 'l3energy')
     max_len = 0
     for index in range(len(species.reac_inst)):
         if len(species.reac_name[index]) > max_len:
             max_len = len(species.reac_name[index])
+        if not l3status or species.reac_ts_done[index] != -1:
+            continue
+        l3status *= all([hasattr(p, 'l3energy')
+                         for p in species.reac_obj[index].products])
+        l3status *= hasattr(species.reac_obj[index].ts, 'l3energy')
+
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             ts = species.reac_obj[index].ts
-            if species.reac_type[index] == 'R_Addition_MultipleBond' and not par['high_level']\
+            if l3status and species.reac_type[index] != 'hom_sci':
+                energy = (ts.l3energy + ts.zpe
+                          - species.l3energy - species.zpe)
+                energy *= constants.AUtoKCAL
+            elif species.reac_type[index] == 'R_Addition_MultipleBond' \
+                    and not par['high_level'] \
                     and qc.qc != 'nn_pes':
-                mp2_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
+                mp2_energy = qc.get_qc_energy(str(species.chemid)
+                                              + '_well_mp2')[1]
                 mp2_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
-                energy = (ts.energy + ts.zpe - mp2_energy - mp2_zpe) * constants.AUtoKCAL
+                energy = (ts.energy + ts.zpe
+                          - mp2_energy - mp2_zpe) * constants.AUtoKCAL
             elif species.reac_type[index] == 'hom_sci':
-                energy = (sum([pr.energy + pr.zpe 
-                              for pr in species.reac_obj[index].products])
-                          - species.energy - species.zpe) * constants.AUtoKCAL
+                if l3status:
+                    energy = (sum([pr.l3energy + pr.zpe
+                                   for pr in species.reac_obj[index].products])
+                              - species.energy - species.zpe)
+                    energy *= constants.AUtoKCAL
+                else:
+                    energy = (sum([pr.energy + pr.zpe
+                                   for pr in species.reac_obj[index].products])
+                              - species.energy - species.zpe)
+                    energy *= constants.AUtoKCAL
             else:
-                energy = (ts.energy + ts.zpe - species.energy - species.zpe) * constants.AUtoKCAL
-                
+                energy = (ts.energy + ts.zpe - species.energy - species.zpe)
+                energy *= constants.AUtoKCAL
+
             name = []
             for prod in species.reac_obj[index].products:
                 name.append(str(prod.chemid))

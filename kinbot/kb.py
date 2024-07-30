@@ -2,8 +2,6 @@ import sys
 import datetime
 import copy
 
-from os.path import isfile
-
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.parameters import Parameters
@@ -137,16 +135,16 @@ def main():
 
         # do an MP2 optimization of the reactant,
         # to compare some scan barrier heigths to
-        if qc.qc != 'nn_pes' and (par['families'] == ['all'] or \
-                'birad_recombination_R' in par['families'] or \
-                'r12_cycloaddition' in par['families'] or \
-                'r14_birad_scission' in par['families'] or \
-                'R_Addition_MultipleBond' in par['families'] or \
+        if qc.qc != 'nn_pes' and (par['families'] == ['all'] or
+                'birad_recombination_R' in par['families'] or
+                'r12_cycloaddition' in par['families'] or
+                'r14_birad_scission' in par['families'] or
+                'R_Addition_MultipleBond' in par['families'] or
                 (par['skip_families'] != ['none'] and
                 ('birad_recombination_R' not in par['skip_families'] or
                 'r12_cycloaddition' not in par['skip_families'] or
                 'r14_birad_scission' not in par['skip_families'] or
-                'R_Addition_MultipleBond' not in par['skip_families'])) or \
+                'R_Addition_MultipleBond' not in par['skip_families'])) or
                 par['reaction_search'] == 0):
             logger.debug('Starting MP2 optimization of initial well...')
             qc.qc_opt(well0, well0.geom, mp2=1)

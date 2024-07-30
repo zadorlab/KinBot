@@ -365,7 +365,7 @@ class Optimize:
                             molp.create_molpro_submit(do_vdW=self.just_high)
                         status, molpro_energy = molp.get_molpro_energy(key, do_vdW=self.just_high)
                         if status:
-                            self.species.energy = molpro_energy
+                            self.species.l3energy = molpro_energy
 
                     elif self.par['single_point_qc'] == 'orca':
                         orca = Orca(self.species, self.par)
@@ -374,7 +374,7 @@ class Optimize:
                         orca.create_orca_submit()
                         status, orca_energy = orca.get_orca_energy(key)
                         if status:
-                            self.species.energy = orca_energy
+                            self.species.l3energy = orca_energy
 
                     self.delete_files()
 

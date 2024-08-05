@@ -42,6 +42,10 @@ divid_surf = [
 {Surfaces_block}
              ]
 
+selected_faces = {selected_faces}
+faces_weights = {faces_weights}
+
+
 {calc_block}
 
 {corrections_block}

@@ -183,8 +183,10 @@ class VTS:
 
         # look over resonances and automatically add them
         for rad in prod.rads:  # rad is 1 at the radical
-            if any(rad == 1) and mapping[list(rad).index(1)] not in equiv:
-                equiv.append(mapping[list(rad).index(1)])
+            if any(rad == 1):
+                for atm in np.where(rad == 1)[0]:
+                    if mapping[atm] not in equiv:
+                        equiv.append(mapping[list(rad).index(1)])
 
         return
 
@@ -453,14 +455,21 @@ class VTS:
                     eee = list((np.array(eee) - eee[-1]) * constants.AUtoKCAL)
                     ens.append(eee)
 
+                selected_faces = []
+                faces_weights = []
+
                 # Create scan references between all equivalent atoms:
                 scan_ref = []
-                for i in self.scan_reac[reac].equiv[0]:
+                for n, i in enumerate(self.scan_reac[reac].equiv[0]):
+                    selected_faces.append(n*len(self.scan_reac[reac].equiv[1]))
                     a: int = np.where(self.scan_reac[reac].maps[0] == i)[0][0]
                     for j in self.scan_reac[reac].equiv[1]:
                         b: int = np.where(
                             self.scan_reac[reac].maps[1] == j)[0][0]
                         scan_ref.append([a, b])
+                        faces_weights.append(0)
+                        faces_weights[selected_faces[-1]] += 1
+                        
 
                 # Create list of reactive atoms (fragment indexed)
                 ra: list[list[int]] = [[], []]
@@ -477,7 +486,6 @@ class VTS:
                                         x_label=f"{reac}",
                                         y_label="Energy (kcal/mol)",
                                         data_legends=['sample', 'high'],
-                                        # comments=comments
                                         )
 
                 # write small file with correction data

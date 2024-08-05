@@ -1351,7 +1351,8 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
     [reactant, reaction_name, products, barrier, vdW_energy, vdW_direction]
     """
 
-    barrierless = list(bless)  # Avoids modifying barrierless outside of the function
+    # Avoids modifying barrierless outside of the function
+    barrierless = list(bless)
 
     # format the vdW reactions to be added to the barrierless list.
     for reac in vdW:
@@ -1460,11 +1461,12 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         # Erase the fragments for this reaction
         Fragment._instances = []
 
+
 def is_unique_vdW(well, vdW):
     # Return boolean
     if 'prod' not in well:
         return True
-    
+
     # Find well's reaction
     for idx, vdw in enumerate(vdW):
         vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
@@ -1482,7 +1484,8 @@ def is_unique_vdW(well, vdW):
             return False
     # No other reaction with a vdW well lead to the same prod.
     return True
-    
+
+
 def find_min_vdW(vdW: list, well_energies: dict) -> dict:
     # Dict linking each vdW well to the lowest equivalent
     min_vdW = {}
@@ -1498,7 +1501,7 @@ def find_min_vdW(vdW: list, well_energies: dict) -> dict:
         other_vdW = vdW[:idx]
         if idx+1 < len(vdW):
             other_vdW.extend(vdW[idx+1:])
-        
+
         for other_vdw in other_vdW[:idx]:
             other_name = other_vdw[1] + other_vdw[-1].split('vdW')[1]
             other_prod = '_'.join(sorted(other_vdw[2]))
@@ -1509,7 +1512,7 @@ def find_min_vdW(vdW: list, well_energies: dict) -> dict:
                 if other_energy < well_energies[min_vdW[vdw_name]]:
                     min_vdW[vdw_name] = other_name
     return min_vdW
-        
+
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
                            well_energies, prod_energies, highlight):
@@ -1525,9 +1528,9 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
     if highlight is None:
         highlight = []
 
-    #Dictionary
-    #Key: 'vdW_name'
-    #Value: 'min_vdW_name' 
+    # Dictionary
+    # Key: 'vdW_name'
+    # Value: 'min_vdW_name' 
     min_vdW = find_min_vdW(vdW, well_energies)
 
     well_lines = []

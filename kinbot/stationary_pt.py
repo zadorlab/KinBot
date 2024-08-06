@@ -868,13 +868,14 @@ class StationaryPoint:
         self.atom_eqv = []
         for atomi in range(self.natom):
             new_list = 1
-            for list in self.atom_eqv:
-                for atomj in list:
-                    if self.atomid[atomi] == self.atomid[atomj] and not atomi in list:
-                        if self.rigid_along_path(atomi,atomj):
+            for eqv_list in self.atom_eqv:
+                for atomj in eqv_list:
+                    if self.atomid[atomi] == self.atomid[atomj] \
+                            and atomi not in eqv_list:
+                        if self.rigid_along_path(atomi, atomj):
                             break
                         else:
-                            list.append(atomi)
+                            eqv_list.append(atomi)
                             new_list = 0
                             break
             if new_list:

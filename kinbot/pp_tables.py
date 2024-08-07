@@ -140,7 +140,7 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
     return atom_type
 
 
-def pp_length_table(element: str) -> list[float]:
+def pp_length_table() -> dict[str, list[float]]:
     """Create a default list of distances to try from a given pivot point.
 
     Args:
@@ -156,6 +156,4 @@ def pp_length_table(element: str) -> list[float]:
         'O': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
         'S': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist()}
 
-    lst: list[float] = pp_table[element]
-
-    return lst
+    return pp_table

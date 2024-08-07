@@ -155,7 +155,7 @@ def create_surface(dist,
     return a list containing VRC_TST surfaces."""
     pps_coords = [[], []]
 
-    equiv_pp = [[],[]]
+    equiv_pp = [[], []]
 
     # Contains the index of the faces to sample for a surface.
     selected_faces: list[int] = []

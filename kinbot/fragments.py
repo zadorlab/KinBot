@@ -211,7 +211,7 @@ class Fragment(StationaryPoint):
                      dist_from_ra: list[float] = []):
         if len(dist_from_ra) == 0:
             # Return a list of relevant distances to try
-            dist_from_ra = pp_tables.pp_length_table(element=atom_type[0])
+            dist_from_ra = pp_tables.pp_length_table()[atom_type[0]]
         match atom_type:
             case 'H' | 'C' | 'O' | 'S':
                 # Create pivot point on atom

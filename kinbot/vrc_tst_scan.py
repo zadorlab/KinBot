@@ -32,6 +32,9 @@ class VTS:
         self.scan_reac = {}
         self.prod_chemids = []
 
+        # Stores index of reactive atoms and their quivalent
+        self.ra: list[list[list[int]]] = [[], []]
+
     def calculate_correction_potentials(self):
         """
         The main driver for scanning the potential.

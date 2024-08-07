@@ -8,7 +8,7 @@ class VRC_TST_Surface:
     __id__ = 0
 
     def __init__(self,
-                 pp_coords: list[list[float]],
+                 pp_coords: list[list[list[float]]],
                  dist_matrix: ndarray,
                  info: list[str]) -> None:
         """Surface object characterized by a

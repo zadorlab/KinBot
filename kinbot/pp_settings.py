@@ -2,6 +2,7 @@ from typing import Any
 import numpy as np
 import logging
 from kinbot import constants
+from kinbot.fragments import Fragment
 from kinbot.vrc_tst_surfaces import VRC_TST_Surface
 
 logger = logging.getLogger('KinBot')
@@ -147,15 +148,24 @@ def create_all_surf_for_dist(dist, fragments, par) -> list[VRC_TST_Surface]:
 
 
 def create_surface(dist,
-                   fragments=None,
+                   equiv_ra: list[list[int]] = [],
+                   fragments: list[Fragment] = [],
                    pps_dists=None) -> VRC_TST_Surface:
     """Collect the coord of all pivot points and
     return a list containing VRC_TST surfaces."""
     pps_coords = [[], []]
+
+    equiv_pp = [[],[]]
+
+    # Contains the index of the faces to sample for a surface.
+    selected_faces: list[int] = []
+    # Contains the weight that multiplies the flux for the face
+    # at a given index.
+    faces_weights: list[int] = []
     info: list[str] = ['',
                        '',
                        f'Distance: {dist} Angstrom']
-    if fragments is not None:
+    if len(fragments) != 0:
         for findex, frag in enumerate(fragments):
             info[findex] = f'Fragment {findex}: '
             if frag.natom == 1:
@@ -170,9 +180,14 @@ def create_surface(dist,
             else:
                 info[findex] += 'pp oriented'
                 for ra_index, ra in enumerate(frag.ra):
-                    coord = frag.get_pp_next_to_ra(index=ra,
-                                                   dist_from_ra=pps_dists[findex][ra_index])
-                    info[findex] += f' {ra} ({pps_dists[findex][ra_index]/ constants.BOHRtoANGSTROM} bohr)'
+                    coord: list[float] | list[list[float]] = \
+                        frag.get_pp_next_to_ra(
+                        index=ra,
+                        dist_from_ra=pps_dists[findex][ra_index])
+                    info[findex] += ' {} ({} bohr)'.format(
+                        ra,
+                        pps_dists[findex][ra_index] /
+                        constants.BOHRtoANGSTROM)
                     if isinstance(coord[0], list):
                         pps_coords[findex].extend(coord)
                     else:
@@ -185,10 +200,12 @@ def create_surface(dist,
                 f'Distance: {dist} Angstrom']
 
     # Create dist matrix
-    dist_dim = (len(pps_coords[1]),len(pps_coords[0]))
+    dist_dim = (len(pps_coords[1]), len(pps_coords[0]))
     dist_matrix = np.full(dist_dim, dist)
 
-    return VRC_TST_Surface(pps_coords, dist_matrix, info)
+    return VRC_TST_Surface(pp_coords=pps_coords,
+                           dist_matrix=dist_matrix,
+                           info=info)
 
 
 # def reset_reactive_atoms(reactive_atoms, maps):

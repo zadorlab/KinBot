@@ -1,38 +1,61 @@
 import copy
 import numpy as np
+from numpy.typing import NDArray
+from typing import Any
 import math
 
 from kinbot import constants
+
 
 def unit_vector(vector):
     """ Rescale vector to length 1.  """
     u = vector / np.linalg.norm(vector)
     return u
 
-def calc_angle(a, b, c):
-    """ Calculate the A - B - C angle in radians"""
 
-    v1 = (b-a) / np.linalg.norm(b-a)
-    v2 = (b-c) / np.linalg.norm(b-c)
+def calc_angle(a: NDArray[np.float64],
+               b: NDArray[np.float64],
+               c: NDArray[np.float64]
+               ) -> float:
+    """ Calculate the A - B - C angle in radians
+
+    Args:
+        a (NDArray[np.float64]): 3D coordinates of A
+        b (NDArray[np.float64]): 3D coordinates of B
+        c (NDArray[np.float64]): 3D coordinates of C
+
+    Returns:
+        float: Angle in radians.
+    """
+
+    v1: NDArray[np.float64] = (b-a) / np.linalg.norm(b-a)
+    v2: NDArray[np.float64] = (b-c) / np.linalg.norm(b-c)
     return np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
 
-def plane_from_points(v0, v1, v2):
-    """Create a 2D plane from 3 3D vectors"""
-    u = np.subtract(v1, v0)
-    v = np.subtract(v2, v0)
 
-    normal = np.cross(u, v)
-    d= np.dot(normal, v0)
+def plane_from_points(v0: NDArray[np.float64],
+                      v1: NDArray[np.float64],
+                      v2: NDArray[np.float64],) -> tuple[NDArray[Any], float]:
+    """Create a 2D plane from 3 3D vectors"""
+    u: NDArray[Any] = np.subtract(v1, v0)
+    v: NDArray[Any] = np.subtract(v2, v0)
+
+    normal: NDArray[Any] = np.cross(u, v)
+    d: float = np.dot(normal, v0)
 
     return normal, d
 
-def dist_point_to_plane(point, plane):
+
+def dist_point_to_plane(point: NDArray[Any],
+                        plane: tuple[NDArray[Any], float]
+                        ) -> float:
     """Return the shortest distance between a 3D point and a plane."""
     abc, d = plane
-     
+
     dist = abs((np.dot(abc, point) - d))
     e = np.sqrt(np.sum(np.square(abc)))
     return dist/e
+
 
 def is_linear(geom, bond):
     """
@@ -60,6 +83,7 @@ def is_linear(geom, bond):
                     p = [1., 0., 0.]
                 dummy.append(pos + p / np.linalg.norm(p))
     return dummy
+
 
 def calc_out_of_plane_angle(a, b, c, d):
     """

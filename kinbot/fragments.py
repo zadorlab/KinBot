@@ -3,8 +3,8 @@ from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
 from ase.atoms import Atoms
 import numpy as np
-from numpy import ndarray
-from numpy import pi
+from numpy.typing import NDArray
+from numpy import float64, int64, pi, floating
 from kinbot import pp_tables
 from kinbot import geometry
 import logging
@@ -12,6 +12,7 @@ import copy
 import math
 
 logger = logging.getLogger('KinBot')
+
 
 class Fragment(StationaryPoint):
     """
@@ -30,7 +31,7 @@ class Fragment(StationaryPoint):
                  charge: int | None = None,
                  mult: int | None = None,
                  atoms: Atoms | None = None
-                 ):
+                 ) -> None:
         """
         Class generator.
         The fragment is part of an emsemble of fragments
@@ -42,7 +43,7 @@ class Fragment(StationaryPoint):
         self.max_frag: int = max_frag
         self.pivot_points: list[list[float]] = []
         self.par: dict[str, Any] = par
-        self.ra: ndarray = np.array(ra, dtype=int)
+        self.ra: NDArray[int64] = np.array(ra, dtype=int64)
         self.atom = Atoms(symbols=symbols,
                           positions=geom
                           )
@@ -60,7 +61,7 @@ class Fragment(StationaryPoint):
             self.mult: int = self.atom.calc.parameters['mult']
         self.formula: str = str(self.atom.get_chemical_symbols())
         self.frag_name: str = self.atom.get_chemical_formula()
-        self.geom: ndarray[Any] = np.subtract(geom,
+        self.geom: NDArray[Any] = np.subtract(geom,
                                               self.atom.get_center_of_mass())
         self.atom = Atoms(symbols=symbols,
                           positions=geom
@@ -75,12 +76,17 @@ class Fragment(StationaryPoint):
                                        atom=self.atom.symbols,
                                        geom=self.geom)
         self.characterize()
-        self.com: ndarray[float] = np.zeros(3)
+        self.com: NDArray[float64] = np.zeros(3)
 
     def __repr__(self) -> str:
-        #TODO: Modify nonlinear by a variable that detects linearity
+        """Return the string representation of the fragment used in rotdPy.
+
+        Returns:
+            str: string to rebuild the fragment in rotdPy input.
+        """
+        # TODO: Modify nonlinear by a variable that detects linearity
         with open(f'{kb_path}/tpl/rotdPy_frag.tpl', 'r') as f:
-            tpl = f.read()
+            tpl: str = f.read()
         rpr: str = tpl.format(
             frag_name=self.frag_name,
             frag_type='Nonlinear',
@@ -95,11 +101,13 @@ class Fragment(StationaryPoint):
 
     @classmethod
     def set_fragnames(cls, self) -> None:
-        cls._fragnames = [inst.frag_name for inst in cls._instances[:-1]]
+        """Create an intuitive name for the fragments to use in rotdPy input.
+        """
+        cls._fragnames: list[str] = [inst.frag_name for inst in cls._instances[:-1]]
         if f"{self.frag_name}_0" in cls._fragnames:
             self.frag_name = f"{self.frag_name}_{self.frag_number}"
         elif self.frag_name in cls._fragnames:
-            index = cls._fragnames.index(self.frag_name)
+            index: int = cls._fragnames.index(self.frag_name)
             cls._instances[:-1][index].frag_name = f"{self.frag_name}_{index}"
             cls._fragnames = [inst.frag_name for inst in cls._instances[:-1]]
             self.frag_name = f"{self.frag_name}_{self.frag_number}"
@@ -110,32 +118,80 @@ class Fragment(StationaryPoint):
         return cls._fragnames
 
     def get_chemical_formula(self) -> str:
-        all_elem = ""
+        """Create the string of element in the order of the coordinates
+
+        Returns:
+            str: chemical elements
+        """
+        all_elem: str = ""
         for elem in self.atom:
             all_elem += f"{elem}"
         return all_elem
 
-    def get_pp_on_com(self):
-            return np.round(copy.copy(self.com),\
-                            decimals=5).tolist()
+    def get_pp_on_com(self) -> list[float]:
+        """Return the coordinate of the center of mass
+        of the fragment
 
-    def get_pp_on_atom(self, index):
-            return np.round(copy.copy(self.geom[index]),\
-                            decimals=5).tolist()
+        Returns:
+            list[float]: COM coordinates (origin)
+        """
 
-    def get_pp_next_to_ra(self, index, dist_from_ra=0.0):
-        atom_type = self.get_atom_type(index)
-        coord = self.get_pp_coord(index,\
-                                  atom_type,\
-                                  dist_from_ra=dist_from_ra)
-        return np.round(coord, decimals=5).tolist()
+        return np.round(copy.copy(self.com),
+                        decimals=5).tolist()
 
-    def get_atom_type(self, index):
+    def get_pp_on_atom(self, index) -> list[float]:
+        """Return the coordinate of the desired atom
+
+        Args:
+            index (int): Index of the atom
+
+        Returns:
+            list[float]: coordinates
+        """
+        return np.round(copy.copy(self.geom[index]),
+                        decimals=5).tolist()
+
+    def get_pp_next_to_ra(self,
+                          index: int,
+                          dist_from_ra: float = 0.0
+                          ) -> list[float] | list[list[float]]:
+        """Get the atom type and use it to get
+        the coordinates of the pivot point.
+
+        Args:
+            index (int): index of the reactive atom
+            dist_from_ra (float, optional): pivot point distance from
+                                            the reactive atom.
+                                            Defaults to 0.0.
+
+        Returns:
+            _type_: coordinates
+        """
+        atom_type: str = self.get_atom_type(index)
+        coord = self.get_pp_coord(
+            index=index,
+            atom_type=atom_type,
+            dist_from_ra=dist_from_ra)
+        
+        return np.round(coord,
+                        decimals=5).tolist()
+
+    def get_atom_type(self,
+                      index: int) -> str:
+        """Detect the connectivity of the atom index to
+        get its atom type.
+
+        Args:
+            index (int): index of atom in fragment
+
+        Returns:
+            atom_type (str): atom type name that depends on connectivity.
+        """
         element = self.atom[index]
         nconnect = 0
         ndouble = 0
         ntriple = 0
-        for this_bond in np.array(self.bond)[ index]:
+        for this_bond in np.array(self.bond)[index]:
             if this_bond != 0:
                 nconnect += 1
             match this_bond:
@@ -149,10 +205,13 @@ class Fragment(StationaryPoint):
                                                    ntriple=ntriple)
         return atom_type
 
-    def get_pp_coord(self, index, atom_type, dist_from_ra=None):
-        if dist_from_ra is None:
+    def get_pp_coord(self,
+                     index: int,
+                     atom_type: str,
+                     dist_from_ra: list[float] = []):
+        if len(dist_from_ra) == 0:
             # Return a list of relevant distances to try
-            dist_from_ra = pp_tables.pp_length_table(atom_type[0])
+            dist_from_ra = pp_tables.pp_length_table(element=atom_type[0])
         match atom_type:
             case 'H' | 'C' | 'O' | 'S':
                 # Create pivot point on atom
@@ -205,89 +264,142 @@ class Fragment(StationaryPoint):
                 pass
 
     def create_pp_aligned_with_bond(self,
-                                    index,
-                                    length=None,
-                                    angle=None,
-                                    last_neighbours=None):
-        #Create pivot point aligned with the bond
-        ra_pos = np.array(self.geom[index], dtype=float)
-        neighbour_pos = []
+                                    index: int,
+                                    length: float,
+                                    angle: float = 0.0,
+                                    last_neighbourg: int | None = None
+                                    ) -> list[float]:
+        """Create pivot point aligned with the bond
+
+        Args:
+            index (int): Index of atom in fragment.
+            length (float): pivot point length.
+            angle (float, optional): Angle deviation (degree) in the plane
+                                     bond+COM or bond+last_neighbourg.
+                                     Defaults to 0.0.
+            last_neighbourg (int, optional): Index for last point to define
+                                             the plane in which
+                                             to move the pivot point.
+                                             Defaults to None.
+
+        Returns:
+            list[float]: _description_
+        """
+        ra_pos: NDArray[Any] = np.array(self.geom[index], dtype=float)
+        neighbour_pos: list[list[float]] = []
         for neighbour_index, this_bond in enumerate(self.bond[index]):
             if this_bond != 0:
                 neighbour_pos.append(self.geom[neighbour_index])
                 break
 
-        if angle is None or not isinstance(angle, (float, int)) \
-        or last_neighbours is None or not isinstance(last_neighbours, int):
+        if angle == 0.0 or not isinstance(angle, (float, int)) \
+           or last_neighbourg is None or not isinstance(last_neighbourg, int):
             try:
-                pp_orient = np.subtract(ra_pos, neighbour_pos[0])
+                pp_orient: NDArray[Any] = np.subtract(ra_pos, neighbour_pos[0])
             except NameError:
-                logger.warning(f"Could not find any bond for atom {self.atom[index]}. Setting it to COM")
+                logger.warning("Could not find any bond for atom {}.\
+                                Setting it to COM").format(self.atom[index])
                 neighbour_pos = self.com
                 pp_orient = np.subtract(ra_pos, neighbour_pos) + 0.0000000001
         else:
-            neighbour_pos.append(self.geom[last_neighbours])
-            v1 = np.subtract(neighbour_pos[0], ra_pos)
-            v2 = np.subtract(neighbour_pos[1], ra_pos)
-            axis = geometry.unit_vector(np.cross(v2, v1))
+            neighbour_pos.append(self.geom[last_neighbourg])
+            v1: NDArray[Any] = np.subtract(neighbour_pos[0], ra_pos)
+            v2: NDArray[Any] = np.subtract(neighbour_pos[1], ra_pos)
+            axis: NDArray[floating[Any]] = geometry.unit_vector(np.cross(v2, v1))
             pp_orient = np.dot(geometry.rotation_matrix(axis, math.radians(angle)), v1)
-            
-        #Multiply unit vector with correct orientation with desired length
-        pp_vect = np.asarray(length) * geometry.unit_vector(pp_orient)
-        #Place pivots point in molecular frame
-        pp_coord = np.add(ra_pos, pp_vect)
-        return pp_coord
 
-    def create_pp_triangle(self, index, length=None, angle=None):
-        #Create pivot point in the middle of the big angle between the 2 neighbours
-        ra_pos = np.array(self.geom[index], dtype=float)
-        neighbour_pos = []
+        # Multiply unit vector with correct orientation with desired length
+        pp_vect = np.asarray(length) * geometry.unit_vector(pp_orient)
+        # Place pivots point in molecular frame
+        pp_coord: NDArray[Any] = np.add(ra_pos, pp_vect).tolist()
+        return pp_coord.tolist()
+
+    def create_pp_triangle(self,
+                           index: int,
+                           length: float,
+                           angle: float | None = None):
+        """Create pivot point in the middle of
+        the big angle between the 2 neighbours
+
+        Args:
+            index (int): for an angle ABC, index of atom B in fragment.
+            length (float, optional): Length of pivot point. Defaults to None.
+            angle (float, optional): Deviation angle.
+                                     Defaults to None, which leads to
+                                     in between the two attached atoms.
+
+        Returns:
+            pp_coord (list[float]): 3D coordinate of the pivot point.
+        """
+        ra_pos: NDArray[Any] = np.array(self.geom[index], dtype=float)
+        neighbour_pos: list[NDArray[Any]] = []
         for neighbour_index, this_bond in enumerate(self.bond[index]):
             if this_bond != 0:
-                neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
-        v1 = np.subtract(neighbour_pos[0], ra_pos)
-        v2 = np.subtract(neighbour_pos[1], ra_pos)
-        small_angle = geometry.calc_angle(neighbour_pos[0], ra_pos, neighbour_pos[1])
-        big_angle = 2*pi - small_angle
+                neighbour_pos.append(np.array(
+                    self.geom[neighbour_index],
+                    dtype=float))
+        v1: NDArray[Any] = np.subtract(neighbour_pos[0], ra_pos)
+        v2: NDArray[Any] = np.subtract(neighbour_pos[1], ra_pos)
+        small_angle: float = geometry.calc_angle(
+            a=neighbour_pos[0],
+            b=ra_pos,
+            c=neighbour_pos[1])
+        big_angle: float = 2*pi - small_angle
         if angle is None or not isinstance(angle, (float, int)):
-            angle = big_angle/2
-        axis = geometry.unit_vector(np.cross(v2, v1))
-        pp_orient = np.dot(geometry.rotation_matrix(axis, angle), v1)
-        if length is None:
-            length = pp_tables.pp_length_table(self.atom[index], par=self.par)
-        pp_vect = length * geometry.unit_vector(pp_orient)
-        pp_coord = np.add(ra_pos, pp_vect)
-        return pp_coord
+            angle: float = big_angle/2
+        axis: NDArray[floating[Any]] = geometry.unit_vector(
+            vector=np.cross(a=v2,
+                            b=v1))
+        pp_orient: NDArray[Any] = np.dot(
+            a=geometry.rotation_matrix(axis, angle),
+            b=v1)
+        pp_vect: NDArray[Any] = length * geometry.unit_vector(vector=pp_orient)
+        pp_coord: NDArray[Any] = np.add(ra_pos, pp_vect)
+        return pp_coord.tolist()
 
-    def create_pp_bipyramide_triangle_base(self, index, length=None):
-        #Create one or two pivot points on one or both side of the plane
+    def create_pp_bipyramide_triangle_base(self,
+                                           index: int,
+                                           length: float) -> list[list[float]]:
+        """Create one or two pivot points on one or both side of the plane.
+
+        Args:
+            index (int): _description_
+            length (float): _description_
+
+        Returns:
+            _type_: _description_
+        """
         n_pp = 2
-        ra_pos = np.array(self.geom[index], dtype=float)
+        ra_pos: NDArray[Any] = np.array(self.geom[index], dtype=float)
         neighbour_pos = []
-        for neighbour_index, this_bond in enumerate(np.array(self.bonds)[0,index]):
+        for neighbour_index, this_bond in enumerate(
+         np.array(self.bonds)[0, index]):
             if this_bond != 0:
-                neighbour_pos.append(np.array(self.geom[neighbour_index], dtype=float))
-        v1 = np.subtract(neighbour_pos[0], ra_pos)
-        v2 = np.subtract(neighbour_pos[1], ra_pos)
-        v3 = np.subtract(neighbour_pos[2], ra_pos)
-        plane = geometry.plane_from_points(v1, v2, v3)
-        ra_to_plane = geometry.dist_point_to_plane(ra_pos, plane)
+                neighbour_pos.append(np.array(self.geom[neighbour_index],
+                                              dtype=float))
+        v1: NDArray[Any] = np.subtract(neighbour_pos[0], ra_pos)
+        v2: NDArray[Any] = np.subtract(neighbour_pos[1], ra_pos)
+        v3: NDArray[Any] = np.subtract(neighbour_pos[2], ra_pos)
+        plane: tuple[NDArray[Any], float] = geometry.plane_from_points(
+            v0=v1,
+            v1=v2,
+            v2=v3)
+        ra_to_plane: float = geometry.dist_point_to_plane(
+            point=ra_pos,
+            plane=plane)
         if abs(ra_to_plane) >= .1:
-            #If carbon atom out of plane, only place a single pp on other side of the plane
+            # If carbon atom out of plane,
+            # only place a single pp on other side of the plane
             n_pp = 1
         pp_list = []
-        #To know in which direction to place the pivot point
+        # To know in which direction to place the pivot point
         plane_direction = geometry.unit_vector(np.dot(plane[0], ra_pos))
-        if length is None:
-            length = pp_tables.pp_length_table(self.atom[index],par=self.par)
         for i in range(n_pp):
-            pp_orient = np.array(geometry.unit_vector(plane[0])*plane_direction*np.power(-1,i), dtype=float)
-            try:
-                pp_vect = length * geometry.unit_vector(pp_orient)
-            except NameError:
-                logger.warning(f"Length of pivot point not defined yet for atom {self.atom[index]}. Setting it to 0.5A.")
-                length = 0.5
-                pp_vect = length * geometry.unit_vector(pp_orient)
-            pp_coord = np.add(ra_pos, pp_vect)
-            pp_list.append(pp_coord)
+            pp_orient = np.array(
+                geometry.unit_vector(vector=plane[0]) *
+                plane_direction*np.power(-1, i),
+                dtype=float)
+            pp_vect = length * geometry.unit_vector(pp_orient)
+            pp_coord: NDArray[Any] = np.add(ra_pos, pp_vect)
+            pp_list.append(pp_coord.tolist())
         return pp_list

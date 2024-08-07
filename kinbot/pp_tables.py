@@ -139,9 +139,23 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                                 atom_type = 'S_bip_quad_t'  # Ex: SF5 (+)(-)? -> SF6
     return atom_type
 
-def pp_length_table():
-    # TODO why is S not here?
-    return {'H': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
-            'C': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
-            'N': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
-            'O': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist()}
+
+def pp_length_table(element: str) -> list[float]:
+    """Create a default list of distances to try from a given pivot point.
+
+    Args:
+        element (str): chemical symbol
+
+    Returns:
+        list[float]: list of distances for the pivot point.
+    """
+    pp_table: dict[str, list[float]] = {
+        'H': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
+        'C': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
+        'N': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
+        'O': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
+        'S': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist()}
+
+    lst: list[float] = pp_table[element]
+
+    return lst

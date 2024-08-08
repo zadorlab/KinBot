@@ -1,5 +1,6 @@
 from typing import Any
 import numpy as np
+from numpy.typing import NDArray
 import logging
 from kinbot import constants
 from kinbot.fragments import Fragment
@@ -7,55 +8,41 @@ from kinbot.vrc_tst_surfaces import VRC_TST_Surface
 
 logger = logging.getLogger('KinBot')
 
-# def get_ra(reac, parent_chemid):
-#     reactive_atoms = []
-#     #Recover the index of the reactive atoms from the reaction name.
-#     with open(reac[0] + '/summary_' + reac[0] + '.out', 'r') as summary:
-#         lines = summary.readlines()
-#     for line in lines[4:]:
-#         if line.startswith('SUCCESS') and ("vdW" in line or "hom_sci" in line):
-#             if 'vdW' not in line :
-#                 success, ts_energy, reaction_name, *products = line.split()
-#                 if reaction_name == reac[1]:
-#                     break
-#             elif 'vdW' in line : #Unpack differently when a vdW well is in line
-#                 success, ts_energy, reaction_name, *products, vdW_energy, vdW_direction = line.split()
-#                 if reaction_name + vdW_direction[3:] == reac[1]:
-#                     break
 
-#     if sorted(products) == sorted(reac[2]):
-#         if 'hom_sci' in reaction_name:
-#             for ra in reaction_name.split('_')[3:]:
-#                 reactive_atoms.append([int(ra)-1])
-#         elif 'vdW' in line:
-#             vdW_well = reaction_name + vdW_direction[3:]
-#             db = connect(f"{parent_chemid}/kinbot.db")
-#             *_, last_row = db.select(name=f"{vdW_well}")
-#             sp_vdW_well = StationaryPoint.from_ase_atoms(last_row.toatoms())
-#             sp_vdW_well.characterize()
-#             frags, maps = sp_vdW_well.start_multi_molecular()
-#             min_dist = np.inf
-#             for ra1 in maps[0]:
-#                 for ra2 in maps[1]:
-#                     if ra1 != ra2 and sp_vdW_well.dist[ra1, ra2] < min_dist:
-#                         min_dist = sp_vdW_well.dist[ra1, ra2]
-#                         closest = [[ra1], [ra2]]
-#             reactive_atoms = closest
+def create_all_surf_for_dist(dist: float,
+                             equiv_ra: list[list[list[int]]],
+                             fragments: list[Fragment],
+                             par: dict
+                             ) -> tuple[list[list[int]],
+                                        list[list[int]],
+                                        list[VRC_TST_Surface]]:
+    """Create all the surfaces, and detect which surface should
+    be sampled, and with wich weight.
 
-#         else:
-#             logger.warning("Identification of reactive atoms is not implemented yet for this type of reactions.")
+    Args:
+        dist (float): distance along the reaction coordinate (Angstrom)
+        equiv_ra (list[list[list[int]]]): 
+            [0] frag1, [1] frag2
+            for each, contain multiple lists of indexes of atoms chemically
+            equivalent.
+        fragments (list[Fragment]): list of Fragments objects
+        par (dict): User input parameters.
 
-#     #return list of reactive atoms with indexes in parent
-#     #reactive_atoms = [[Reactive atoms for frag=reac[2][0]], [Reactive atoms for frag=reac[2][1]]]
-#     return reactive_atoms
-
-
-def create_all_surf_for_dist(dist, fragments, par) -> list[VRC_TST_Surface]:
+    Returns:
+        tuple[list[list[int]],      :[[faces weights for a surf],[...]...]
+              list[list[int]],      :[[indexes of faces to sample for a surf]]
+              list[VRC_TST_Surface]]: Contains pivot points and a dist matrix
+    """
     surfaces: list[VRC_TST_Surface] = []
     pps_l: list[list[Any]] = [[], []]
     pp_l_idxs = []
+    fw: list[int]
+    sf: list[int]
+    surf: VRC_TST_Surface
+    selected_faces: list[list[int]] = []
+    faces_weights: list[list[int]] = []
 
-    #Create 'oriented_pp' surfaces
+    # Create 'oriented_pp' surfaces
     if dist <= max(par['pp_oriented']):
         for findex, frag in enumerate(fragments):
             for ra in frag.ra:
@@ -80,9 +67,14 @@ def create_all_surf_for_dist(dist, fragments, par) -> list[VRC_TST_Surface]:
                     pp_l_f2.append(pps_l[1][ra_idx_f2][l_idx_f2])
 
                 # Create surface for a combination of pp_length for all RA
-                surfaces.append(create_surface(dist=dist,
-                                               fragments=fragments,
-                                               pps_dists=[pp_l_f1, pp_l_f2]))
+                (fw, sf, surf) = create_surface(
+                    dist=dist,
+                    equiv_ra=equiv_ra,
+                    fragments=fragments,
+                    pps_dists=[pp_l_f1, pp_l_f2])
+                surfaces.append(surf)
+                faces_weights.append(fw)
+                selected_faces.append(sf)
 
                 if pp_l_idxs[fn][next] < len(pps_l[fn][next])-1:
                     pp_l_idxs[fn][next] += 1
@@ -96,15 +88,15 @@ def create_all_surf_for_dist(dist, fragments, par) -> list[VRC_TST_Surface]:
                 if next + 1 < len(pps_l[fn]) and \
                    pp_l_idxs[fn][next+1] != len(pps_l[fn][next+1])-1:
                     next += 1
-                elif next + 2 < len(pps_l[fn]) and \
-                len(pps_l[fn][next+1])-1 == 0:
+                elif next + 2 < len(pps_l[fn]) and\
+                     len(pps_l[fn][next+1])-1 == 0:
                     next += 2
                 else:
                     fn += 1
                     next = 0
                     if pp_l_idxs[fn][next] == len(pps_l[fn][next])-1:
                         if next + 1 < len(pps_l[fn]) and \
-                        pp_l_idxs[fn][next+1] != len(pps_l[fn][next+1])-1:
+                           pp_l_idxs[fn][next+1] != len(pps_l[fn][next+1])-1:
                             next += 1
                         # Add more elif, or a while loop if multiple ra
                         # on same frag only have one pp_length
@@ -139,28 +131,41 @@ def create_all_surf_for_dist(dist, fragments, par) -> list[VRC_TST_Surface]:
     # Create 'on_atom' surfaces
     if dist <= max(par['pp_on_atom']) and\
        dist >= min(par['pp_on_atom']):
-        surfaces.append(create_surface(dist, fragments=fragments))
+        (fw, sf, surf) = create_surface(
+            dist=dist,
+            equiv_ra=equiv_ra,
+            fragments=fragments)
+        surfaces.append(surf)
+        faces_weights.append(fw)
+        selected_faces.append(sf)
 
     if dist >= par['pp_on_COM']:
-        surfaces.append(create_surface(dist))
+        (fw, sf, surf) = create_surface(
+            dist=dist,
+            equiv_ra=equiv_ra)
+        surfaces.append(surf)
+        faces_weights.append(fw)
+        selected_faces.append(sf)
 
-    return surfaces
+    return (faces_weights,
+            selected_faces,
+            surfaces)
 
 
 def create_surface(dist,
-                   equiv_ra: list[list[int]] = [],
+                   equiv_ra: list[list[list[int]]],
                    fragments: list[Fragment] = [],
-                   pps_dists=None) -> VRC_TST_Surface:
+                   pps_dists: list[list[float]] | None = None
+                   ) -> tuple[list[int], list[int], VRC_TST_Surface]:
     """Collect the coord of all pivot points and
     return a list containing VRC_TST surfaces."""
     pps_coords = [[], []]
-
-    equiv_pp = [[], []]
 
     # Contains the index of the faces to sample for a surface.
     selected_faces: list[int] = []
     # Contains the weight that multiplies the flux for the face
     # at a given index.
+    weights: list[list[int]] = [[], []]
     faces_weights: list[int] = []
     info: list[str] = ['',
                        '',
@@ -177,35 +182,64 @@ def create_surface(dist,
                 for ra in frag.ra:
                     pps_coords[findex].append(frag.get_pp_on_atom(ra))
                     info[findex] += f' {ra}'
+                    for equiv in equiv_ra[findex]:
+                        if ra == equiv[0]:
+                            weights[findex].append(len(equiv))
+                            break
+                        elif ra in equiv:
+                            weights[findex].append(0)
+                            break
             else:
                 info[findex] += 'pp oriented'
                 for ra_index, ra in enumerate(frag.ra):
-                    coord: list[float] | list[list[float]] = \
+                    coord: list[list[float]] = \
                         frag.get_pp_next_to_ra(
                         index=ra,
                         dist_from_ra=pps_dists[findex][ra_index])
+                    for equiv in equiv_ra[findex]:
+                        if ra == equiv[0]:
+                            weights[findex].append(len(coord)*len(equiv))
+                            if len(coord) == 2:
+                                weights[findex].append(0)
+                            break
+                        elif ra in equiv:
+                            weights[findex].append(0)
+                            if len(coord) == 2:
+                                weights[findex].append(0)
+                            break
+
                     info[findex] += ' {} ({} bohr)'.format(
                         ra,
                         pps_dists[findex][ra_index] /
                         constants.BOHRtoANGSTROM)
-                    if isinstance(coord[0], list):
-                        pps_coords[findex].extend(coord)
-                    else:
-                        pps_coords[findex].append(coord)
+                    pps_coords[findex].extend(coord)
+        for pp1 in range(len(pps_coords[0])):
+            for pp2 in range(len(pps_coords[1])):
+                faces_weights.append(
+                    weights[0][pp1] * weights[1][pp2]
+                    )
+                # Only sample the faces that have a non-zero weight
+                if faces_weights[-1] != 0:
+                    selected_faces.append(len(faces_weights)-1)
     else:
         pps_coords: list[list[list[float]]] = [[[0.0, 0.0, 0.0]],
                                                [[0.0, 0.0, 0.0]]]
         info = ['Fragment 0: COM',
                 'Fragment 1: COM',
                 f'Distance: {dist} Angstrom']
+        faces_weights: list[int] = [1]
+        selected_faces: list[int] = [0]
 
-    # Create dist matrix
-    dist_dim = (len(pps_coords[1]), len(pps_coords[0]))
-    dist_matrix = np.full(dist_dim, dist)
+    # Create distance matrix
+    dist_dim: tuple[int, int] = (len(pps_coords[1]), len(pps_coords[0]))
+    dist_matrix: NDArray[Any] = np.full(dist_dim, dist)
 
-    return VRC_TST_Surface(pp_coords=pps_coords,
-                           dist_matrix=dist_matrix,
-                           info=info)
+    return (faces_weights,
+            selected_faces,
+            VRC_TST_Surface(pp_coords=pps_coords,
+                            dist_matrix=dist_matrix,
+                            info=info)
+            )
 
 
 # def reset_reactive_atoms(reactive_atoms, maps):

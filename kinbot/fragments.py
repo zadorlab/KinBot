@@ -154,7 +154,7 @@ class Fragment(StationaryPoint):
     def get_pp_next_to_ra(self,
                           index: int,
                           dist_from_ra: float = 0.0
-                          ) -> list[float] | list[list[float]]:
+                          ) -> list[list[float]]:
         """Get the atom type and use it to get
         the coordinates of the pivot point.
 
@@ -168,12 +168,12 @@ class Fragment(StationaryPoint):
             _type_: coordinates
         """
         atom_type: str = self.get_atom_type(index)
-        coord = self.get_pp_coord(
+        coord: list[list[float]] = self.get_pp_coord(
             index=index,
             atom_type=atom_type,
             dist_from_ra=dist_from_ra)
-        
-        return np.round(coord,
+
+        return np.round(np.asarray(coord),
                         decimals=5).tolist()
 
     def get_atom_type(self,
@@ -208,60 +208,113 @@ class Fragment(StationaryPoint):
     def get_pp_coord(self,
                      index: int,
                      atom_type: str,
-                     dist_from_ra: list[float] = []):
-        if len(dist_from_ra) == 0:
-            # Return a list of relevant distances to try
-            dist_from_ra = pp_tables.pp_length_table()[atom_type[0]]
+                     dist_from_ra: float) -> list[list[float]]:
+        """Call the appropriate method to create
+        the pivot point depending on the atom type.
+
+        Args:
+            index (int): index of the atom holding the pivot point
+            atom_type (str): string describing the geometry of the
+                             environment around the atom
+            dist_from_ra (float): length of the pivot point
+
+        Returns:
+            list[list[float]]: list of 3D coordinates.
+        """
         match atom_type:
             case 'H' | 'C' | 'O' | 'S':
                 # Create pivot point on atom
-                return [self.get_pp_on_atom(index)]
+                return [self.get_pp_on_atom(index=index)]
             case 'H_lin':
-                pp_coord = self.create_pp_aligned_with_bond(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_aligned_with_bond(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'C_lin':
-                pp_coord = self.create_pp_aligned_with_bond(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_aligned_with_bond(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'C_tri':
-                pp_coord = self.create_pp_triangle(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_triangle(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'C_quad':
-                pp_list = self.create_pp_bipyramide_triangle_base(index, length=dist_from_ra)
+                pp_list: list[list[float]] = \
+                    self.create_pp_bipyramide_triangle_base(
+                        index=index,
+                        length=dist_from_ra)
                 return pp_list
             case 'N_tri':
-                pp_coord = self.create_pp_aligned_with_bond(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_aligned_with_bond(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'N_pyr':
-                pp_coord = self.create_pp_triangle(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_triangle(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'N_quad':
-                pp_list = self.create_pp_bipyramide_triangle_base(index, length=dist_from_ra)
+                pp_list: list[list[float]] = \
+                    self.create_pp_bipyramide_triangle_base(
+                        index=index,
+                        length=dist_from_ra)
                 return pp_list
             case 'O_tri':
-                pp_coord = self.create_pp_aligned_with_bond(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_aligned_with_bond(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'O_quad':
-                pp_coord = self.create_pp_triangle(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_triangle(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'S_tri':
-                pp_coord = self.create_pp_aligned_with_bond(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_aligned_with_bond(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'S_pyr':
-                pp_coord = self.create_pp_triangle(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_triangle(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'S_lin':
-                pp_coord = self.create_pp_aligned_with_bond(index, length=dist_from_ra)
+                pp_coord: list[list[float]] = \
+                    [self.create_pp_aligned_with_bond(
+                        index=index,
+                        length=dist_from_ra)]
                 return pp_coord
             case 'S_bip_tri_l':
-                pp_list = self.create_pp_bipyramide_triangle_base(index, length=dist_from_ra)
+                pp_list: list[list[float]] = \
+                    self.create_pp_bipyramide_triangle_base(
+                        index=index,
+                        length=dist_from_ra)
                 return pp_list
             case 'S_bip_tri':
-                pass
+                return [[]]
             case 'S_quad':
-                pp_list = self.create_pp_bipyramide_triangle_base(index, length=dist_from_ra)
+                pp_list: list[list[float]] = \
+                    self.create_pp_bipyramide_triangle_base(
+                        index=index,
+                        length=dist_from_ra)
                 return pp_list
             case 'S_bip_quad_t':
-                pass
+                return [[]]
+            case _:
+                return [[]]
 
     def create_pp_aligned_with_bond(self,
                                     index: int,
@@ -283,7 +336,7 @@ class Fragment(StationaryPoint):
                                              Defaults to None.
 
         Returns:
-            list[float]: _description_
+            list[float]: coordinate of the pivot point.
         """
         ra_pos: NDArray[Any] = np.array(self.geom[index], dtype=float)
         neighbour_pos: list[list[float]] = []
@@ -298,15 +351,17 @@ class Fragment(StationaryPoint):
                 pp_orient: NDArray[Any] = np.subtract(ra_pos, neighbour_pos[0])
             except NameError:
                 logger.warning("Could not find any bond for atom {}.\
-                                Setting it to COM").format(self.atom[index])
-                neighbour_pos = self.com
-                pp_orient = np.subtract(ra_pos, neighbour_pos) + 0.0000000001
+                                Setting it to COM".format(self.atom[index]))
+                pp_orient = np.subtract(ra_pos, self.com) + 0.0000000001
         else:
             neighbour_pos.append(self.geom[last_neighbourg])
             v1: NDArray[Any] = np.subtract(neighbour_pos[0], ra_pos)
             v2: NDArray[Any] = np.subtract(neighbour_pos[1], ra_pos)
-            axis: NDArray[floating[Any]] = geometry.unit_vector(np.cross(v2, v1))
-            pp_orient = np.dot(geometry.rotation_matrix(axis, math.radians(angle)), v1)
+            axis: NDArray[floating[Any]] = geometry.unit_vector(
+                vector=np.cross(v2, v1))
+            pp_orient = np.dot(
+                geometry.rotation_matrix(axis=axis, theta=math.radians(angle)),
+                v1)
 
         # Multiply unit vector with correct orientation with desired length
         pp_vect = np.asarray(length) * geometry.unit_vector(pp_orient)
@@ -317,7 +372,7 @@ class Fragment(StationaryPoint):
     def create_pp_triangle(self,
                            index: int,
                            length: float,
-                           angle: float | None = None):
+                           angle: float | None = None) -> list[float]:
         """Create pivot point in the middle of
         the big angle between the 2 neighbours
 

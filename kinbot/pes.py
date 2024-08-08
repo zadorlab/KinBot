@@ -29,7 +29,8 @@ from kinbot.fragments import Fragment
 from kinbot.mess import MESS
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
-from kinbot.utils import queue_command 
+from kinbot.utils import queue_command
+from kinbot.vrc_tst_surfaces import VRC_TST_Surface 
 
 
 def main():
@@ -1399,16 +1400,26 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         fragnames = Fragment.get_fragnames()
 
         # Set the pivot points on each fragments and create the surfaces
-        surfaces = []
+        surfaces: list[VRC_TST_Surface] = []
+        faces_weights: list[list[int]] = []
+        selected_faces: list[list[int]] = []
+        fw: list[list[int]]
+        sf: list[list[int]]
+        surfs: list[VRC_TST_Surface]
 
         for dist in par['vrc_tst_scan_points']:
             if dist < vrc_tst_start:
                 logger.info(f"Removing sampling surface {dist} for reaction {reac_name}")
                 continue
             elif dist >= vrc_tst_start:
-                surfaces.extend(pp_settings.create_all_surf_for_dist(dist=dist,
-                                                                     fragments=fragments,
-                                                                     par=par))
+                (fw, sf, surfs) = pp_settings.create_all_surf_for_dist(
+                    dist=dist,
+                    equiv_ra=pp_info['unique'],
+                    fragments=fragments,
+                    par=par)
+                surfaces.extend(surfs)
+                faces_weights.extend(fw)
+                selected_faces.extend(sf)
 
         # TODO rewrite using templates
         # Creating the strings to print input file
@@ -1435,22 +1446,28 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         with open(tpl_rotdPy_calc, 'r') as f:
             fr = f.read()
         rotdPy_calc: str = fr.format(code='molpro',
+                                     method=par['vrc_tst_sample_method'],
+                                     basis=par['vrc_tst_sample_basis'],
+                                     mem=par['rotdPy_mem'],
                                      whoami=getpass.getuser(),
-                                     queue={par['queuing']},
+                                     queue=par['queuing'],
                                      max_jobs=2000)
 
         template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
         with open(template_file_path) as template_file:
             tpl: str = template_file.read()
-        new_input: str = tpl.format(f1=repr(fragments[0]),
-                                    f2=repr(fragments[1]),
-                                    job_name=reac_name,
-                                    Surfaces_block=Surfaces_block,
-                                    frag_names='[' + ', '.join(fragnames) + ']',
-                                    calc_block=rotdPy_calc,
-                                    min_dist=par['vrc_tst_scan_points'][0],
-                                    corrections_block=kb_1d_correction,
-                                    inf_energy=inf_energy)
+        new_input: str = tpl.format(
+            f1=repr(fragments[0]),
+            f2=repr(fragments[1]),
+            job_name=reac_name,
+            Surfaces_block=Surfaces_block,
+            selected_faces=selected_faces,
+            faces_weights=faces_weights,
+            frag_names='[' + ', '.join(fragnames) + ']',
+            calc_block=rotdPy_calc,
+            min_dist=par['vrc_tst_scan_points'][0],
+            corrections_block=kb_1d_correction,
+            inf_energy=inf_energy)
         folder = "rotdPy"
         if not os.path.exists(folder):
             # Create a new directory because it does not exist

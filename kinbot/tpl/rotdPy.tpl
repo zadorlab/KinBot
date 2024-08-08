@@ -77,7 +77,12 @@ flux_base = FluxBase(temp_grid=temperature,
 
 # start the final run
 # Will read from the restart db
-multi = Multi(sample=kb_sample, dividing_surfaces=divid_surf,
-              fluxbase=flux_base, calculator=calc)
+multi = Multi(sample=kb_sample,
+              dividing_surfaces=divid_surf,
+              selected_faces=selected_faces,
+              fluxbase=flux_base,
+              calculator=calc)
 multi.run()
-
+multi.print_results(
+dynamical_correction=1.0,
+faces_weights=faces_weights)

@@ -135,8 +135,13 @@ class Molpro:
                                        occ=occ
                                        ))
         elif VTS:
-            options = "GPRINT,ORBITALS,ORBEN,CIVECTOR \nGTHRESH,energy=1.d-7 \nangstrom \n orient,noorient\n nosym"
-            
+            options = 'memory,3200,M\n' \
+                      'GPRINT,ORBITALS,ORBEN,CIVECTOR\n' \
+                      'GTHRESH,energy=1.d-7\n' \
+                      'angstrom\n' \
+                      'orient,noorient\n' \
+                      'nosym'
+
             if sample:
                 basis = f"basis = {self.par['vrc_tst_sample_basis']}"
             else:
@@ -148,15 +153,15 @@ class Molpro:
             else:
                 l3_method = self.par["vrc_tst_high_method"]
 
-            method = '' 
+            method = ''
             match regex_in(l3_method):
-                case r".*caspt2\([0-9]+,[0-9]+\)":
+                case r'.*caspt2\([0-9]+,[0-9]+\)':
                     active_electrons = int(l3_method.split("caspt2(")[1].split(",")[0])
                     active_orbitals = int(l3_method.split("caspt2(")[1].split(",")[1][:-1])
                     closed_orbitals = int(math.trunc(nelectron-active_electrons)/2)
                     occ_obitals = closed_orbitals + active_orbitals
-                    method += " {multi,\n" + f" occ,{occ_obitals}\n closed,{closed_orbitals}\n" + " }\n\n"
-                    method += " {rs2c, shift=0.3}\n"
+                    method += f'{{multi,\nocc,{occ_obitals}\nclosed,{closed_orbitals}\nmaxit,50;}}\n\n'
+                    method += '{rs2c, shift=0.3}\n'
                 case "uwb97xd":
                     method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
                     method += " omega=0.2    !range-separation parameter\n"

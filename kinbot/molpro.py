@@ -30,7 +30,6 @@ class Molpro:
         : shift_vec is for bls to define the direction of shift in prod scan
         : natom1 is the number of atoms in the second fragment
         """
-            
         if bls == 1:
             if shift_vec is None:
                 tpl_file = self.par['barrierless_saddle_single_point_template']

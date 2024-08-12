@@ -191,7 +191,7 @@ def main():
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
 
-        if par['vrc_tst_scan'] is not {}:
+        if par['vrc_tst_scan']:
             logger.info('Setting up scans for VRC-TST...')
             vts = VTS(well0, par, qc)
             vts.calculate_correction_potentials()
@@ -305,7 +305,6 @@ def main():
                 mess.run()
                 # for vdw_mess in vdW_wells:
                 #     vdw_mess.run()
-
 
     postprocess.create_summary_file(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)

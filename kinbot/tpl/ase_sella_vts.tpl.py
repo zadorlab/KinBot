@@ -79,6 +79,7 @@ while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
     if {asymptote}:
+        e = mol.get_potential_energy()
         break
     try:
         for i in opts[attempt].irun(fmax=fmax, steps=100):

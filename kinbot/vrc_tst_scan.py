@@ -497,9 +497,10 @@ class VTS:
 
                 # Create scan references between all equivalent atoms:
                 scan_ref = []
-                for n, i in enumerate(self.scan_reac[reac].equiv[0]):
+
+                for n, i in enumerate(self.unique[0][0]):
                     a: int = np.where(self.scan_reac[reac].maps[0] == i)[0][0]
-                    for j in self.scan_reac[reac].equiv[1]:
+                    for j in self.unique[1][0]:
                         b: int = np.where(
                             self.scan_reac[reac].maps[1] == j)[0][0]
                         scan_ref.append([a, b])

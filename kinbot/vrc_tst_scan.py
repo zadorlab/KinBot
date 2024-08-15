@@ -270,6 +270,7 @@ class VTS:
 
         while 1:
             for ri, reac in enumerate(reactions):
+                self.unique = [[], []] # Reset list for each reaction to scan
                 if status[ri] == 'ready' and step[ri] < \
                    len(self.par['vrc_tst_scan_points']) + 1:
                     # shift geometries along the bond to next desired distance

@@ -1,4 +1,5 @@
 from typing import Any
+from ase import Atoms
 import numpy as np
 from numpy.typing import NDArray
 import logging
@@ -21,7 +22,7 @@ def create_all_surf_for_dist(dist: float,
 
     Args:
         dist (float): distance along the reaction coordinate (Angstrom)
-        equiv_ra (list[list[list[int]]]): 
+        equiv_ra (list[list[list[int]]]):
             [0] frag1, [1] frag2
             for each, contain multiple lists of indexes of atoms chemically
             equivalent.
@@ -233,6 +234,14 @@ def create_surface(dist,
     # Create distance matrix
     dist_dim: tuple[int, int] = (len(pps_coords[1]), len(pps_coords[0]))
     dist_matrix: NDArray[Any] = np.full(dist_dim, dist)
+
+    for fnum, frag in enumerate(fragments):
+        pps = ''
+        for pp in range(len(pps_coords[fnum])):
+            pps += 'X'
+        atm = Atoms(symbols=f'{frag.atom}{pps}',
+                    positions=frag.geom.tolist().extend(pps_coords[fnum]))
+        atm.write(f'S{VRC_TST_Surface.__id__}F{fnum}.xyz')
 
     return (faces_weights,
             selected_faces,

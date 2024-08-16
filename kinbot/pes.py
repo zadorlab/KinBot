@@ -1377,10 +1377,8 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
 
         json_file = f"{reactant}/vrctst/corr_{reac_name}.json"
         if not os.path.isfile(json_file):
-            logger.warning(f"Results of scan for 1D correction\
-                            not found for rotdPy job {reac_name}")
-            raise KeyError(f"Results of scan for 1D correction\
-                            not found for rotdPy job {reac_name}")
+            logger.warning(f"Results of scan for 1D correction not found for rotdPy job {reac_name}")
+            raise KeyError(f"Results of scan for 1D correction not found for rotdPy job {reac_name}")
 
         with open(json_file, 'r') as jf:
             pp_info: dict[str, Any] = json.load(jf)

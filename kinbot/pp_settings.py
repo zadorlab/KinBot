@@ -49,9 +49,66 @@ def create_all_surf_for_dist(dist: float,
             for ra in frag.ra:
                 # Creates the list of pp_length to use for each ra
                 # Here, values are in Angstroms
-                pps_l[findex].append(par['pp_length'][frag.atom[ra]])
+                if frag.atom[ra] in par['pp_length']:
+                    pps_l[findex].append(par['pp_length'][frag.atom[ra]])
+                else:
+                    pps_l[findex].append(par['pp_length']['X'])
             pp_l_idxs.append([0 for i in range(len(frag.ra))])
 
+        if 'X' not in par['pp_length']:
+            (surfs, fws, sfs) = \
+                create_combinatorial_surfaces(
+                    pp_l_idxs=pp_l_idxs,
+                    pps_l=pps_l,
+                    dist=dist,
+                    equiv_ra=equiv_ra,
+                    fragments=fragments)
+            surfaces.extend(surfs)
+            faces_weights.extend(fws)
+            selected_faces.extend(sfs)
+        else:
+            for i in range(len(par['pp_length']['X'])):
+                pp_l_f1 = np.array(pps_l[0])[:, i].tolist()
+                pp_l_f2 = np.array(pps_l[1])[:, i].tolist()
+                (fw, sf, surf) = create_surface(
+                    dist=dist,
+                    equiv_ra=equiv_ra,
+                    fragments=fragments,
+                    pps_dists=[pp_l_f1, pp_l_f2])
+                surfaces.append(surf)
+                faces_weights.append(fw)
+                selected_faces.append(sf)
+    # Create 'on_atom' surfaces
+    if dist <= max(par['pp_on_atom']) and\
+       dist >= min(par['pp_on_atom']):
+        (fw, sf, surf) = create_surface(
+            dist=dist,
+            equiv_ra=equiv_ra,
+            fragments=fragments)
+        surfaces.append(surf)
+        faces_weights.append(fw)
+        selected_faces.append(sf)
+
+    if dist >= par['pp_on_COM']:
+        (fw, sf, surf) = create_surface(
+            dist=dist,
+            equiv_ra=equiv_ra)
+        surfaces.append(surf)
+        faces_weights.append(fw)
+        selected_faces.append(sf)
+
+    return (faces_weights,
+            selected_faces,
+            surfaces)
+
+def create_combinatorial_surfaces(pp_l_idxs,
+                                  pps_l,
+                                  dist,
+                                  equiv_ra,
+                                  fragments):
+        surfaces = []
+        faces_weights = []
+        selected_faces = []
         next = 0
         stop = False
         # Fragment number
@@ -128,30 +185,7 @@ def create_all_surf_for_dist(dist: float,
 
             next = 0
             fn = 0
-
-    # Create 'on_atom' surfaces
-    if dist <= max(par['pp_on_atom']) and\
-       dist >= min(par['pp_on_atom']):
-        (fw, sf, surf) = create_surface(
-            dist=dist,
-            equiv_ra=equiv_ra,
-            fragments=fragments)
-        surfaces.append(surf)
-        faces_weights.append(fw)
-        selected_faces.append(sf)
-
-    if dist >= par['pp_on_COM']:
-        (fw, sf, surf) = create_surface(
-            dist=dist,
-            equiv_ra=equiv_ra)
-        surfaces.append(surf)
-        faces_weights.append(fw)
-        selected_faces.append(sf)
-
-    return (faces_weights,
-            selected_faces,
-            surfaces)
-
+        return (surfaces, faces_weights, selected_faces)
 
 def create_surface(dist,
                    equiv_ra: list[list[list[int]]],
@@ -167,6 +201,9 @@ def create_surface(dist,
     # Contains the weight that multiplies the flux for the face
     # at a given index.
     weights: list[list[int]] = [[], []]
+    # Used to detect faces belonging to same reaction,
+    # and avoid sampling the other
+    reac_weights: list[list[int]] = [[], []]
     faces_weights: list[int] = []
     info: list[str] = ['',
                        '',
@@ -197,16 +234,23 @@ def create_surface(dist,
                         frag.get_pp_next_to_ra(
                         index=ra,
                         dist_from_ra=pps_dists[findex][ra_index])
-                    for equiv in equiv_ra[findex]:
+                    for skip_face, equiv in enumerate(equiv_ra[findex]):
                         if ra == equiv[0]:
                             weights[findex].append(len(coord)*len(equiv))
-                            if len(coord) == 2:
+                            if not skip_face:
+                                reac_weights[findex].append(1)
+                            else:
+                                reac_weights[findex].append(0)
+                            for i in range(len(coord)-1):
                                 weights[findex].append(0)
+                                reac_weights[findex].append(0)
                             break
                         elif ra in equiv:
                             weights[findex].append(0)
+                            reac_weights[findex].append(0)
                             if len(coord) == 2:
                                 weights[findex].append(0)
+                                reac_weights[findex].append(0)
                             break
 
                     info[findex] += ' {} ({} bohr)'.format(
@@ -217,7 +261,7 @@ def create_surface(dist,
         for pp1 in range(len(pps_coords[0])):
             for pp2 in range(len(pps_coords[1])):
                 faces_weights.append(
-                    weights[0][pp1] * weights[1][pp2]
+                    weights[0][pp1] * reac_weights[0][pp1] * weights[1][pp2] * reac_weights[1][pp2]
                     )
                 # Only sample the faces that have a non-zero weight
                 if faces_weights[-1] != 0:

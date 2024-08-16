@@ -471,20 +471,32 @@ class Parameters:
         self.par['freq_uq'] = float(self.par['freq_uq'])
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
 
-        #Check user input
-        if self.par['pp_length'] != None and\
+        # Check user input
+        if self.par['pp_length'] is not None and\
             not isinstance(self.par['pp_length'], dict):
             err = 'User defined pp_length should be a dict. Using default values.'
             self.par['pp_length'] = pp_tables.pp_length_table()
-        #Check keys
-        elif self.par['pp_length'] != None and\
+        # Check keys
+        elif self.par['pp_length'] is not None and\
             isinstance(self.par['pp_length'], dict):
-            for element in pp_tables.pp_length_table():
-                if element not in self.par['pp_length']:
-                    self.par['pp_length'][element] = pp_tables.pp_length_table()[element]
-                else:
-                    self.par['pp_length'][element] = (np.array(self.par['pp_length'][element])\
-                                                    * constants.BOHRtoANGSTROM).tolist()
+            i = 0
+            X_is_defined = False
+            for key, value in self.par['pp_length'].items():
+                if i == 0 :
+                    length = len(value)
+                i += 1
+                if key == 'X':
+                    X_is_defined = True
+                if len(value) != length:
+                    err = "All lists in pp_length should have the same length."
+            if not X_is_defined:
+                err = "X (default) should be included in pp_length if the user define a list for any atom."
+            # for element in pp_tables.pp_length_table():
+            #     if element not in self.par['pp_length']:
+            #         self.par['pp_length'][element] = pp_tables.pp_length_table()[element]
+            #     else:
+            #         self.par['pp_length'][element] = (np.array(self.par['pp_length'][element])\
+            #                                         * constants.BOHRtoANGSTROM).tolist()
         elif self.par['pp_length'] is None:
             self.par['pp_length'] = pp_tables.pp_length_table()
 

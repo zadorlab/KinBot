@@ -191,9 +191,10 @@ class Fragment(StationaryPoint):
         nconnect = 0
         ndouble = 0
         ntriple = 0
-        for this_bond in np.array(self.bond)[index]:
-            if this_bond != 0:
-                nconnect += 1
+        for this_bond in self.bond[index]:
+            if this_bond == 0:
+                continue
+            nconnect += this_bond
             match this_bond:
                 case 2:
                     ndouble += 1

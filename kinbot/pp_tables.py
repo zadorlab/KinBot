@@ -33,7 +33,7 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                                 atom_type = 'C_tri' #Ex: O=C.-H -> O=CH2
                             case 0:
                                 atom_type = 'C_quad' #Ex: H3C. -> CH4
-            case 4:#Weird case, full valency carbon, to be double checked
+            case 4:  # Weird case, full valency carbon, to be double checked
                 match ntriple:
                     case 1:
                         atom_type = "C_tri"
@@ -57,7 +57,7 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                         atom_type = 'N_pyr' #Ex: H2N. -> NH3
                     case 1:
                         atom_type = 'N_tri' #Ex: C=N. -> C=NH
-            case 3: #Weird case with full valency N, to be checked
+            case 3:  # Weird case with full valency N, to be checked
                 match ntriple:
                     case 1:
                         atom_type = "N_tri"
@@ -67,7 +67,7 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
                                 atom_type = "N_pyr"
                             case 0:
                                 atom_type = "N_quad"
-            case 4:#Weird case, more than full valency N: N+ is assumed, which is equivalent to C 
+            case 4:  # Weird case, more than full valency N: N+ is assumed, which is equivalent to C 
                 match ntriple:
                     case 1:
                         atom_type = "C_tri"
@@ -150,10 +150,10 @@ def pp_length_table() -> dict[str, list[float]]:
         list[float]: list of distances for the pivot point.
     """
     pp_table: dict[str, list[float]] = {
-        'H': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
-        'C': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
-        'N': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
-        'O': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist(),
-        'S': (np.array([0.1])*constants.BOHRtoANGSTROM).tolist()}
+        'H': (np.array([0.2, 0.5])*constants.BOHRtoANGSTROM).tolist(),
+        'C': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist(),
+        'N': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist(),
+        'O': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist(),
+        'S': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist()}
 
     return pp_table

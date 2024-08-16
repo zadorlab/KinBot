@@ -32,9 +32,6 @@ class VTS:
         self.scan_reac = {}
         self.prod_chemids = []
 
-        # Stores index of reactive atoms and their quivalent
-        self.unique: list[list[list[int]]] = [[], []]
-
     def calculate_correction_potentials(self):
         """
         The main driver for scanning the potential.
@@ -193,7 +190,7 @@ class VTS:
                     if mapping[atm] not in equiv:
                         equiv.append(mapping[list(rad).index(1)])
                         if unique is not None:
-                            unique.append([mapping[list(rad).index(1)]])
+                            unique.append([list(rad).index(1)])
 
         return
 
@@ -260,6 +257,8 @@ class VTS:
         step = np.zeros(len(reactions), dtype=int)
         geoms = []
         for reac in reactions:
+            # Stores index of radicals and their equivalent
+            self.scan_reac[reac].usym = [[], []]
             if not self.scan_reac[reac].do_vdW:
                 geoms.append(self.scan_reac[reac].species.geom)
             else:
@@ -270,7 +269,6 @@ class VTS:
 
         while 1:
             for ri, reac in enumerate(reactions):
-                self.unique = [[], []] # Reset list for each reaction to scan
                 if status[ri] == 'ready' and step[ri] < \
                    len(self.par['vrc_tst_scan_points']) + 1:
                     # shift geometries along the bond to next desired distance
@@ -305,7 +303,7 @@ class VTS:
                             index_A = np.where(
                                 self.scan_reac[reac].maps[0] ==
                                 self.scan_reac[reac].scan_coo[0])[0][0]
-                            self.unique[0].append([index_A])
+                            self.scan_reac[reac].usym[0].append([index_A])
                             atomid_A = self.scan_reac[reac].\
                                 products[0].atomid[index_A]
                             for ii, mi in enumerate(
@@ -318,11 +316,11 @@ class VTS:
                                 atomid=atomid_A,
                                 equiv=equiv_A,
                                 mapping=self.scan_reac[reac].maps[0],
-                                unique=self.unique[0])
+                                unique=self.scan_reac[reac].usym[0])
                             index_B = np.where(self.scan_reac[reac].maps[1] ==
                                                self.scan_reac[reac].scan_coo[1]
                                                )[0][0]
-                            self.unique[1].append([index_B])
+                            self.scan_reac[reac].usym[1].append([index_B])
                             atomid_B = self.scan_reac[reac].\
                                 products[1].atomid[index_B]
                             for ii, mi in enumerate(
@@ -335,17 +333,16 @@ class VTS:
                                 atomid=atomid_B,
                                 equiv=equiv_B,
                                 mapping=self.scan_reac[reac].maps[1],
-                                unique=self.unique[1])
-                            # Complete self.unique to contain equivalent atoms
-                            for fnum, frag_ra in enumerate(self.unique):
+                                unique=self.scan_reac[reac].usym[1])
+                            # Complete self.scan_reac[reac].usym to contain equivalent atoms
+                            for fnum, frag_ra in enumerate(self.scan_reac[reac].usym):
                                 # ura is a list with the index of a single unique atom
                                 for ura in frag_ra:
-                                    aid = self.scan_reac[reac].products[fnum].\
+                                    uaid = self.scan_reac[reac].products[fnum].\
                                             atomid[ura[0]]
-                                    for ii, mi in enumerate(
-                                       self.scan_reac[reac].maps[fnum]):
-                                        if self.scan_reac[reac].\
-                                           products[fnum].atomid[ii] == aid and \
+                                    for ii, aid in enumerate(
+                                     self.scan_reac[reac].products[fnum].atomid):
+                                        if aid == uaid and \
                                            ii not in ura:
                                             ura.append(ii)
 
@@ -353,7 +350,7 @@ class VTS:
                             index_A = np.where(
                                 self.scan_reac[reac].maps[1] ==
                                 self.scan_reac[reac].scan_coo[0])[0][0]
-                            self.unique[0].append([index_A])
+                            self.scan_reac[reac].usym[0].append([index_A])
                             atomid_A = self.scan_reac[reac].products[1].\
                                 atomid[index_A]
                             for ii, mi in enumerate(
@@ -366,11 +363,11 @@ class VTS:
                                 atomid=atomid_A,
                                 equiv=equiv_A,
                                 mapping=self.scan_reac[reac].maps[1],
-                                unique=self.unique[0])
+                                unique=self.scan_reac[reac].usym[0])
                             index_B = np.where(
                                 self.scan_reac[reac].maps[0] ==
                                 self.scan_reac[reac].scan_coo[1])[0][0]
-                            self.unique[1].append([index_B])
+                            self.scan_reac[reac].usym[1].append([index_B])
                             atomid_B = self.scan_reac[reac].\
                                 products[0].atomid[index_B]
                             for ii, mi in enumerate(
@@ -383,21 +380,20 @@ class VTS:
                                 atomid=atomid_B,
                                 equiv=equiv_B,
                                 mapping=self.scan_reac[reac].maps[0],
-                                unique=self.unique[1])
-                            # Complete self.unique to contain equivalent atoms
-                            for fnum, frag_ra in enumerate(self.unique):
+                                unique=self.scan_reac[reac].usym[1])
+                            # Complete self.scan_reac[reac].usym to contain equivalent atoms
+                            for fnum, frag_ra in enumerate(self.scan_reac[reac].usym):
                                 # ura is a list with the index of a single unique atom
                                 if fnum == 0:
                                     idx = 1
                                 elif fnum == 1:
                                     idx = 0
                                 for ura in frag_ra:
-                                    aid = self.scan_reac[reac].products[idx].\
+                                    uaid = self.scan_reac[reac].products[idx].\
                                             atomid[ura[0]]
-                                    for ii, mi in enumerate(
-                                       self.scan_reac[reac].maps[idx]):
-                                        if self.scan_reac[reac].\
-                                           products[idx].atomid[ii] == aid and \
+                                    for ii, aid in enumerate(
+                                     self.scan_reac[reac].products[idx].atomid):
+                                        if aid == uaid and \
                                            ii not in ura:
                                             ura.append(ii)
                         equiv.append([equiv_A, equiv_B])
@@ -498,12 +494,9 @@ class VTS:
                 # Create scan references between all equivalent atoms:
                 scan_ref = []
 
-                for n, i in enumerate(self.unique[0][0]):
-                    a: int = np.where(self.scan_reac[reac].maps[0] == i)[0][0]
-                    for j in self.unique[1][0]:
-                        b: int = np.where(
-                            self.scan_reac[reac].maps[1] == j)[0][0]
-                        scan_ref.append([a, b])
+                for i in self.scan_reac[reac].usym[0][0]:
+                    for j in self.scan_reac[reac].usym[1][0]:
+                        scan_ref.append([i, j])
 
                 # Create list of reactive atoms (fragment indexed)
                 ra: list[list[int]] = [[], []]
@@ -529,7 +522,7 @@ class VTS:
                     'e_high': ens[1],
                     'scan_ref': scan_ref,
                     'ra': ra,
-                    'unique': self.unique,
+                    'unique': self.scan_reac[reac].usym,
                     'e_inf_samp': asyms[0],
                     'e_inf_high': asyms[1],
                     'frags_atom': [self.scan_reac[reac].products[0].atom,

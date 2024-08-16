@@ -214,18 +214,25 @@ def create_surface(dist,
             if frag.natom == 1:
                 pps_coords[findex].append(frag.get_pp_on_com())
                 info[findex] += 'COM'
+                weights[findex].append(1)
+                reac_weights[findex].append(1)
                 continue
             elif pps_dists is None:
                 info[findex] += 'on atom'
                 for ra in frag.ra:
                     pps_coords[findex].append(frag.get_pp_on_atom(ra))
                     info[findex] += f' {ra}'
-                    for equiv in equiv_ra[findex]:
+                    for skip_face, equiv in enumerate(equiv_ra[findex]):
                         if ra == equiv[0]:
                             weights[findex].append(len(equiv))
+                            if not skip_face:
+                                reac_weights[findex].append(1)
+                            else:
+                                reac_weights[findex].append(0)
                             break
                         elif ra in equiv:
                             weights[findex].append(0)
+                            reac_weights[findex].append(0)
                             break
             else:
                 info[findex] += 'pp oriented'
@@ -283,9 +290,11 @@ def create_surface(dist,
         pps = ''
         for pp in range(len(pps_coords[fnum])):
             pps += 'X'
+        pos = frag.geom.tolist()
+        pos.extend(pps_coords[fnum])
         atm = Atoms(symbols=f'{frag.atom}{pps}',
-                    positions=frag.geom.tolist().extend(pps_coords[fnum]))
-        atm.write(f'S{VRC_TST_Surface.__id__}F{fnum}.xyz')
+                    positions=pos)
+        atm.write(f'rotdPy/S_{VRC_TST_Surface.__id__}_F_{frag.chemid}.xyz')
 
     return (faces_weights,
             selected_faces,

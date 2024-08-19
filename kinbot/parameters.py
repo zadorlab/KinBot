@@ -472,13 +472,13 @@ class Parameters:
         self.par['imagfreq_uq'] = float(self.par['imagfreq_uq'])
 
         # Check user input
-        if self.par['pp_length'] is not None and\
-            not isinstance(self.par['pp_length'], dict):
+        if self.par['pp_length'] is not None \
+                and not isinstance(self.par['pp_length'], dict):
             err = 'User defined pp_length should be a dict. Using default values.'
             self.par['pp_length'] = pp_tables.pp_length_table()
         # Check keys
-        elif self.par['pp_length'] is not None and\
-            isinstance(self.par['pp_length'], dict):
+        elif self.par['pp_length'] is not None \
+                and isinstance(self.par['pp_length'], dict):
             i = 0
             X_is_defined = False
             for key, value in self.par['pp_length'].items():
@@ -488,9 +488,9 @@ class Parameters:
                 if key == 'X':
                     X_is_defined = True
                 if len(value) != length:
-                    err = "All lists in pp_length should have the same length."
+                    err = 'All lists in pp_length should have the same length.'
             if not X_is_defined:
-                err = "X (default) should be included in pp_length if the user define a list for any atom."
+                err = 'X (default) should be included in pp_length if the user defines a list for any atom.'
             # for element in pp_tables.pp_length_table():
             #     if element not in self.par['pp_length']:
             #         self.par['pp_length'][element] = pp_tables.pp_length_table()[element]

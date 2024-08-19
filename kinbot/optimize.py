@@ -335,8 +335,8 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                if self.par['multi_conf_tst'] == 0 and self.par['rotor_scan']\
-                    and not self.just_high:
+                if self.par['multi_conf_tst'] == 0 and self.par['rotor_scan'] \
+                        and not self.just_high:
                     fr_file = self.log_name(self.par['high_level'])
                     hess = self.qc.read_qc_hess(fr_file, self.species.natom)
                     if self.qc.qc == 'qchem':

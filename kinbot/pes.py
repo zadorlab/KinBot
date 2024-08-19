@@ -122,7 +122,7 @@ def main():
                 f.write(keep + '\n')
                 write_input_keep(input_file, keep, os.getcwd())
 
-    if 'none' in par['skip_chemids']:
+    if 'none' in par['skip_chemids'] and 'none' in par['keep_chemids']:
         logger.info('No KinBot runs to be skipped.')
     if 'none' in par['keep_chemids']:
         logger.info('All valid explored KinBot runs are kept.')

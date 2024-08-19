@@ -94,8 +94,7 @@ class Fragment(StationaryPoint):
             positions=np.round(np.array(self.geom),
                                decimals=4).tolist()
         )
-        rpr = rpr.replace('], [',
-                          '],\n                     [')
+        rpr = rpr.replace('], [', '],\n                     [')
 
         return rpr
 
@@ -321,7 +320,7 @@ class Fragment(StationaryPoint):
                                     index: int,
                                     length: float,
                                     angle: float = 0.0,
-                                    last_neighbourg: int | None = None
+                                    last_neighbor: int | None = None
                                     ) -> list[float]:
         """Create pivot point aligned with the bond
 
@@ -329,35 +328,35 @@ class Fragment(StationaryPoint):
             index (int): Index of atom in fragment.
             length (float): pivot point length.
             angle (float, optional): Angle deviation (degree) in the plane
-                                     bond+COM or bond+last_neighbourg.
+                                     bond+COM or bond+last_neighborg.
                                      Defaults to 0.0.
-            last_neighbourg (int, optional): Index for last point to define
-                                             the plane in which
-                                             to move the pivot point.
-                                             Defaults to None.
+            last_neighbor (int, optional): Index for last point to define
+                                           the plane in which
+                                           to move the pivot point.
+                                           Defaults to None.
 
         Returns:
             list[float]: coordinate of the pivot point.
         """
         ra_pos: NDArray[Any] = np.array(self.geom[index], dtype=float)
-        neighbour_pos: list[list[float]] = []
-        for neighbour_index, this_bond in enumerate(self.bond[index]):
+        neighbor_pos: list[list[float]] = []
+        for neighbor_index, this_bond in enumerate(self.bond[index]):
             if this_bond != 0:
-                neighbour_pos.append(self.geom[neighbour_index])
+                neighbor_pos.append(self.geom[neighbor_index])
                 break
 
         if angle == 0.0 or not isinstance(angle, (float, int)) \
-           or last_neighbourg is None or not isinstance(last_neighbourg, int):
+           or last_neighbor is None or not isinstance(last_neighbor, int):
             try:
-                pp_orient: NDArray[Any] = np.subtract(ra_pos, neighbour_pos[0])
+                pp_orient: NDArray[Any] = np.subtract(ra_pos, neighbor_pos[0])
             except NameError:
                 logger.warning("Could not find any bond for atom {}.\
                                 Setting it to COM".format(self.atom[index]))
                 pp_orient = np.subtract(ra_pos, self.com) + 0.0000000001
         else:
-            neighbour_pos.append(self.geom[last_neighbourg])
-            v1: NDArray[Any] = np.subtract(neighbour_pos[0], ra_pos)
-            v2: NDArray[Any] = np.subtract(neighbour_pos[1], ra_pos)
+            neighbor_pos.append(self.geom[last_neighbor])
+            v1: NDArray[Any] = np.subtract(neighbor_pos[0], ra_pos)
+            v2: NDArray[Any] = np.subtract(neighbor_pos[1], ra_pos)
             axis: NDArray[floating[Any]] = geometry.unit_vector(
                 vector=np.cross(v2, v1))
             pp_orient = np.dot(
@@ -374,8 +373,7 @@ class Fragment(StationaryPoint):
                            index: int,
                            length: float,
                            angle: float | None = None) -> list[float]:
-        """Create pivot point in the middle of
-        the big angle between the 2 neighbours
+        """Create pivot point in the middle of the big angle between the 2 neighbors.
 
         Args:
             index (int): for an angle ABC, index of atom B in fragment.
@@ -388,18 +386,16 @@ class Fragment(StationaryPoint):
             pp_coord (list[float]): 3D coordinate of the pivot point.
         """
         ra_pos: NDArray[Any] = np.array(self.geom[index], dtype=float)
-        neighbour_pos: list[NDArray[Any]] = []
-        for neighbour_index, this_bond in enumerate(self.bond[index]):
-            if this_bond != 0:
-                neighbour_pos.append(np.array(
-                    self.geom[neighbour_index],
-                    dtype=float))
-        v1: NDArray[Any] = np.subtract(neighbour_pos[0], ra_pos)
-        v2: NDArray[Any] = np.subtract(neighbour_pos[1], ra_pos)
+        neighbor_pos: list[NDArray[Any]] = []
+        for ni, bond in enumerate(self.bond[index]):
+            if bond != 0:
+                neighbor_pos.append(np.array(self.geom[ni], dtype=float))
+        v1: NDArray[Any] = np.subtract(neighbor_pos[0], ra_pos)
+        v2: NDArray[Any] = np.subtract(neighbor_pos[1], ra_pos)
         small_angle: float = geometry.calc_angle(
-            a=neighbour_pos[0],
+            a=neighbor_pos[0],
             b=ra_pos,
-            c=neighbour_pos[1])
+            c=neighbor_pos[1])
         big_angle: float = 2*pi - small_angle
         if angle is None or not isinstance(angle, (float, int)):
             angle: float = big_angle/2
@@ -427,15 +423,15 @@ class Fragment(StationaryPoint):
         """
         n_pp = 2
         ra_pos: NDArray[Any] = np.array(self.geom[index], dtype=float)
-        neighbour_pos = []
-        for neighbour_index, this_bond in enumerate(
+        neighbor_pos = []
+        for neighbor_index, this_bond in enumerate(
          np.array(self.bonds)[0, index]):
             if this_bond != 0:
-                neighbour_pos.append(np.array(self.geom[neighbour_index],
-                                              dtype=float))
-        v1: NDArray[Any] = np.subtract(neighbour_pos[0], ra_pos)
-        v2: NDArray[Any] = np.subtract(neighbour_pos[1], ra_pos)
-        v3: NDArray[Any] = np.subtract(neighbour_pos[2], ra_pos)
+                neighbor_pos.append(np.array(self.geom[neighbor_index],
+                                             dtype=float))
+        v1: NDArray[Any] = np.subtract(neighbor_pos[0], ra_pos)
+        v2: NDArray[Any] = np.subtract(neighbor_pos[1], ra_pos)
+        v3: NDArray[Any] = np.subtract(neighbor_pos[2], ra_pos)
         plane: tuple[NDArray[Any], float] = geometry.plane_from_points(
             v0=v1,
             v1=v2,

@@ -1,8 +1,10 @@
+import logging
 from typing import Any
-from ase import Atoms
+
 import numpy as np
 from numpy.typing import NDArray
-import logging
+from ase import Atoms
+
 from kinbot import constants
 from kinbot.fragments import Fragment
 from kinbot.vrc_tst_surfaces import VRC_TST_Surface
@@ -101,6 +103,7 @@ def create_all_surf_for_dist(dist: float,
             selected_faces,
             surfaces)
 
+
 def create_combinatorial_surfaces(pp_l_idxs,
                                   pps_l,
                                   dist,
@@ -186,6 +189,7 @@ def create_combinatorial_surfaces(pp_l_idxs,
             next = 0
             fn = 0
         return (surfaces, faces_weights, selected_faces)
+
 
 def create_surface(dist,
                    equiv_ra: list[list[list[int]]],

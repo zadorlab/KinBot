@@ -154,6 +154,7 @@ def pp_length_table() -> dict[str, list[float]]:
         'C': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist(),
         'N': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist(),
         'O': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist(),
-        'S': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist()}
+        'S': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist(),
+        'X': (np.array([0.5, 1.0])*constants.BOHRtoANGSTROM).tolist()}
 
     return pp_table

@@ -160,6 +160,7 @@ class Molpro:
                     closed_orbitals = int(math.trunc(nelectron-active_electrons)/2)
                     occ_obitals = closed_orbitals + active_orbitals
                     method += f'{{multi,\nocc,{occ_obitals}\nclosed,{closed_orbitals}\nmaxit,50;}}\n\n'
+                    method += f'put, molden, {fname}.mld\n\n'
                     method += '{rs2c, shift=0.3}\n'
                 case "uwb97xd":
                     method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"

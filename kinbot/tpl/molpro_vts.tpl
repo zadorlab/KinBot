@@ -9,7 +9,6 @@ text, Molpro input generated automatically by KinBot
 
 {methods}
 
-put, molden, {fname}.mld
 {key} = energy(1)
 
 ---

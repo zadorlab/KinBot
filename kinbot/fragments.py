@@ -366,7 +366,7 @@ class Fragment(StationaryPoint):
         # Multiply unit vector with correct orientation with desired length
         pp_vect = np.asarray(length) * geometry.unit_vector(pp_orient)
         # Place pivots point in molecular frame
-        pp_coord: NDArray[Any] = np.add(ra_pos, pp_vect).tolist()
+        pp_coord: NDArray[Any] = np.add(ra_pos, pp_vect)
         return pp_coord.tolist()
 
     def create_pp_triangle(self,

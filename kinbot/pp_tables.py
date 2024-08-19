@@ -86,7 +86,11 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
             case 1:
                 atom_type = 'O_tri' #Ex: H-O. -> H2O
             case 2:
-                atom_type = 'O_quad' #Ex: This is weird, unless H2O(+). + R(-).
+                match ndouble:
+                    case 0:
+                        atom_type = 'O_quad' #Ex: This is weird, unless H2O(+). + R(-).
+                    case 1:
+                        atom_type = 'O_tri'
     elif element == 'S':
         match nconnect:
             case 0:

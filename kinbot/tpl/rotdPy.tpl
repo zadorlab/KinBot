@@ -1,4 +1,5 @@
 from rotd_py.fragment.nonlinear import Nonlinear
+from rotd_py.fragment.linear import Linear
 from rotd_py.system import Surface
 from rotd_py.new_multi import Multi
 from rotd_py.sample.multi_sample import MultiSample

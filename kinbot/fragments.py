@@ -66,6 +66,10 @@ class Fragment(StationaryPoint):
         self.atom = Atoms(symbols=symbols,
                           positions=geom
                           )
+        if abs(np.prod(self.atom.get_moments_of_inertia())) < 1e-6:
+            self.frag_type = 'Linear'
+        else:
+            self.frag_type = 'Nonlinear'
 
         self.frag_name: str
         Fragment.set_fragnames(self)
@@ -89,7 +93,7 @@ class Fragment(StationaryPoint):
             tpl: str = f.read()
         rpr: str = tpl.format(
             frag_name=self.frag_name,
-            frag_type='Nonlinear',
+            frag_type=self.frag_type,
             formula=self.formula,
             positions=np.round(np.array(self.geom),
                                decimals=4).tolist()
@@ -328,7 +332,7 @@ class Fragment(StationaryPoint):
             index (int): Index of atom in fragment.
             length (float): pivot point length.
             angle (float, optional): Angle deviation (degree) in the plane
-                                     bond+COM or bond+last_neighborg.
+                                     bond+COM or bond+last_neighbor.
                                      Defaults to 0.0.
             last_neighbor (int, optional): Index for last point to define
                                            the plane in which
@@ -368,6 +372,10 @@ class Fragment(StationaryPoint):
         # Place pivots point in molecular frame
         pp_coord: NDArray[Any] = np.add(ra_pos, pp_vect)
         return pp_coord.tolist()
+    
+    def create_pp_angled_with_bond(self, index, length, ):
+
+        pass
 
     def create_pp_triangle(self,
                            index: int,

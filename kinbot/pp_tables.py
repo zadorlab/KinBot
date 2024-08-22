@@ -70,15 +70,15 @@ def atom_type_table(element, nconnect, ndouble, ntriple):
             case 4:  # Weird case, more than full valency N: N+ is assumed, which is equivalent to C 
                 match ntriple:
                     case 1:
-                        atom_type = "C_tri"
+                        atom_type = "N_tri"
                     case 0:
                         match ndouble:
                             case 2:
-                                atom_type = "C_tri"
+                                atom_type = "N_tri"
                             case 1:
-                                atom_type = "C_quad"
+                                atom_type = "N_quad"
                             case 0:
-                                atom_type = "C_tri"
+                                atom_type = "N_tri"
     elif element == 'O':
         match nconnect:
             case 0:

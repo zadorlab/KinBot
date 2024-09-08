@@ -8,6 +8,8 @@ import stat
 import json
 
 from ase.db import connect
+from shutil import which
+from subprocess import Popen, PIPE
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
 from kinbot.molpro import Molpro
@@ -98,6 +100,48 @@ class VTS:
                 # update geom in self.scan_reac[reac] values,
                 # this already saves it
                 prod.geom = geom
+                if status == 0:
+                    # Check if commands are available
+                    commands = ['formchk', 'cubegen']
+                    missing_com = False
+                    for com in commands:
+                        if which(com) is None:
+                            logger.warning(f'Make sure the command {com} is installed.')
+                            missing_com = True
+                    if not missing_com:
+                        # Create the formchk
+                        if not os.path.isfile(f'{job}.fchk'):
+                            if os.path.isfile(f'{job}.chk'):
+                                command = ['formchk', f'{job}.chk', f'{job}.fchk']
+                                process = Popen(
+                                    args=command,
+                                    shell=False,
+                                    stdout=PIPE,
+                                    stdin=PIPE,
+                                    stderr=PIPE)
+                                out, err = process.communicate()
+                                out = out.decode()
+                            else:
+                                logger.warning(f"Could not create formatted checkpoint file for {job} as checkpoint file doesn't exist.")
+
+                        # Create the cubegen file
+                        if not os.path.isfile(f'{job}.cube'):
+                            if os.path.isfile(f'{job}.fchk'):
+                                if prod.mult != 1:
+                                    command = ['cubegen', '1', 'AMO=HOMO', f'{job}.fchk', f'{job}.cube', '-3']
+                                else:
+                                    command = ['cubegen', '1', 'MO=HOMO', f'{job}.fchk', f'{job}.cube', '-3']
+                                process = Popen(
+                                    command,
+                                    shell=False,
+                                    stdout=PIPE,
+                                    stdin=PIPE,
+                                    stderr=PIPE)
+                                out, err = process.communicate()
+                                out = out.decode()
+                            else:
+                                logger.warning(f"Cannnot create cube file for {job} as formated checkpoint file doesn't exist.")
+
 
         return
 
@@ -528,7 +572,9 @@ class VTS:
                     'frags_atom': [self.scan_reac[reac].products[0].atom,
                                    self.scan_reac[reac].products[1].atom],
                     'frags_geom': [self.scan_reac[reac].products[0].geom,
-                                   self.scan_reac[reac].products[1].geom]
+                                   self.scan_reac[reac].products[1].geom],
+                    'frags_mult': [self.scan_reac[reac].products[0].mult,
+                                   self.scan_reac[reac].products[1].mult]
                     }
 
                 with open(f'vrctst/corr_{reac}.json',

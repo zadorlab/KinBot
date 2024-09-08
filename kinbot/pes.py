@@ -1397,7 +1397,10 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                                       symbols=pp_info['frags_atom'][frag_num],
                                       geom=pp_info['frags_geom'][frag_num],
                                       ra=pp_info['ra'][frag_num],
-                                      par=par))
+                                      equiv=pp_info['unique'][frag_num],
+                                      par=par,
+                                      parent=str(reactant),
+                                      mult=pp_info['frags_mult'][frag_num]))
 
         fragnames = Fragment.get_fragnames()
 

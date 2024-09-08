@@ -1,15 +1,17 @@
+import enum
+import os
 from typing import Any
 from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
 from ase.atoms import Atoms
 import numpy as np
 from numpy.typing import NDArray
-from numpy import float64, int64, pi, floating
-from kinbot import pp_tables
+from numpy import float32, float64, int64, int16, bool_, pi, floating
 from kinbot import geometry
 import logging
 import copy
 import math
+from kinbot.constants import BOHRtoANGSTROM
 
 logger = logging.getLogger('KinBot')
 
@@ -28,6 +30,8 @@ class Fragment(StationaryPoint):
                  geom: list[list[float]],
                  ra: list[int],
                  par: dict[str, Any],
+                 parent: str,
+                 equiv: list[list[int]],
                  charge: int | None = None,
                  mult: int | None = None,
                  atoms: Atoms | None = None
@@ -44,29 +48,26 @@ class Fragment(StationaryPoint):
         self.pivot_points: list[list[float]] = []
         self.par: dict[str, Any] = par
         self.ra: NDArray[int64] = np.array(ra, dtype=int64)
-        self.atom = Atoms(symbols=symbols,
-                          positions=geom
-                          )
+        self.atoms = Atoms(symbols=symbols,
+                           positions=geom
+                           )
+        self.equiv = equiv
+        self.orient: dict[str, NDArray[float32]] = {}
+        self.parent: str = parent
         if charge is None:
-            self.charge: int = sum(self.atom.get_initial_charges())
+            self.charge: int = sum(self.atoms.get_initial_charges())
         else:
             self.charge: int = charge
-        if mult is None and\
-           self.atom.calc is None or\
-           'mult' not in self.atom.calc.parameters:
+        if mult is None:
             self.mult: int = 1
         elif mult is not None:
             self.mult: int = mult
-        else:
-            self.mult: int = self.atom.calc.parameters['mult']
-        self.formula: str = str(self.atom.get_chemical_symbols())
-        self.frag_name: str = self.atom.get_chemical_formula()
-        self.geom: NDArray[Any] = np.subtract(geom,
-                                              self.atom.get_center_of_mass())
-        self.atom = Atoms(symbols=symbols,
-                          positions=geom
-                          )
-        if abs(np.prod(self.atom.get_moments_of_inertia())) < 1e-6:
+        self.formula: list[str] = self.atoms.get_chemical_symbols()
+        self.frag_name: str = self.atoms.get_chemical_formula()
+        self.geom = np.array(geom)
+
+        self.recentre()
+        if abs(np.prod(self.atoms.get_moments_of_inertia())) < 1e-6:
             self.frag_type = 'Linear'
         else:
             self.frag_type = 'Nonlinear'
@@ -77,7 +78,7 @@ class Fragment(StationaryPoint):
         super(Fragment, self).__init__(name=self.frag_name,
                                        charge=self.charge,
                                        mult=self.mult,
-                                       atom=self.atom.symbols,
+                                       atom=self.atoms.symbols,
                                        geom=self.geom)
         self.characterize()
         self.com: NDArray[float64] = np.zeros(3)
@@ -120,6 +121,12 @@ class Fragment(StationaryPoint):
     def get_fragnames(cls) -> list[str]:
         return cls._fragnames
 
+    def recentre(self):
+        self.atoms = Atoms(symbols=self.formula,
+                           positions=self.geom)
+        self.geom: NDArray[Any] = np.subtract(self.geom,
+                                              self.atoms.get_center_of_mass())
+
     def get_chemical_formula(self) -> str:
         """Create the string of element in the order of the coordinates
 
@@ -127,7 +134,7 @@ class Fragment(StationaryPoint):
             str: chemical elements
         """
         all_elem: str = ""
-        for elem in self.atom:
+        for elem in self.atoms:
             all_elem += f"{elem}"
         return all_elem
 
@@ -170,167 +177,299 @@ class Fragment(StationaryPoint):
         Returns:
             _type_: coordinates
         """
-        atom_type: str = self.get_atom_type(index)
-        coord: list[list[float]] = self.get_pp_coord(
-            index=index,
-            atom_type=atom_type,
-            dist_from_ra=dist_from_ra)
+        orientation_vect: NDArray[float32] = self.get_pp_orientation(
+            index=index)
+        coord = (orientation_vect * dist_from_ra + self.geom[index]).tolist()
+        return coord
 
-        return np.round(np.asarray(coord),
-                        decimals=5).tolist()
-
-    def get_atom_type(self,
-                      index: int) -> str:
-        """Detect the connectivity of the atom index to
-        get its atom type.
-
-        Args:
-            index (int): index of atom in fragment
-
-        Returns:
-            atom_type (str): atom type name that depends on connectivity.
-        """
-        element = self.atom[index]
-        nconnect = 0
-        ndouble = 0
-        ntriple = 0
-        for this_bond in self.bond[index]:
-            if this_bond == 0:
-                continue
-            nconnect += this_bond
-            match this_bond:
-                case 2:
+    def get_pp_orientation(self,
+                           index: int) -> NDArray[float32]:
+        if str(index) in self.orient:
+            return self.orient[str(index)]
+        orient: NDArray[float32] = np.array([[0, 0, 0]], dtype=float32)
+        if self.par['pp_orient'] == 'geometric':
+            # element = self.atom[index]
+            nconnect = 0
+            ndouble = 0
+            ntriple = 0
+            for this_bond in self.bond[index]:
+                if this_bond == 0:
+                    continue
+                nconnect += this_bond
+                if this_bond == 2:
                     ndouble += 1
-                case 3:
+                elif this_bond == 3:
                     ntriple += 1
-        atom_type: str = pp_tables.atom_type_table(element=element,
-                                                   nconnect=nconnect,
-                                                   ndouble=ndouble,
-                                                   ntriple=ntriple)
-        return atom_type
+            if nconnect == 1:
+                orient = self.pp_aligned_with_bond(index=index)
+            elif nconnect == 2:
+                if ndouble == 1:
+                    orient = self.pp_aligned_with_bond(index=index)
+                else:
+                    orient = self.pp_triangle(index=index)
+            elif nconnect == 3:
+                if ntriple == 1:
+                    orient = self.pp_aligned_with_bond(index=index)
+                elif ndouble == 1:
+                    # To adapt in case linear
+                    orient = self.pp_triangle(index=index)
+                else:
+                    orient = self.pp_bipyramide_triangle_base(index)
+            elif nconnect == 4:
+                if ntriple == 1:
+                    # To adapt in case linear
+                    orient = self.pp_triangle(index=index)
+                elif ndouble == 2:
+                    # To adapt in case linear
+                    orient = self.pp_triangle(index=index)
+                elif ndouble == 1:
+                    orient = self.pp_bipyramide_triangle_base(index)
+                else:
+                    raise NotImplementedError('Automatic pivot points orientation from connectivity not implemented yet for this configuration.')
+            else:
+                raise NotImplementedError('Automatic pivot points orientation from connectivity not implemented yet for this configuration.')
+        # Find the orientation of the pivot point from the orbital analysis
+        # Requires the generation of a gaussian cubefile
+        elif self.par['pp_orient'] == 'homo':
+            if os.path.isfile(f'{self.parent}/vrctst/{self.chemid}_vts.cube'):
+                with open(f'{self.parent}/vrctst/{self.chemid}_vts.cube', 'r') as f:
+                    cubefile: list[str] = f.readlines()
+            else:
+                raise TypeError('HOMO mode selected for pivot point orientation, but cubefile is not available.')
+            step: NDArray[float32] = np.zeros(3, dtype=float32)
+            dim: NDArray[int16] = np.zeros(3, dtype=int16)
+            # Saves info from the header: step size, origin and dimension
+            for ln, line in enumerate(cubefile):
+                if ln == 2:
+                    natom, x, y, z = line.split()[:-1]
+                    origin: NDArray[float32] = np.array([x, y, z],
+                                                        dtype=float32)
+                    natm = abs(int(natom))
+                    cube_geom: NDArray[float32] = np.empty((natm,3), dtype=float32)
+                    continue
+                elif ln == 3:
+                    dim[0] = int16(line.split()[0])
+                    step[0] = float32(line.split()[1])
+                    continue
+                elif ln == 4:
+                    dim[1] = int16(line.split()[0])
+                    step[1] = float32(line.split()[2])
+                    continue
+                elif ln == 5:
+                    dim[2] = int16(line.split()[0])
+                    step[2] = float32(line.split()[3])
+                    continue
+                # Save the cube geometry
+                elif ln > 5 and ln <= 5 + natm:
+                    x, y, z = line.split()[2:]
+                    cube_geom[ln-6] = np.array([x, y, z], dtype=float32)
+                elif ln > 5 and len(line.split()) == 2:
+                    start: int = ln + 1
+                    break
 
-    def get_pp_coord(self,
-                     index: int,
-                     atom_type: str,
-                     dist_from_ra: float) -> list[list[float]]:
-        """Call the appropriate method to create
-        the pivot point depending on the atom type.
+            cube_geom *= BOHRtoANGSTROM
+            origin *= BOHRtoANGSTROM
+            step *= BOHRtoANGSTROM
 
-        Args:
-            index (int): index of the atom holding the pivot point
-            atom_type (str): string describing the geometry of the
-                             environment around the atom
-            dist_from_ra (float): length of the pivot point
+            # Create the box
 
-        Returns:
-            list[list[float]]: list of 3D coordinates.
-        """
-        match atom_type:
-            case 'H' | 'C' | 'O' | 'S':
-                # Create pivot point on atom
-                return [self.get_pp_on_atom(index=index)]
-            case 'H_lin':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_aligned_with_bond(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'C_lin':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_aligned_with_bond(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'C_tri':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_triangle(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'C_quad':
-                pp_list: list[list[float]] = \
-                    self.create_pp_bipyramide_triangle_base(
-                        index=index,
-                        length=dist_from_ra)
-                return pp_list
-            case 'N_tri':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_aligned_with_bond(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'N_pyr':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_triangle(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'N_quad':
-                pp_list: list[list[float]] = \
-                    self.create_pp_bipyramide_triangle_base(
-                        index=index,
-                        length=dist_from_ra)
-                return pp_list
-            case 'O_tri':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_aligned_with_bond(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'O_quad':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_triangle(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'S_tri':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_aligned_with_bond(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'S_pyr':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_triangle(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'S_lin':
-                pp_coord: list[list[float]] = \
-                    [self.create_pp_aligned_with_bond(
-                        index=index,
-                        length=dist_from_ra)]
-                return pp_coord
-            case 'S_bip_tri_l':
-                pp_list: list[list[float]] = \
-                    self.create_pp_bipyramide_triangle_base(
-                        index=index,
-                        length=dist_from_ra)
-                return pp_list
-            case 'S_bip_tri':
-                return [[]]
-            case 'S_quad':
-                pp_list: list[list[float]] = \
-                    self.create_pp_bipyramide_triangle_base(
-                        index=index,
-                        length=dist_from_ra)
-                return pp_list
-            case 'S_bip_quad_t':
-                return [[]]
-            case _:
-                return [[]]
+            # Size of a z-axis block in number of lines
+            ysize = int(math.ceil(dim[2]/6))
+            xsize = int(ysize*dim[1])
 
-    def create_pp_aligned_with_bond(self,
-                                    index: int,
-                                    length: float,
-                                    angle: float = 0.0,
-                                    last_neighbor: int | None = None
-                                    ) -> list[float]:
+            # Change the geom for the one in the cube to ensure same orientation
+            self.geom = cube_geom
+            self.recentre()
+
+            for eq in self.equiv:
+                if index in eq:
+                    to_integrate: list[int] = eq
+                    break
+
+            loc_orbs = {}
+            max_integral = 0.0
+            for atm in to_integrate:
+
+                # define a searchbox for max/min value around atom of interest
+                searchbox: NDArray[Any] = np.array(
+                    [cube_geom[atm]-1, cube_geom[atm]+1])
+                search_origin: NDArray[int16] = np.array(np.trunc(
+                    np.absolute(origin - searchbox[0]) / step), dtype=int16)
+                search_end: NDArray[int16] = np.array(np.trunc(
+                    np.absolute(origin - searchbox[1]) / step)+1, dtype=int16)
+
+                box_dim = (
+                        search_end[0] - search_origin[0],
+                        search_end[1] - search_origin[1],
+                        search_end[2] - search_origin[2]
+                        )
+
+                start_line: int = \
+                    start + \
+                    search_origin[0] * xsize + \
+                    search_origin[1] * ysize
+                stop_line: int = \
+                    start + \
+                    search_end[0] * xsize + \
+                    search_end[1] * ysize + 1
+
+                box_origin = search_origin * step + origin
+
+                # Defines a sphere in the box
+                radius = 0.8
+                sphere = np.empty(box_dim, dtype=bool)
+                for x in range(box_dim[0]):
+                    for y in range(box_dim[1]):
+                        for z in range(box_dim[2]):
+                            coord = np.array([x, y, z]) * step + box_origin
+                            if np.linalg.norm(coord-cube_geom[atm]) < radius:
+                                sphere[x, y, z] = True
+                            else:
+                                sphere[x, y, z] = False
+
+                # Saves the part of interest of the orbital in numpy array
+                orb_box: NDArray[float32] = np.empty(
+                    shape=box_dim,
+                    dtype=float32
+                )
+
+                # Read data for the box only
+                save_pos = np.arange(0, box_dim[2])
+                for ln, line in enumerate(cubefile[start_line:stop_line]):
+                    nx = int(np.trunc((ln+start_line-start) / xsize))
+                    if np.in1d(nx, np.arange(search_origin[0], search_end[0])):
+                        rest_y = (ln+start_line-start) % xsize
+                        ny = int(np.trunc(rest_y / ysize))
+                        if np.in1d(ny, np.arange(search_origin[1], search_end[1])):
+                            # rest_z goes from 0 to ysize-1
+                            rest_z = rest_y % ysize
+                            indexes_in_line: NDArray[Any] = np.arange(rest_z*6, rest_z*6+6)
+                            is_in_box: NDArray[bool_] = np.in1d(
+                                indexes_in_line,
+                                np.arange(search_origin[2], search_end[2]))
+                            zidx_in_box = (
+                                indexes_in_line[is_in_box] - search_origin[2]
+                                ).tolist()
+                            # Boolean mask
+                            where2save = np.in1d(save_pos, zidx_in_box)
+                            which2save = np.where(is_in_box)[0]
+                            if not any(where2save):
+                                continue
+                            orb_box[nx-search_origin[0],
+                                    ny-search_origin[1],
+                                    where2save] = np.take(line.split(),
+                                                          indices=which2save)
+                loc_orbs[atm] = orb_box
+
+                # Calculate the integral in the sphere
+                integral: float32 = np.sum(np.absolute(orb_box[sphere]))
+
+                # Choose the best atom
+                if integral > max_integral:
+                    max_integral = integral
+                    best_atm = atm
+
+            # define a searchbox for max/min value around atom of interest
+            searchbox: NDArray[Any] = np.array(
+                [cube_geom[best_atm]-1, cube_geom[best_atm]+1])
+            search_origin: NDArray[int16] = np.array(np.trunc(
+                np.absolute(origin - searchbox[0]) / step), dtype=int16)
+            search_end: NDArray[int16] = np.array(np.trunc(
+                np.absolute(origin - searchbox[1]) / step)+1, dtype=int16)
+
+            box_dim = (
+                    search_end[0] - search_origin[0],
+                    search_end[1] - search_origin[1],
+                    search_end[2] - search_origin[2]
+                    )
+
+            start_line: int = \
+                start + \
+                search_origin[0] * xsize + \
+                search_origin[1] * ysize
+            stop_line: int = \
+                start + \
+                search_end[0] * xsize + \
+                search_end[1] * ysize + 1
+
+            box_origin = search_origin * step + origin
+
+            # Defines a sphere in the box
+            radius = 0.8
+            sphere = np.empty(box_dim, dtype=bool)
+            for x in range(box_dim[0]):
+                for y in range(box_dim[1]):
+                    for z in range(box_dim[2]):
+                        coord = np.array([x, y, z]) * step + box_origin
+                        if np.linalg.norm(coord-cube_geom[best_atm]) < radius:
+                            sphere[x, y, z] = True
+                        else:
+                            sphere[x, y, z] = False
+
+            orb_box = loc_orbs[best_atm]
+
+            # find indexes of max value in sphere
+            orb_max: float32 = np.max(orb_box[sphere])
+
+            # Search indexes of the value in the box
+            tmp_max_idx: NDArray[Any] = np.transpose(np.where(orb_box == orb_max))
+            # Take closest value in case several values are minimum
+            if len(tmp_max_idx) > 1:
+                dist: list[floating[Any]] = [
+                    np.linalg.norm(i*step+origin-cube_geom[best_atm])
+                    for i in tmp_max_idx]
+                max_idx: NDArray[Any] = tmp_max_idx[np.where(dist == np.min(dist))][0]
+            else:
+                max_idx: NDArray[Any] = tmp_max_idx[0]
+
+            max_coord = step * max_idx + box_origin
+
+            max_orient: NDArray[float32] = np.array(
+                geometry.unit_vector(max_coord - cube_geom[best_atm]),
+                dtype=float32)
+
+            # Check if minimum should be a pivot point
+            orb_min: float32 = np.min(orb_box[sphere])
+            if abs(orb_min) > 0.8*orb_max:
+                # Search indexes of the value in the box
+                tmp_min_idx = np.transpose(np.where(orb_box == orb_min))
+                # Take closest value in case several values are minimum
+                if len(tmp_min_idx) > 1:
+                    dist = [np.linalg.norm(i*step+origin-cube_geom[best_atm]) for i in tmp_min_idx]
+                    min_idx = tmp_min_idx[np.where(dist == np.min(dist))][0]
+                else:
+                    min_idx = tmp_min_idx[0]
+
+                min_coord = step * min_idx + box_origin
+
+                min_orient: NDArray[float32] = np.array(
+                    geometry.unit_vector(min_coord - cube_geom[best_atm]),
+                    dtype=float32)
+
+                # Check if min and max of the orbital are aligned
+                # The cutoff angle is defined as arccos(1-x),
+                # where x is the float at the end of this line.
+                # 0.2 corresponds to approx. 37 degree
+                if np.linalg.norm(
+                    np.subtract(min_orient, max_orient)) > 0.2:
+                    orient = np.array([max_orient, min_orient], dtype=float32)
+                else:
+                    orient = np.array([max_orient], dtype=float32)
+            else:
+                orient = np.array([max_orient], dtype=float32)
+        for atm in to_integrate:
+            self.orient[str(atm)] = orient
+        return orient
+
+    def pp_aligned_with_bond(self,
+                             index: int,
+                             angle: float = 0.0,
+                             last_neighbor: int | None = None
+                             ) -> NDArray[float32]:
         """Create pivot point aligned with the bond
 
         Args:
             index (int): Index of atom in fragment.
-            length (float): pivot point length.
             angle (float, optional): Angle deviation (degree) in the plane
                                      bond+COM or bond+last_neighbor.
                                      Defaults to 0.0.
@@ -366,26 +505,17 @@ class Fragment(StationaryPoint):
             pp_orient = np.dot(
                 geometry.rotation_matrix(axis=axis, theta=math.radians(angle)),
                 v1)
+        pp_orient = geometry.unit_vector(pp_orient)
 
-        # Multiply unit vector with correct orientation with desired length
-        pp_vect = np.asarray(length) * geometry.unit_vector(pp_orient)
-        # Place pivots point in molecular frame
-        pp_coord: NDArray[Any] = np.add(ra_pos, pp_vect)
-        return pp_coord.tolist()
-    
-    def create_pp_angled_with_bond(self, index, length, ):
+        return np.array([pp_orient], dtype=float32)
 
-        pass
-
-    def create_pp_triangle(self,
-                           index: int,
-                           length: float,
-                           angle: float | None = None) -> list[float]:
+    def pp_triangle(self,
+                    index: int,
+                    angle: float | None = None) -> NDArray[float32]:
         """Create pivot point in the middle of the big angle between the 2 neighbors.
 
         Args:
             index (int): for an angle ABC, index of atom B in fragment.
-            length (float, optional): Length of pivot point. Defaults to None.
             angle (float, optional): Deviation angle.
                                      Defaults to None, which leads to
                                      in between the two attached atoms.
@@ -413,18 +543,15 @@ class Fragment(StationaryPoint):
         pp_orient: NDArray[Any] = np.dot(
             a=geometry.rotation_matrix(axis, angle),
             b=v1)
-        pp_vect: NDArray[Any] = length * geometry.unit_vector(vector=pp_orient)
-        pp_coord: NDArray[Any] = np.add(ra_pos, pp_vect)
-        return pp_coord.tolist()
 
-    def create_pp_bipyramide_triangle_base(self,
-                                           index: int,
-                                           length: float) -> list[list[float]]:
+        return np.array(geometry.unit_vector(vector=pp_orient), dtype=float32)
+
+    def pp_bipyramide_triangle_base(self,
+                                    index: int) -> NDArray[float32]:
         """Create one or two pivot points on one or both side of the plane.
 
         Args:
-            index (int): _description_
-            length (float): _description_
+            index (int): atom having 3 neighbours
 
         Returns:
             _type_: _description_
@@ -459,7 +586,6 @@ class Fragment(StationaryPoint):
                 geometry.unit_vector(vector=plane[0]) *
                 plane_direction*np.power(-1, i),
                 dtype=float)
-            pp_vect = length * geometry.unit_vector(pp_orient)
-            pp_coord: NDArray[Any] = np.add(ra_pos, pp_vect)
-            pp_list.append(pp_coord.tolist())
-        return pp_list
+            pp_list.append(geometry.unit_vector(pp_orient))
+            
+        return np.ndarray(pp_list, dtype=float32)

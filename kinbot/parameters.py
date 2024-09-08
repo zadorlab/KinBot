@@ -112,14 +112,6 @@ class Parameters:
             'calc_aie': 0,
             # Detect vdW wells deeper than threshold (kcal/mol)
             'vdW_detection': 0.5,
-            #Dictionary of distances in bohr at which pivot points are generated for each atom
-            'pp_length': None,
-            #List [start, stop] in angstrom of the pp_oriented procedure
-            'pp_oriented': None,
-            #List [start, stop] in angstrom of the pp_on_atom procedure
-            'pp_on_atom': None,
-            #Start value in angstrom of the pp_on_COM procedure
-            'pp_on_COM': 10.0,
             
 
             # CONFORMATIONAL SEARCH
@@ -300,6 +292,16 @@ class Parameters:
             'vrc_tst_scan_deviation': 100.,
             # Explicit reaction center for a fragment, {'frament chemid': [atomids of centers]}
             'vrc_tst_scan_reac_cent': {},
+            # Dictionary of distances in bohr at which pivot points are generated for each atom
+            'pp_length': None,
+            # List [start, stop] in angstrom of the pp_oriented procedure
+            'pp_oriented': None,
+            # List [start, stop] in angstrom of the pp_on_atom procedure
+            'pp_on_atom': None,
+            # Start value in angstrom of the pp_on_COM procedure
+            'pp_on_COM': 10.0,
+            # mode of pivot point placement. Accepted values are geometric and homo
+            'pp_orient': 'homo',
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -482,36 +484,32 @@ class Parameters:
             i = 0
             X_is_defined = False
             for key, value in self.par['pp_length'].items():
-                if i == 0 :
+                if i == 0:
                     length = len(value)
-                i += 1
+                    i += 1
                 if key == 'X':
                     X_is_defined = True
                 if len(value) != length:
                     err = 'All lists in pp_length should have the same length.'
             if not X_is_defined:
                 err = 'X (default) should be included in pp_length if the user defines a list for any atom.'
-            # for element in pp_tables.pp_length_table():
-            #     if element not in self.par['pp_length']:
-            #         self.par['pp_length'][element] = pp_tables.pp_length_table()[element]
-            #     else:
-            #         self.par['pp_length'][element] = (np.array(self.par['pp_length'][element])\
-            #                                         * constants.BOHRtoANGSTROM).tolist()
         elif self.par['pp_length'] is None:
             self.par['pp_length'] = pp_tables.pp_length_table()
 
-        if self.par['pp_oriented'] != None and\
-            not isinstance(self.par['pp_oriented'], list):
+        if self.par['pp_oriented'] is not None and\
+           not isinstance(self.par['pp_oriented'], list):
             err = 'User defined pp_oriented should be a list. Using default values.'
             self.par['pp_oriented'] = [1.5, 6]
         elif self.par['pp_oriented'] is None:
             self.par['pp_oriented'] = [1.5, 6]
-        if self.par['pp_on_atom'] != None and\
-            not isinstance(self.par['pp_on_atom'], list):
+        if self.par['pp_on_atom'] is not None and\
+           not isinstance(self.par['pp_on_atom'], list):
             err = 'User defined pp_on_atom should be a list. Using default values.'
             self.par['pp_on_atom'] = [5.0, 12.0]
         elif self.par['pp_on_atom'] is None:
             self.par['pp_on_atom'] = [5.0, 12.0]
+        if self.par['pp_orient'].casefold() not in ['homo', 'geometric']:
+            err = "pp_orient not well defined. 'homo' and 'geometric' are currently the only possible options"
 
         if self.par['barrier_threshold'] == 'none':
             self.par['barrier_threshold'] = None

@@ -128,9 +128,9 @@ class VTS:
                         if not os.path.isfile(f'{job}.cube'):
                             if os.path.isfile(f'{job}.fchk'):
                                 if prod.mult != 1:
-                                    command = ['cubegen', '1', 'AMO=HOMO', f'{job}.fchk', f'{job}.cube', '-3']
+                                    command = ['cubegen', '1', 'AMO=HOMO', f'{job}.fchk', f'{job}.cube', '-4']
                                 else:
-                                    command = ['cubegen', '1', 'MO=HOMO', f'{job}.fchk', f'{job}.cube', '-3']
+                                    command = ['cubegen', '1', 'MO=HOMO', f'{job}.fchk', f'{job}.cube', '-4']
                                 process = Popen(
                                     command,
                                     shell=False,

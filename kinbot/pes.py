@@ -1426,7 +1426,6 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                 faces_weights.extend(fw)
                 selected_faces.extend(sf)
 
-        # TODO rewrite using templates
         # Creating the strings to print input file
 
         # Surfaces block:

@@ -12,11 +12,11 @@ def pp_length_table() -> dict[str, list[float]]:
         list[float]: list of distances for the pivot point.
     """
     pp_table: dict[str, list[float]] = {
-        'H': (np.array([0.125, 0.25, 0.375, 0.5])*constants.BOHRtoANGSTROM).tolist(),
-        'C': (np.array([0.25, 0.5, 0.75, 1.0])*constants.BOHRtoANGSTROM).tolist(),
-        'N': (np.array([0.25, 0.5, 0.75, 1.0])*constants.BOHRtoANGSTROM).tolist(),
-        'O': (np.array([0.25, 0.5, 0.75, 1.0])*constants.BOHRtoANGSTROM).tolist(),
-        'S': (np.array([0.25, 0.5, 0.75, 1.0])*constants.BOHRtoANGSTROM).tolist(),
-        'X': (np.array([0.25, 0.5, 0.75, 1.0])*constants.BOHRtoANGSTROM).tolist()}
+        'H': [0.125, 0.25, 0.375, 0.5],
+        'C': [0.25, 0.5, 0.75, 1.0],
+        'N': [0.25, 0.5, 0.75, 1.0],
+        'O': [0.25, 0.5, 0.75, 1.0],
+        'S': [0.25, 0.5, 0.75, 1.0],
+        'X': [0.25, 0.5, 0.75, 1.0]}
 
     return pp_table

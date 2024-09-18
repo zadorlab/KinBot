@@ -2,6 +2,7 @@ import rmsd
 import os
 from typing import Any
 from kinbot import kb_path
+from kinbot import constants
 from kinbot.stationary_pt import StationaryPoint
 from ase.atoms import Atoms
 import numpy as np
@@ -89,7 +90,6 @@ class Fragment(StationaryPoint):
         Returns:
             str: string to rebuild the fragment in rotdPy input.
         """
-        # TODO: Modify nonlinear by a variable that detects linearity
         with open(f'{kb_path}/tpl/rotdPy_frag.tpl', 'r') as f:
             tpl: str = f.read()
         rpr: str = tpl.format(
@@ -164,7 +164,7 @@ class Fragment(StationaryPoint):
     def get_pp_next_to_ra(self,
                           index: int,
                           dist_from_ra: float = 0.0
-                          ) -> list[list[float]]:
+                          )  -> tuple[Any, Any]:
         """Get the atom type and use it to get
         the coordinates of the pivot point.
 
@@ -179,8 +179,15 @@ class Fragment(StationaryPoint):
         """
         orientation_vect: NDArray[float32] = self.get_pp_orientation(
             index=index)
-        coord = (orientation_vect * dist_from_ra + self.geom[index]).tolist()
-        return coord
+        coord = (
+            orientation_vect * 
+            dist_from_ra*constants.BOHRtoANGSTROM +
+            self.geom[index]).tolist()
+        pp_dist = np.full(
+            shape=len(coord),
+            fill_value=dist_from_ra*constants.BOHRtoANGSTROM
+            ).tolist()
+        return coord, pp_dist
 
     def get_pp_orientation(self,
                            index: int) -> NDArray[float32]:

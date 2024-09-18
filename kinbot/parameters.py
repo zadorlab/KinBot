@@ -263,8 +263,6 @@ class Parameters:
             'nn_model': None,
 
             # VRC-TST PARAMETERS
-            # Distances in A for vrc_tst surfaces that go into rotdPy
-            'rotdpy_dist': list(np.append(np.arange(2.2, 13.0, 0.2), np.arange(13.0, 16.0, 0.5))),
             # Amount (Mb) of memory to use in rotdPy for each job during the sampling.
             'rotdPy_mem': 300,
             # Define the species and the reactions for which scans are requested

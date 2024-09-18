@@ -199,7 +199,7 @@ def create_surface(dist,
     """Collect the coord of all pivot points and
     return a list containing VRC_TST surfaces."""
     pps_coords = [[], []]
-
+    all_pp_dists = [[], []]
     # Contains the index of the faces to sample for a surface.
     selected_faces: list[int] = []
     # Contains the weight that multiplies the flux for the face
@@ -224,6 +224,7 @@ def create_surface(dist,
             elif pps_dists is None:
                 info[findex] += 'on atom'
                 for ra in frag.ra:
+                    all_pp_dists[findex].append(0.0)
                     pps_coords[findex].append(frag.get_pp_on_atom(ra))
                     info[findex] += f' {ra}'
                     for skip_face, equiv in enumerate(equiv_ra[findex]):
@@ -241,10 +242,13 @@ def create_surface(dist,
             else:
                 info[findex] += 'pp oriented'
                 for ra_index, ra in enumerate(frag.ra):
-                    coord: list[list[float]] = \
+                    coord: list[list[float]]
+                    pp_dist: list[float]
+                    coord, pp_dist = \
                         frag.get_pp_next_to_ra(
                         index=ra,
                         dist_from_ra=pps_dists[findex][ra_index])
+                    all_pp_dists[findex].extend(pp_dist)
                     for skip_face, equiv in enumerate(equiv_ra[findex]):
                         if ra == equiv[0]:
                             weights[findex].append(len(coord)*len(equiv))
@@ -266,11 +270,10 @@ def create_surface(dist,
 
                     info[findex] += ' {} ({} bohr)'.format(
                         ra,
-                        pps_dists[findex][ra_index] /
-                        constants.BOHRtoANGSTROM)
+                        pps_dists[findex][ra_index])
                     pps_coords[findex].extend(coord)
-        for pp1 in range(len(pps_coords[0])):
-            for pp2 in range(len(pps_coords[1])):
+        for pp2 in range(len(pps_coords[1])):
+            for pp1 in range(len(pps_coords[0])):
                 faces_weights.append(
                     weights[0][pp1] * reac_weights[0][pp1] * weights[1][pp2] * reac_weights[1][pp2]
                     )
@@ -280,6 +283,7 @@ def create_surface(dist,
     else:
         pps_coords: list[list[list[float]]] = [[[0.0, 0.0, 0.0]],
                                                [[0.0, 0.0, 0.0]]]
+        all_pp_dists: list[list[float]] = [[0.0], [0.0]]
         info = ['Fragment 0: COM',
                 'Fragment 1: COM',
                 f'Distance: {dist} Angstrom']
@@ -287,9 +291,12 @@ def create_surface(dist,
         selected_faces: list[int] = [0]
 
     # Create distance matrix
-    dist_dim: tuple[int, int] = (len(pps_coords[1]), len(pps_coords[0]))
-    dist_matrix: NDArray[Any] = np.full(dist_dim, dist)
-
+    dist_dim: tuple[int, int] = (len(pps_coords[0]), len(pps_coords[1]))
+    dist_matrix: NDArray[Any] = np.zeros(dist_dim)
+    # Adjust the distance matrix from the distances used for each pivot point
+    for ppf1 in range(len(pps_coords[0])):
+        for ppf2 in range(len(pps_coords[1])):
+            dist_matrix[ppf1, ppf2] = dist-(all_pp_dists[0][ppf1]+all_pp_dists[1][ppf2])
     for fnum, frag in enumerate(fragments):
         pps = ''
         for pp in range(len(pps_coords[fnum])):

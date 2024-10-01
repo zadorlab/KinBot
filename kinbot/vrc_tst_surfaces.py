@@ -16,7 +16,8 @@ class VRC_TST_Surface:
         The pivot points' coordinates and the dist matrix
         are received in Angstrom
         and converted to Bohr."""
-
+        self.dist_matrix = dist_matrix
+        self.id = VRC_TST_Surface.__id__
         with open(f'{kb_path}/tpl/rotdPy_surf.tpl', 'r') as f:
             tpl = f.read()
         self.repr: str = tpl.format(surf_id=VRC_TST_Surface.__id__,

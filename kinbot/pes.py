@@ -1412,7 +1412,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         sf: list[list[int]]
         surfs: list[VRC_TST_Surface]
 
-        for dist in par['vrc_tst_scan_points']:
+        for dist in par['rotdpy_dist']:
             if dist < vrc_tst_start:
                 logger.info(f"Removing sampling surface {dist} for reaction {reac_name}")
                 continue
@@ -1422,6 +1422,9 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                     equiv_ra=pp_info['unique'],
                     fragments=fragments,
                     par=par)
+                # for sur in surfs:
+                #     if any(sur.dist_matrix <= pp_info['smallest']):
+                #         logger.warning(f'Surface {sur.id} is not on the reaction coordinate.')
                 surfaces.extend(surfs)
                 faces_weights.extend(fw)
                 selected_faces.extend(sf)
@@ -1472,7 +1475,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
             min_dist=par['vrc_tst_scan_points'][0],
             corrections_block=kb_1d_correction,
             inf_energy=inf_energy)
-        
+
         with open(f"{folder}/{reac_name}.py", 'w') as f:
             f.write(new_input)
 

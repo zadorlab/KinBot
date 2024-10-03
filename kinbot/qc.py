@@ -925,7 +925,13 @@ class QuantumChemistry:
         logger.debug(f'SUBMITTED {job} on {now.ctime()}')
         return 1  # important to keep it 1, this is the natural counter of jobs submitted
 
-    def get_qc_geom(self, job, natom, wait=0, allow_error=0, previous=0):
+    def get_qc_geom(self,
+                    job,
+                    natom,
+                    wait=0,
+                    allow_error=0,
+                    previous=0,
+                    reorder: bool = False):
         '''
         Get the geometry from the ase database file.
         Returns it, with the following conditions about the status of the job.
@@ -941,10 +947,13 @@ class QuantumChemistry:
             that the max energy point is taken, not the one after that
         '''
         geom = np.zeros((natom, 3))
-
+        atoms = np.full(natom, 'H')
         check = self.check_qc(job)
         if check == 'error' and not allow_error:
-            return -1, geom
+            if reorder:
+                return -1, geom, atoms
+            else:
+                return -1, geom
         status = 0
         while 1:
             check = self.check_qc(job)
@@ -955,13 +964,19 @@ class QuantumChemistry:
                     status = 2
                     break
                 else:
-                    return 1, geom
+                    if reorder:
+                        return 1, geom, atoms
+                    else:
+                        return 1, geom
             else:
                 break
         if check != 'normal':
             if not allow_error:
                 if wait != 2:
-                    return -1, geom
+                    if reorder:
+                        return -1, geom, atoms
+                    else:
+                        return -1, geom
 
         # open the database
         rows = self.db.select(name=job)
@@ -973,10 +988,14 @@ class QuantumChemistry:
                 prev_geom = geom  # saves the previous 
             mol = row.toatoms()
             geom = mol.positions
+            atoms = mol.symbols
             found_entry = 1
 
         if found_entry and previous == 0:
-            return status, geom
+            if reorder:
+                return status, geom, atoms
+            else:
+                return status, geom
         elif found_entry and previous == 1:
             return status, prev_geom
         else:

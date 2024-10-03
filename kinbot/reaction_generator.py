@@ -303,7 +303,10 @@ class ReactionGenerator:
                             ndone += 1
                             continue
                         chemid_orig = frag.chemid
-                        e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+                        e, frag.geom, frag.atom = self.qc.get_qc_geom(
+                            str(frag.chemid) + '_well',
+                            frag.natom,
+                            reorder=True)
                         if e < 0:
                             logger.info(f'\tProduct optimization failed for {obj.instance_name}, product {frag.chemid}')
                             self.species.reac_ts_done[index] = -999

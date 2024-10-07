@@ -559,6 +559,10 @@ class VTS:
                                         data_legends=['sample', 'high'],
                                         )
 
+                smallest = np.linalg.norm(
+                    self.well.geom[self.scan_reac[reac].equiv[0][0]] -
+                    self.well.geom[self.scan_reac[reac].equiv[1][0]])
+
                 # write small file with correction data
                 corr: dict[str, Any] = {
                     'dist': dist,
@@ -566,6 +570,7 @@ class VTS:
                     'e_high': ens[1],
                     'scan_ref': scan_ref,
                     'ra': ra,
+                    'smallest': smallest,
                     'unique': self.scan_reac[reac].usym,
                     'e_inf_samp': asyms[0],
                     'e_inf_high': asyms[1],

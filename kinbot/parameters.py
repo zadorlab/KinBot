@@ -300,6 +300,8 @@ class Parameters:
             'pp_on_COM': 10.0,
             # mode of pivot point placement. Accepted values are geometric and homo
             'pp_orient': 'homo',
+            # list of distances used for the surfaces
+            'rotdpy_dist': list(np.arange(3, 20.0, 0.2)),
 
             # COMPUTATIONAL ENVIRONEMNT
             # Which queuing system to use
@@ -526,6 +528,14 @@ class Parameters:
             for sp in self.par['vrc_tst_scan_points']:
                 tmp.append(list(np.arange(sp[0], sp[1], sp[2])))
             self.par['vrc_tst_scan_points'] = [i for sp in tmp for i in sp]
+        except (TypeError, IndexError):
+            pass
+        try:
+            self.par['rotdpy_dist'][0][0]
+            tmp = []
+            for sp in self.par['rotdpy_dist']:
+                tmp.append(list(np.arange(sp[0], sp[1], sp[2])))
+            self.par['rotdpy_dist'] = [i for sp in tmp for i in sp]
         except (TypeError, IndexError):
             pass
 

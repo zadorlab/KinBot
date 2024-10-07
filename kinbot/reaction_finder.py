@@ -2329,7 +2329,6 @@ class ReactionFinder:
     def new_reaction(self, rxns, name, a=None, b=None, c=None, d=None, e=None, 
                      length=None, full=False, cross=False, aid=False):
         '''
-        Returns 1 if new, and 0 if not new
         Checks a variable number of identical elements
         Also can check full equivalency (full=True), same lenght (length=True), and 
         equivalency between elements that are interchangeable (cross=True)

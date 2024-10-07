@@ -317,7 +317,6 @@ def postprocess(par, jobs, task, names, mass):
     failedwells = []
     bimol_products = []
 
-
     # list of reactions for which mp2 energies should be used at L1
     mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
                 'reac_r12_cycloaddition', 'reac_r14_birad_scission']
@@ -347,7 +346,7 @@ def postprocess(par, jobs, task, names, mass):
 
                 reactant = ji
                 #products this is the chemid of the product
-                if 'none' not in par['keep_chemids']:
+                if len(par['keep_chemids']) > 1:
                     if len(products) == 1 and products[0] not in par['keep_chemids']:
                         continue
                 # calculate the barrier based on the new energy base
@@ -380,7 +379,6 @@ def postprocess(par, jobs, task, names, mass):
                                                conf=par['conformer_search'])
                     barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
-                    
                 if reactant not in wells:
                     wells.append(reactant)
                     parent[reactant] = reactant

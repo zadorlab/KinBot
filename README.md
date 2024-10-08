@@ -90,9 +90,10 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 
 ## Authors
 * Judit Zádor (jzador@sandia.gov)
-* Ruben Van de Vijver (Ruben.VandeVijver@UGent.be)
+* Ruben Van de Vijver 
 * Amanda Dewyer
-* Carles Martí (cmartia@sandia.gov)
+* Carles Martí
+* Clément Soulié (csoulie@sandia.gov)
 
 ## Papers using KinBot
 * Almeida, T. G., Martí, C., Kurtén, T., Zádor, J., Johansen, S. L.: _Theoretical analysis of the OH-Initiated atmospheric oxidation reactions of imidazole_. Phys. Chem. Chem. Phys., **2024** 26 23570-23587. https://doi.org/10.1039/D4CP02103G

@@ -988,7 +988,7 @@ class QuantumChemistry:
                 prev_geom = geom  # saves the previous 
             mol = row.toatoms()
             geom = mol.positions
-            atoms = mol.symbols
+            atoms = np.array(list(mol.symbols.get_chemical_formula('all')))
             found_entry = 1
 
         if found_entry and previous == 0:
@@ -999,7 +999,10 @@ class QuantumChemistry:
         elif found_entry and previous == 1:
             return status, prev_geom
         else:
-            return -1, geom
+            if reorder:
+                return -1, geom, atoms
+            else:
+                return -1, geom
 
     def get_qc_freq(self, job, natom, wait=0, allow_error=0):
         '''

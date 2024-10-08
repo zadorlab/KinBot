@@ -1,3 +1,4 @@
+from operator import ne
 from typing import Any
 import numpy as np
 import time
@@ -93,13 +94,16 @@ class VTS:
             for prod in self.scan_reac[reac].products:
                 # read geom
                 job = f'vrctst/{str(prod.chemid)}_vts'
-                status, geom = self.qc.get_qc_geom(job,
-                                                   prod.natom,
-                                                   wait=1,
-                                                   allow_error=1)
+                status, geom, atoms = self.qc.get_qc_geom(
+                    job,
+                    prod.natom,
+                    wait=1,
+                    allow_error=1,
+                    reorder=True)
                 # update geom in self.scan_reac[reac] values,
                 # this already saves it
                 prod.geom = geom
+                prod.atom = atoms
                 if status == 0:
                     # Check if commands are available
                     commands = ['formchk', 'cubegen']
@@ -141,8 +145,6 @@ class VTS:
                                 out = out.decode()
                             else:
                                 logger.warning(f"Cannnot create cube file for {job} as formated checkpoint file doesn't exist.")
-
-
         return
 
     def find_scan_coos(self, reactions):
@@ -238,7 +240,7 @@ class VTS:
 
         return
 
-    def match_order(self, reac):
+    def match_order(self, reac) -> None:
         '''
         Keeps the object to be scanned intact, but rearranges the products
         and the atoms in the products so that:
@@ -262,22 +264,41 @@ class VTS:
         # match atom ordering of individual products
         # with scanned fragment's atom order
         for fi, frag in enumerate(self.scan_reac[reac].parts):
-            for ii, aid in enumerate(frag.atomid):
-                if aid != self.scan_reac[reac].products[fi].atomid[ii]:
-                    # swap to something that works
-                    pos = self.scan_reac[reac].\
-                        products[fi].atomid[ii:].index(aid)
-                    # need to swap atom and geom
-                    self.scan_reac[reac].products[fi].geom[ii], \
-                        self.scan_reac[reac].products[fi].geom[pos] = \
-                        self.scan_reac[reac].products[fi].geom[pos], \
-                        self.scan_reac[reac].products[fi].geom[ii]
-                    self.scan_reac[reac].products[fi].atom[ii], \
-                        self.scan_reac[reac].products[fi].atom[pos] = \
-                        self.scan_reac[reac].products[fi].atom[pos], \
-                        self.scan_reac[reac].products[fi].atom[ii]
-                    self.scan_reac[reac].products[fi].characterize()
+            self.scan_reac[reac].products[fi].characterize()
+            reordered = self.reorder_coord(
+                mol_A=frag,
+                mol_B=self.scan_reac[reac].products[fi])
+            self.scan_reac[reac].products[fi] = reordered
+            self.scan_reac[reac].products[fi].characterize()
         return
+
+    def reorder_coord(self,
+                      mol_A: StationaryPoint,
+                      mol_B: StationaryPoint
+                      ):
+        """Reorder the coordinates and atoms of mol_B
+        to correspond to mol_A.
+
+        Args:
+            mol_A (StationaryPoint): Stationary point of molecule A
+            mol_B (StationaryPoint): Stationary point of molecule B
+        """
+
+        if mol_A.chemid != mol_B.chemid:
+            raise AttributeError("Reordering only for identical molecules.")
+        new_geom = np.zeros(mol_B.geom.shape)
+        idx_used: list[int] = []
+        for idxb, aidb in enumerate(mol_B.atomid):
+            for idxa, aida in enumerate(mol_A.atomid):
+                if aida == aidb and idxa not in idx_used:
+                    new_geom[idxa] = mol_B.geom[idxb]
+                    idx_used.append(idxa)
+                    break
+        new_B = copy.deepcopy(mol_B)
+        new_B.atom = mol_A.atom
+        new_B.geom = new_geom
+
+        return new_B
 
     def do_scan(self, reactions):
         """
@@ -336,6 +357,19 @@ class VTS:
                     for mi in self.scan_reac[reac].maps[1]:
                         geoms[ri][mi] = [gi + shift[i]
                                          for i, gi in enumerate(geoms[ri][mi])]
+                    new_distAB = np.linalg.norm(
+                        geoms[ri][self.scan_reac[reac].scan_coo[0]] - 
+                        geoms[ri][self.scan_reac[reac].scan_coo[1]])
+                    
+                    # Temporary fix in case shift is in wrong direction
+                    if step[ri] != 0 and step[ri] < len(self.par['vrc_tst_scan_points']):
+                        if (new_distAB < dist_AB and\
+                           self.par['vrc_tst_scan_points'][step[ri]] > self.par['vrc_tst_scan_points'][step[ri] -1]) or\
+                           (new_distAB > dist_AB and\
+                           self.par['vrc_tst_scan_points'][step[ri]] < self.par['vrc_tst_scan_points'][step[ri] -1]):
+                            for mi in self.scan_reac[reac].maps[1]:
+                                geoms[ri][mi] = [gi - 2*shift[i]
+                                                for i, gi in enumerate(geoms[ri][mi])]
                     if step[ri] == 0:
                         # determine equivalent atoms
                         equiv_A = []

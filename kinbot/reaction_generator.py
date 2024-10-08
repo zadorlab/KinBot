@@ -15,6 +15,7 @@ from kinbot import reac_family
 from kinbot import cheminfo
 from kinbot.irc import IRC
 from kinbot.optimize import Optimize
+from kinbot.reac_General import GeneralReac
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.molpro import Molpro
 from ase.db import connect
@@ -277,16 +278,17 @@ class ReactionGenerator:
                             logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
                                         f'{[fr.chemid for fr in obj.products]} (including all possible charge distributions)')
 
+                        self.save_vrc_tst_frag_order(obj)
                         self.equate_identical(obj.products)
                         obj.valid_prod = len(obj.products) * [True]
-                        
-                        #make the geom of productss in frag_unique the one from the multi_molecular (not optimized)
-                        self.equate_unique(obj.products, frag_unique) 
+
+                        #make the geom of products in frag_unique the one from the multi_molecular (not optimized)
+                        self.equate_unique(obj.products, frag_unique)
                         obj.prod_done = 1
 
                     for frag in obj.products:
                         self.qc.qc_opt(frag, frag.geom)
-                        e, _ = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom) #check if finished without updating geom
+                        e, _ = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom) # check if finished without updating geom
                         if e == 1:  # it's running
                             continue
 
@@ -319,7 +321,7 @@ class ReactionGenerator:
                             _, frag.zpe = self.qc.get_qc_zpe(str(frag.chemid) + '_well')
                             if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments  
                                 hom_sci_energy += frag.energy + frag.zpe
-                            frag.characterize()  
+                            frag.characterize()
                             if chemid_orig != frag.chemid:  # connectivity changed
                                 for fri, fr in enumerate(obj.products):
                                     if fr.chemid == chemid_orig:
@@ -337,6 +339,11 @@ class ReactionGenerator:
                                     if fr.chemid == chemid_orig:
                                         obj.products[fri].energy = frag.energy
                                         obj.products[fri].zpe = frag.zpe
+                                        # Reorder the coordinates of frag in case the atom order is different
+                                        if any(obj.products[fri].atom != frag.atom):
+                                            self.reorder_coord(obj.products[fri],
+                                                               frag)
+                                            frag.characterize()  # reorder everything else, like atomid
                                         obj.products[fri].geom = frag.geom
 
                     if ndone == len(obj.products) and self.species.reac_ts_done[index] != -999:  # all currently recognized fragments are done
@@ -770,3 +777,35 @@ class ReactionGenerator:
                 if new:
                     frag_unique.append(frag)
         return
+
+    def reorder_coord(self,
+                      mol_A: StationaryPoint,
+                      mol_B: StationaryPoint
+                      ) -> None:
+        """Reorder the coordinates of mol_B to correspond to mol_A.
+
+        Args:
+            mol_A (StationaryPoint): Stationary point of molecule A
+            mol_B (StationaryPoint): Stationary point of molecule B
+        """
+
+        if mol_A.chemid != mol_B.chemid:
+            raise AttributeError("Reordering only for identical molecules.")
+        new_geom = np.array(mol_B.geom)
+        idx_used = []
+        for idxb, aidb in enumerate(mol_B.atomid):
+            for idxa, aida in enumerate(mol_A.atomid):
+                if aida == aidb and idxa not in idx_used:
+                    new_geom[idxa] = mol_B.geom[idxb]
+                    idx_used.append(idxa)
+                    break
+        mol_B.atom = mol_A.atom
+        mol_B.geom = new_geom
+
+    def save_vrc_tst_frag_order(self,
+                                obj: GeneralReac):
+        for chemid, reactions in self.par['vrc_tst_scan'].items():
+            # select the part of the input relevant for this kb
+            if chemid == str(self.species.chemid):
+                if obj.instance_name in reactions:
+                    obj.VTS_frags = copy.deepcopy(obj.products)

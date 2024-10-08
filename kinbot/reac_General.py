@@ -1,5 +1,6 @@
 import numpy as np
 from kinbot import geometry
+from kinbot.stationary_pt import StationaryPoint
 
 class GeneralReac:
     max_step = -1
@@ -13,19 +14,19 @@ class GeneralReac:
         self.species = species
         self.ts = None
         self.products = []
-        self.product_bonds = [] 
+        self.product_bonds = []
         self.broken_bonds = []
         self.formed_bonds = []
         
         self.ts_opt = None
         self.prod_opt = []
         self.do_vdW = False
-        
         self.qc = qc
         self.par = par
         
         self.instance = instance
         self.instance_name = instance_name
+        self.VTS_frags: list[StationaryPoint]
 
         if self.scan:
             self.max_step = self.par['scan_step']

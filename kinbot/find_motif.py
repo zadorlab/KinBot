@@ -57,6 +57,8 @@ def find_motif(motif, visit, chain, nsteps, current,
                 eqv_list.remove(current)
         for m in motifset:
             if m[nsteps] in eqv_list:
+                if any([True for i in eqv_list if i in chain]):
+                    break
                 return 0
         if visit[current] == 1:
             return 0

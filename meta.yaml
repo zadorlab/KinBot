@@ -21,12 +21,14 @@ requirements:
     host:
         - python >=3.8
         - pip
+        - setuptools
     run:
         - python >=3.8
         - numpy >=1.17.0
         - ase >=3.19
         - networkx
         - rmsd >=1.5.1
+        - sella
 
 test:
   imports:

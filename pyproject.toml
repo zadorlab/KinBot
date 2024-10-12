@@ -10,7 +10,7 @@ exclude = ["build", "dist", "KinBot.egg-info", "graphics"]
 
 [project]
 name = "kinbot"
-version = "2.2.1"
+version = "2.2.2"
 description = "Automated reaction kinetics for gas-phase species"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,7 +25,7 @@ authors = [
 ]
 maintainers = [
     {name="Judit Zádor", email="jzador@sandia.gov"},
-    {name="Carles Martí", email="cmartia@sandia.gov"},
+    {name="Clément Soulié", email="csoulie@sandia.gov"},
 ]
 classifiers = [
     "Environment :: Console",
@@ -37,8 +37,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry"
 ]
 dependencies = [
-        "numpy>=1.17.0,<2.0",
-        "ase>=3.19,<3.23",
+        "numpy>=1.17.0",
+        "ase>=3.19",
         "networkx",
         "rmsd>=1.5.1",
         "sella"

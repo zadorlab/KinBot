@@ -4,6 +4,7 @@ import numpy as np
 import json
 import matplotlib.pyplot as plt
 from scipy.interpolate import make_interp_spline
+from kinbot.stationary_pt import StationaryPoint
 
 
 def tail(file_path, lines=10):
@@ -227,6 +228,31 @@ def queue_command(qu):
     else:
         raise ValueError(f'Unexpected value for queueing: {par["queuing"]}')
     return cmd, ext
+
+
+def reorder_coord(mol_A: StationaryPoint,
+                  mol_B: StationaryPoint
+                  ) -> None:
+    """Reorder the coordinates of mol_B to correspond to mol_A.
+
+    Args:
+        mol_A (StationaryPoint): Stationary point of molecule A
+        mol_B (StationaryPoint): Stationary point of molecule B
+    """
+
+    if mol_A.chemid != mol_B.chemid:
+        raise AttributeError("Reordering only for identical molecules.")
+    new_geom = np.array(mol_B.geom)
+    idx_used = []
+    for idxb, aidb in enumerate(mol_B.atomid):
+        for idxa, aida in enumerate(mol_A.atomid):
+            if aida == aidb and idxa not in idx_used:
+                new_geom[idxa] = mol_B.geom[idxb]
+                idx_used.append(idxa)
+                break
+    mol_B.atom = mol_A.atom
+    mol_B.geom = new_geom
+
 
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):

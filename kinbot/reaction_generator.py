@@ -20,6 +20,7 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot.molpro import Molpro
 from ase.db import connect
 from ase import Atoms
+from kinbot.utils import reorder_coord
 
 
 logger = logging.getLogger('KinBot')
@@ -341,8 +342,8 @@ class ReactionGenerator:
                                         obj.products[fri].zpe = frag.zpe
                                         # Reorder the coordinates of frag in case the atom order is different
                                         if any(obj.products[fri].atom != frag.atom):
-                                            self.reorder_coord(obj.products[fri],
-                                                               frag)
+                                            reorder_coord(mol_A=obj.products[fri],
+                                                          mol_B=frag)
                                             frag.characterize()  # reorder everything else, like atomid
                                         obj.products[fri].geom = frag.geom
 
@@ -413,7 +414,11 @@ class ReactionGenerator:
 
                 elif self.species.reac_ts_done[index] == 3:
                     for frag in obj.products:
-                        e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+                        e, frag.geom, frag.atom = self.qc.get_qc_geom(
+                            str(frag.chemid) + '_well',
+                            frag.natom,
+                            reorder=True)
+                        #e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
 
                     # Do the TS and product optimization
                     # make a stationary point object of the ts
@@ -777,30 +782,6 @@ class ReactionGenerator:
                 if new:
                     frag_unique.append(frag)
         return
-
-    def reorder_coord(self,
-                      mol_A: StationaryPoint,
-                      mol_B: StationaryPoint
-                      ) -> None:
-        """Reorder the coordinates of mol_B to correspond to mol_A.
-
-        Args:
-            mol_A (StationaryPoint): Stationary point of molecule A
-            mol_B (StationaryPoint): Stationary point of molecule B
-        """
-
-        if mol_A.chemid != mol_B.chemid:
-            raise AttributeError("Reordering only for identical molecules.")
-        new_geom = np.array(mol_B.geom)
-        idx_used = []
-        for idxb, aidb in enumerate(mol_B.atomid):
-            for idxa, aida in enumerate(mol_A.atomid):
-                if aida == aidb and idxa not in idx_used:
-                    new_geom[idxa] = mol_B.geom[idxb]
-                    idx_used.append(idxa)
-                    break
-        mol_B.atom = mol_A.atom
-        mol_B.geom = new_geom
 
     def save_vrc_tst_frag_order(self,
                                 obj: GeneralReac):

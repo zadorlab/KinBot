@@ -11,6 +11,7 @@ import json
 from ase.db import connect
 from shutil import which
 from subprocess import Popen, PIPE
+from kinbot.utils import reorder_coord
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
 from kinbot.molpro import Molpro
@@ -265,40 +266,12 @@ class VTS:
         # with scanned fragment's atom order
         for fi, frag in enumerate(self.scan_reac[reac].parts):
             self.scan_reac[reac].products[fi].characterize()
-            reordered = self.reorder_coord(
+            reordered = reorder_coord(
                 mol_A=frag,
                 mol_B=self.scan_reac[reac].products[fi])
             self.scan_reac[reac].products[fi] = reordered
             self.scan_reac[reac].products[fi].characterize()
         return
-
-    def reorder_coord(self,
-                      mol_A: StationaryPoint,
-                      mol_B: StationaryPoint
-                      ):
-        """Reorder the coordinates and atoms of mol_B
-        to correspond to mol_A.
-
-        Args:
-            mol_A (StationaryPoint): Stationary point of molecule A
-            mol_B (StationaryPoint): Stationary point of molecule B
-        """
-
-        if mol_A.chemid != mol_B.chemid:
-            raise AttributeError("Reordering only for identical molecules.")
-        new_geom = np.zeros(mol_B.geom.shape)
-        idx_used: list[int] = []
-        for idxb, aidb in enumerate(mol_B.atomid):
-            for idxa, aida in enumerate(mol_A.atomid):
-                if aida == aidb and idxa not in idx_used:
-                    new_geom[idxa] = mol_B.geom[idxb]
-                    idx_used.append(idxa)
-                    break
-        new_B = copy.deepcopy(mol_B)
-        new_B.atom = mol_A.atom
-        new_B.geom = new_geom
-
-        return new_B
 
     def do_scan(self, reactions):
         """
@@ -360,7 +333,6 @@ class VTS:
                     new_distAB = np.linalg.norm(
                         geoms[ri][self.scan_reac[reac].scan_coo[0]] - 
                         geoms[ri][self.scan_reac[reac].scan_coo[1]])
-                    
                     # Temporary fix in case shift is in wrong direction
                     if step[ri] != 0 and step[ri] < len(self.par['vrc_tst_scan_points']):
                         if (new_distAB < dist_AB and\

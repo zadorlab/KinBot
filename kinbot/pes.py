@@ -1400,7 +1400,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                                       parent=str(reactant),
                                       mult=pp_info['frags_mult'][frag_num]))
 
-        fragnames = Fragment.get_fragnames()
+        fragnames: list[str] = Fragment.get_fragnames()
 
         # Set the pivot points on each fragments and create the surfaces
         surfaces: list[VRC_TST_Surface] = []

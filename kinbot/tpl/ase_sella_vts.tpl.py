@@ -103,9 +103,9 @@ while 1:
                                                       - mol.positions[bond[1]])
                                        for bond in bonds])
             ratio = curr_distances / step0_distances
-            if any([ri > 1.1 for ri in ratio]):
+            if any([ri > 1.2 for ri in ratio]):
                 ok = False
-                print('a bond is more than 10% stretched, optimization is stopped')
+                print('a bond is more than 20% stretched, optimization is stopped')
                 mol = mol_prev
                 fix_new_bonds = [bonds[i] for i, ri in enumerate(ratio) if ri > 1.1]
                 for b in fix_new_bonds:

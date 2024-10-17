@@ -279,7 +279,6 @@ class ReactionGenerator:
                             logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
                                         f'{[fr.chemid for fr in obj.products]} (including all possible charge distributions)')
 
-                        self.save_vrc_tst_frag_order(obj)
                         self.equate_identical(obj.products)
                         obj.valid_prod = len(obj.products) * [True]
 
@@ -310,6 +309,8 @@ class ReactionGenerator:
                             str(frag.chemid) + '_well',
                             frag.natom,
                             reorder=True)
+                        # Reinitialize rads and bonds
+                        frag.reset_order()
                         if e < 0:
                             logger.info(f'\tProduct optimization failed for {obj.instance_name}, product {frag.chemid}')
                             self.species.reac_ts_done[index] = -999
@@ -317,6 +318,7 @@ class ReactionGenerator:
                         elif e == 1:
                             break
                         else:
+                            frag.characterize()
                             ndone += 1
                             _, frag.energy = self.qc.get_qc_energy(str(frag.chemid) + '_well')
                             _, frag.zpe = self.qc.get_qc_zpe(str(frag.chemid) + '_well')
@@ -344,7 +346,6 @@ class ReactionGenerator:
                                         if any(obj.products[fri].atom != frag.atom):
                                             reorder_coord(mol_A=obj.products[fri],
                                                           mol_B=frag)
-                                            frag.characterize()  # reorder everything else, like atomid
                                         obj.products[fri].geom = frag.geom
 
                     if ndone == len(obj.products) and self.species.reac_ts_done[index] != -999:  # all currently recognized fragments are done
@@ -414,11 +415,15 @@ class ReactionGenerator:
 
                 elif self.species.reac_ts_done[index] == 3:
                     for frag in obj.products:
+                        # # Reordering in case different fragment
                         e, frag.geom, frag.atom = self.qc.get_qc_geom(
                             str(frag.chemid) + '_well',
                             frag.natom,
                             reorder=True)
-                        #e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+                        # Create a new stp instead of updating geom and atom
+                        # because rads and bonds need to be changed
+                        frag.reset_order()
+                        # e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
 
                     # Do the TS and product optimization
                     # make a stationary point object of the ts
@@ -782,11 +787,3 @@ class ReactionGenerator:
                 if new:
                     frag_unique.append(frag)
         return
-
-    def save_vrc_tst_frag_order(self,
-                                obj: GeneralReac):
-        for chemid, reactions in self.par['vrc_tst_scan'].items():
-            # select the part of the input relevant for this kb
-            if chemid == str(self.species.chemid):
-                if obj.instance_name in reactions:
-                    obj.VTS_frags = copy.deepcopy(obj.products)

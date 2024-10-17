@@ -266,10 +266,11 @@ class VTS:
         # with scanned fragment's atom order
         for fi, frag in enumerate(self.scan_reac[reac].parts):
             self.scan_reac[reac].products[fi].characterize()
-            reordered = reorder_coord(
+            tmp_stp = copy.copy(self.scan_reac[reac].products[fi])
+            reorder_coord(
                 mol_A=frag,
-                mol_B=self.scan_reac[reac].products[fi])
-            self.scan_reac[reac].products[fi] = reordered
+                mol_B=tmp_stp)
+            self.scan_reac[reac].products[fi] = tmp_stp
             self.scan_reac[reac].products[fi].characterize()
         return
 

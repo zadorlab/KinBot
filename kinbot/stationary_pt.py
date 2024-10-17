@@ -284,7 +284,7 @@ class StationaryPoint:
                     if self.atom[i] == 'N':
                         if perm_rad[index][i] == 2:
                             perm_rad[index][i] = 0
-                    for ind2 in range(ind1, len(perm)):   
+                    for ind2 in range(ind1, len(perm)):
                         j = perm[ind2]
                         if perm_rad[index][i] > 0 and perm_rad[index][j] > 0 and perm_bond[index][i][j] > 0:
                             incr = 1
@@ -1033,6 +1033,12 @@ class StationaryPoint:
 
         return
 
+    def reset_order(self) -> None:
+        """Reinitialize the bond matrix and the radicals 
+        """
+        self.bonds = []
+        self.rads = []
+        self.characterize()
 
 def main():
     """

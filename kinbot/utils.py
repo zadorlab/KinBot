@@ -252,6 +252,7 @@ def reorder_coord(mol_A: StationaryPoint,
                 break
     mol_B.atom = mol_A.atom
     mol_B.geom = new_geom
+    mol_B.reset_order()
 
 
 class NpEncoder(json.JSONEncoder):

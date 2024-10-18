@@ -1,6 +1,7 @@
 import time
 import os
 import numpy as np
+from numpy.typing import NDArray
 import json
 import matplotlib.pyplot as plt
 from scipy.interpolate import make_interp_spline
@@ -231,28 +232,37 @@ def queue_command(qu):
 
 
 def reorder_coord(mol_A: StationaryPoint,
-                  mol_B: StationaryPoint
-                  ) -> None:
+                  mol_B: StationaryPoint,
+                  map_B: NDArray | None = None
+                  ) -> None | NDArray:
     """Reorder the coordinates of mol_B to correspond to mol_A.
 
     Args:
         mol_A (StationaryPoint): Stationary point of molecule A
         mol_B (StationaryPoint): Stationary point of molecule B
+        map_B (NDArray): if B is a fragment,
+                         change the map to the parent accordingly
     """
 
     if mol_A.chemid != mol_B.chemid:
         raise AttributeError("Reordering only for identical molecules.")
     new_geom = np.array(mol_B.geom)
     idx_used = []
+    new_map = np.zeros(len(mol_B.atom), dtype=int)
     for idxb, aidb in enumerate(mol_B.atomid):
         for idxa, aida in enumerate(mol_A.atomid):
             if aida == aidb and idxa not in idx_used:
                 new_geom[idxa] = mol_B.geom[idxb]
                 idx_used.append(idxa)
+                if map_B is not None:
+                    new_map[idxa] = map_B[idxb]
                 break
     mol_B.atom = mol_A.atom
     mol_B.geom = new_geom
     mol_B.reset_order()
+    if map_B is not None:
+        return new_map
+    return
 
 
 class NpEncoder(json.JSONEncoder):

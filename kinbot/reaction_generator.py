@@ -309,8 +309,6 @@ class ReactionGenerator:
                             str(frag.chemid) + '_well',
                             frag.natom,
                             reorder=True)
-                        # Reinitialize rads and bonds
-                        frag.reset_order()
                         if e < 0:
                             logger.info(f'\tProduct optimization failed for {obj.instance_name}, product {frag.chemid}')
                             self.species.reac_ts_done[index] = -999
@@ -318,7 +316,8 @@ class ReactionGenerator:
                         elif e == 1:
                             break
                         else:
-                            frag.characterize()
+                            # Reinitialize rads and bonds
+                            frag.reset_order()
                             ndone += 1
                             _, frag.energy = self.qc.get_qc_energy(str(frag.chemid) + '_well')
                             _, frag.zpe = self.qc.get_qc_zpe(str(frag.chemid) + '_well')

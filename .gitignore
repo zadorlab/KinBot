@@ -5,3 +5,5 @@ build
 dist
 .vscode
 *.ipynb
+kinbot/my_stationary_pt.py
+.gitignore

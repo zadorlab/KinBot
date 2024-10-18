@@ -265,13 +265,12 @@ class VTS:
         # match atom ordering of individual products
         # with scanned fragment's atom order
         for fi, frag in enumerate(self.scan_reac[reac].parts):
-            self.scan_reac[reac].products[fi].characterize()
-            tmp_stp = copy.copy(self.scan_reac[reac].products[fi])
-            reorder_coord(
-                mol_A=frag,
-                mol_B=tmp_stp)
-            self.scan_reac[reac].products[fi] = tmp_stp
-            self.scan_reac[reac].products[fi].characterize()
+            self.scan_reac[reac].products[fi].reset_order()
+            # This reorders the map so that if fits products and not parts
+            self.scan_reac[reac].maps[fi] = reorder_coord(
+                mol_A=self.scan_reac[reac].products[fi],
+                mol_B=frag,
+                map_B=self.scan_reac[reac].maps[fi])
         return
 
     def do_scan(self, reactions):

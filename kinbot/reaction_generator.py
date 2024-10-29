@@ -282,7 +282,7 @@ class ReactionGenerator:
                         self.equate_identical(obj.products)
                         obj.valid_prod = len(obj.products) * [True]
 
-                        #make the geom of products in frag_unique the one from the multi_molecular (not optimized)
+                        # make the geom of products in frag_unique the one from the multi_molecular (not optimized)
                         self.equate_unique(obj.products, frag_unique)
                         obj.prod_done = 1
 
@@ -301,7 +301,8 @@ class ReactionGenerator:
                             logger.info(f'Product in {obj.instance_name} is identical to the reactant. Reaction deleted.')
                             self.species.reac_ts_done[index] = -999 
                             break
-                        elif not obj.valid_prod[fragii]:  # do not look at already invalid fragments again
+                        # do not look at already invalid fragments again
+                        elif not obj.valid_prod[fragii]:
                             ndone += 1
                             continue
                         chemid_orig = frag.chemid
@@ -316,15 +317,15 @@ class ReactionGenerator:
                         elif e == 1:
                             break
                         else:
-                            # Reinitialize rads and bonds
-                            frag.reset_order()
                             ndone += 1
                             _, frag.energy = self.qc.get_qc_energy(str(frag.chemid) + '_well')
                             _, frag.zpe = self.qc.get_qc_zpe(str(frag.chemid) + '_well')
                             if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments  
                                 hom_sci_energy += frag.energy + frag.zpe
-                            frag.characterize()
-                            if chemid_orig != frag.chemid:  # connectivity changed
+                            # Reinitialize rads and bonds
+                            frag.reset_order()
+                            # connectivity changed
+                            if chemid_orig != frag.chemid:
                                 for fri, fr in enumerate(obj.products):
                                     if fr.chemid == chemid_orig:
                                         obj.valid_prod[fri] = False

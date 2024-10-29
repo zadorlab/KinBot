@@ -206,7 +206,7 @@ class Parameters:
             # Basis set to scan bonds in barrierless_saddle family
             'barrierless_saddle_basis_high': '6-31G',
             # for Gaussian, request CalcAll for TS optimization
-            'calcall_ts': 0,
+            'calcall_ts': 1,
             # Quantum chemistry method to use for high-level L2
             'high_level_method': 'M062X',
             # Basis set to use for high-level

@@ -416,11 +416,13 @@ class Optimize:
         else:
             names.append(self.name + '_well')
             names.append(self.name + '_well_high')
-            if self.par['high_level'] == 1:
+            if self.par['high_level'] == 1 and \
+               'prod' not in self.species.name:
                 for count in range(self.species.hir.nrotation):
                     for rot_num in range(self.par['nrotation']):
                         names.append('hir/' + self.name + '_hir_' + str(count) + '_' + str(rot_num).zfill(2))
-            if self.par['conformer_search'] == 1:
+            if self.par['conformer_search'] == 1 and \
+               'prod' not in self.species.name:
                 for count in range(self.species.confs.conf):
                     names.append('conf/' + self.name + '_' + str(count).zfill(zf))
                 for count in range(self.species.confs.cyc_conf):

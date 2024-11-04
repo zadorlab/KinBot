@@ -1,4 +1,3 @@
-import rmsd
 import os
 from typing import Any
 from kinbot import kb_path
@@ -69,12 +68,14 @@ class Fragment(StationaryPoint):
         self.geom = np.array(geom)
 
         self.recentre()
-        if abs(np.prod(self.atoms.get_moments_of_inertia())) < 1e-6:
+        self.frag_name: str
+        if len(self.geom) == 1:
+            self.frag_type = 'Monoatomic'
+        elif abs(np.prod(self.atoms.get_moments_of_inertia())) < 1e-6:
             self.frag_type = 'Linear'
         else:
             self.frag_type = 'Nonlinear'
 
-        self.frag_name: str
         Fragment.set_fragnames(self)
 
         super(Fragment, self).__init__(name=self.frag_name,

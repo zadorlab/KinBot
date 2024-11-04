@@ -5,7 +5,6 @@ import numpy as np
 from numpy.typing import NDArray
 from ase import Atoms
 
-from kinbot import constants
 from kinbot.fragments import Fragment
 from kinbot.vrc_tst_surfaces import VRC_TST_Surface
 
@@ -220,6 +219,7 @@ def create_surface(dist,
                 info[findex] += 'COM'
                 weights[findex].append(1)
                 reac_weights[findex].append(1)
+                all_pp_dists[findex].append(0.0)
                 continue
             elif pps_dists is None:
                 info[findex] += 'on atom'

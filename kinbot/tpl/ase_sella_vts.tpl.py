@@ -176,6 +176,12 @@ coo_B_fr = np.array({froz_B_geom})
 # set pivot atom to 1
 A_weight = copy.copy({frag_bonds_0}[scan_atom_A])
 B_weight = copy.copy({frag_bonds_1}[scan_atom_B])
+for idx, w in enumerate(A_weight):
+    if w == 0:
+        A_weight[idx] = 0.02
+for idx, w in enumerate(B_weight):
+    if w == 0:
+        B_weight[idx] = 0.02
 A_weight[scan_atom_A] = 1
 B_weight[scan_atom_B] = 1
 

@@ -77,7 +77,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                                        rxn.instance_name, geom, 
                                                        change_starting_zero,
                                                        rxn.species.bond,
-                                                       write_files=1)
+                                                       write_files=0)
         for c in change:
             fix.append(c[:-1])
         change = []

@@ -7,13 +7,14 @@ def start_motif(motif, natom, bond, atom, allover, eqv):
     chain = [-999] * natom
     nsteps = -1
     motifset = []
+    mask = []  # to mask new patterns that allow eqv atoms in some cases
     find_motif(motif, visit, chain, nsteps, 0, -1,
-               motifset, allover, natom, bond, atom, eqv)
+               motifset, allover, natom, bond, atom, eqv, mask, True)
     return motifset
 
 
 def find_motif(motif, visit, chain, nsteps, current,
-               previous, motifset, allover, natom, bond, atom, eqv):
+               previous, motifset, allover, natom, bond, atom, eqv, mask, mask_current):
     """
     This recursive function finds a specific motif in the structure.
     FIXIT - the comments here
@@ -28,6 +29,7 @@ def find_motif(motif, visit, chain, nsteps, current,
     allover < 0: all-over path-finding mode
     allover = > 0: only atom 'allover' is used for the search
     eqv: array for equvivalent atoms
+    mask: mask irregulara patterns that contain equivalent atoms
     """
     if nsteps == -1:
         nsteps = 0
@@ -37,13 +39,14 @@ def find_motif(motif, visit, chain, nsteps, current,
                 current = i
                 visit = [0] * natom
                 chain = [-999] * natom
+                mask_current = True
                 find_motif(motif, visit, chain, nsteps, current, previous,
-                           motifset, allover, natom, bond, atom, eqv)
+                           motifset, allover, natom, bond, atom, eqv, mask, mask_current)
         else:
             current = allover
             visit = [0] * natom
             find_motif(motif, visit, chain, nsteps, current, previous,
-                       motifset, allover, natom, bond, atom, eqv)
+                       motifset, allover, natom, bond, atom, eqv, mask, mask_current)
 
     if nsteps > -1:
         if nsteps > natom:
@@ -55,9 +58,12 @@ def find_motif(motif, visit, chain, nsteps, current,
             if current in mylist:
                 eqv_list = mylist[:]
                 eqv_list.remove(current)
-        for m in motifset:
+        for mi, m in enumerate(motifset):
+            if mask[mi] == False:
+                continue
             if m[nsteps] in eqv_list:
-                if any([True for i in eqv_list if i in chain]):
+                if any([True for i in eqv_list if i in chain[:nsteps]]):
+                    mask_current = False
                     break
                 return 0
         if visit[current] == 1:
@@ -77,6 +83,7 @@ def find_motif(motif, visit, chain, nsteps, current,
                 motifset.append(chain[:chain.index(-999)])
             else:
                 motifset.append(chain[:])
+            mask.append(mask_current)
             return 0
 
         visit[current] = 1
@@ -86,7 +93,7 @@ def find_motif(motif, visit, chain, nsteps, current,
         for i in range(natom):
             current = i
             find_motif(motif, visit, chain, nsteps, current, previous,
-                       motifset, allover, natom, bond, atom, eqv)
+                       motifset, allover, natom, bond, atom, eqv, mask, mask_current)
             visit[current] = 0
 
         if nsteps > 0:

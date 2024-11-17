@@ -202,7 +202,10 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
             gs += '{}, {:.8f}, {:.8f}, {:.8f}, \n'.format(at, x, y, z)
         logger.debug("For the following initial geometry:\n" + gs)
 
-        opt = bfgs.BFGS()
+        # step_tol=1E-7, grad_tol=1E-7, line_tol=1E-10,
+        # inhess=None, max_step=100, max_lin_step=1000,
+        # use_grad_tol=1, use_step_tol=1
+        opt = bfgs.BFGS(step_tol=1E-12, grad_tol=1E-12)
         x_opt, x_i, g_i = opt.optimize(cost_fct, x0)
 
         new_geom = np.reshape(x_opt, (species.natom, 3))

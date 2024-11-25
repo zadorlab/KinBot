@@ -182,7 +182,7 @@ class Fragment(StationaryPoint):
         orientation_vect: NDArray[float32] = self.get_pp_orientation(
             index=index)
         coord = (
-            orientation_vect * 
+            orientation_vect *
             dist_from_ra*constants.BOHRtoANGSTROM +
             self.geom[index]).tolist()
         pp_dist = np.full(
@@ -193,11 +193,26 @@ class Fragment(StationaryPoint):
 
     def get_pp_orientation(self,
                            index: int) -> NDArray[float32]:
+        """Create a list of orientation vectors for all
+        pivot points.
+
+        Args:
+            index (int): index of atom in fragment's geometry
+                         from which the orientation starts.
+
+        Raises:
+            NotImplementedError: _description_
+            NotImplementedError: _description_
+
+        Returns:
+            NDArray[float32]: _description_
+        """
         if str(index) in self.orient:
             return self.orient[str(index)]
         orient: NDArray[float32] = np.array([[0, 0, 0]], dtype=float32)
         # if self.par['pp_orient'] == 'geometric':
         # element = self.atom[index]
+        # DETECT THE CONNECTIVITY
         nconnect = 0
         ndouble = 0
         ntriple = 0

@@ -282,18 +282,19 @@ class Optimize:
                                         for rotor in range(len(self.species.dihed)):
                                             for ai in range(self.species.hir.nrotation):
                                                 # use a 0.1 kcal/mol cutoff for numerical noise
-                                                if self.species.hir.hir_energies[rotor][ai] < min_en - 1.6E-4:
-                                                    min_en = self.species.hir.hir_energies[rotor][ai]
-                                                    min_rotor = rotor
-                                                    min_ai = ai
+                                                if self.species.hir.hir_status[rotor][ai] == 0:  # do not test for fails
+                                                    if self.species.hir.hir_energies[rotor][ai] < min_en - 1.6E-4:
+                                                        min_en = self.species.hir.hir_energies[rotor][ai]
+                                                        min_rotor = rotor
+                                                        min_ai = ai
                                         if min_rotor > -1:
                                             self.restart += 1
+                                            job = self.log_name(1, hir=1, r=min_rotor, s=min_ai)
+                                            diff = (self.species.hir.hir_energies[min_rotor][0] - 
+                                                    self.species.hir.hir_energies[min_rotor][min_ai]) * constants.AUtoKCAL 
                                             if self.restart < self.par['rotation_restart']:
                                                 # lower energy structure found
-                                                logger.warning(f'Lower energy conformer during HIR for {self.name} for rotor {min_rotor}. Restart #{self.restart}')
-                                                logger.debug('Rotor: ' + str(min_rotor))
-                                                logger.debug('Scan point: ' + str(min_ai))
-                                                job = self.log_name(1, hir=1, r=min_rotor, s=min_ai)
+                                                logger.warning(f'Lower energy conformer during HIR: {job}, diff = {np.round(diff, 2)} kcal/mol. Restart #{self.restart}')
 
                                                 err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # err, geom = self.qc.get_qc_geom(job, self.species.natom)
@@ -311,7 +312,7 @@ class Optimize:
                                                 self.shigh = -1
                                                 self.shir = -1
                                             else:
-                                                logger.warning(f'Lower energy conformer found, but reached max restart for {self.name}')
+                                                logger.warning(f'Lower energy during HIR: {job}, diff = {np.round(diff, 2)} kcal/mol. Reached max restart for this species.')
                                                 self.shir = 1
                                         else:
                                             self.shir = 1

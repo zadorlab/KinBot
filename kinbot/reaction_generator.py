@@ -398,7 +398,7 @@ class ReactionGenerator:
                                 fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
                                 obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe))*constants.AUtoKCAL
                                 if obj.vdW_depth > self.par['vdW_detection']:
-                                    logger.info('\tvdW well detected for {}: {:.2f}>threshold ({:.2f}) Kcal/mol.'.format(obj.irc_prod.name, obj.vdW_depth, self.par['vdW_detection']))
+                                    logger.info(f'\tvdW well detected for {irc_prod.nam}. Depth: {roun(obj.vdW_depth, 2)} kcal/mol.')
                                     obj.do_vdW = True
                             except:
                                 logger.info('\t{} was not succesfull, vdW search stopped for this well.'.format(obj.irc_prod.name))

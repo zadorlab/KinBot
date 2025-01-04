@@ -106,7 +106,7 @@ class HIR:
                         success = -1
                     else:
                         # check if all the bond lenghts are within
-                        # 15% or the original bond lengths
+                        # 15% of the original bond lengths
                         temp = StationaryPoint('temp',
                                                self.species.charge,
                                                self.species.mult,
@@ -154,12 +154,15 @@ class HIR:
                     continue
                 energies = self.hir_energies[rotor]
                 if abs(energies[0] - self.species.energy) * constants.AUtoKCAL > 0.1:
-                    logger.warning('\t0 angle rotor has a different energy than '
+                    logger.warning(f'\t0 angle rotor for rotor {rotor} has a different energy than '
                                    'the optimized structure for '
-                                   f'{self.species.chemid}. This might be '
+                                   f'{self.species.name} ({energies[0]} vs {self.species.energy}).')
+                    logger.warning('This might be '
                                    'caused by an SCF convergence issue. '
                                    'Hindered rotors are disabled for this '
                                    'stationary point.')
+                    logger.warning(rotor)
+                    logger.warning(energies)
                     self.hir_status = [[1 for ai in ri] for ri in self.hir_status]
                     return 0
                 # energies taken if status = 0, successful geom check or normal gauss termination

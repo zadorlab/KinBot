@@ -398,7 +398,7 @@ class ReactionGenerator:
                                 fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
                                 obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe)) * constants.AUtoKCAL
                                 if obj.vdW_depth > self.par['vdW_detection']:
-                                    logger.info(f'\tvdW well detected for {irc_prod.nam}. Depth: {round(obj.vdW_depth, 2)} kcal/mol.')
+                                    logger.info(f'\tvdW well detected for {irc_prod.nam}. Depth: {np.round(obj.vdW_depth, 2)} kcal/mol.')
                                     obj.do_vdW = True
                             except:
                                 logger.info('\t{} was not succesfull, vdW search stopped for this well.'.format(obj.irc_prod.name))
@@ -408,7 +408,7 @@ class ReactionGenerator:
                             if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
                                 self.species.reac_ts_done[index] = 3
                             else:
-                                logger.info(f'\thom_sci energy is too high at {round(hom_sci_energy, 2)} kcal/mol for {obj.instance_name}')
+                                logger.info(f'\thom_sci energy is too high at {np.round(hom_sci_energy, 2)} kcal/mol for {obj.instance_name}')
                                 self.species.reac_ts_done[index] = -999
                         else:
                             self.species.reac_ts_done[index] = 3

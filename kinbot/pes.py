@@ -56,7 +56,10 @@ def main():
     if len(sys.argv) > 2:
         if sys.argv[2] == 'no-kinbot':
             no_kinbot = 1
-    if len(sys.argv) > 3:
+        elif:
+            print('Only the no-kinbot argument is accepted in this case')
+            sys.exit(-1)
+    elif len(sys.argv) > 3:
         # possible tasks are:
         # 1. all: This is the default showing all pathways
         # 2. lowestpath: show the lowest path between the species
@@ -66,6 +69,9 @@ def main():
         # 4. wells: show all reactions of one wells
         # corresponding to the names
         task = sys.argv[3]
+        if task not in ['all', 'lowestpath', 'allpaths', 'wells']:
+            print('The format is pes [input] [task] [names] and task should be one of "all", "lowestpath", "allpaths", or "wells".')
+            sys.exit(-1)
         names = sys.argv[4:]
 
     # print the license message to the console

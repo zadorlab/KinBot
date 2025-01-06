@@ -56,7 +56,7 @@ def main():
     if len(sys.argv) > 2:
         if sys.argv[2] == 'no-kinbot':
             no_kinbot = 1
-        elif:
+        else:
             print('Only the no-kinbot argument is accepted in this case')
             sys.exit(-1)
     elif len(sys.argv) > 3:

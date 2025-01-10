@@ -84,7 +84,7 @@ class ReactionGenerator:
                     # verify after restart if search has failed in previous kinbot run
                     status = self.qc.check_qc(obj.instance_name)
                     if status == 'error':
-                        logger.info('\tRxn search failed for {}'
+                        logger.info('\tRxn search failed for {} - had error status on previous round.'
                                      .format(obj.instance_name))
                         self.species.reac_ts_done[index] = -999
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2

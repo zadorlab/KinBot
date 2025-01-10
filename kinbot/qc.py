@@ -1230,12 +1230,12 @@ class QuantumChemistry:
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
         '''
-        # logger.debug('Checking job {}'.format(job))
+        logger.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job, '-1') + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-                # logger.debug('Job is running')
+                logger.debug('Job is running')
                 return 'running'
         elif self.queuing == 'slurm':
             # command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
@@ -1262,7 +1262,9 @@ class QuantumChemistry:
         # if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
         #     return 'running'
 
+        logger.debug('Checking for job {} in db'.format(job))
         if self.is_in_database(job):
+            logger.debug('{} is in db'.format(job))
             for i in range(1):
                 if self.qc == 'gauss':
                     log_file = job + '.log'
@@ -1322,9 +1324,10 @@ class QuantumChemistry:
             logger.debug('log file {} does not exist'.format(log_file))
             return 0
         else:
-            if self.queuing == 'local' and not self.par['error_missing_local']:
-                return 'error'
             logger.debug('job {} is not in database'.format(job))
+            if self.queuing == 'local' and not self.par['error_missing_local']:
+                logger.debug('local qu error')
+                return 'error'
             return 0
 
     def limit_jobs(self):

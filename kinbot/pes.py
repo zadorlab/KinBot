@@ -177,7 +177,7 @@ def main():
                     get_wells(job)
                 pids[job] = pid
                 t = datetime.datetime.now()
-                logger.info('Started job {} at {}'.format(job, t))
+                logger.info(f'Started job {job} at {t}. PID = {pid}')
                 running.append(job)
             elif kb == 0:
                 logger.info('Skipping Kinbot for {}'.format(job))

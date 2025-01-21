@@ -41,7 +41,7 @@ def main():
     input_file = masterpar.input_file
     # set up the logging environment
     if par['verbose']:
-        logger = config_log('KinBot', 'debug')
+        logger = config_log('KinBot', level='debug')
 
     # write the license message and the parameters to the log file
     logger.info('Input parameters')

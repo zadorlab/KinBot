@@ -134,6 +134,9 @@ class Parameters:
             'plot_hir_profiles': 0,
             # Number of HIR restarts in case a lower energy point gets found
             'rotation_restart': 3,
+            # Max. threshold in kcal/mol that is allowed for a HIR restart to be triggered
+            # To avoid invalid rotors in restart
+            'rotation_restart_threshold': 5.0,
             # Maximum number of diherals for which exhaustive
             # comformation searches are done
             'max_dihed': 5,

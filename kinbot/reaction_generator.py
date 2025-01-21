@@ -84,7 +84,7 @@ class ReactionGenerator:
                     # verify after restart if search has failed in previous kinbot run
                     status = self.qc.check_qc(obj.instance_name)
                     if status == 'error':
-                        logger.info('\tRxn search failed for {}'
+                        logger.info('\tRxn search failed for {} - had error status on previous round.'
                                      .format(obj.instance_name))
                         self.species.reac_ts_done[index] = -999
                 if self.species.reac_type[index] == 'hom_sci' and self.species.reac_ts_done[index] == 0:  # no matter what, set to 2
@@ -388,27 +388,26 @@ class ReactionGenerator:
                         if len(obj.products) == 2 and 'hom_sci' not in obj.instance_name:
                             logger.info('\tChecking vdW well for {}.'.format(obj.instance_name))
                             obj.irc_prod.characterize()
-                            try:
-                                e, obj.irc_prod.energy = self.qc.get_qc_energy(f'{obj.irc_prod.name}') #e is the error code: should be 0 (success) at this point.
-                                e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f'{obj.irc_prod.name}')
-                                e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
-                                e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
-                                for this_frag in obj.irc_fragments:
-                                    e, this_frag.freq = self.qc.get_qc_freq(f'{this_frag.name}_well', this_frag.natom) 
-                                fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
-                                obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe))*constants.AUtoKCAL
-                                if obj.vdW_depth > self.par['vdW_detection']:
-                                    logger.info('\tvdW well detected for {}: {:.2f}>threshold ({:.2f}) Kcal/mol.'.format(obj.irc_prod.name, obj.vdW_depth, self.par['vdW_detection']))
-                                    obj.do_vdW = True
-                            except:
-                                logger.info('\t{} was not succesfull, vdW search stopped for this well.'.format(obj.irc_prod.name))
+                            e, obj.irc_prod.energy = self.qc.get_qc_energy(f'{obj.irc_prod.name}')  # e is the error code: should be 0 (success) at this point.
+                            e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f'{obj.irc_prod.name}')
+                            e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
+                            e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
+                            for this_frag in obj.irc_fragments:
+                                e, this_frag.freq = self.qc.get_qc_freq(f'{this_frag.name}_well', this_frag.natom) 
+                            fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
+                            obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe)) * constants.AUtoKCAL
+                            if obj.vdW_depth > self.par['vdW_detection']:
+                                logger.info(f'\tvdW well detected for {obj.irc_prod.name}. Depth: {np.round(obj.vdW_depth, 2)} kcal/mol.')
+                                obj.do_vdW = True
+                            else:
+                                logger.info(f'\t{obj.irc_prod.name} was not succesfully identified as a vdW well. Well depth is {np.round(obj.vdW_depth, 2)} kcal/mol.')
                             
                         if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments
                             hom_sci_energy = (prods_energy - self.species.start_energy - self.species.start_zpe) * constants.AUtoKCAL
                             if hom_sci_energy < self.par['barrier_threshold'] + self.par['hom_sci_threshold_add']:
                                 self.species.reac_ts_done[index] = 3
                             else:
-                                logger.info(f'\thom_sci energy is too high at {round(hom_sci_energy, 2)} kcal/mol for {obj.instance_name}')
+                                logger.info(f'\thom_sci energy is too high at {np.round(hom_sci_energy, 2)} kcal/mol for {obj.instance_name}')
                                 self.species.reac_ts_done[index] = -999
                         else:
                             self.species.reac_ts_done[index] = 3

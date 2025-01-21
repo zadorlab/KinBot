@@ -376,16 +376,17 @@ def equal_geom(orig_spec, new_spec, cutoff):
     """
     
     # check if all original bonds are still very close to the original lenghts
-    for i in range(orig_spec.natom-1):
+    for i in range(orig_spec.natom - 1):
         for j in range(i + 1, orig_spec.natom):
-            if orig_spec.maxbond[i][j] > 0:
+            if orig_spec.bond[i][j] > 0:  # this includes the reaction bond for TS as well
                 orig_dist = np.linalg.norm(orig_spec.geom[i] - orig_spec.geom[j])
                 new_dist = np.linalg.norm(new_spec.geom[i] - new_spec.geom[j])
                 if np.abs(new_dist - orig_dist) / orig_dist > cutoff:
                     return 0
-    # for saddles, test if any unwanted new bonds are formed 
+    # for saddles
     if orig_spec.wellorts == 1:
-        for i in range(orig_spec.natom-1):
+        # test if any unwanted new bonds are formed 
+        for i in range(orig_spec.natom - 1):
             for j in range(i + 1, orig_spec.natom):
                 if new_spec.bond[i][j] > 0 and orig_spec.bond[i][j] == 0:
                     return 0

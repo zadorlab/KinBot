@@ -72,8 +72,8 @@ if success:
             try:
                 iowait(logfile, 'gauss')
                 _, mol_prod.positions = reader_gauss.read_lowest_geom_energy(logfile, mol_prod)
-                kwargs_prod = reader_gauss.correct_kwargs(logfile, kwargs_prod)
-                mol_prod.calc = Gaussian(**kwargs_prod)
+                prod_kwargs = reader_gauss.correct_kwargs(logfile, prod_kwargs)
+                mol_prod.calc = Gaussian(**prod_kwargs)
                 e = mol_prod.get_potential_energy()  # use the Gaussian optimizer
                 iowait(logfile, 'gauss')
                 mol_prod.positions = reader_gauss.read_geom(logfile, mol_prod)

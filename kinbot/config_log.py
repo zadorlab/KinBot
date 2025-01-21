@@ -44,7 +44,10 @@ def config_log(label, mode='kinbot', level='info'):
     @return: The logger object.
     """
     logger = logging.getLogger(label)
-    logger.setLevel(logging.INFO)
+    if level == 'info':
+        logger.setLevel(logging.INFO)
+    elif level == 'debug':
+        logger.setLevel(logging.DEBUG)
     fname = f'{mode}.log'
 
     # Backup previous log

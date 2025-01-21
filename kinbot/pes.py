@@ -56,7 +56,10 @@ def main():
     if len(sys.argv) > 2:
         if sys.argv[2] == 'no-kinbot':
             no_kinbot = 1
-    if len(sys.argv) > 3:
+        else:
+            print('Only the no-kinbot argument is accepted in this case')
+            sys.exit(-1)
+    elif len(sys.argv) > 3:
         # possible tasks are:
         # 1. all: This is the default showing all pathways
         # 2. lowestpath: show the lowest path between the species
@@ -66,6 +69,9 @@ def main():
         # 4. wells: show all reactions of one wells
         # corresponding to the names
         task = sys.argv[3]
+        if task not in ['all', 'lowestpath', 'allpaths', 'wells']:
+            print('The format is pes [input] [task] [names] and task should be one of "all", "lowestpath", "allpaths", or "wells".')
+            sys.exit(-1)
         names = sys.argv[4:]
 
     # print the license message to the console
@@ -171,7 +177,7 @@ def main():
                     get_wells(job)
                 pids[job] = pid
                 t = datetime.datetime.now()
-                logger.info('Started job {} at {}'.format(job, t))
+                logger.info(f'Started job {job} at {t}. PID = {pid}')
                 running.append(job)
             elif kb == 0:
                 logger.info('Skipping Kinbot for {}'.format(job))
@@ -1694,14 +1700,14 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
             continue
         db = connect(well + '/kinbot.db')
         rows = db.select(name=j)
-        for row in rows:
+        for row in reversed(list(rows)):  # only take the last one and ignore others
             try:
                 new_energy = row.data.get('energy') * constants.EVtoHARTREE
                 new_zpe = row.data.get('zpe')
             except (UnboundLocalError, TypeError):
-                continue
+                break
             if new_zpe is None:
-                continue
+                break
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
                 if not ts:
                     # Avoid getting energies from calculations that converged to another structure
@@ -1710,9 +1716,10 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
                     st_pt.characterize()
                     chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
                     if chemid_wo_mult != job[:-1]:
-                        continue
+                        break
                 energy = new_energy
                 zpe = new_zpe
+            break
     if np.isinf(energy) or np.isinf(zpe):
         raise ValueError(f'Unable to find an energy for {j}.')
 

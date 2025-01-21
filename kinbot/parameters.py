@@ -273,10 +273,10 @@ class Parameters:
             # using sella for scan
             'vrc_tst_scan_sella': 0,
             # Method to scan bonds in vrc_tst_scan
-            'vrc_tst_scan_method': 'ub3lyp',  
+            'vrc_tst_scan_method': 'ub3lyp',
             # Basis set to scan bonds in vrc_tst_scan
             'vrc_tst_scan_basis': '6-31+G(d)',
-            # Energy calculations 
+            # Energy calculations
             'vrc_tst_sample_method': 'caspt2(2,2)',
             'vrc_tst_high_method': 'caspt2(2,2)',
             'vrc_tst_sample_basis': 'vdz',
@@ -288,6 +288,8 @@ class Parameters:
             'vrc_tst_scan_molpro_tpl': '',
             # Max. rmsd deviation allowed
             'vrc_tst_scan_deviation': 100.,
+            # Max angle deviation allowed
+            'vts_ang_dev': 10,
             # Explicit reaction center for a fragment, {'frament chemid': [atomids of centers]}
             'vrc_tst_scan_reac_cent': {},
             # Dictionary of distances in bohr at which pivot points are generated for each atom

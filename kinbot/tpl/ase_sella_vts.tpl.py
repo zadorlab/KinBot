@@ -9,6 +9,121 @@ import rmsd
 from sella import Sella, Constraints, Internals
 
 from kinbot.ase_modules.calculators.{code} import {Code}
+from kinbot.stationary_pt import StationaryPoint
+from kinbot import geometry
+
+def get_interfragments_param(atoms: Atoms,
+                             instance: list[int]):
+    """Function that selects the neighbourgs
+    of the closest atom in each fragment,
+    and returns the values of the interfragments
+    angles and dihedrals. Takes into account mono and
+    diatomic fragments.
+
+    Args:
+        atoms (Atoms): ase.Atoms object
+        instance (list[int]):
+            indexes of two atoms, one on each fragment.
+
+    Returns:
+        List: list of list.
+            each sublist contains the indexes of the atoms
+            involved in the angle/dihedral, and the value of
+            it at the end.
+    """
+    species = StationaryPoint.from_ase_atoms(atoms)
+    species.characterize()
+    
+    save_name = copy.copy(species.name)
+    closest_to_RA = [[],[]] #each list contains the 2 (or less) closest atoms to the reactive atom in their respective fragment
+    fragments, maps = species.start_multi_molecular()
+    if len(fragments) == 1:
+        species.name = save_name
+        species.bond[instance[0], instance[1]] = 0
+        species.bond[instance[1], instance[0]] = 0
+        species.bonds[0][instance[0], instance[1]] = 0
+        species.bonds[0][instance[1], instance[0]] = 0
+        fragments, maps = species.start_multi_molecular()
+    for frag_number, ra in enumerate(instance):
+        for neighbourg_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == ra)[0][0]]):
+            if bond != 0:
+                closest_to_RA[frag_number].append(neighbourg_index)
+                if len(closest_to_RA[frag_number]) == 2:
+                    break
+        #If no neighbourgs atoms were found, the fragment has to be mono-atomic
+        if len(closest_to_RA[frag_number]) == 1 and fragments[frag_number].natom > 2:
+            for neighbourg_index, bond in zip(maps[frag_number], fragments[frag_number].bond[np.where(maps[frag_number] == closest_to_RA[frag_number][0])[0][0]]):
+                if bond != 0 and neighbourg_index != instance[frag_number]:
+                    closest_to_RA[frag_number].append(neighbourg_index)
+                    if len(closest_to_RA[frag_number]) == 2:
+                        break
+    changes = []
+    #Calculate the angles values:
+    if len(closest_to_RA[0]) != 0:
+        point_A = species.geom[closest_to_RA[0][0]]
+        point_B = species.geom[instance[0]]
+        point_C = species.geom[instance[1]]
+        changes.append([closest_to_RA[0][0],
+                                instance[0],
+                                instance[1],
+                                (np.degrees(geometry.calc_angle(point_A, point_B, point_C)))])
+    if len(closest_to_RA[1]) != 0:
+        point_A = species.geom[closest_to_RA[1][0]]
+        point_B = species.geom[instance[1]]
+        point_C = species.geom[instance[0]]
+        changes.append([closest_to_RA[1][0],
+                                instance[1],
+                                instance[0],
+                                (np.degrees(geometry.calc_angle(point_A, point_B, point_C)))])
+    
+    #Calculate the dihedrals values:
+    if len(closest_to_RA[0]) != 0 and len(closest_to_RA[1]) != 0:
+        point_A = species.geom[closest_to_RA[0][0]]
+        point_B = species.geom[instance[0]]
+        point_C = species.geom[instance[1]]
+        point_D = species.geom[closest_to_RA[1][0]]
+        changes.append([closest_to_RA[0][0],
+                        instance[0],
+                        instance[1],
+                        closest_to_RA[1][0],
+                        geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]])
+    if len(closest_to_RA[0]) == 2:
+        point_A = species.geom[closest_to_RA[0][1]]
+        point_B = species.geom[closest_to_RA[0][0]]
+        point_C = species.geom[instance[0]]
+        point_D = species.geom[instance[1]]
+        changes.append([closest_to_RA[0][1],
+                        closest_to_RA[0][0],
+                        instance[0],
+                        instance[1],
+                        geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]])
+    if len(closest_to_RA[1]) == 2:
+        point_A = species.geom[closest_to_RA[1][1]]
+        point_B = species.geom[closest_to_RA[1][0]]
+        point_C = species.geom[instance[1]]
+        point_D = species.geom[instance[0]]
+        changes.append([closest_to_RA[1][1],
+                        closest_to_RA[1][0],
+                        instance[1],
+                        instance[0],
+                        geometry.calc_dihedral(point_A, point_B, point_C, point_D)[0]])
+    
+    return changes
+
+def same_orientation(initial,
+                     final) -> bool:
+    identical = True
+    for initial_parameter, final_parameter in zip(initial, final):
+        if len(initial_parameter) == 3: # Parameter is a bond
+            if final_parameter[-1]/initial_parameter[-1] < 0.95 or final_parameter[-1]/initial_parameter[-1] > 1.05:
+                identical = False
+                break
+        else:
+            if final_parameter[-1] < initial_parameter[-1] - {vts_ang_dev} or \
+               final_parameter[-1] > initial_parameter[-1] + {vts_ang_dev}:
+                identical = False
+                break
+    return identical
 
 db = connect('{working_dir}/kinbot.db')
 label = '{label}'
@@ -75,6 +190,10 @@ step0_distances = np.array([np.linalg.norm(step0_geom[bond[0]]
 energies = []
 attempt = 0
 fmax = 1.e-4
+
+# Detect the initial inter-fragment paramenters (angles and dihedrals if applies)
+ifps: list[list] = get_interfragments_param(mol, scan_coo)
+
 while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
@@ -98,6 +217,11 @@ while 1:
                 last = False
                 print('rmsd is too large, optimization is stopped')
                 break
+            # Stop if change in inter-fragment angles is larger than the maximum allowed.
+            new_ifps: list[list] = get_interfragments_param(mol, scan_coo)
+            if not same_orientation(ifps, new_ifps):
+                break
+                
             # Stop if fragments break internal bonds.
             curr_distances = np.array([np.linalg.norm(mol.positions[bond[0]]
                                                       - mol.positions[bond[1]])

@@ -247,11 +247,12 @@ def translate_and_rotate(cart, i, j):
                        [2.*(bd+ac),   2.*(cd-ab),   aa+dd-bb-cc]])
         for i in range(len(cart)):
             cart[i] = np.dot(rot_matrix, cart[i])
-            
+
         if cart[j][2] < 0:
                 cart *= -1.
 
     return cart
+
 
 def rotation_matrix(axis, theta):
     """

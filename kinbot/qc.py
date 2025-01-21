@@ -790,6 +790,7 @@ class QuantumChemistry:
                                        init_geom=list([list(gi) for gi in geom]),
                                        qc_command=self.qc_command,
                                        working_dir=os.getcwd(),
+                                       vts_ang_dev=self.par['vts_ang_dev'],
                                        scan_deviation=self.par['vrc_tst_scan_deviation'],
                                        frag_maps=list([list(rm) for rm in reac.maps]),
                                        froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),

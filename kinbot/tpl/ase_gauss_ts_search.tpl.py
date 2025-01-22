@@ -20,7 +20,7 @@ mol.calc = calc
 
 try:
     e = mol.get_potential_energy()  # use the Gaussian optimizer
-except RuntimeError: 
+except RuntimeError:
     e = 0.
  
 iowait(logfile, 'gauss')

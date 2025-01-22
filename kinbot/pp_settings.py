@@ -246,8 +246,8 @@ def create_surface(dist,
                     pp_dist: list[float]
                     coord, pp_dist = \
                         frag.get_pp_next_to_ra(
-                        index=ra,
-                        dist_from_ra=pps_dists[findex][ra_index])
+                            index=ra,
+                            dist_from_ra=pps_dists[findex][ra_index])
                     all_pp_dists[findex].extend(pp_dist)
                     for skip_face, equiv in enumerate(equiv_ra[findex]):
                         if ra == equiv[0]:

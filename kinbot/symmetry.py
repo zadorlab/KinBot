@@ -5,23 +5,23 @@ from kinbot import geometry
 
 def calculate_symmetry(species):
     """
-    Calculate the symmetry numbers (external and internal) and 
+    Calculate the symmetry numbers (external and internal) and
     the number of optical isomers of a molecule based on some
-    heuristics for atom-centered symmetry, bond-centered 
-    symmetry and ring-centered symmetry. 
-    
-    TODO: 
+    heuristics for atom-centered symmetry, bond-centered
+    symmetry and ring-centered symmetry.
+
+    TODO:
     * Symmetry along consecutive double bonds is not well perceived
     """
     natom = species.natom
-    
+
     sigma_ext = 1
     nopt = 1
     sigma_int = [[1 for i in range(natom)] for i in range(natom)]
     sigma_int_contrib = [1 for i in range(natom)]
     sigma_ext_contrib = [1 for i in range(natom)]
-    
-    #get the number of optical isomers
+
+    # get the number of optical isomers
     for at in range(natom):
         nei = get_neighbors(species,at)
         if len(nei) == 4:
@@ -30,12 +30,12 @@ def calculate_symmetry(species):
                 nopt = 2
 
     lin = start_linear(species,natom)
-    
-    #get all atom-centered symmetries
+
+    # get all atom-centered symmetries
     for at in range(natom):
         if species.cycle[at] == 0:
             nei = get_neighbors(species,at)
-            if len(nei) == 1: #no symmetry contributions
+            if len(nei) == 1:  # no symmetry contributions
                 continue
             elif len(nei) == 2:
                 if species.atomid[nei[0]] == species.atomid[nei[1]]:
@@ -63,9 +63,9 @@ def calculate_symmetry(species):
                 else:
                     continue
         sigma_ext *= sigma_ext_contrib[at]
-    
-    #internal rotational symmetry
-    #both atoms can be in a cycle, but not in the same cycle
+
+    # internal rotational symmetry
+    # both atoms can be in a cycle, but not in the same cycle
     for li in lin:
         i = li[0]
         cycle = []
@@ -97,7 +97,7 @@ def calculate_symmetry(species):
                     sigma_int_contrib[i] *= s1
                     sigma_int_contrib[j] *= s2
 
-    #get all bond-centered symmetries
+    # get all bond-centered symmetries
     for li in lin:
         i = li[0]
         j = li[-1]
@@ -113,7 +113,7 @@ def calculate_symmetry(species):
             nei1 = [species.atomid[ni] for ni in nei1 if ni != li[1]]
             nei2 = get_neighbors(species,j)
             nei2 = [species.atomid[ni] for ni in nei2 if ni != li[-2]]
-            
+
             if len(nei1) == 0 and len(nei2) > 1 and all([ati == nei2[0] for ati in nei2]):
                 #if all the neighbors of j are the same, it should have been taken into account earlier
                 nei = get_neighbors(species,j)
@@ -129,8 +129,8 @@ def calculate_symmetry(species):
             elif all([ati == nei1[0] for ati in nei1]) and all([ati == nei2[0] for ati in nei2]):
                 if len(nei1) == len(nei2) and len(nei1) > 0:
                     sigma_ext *= len(nei1)
-    
-    #get all ring-centered symmetries
+
+    # get all ring-centered symmetries
     cyc_syms = [1 for cyc in species.cycle_chain]
     for index,cyc in enumerate(species.cycle_chain):
         #if any atom on the ring has a contribution to internal symmetry, do not take the current ring
@@ -145,9 +145,9 @@ def calculate_symmetry(species):
                 new_order_reversed = np.roll(np.array(cyc_atomid[::-1]), -i)
                 if all([cyc_atomid[at] == new_order_reversed[at] for at in range(len(cyc))]):
                     symm += 1
-            #additional patch: if an atom has two identical neighbors 
-            #along the ring, but two distinct neighbors outside the ring
-            #the symmetry number needs to be divided by 2
+            # additional patch: if an atom has two identical neighbors
+            # along the ring, but two distinct neighbors outside the ring
+            # the symmetry number needs to be divided by 2
             if symm > 1:
                 divide = 1
                 for at in cyc:
@@ -161,12 +161,13 @@ def calculate_symmetry(species):
                 symm /= divide
             if symm > 0:
                 cyc_syms[index] = symm
-    #in the case of fused rings, only keep the largest component of all fused rings
+    # in the case of fused rings, only keep the largest component of all fused rings
     sigma_ext *= cycle_contribs(species.cycle_chain,cyc_syms)
 
     species.sigma_ext = sigma_ext
     species.sigma_int = sigma_int
     species.nopt = nopt
+
 
 def cycle_contribs(cycs,cyc_syms):
     """
@@ -196,7 +197,7 @@ def cycle_contribs(cycs,cyc_syms):
 
 def fused(cyc1,cyc2):
     return len(list(set(cyc1) & set(cyc2))) > 1
-    
+
 def start_linear(species,natom):
     """
     Get all the 'neighbors' of i which are connected to i via

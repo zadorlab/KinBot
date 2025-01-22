@@ -48,7 +48,7 @@ def read_zpe(outfile):
         return float(zpe) * constants.KCALtoHARTREE
     except ValueError:
         logger.warning(f'Non-numeric ZPE: {zpe}')
-        return np.NAN
+        return np.nan
 
 
 def read_freq(outfile, atoms):

@@ -20,7 +20,7 @@ def read_energy(outfile, from_line=0):
     if from_line:
         lines = lines[:-from_line]
 
-    energy = np.NAN
+    energy = np.nan
     for line in reversed(lines):
         if 'SCF Done' in line:
             energy = float(line.split()[4]) / constants.EVtoHARTREE
@@ -117,7 +117,7 @@ def read_zpe(outfile):
     with open(outfile) as f:
         lines = f.readlines()
 
-    zpe = np.NAN
+    zpe = np.nan
     for line in reversed(lines):
         if 'Zero-point correction=' in line:
             zpe = float(line.split()[2])

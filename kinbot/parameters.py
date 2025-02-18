@@ -464,7 +464,7 @@ class Parameters:
 
         if not self.par['multi_conf_tst']:
             self.par['multi_conf_tst_temp'] = None
-            self.par['multi_conf_tst_boltz'] = 0.05 
+            self.par['multi_conf_tst_boltz'] = 0.05
 
         if self.par['multi_conf_tst']:
             self.par['rotor_scan'] = 0
@@ -528,19 +528,34 @@ class Parameters:
             self.par['barrier_threshold'] = self.par['barrier_threshold_L2'] + self.par['barrier_threshold_add']
 
         try:
-            self.par['vrc_tst_scan_points'][0][0]
-            tmp = []
-            for sp in self.par['vrc_tst_scan_points']:
-                tmp.append(list(np.arange(sp[0], sp[1], sp[2])))
-            self.par['vrc_tst_scan_points'] = [i for sp in tmp for i in sp]
+            if isinstance(self.par['vrc_tst_scan_points'][0], list):
+                # throw an error if incorrect user input
+                self.par['vrc_tst_scan_points'][0][0]
+                tmp = []
+                tmp_dist = []
+                for sp in self.par['vrc_tst_scan_points']:
+                    tmp.extend(
+                        np.round(np.arange(sp[0], sp[1], sp[2]), 3).tolist())
+                # avoids duplicates in the list
+                for i in tmp:
+                    if i not in tmp_dist:
+                        tmp_dist.append(i)
+                self.par['vrc_tst_scan_points'] = tmp_dist
         except (TypeError, IndexError):
             pass
         try:
-            self.par['rotdpy_dist'][0][0]
-            tmp = []
-            for sp in self.par['rotdpy_dist']:
-                tmp.append(list(np.arange(sp[0], sp[1], sp[2])))
-            self.par['rotdpy_dist'] = [i for sp in tmp for i in sp]
+            if isinstance(self.par['rotdpy_dist'][0], list):
+                self.par['rotdpy_dist'][0][0]
+                tmp = []
+                tmp_dist = []
+                for sp in self.par['rotdpy_dist']:
+                    tmp.extend(
+                        np.round(np.arange(sp[0], sp[1], sp[2]), 3).tolist())
+                # avoids duplicates in the list
+                for i in tmp:
+                    if i not in tmp_dist:
+                        tmp_dist.append(i)
+                self.par['rotdpy_dist'] = tmp_dist
         except (TypeError, IndexError):
             pass
 

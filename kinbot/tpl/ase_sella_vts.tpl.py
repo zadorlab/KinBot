@@ -141,6 +141,7 @@ if '{Code}' == 'Gaussian':
     kwargs['guess'] = 'Read'
 mol.calc = {Code}(**kwargs)
 mol_prev = copy.deepcopy(mol)
+mol_min = copy.deepcopy(mol)
 
 # RELAXED
 scan_coo = {scan_coo}
@@ -197,6 +198,7 @@ ifps: list[list] = get_interfragments_param(mol, scan_coo)
 while 1:
     ok = True
     last = True  # take the last geometry, otherwise the one before that
+    on_rc = True # on the reaction coordinate? if not take lowest energy geom
     if {asymptote}:
         e = mol.get_potential_energy()
         break
@@ -220,6 +222,10 @@ while 1:
             # Stop if change in inter-fragment angles is larger than the maximum allowed.
             new_ifps: list[list] = get_interfragments_param(mol, scan_coo)
             if not same_orientation(ifps, new_ifps):
+                # take the minimum energy that was on the reaction coordinate
+                if len(energies) > 0:
+                    e = min(energies)
+                on_rc = False
                 break
                 
             # Stop if fragments break internal bonds.
@@ -238,6 +244,8 @@ while 1:
             mol_prev = copy.deepcopy(mol)
             e = mol.get_potential_energy()
             energies.append(e)
+            if e <= min(energies):
+                mol_min = copy.deepcopy(mol)
             # when forces don't fully converge, but energy doesn't change anymore
             if len(energies) > 11 and np.std(energies[-10:]) < 1.e-7:
                 break
@@ -272,6 +280,8 @@ while 1:
 
 if not last:
     mol = mol_prev
+if not on_rc:
+    mol = mol_min
 
 db.write(mol, name='{label}',
          data={{'energy': e, 'status': 'normal'}})

@@ -997,7 +997,7 @@ class QuantumChemistry:
                 prev_geom = geom  # saves the previous 
             mol = row.toatoms()
             geom = mol.positions
-            atoms = np.array(list(mol.symbols.get_chemical_formula('all')))
+            atoms = mol.symbols
             found_entry = 1
 
         if found_entry and previous == 0:

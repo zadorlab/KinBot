@@ -129,17 +129,6 @@ class Fragment(StationaryPoint):
         self.geom: NDArray[Any] = np.subtract(self.geom,
                                               self.atoms.get_center_of_mass())
 
-    def get_chemical_formula(self) -> str:
-        """Create the string of element in the order of the coordinates
-
-        Returns:
-            str: chemical elements
-        """
-        all_elem: str = ""
-        for elem in self.atoms:
-            all_elem += f"{elem}"
-        return all_elem
-
     def get_pp_on_com(self) -> list[float]:
         """Return the coordinate of the center of mass
         of the fragment

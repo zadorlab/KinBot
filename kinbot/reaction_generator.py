@@ -274,10 +274,11 @@ class ReactionGenerator:
                         obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
                         if self.species.charge == 0:
                             logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
-                                        f'{[fr.chemid for fr in obj.products]}')
+                                        f'{[fr.chemid for fr in obj.products]} {[fr.atom for fr in obj.products]}')
                         else:
                             logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
-                                        f'{[fr.chemid for fr in obj.products]} (including all possible charge distributions)')
+                                        f'{[fr.chemid for fr in obj.products]} {[fr.atom for fr in obj.products]} '
+                                        '(including all possible charge distributions)')
 
                         self.equate_identical(obj.products)
                         obj.valid_prod = len(obj.products) * [True]
@@ -343,7 +344,8 @@ class ReactionGenerator:
                                         obj.products[fri].energy = frag.energy
                                         obj.products[fri].zpe = frag.zpe
                                         # Reorder the coordinates of frag in case the atom order is different
-                                        if any(obj.products[fri].atom != frag.atom):
+                                        diff = [p1 for p1, p2 in zip(obj.products[fri].atom, frag.atom) if p1 != p2]
+                                        if diff != []:
                                             reorder_coord(mol_A=obj.products[fri],
                                                           mol_B=frag)
                                         obj.products[fri].geom = frag.geom

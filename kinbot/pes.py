@@ -945,9 +945,16 @@ def copy_from_kinbot(well, dirname):
     for f in files:
         if f.endswith('.out'):
             if not os.path.exists(f'{dirname}/{f}'):
-                shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+                try:
+                    shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+                except:
+                    continue
         else:
-            shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+            try:
+                shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
+            except:
+                continue
+    return
 
 
 def get_rxn(prods, rxns):

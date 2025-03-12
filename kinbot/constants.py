@@ -1,4 +1,5 @@
 from ase import units
+from ase import data
 
 AUtoKCAL = 627.5091809
 AUtoCM = 219474.63068
@@ -19,7 +20,18 @@ CALtoJ = 4.184
 # elements currently in KinBot
 elements = ['C', 'H', 'O', 'N', 'S', 'F', 'Cl', 'Br', 'I']
 
+znumber = {'H': 1}
+znumber['C'] = 6
+znumber['N'] = 7
+znumber['O'] = 8
+znumber['S'] = 16
+znumber['F'] = 9
+znumber['Cl'] = 17
+znumber['Br'] = 35
+znumber['I'] = 53
+
 # standard bond lengths, cutoffs, and oxidation numbers
+
 st_bond = {'CC': 1.5*1.2}
 # st_bond['CO'] = 1.4*1.2 # 1.4*1.54
 st_bond['CO'] = 1.4*1.4
@@ -60,6 +72,21 @@ st_bond['Cl'] = 1
 st_bond['Br'] = 1
 st_bond['I'] = 1
 
+for el1 in elements:
+    for el2 in elements:
+        try:
+            st_bond[f'{el1}{el2}']
+        except KeyError:
+            try:
+                st_bond[f'{el2}{el1}']
+            except KeyError:
+                z1 = znumber[el1]
+                r1 = data.covalent_radii[z1]
+                z2 = znumber[el2]
+                r2 = data.covalent_radii[z2]
+                st_bond[f'{el1}{el2}'] = (r1 + r2) * 1.2 
+#print(st_bond)
+
 mass = {'H': 1}
 mass['C'] = 12
 mass['N'] = 14
@@ -79,16 +106,6 @@ exact_mass['F'] = 18.9984
 exact_mass['Cl'] = 34.9689
 exact_mass['Br'] = 78.9183
 exact_mass['I'] = 126.904477
-
-znumber = {'H': 1}
-znumber['C'] = 6
-znumber['N'] = 7
-znumber['O'] = 8
-znumber['S'] = 16
-znumber['F'] = 9
-znumber['Cl'] = 17
-znumber['Br'] = 35
-znumber['I'] = 53
 
 # collision parameters
 # Jasper & Miller, C&F 161, 101-110 (2014)

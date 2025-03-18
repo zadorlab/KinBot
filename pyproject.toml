@@ -10,7 +10,7 @@ exclude = ["build", "dist", "KinBot.egg-info", "graphics"]
 
 [project]
 name = "kinbot"
-version = "2.2.4"
+version = "2.2.4a"
 description = "Automated reaction kinetics for gas-phase species"
 readme = "README.md"
 requires-python = ">=3.10"

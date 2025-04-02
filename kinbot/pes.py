@@ -1379,11 +1379,13 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
 
     for index, reac in enumerate(barrierless):
         reactant, reac_name, products, barrier = reac
-        try:
-            if reac_name not in par['vrc_tst_scan'][reactant]:
-                continue
-        except KeyError:
+        if (reactant not in par['vrc_tst_scan'] or reac_name not in par['vrc_tst_scan'][reactant]) and\
+           (reactant not in par['vrc_tst_noscan'] or reac_name not in par['vrc_tst_noscan'][reactant]):
             continue
+        if reactant in par['vrc_tst_noscan'] and reac_name in par['vrc_tst_noscan'][reactant]:
+            noscan = True
+        else:
+            noscan = False
         logger.info(f"Creating rotdPy input for reaction {reac_name}")
         if len(products) != 2:
             logger.warning("The creation of rotdPy inputs requires bimolecular products.")
@@ -1424,10 +1426,10 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         surfs: list[VRC_TST_Surface]
 
         for dist in par['rotdpy_dist']:
-            if dist < vrc_tst_start:
+            if dist < vrc_tst_start and not noscan:
                 logger.info(f"Removing sampling surface {dist} for reaction {reac_name}")
                 continue
-            elif dist >= vrc_tst_start:
+            else:
                 (fw, sf, surfs) = pp_settings.create_all_surf_for_dist(
                     dist=dist,
                     equiv_ra=pp_info['unique'],
@@ -1472,6 +1474,10 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                                      max_jobs=2000)
 
         template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
+        if noscan:
+            min_dist = min(par['rotdpy_dist']) - max(par['pp_length']['X']) * constants.BOHRtoANGSTROM
+        else:
+            min_dist = par['vrc_tst_scan_points'][0]
         with open(template_file_path) as template_file:
             tpl: str = template_file.read()
         new_input: str = tpl.format(
@@ -1483,7 +1489,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
             faces_weights=faces_weights,
             frag_names='[' + ', '.join(fragnames) + ']',
             calc_block=rotdPy_calc,
-            min_dist=par['vrc_tst_scan_points'][0],
+            min_dist=min_dist,
             corrections_block=kb_1d_correction,
             inf_energy=inf_energy)
 

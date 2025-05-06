@@ -1,12 +1,13 @@
 {% set name = "kinbot" %}
-{% set version = "2.2.3" %}
+{% set version = "2.2.4a" %}
+{% set python_min = "3.10" %}
 
 package:
     name: {{ name|lower }}
     version: {{ version }}
 
 source:
-    url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/kinbot-{{ version }}.tar.gz
+    url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/kinbot-{{ version }}.tar.gz
     sha256: 75f9373fe7932d3da585ef5e889b048d35d1a84a0a5b05788f694b6bbf08c3c4
 
 build:
@@ -19,13 +20,13 @@ build:
 
 requirements:
     host:
-        - python >=3.8
+        - python {{ python_min }} 
         - pip
         - setuptools
     run:
-        - python >=3.8
+        - python {{ python_min }}
         - numpy >=1.17.0
-        - ase >=3.19
+        - ase >=3.19,<3.23.0
         - networkx
         - rmsd >=1.5.1
         - sella
@@ -56,4 +57,3 @@ about:
 extra:
     recipe-maintainers:
         - juditzador
-        - cmartia

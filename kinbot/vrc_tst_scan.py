@@ -48,8 +48,18 @@ class VTS:
                 self.opt_products(reactions)
                 self.save_products(reactions)
                 self.find_scan_coos(reactions)
+                self.find_equiv(reactions)
                 jobs = self.do_scan(reactions)
                 self.energies(reactions)
+        for chemid, reactions in self.par['vrc_tst_noscan'].items():
+            # select the part of the input relevant for this kb
+            if chemid == str(self.well.chemid):
+                self.opt_products(reactions)
+                self.save_products(reactions)
+                self.find_scan_coos(reactions)
+                self.find_equiv(reactions)
+                jobs = self.do_scan(reactions, noscan=True)
+                self.energies(reactions, noscan=True)
         return
 
     def opt_products(self, reactions):
@@ -73,6 +83,7 @@ class VTS:
                     else:
                         # everything is there about the original reactions
                         self.scan_reac[reac] = ro
+                        self.scan_reac[reac].usym = [[], []]
                         for prod in self.scan_reac[reac].products:
                             if prod.chemid in prod_chemid:
                                 continue
@@ -273,7 +284,7 @@ class VTS:
                 map_B=self.scan_reac[reac].maps[fi])
         return
 
-    def do_scan(self, reactions):
+    def do_scan(self, reactions, noscan=False):
         """
         There are two different scans to be made.
         1. relaxed scan: all degrees of freedom are optimized
@@ -295,20 +306,18 @@ class VTS:
         step = np.zeros(len(reactions), dtype=int)
         geoms = []
         for reac in reactions:
-            # Stores index of radicals and their equivalent
-            self.scan_reac[reac].usym = [[], []]
             if not self.scan_reac[reac].do_vdW:
                 geoms.append(self.scan_reac[reac].species.geom)
             else:
                 geoms.append(self.scan_reac[reac].irc_prod.geom)
         jobs = [''] * len(reactions)
-        equiv = []
         step0_geoms = [np.array(geoms[ri]) for ri in range(len(reactions))]
 
         while 1:
             for ri, reac in enumerate(reactions):
-                if status[ri] == 'ready' and step[ri] < \
-                   len(self.par['vrc_tst_scan_points']) + 1:
+                if status[ri] == 'ready' and (step[ri] < \
+                   len(self.par['vrc_tst_scan_points']) + 1 or
+                   noscan and step[ri] < 1):
                     # shift geometries along the bond to next desired distance
                     # scanning between atoms A and B
                     pos_A = geoms[ri][self.scan_reac[reac].scan_coo[0]]
@@ -319,7 +328,8 @@ class VTS:
                     # shift so that atom A is at origin
                     geoms[ri] = list(np.array(geoms[ri]) - np.array(pos_A))
                     # stretch frag B along B-A vector
-                    if step < len(self.par['vrc_tst_scan_points']):
+                    if step[ri] < len(self.par['vrc_tst_scan_points']) and\
+                       not noscan:
                         shift = vec_AB * (
                             self.par['vrc_tst_scan_points'][step[ri]] -
                             dist_AB)
@@ -331,7 +341,7 @@ class VTS:
                         geoms[ri][mi] = [gi + shift[i]
                                          for i, gi in enumerate(geoms[ri][mi])]
                     new_distAB = np.linalg.norm(
-                        geoms[ri][self.scan_reac[reac].scan_coo[0]] - 
+                        geoms[ri][self.scan_reac[reac].scan_coo[0]] -
                         geoms[ri][self.scan_reac[reac].scan_coo[1]])
                     # Temporary fix in case shift is in wrong direction
                     if step[ri] != 0 and step[ri] < len(self.par['vrc_tst_scan_points']):
@@ -342,117 +352,11 @@ class VTS:
                             for mi in self.scan_reac[reac].maps[1]:
                                 geoms[ri][mi] = [gi - 2*shift[i]
                                                 for i, gi in enumerate(geoms[ri][mi])]
-                    if step[ri] == 0:
-                        # determine equivalent atoms
-                        equiv_A = []
-                        equiv_B = []
-                        if self.scan_reac[reac].scan_coo[0] in \
-                           self.scan_reac[reac].maps[0]:
-                            # find index of self.scan_reac[reac].scan_coo[0]
-                            # in prod0 and give its atomid
-                            index_A = np.where(
-                                self.scan_reac[reac].maps[0] ==
-                                self.scan_reac[reac].scan_coo[0])[0][0]
-                            self.scan_reac[reac].usym[0].append([index_A])
-                            atomid_A = self.scan_reac[reac].\
-                                products[0].atomid[index_A]
-                            for ii, mi in enumerate(
-                             self.scan_reac[reac].maps[0]):
-                                if self.scan_reac[reac].products[0].\
-                                   atomid[ii] == atomid_A:
-                                    equiv_A.append(mi)
-                            self.explicit(
-                                prod=self.scan_reac[reac].products[0],
-                                atomid=atomid_A,
-                                equiv=equiv_A,
-                                mapping=self.scan_reac[reac].maps[0],
-                                unique=self.scan_reac[reac].usym[0])
-                            index_B = np.where(self.scan_reac[reac].maps[1] ==
-                                               self.scan_reac[reac].scan_coo[1]
-                                               )[0][0]
-                            self.scan_reac[reac].usym[1].append([index_B])
-                            atomid_B = self.scan_reac[reac].\
-                                products[1].atomid[index_B]
-                            for ii, mi in enumerate(
-                               self.scan_reac[reac].maps[1]):
-                                if self.scan_reac[reac].products[1].\
-                                   atomid[ii] == atomid_B:
-                                    equiv_B.append(mi)
-                            self.explicit(
-                                prod=self.scan_reac[reac].products[1],
-                                atomid=atomid_B,
-                                equiv=equiv_B,
-                                mapping=self.scan_reac[reac].maps[1],
-                                unique=self.scan_reac[reac].usym[1])
-                            # Complete self.scan_reac[reac].usym to contain equivalent atoms
-                            for fnum, frag_ra in enumerate(self.scan_reac[reac].usym):
-                                # ura is a list with the index of a single unique atom
-                                for ura in frag_ra:
-                                    uaid = self.scan_reac[reac].products[fnum].\
-                                            atomid[ura[0]]
-                                    for ii, aid in enumerate(
-                                     self.scan_reac[reac].products[fnum].atomid):
-                                        if aid == uaid and \
-                                           ii not in ura:
-                                            ura.append(ii)
-
-                        else:
-                            index_A = np.where(
-                                self.scan_reac[reac].maps[1] ==
-                                self.scan_reac[reac].scan_coo[0])[0][0]
-                            self.scan_reac[reac].usym[0].append([index_A])
-                            atomid_A = self.scan_reac[reac].products[1].\
-                                atomid[index_A]
-                            for ii, mi in enumerate(
-                             self.scan_reac[reac].maps[1]):
-                                if self.scan_reac[reac].products[1].\
-                                   atomid[ii] == atomid_A:
-                                    equiv_A.append(mi)
-                            self.explicit(
-                                prod=self.scan_reac[reac].products[1],
-                                atomid=atomid_A,
-                                equiv=equiv_A,
-                                mapping=self.scan_reac[reac].maps[1],
-                                unique=self.scan_reac[reac].usym[0])
-                            index_B = np.where(
-                                self.scan_reac[reac].maps[0] ==
-                                self.scan_reac[reac].scan_coo[1])[0][0]
-                            self.scan_reac[reac].usym[1].append([index_B])
-                            atomid_B = self.scan_reac[reac].\
-                                products[0].atomid[index_B]
-                            for ii, mi in enumerate(
-                             self.scan_reac[reac].maps[0]):
-                                if self.scan_reac[reac].\
-                                   products[0].atomid[ii] == atomid_B:
-                                    equiv_B.append(mi)
-                            self.explicit(
-                                prod=self.scan_reac[reac].products[0],
-                                atomid=atomid_B,
-                                equiv=equiv_B,
-                                mapping=self.scan_reac[reac].maps[0],
-                                unique=self.scan_reac[reac].usym[1])
-                            # Complete self.scan_reac[reac].usym to contain equivalent atoms
-                            for fnum, frag_ra in enumerate(self.scan_reac[reac].usym):
-                                # ura is a list with the index of a single unique atom
-                                if fnum == 0:
-                                    idx = 1
-                                elif fnum == 1:
-                                    idx = 0
-                                for ura in frag_ra:
-                                    uaid = self.scan_reac[reac].products[idx].\
-                                            atomid[ura[0]]
-                                    for ii, aid in enumerate(
-                                     self.scan_reac[reac].products[idx].atomid):
-                                        if aid == uaid and \
-                                           ii not in ura:
-                                            ura.append(ii)
-                        equiv.append([equiv_A, equiv_B])
-                        self.scan_reac[reac].equiv = [equiv_A, equiv_B]
 
                     jobs[ri] = self.qc.qc_vts(self.scan_reac[reac],
                                               geoms[ri],
                                               step[ri],
-                                              equiv[ri],
+                                              self.scan_reac[reac].equiv,
                                               asymptote,
                                               # needed for alignment of
                                               # rigid fragments later
@@ -470,7 +374,8 @@ class VTS:
                         status[ri] = 'ready'
                         step[ri] += 1
                         geoms[ri] = copy.deepcopy(geom)
-                elif step[ri] == len(self.par['vrc_tst_scan_points']) + 1:
+                if (step[ri] == len(self.par['vrc_tst_scan_points']) + 1 or
+                      (noscan and step[ri] == 1)):
                     status[ri] = 'done'
             if len([st for st in status if st == 'done']) == len(reactions):
                 break
@@ -479,7 +384,7 @@ class VTS:
 
         return (jobs)
 
-    def energies(self, reactions):
+    def energies(self, reactions, noscan=False):
         '''
         Create and submit molpro calculations
         '''
@@ -490,15 +395,19 @@ class VTS:
             all_done = True
             e_samp = []
             e_high = []
-            for step in range(len(self.par['vrc_tst_scan_points']) + 1):
+            if noscan:
+                ndist = 1
+            else:
+                ndist = len(self.par['vrc_tst_scan_points']) + 1
+            for step in range(ndist):
                 for sample in [True, False]:
                     if sample:
-                        if step < len(self.par['vrc_tst_scan_points']):
+                        if step < ndist - 1:
                             job = f'{reac}_vts_pt{str(step).zfill(2)}_fr'
                         else:
                             job = f'{reac}_vts_pt_asymptote_fr'
                     else:
-                        if step < len(self.par['vrc_tst_scan_points']):
+                        if step < ndist - 1:
                             job = f'{reac}_vts_pt{str(step).zfill(2)}'
                         else:
                             # take the geometry from the _fr case as well here
@@ -529,7 +438,10 @@ class VTS:
                         e_high.append(e)
 
             if all_done:
-                dist = self.par['vrc_tst_scan_points'] + [30]
+                if noscan:
+                    dist = [30]
+                else:
+                    dist = self.par['vrc_tst_scan_points'] + [30]
                 ens = []  # energies for sample and high in kcal/mol
                 asyms = []  # asymptotic energies in hartree
                 for sample in [True, False]:
@@ -557,13 +469,14 @@ class VTS:
 
                 # TODO instead of writing files, create and save png
                 # TODO simple text file with 3 columns: R, e_samp, e_high
-                create_matplotlib_graph(x=dist,
-                                        data=ens,
-                                        name=f'{reac}',
-                                        x_label=f"{reac}",
-                                        y_label="Energy (kcal/mol)",
-                                        data_legends=['sample', 'high'],
-                                        )
+                if not noscan:
+                    create_matplotlib_graph(x=dist,
+                                            data=ens,
+                                            name=f'{reac}',
+                                            x_label=f"{reac}",
+                                            y_label="Energy (kcal/mol)",
+                                            data_legends=['sample', 'high'],
+                                            )
 
                 smallest = np.linalg.norm(
                     self.well.geom[self.scan_reac[reac].equiv[0][0]] -
@@ -580,8 +493,8 @@ class VTS:
                     'unique': self.scan_reac[reac].usym,
                     'e_inf_samp': asyms[0],
                     'e_inf_high': asyms[1],
-                    'frags_atom': [self.scan_reac[reac].products[0].atom,
-                                   self.scan_reac[reac].products[1].atom],
+                    'frags_atom': [list(self.scan_reac[reac].products[0].atom),
+                                   list(self.scan_reac[reac].products[1].atom)],
                     'frags_geom': [self.scan_reac[reac].products[0].geom,
                                    self.scan_reac[reac].products[1].geom],
                     'frags_mult': [self.scan_reac[reac].products[0].mult,
@@ -603,3 +516,109 @@ class VTS:
                 f.write(batch_submit)
             os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
         return
+
+    def find_equiv(self, reactions):
+        for reac in reactions:
+            # determine equivalent atoms
+            equiv_A = []
+            equiv_B = []
+            if self.scan_reac[reac].scan_coo[0] in \
+                self.scan_reac[reac].maps[0]:
+                # find index of self.scan_reac[reac].scan_coo[0]
+                # in prod0 and give its atomid
+                index_A = np.where(
+                    self.scan_reac[reac].maps[0] ==
+                    self.scan_reac[reac].scan_coo[0])[0][0]
+                self.scan_reac[reac].usym[0].append([index_A])
+                atomid_A = self.scan_reac[reac].\
+                    products[0].atomid[index_A]
+                for ii, mi in enumerate(
+                    self.scan_reac[reac].maps[0]):
+                    if self.scan_reac[reac].products[0].\
+                        atomid[ii] == atomid_A:
+                        equiv_A.append(mi)
+                self.explicit(
+                    prod=self.scan_reac[reac].products[0],
+                    atomid=atomid_A,
+                    equiv=equiv_A,
+                    mapping=self.scan_reac[reac].maps[0],
+                    unique=self.scan_reac[reac].usym[0])
+                index_B = np.where(self.scan_reac[reac].maps[1] ==
+                                    self.scan_reac[reac].scan_coo[1]
+                                    )[0][0]
+                self.scan_reac[reac].usym[1].append([index_B])
+                atomid_B = self.scan_reac[reac].\
+                    products[1].atomid[index_B]
+                for ii, mi in enumerate(
+                    self.scan_reac[reac].maps[1]):
+                    if self.scan_reac[reac].products[1].\
+                        atomid[ii] == atomid_B:
+                        equiv_B.append(mi)
+                self.explicit(
+                    prod=self.scan_reac[reac].products[1],
+                    atomid=atomid_B,
+                    equiv=equiv_B,
+                    mapping=self.scan_reac[reac].maps[1],
+                    unique=self.scan_reac[reac].usym[1])
+                # Complete self.scan_reac[reac].usym to contain equivalent atoms
+                for fnum, frag_ra in enumerate(self.scan_reac[reac].usym):
+                    # ura is a list with the index of a single unique atom
+                    for ura in frag_ra:
+                        uaid = self.scan_reac[reac].products[fnum].\
+                                atomid[ura[0]]
+                        for ii, aid in enumerate(
+                            self.scan_reac[reac].products[fnum].atomid):
+                            if aid == uaid and \
+                                ii not in ura:
+                                ura.append(ii)
+            else:
+                index_A = np.where(
+                    self.scan_reac[reac].maps[1] ==
+                    self.scan_reac[reac].scan_coo[0])[0][0]
+                self.scan_reac[reac].usym[0].append([index_A])
+                atomid_A = self.scan_reac[reac].products[1].\
+                    atomid[index_A]
+                for ii, mi in enumerate(
+                    self.scan_reac[reac].maps[1]):
+                    if self.scan_reac[reac].products[1].\
+                        atomid[ii] == atomid_A:
+                        equiv_A.append(mi)
+                self.explicit(
+                    prod=self.scan_reac[reac].products[1],
+                    atomid=atomid_A,
+                    equiv=equiv_A,
+                    mapping=self.scan_reac[reac].maps[1],
+                    unique=self.scan_reac[reac].usym[0])
+                index_B = np.where(
+                    self.scan_reac[reac].maps[0] ==
+                    self.scan_reac[reac].scan_coo[1])[0][0]
+                self.scan_reac[reac].usym[1].append([index_B])
+                atomid_B = self.scan_reac[reac].\
+                    products[0].atomid[index_B]
+                for ii, mi in enumerate(
+                    self.scan_reac[reac].maps[0]):
+                    if self.scan_reac[reac].\
+                        products[0].atomid[ii] == atomid_B:
+                        equiv_B.append(mi)
+                self.explicit(
+                    prod=self.scan_reac[reac].products[0],
+                    atomid=atomid_B,
+                    equiv=equiv_B,
+                    mapping=self.scan_reac[reac].maps[0],
+                    unique=self.scan_reac[reac].usym[1])
+                # Complete self.scan_reac[reac].usym to contain equivalent atoms
+                for fnum, frag_ra in enumerate(self.scan_reac[reac].usym):
+                    # ura is a list with the index of a single unique atom
+                    if fnum == 0:
+                        idx = 1
+                    elif fnum == 1:
+                        idx = 0
+                    for ura in frag_ra:
+                        uaid = self.scan_reac[reac].products[idx].\
+                                atomid[ura[0]]
+                        for ii, aid in enumerate(
+                            self.scan_reac[reac].products[idx].atomid):
+                            if aid == uaid and \
+                                ii not in ura:
+                                ura.append(ii)
+            self.scan_reac[reac].equiv = [equiv_A, equiv_B]

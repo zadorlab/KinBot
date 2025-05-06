@@ -191,7 +191,7 @@ def main():
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
 
-        if par['vrc_tst_scan']:
+        if par['vrc_tst_scan'] or par['vrc_tst_noscan']:
             logger.info('Setting up scans for VRC-TST...')
             vts = VTS(well0, par, qc)
             vts.calculate_correction_potentials()

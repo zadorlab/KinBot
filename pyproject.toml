@@ -10,7 +10,7 @@ exclude = ["build", "dist", "KinBot.egg-info", "graphics"]
 
 [project]
 name = "kinbot"
-version = "2.2.3"
+version = "2.2.4a"
 description = "Automated reaction kinetics for gas-phase species"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -38,7 +38,7 @@ classifiers = [
 ]
 dependencies = [
         "numpy>=1.17.0",
-        "ase>=3.19",
+        "ase(>=3.19,<3.23)",
         "networkx",
         "rmsd>=1.5.1",
         "sella"

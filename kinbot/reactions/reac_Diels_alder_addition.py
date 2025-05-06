@@ -15,8 +15,8 @@ class DielsAlder(GeneralReac):
         if step < self.max_step:
             self.fix_bonds(fix)
 
-        if step ==0 :
-            fval = 2.2
+        if step ==0:
+            fval = 2.0
             self.set_bond(2, 3, fval, change)
             self.set_bond(4, 5, fval, change)
         

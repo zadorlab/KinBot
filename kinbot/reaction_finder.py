@@ -1312,7 +1312,9 @@ class ReactionFinder:
 
         rxns = [] #reactions found with the current resonance isomer
 
-        if not any([len(ci) == 6 for ci in self.species.cycle_chain]): return 
+        if not any([len(ci) == 6 for ci in self.species.cycle_chain]): 
+            logger.debug(f'No 6-mem ring.')
+            return 
 
         for ci in self.species.cycle_chain:
             if len(ci) == 6:
@@ -1326,12 +1328,12 @@ class ReactionFinder:
                     if bond[atomi][atomj] == 2:
                         start = atomi
                         startindex = index
-                if bondsum != 7: return # exactly one double bond
+                if bondsum != 7: continue # exactly one double bond
                 ring = np.ndarray.tolist(np.roll(ci, 6 - startindex))
 
                 rxns += [ring] # FIXME only works for 1 cycle
 
-        self.new_reaction(rxns, name, a=0, b=1)
+        self.new_reaction(rxns, name, full=True)
 #            # filter for specific reaction after this
 #            if self.one_reaction_fam and new:
 #                if self.reac_bonds != set({frozenset({inst[2], inst[3]}), frozenset({inst[4], inst[5]})}) or self.prod_bonds != {frozenset()}:
@@ -2232,7 +2234,9 @@ class ReactionFinder:
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraDisproportionationR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Diels_alder_addition':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                indx = ''.join('_' + str(reac_list[i][jj] + 1) for jj in range(6))
+#                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = str(self.species.chemid) + '_' + reac_id + indx
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(DielsAlder(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_Diels_alder_R':

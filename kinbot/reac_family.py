@@ -77,7 +77,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                                        rxn.instance_name, geom, 
                                                        change_starting_zero,
                                                        rxn.species.bond,
-                                                       write_files=0)
+                                                       write_files=1)
         for c in change:
             fix.append(c[:-1])
         change = []
@@ -144,6 +144,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     elif rxn.qc.qc == 'nn_pes' and step >= rxn.max_step:
         code = 'nn_pes'
         Code = 'Nn_surr'
+
+    elif rxn.qc.qc == 'fc':
+        code = 'fairchem'
+        Code = 'Fairchem'
 
     if step < rxn.max_step:
         if rxn.qc.use_sella:

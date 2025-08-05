@@ -45,6 +45,7 @@ class IRC:
                                                 self.rxn.species.natom,
                                                 allow_error=1)
             if err == -1:
+                logger.warning('Error -1 for {}'.format(instance_name))###
                 return 0
             if self.problem_in_geom(geom):
                 # this happens seldom that all the atoms are
@@ -149,6 +150,9 @@ class IRC:
             elif self.rxn.qc.qc == 'nn_pes':
                 code = 'nn_pes'
                 Code = 'Nn_surr'
+            elif self.rxn.qc.qc == 'fc':
+                code = 'fairchem'
+                Code = 'Fairchem'
             else:
                 raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.')
 

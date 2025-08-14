@@ -310,6 +310,7 @@ def main():
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
 
+    clean_files(diagnostic=True)
     logger.info('KinBot finished.')
     try:
         print("Done!")

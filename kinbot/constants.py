@@ -135,6 +135,8 @@ qext = {'pbs': '.pbs',
         'slurm': '.sbatch',
         }
 
+mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
+            'reac_r12_cycloaddition', 'reac_r14_birad_scission']
 
 def main():
     """

@@ -106,7 +106,7 @@ def create_summary_file(species, qc, par):
                 energy = (ts.l3energy + ts.zpe
                           - species.l3energy - species.zpe)
                 energy *= constants.AUtoKCAL
-            elif species.reac_type[index] == 'R_Addition_MultipleBond' \
+            elif species.reac_type[index] in constants.mp2_list \
                     and not par['high_level'] \
                     and qc.qc != 'nn_pes':
                 mp2_energy = qc.get_qc_energy(str(species.chemid)
@@ -259,7 +259,7 @@ def createPESViewerInput(species, qc, par):
         if species.reac_ts_done[index] != -1:
             continue
         ts = species.reac_obj[index].ts
-        if species.reac_type[index] == 'R_Addition_MultipleBond' \
+        if species.reac_type[index] in constants.mp2_list \
                 and not par['high_level'] \
                 and qc.qc != 'nn_pes':
             we_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]

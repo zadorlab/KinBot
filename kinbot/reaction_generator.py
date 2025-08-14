@@ -218,7 +218,7 @@ class ReactionGenerator:
                         # check the barrier height:
                         ts_energy = self.qc.get_qc_energy(obj.instance_name)[1]
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
-                        if self.species.reac_type[index] == 'R_Addition_MultipleBond' \
+                        if self.species.reac_type[index] in constants.mp2_list \
                                 and self.qc.qc != 'nn_pes':
                             ending = 'well_mp2'
                             thresh = self.par['barrier_threshold']  # need to fix for mp2 specific
@@ -274,10 +274,10 @@ class ReactionGenerator:
                         obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
                         if self.species.charge == 0:
                             logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
-                                        f'{[fr.chemid for fr in obj.products]} {[fr.atom for fr in obj.products]}')
+                                        f'{[fr.chemid for fr in obj.products]} {["".join(fr.atom) for fr in obj.products]}')
                         else:
                             logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
-                                        f'{[fr.chemid for fr in obj.products]} {[fr.atom for fr in obj.products]} '
+                                        f'{[fr.chemid for fr in obj.products]} {["".join(fr.atom) for fr in obj.products]} '
                                         '(including all possible charge distributions)')
 
                         self.equate_identical(obj.products)

@@ -249,7 +249,7 @@ class ReactionFinder:
                     rxns += [instance]
 
             # cations (try all)
-            if self.species.charge == 1:
+            if self.species.charge == 0:
                 for instance in instances:
                     if self.species.atom[instance[0]] != 'H':
                         rxns += [instance]

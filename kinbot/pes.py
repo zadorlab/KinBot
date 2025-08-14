@@ -317,10 +317,6 @@ def postprocess(par, jobs, task, names, mass):
     failedwells = []
     bimol_products = []
 
-    # list of reactions for which mp2 energies should be used at L1
-    mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
-                'reac_r12_cycloaddition', 'reac_r14_birad_scission']
-    
     #list of booleans, length is number of wells
     #True if the well is a vdW well
     do_vdW = []
@@ -353,9 +349,7 @@ def postprocess(par, jobs, task, names, mass):
                 barrier = 0. - base_energy - base_zpe
 
                 # overwrite energies with mp2 energy if needed
-                mp2_list = ['R_Addition_MultipleBond', 'reac_birad_recombination_R', 
-                        'reac_r12_cycloaddition', 'reac_r14_birad_scission']
-                if any([mm in reaction_name for mm in mp2_list]) \
+                if any([mm in reaction_name for mm in constants.mp2_list]) \
                        and not par['high_level'] \
                        and par['qc'] != 'nn_pes' and par['qc'] != 'fc':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 

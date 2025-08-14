@@ -1,6 +1,7 @@
 from ase import Atoms
 from ase.optimize import LBFGS
 from ase.db import connect
+import numpy as np
 
 from kinbot.ase_modules.calculators.gaussian import Gaussian
 from kinbot.ase_modules.constraints import FixInternals

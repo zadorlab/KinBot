@@ -95,8 +95,9 @@ def make_dir(name):
         os.makedirs(name)
     return
 
-def clean_files():
+def clean_files(diagnostic=False):
     """Removes files from jobs that ended up erroneously.
+    if diagnostic is True, it will just print the list of files but not delete
     """
     import logging
     import numpy as np
@@ -117,8 +118,11 @@ def clean_files():
         if delfile:
             ll = cc.split('.')[0] + '.log'
             try:
-                os.remove(ll)
-                logger.info(f'Stuck AM1 job {ll} is deleted.')
+                if not diagnostic:
+                    os.remove(ll)
+                    logger.info(f'Stuck AM1 job {ll} is deleted.')
+                else:
+                    logger.info(f'Stuck AM1 job: {ll}.')
             except FileNotFoundError:
                 pass
 
@@ -143,8 +147,11 @@ def clean_files():
         if not os.path.isfile(ll):
             continue
         if os.path.getsize(ll) < 10:
-            os.remove(ll)
-            logger.info(f'Empty file {ll} is deleted.')
+            if not diagnostic:
+                os.remove(ll)
+                logger.info(f'Empty file {ll} is deleted.')
+            else:
+                logger.info(f'Empty file: {ll}.')
         else:
             try:
                 atoms = read(ll)
@@ -152,10 +159,16 @@ def clean_files():
                 continue
             else:
                 if len(atoms.positions) > 1 and np.all(atoms.positions == 0):
-                    os.remove(ll)
-                    logger.info(f'All coordinates of file {ll} are 0, hence '
-                                f'it is deleted.')
-
+                    if not diagnostic:
+                        os.remove(ll)
+                        logger.info(f'All coordinates of file {ll} are 0, hence '
+                                    f'it is deleted.')
+                    else:
+                        logger.info(f'All coordinates of file {ll} are 0.')
+    if diagnostic:
+        logger.info(f'If empty or stuck files were detected, check the /perm directory for failed jobs on the HPC.')
+        logger.info(f'You will need to resubmit KinBot to ensure the correctness of the results.')
+    return
 
 def create_matplotlib_graph(x=[0., 1.],
                             data=[[1., 1.]],

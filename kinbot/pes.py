@@ -56,10 +56,7 @@ def main():
     if len(sys.argv) > 2:
         if sys.argv[2] == 'no-kinbot':
             no_kinbot = 1
-        else:
-            print('Only the no-kinbot argument is accepted in this case')
-            sys.exit(-1)
-    elif len(sys.argv) > 3:
+    if len(sys.argv) > 3:
         # possible tasks are:
         # 1. all: This is the default showing all pathways
         # 2. lowestpath: show the lowest path between the species
@@ -69,9 +66,6 @@ def main():
         # 4. wells: show all reactions of one wells
         # corresponding to the names
         task = sys.argv[3]
-        if task not in ['all', 'lowestpath', 'allpaths', 'wells']:
-            print('The format is pes [input] [task] [names] and task should be one of "all", "lowestpath", "allpaths", or "wells".')
-            sys.exit(-1)
         names = sys.argv[4:]
 
     # print the license message to the console
@@ -177,7 +171,7 @@ def main():
                     get_wells(job)
                 pids[job] = pid
                 t = datetime.datetime.now()
-                logger.info(f'Started job {job} at {t}. PID = {pid}')
+                logger.info('Started job {} at {}'.format(job, t))
                 running.append(job)
             elif kb == 0:
                 logger.info('Skipping Kinbot for {}'.format(job))
@@ -357,7 +351,7 @@ def postprocess(par, jobs, task, names, mass):
                 # overwrite energies with mp2 energy if needed
                 if any([mm in reaction_name for mm in constants.mp2_list]) \
                        and not par['high_level'] \
-                       and par['qc'] != 'nn_pes':
+                       and par['qc'] != 'nn_pes' and par['qc'] != 'fc':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
                                               mp2=1, conf=par['conformer_search'])
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
@@ -939,16 +933,9 @@ def copy_from_kinbot(well, dirname):
     for f in files:
         if f.endswith('.out'):
             if not os.path.exists(f'{dirname}/{f}'):
-                try:
-                    shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
-                except:
-                    continue
-        else:
-            try:
                 shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
-            except:
-                continue
-    return
+        else:
+            shutil.copy(f'{well}/{dirname}/{f}', f'{dirname}/{f}')
 
 
 def get_rxn(prods, rxns):
@@ -1373,13 +1360,11 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
 
     for index, reac in enumerate(barrierless):
         reactant, reac_name, products, barrier = reac
-        if (reactant not in par['vrc_tst_scan'] or reac_name not in par['vrc_tst_scan'][reactant]) and\
-           (reactant not in par['vrc_tst_noscan'] or reac_name not in par['vrc_tst_noscan'][reactant]):
+        try:
+            if reac_name not in par['vrc_tst_scan'][reactant]:
+                continue
+        except KeyError:
             continue
-        if reactant in par['vrc_tst_noscan'] and reac_name in par['vrc_tst_noscan'][reactant]:
-            noscan = True
-        else:
-            noscan = False
         logger.info(f"Creating rotdPy input for reaction {reac_name}")
         if len(products) != 2:
             logger.warning("The creation of rotdPy inputs requires bimolecular products.")
@@ -1409,7 +1394,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                                       parent=str(reactant),
                                       mult=pp_info['frags_mult'][frag_num]))
 
-        fragnames: list[str] = Fragment.get_fragnames()
+        fragnames = Fragment.get_fragnames()
 
         # Set the pivot points on each fragments and create the surfaces
         surfaces: list[VRC_TST_Surface] = []
@@ -1420,10 +1405,10 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         surfs: list[VRC_TST_Surface]
 
         for dist in par['rotdpy_dist']:
-            if dist < vrc_tst_start and not noscan:
+            if dist < vrc_tst_start:
                 logger.info(f"Removing sampling surface {dist} for reaction {reac_name}")
                 continue
-            else:
+            elif dist >= vrc_tst_start:
                 (fw, sf, surfs) = pp_settings.create_all_surf_for_dist(
                     dist=dist,
                     equiv_ra=pp_info['unique'],
@@ -1468,10 +1453,6 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                                      max_jobs=2000)
 
         template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
-        if noscan:
-            min_dist = min(par['rotdpy_dist']) - max(par['pp_length']['X']) * constants.BOHRtoANGSTROM
-        else:
-            min_dist = par['vrc_tst_scan_points'][0]
         with open(template_file_path) as template_file:
             tpl: str = template_file.read()
         new_input: str = tpl.format(
@@ -1483,7 +1464,7 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
             faces_weights=faces_weights,
             frag_names='[' + ', '.join(fragnames) + ']',
             calc_block=rotdPy_calc,
-            min_dist=min_dist,
+            min_dist=par['vrc_tst_scan_points'][0],
             corrections_block=kb_1d_correction,
             inf_energy=inf_energy)
 
@@ -1707,14 +1688,14 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
             continue
         db = connect(well + '/kinbot.db')
         rows = db.select(name=j)
-        for row in reversed(list(rows)):  # only take the last one and ignore others
+        for row in rows:
             try:
                 new_energy = row.data.get('energy') * constants.EVtoHARTREE
                 new_zpe = row.data.get('zpe')
             except (UnboundLocalError, TypeError):
-                break
+                continue
             if new_zpe is None:
-                break
+                continue
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
                 if not ts:
                     # Avoid getting energies from calculations that converged to another structure
@@ -1723,10 +1704,9 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
                     st_pt.characterize()
                     chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
                     if chemid_wo_mult != job[:-1]:
-                        break
+                        continue
                 energy = new_energy
                 zpe = new_zpe
-            break
     if np.isinf(energy) or np.isinf(zpe):
         raise ValueError(f'Unable to find an energy for {j}.')
 

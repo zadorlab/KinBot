@@ -439,7 +439,7 @@ class Conformers:
                         ext = 'log'
                     elif self.qc.qc == 'qchem':
                         ext = 'out'
-                    elif self.qc.qc == 'nn_pes':
+                    elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
                         ext = 'log'
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
@@ -555,7 +555,7 @@ class Conformers:
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
                     elif self.qc.qc == 'qchem':
                         copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
-                    elif self.qc.qc == 'nn_pes':
+                    elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
                         pass
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')

@@ -149,6 +149,9 @@ class IRC:
             elif self.rxn.qc.qc == 'nn_pes':
                 code = 'nn_pes'
                 Code = 'Nn_surr'
+            elif self.rxn.qc.qc == 'fc':
+                code = 'fairchem'
+                Code = 'Fairchem'
             else:
                 raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.')
 

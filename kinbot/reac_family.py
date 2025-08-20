@@ -145,6 +145,10 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         code = 'nn_pes'
         Code = 'Nn_surr'
 
+    elif rxn.qc.qc = 'fc':
+        code = 'fairchem'
+        Code = 'Fairchem'
+
     if step < rxn.max_step:
         if rxn.qc.use_sella:
             kwargs.pop('addsec', None)

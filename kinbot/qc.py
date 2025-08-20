@@ -64,6 +64,8 @@ class QuantumChemistry:
         if not self.use_sella and self.qc.lower() == 'nn_pes':
             logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
             self.use_sella = True
+        if self.use_sella and self.qc.lower() == 'fc':
+            self.use_sella = False #Sella template files are separate from fairchem
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
@@ -315,6 +317,11 @@ class QuantumChemistry:
                 kwargs = {'fname': self.par['nn_model']}
             else:
                 kwargs = {}
+        elif self.qc == 'fc':
+            kwargs = {
+                    'mult': mult,
+                    'charge': charge
+            }
 
         return kwargs
 
@@ -357,6 +364,9 @@ class QuantumChemistry:
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         if self.use_sella:
@@ -431,6 +441,9 @@ class QuantumChemistry:
             kwargs.pop('basis', None)
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
@@ -499,6 +512,9 @@ class QuantumChemistry:
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
@@ -624,6 +640,9 @@ class QuantumChemistry:
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
@@ -655,7 +674,9 @@ class QuantumChemistry:
                                    code=code,    # Sella
                                    Code=Code,    # Sella
                                    order=0,      # Sella
-                                   sella_kwargs=self.par['sella_kwargs'] # Sella
+                                   sella_kwargs=self.par['sella_kwargs'], # Sella
+                                   charge=species.charge, #fc
+                                   spin=species.mult #fc
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -694,6 +715,9 @@ class QuantumChemistry:
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unrecognized qc option: {self.qc}')
         
@@ -1273,11 +1297,11 @@ class QuantumChemistry:
                     log_file = job + '.out'
                 elif self.qc == 'qchem':
                     log_file = job + '.out'
-                elif self.qc == 'nn_pes':
+                elif self.qc == 'nn_pes' or self.qc == 'fc':
                     log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
-                if self.qc != 'nn_pes':
+                if self.qc != 'nn_pes' and self.qc != 'fc':
                     log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     with open(log_file, 'r') as f:
@@ -1295,7 +1319,7 @@ class QuantumChemistry:
                                 return 'error'
                             return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
-                elif self.qc == 'nn_pes':
+                elif self.qc == 'nn_pes' or self.qc == 'fc':
                     pass
                 else:
                     if self.queuing == 'local' and not self.par['error_missing_local']:

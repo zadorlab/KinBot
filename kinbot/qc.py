@@ -64,8 +64,6 @@ class QuantumChemistry:
         if not self.use_sella and self.qc.lower() == 'nn_pes':
             logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
             self.use_sella = True
-	if self.use_sella and self.qc.lower() == 'fc':
-	    self.use_sella = False #Right now Fairchem tpl files are separate from sella
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
@@ -169,12 +167,21 @@ class QuantumChemistry:
                 kwargs['method'] = self.high_level_method
                 kwargs['basis'] = self.high_level_basis
                 if len(self.opt) > 0:
-                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,' \
-                                    'MaxCycle=999,{}'.format(self.opt)  # to overwrite possible CalcAll
+                    if self.par['calcall_ts'] == 1 and ts == 1:
+                        kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,' \
+                                        'MaxCycle=999,{}'.format(self.opt)  
+                    else:
+                        kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,' \
+                                        'MaxCycle=999,{}'.format(self.opt)  # to overwrite possible CalcAll
+                        kwargs['freq'] = 'freq'
                 else:
-                    kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,' \
-                                    'MaxCycle=999'  # to overwrite possible CalcAll
-                kwargs['freq'] = 'freq'
+                    if self.par['calcall_ts'] == 1 and ts == 1:
+                        kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,' \
+                                        'MaxCycle=999'  
+                    else:
+                        kwargs['opt'] = 'NoFreeze,TS,CalcFC,NoEigentest,' \
+                                        'MaxCycle=999'  # to overwrite possible CalcAll
+                        kwargs['freq'] = 'freq'
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral
                 if 'barrierless_saddle' in job:  # completely overwrite normal settings
@@ -308,11 +315,7 @@ class QuantumChemistry:
                 kwargs = {'fname': self.par['nn_model']}
             else:
                 kwargs = {}
-        elif self.qc == 'fc':
-            kwargs = {
-                    'mult': mult,
-                    'charge': charge        
-            }
+
         return kwargs
 
     def qc_hir(self, species, geom, rot_index, ang_index, fix, rigid):
@@ -354,10 +357,6 @@ class QuantumChemistry:
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
-        elif self.qc == 'fc':
-            code = 'fairchem'
-            Code = 'Fairchem'
-            #this shouldn't matter but this is for consistency in case we want to make fairchem part of the kinbot package later
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         if self.use_sella:
@@ -389,25 +388,24 @@ class QuantumChemistry:
 
         return 0
 
-    def qc_ring_conf(self, species, geom, fix, change, conf_nr, scan_nr):
+    def qc_ring_conf(self, species, geom, fix, change, conf_idx, dih_idx):
         '''
         Creates a constrained geometry optimization input for the
         conformational search of cyclic structures and runs it.
-        Make use of the ASE optimizer LBFGS
+        Makes use of Sella.
 
         qc: 'gauss' or 'nwchem' or 'qchem'
-        scan: list of dihedrals to be scanned and their values
         wellorts: 0 for wells and 1 for saddle points
-        conf_nr: number of the conformer in the conformer search
-        scan_nr: number of the scan for this conformer
+        conf_idx: index of ring conformer in the conformer search
+        dih_idx: index of the dih for this conformer
         '''
         if species.wellorts:
-            job = 'conf/' + species.name + '_r' + str(conf_nr).zfill(self.zf) \
-                  + '_' + str(scan_nr).zfill(self.zf)
+            job = 'conf/' + species.name + '_r' + str(conf_idx).zfill(self.zf) \
+                  + '_' + str(dih_idx).zfill(self.zf)
         else:
             job = 'conf/' + str(species.chemid) + '_r' \
-                  + str(conf_nr).zfill(self.zf) + '_' \
-                  + str(scan_nr).zfill(self.zf)
+                  + str(conf_idx).zfill(self.zf) + '_' \
+                  + str(dih_idx).zfill(self.zf)
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
                                        ts=species.wellorts, step=1, max_step=1, 
@@ -433,15 +431,13 @@ class QuantumChemistry:
             kwargs.pop('basis', None)
             code = 'nn_pes'
             Code = 'Nn_surr'
-        elif self.qc == 'fc':
-            code = 'fairchem'
-            Code = 'Fairchem' #idk what happens here yet
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
-        if self.use_sella:
-            template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
-        else:
-            template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
+        template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
+        # if self.use_sella:
+        #     template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
+        # else:
+        #     template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -452,7 +448,6 @@ class QuantumChemistry:
                                    ppn=self.ppn,
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
-                                   order=species.wellorts,
                                    code=code,  # Sella
                                    Code=Code,  # Sella
                                    sella_kwargs=self.par['sella_kwargs']  # Sella
@@ -504,9 +499,6 @@ class QuantumChemistry:
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
-        elif self.qc == 'fc':
-            code = 'fairchem'
-            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
@@ -632,9 +624,6 @@ class QuantumChemistry:
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
-        elif self.qc == 'fc':
-            code = 'fairchem'
-            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
@@ -648,14 +637,10 @@ class QuantumChemistry:
         # the integral is set in the get_qc_arguments parts, bad design
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
-        if self.use_sella and self.qc != 'fc':
+        if self.use_sella:
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
             template_file = f'{kb_path}/tpl/ase_sella_opt_well.tpl.py'
-        elif self.qc == 'fc':
-            kwargs.pop('opt', None)
-            kwargs.pop('freq', None)
-            template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         else:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         
@@ -670,9 +655,7 @@ class QuantumChemistry:
                                    code=code,    # Sella
                                    Code=Code,    # Sella
                                    order=0,      # Sella
-                                   sella_kwargs=self.par['sella_kwargs'], # Sella
-                                   charge=species.charge, #fc
-                                   spin=species.mult #fc
+                                   sella_kwargs=self.par['sella_kwargs'] # Sella
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -711,9 +694,6 @@ class QuantumChemistry:
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
-        elif self.qc == 'fc':
-            code = 'fairchem'
-            Code = 'Fairchem'
         else:
             raise ValueError(f'Unrecognized qc option: {self.qc}')
         
@@ -818,6 +798,7 @@ class QuantumChemistry:
                                        init_geom=list([list(gi) for gi in geom]),
                                        qc_command=self.qc_command,
                                        working_dir=os.getcwd(),
+                                       vts_ang_dev=self.par['vts_ang_dev'],
                                        scan_deviation=self.par['vrc_tst_scan_deviation'],
                                        frag_maps=list([list(rm) for rm in reac.maps]),
                                        froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),
@@ -1016,7 +997,7 @@ class QuantumChemistry:
                 prev_geom = geom  # saves the previous 
             mol = row.toatoms()
             geom = mol.positions
-            atoms = np.array(list(mol.symbols.get_chemical_formula('all')))
+            atoms = mol.symbols
             found_entry = 1
 
         if found_entry and previous == 0:
@@ -1099,7 +1080,7 @@ class QuantumChemistry:
 
         # Get last entry
         *_, last_row = self.db.select(name=job)
-        if hasattr(last_row, 'data'):
+        if hasattr(last_row, 'data') and 'energy' in last_row.data:
             energy = last_row.data.get('energy')
         else:
             logger.warning(f'No energy found in the database for {job}. '
@@ -1250,12 +1231,12 @@ class QuantumChemistry:
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
         '''
-        # logger.debug('Checking job {}'.format(job))
+        logger.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
             command = 'qstat -f | grep ' + '"Job Id: ' + self.job_ids.get(job, '-1') + '"' + ' > /dev/null'
             if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
-                # logger.debug('Job is running')
+                logger.debug('Job is running')
                 return 'running'
         elif self.queuing == 'slurm':
             # command = 'scontrol show job ' + self.job_ids.get(job,'-1') + ' | grep "JobId=' + self.job_ids.get(job,'-1') + '"' + ' > /dev/null'
@@ -1282,7 +1263,9 @@ class QuantumChemistry:
         # if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
         #     return 'running'
 
+        logger.debug('Checking for job {} in db'.format(job))
         if self.is_in_database(job):
+            logger.debug('{} is in db'.format(job))
             for i in range(1):
                 if self.qc == 'gauss':
                     log_file = job + '.log'
@@ -1290,11 +1273,11 @@ class QuantumChemistry:
                     log_file = job + '.out'
                 elif self.qc == 'qchem':
                     log_file = job + '.out'
-                elif self.qc == 'nn_pes' or self.qc == 'fc':
+                elif self.qc == 'nn_pes':
                     log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
-                if self.qc != 'nn_pes' and self.qc != 'fc':
+                if self.qc != 'nn_pes':
                     log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     with open(log_file, 'r') as f:
@@ -1312,7 +1295,7 @@ class QuantumChemistry:
                                 return 'error'
                             return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
-                elif self.qc == 'nn_pes' or self.qc == 'fc':
+                elif self.qc == 'nn_pes':
                     pass
                 else:
                     if self.queuing == 'local' and not self.par['error_missing_local']:
@@ -1342,9 +1325,10 @@ class QuantumChemistry:
             logger.debug('log file {} does not exist'.format(log_file))
             return 0
         else:
-            if self.queuing == 'local' and not self.par['error_missing_local']:
-                return 'error'
             logger.debug('job {} is not in database'.format(job))
+            if self.queuing == 'local' and not self.par['error_missing_local']:
+                logger.debug('local qu error')
+                return 'error'
             return 0
 
     def limit_jobs(self):

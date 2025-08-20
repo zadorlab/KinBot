@@ -166,6 +166,9 @@ class Conformers:
     def start_ring_conformer_search(self, index, cart):
         """
         index: number of the conformer
+        In each iteration a given dihedral is changed, and then in the 
+        next one it's fixed and another one is changed, and then two are
+        fixed and the next one is changed, until all are at their desired values
         """
         if self.cyc_conf_index[index] == len(self.cyc_dih_atoms[index]) - 1:
             # this conformer has finished
@@ -436,7 +439,7 @@ class Conformers:
                         ext = 'log'
                     elif self.qc.qc == 'qchem':
                         ext = 'out'
-                    elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
+                    elif self.qc.qc == 'nn_pes':
                         ext = 'log'
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
@@ -552,7 +555,7 @@ class Conformers:
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
                     elif self.qc.qc == 'qchem':
                         copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
-                    elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
+                    elif self.qc.qc == 'nn_pes':
                         pass
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')

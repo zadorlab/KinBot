@@ -129,14 +129,6 @@ while not converged and attempts <= 3:
 
     else:
         converged = True
-        
-        if kwargs['method'] != None:
-            #Perform Gaussian single point
-            from kinbot.ase_modules.calculators.gaussian import Gaussian
-            Gaussian.command = '{qc_command} < PREFIX.com > PREFIX.log'
-            calc = Gaussian(**kwargs)
-            mol.calc = calc
-
         e = mol.get_potential_energy()
         forces = mol.calc.results['forces']
         del mol.calc.results['forces']

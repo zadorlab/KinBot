@@ -643,6 +643,7 @@ class QuantumChemistry:
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
+            mp2 = 0
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         

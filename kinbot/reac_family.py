@@ -145,7 +145,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         code = 'nn_pes'
         Code = 'Nn_surr'
 
-    elif rxn.qc.qc = 'fc':
+    elif rxn.qc.qc == 'fc':
         code = 'fairchem'
         Code = 'Fairchem'
 

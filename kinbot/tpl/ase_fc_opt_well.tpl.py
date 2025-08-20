@@ -98,7 +98,7 @@ while not converged and attempts <= 3:
     except ValueError:
         with open('fairchem.log', 'a') as f:
             f.write(f'{label} | Optimization failed. Perturbing coordinates.\n')
-        mol.set_positions(mol.get_positions() + np.random.normal(scale=1e-3, size=(len(mol), 3)))
+        mol.set_positions(mol.get_positions() + np.random.normal(scale=1e-2, size=(len(mol), 3)))
         opt = Sella(mol,
             order=order,
             trajectory='{label}.traj',

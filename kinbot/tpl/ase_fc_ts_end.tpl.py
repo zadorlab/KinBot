@@ -104,7 +104,7 @@ except (RuntimeError, ValueError):
     random.seed()
     db.write(mol, name='{label}', data=data)
     with open('fairchem.log', 'a') as f:
-        f.write('{label} | TS optimization failed.\n')
+        f.write('{label} | TS optimization failed\n')
 
 with open('{label}.log', 'a') as f:
     f.write('done\n')

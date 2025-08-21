@@ -53,7 +53,7 @@ mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
 
 mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
 with open('fairchem.log', 'a') as f:
-    f.write('{label} | Initial energy calculated.\n')
+    f.write('{label} | Initial energy calculated\n')
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
@@ -61,7 +61,7 @@ if os.path.isfile('{label}_sella.log'):
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
     with open('fairchem.log', 'a') as f:
-        f.write('{label} | Detected monatomic well.\n')
+        f.write('{label} | Detected monatomic well\n')
 
     e = mol.get_potential_energy()
     forces = mol.calc.results['forces']
@@ -73,7 +73,7 @@ if len(mol) == 1:
     with open('{label}.log', 'a') as f:
         f.write('done\n')
     with open('fairchem.log', 'a') as f:
-        f.write('{label} | Well optimization successful.\n')
+        f.write('{label} | Well optimization successful\n')
     sys.exit(0)
 
 order = {order}
@@ -92,13 +92,13 @@ steps=500
 while not converged and attempts <= 3:
     mol.calc.label = '{label}'
     with open('fairchem.log', 'a') as f:
-        f.write(f'{label} | Optimizing well. Attempt {{attempts}}.\n')
+        f.write(f'{label} | Optimizing well. Attempt {{attempts}}\n')
     try:
         converged = opt.run(fmax=fmax, steps=steps)
     except ValueError:
         with open('fairchem.log', 'a') as f:
-            f.write(f'{label} | Optimization failed. Perturbing coordinates.\n')
-        mol.set_positions(mol.get_positions() + np.random.normal(scale=1e-2, size=(len(mol), 3)))
+            f.write(f'{label} | Optimization failed. Perturbing coordinates\n')
+        mol.set_positions(mol.get_positions() + np.random.normal(scale=0.05, size=(len(mol), 3)))
         opt = Sella(mol,
             order=order,
             trajectory='{label}.traj',
@@ -140,7 +140,7 @@ while not converged and attempts <= 3:
             f.write('{label} | Well optimization successful!\n')
 if not converged:
     with open('fairchem.log', 'a') as f:
-        f.write('{label} | Well did not converge.\n')
+        f.write('{label} | Well did not converge\n')
     raise RuntimeError("Did not converge")
 
 with open('{label}.log', 'a') as f:

@@ -45,7 +45,7 @@ try:
     elif mol.positions is not None and mol.positions.any():
         # although there is an error, continue from the final geometry
         with open('fairchem.log', 'a') as f:
-            f.write('{label} | Continuing from final geometry.\n')
+            f.write('{label} | Continuing from final geometry\n')
         forces = mol.calc.results['forces']
         del mol.calc.results['forces']
         random.seed()
@@ -57,7 +57,7 @@ except (RuntimeError, ValueError):
     if mol.positions is not None and mol.positions.any():
         # although there is an error, continue from the final geometry
         with open('fairchem.log', 'a') as f:
-            f.write('{label} | Contuining from final geometry_2.\n')
+            f.write('{label} | Contuining from final geometry_2\n')
         forces = mol.calc.results['forces']
         del mol.calc.results['forces']
         random.seed()
@@ -66,7 +66,7 @@ except (RuntimeError, ValueError):
     else:
         success = False
         with open('fairchem.log', 'a') as f:
-            f.write('{label} | IRC Failed.\n')
+            f.write('{label} | IRC Failed\n')
         
         del mol.calc.results['forces']
         random.seed()
@@ -79,7 +79,7 @@ if success:
     prod_kwargs = {prod_kwargs}
     mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
     with open('fairchem.log', 'a') as f:
-        f.write('{label} | Optimizing IRC.\n')
+        f.write('{label} | Optimizing IRC\n')
 
     sella_kwargs = {sella_kwargs}
     opt = Sella(mol, 
@@ -102,14 +102,14 @@ if success:
             raise RuntimeError
     except (RuntimeError, ValueError):
         with open('fairchem.log', 'a') as f:
-            f.write('{label} | IRC optimization failed.\n')
+            f.write('{label} | IRC optimization failed\n')
         forces = mol.calc.results['forces']
         del mol.calc.results['forces']
         random.seed()
         db.write(mol, name='{label}_prod', data={{'status': 'error'}})    
     
     with open('fairchem.log', 'a') as f:
-        f.write('{label} | IRC Complete.\n')
+        f.write('{label} | IRC Complete\n')
 
     with open('{label}_prod.log', 'a') as f:
         f.write('done\n')

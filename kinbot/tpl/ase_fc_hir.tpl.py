@@ -8,7 +8,7 @@ import random
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
 with open('fairchem.log', 'a') as f:
-    f.write('{label} | Performing hindered rotors}\n')
+    f.write('{label} | Performing hindered rotors\n')
 
 
 db = connect('{working_dir}/kinbot.db')
@@ -54,5 +54,5 @@ with open('{label}.log', 'a') as f:
     f.write('done\n')
 
 with open('fairchem.log', 'a') as f:
-    f.write('{label} | Hindered rotors success!}\n')
+    f.write('{label} | Hindered rotors success!\n')
 

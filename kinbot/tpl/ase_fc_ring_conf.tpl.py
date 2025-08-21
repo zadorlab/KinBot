@@ -44,7 +44,7 @@ def calc_vibrations(mol):
         return freqs, zpe, hessian
 
 with open('fairchem.log', 'a') as f:
-    f.write('{label} | Starting ring conformer calculation.\n')
+    f.write('{label} | Starting ring conformer calculation\n')
 
 
 db = connect('{working_dir}/kinbot.db')

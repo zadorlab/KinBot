@@ -27,7 +27,7 @@ for fix in base_0_fix:
         const.fix_dihedral(fix)
     else:
         with open('fairchem.log', 'a') as f:
-            f.write('{label} | Transition state search failed (1).\n')
+            f.write('{label} | Transition state search failed\n')
 
         raise ValueError(f'Unexpected length of fix: {{fix}}')
 
@@ -56,7 +56,7 @@ try:
         e = mol.get_potential_energy()
     else:  # TODO Eventually we might want to correct something in case it fails.
         with open('fairchem.log', 'a') as f:
-            f.write('{label} | Transition state search did not converge.\n')
+            f.write('{label} | Transition state search did not converge\n')
         raise RuntimeError
 except (RuntimeError, ValueError):
     e = 0.0

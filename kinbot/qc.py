@@ -1160,7 +1160,7 @@ class QuantumChemistry:
         if check != 'normal':
             return []
 
-        if self.use_sella:
+        if self.use_sella or self.qc == 'fc':
             db = connect('kinbot.db')
             for row in db.select(name=job):
                 last_row = row

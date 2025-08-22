@@ -92,7 +92,7 @@ def main():
         # initialize the qc instance
         qc = QuantumChemistry(par)
         if par['do_clean']:
-            clean_files()
+            clean_files(qc=par['qc'])
 
         # start the initial optimization of the reactant
         logger.info('Starting optimization of initial well...')
@@ -310,7 +310,7 @@ def main():
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
 
-    clean_files(diagnostic=True)
+    clean_files(diagnostic=True, qc=par['qc'])
     logger.info('KinBot finished.')
     try:
         print("Done!")

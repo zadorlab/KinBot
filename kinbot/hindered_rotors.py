@@ -150,7 +150,9 @@ class HIR:
                 logger.debug(f'No hindered rotors for {self.species.name}.')
             for rotor in range(len(self.species.dihed)):
                 status = self.hir_status[rotor]
-                if any([st < 0 for st in status]):
+                if any([st < 0 for st in status]):  # at least one is running
+                    continue
+                if self.hir_status[rotor][0] == 1:  # the starting point failed
                     continue
                 energies = self.hir_energies[rotor]
                 if abs(energies[0] - self.species.energy) * constants.AUtoKCAL > 0.1:
@@ -172,7 +174,7 @@ class HIR:
             # if job finishes status set to 0 or 1, if all done then do the following calculation
             if all([all([test >= 0 for test in status]) for status in self.hir_status]):
                 for rotor in range(len(self.species.dihed)):
-                    if self.hir_status[rotor][0] == 2:  # skipped rotor
+                    if self.hir_status[rotor][0] == 2 or self.hir_status[rotor][0] == 1:  # skipped or corrupted rotor
                         continue
                     if self.species.wellorts:
                         job = self.species.name + '_hir_' + str(rotor)

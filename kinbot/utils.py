@@ -95,7 +95,7 @@ def make_dir(name):
         os.makedirs(name)
     return
 
-def clean_files(diagnostic=False):
+def clean_files(diagnostic=False, qc=None):
     """Removes files from jobs that ended up erroneously.
     if diagnostic is True, it will just print the list of files but not delete
     """
@@ -140,8 +140,12 @@ def clean_files(diagnostic=False):
     files = files + conf_files + hir_files
     log = []
     for ff in files:
-        if len(ff) > 4 and ff[-4:] == '.log':
-            log.append(ff)
+        if qc == 'fc':
+            if len(ff) > 9 and ff[-9:] == 'sella.log':
+                log.append(ff)
+        else:
+            if len(ff) > 4 and ff[-4:] == '.log':
+                log.append(ff)
 
     for ll in log:
         if not os.path.isfile(ll):

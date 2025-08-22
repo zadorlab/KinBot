@@ -4,6 +4,7 @@ import shutil
 
 import numpy as np
 from ase import Atoms
+from ase.io import read, write
 from ase.db import connect
 from ase.vibrations import Vibrations
 from sella import Sella
@@ -71,6 +72,8 @@ try:
     while not converged and attempts <= 3:
         mol.calc.label = '{label}'
         converged = opt.run(fmax=fmax, steps=steps)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
         freqs, zpe, hessian = calc_vibrations(mol)
         if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
                 or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i

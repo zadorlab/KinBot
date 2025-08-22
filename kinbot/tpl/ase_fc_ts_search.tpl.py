@@ -2,6 +2,7 @@ import os
 import random
 import numpy as np
 from ase import Atoms
+from ase.io import read, write
 from ase.db import connect
 from sella import Sella, Constraints
 
@@ -52,6 +53,8 @@ opt = Sella(mol,
             **sella_kwargs)
 try:
     cvgd = opt.run(fmax=0.1, steps=300)
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
     if cvgd:
         e = mol.get_potential_energy()
     else:  # TODO Eventually we might want to correct something in case it fails.

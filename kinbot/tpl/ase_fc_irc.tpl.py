@@ -2,6 +2,7 @@ import os
 import random
 import numpy as np
 from ase import Atoms
+from ase.io import read, write
 from ase.db import connect
 
 from sella import Sella, IRC
@@ -89,6 +90,8 @@ if success:
                 **sella_kwargs)
     try:
         converged_opt = opt.run(fmax=0.0001, steps=300)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
         if converged_opt:
             with open('fairchem.log', 'a') as f:
                 f.write('{label} | IRC Optimization Successfully Converged!\n')

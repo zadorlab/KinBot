@@ -2,6 +2,7 @@ import os
 import numpy as np
 from ase import Atoms
 from ase.db import connect
+from ase.io import read, write
 from sella import Sella, Constraints
 import random
 #from kinbot.ase_modules.calculators.{code} import {Code}
@@ -37,6 +38,8 @@ opt = Sella(mol,
             **sella_kwargs)
 try:
     converged = opt.run(fmax=0.001, steps=300)
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
     if converged:
         e = mol.get_potential_energy()
         forces = mol.calc.results['forces']

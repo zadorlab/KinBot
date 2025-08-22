@@ -5,6 +5,7 @@ import shutil
 
 import numpy as np
 from ase import Atoms
+from ase.io import read, write
 from ase.db import connect
 from ase.vibrations import Vibrations
 from sella import Sella, Constraints
@@ -108,6 +109,8 @@ try:
     while not converged and attempts <= 3:
         mol.calc.label = '{label}'
         converged = opt.run(fmax=fmax, steps=300)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
         freqs, zpe, hessian = calc_vibrations(mol)
         if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                            or np.count_nonzero(np.array(freqs) < -50) >= 1):

@@ -6,6 +6,7 @@ import shutil
 import numpy as np
 from ase import Atoms
 from ase.db import connect
+from ase.io import read, write
 from ase.vibrations import Vibrations
 from sella import Sella
 
@@ -95,6 +96,8 @@ while not converged and attempts <= 3:
         f.write(f'{label} | Optimizing well. Attempt {{attempts}}\n')
     try:
         converged = opt.run(fmax=fmax, steps=steps)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
     except ValueError:
         with open('fairchem.log', 'a') as f:
             f.write(f'{label} | Optimization failed. Perturbing coordinates\n')
@@ -105,6 +108,8 @@ while not converged and attempts <= 3:
             logfile='{label}_sella.log',
             **sella_kwargs)
         converged = opt.run(fmax=fmax, steps=steps)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
 
     freqs, zpe, hessian = calc_vibrations(mol)
     if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1

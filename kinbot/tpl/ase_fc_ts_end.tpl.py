@@ -32,6 +32,7 @@ def calc_vibrations(mol):
             shutil.rmtree('vib')
         vib = Vibrations(mol)
         vib.run()
+        vib.write_jmol()
         # Use kinbot frequencies to avoid mixing low vib frequencies with 
         # the values associated with external rotations.
         _ = vib.get_frequencies()
@@ -41,7 +42,7 @@ def calc_vibrations(mol):
         st_pt.characterize()
         freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
         os.chdir(init_dir)
-        shutil.rmtree('{label}_vib')
+        #shutil.rmtree('{label}_vib')
         return freqs, zpe, hessian
 
 

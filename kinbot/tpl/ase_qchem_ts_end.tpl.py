@@ -17,7 +17,7 @@ mol = Atoms(symbols=atom, positions=geom)
 kwargs = {kwargs}
 calc = QChem(**kwargs)
 calc.command = '{qc_command} -nt {ppn} PREFIX.inp PREFIX.out'
-mol.set_calculator(calc)
+mol.calc = calc
 
 # Perform TS optimization.
 try:
@@ -39,7 +39,7 @@ kwargs['xc_grid'] = '3'
 kwargs['label'] = kwargs['label'] + '_freq'
 calc = QChem(**kwargs)
 calc.command = '{qc_command} -nt {ppn} PREFIX.inp PREFIX.out'
-mol.set_calculator(calc)
+mol.calc = calc
 
 try:
     e = mol.get_potential_energy()  # use the QChem optimizer

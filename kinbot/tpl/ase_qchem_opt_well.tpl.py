@@ -40,7 +40,7 @@ if len(mol) > 1:
     kwargs['label'] = kwargs['label'] + '_freq'
     calc = QChem(**kwargs)
     calc.command = '{qc_command} -nt {ppn} PREFIX.inp PREFIX.out {label}.sv'
-    mol.set_calculator(calc)
+    mol.calc = calc
 
     try:
         e = mol.get_potential_energy()  # Compute frequencies

@@ -36,8 +36,12 @@ opt = Sella(mol,
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)
+
+fmax = 0.001
+steps = 300
+
 try:
-    converged = opt.run(fmax=0.001, steps=300)
+    converged = opt.run(fmax=fmax, steps=steps)
     traj = read('{label}.traj', index=':')
     write('{label}.xyz', traj, format='xyz')
     if converged:
@@ -47,7 +51,25 @@ try:
         random.seed()
         db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
     else:  # TODO Eventually we might want to correct something in case it fails.
-        raise RuntimeError
+        with open('fairchem.log', 'a') as f:
+            f.write(f'{label} | Optimization failed. Perturbing coordinates\n')
+        mol.set_positions(mol.get_positions() + np.random.normal(scale=0.05, size=(len(mol), 3)))
+        opt = Sella(mol,
+            order={order},
+            trajectory='{label}.traj',
+            logfile='{label}_sella.log',
+            **sella_kwargs)
+        converged = opt.run(fmax=fmax, steps=steps)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
+        if converged:
+            e = mol.get_potential_energy()
+            forces = mol.calc.results['forces']
+            del mol.calc.results['forces']
+            random.seed()
+            db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
+        else:
+            raise RuntimeError("Did not converge")
 except (RuntimeError, ValueError):
     del mol.calc.results['forces']
     random.seed()

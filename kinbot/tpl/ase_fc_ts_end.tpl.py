@@ -15,9 +15,6 @@ from fairchem.core import pretrained_mlip, FAIRChemCalculator
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.frequencies import get_frequencies
 
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Beginning transition state optimization...\n')
-
 def calc_vibrations(mol):
         mol.calc.label = '{label}_vib'
         if 'chk' in mol.calc.parameters:
@@ -79,13 +76,10 @@ try:
         if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
                 or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
                 or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-            print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
-            if attempts <= 3:
-                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
         else:
             converged = True
             e = mol.get_potential_energy()
@@ -96,9 +90,6 @@ try:
             db.write(mol, name='{label}', 
                      data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
                          'hess': hessian, 'forces': forces, 'status': 'normal'}})            
-            with open('fairchem.log', 'a') as f:
-                f.write('{label} | TS optimization successful!\n')
-
     if not converged:
         raise RuntimeError
 except (RuntimeError, ValueError):
@@ -107,8 +98,6 @@ except (RuntimeError, ValueError):
         data['frequencies'] = freqs
     random.seed()
     db.write(mol, name='{label}', data=data)
-    with open('fairchem.log', 'a') as f:
-        f.write('{label} | TS optimization failed\n')
 
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

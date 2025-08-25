@@ -8,10 +8,6 @@ import random
 #from kinbot.ase_modules.calculators.{code} import {Code}
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Performing hindered rotors\n')
-
-
 db = connect('{working_dir}/kinbot.db')
 
 mol = Atoms(symbols={atom}, 
@@ -51,8 +47,6 @@ try:
         random.seed()
         db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
     else:  # TODO Eventually we might want to correct something in case it fails.
-        with open('fairchem.log', 'a') as f:
-            f.write(f'{label} | Optimization failed. Perturbing coordinates\n')
         mol.set_positions(mol.get_positions() + np.random.normal(scale=0.05, size=(len(mol), 3)))
         opt = Sella(mol,
             order={order},
@@ -75,9 +69,5 @@ except (RuntimeError, ValueError):
     random.seed()
     db.write(mol, name='{label}', data={{'status': 'error'}})
 
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')
-
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Hindered rotors success!\n')
-

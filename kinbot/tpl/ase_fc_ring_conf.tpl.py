@@ -45,10 +45,6 @@ def calc_vibrations(mol):
         #shutil.rmtree('{label}_vib')
         return freqs, zpe, hessian
 
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Starting ring conformer calculation\n')
-
-
 db = connect('{working_dir}/kinbot.db')
 
 mol = Atoms(symbols={atom}, 
@@ -115,23 +111,17 @@ try:
         freqs, zpe, hessian = calc_vibrations(mol)
         if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                            or np.count_nonzero(np.array(freqs) < -50) >= 1):
-            print(f'Found one or more imaginary frequencies. {{freqs[1:6]}}')
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
-            if attempts <=3:
-                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
         elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
                              or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
                              or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-            print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
-            if attempts <=3:
-                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
         else:
             converged = True
             e = mol.get_potential_energy()
@@ -149,9 +139,5 @@ except (RuntimeError, ValueError):
         data['frequencies'] = freqs
     random.seed()
     db.write(mol, name='{label}', data=data)
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')
-
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Ring conf success\n')
-                        

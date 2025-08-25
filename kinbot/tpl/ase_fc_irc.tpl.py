@@ -13,8 +13,6 @@ from fairchem.core import pretrained_mlip, FAIRChemCalculator
 db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom}, 
             positions={geom})
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Starting IRC Calculation...\n')
 
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
@@ -34,9 +32,6 @@ else:
 try:
     converged_irc = irc.run(fmax=0.01, steps=100, direction=direction)
     if converged_irc:
-        with open('fairchem.log', 'a') as f:
-            f.write('{label} | IRC converged!\n')
-
         e = mol.get_potential_energy()
         forces = mol.calc.results['forces']
         del mol.calc.results['forces']
@@ -45,8 +40,6 @@ try:
         success = True
     elif mol.positions is not None and mol.positions.any():
         # although there is an error, continue from the final geometry
-        with open('fairchem.log', 'a') as f:
-            f.write('{label} | Continuing from final geometry\n')
         forces = mol.calc.results['forces']
         del mol.calc.results['forces']
         random.seed()
@@ -57,8 +50,6 @@ try:
 except (RuntimeError, ValueError):
     if mol.positions is not None and mol.positions.any():
         # although there is an error, continue from the final geometry
-        with open('fairchem.log', 'a') as f:
-            f.write('{label} | Contuining from final geometry_2\n')
         forces = mol.calc.results['forces']
         del mol.calc.results['forces']
         random.seed()
@@ -66,21 +57,17 @@ except (RuntimeError, ValueError):
         success = True
     else:
         success = False
-        with open('fairchem.log', 'a') as f:
-            f.write('{label} | IRC Failed\n')
         
         del mol.calc.results['forces']
         random.seed()
         db.write(mol, name='{label}', data={{'status': 'error'}})
 
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')
 
 if success:
     prod_kwargs = {prod_kwargs}
     mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
-    with open('fairchem.log', 'a') as f:
-        f.write('{label} | Optimizing IRC\n')
 
     sella_kwargs = {sella_kwargs}
     opt = Sella(mol, 
@@ -93,9 +80,6 @@ if success:
         traj = read('{label}.traj', index=':')
         write('{label}.xyz', traj, format='xyz')
         if converged_opt:
-            with open('fairchem.log', 'a') as f:
-                f.write('{label} | IRC Optimization Successfully Converged!\n')
-
             e = mol.get_potential_energy()
             forces = mol.calc.results['forces']
             del mol.calc.results['forces']
@@ -104,15 +88,10 @@ if success:
         else:
             raise RuntimeError
     except (RuntimeError, ValueError):
-        with open('fairchem.log', 'a') as f:
-            f.write('{label} | IRC optimization failed\n')
         forces = mol.calc.results['forces']
         del mol.calc.results['forces']
         random.seed()
         db.write(mol, name='{label}_prod', data={{'status': 'error'}})    
-    
-    with open('fairchem.log', 'a') as f:
-        f.write('{label} | IRC Complete\n')
 
-    with open('{label}_prod.log', 'a') as f:
+    with open('{label}_prod_sella.log', 'a') as f:
         f.write('done\n')

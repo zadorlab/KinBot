@@ -1298,11 +1298,13 @@ class QuantumChemistry:
                     log_file = job + '.out'
                 elif self.qc == 'qchem':
                     log_file = job + '.out'
-                elif self.qc == 'nn_pes' or self.qc == 'fc':
+                elif self.qc == 'fc':
+                    log_file = job + '_sella.log'
+                elif self.qc == 'nn_pes':
                     log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
-                if self.qc != 'nn_pes' and self.qc != 'fc':
+                if self.qc != 'nn_pes':
                     log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     with open(log_file, 'r') as f:

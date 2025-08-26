@@ -64,6 +64,9 @@ class QuantumChemistry:
         if not self.use_sella and self.qc.lower() == 'nn_pes':
             logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
             self.use_sella = True
+        if not self.use_sella and self.qc.lower() == 'orca':
+            logger.warning('ORCA not supported without Sella. Turning "use_sella" on.')
+            self.use_sella = True
         if self.use_sella and self.qc.lower() == 'fc':
             self.use_sella = False #Sella template files are separate from fairchem
 
@@ -312,6 +315,16 @@ class QuantumChemistry:
                     kwargs['rpath_direction'] = '-1'
                 else:
                     kwargs['rpath_direction'] = '1'
+        elif self.qc == 'orca':
+            kwargs = {
+                'label': job,
+                'orcasimpleinput': f"{self.method} {self.basis}",
+                'charge': charge,
+                'mult': mult,
+                'task': 'gradient',
+                #'orcablocks': f"%pal nprocs {self.ppn} end",
+                'command': f"{self.qc_command} {job}.inp > {job}.out"
+            }
         elif self.qc == 'nn_pes':
             if self.par['nn_model']:
                 kwargs = {'fname': self.par['nn_model']}
@@ -361,6 +374,9 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
@@ -436,6 +452,9 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             kwargs.pop('method', None)
             kwargs.pop('basis', None)
@@ -509,6 +528,9 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
@@ -597,6 +619,8 @@ class QuantumChemistry:
         '''
         Creates a geometry optimization input and runs it.
         '''
+        #if mp2 and (self.qc == 'fc' or self.qc == 'orca'):
+        #    return 0
         if do_vdW:
             if high_level:
                 job = f'{species.name}_high'
@@ -637,13 +661,15 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'   
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
         elif self.qc == 'fc':
             code = 'fairchem'
             Code = 'Fairchem'
-            mp2 = 0
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
@@ -713,6 +739,9 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
@@ -1298,11 +1327,15 @@ class QuantumChemistry:
                     log_file = job + '.out'
                 elif self.qc == 'qchem':
                     log_file = job + '.out'
-                elif self.qc == 'nn_pes' or self.qc == 'fc':
+                elif self.qc == 'orca':
+                    log_file = job + '.log'
+                elif self.qc == 'fc':
+                    log_file = job + '_sella.log'
+                elif self.qc == 'nn_pes':
                     log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
-                if self.qc != 'nn_pes' and self.qc != 'fc':
+                if self.qc != 'nn_pes':
                     log_file_exists = os.path.exists(log_file)
                 if log_file_exists:
                     with open(log_file, 'r') as f:
@@ -1320,7 +1353,7 @@ class QuantumChemistry:
                                 return 'error'
                             return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
-                elif self.qc == 'nn_pes' or self.qc == 'fc':
+                elif self.qc == 'nn_pes':
                     pass
                 else:
                     if self.queuing == 'local' and not self.par['error_missing_local']:

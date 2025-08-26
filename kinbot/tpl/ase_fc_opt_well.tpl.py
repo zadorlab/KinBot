@@ -6,6 +6,7 @@ import numpy as np
 from ase import Atoms
 from ase.db import connect
 from ase.io import read, write
+from ase.optimize import BFGS
 from sella import Sella
 
 #from kinbot.ase_modules.calculators.{code} import {Code}
@@ -34,16 +35,21 @@ if len(mol) == 1:
              data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
                  'hess': np.zeros([3, 3]), 'status': 'normal'}})
     with open('{label}_sella.log', 'a') as f:
-        f.write('done\n')
+        f.write('Sella optimization is not needed for atoms.\ndone\n')
     sys.exit(0)
 
 order = {order}
 sella_kwargs = {sella_kwargs}
-opt = Sella(mol, 
-            order=order, 
-            trajectory='{label}.traj', 
-            logfile='{label}_sella.log',
-            **sella_kwargs)
+if len(mol.symbols) > 2:
+    opt = Sella(mol, 
+                order=order, 
+                trajectory='{label}.traj', 
+                logfile='{label}_sella.log',
+                **sella_kwargs)
+else:
+    opt = BFGS(mol, 
+               trajectory='{label}.traj',
+               logfile='{label}_sella.log')
 
 freqs = []
 converged = False
@@ -58,12 +64,18 @@ try:
             traj = read('{label}.traj', index=':')
             write('{label}.xyz', traj, format='xyz')
         except ValueError:
-            mol.set_positions(mol.get_positions() + np.random.normal(scale=0.05, size=(len(mol), 3)))
-            opt = Sella(mol,
-                order=order,
-                trajectory='{label}.traj',
-                logfile='{label}_sella.log',
-                **sella_kwargs)
+            #mol.set_positions(mol.get_positions() + np.random.normal(scale=0.05, size=(len(mol), 3)))
+            mol.set_positions({geom} + np.random.normal(scale=0.05, size=(len(mol), 3)))
+            if len(mol.symbols) > 2:
+                opt = Sella(mol,
+                    order=order,
+                    trajectory='{label}.traj',
+                    logfile='{label}_sella.log',
+                    **sella_kwargs)
+            else:
+                opt = BFGS(mol,
+                           trajectory='{label}.traj',
+                           logfile='{label}_sella.log')
             converged = opt.run(fmax=fmax, steps=steps)
             traj = read('{label}.traj', index=':')
             write('{label}.xyz', traj, format='xyz')

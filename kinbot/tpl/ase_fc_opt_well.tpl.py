@@ -1,47 +1,16 @@
 import os
 import random
 import sys
-import shutil
 
 import numpy as np
 from ase import Atoms
 from ase.db import connect
 from ase.io import read, write
-from ase.vibrations import Vibrations
 from sella import Sella
 
-from kinbot.constants import EVtoHARTREE
 #from kinbot.ase_modules.calculators.{code} import {Code}
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
-from kinbot.stationary_pt import StationaryPoint
-from kinbot.frequencies import get_frequencies
-
-def calc_vibrations(mol):
-        mol.calc.label = '{label}_vib'
-        if 'chk' in mol.calc.parameters:
-            del mol.calc.parameters['chk']
-        # Compute frequencies in a separate temporary directory to avoid 
-        # conflicts accessing the cache in parallel calculations.
-        if not os.path.isdir('{label}_vib'):
-            os.mkdir('{label}_vib')
-        init_dir = os.getcwd()
-        os.chdir('{label}_vib')
-        if os.path.isdir('vib'):
-            shutil.rmtree('vib')
-        vib = Vibrations(mol)
-        vib.run()
-        vib.write_jmol()
-        # Use kinbot frequencies to avoid mixing low vib frequencies with 
-        # the values associated with external rotations.
-        _ = vib.get_frequencies()
-        zpe = vib.get_zero_point_energy() * EVtoHARTREE
-        hessian = vib.H / 97.17370087
-        st_pt = StationaryPoint.from_ase_atoms(mol)
-        st_pt.characterize()
-        freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
-        os.chdir(init_dir)
-        #shutil.rmtree('{label}_vib')
-        return freqs, zpe, hessian
+from kinbot.frequencies import calc_vibrations
 
 db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom}, 
@@ -99,18 +68,16 @@ try:
             traj = read('{label}.traj', index=':')
             write('{label}.xyz', traj, format='xyz')
 
-        freqs, zpe, hessian = calc_vibrations(mol)
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}_vib')
         if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                             or np.count_nonzero(np.array(freqs) < -50) >= 1):
             converged = False
-            mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
         elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
                              or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
                              or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
             converged = False
-            mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
 

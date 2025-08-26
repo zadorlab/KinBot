@@ -1689,7 +1689,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
         wells = [job.split('_')[0]]
     else:
         j = job + '_well'
-    if conf and not high_level and not mp2:
+    if conf and not high_level and not mp2 and 'IRC' not in job:
         j = f'conf/{job}_low'
     if mp2:
         j += '_mp2'

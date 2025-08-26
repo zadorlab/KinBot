@@ -101,7 +101,7 @@ def append_geom(natom, step, new_e, atom, x_new, grad, atoms_list, f_out=None):
 
     atoms = Atoms(symbols=atom, positions=np.reshape(x_new, (natom, 3)))
     calc = SinglePointCalculator(atoms, energy=new_e, forces=10. * np.reshape(grad, (natom, 3)))
-    atoms.set_calculator(calc)
+    atoms.calc = calc
     atoms_list.append(atoms)
     return step
 

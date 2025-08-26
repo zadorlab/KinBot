@@ -1,49 +1,15 @@
 import os
 import random
-import shutil
 
 import numpy as np
 from ase import Atoms
 from ase.io import read, write
 from ase.db import connect
-from ase.vibrations import Vibrations
 from sella import Sella
 
-from kinbot.constants import EVtoHARTREE
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 #from kinbot.ase_modules.calculators.{code} import {Code}
-from kinbot.stationary_pt import StationaryPoint
-from kinbot.frequencies import get_frequencies
-
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Beginning transition state optimization...\n')
-
-def calc_vibrations(mol):
-        mol.calc.label = '{label}_vib'
-        if 'chk' in mol.calc.parameters:
-            del mol.calc.parameters['chk']
-        # Compute frequencies in a separate temporary directory to avoid 
-        # conflicts accessing the cache in parallel calculations.
-        if not os.path.isdir('{label}_vib'):
-            os.mkdir('{label}_vib')
-        init_dir = os.getcwd()
-        os.chdir('{label}_vib')
-        if os.path.isdir('vib'):
-            shutil.rmtree('vib')
-        vib = Vibrations(mol)
-        vib.run()
-        # Use kinbot frequencies to avoid mixing low vib frequencies with 
-        # the values associated with external rotations.
-        _ = vib.get_frequencies()
-        zpe = vib.get_zero_point_energy() * EVtoHARTREE
-        hessian = vib.H / 97.17370087
-        st_pt = StationaryPoint.from_ase_atoms(mol)
-        st_pt.characterize()
-        freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
-        os.chdir(init_dir)
-        shutil.rmtree('{label}_vib')
-        return freqs, zpe, hessian
-
+from kinbot.frequencies import calc_vibrations
 
 db = connect('{working_dir}/kinbot.db')
 
@@ -74,17 +40,14 @@ try:
         converged = opt.run(fmax=fmax, steps=steps)
         traj = read('{label}.traj', index=':')
         write('{label}.xyz', traj, format='xyz')
-        freqs, zpe, hessian = calc_vibrations(mol)
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
         if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
                 or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
                 or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-            print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
             converged = False
             mol.calc.label = '{label}'
             attempts += 1
             fmax *= 0.3
-            if attempts <= 3:
-                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
         else:
             converged = True
             e = mol.get_potential_energy()
@@ -95,9 +58,6 @@ try:
             db.write(mol, name='{label}', 
                      data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
                          'hess': hessian, 'forces': forces, 'status': 'normal'}})            
-            with open('fairchem.log', 'a') as f:
-                f.write('{label} | TS optimization successful!\n')
-
     if not converged:
         raise RuntimeError
 except (RuntimeError, ValueError):
@@ -106,8 +66,6 @@ except (RuntimeError, ValueError):
         data['frequencies'] = freqs
     random.seed()
     db.write(mol, name='{label}', data=data)
-    with open('fairchem.log', 'a') as f:
-        f.write('{label} | TS optimization failed\n')
 
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

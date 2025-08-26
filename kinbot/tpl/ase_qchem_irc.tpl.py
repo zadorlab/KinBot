@@ -22,7 +22,7 @@ e = mol.get_potential_energy()  # Compute Freq
 kwargs['jobtype'] = 'rpath'
 calc = QChem(**kwargs)
 calc.command = '{qc_command} -nt {ppn} PREFIX.inp PREFIX.out PREFIX.sv'
-mol.set_calculator(calc)
+mol.calc = calc
 success = True
 try:
     e = mol.get_potential_energy()  # Perform IRC

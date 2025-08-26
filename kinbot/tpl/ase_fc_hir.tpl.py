@@ -8,10 +8,6 @@ import random
 #from kinbot.ase_modules.calculators.{code} import {Code}
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Performing hindered rotors\n')
-
-
 db = connect('{working_dir}/kinbot.db')
 
 mol = Atoms(symbols={atom}, 
@@ -36,8 +32,12 @@ opt = Sella(mol,
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)
+
+fmax = 0.001
+steps = 300
+
 try:
-    converged = opt.run(fmax=0.001, steps=300)
+    converged = opt.run(fmax=fmax, steps=steps)
     traj = read('{label}.traj', index=':')
     write('{label}.xyz', traj, format='xyz')
     if converged:
@@ -47,15 +47,27 @@ try:
         random.seed()
         db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
     else:  # TODO Eventually we might want to correct something in case it fails.
-        raise RuntimeError
+        mol.set_positions(mol.get_positions() + np.random.normal(scale=0.05, size=(len(mol), 3)))
+        opt = Sella(mol,
+            order={order},
+            trajectory='{label}.traj',
+            logfile='{label}_sella.log',
+            **sella_kwargs)
+        converged = opt.run(fmax=fmax, steps=steps)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
+        if converged:
+            e = mol.get_potential_energy()
+            forces = mol.calc.results['forces']
+            del mol.calc.results['forces']
+            random.seed()
+            db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
+        else:
+            raise RuntimeError("Did not converge")
 except (RuntimeError, ValueError):
     del mol.calc.results['forces']
     random.seed()
     db.write(mol, name='{label}', data={{'status': 'error'}})
 
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')
-
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Hindered rotors success!\n')
-

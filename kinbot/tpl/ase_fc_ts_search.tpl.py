@@ -9,9 +9,6 @@ from sella import Sella, Constraints
 #from kinbot.ase_modules.calculators.{code} import {Code}
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Starting transition state search...\n')
-
 db = connect('{working_dir}/kinbot.db')
 
 mol = Atoms(symbols={atom}, 
@@ -27,9 +24,6 @@ for fix in base_0_fix:
     elif len(fix) == 4:
         const.fix_dihedral(fix)
     else:
-        with open('fairchem.log', 'a') as f:
-            f.write('{label} | Transition state search failed\n')
-
         raise ValueError(f'Unexpected length of fix: {{fix}}')
 
 kwargs = {kwargs}
@@ -58,8 +52,6 @@ try:
     if cvgd:
         e = mol.get_potential_energy()
     else:  # TODO Eventually we might want to correct something in case it fails.
-        with open('fairchem.log', 'a') as f:
-            f.write('{label} | Transition state search did not converge\n')
         raise RuntimeError
 except (RuntimeError, ValueError):
     e = 0.0
@@ -72,8 +64,5 @@ del mol.calc.results['forces']
 random.seed()
 db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
 
-with open('fairchem.log', 'a') as f:
-    f.write('{label} | Transition state search successful!\n')
-
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -15,6 +15,8 @@ from kinbot.frequencies import get_frequencies
 
 def calc_vibrations(mol):
         mol.calc.label = '{label}_vib'
+        if '{code}' == 'orca':
+            mol.calc.command = mol.calc.command.replace('{label}', mol.calc.label)
         if 'chk' in mol.calc.parameters:
             del mol.calc.parameters['chk']
         # Compute frequencies in a separate temporary directory to avoid 
@@ -69,6 +71,8 @@ try:
         mol.calc.label = '{label}'
         converged = opt.run(fmax=fmax, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
+        if '{code}' == 'orca':
+            mol.calc.command.replace("_vib", "")
         if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
                 or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
                 or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies

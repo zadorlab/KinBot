@@ -146,6 +146,9 @@ class IRC:
             elif self.rxn.qc.qc == 'qchem':
                 code = 'qchem'  # Sella
                 Code = 'QChem'  # Sella
+            elif self.rxn.qc.qc == 'orca':
+                code = 'orca'
+                Code = 'ORCA'
             elif self.rxn.qc.qc == 'nn_pes':
                 code = 'nn_pes'
                 Code = 'Nn_surr'

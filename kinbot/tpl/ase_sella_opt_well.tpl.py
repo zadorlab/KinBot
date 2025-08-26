@@ -6,6 +6,7 @@ import numpy as np
 from ase import Atoms
 from ase.db import connect
 from ase.vibrations import Vibrations
+from ase.optimize import BFGS
 from sella import Sella
 
 from kinbot.constants import EVtoHARTREE
@@ -25,6 +26,8 @@ def calc_vibrations(mol):
         os.chdir('{label}_vib')
         if os.path.isdir('vib'):
             shutil.rmtree('vib')
+        if '{code}' == 'orca':
+            mol.calc.command = mol.calc.command.replace('{label}', mol.calc.label)
         vib = Vibrations(mol)
         vib.run()
         # Use kinbot frequencies to avoid mixing low vib frequencies with 
@@ -65,11 +68,18 @@ if len(mol) == 1:
 
 order = {order}
 sella_kwargs = {sella_kwargs}
-opt = Sella(mol, 
-            order=order, 
-            trajectory='{label}.traj', 
-            logfile='{label}_sella.log',
-            **sella_kwargs)
+
+if len(mol.symbols) > 2:
+    opt = Sella(mol, 
+                order=order, 
+                trajectory='{label}.traj', 
+                logfile='{label}_sella.log',
+                **sella_kwargs)
+else:
+    opt = BFGS(mol,
+               trajectory='{label}.traj',
+               logfile='{label}_sella.log',
+               **sella_kwargs)
 freqs = []
 try:
     converged = False
@@ -77,6 +87,8 @@ try:
     attempts = 1
     steps=500
     while not converged and attempts <= 3:
+        if '{code}' == 'orca':
+            mol.calc.command.replace("_vib", "")
         mol.calc.label = '{label}'
         converged = opt.run(fmax=fmax, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
@@ -85,6 +97,8 @@ try:
             print(f'Found one or more imaginary frequencies. {{freqs[1:6]}}')
             converged = False
             mol.calc.label = '{label}'
+            if '{code}' == 'orca':
+                mol.calc.command.replace("_vib", "")
             attempts += 1
             fmax *= 0.3
             if attempts <= 3:
@@ -95,6 +109,8 @@ try:
             print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
             converged = False
             mol.calc.label = '{label}'
+            if '{code}' == 'orca':
+                mol.calc.command.replace("_vib", "")
             attempts += 1
             fmax *= 0.3
             if attempts <= 3:
@@ -105,6 +121,7 @@ try:
             db.write(mol, name='{label}', 
                      data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
                             'hess': hessian, 'status': 'normal'}})
+
     if not converged:
         raise RuntimeError
 except (RuntimeError, ValueError):

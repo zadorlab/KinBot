@@ -1,4 +1,5 @@
 import os
+import numpy as np
 
 from ase import Atoms
 from ase.db import connect

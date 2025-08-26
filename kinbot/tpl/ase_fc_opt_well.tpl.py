@@ -68,7 +68,7 @@ try:
             traj = read('{label}.traj', index=':')
             write('{label}.xyz', traj, format='xyz')
 
-        freqs, zpe, hessian = calc_vibrations(mol, '{label}_vib')
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
         if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                             or np.count_nonzero(np.array(freqs) < -50) >= 1):
             converged = False

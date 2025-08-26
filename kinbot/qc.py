@@ -1322,7 +1322,7 @@ class QuantumChemistry:
                                 return 'error'
                             return 0
                     logger.debug('Log file is present after {} iterations'.format(i))
-                elif self.qc == 'nn_pes' or self.qc == 'fc':
+                elif self.qc == 'nn_pes':
                     pass
                 else:
                     if self.queuing == 'local' and not self.par['error_missing_local']:

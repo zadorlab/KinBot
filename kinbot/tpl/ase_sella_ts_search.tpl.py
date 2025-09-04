@@ -53,5 +53,5 @@ if not mol.positions.any():  # If all coordinates are 0
     mol.positions = {geom}   # Reset to the original geometry
 db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
 
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

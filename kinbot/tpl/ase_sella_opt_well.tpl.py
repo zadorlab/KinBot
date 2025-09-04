@@ -27,7 +27,7 @@ def calc_vibrations(mol):
         if os.path.isdir('vib'):
             shutil.rmtree('vib')
         if '{code}' == 'orca':
-            mol.calc.command = mol.calc.command.replace('{label}', mol.calc.label)
+            mol.calc.command = mol.calc.command.replace('{label}', '{label}_vib')
         vib = Vibrations(mol)
         vib.run()
         # Use kinbot frequencies to avoid mixing low vib frequencies with 
@@ -109,8 +109,6 @@ try:
             print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
             converged = False
             mol.calc.label = '{label}'
-            if '{code}' == 'orca':
-                mol.calc.command.replace("_vib", "")
             attempts += 1
             fmax *= 0.3
             if attempts <= 3:
@@ -130,5 +128,5 @@ except (RuntimeError, ValueError):
         data['frequencies'] = freqs
     db.write(mol, name='{label}', data=data)
 
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

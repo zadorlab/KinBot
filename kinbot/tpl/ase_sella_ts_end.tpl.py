@@ -15,8 +15,6 @@ from kinbot.frequencies import get_frequencies
 
 def calc_vibrations(mol):
         mol.calc.label = '{label}_vib'
-        if '{code}' == 'orca':
-            mol.calc.command = mol.calc.command.replace('{label}', mol.calc.label)
         if 'chk' in mol.calc.parameters:
             del mol.calc.parameters['chk']
         # Compute frequencies in a separate temporary directory to avoid 
@@ -27,6 +25,8 @@ def calc_vibrations(mol):
         os.chdir('{label}_vib')
         if os.path.isdir('vib'):
             shutil.rmtree('vib')
+        if '{code}' == 'orca':
+            mol.calc.command = mol.calc.command.replace('{label}', '{label}_vib')
         vib = Vibrations(mol)
         vib.run()
         # Use kinbot frequencies to avoid mixing low vib frequencies with 
@@ -68,11 +68,11 @@ try:
     attempts = 1
     steps=500
     while not converged and attempts <= 3:
+        if '{code}' == 'orca':
+            mol.calc.command.replace("_vib", "")
         mol.calc.label = '{label}'
         converged = opt.run(fmax=fmax, steps=steps)
         freqs, zpe, hessian = calc_vibrations(mol)
-        if '{code}' == 'orca':
-            mol.calc.command.replace("_vib", "")
         if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
                 or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
                 or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
@@ -97,5 +97,5 @@ except (RuntimeError, ValueError):
         data['frequencies'] = freqs
     db.write(mol, name='{label}', data=data)
 
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

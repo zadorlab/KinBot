@@ -325,6 +325,9 @@ class QuantumChemistry:
                 #'orcablocks': f"%pal nprocs {self.ppn} end",
                 'command': f"{self.qc_command} {job}.inp > {job}.out"
             }
+            if high_level:
+                kwargs['orcasimpleinput'] = f"{self.high_level_method} {self.high_level_basis}"
+
         elif self.qc == 'nn_pes':
             if self.par['nn_model']:
                 kwargs = {'fname': self.par['nn_model']}
@@ -1328,7 +1331,7 @@ class QuantumChemistry:
                 elif self.qc == 'qchem':
                     log_file = job + '.out'
                 elif self.qc == 'orca':
-                    log_file = job + '.log'
+                    log_file = job + '_sella.log'
                 elif self.qc == 'fc':
                     log_file = job + '_sella.log'
                 elif self.qc == 'nn_pes':

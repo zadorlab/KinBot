@@ -439,8 +439,10 @@ class Conformers:
                         ext = 'log'
                     elif self.qc.qc == 'qchem':
                         ext = 'out'
-                    elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
+                    elif self.qc.qc == 'nn_pes':
                         ext = 'log'
+                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
+                        ext = '_sella.log'
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
                     copyfile(f'{lowest_job}.{ext}', f'conf/{name}_low.{ext}')
@@ -557,6 +559,8 @@ class Conformers:
                         copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
                     elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
                         pass
+                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
+                        copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
                     rows = self.db.select(name='{}'.format(lowest_job))

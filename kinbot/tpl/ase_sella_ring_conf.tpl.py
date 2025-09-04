@@ -55,5 +55,5 @@ try:
 except (RuntimeError, ValueError):
     data = {{'status': 'error'}}
     db.write(mol, name='{label}', data=data)
-with open('{label}.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

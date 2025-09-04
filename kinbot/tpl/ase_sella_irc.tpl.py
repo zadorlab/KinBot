@@ -78,5 +78,5 @@ if success:
         db.write(mol, name='{label}_prod', data={{'status': 'error'}})    
     
 
-    with open('{label}_prod.log', 'a') as f:
+    with open('{label}_prod_sella.log', 'a') as f:
         f.write('done\n')

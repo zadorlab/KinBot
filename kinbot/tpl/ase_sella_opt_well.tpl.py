@@ -12,35 +12,7 @@ from sella import Sella
 from kinbot.constants import EVtoHARTREE
 from kinbot.ase_modules.calculators.{code} import {Code}
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.frequencies import get_frequencies
-
-def calc_vibrations(mol):
-        mol.calc.label = '{label}_vib'
-        if 'chk' in mol.calc.parameters:
-            del mol.calc.parameters['chk']
-        # Compute frequencies in a separate temporary directory to avoid 
-        # conflicts accessing the cache in parallel calculations.
-        if not os.path.isdir('{label}_vib'):
-            os.mkdir('{label}_vib')
-        init_dir = os.getcwd()
-        os.chdir('{label}_vib')
-        if os.path.isdir('vib'):
-            shutil.rmtree('vib')
-        if '{code}' == 'orca':
-            mol.calc.command = mol.calc.command.replace('{label}', '{label}_vib')
-        vib = Vibrations(mol)
-        vib.run()
-        # Use kinbot frequencies to avoid mixing low vib frequencies with 
-        # the values associated with external rotations.
-        _ = vib.get_frequencies()
-        zpe = vib.get_zero_point_energy() * EVtoHARTREE
-        hessian = vib.H / 97.17370087
-        st_pt = StationaryPoint.from_ase_atoms(mol)
-        st_pt.characterize()
-        freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
-        os.chdir(init_dir)
-        shutil.rmtree('{label}_vib')
-        return freqs, zpe, hessian
+from kinbot.frequencies import calc_vibrations, get_frequencies
 
 db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom}, 
@@ -91,7 +63,7 @@ try:
             mol.calc.command.replace("_vib", "")
         mol.calc.label = '{label}'
         converged = opt.run(fmax=fmax, steps=steps)
-        freqs, zpe, hessian = calc_vibrations(mol)
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}', orca='{code}'=='orca')
         if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                            or np.count_nonzero(np.array(freqs) < -50) >= 1):
             print(f'Found one or more imaginary frequencies. {{freqs[1:6]}}')

@@ -265,7 +265,7 @@ def skip_rotor(name, rot):
         return 1
 
 
-def calc_vibrations(mol, label):
+def calc_vibrations(mol, label, orca=False):
     # this is a frequency calculator when ASE is used
     mol.calc.label = f'{label}_vib'
     if 'chk' in mol.calc.parameters:
@@ -278,6 +278,8 @@ def calc_vibrations(mol, label):
     os.chdir(f'{label}_vib')
     if os.path.isdir('vib'):
         shutil.rmtree('vib')
+    if orca:
+        mol.calc.command = mol.calc.command.replace(label, f'{label}_vib')
     vib = Vibrations(mol)
     vib.run()
     vib.write_jmol()

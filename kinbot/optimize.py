@@ -13,7 +13,7 @@ from kinbot.conformers import Conformers
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
 from kinbot.orca import Orca
-from kinbot import reader_gauss, reader_qchem
+from kinbot import reader_gauss, reader_qchem, reader_sella
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
 
@@ -488,12 +488,17 @@ class Optimize:
             else:
                 l1_file = 'conf/{}_low'.format(self.log_name(0))
             l2_file = self.log_name(1, conf=conf)
-            if self.qc.qc == 'gauss':
+            if self.qc.qc == 'fc' or self.qc.use_sella:
+                imagmode = reader_sella.read_imag_mode(l1_file, self.species.natom)
+                imagmode_high = reader_sella.read_imag_mode(l2_file, self.species.natom)
+            elif self.qc.qc == 'gauss':
                 imagmode = reader_gauss.read_imag_mode(l1_file, self.species.natom)
                 imagmode_high = reader_gauss.read_imag_mode(l2_file, self.species.natom)
             elif self.qc.qc == 'qchem':
                 imagmode = reader_qchem.read_imag_mode(l1_file, self.species.natom)
                 imagmode_high = reader_qchem.read_imag_mode(l2_file, self.species.natom)
+            else:
+                logger.warning('L2 not supported with current qc')
             # either geom is roughly same with closely matching imaginary modes, or geometry is very close
             # maybe we need to do IRC at the high level as well...
             same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \

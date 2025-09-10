@@ -61,10 +61,9 @@ for change in base_0_changes:
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
-order = {order}
 sella_kwargs = {sella_kwargs}
 opt = Sella(mol, 
-            order=order, 
+            order=0, 
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)

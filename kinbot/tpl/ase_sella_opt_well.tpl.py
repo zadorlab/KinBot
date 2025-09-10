@@ -50,8 +50,7 @@ if len(mol.symbols) > 2:
 else:
     opt = BFGS(mol,
                trajectory='{label}.traj',
-               logfile='{label}_sella.log',
-               **sella_kwargs)
+               logfile='{label}_sella.log')
 freqs = []
 try:
     converged = False

@@ -443,6 +443,10 @@ class Parameters:
                 err = 'When running the hindered rotors at L1, "high_level_method" ' \
                       'must be the same as "method" and "high_level_basis" ' \
                       'must be the same as "basis".'
+        
+        if self.par['sella_kwargs'] == {}:
+            self.par['sella_kwargs']['internal'] = True
+            logger.warning('Sella internal parameter not found. Using internal Sella')
 
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1

@@ -528,10 +528,7 @@ class Optimize:
                         f'corr: {geometry.matrix_corr(imagmode, imagmode_high):.2f}, '\
                         f'same: {same_geom}')
         else:
-            if self.qc.qc != 'orca':
-                same_geom = geometry.equal_geom(self.species, dummy, 0.1)
-            else:
-                same_geom = geometry.equal_geom(self.species, dummy, 1) #Temp fix 
+            same_geom = geometry.equal_geom(self.species, dummy, 0.1)
 
         # checking if L2 frequencies are okay
         err, freq = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)

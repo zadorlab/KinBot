@@ -30,10 +30,6 @@ kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
 
 mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
-if '{Code}' == 'Gaussian':
-    mol.get_potential_energy()
-    kwargs['guess'] = 'Read'
-    mol.calc = {Code}(**kwargs)
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')

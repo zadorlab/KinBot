@@ -40,6 +40,8 @@ if len(mol) == 1:
 
 order = {order}
 sella_kwargs = {sella_kwargs}
+if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
+    sella_kwargs['internal'] = False
 
 if len(mol.symbols) > 2:
     opt = Sella(mol, 

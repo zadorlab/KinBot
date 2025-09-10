@@ -41,6 +41,8 @@ if len(mol) == 1:
 order = {order}
 sella_kwargs = {sella_kwargs}
 if len(mol.symbols) > 2:
+    if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
+        sella_kwargs['internal'] = False
     opt = Sella(mol, 
                 order=order, 
                 trajectory='{label}.traj', 

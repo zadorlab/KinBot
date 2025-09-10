@@ -57,25 +57,9 @@ steps = 250
 converged = False
 try:
     mol.calc.label = '{label}'
-    try:
-        converged = opt.run(fmax=fmax, steps=steps)
-        traj = read('{label}.traj', index=':')
-        write('{label}.xyz', traj, format='xyz')
-    except ValueError:
-        mol.set_positions({geom} + np.random.normal(scale=0.05, size=(len(mol), 3)))
-        if len(mol.symbols) > 2:
-            opt = Sella(mol,
-                order=order,
-                trajectory='{label}.traj',
-                logfile='{label}_sella.log',
-                **sella_kwargs)
-        else:
-            opt = BFGS(mol,
-                       trajectory='{label}.traj',
-                       logfile='{label}_sella.log')
-        converged = opt.run(fmax=fmax, steps=steps)
-        traj = read('{label}.traj', index=':')
-        write('{label}.xyz', traj, format='xyz')
+    converged = opt.run(fmax=fmax, steps=steps)
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
 
     freqs, zpe, hessian = calc_vibrations(mol, '{label}')
 
@@ -87,7 +71,6 @@ try:
                          or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
         converged = False
     else:
-        converged = True
         e = mol.get_potential_energy()
         forces = mol.calc.results['forces']
         del mol.calc.results['forces']

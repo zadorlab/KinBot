@@ -55,41 +55,31 @@ freqs = []
 try:
     converged = False
     fmax = 1e-4
-    attempts = 1
-    steps=500
-    while not converged and attempts <= 3:
+    steps = 250
+    if '{code}' == 'orca':
+        mol.calc.command.replace("_vib", "")
+    mol.calc.label = '{label}'
+    converged = opt.run(fmax=fmax, steps=steps)
+    freqs, zpe, hessian = calc_vibrations(mol, '{label}', orca='{code}'=='orca')
+    if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
+                       or np.count_nonzero(np.array(freqs) < -50) >= 1):
+        print(f'Found one or more imaginary frequencies. {{freqs[1:6]}}')
+        converged = False
+        mol.calc.label = '{label}'
         if '{code}' == 'orca':
             mol.calc.command.replace("_vib", "")
+    elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+                         or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
+                         or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+        print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
+        converged = False
         mol.calc.label = '{label}'
-        converged = opt.run(fmax=fmax, steps=steps)
-        freqs, zpe, hessian = calc_vibrations(mol, '{label}', orca='{code}'=='orca')
-        if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
-                           or np.count_nonzero(np.array(freqs) < -50) >= 1):
-            print(f'Found one or more imaginary frequencies. {{freqs[1:6]}}')
-            converged = False
-            mol.calc.label = '{label}'
-            if '{code}' == 'orca':
-                mol.calc.command.replace("_vib", "")
-            attempts += 1
-            fmax *= 0.3
-            if attempts <= 3:
-                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
-        elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
-                             or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
-                             or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-            print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
-            converged = False
-            mol.calc.label = '{label}'
-            attempts += 1
-            fmax *= 0.3
-            if attempts <= 3:
-                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
-        else:
-            converged = True
-            e = mol.get_potential_energy()
-            db.write(mol, name='{label}', 
-                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                            'hess': hessian, 'status': 'normal'}})
+    else:
+        converged = True
+        e = mol.get_potential_energy()
+        db.write(mol, name='{label}', 
+                 data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
+                        'hess': hessian, 'status': 'normal'}})
 
     if not converged:
         raise RuntimeError

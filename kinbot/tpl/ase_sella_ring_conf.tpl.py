@@ -48,7 +48,7 @@ opt = Sella(mol,
 
 try:
     mol.calc.label = '{label}'
-    opt.run(fmax=1e-4, steps=100)
+    opt.run(fmax=1e-4, steps=250)
     e = mol.get_potential_energy()
     db.write(mol, name='{label}', 
              data={{'energy': e, 'status': 'normal'}})

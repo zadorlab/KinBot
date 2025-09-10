@@ -33,7 +33,7 @@ opt = Sella(mol,
             logfile='{label}_sella.log',
             **sella_kwargs)
 try:
-    converged = opt.run(fmax=0.001, steps=300)
+    converged = opt.run(fmax=0.001, steps=250)
     if converged:
         e = mol.get_potential_energy()
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})

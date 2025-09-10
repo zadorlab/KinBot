@@ -44,8 +44,6 @@ try:
             or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
         converged = False
         mol.calc.label = '{label}'
-        attempts += 1
-        fmax *= 0.3
     else:
         converged = True
         e = mol.get_potential_energy()

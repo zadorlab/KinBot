@@ -70,9 +70,9 @@ opt = Sella(mol,
             **sella_kwargs)
 freqs = []
 fmax = 1e-4
-steps=500
+steps = 250
 mol.calc.label = '{label}'
-converged = opt.run(fmax=fmax, steps=300)
+converged = opt.run(fmax=fmax, steps=steps)
 traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')
 e = mol.get_potential_energy()

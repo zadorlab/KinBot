@@ -469,11 +469,10 @@ class QuantumChemistry:
             Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
-        template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
-        # if self.use_sella:
-        #     template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
-        # else:
-        #     template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
+        if self.use_sella:
+            template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,

@@ -34,7 +34,7 @@ opt = Sella(mol,
             **sella_kwargs)
 
 fmax = 0.001
-steps = 300
+steps = 250
 
 try:
     converged = opt.run(fmax=fmax, steps=steps)

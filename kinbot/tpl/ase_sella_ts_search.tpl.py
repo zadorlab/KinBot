@@ -40,14 +40,10 @@ opt = Sella(mol,
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)
-try:
-    cvgd = opt.run(fmax=0.1, steps=300)
-    if cvgd:
-        e = mol.get_potential_energy()
-    else:  # TODO Eventually we might want to correct something in case it fails.
-        raise RuntimeError
-except (RuntimeError, ValueError):
-    e = 0.0
+
+# intermediate steps don't need to fully converge
+converged = opt.run(fmax=0.1, steps=100)
+e = mol.get_potential_energy()
 
 if not mol.positions.any():  # If all coordinates are 0
     mol.positions = {geom}   # Reset to the original geometry

@@ -57,7 +57,7 @@ opt = Sella(mol,
             logfile='{label}_prod_sella.log',
             **sella_kwargs)
 try:
-    converged_opt = opt.run(fmax=0.0001, steps=300)
+    converged_opt = opt.run(fmax=0.0001, steps=250)
     traj = read('{label}.traj', index=':')
     write('{label}.xyz', traj, format='xyz')
     if converged_opt:

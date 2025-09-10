@@ -33,31 +33,29 @@ freqs = []
 try:
     converged = False
     fmax = 1e-4
-    attempts = 1
-    steps=500
-    while not converged and attempts <= 3:
+    steps = 250
+    mol.calc.label = '{label}'
+    converged = opt.run(fmax=fmax, steps=steps)
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
+    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+    if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+            or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
+            or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+        converged = False
         mol.calc.label = '{label}'
-        converged = opt.run(fmax=fmax, steps=steps)
-        traj = read('{label}.traj', index=':')
-        write('{label}.xyz', traj, format='xyz')
-        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
-        if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
-                or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
-                or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-            converged = False
-            mol.calc.label = '{label}'
-            attempts += 1
-            fmax *= 0.3
-        else:
-            converged = True
-            e = mol.get_potential_energy()
-            forces = mol.calc.results['forces']
-            del mol.calc.results['forces']
+        attempts += 1
+        fmax *= 0.3
+    else:
+        converged = True
+        e = mol.get_potential_energy()
+        forces = mol.calc.results['forces']
+        del mol.calc.results['forces']
 
-            random.seed()
-            db.write(mol, name='{label}', 
-                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                         'hess': hessian, 'forces': forces, 'status': 'normal'}})            
+        random.seed()
+        db.write(mol, name='{label}', 
+                 data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
+                     'hess': hessian, 'forces': forces, 'status': 'normal'}})            
     if not converged:
         raise RuntimeError
 except (RuntimeError, ValueError):

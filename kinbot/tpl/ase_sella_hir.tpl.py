@@ -39,10 +39,25 @@ try:
     if converged:
         e = mol.get_potential_energy()
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
-    else:  # TODO Eventually we might want to correct something in case it fails.
+    else:
         raise RuntimeError
 except (RuntimeError, ValueError):
-    db.write(mol, name='{label}', data={{'status': 'error'}})
+    try:
+        sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+        opt = Sella(mol,
+            order={order},
+            constraints=const,
+            trajectory='{label}.traj',
+            logfile='{label}_sella.log',
+            **sella_kwargs)
+        converged = opt.run(fmax=0.001, steps=250)
+        if converged:
+            e = mol.get_potential_energy()
+            db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
+        else:
+            raise RuntimeError
+    except:
+        db.write(mol, name='{label}', data={{'status': 'error'}})
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

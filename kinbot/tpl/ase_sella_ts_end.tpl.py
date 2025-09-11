@@ -34,30 +34,44 @@ opt = Sella(mol, order=1,
             logfile='{label}_sella.log',
             **sella_kwargs)
 freqs = []
-try:
-    converged = False
+converged = False
+attempts = 1
+while not converged and attempts <= 2:
     fmax = 1e-4
     steps = 250
     if '{code}' == 'orca':
         mol.calc.command.replace("_vib", "")
     mol.calc.label = '{label}'
-    converged = opt.run(fmax=fmax, steps=steps)
-    freqs, zpe, hessian = calc_vibrations(mol, '{label}', orca='{code}'=='orca')
-    if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+    try:
+        converged = opt.run(fmax=fmax, steps=steps)
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}', orca='{code}'=='orca')
+        if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
             or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
             or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-        print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
-        converged = False
-        mol.calc.label = '{label}'
-    else:
-        converged = True
-        e = mol.get_potential_energy()
-        db.write(mol, name='{label}', 
+            print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
+            converged = False
+            mol.calc.label = '{label}'
+        else:
+            converged = True
+            e = mol.get_potential_energy()
+            db.write(mol, name='{label}', 
                  data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
                         'hess': hessian, 'status': 'normal'}})            
-    if not converged:
-        raise RuntimeError
-except (RuntimeError, ValueError):
+            break
+        if not converged:
+            raise RuntimeError
+    except:
+        if attempts == 1:
+            attempts += 1
+            sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+            opt = Sella(mol, order=1,
+                trajectory='{label}.traj',
+                logfile='{label}_sella.log',
+                **sella_kwargs)
+        else:
+            break
+
+if not converged:
     data = {{'status': 'error'}}
     if freqs:
         data['frequencies'] = freqs

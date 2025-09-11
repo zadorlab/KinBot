@@ -72,10 +72,32 @@ try:
     else:
         raise RuntimeError
 except (RuntimeError, ValueError):
-    forces = mol.calc.results['forces']
-    del mol.calc.results['forces']
-    random.seed()
-    db.write(mol, name='{label}_prod', data={{'status': 'error'}})    
+    try:
+        sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+        opt = Sella(mol,
+             order=0,
+             trajectory='{label}_prod.traj',
+             logfile='{label}_prod_sella.log',
+             **sella_kwargs)
+        converged_opt = opt.run(fmax=0.0001, steps=250)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
+        if converged_opt:
+             e = mol.get_potential_energy()
+             freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+             forces = mol.calc.results['forces']
+             del mol.calc.results['forces']
+             random.seed()
+             db.write(mol, name='{label}_prod',
+                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
+                     'hess': hessian, 'forces': forces, 'status': 'normal'}})
+       else:
+            raise RuntimeError
+    except:
+        forces = mol.calc.results['forces']
+        del mol.calc.results['forces']
+        random.seed()
+        db.write(mol, name='{label}_prod', data={{'status': 'error'}})    
 
 with open('{label}_prod_sella.log', 'a') as f:
     f.write('done\n')

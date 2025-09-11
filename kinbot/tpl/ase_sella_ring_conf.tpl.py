@@ -47,15 +47,22 @@ opt = Sella(mol,
             logfile='{label}_sella.log',
             **sella_kwargs,
             )
+mol.calc.label = '{label}'
 
 try:
-    mol.calc.label = '{label}'
     opt.run(fmax=1e-4, steps=250)
     e = mol.get_potential_energy()
     db.write(mol, name='{label}', 
              data={{'energy': e, 'status': 'normal'}})
 except (RuntimeError, ValueError):
-    data = {{'status': 'error'}}
-    db.write(mol, name='{label}', data=data)
+    try:
+        sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+        opt.run(fmax=1e-4, steps=250)
+        e = mol.get_potential_energy()
+        db.write(mol, name='{label}',
+             data={{'energy': e, 'status': 'normal'}})
+    except:
+        data = {{'status': 'error'}}
+        db.write(mol, name='{label}', data=data)
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -51,9 +51,29 @@ try:
     else:
         raise RuntimeError("Did not converge")
 except (RuntimeError, ValueError):
-    del mol.calc.results['forces']
-    random.seed()
-    db.write(mol, name='{label}', data={{'status': 'error'}})
+    try:
+        sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+        opt = Sella(mol,
+            order={order},
+            constraints=const,
+            trajectory='{label}.traj',
+            logfile='{label}_sella.log',
+            **sella_kwargs)
+        converged = opt.run(fmax=fmax, steps=steps)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
+        if converged:
+            e = mol.get_potential_energy()
+            forces = mol.calc.results['forces']
+            del mol.calc.results['forces']
+            random.seed()
+            db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
+        else:
+            raise RuntimeError
+    except:
+        del mol.calc.results['forces']
+        random.seed()
+        db.write(mol, name='{label}', data={{'status': 'error'}})
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

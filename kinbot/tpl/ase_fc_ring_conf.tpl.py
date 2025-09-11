@@ -73,7 +73,16 @@ freqs = []
 fmax = 1e-4
 steps = 250
 mol.calc.label = '{label}'
-converged = opt.run(fmax=fmax, steps=steps)
+try:
+    converged = opt.run(fmax=fmax, steps=steps)
+except:
+    sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+    opt = Sella(mol,
+            order=0,
+            trajectory='{label}.traj',
+            logfile='{label}_sella.log',
+            **sella_kwargs)
+    converged = opt.run(fmax=fmax, steps=steps)
 traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')
 e = mol.get_potential_energy()

@@ -57,33 +57,47 @@ freqs = []
 fmax = 1e-4
 steps = 250
 converged = False
-try:
+attempts = 1
+while attempts <= 2:
     mol.calc.label = '{label}'
-    converged = opt.run(fmax=fmax, steps=steps)
-    traj = read('{label}.traj', index=':')
-    write('{label}.xyz', traj, format='xyz')
+    try:
+        converged = opt.run(fmax=fmax, steps=steps)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
 
-    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
 
-    if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
+        if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                         or np.count_nonzero(np.array(freqs) < -50) >= 1):
-        converged = False
-    elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+            converged = False
+        elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
                          or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
                          or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-        converged = False
-    else:
-        e = mol.get_potential_energy()
-        forces = mol.calc.results['forces']
-        del mol.calc.results['forces']
-        random.seed()
-        db.write(mol, name='{label}', 
+            converged = False
+        else:
+            converged = True
+            e = mol.get_potential_energy()
+            forces = mol.calc.results['forces']
+            del mol.calc.results['forces']
+            random.seed()
+            db.write(mol, name='{label}', 
                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
                     'hess': hessian, 'forces': forces, 'status': 'normal'}})
-    if not converged:
-        raise RuntimeError("Did not converge")
-
-except (RuntimeError, ValueError):
+            break
+        if not converged:
+            raise RuntimeError("Did not converge")
+    except:
+        attempts += 1
+        if len(mol.symbols) > 2 and attempts == 2:
+            sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+            opt = Sella(mol,
+                order=order,
+                trajectory='{label}.traj',
+                logfile='{label}_sella.log',
+                **sella_kwargs)
+        else:
+            break
+if not converged:
     data = {{'status': 'error'}}
     if freqs:
         data['frequencies'] = freqs

@@ -14,9 +14,6 @@ class H2Elim(GeneralReac):
         release = []
         self.fix_bonds(fix)
 
-        if step < self.max_step:
-            self.fix_bonds(fix)
-
         if step < self.dihstep:
             self.set_dihedrals(change, step)
         elif step == self.dihstep:

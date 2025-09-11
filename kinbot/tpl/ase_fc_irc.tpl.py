@@ -91,7 +91,7 @@ except (RuntimeError, ValueError):
              db.write(mol, name='{label}_prod',
                      data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
                      'hess': hessian, 'forces': forces, 'status': 'normal'}})
-       else:
+        else:
             raise RuntimeError
     except:
         forces = mol.calc.results['forces']

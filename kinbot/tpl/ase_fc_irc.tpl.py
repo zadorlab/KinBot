@@ -38,10 +38,8 @@ elif '{label}'.endswith('R'):
     
 converged_irc = irc.run(fmax=0.01, steps=100, direction=direction)
 e = mol.get_potential_energy()
-forces = mol.calc.results['forces']
-del mol.calc.results['forces']
 random.seed()
-db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
+db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')
@@ -63,12 +61,10 @@ try:
     if converged_opt:
         e = mol.get_potential_energy()
         freqs, zpe, hessian = calc_vibrations(mol, '{label}')
-        forces = mol.calc.results['forces']
-        del mol.calc.results['forces']
         random.seed()
         db.write(mol, name='{label}_prod', 
                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                    'hess': hessian, 'forces': forces, 'status': 'normal'}})
+                    'hess': hessian, 'status': 'normal'}})
     else:
         raise RuntimeError
 except (RuntimeError, ValueError):
@@ -85,17 +81,13 @@ except (RuntimeError, ValueError):
         if converged_opt:
              e = mol.get_potential_energy()
              freqs, zpe, hessian = calc_vibrations(mol, '{label}')
-             forces = mol.calc.results['forces']
-             del mol.calc.results['forces']
              random.seed()
              db.write(mol, name='{label}_prod',
                      data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
-                     'hess': hessian, 'forces': forces, 'status': 'normal'}})
+                     'hess': hessian, 'status': 'normal'}})
         else:
             raise RuntimeError
     except:
-        forces = mol.calc.results['forces']
-        del mol.calc.results['forces']
         random.seed()
         db.write(mol, name='{label}_prod', data={{'status': 'error'}})    
 

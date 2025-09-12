@@ -28,8 +28,6 @@ if os.path.isfile('{label}_sella.log'):
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
     e = mol.get_potential_energy()
-    forces = mol.calc.results['forces']
-    del mol.calc.results['forces']
     random.seed()
     db.write(mol, name='{label}',
              data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
@@ -77,12 +75,10 @@ while attempts <= 2:
         else:
             converged = True
             e = mol.get_potential_energy()
-            forces = mol.calc.results['forces']
-            del mol.calc.results['forces']
             random.seed()
             db.write(mol, name='{label}', 
                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                    'hess': hessian, 'forces': forces, 'status': 'normal'}})
+                    'hess': hessian, 'status': 'normal'}})
             break
         if not converged:
             raise RuntimeError("Did not converge")

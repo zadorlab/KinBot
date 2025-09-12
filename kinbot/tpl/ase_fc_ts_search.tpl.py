@@ -74,10 +74,8 @@ except (RuntimeError, ValueError):
 if not mol.positions.any():  # If all coordinates are 0
     mol.positions = {geom}   # Reset to the original geometry
 
-forces = mol.calc.results['forces']
-del mol.calc.results['forces']
 random.seed()
-db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
+db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

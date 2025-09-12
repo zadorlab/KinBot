@@ -44,10 +44,8 @@ try:
     write('{label}.xyz', traj, format='xyz')
     if converged:
         e = mol.get_potential_energy()
-        forces = mol.calc.results['forces']
-        del mol.calc.results['forces']
         random.seed()
-        db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
+        db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
     else:
         raise RuntimeError("Did not converge")
 except (RuntimeError, ValueError):
@@ -64,14 +62,11 @@ except (RuntimeError, ValueError):
         write('{label}.xyz', traj, format='xyz')
         if converged:
             e = mol.get_potential_energy()
-            forces = mol.calc.results['forces']
-            del mol.calc.results['forces']
             random.seed()
-            db.write(mol, name='{label}', data={{'energy': e, 'forces': forces, 'status': 'normal'}})
+            db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
         else:
             raise RuntimeError
     except:
-        del mol.calc.results['forces']
         random.seed()
         db.write(mol, name='{label}', data={{'status': 'error'}})
 

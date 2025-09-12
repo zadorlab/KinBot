@@ -51,13 +51,11 @@ while attempts <= 2:
         else:
             converged = True
             e = mol.get_potential_energy()
-            forces = mol.calc.results['forces']
-            del mol.calc.results['forces']
 
             random.seed()
             db.write(mol, name='{label}', 
                  data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                     'hess': hessian, 'forces': forces, 'status': 'normal'}})            
+                     'hess': hessian, 'status': 'normal'}})            
             break
         if not converged:
             raise RuntimeError

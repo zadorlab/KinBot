@@ -204,7 +204,7 @@ class ReactionGenerator:
                                 db.write(Atoms('H'), name=obj.instance_name, data={'status': 'error'})
                                 # this is copied here so that a non-AM1 file is in place
                                 if self.qc.qc == 'fc':
-                                    shutil.copy(f'{os.getcwd()}/{self.species.chemid}_sella_well.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
+                                    shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well_sella.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
                                 else:
                                     shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
                                 self.species.reac_ts_done[index] = -999

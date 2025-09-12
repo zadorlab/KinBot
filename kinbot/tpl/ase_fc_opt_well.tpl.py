@@ -1,5 +1,4 @@
 import os
-import random
 import sys
 
 import numpy as np
@@ -71,7 +70,7 @@ elif len(mol.symbols) > 2 and (not converged):
     mol.positions = {geom}
     sella_kwargs['internal'] = 1 - sella_kwargs['internal']
     opt = Sella(mol,
-        order=order,
+        order={order},
         trajectory='{label}.traj',
         logfile='{label}_sella.log',
         **sella_kwargs)

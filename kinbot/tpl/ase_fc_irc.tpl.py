@@ -1,5 +1,4 @@
 import os
-import random
 import numpy as np
 from ase import Atoms
 from ase.io import read, write

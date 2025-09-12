@@ -4,7 +4,6 @@ from ase import Atoms
 from ase.db import connect
 from ase.io import read, write
 from sella import Sella, Constraints
-import random
 #from kinbot.ase_modules.calculators.{code} import {Code}
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 

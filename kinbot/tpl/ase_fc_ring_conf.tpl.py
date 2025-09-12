@@ -46,8 +46,10 @@ for c in {change}:
     c_new.append(c[-1])
     base_0_changes.append(c_new)
 if len(base_0_changes) > 0:
-    _, mol.positions = modify_coordinates(st_pt, '{label}', mol.positions, 
-                                           base_0_changes, st_pt.bond)
+    err, temp_pos = modify_coordinates(st_pt, '{label}', mol.positions, 
+                                           base_0_changes, st_pt.bond, err=True)
+    if err != -1:
+        mol.positions = temp_pos
 for change in base_0_changes:
     if len(change[:-1]) == 2:
         const.fix_bond(change[:-1])

@@ -856,7 +856,7 @@ def write_cart(geom, atom):
     return s
 
 
-def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder):
+def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder, err=False):
     """
     Create Cartesian coordinates from a Z-matrix representation.
     Let's assume that we are dealing with atom D, whose distance r is defined relative to C,
@@ -866,6 +866,7 @@ def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder):
     then around the B-C axis by phi.
     All this is done by a general rotation matrix formalism.
     The first three atoms are special.
+    err: catch certain errors
     """
 
     cart = np.zeros((natom, 3))
@@ -902,6 +903,8 @@ def make_cart_from_zmat(zmat, zmat_atom, zmat_ref, natom, atom, zmatorder):
                 # D is placed parallel to the B-C axis, relative to A (the origin)
                 # B->C vector
                 bc = [cart[c][j] - cart[b][j] for j in range(3)]
+                if err == True and np.linalg.norm(bc) == 0:
+                    return -1
                 bc = bc / np.linalg.norm(bc)
                 # y/x = p
                 # z/x = q

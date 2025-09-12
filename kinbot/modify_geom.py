@@ -106,7 +106,7 @@ def append_geom(natom, step, new_e, atom, x_new, grad, atoms_list, f_out=None):
     return step
 
 
-def modify_coordinates(species, name, geom, changes, bond, write_files=0):
+def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=False):
     """
     Geom is the geometry (n x 3 matrix with n the number of atoms)
     in cartesian coordinates
@@ -156,7 +156,9 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
                     zmat[i][2] += dih_diff
                 if zmat_ref[i][2] == 1:
                     zmat[i][2] += dih_diff
-            new_geom = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, species.natom, species.atom, zmatorder)
+            new_geom = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, species.natom, species.atom, zmatorder, err=err)
+            if new_geom == -1:
+                return -1, None 
             # write_zmat(zmat_atom, zmat_ref, zmat, new_geom, species.atom)
             step = append_geom(species.natom, step, 0., species.atom, new_geom, np.zeros((species.natom * 3)), atoms_list, f_out=f_out)
         # change angles, if necessary

@@ -436,16 +436,16 @@ class Conformers:
 
                 if all(status):  # if all conformers are invalid, 1 (different) or fail (-1)
                     if self.qc.qc == 'gauss':
-                        ext = 'log'
+                        ext = '.log'
                     elif self.qc.qc == 'qchem':
-                        ext = 'out'
+                        ext = '.out'
                     elif self.qc.qc == 'nn_pes':
-                        ext = 'log'
+                        ext = '.log'
                     elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
                         ext = '_sella.log'
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
-                    copyfile(f'{lowest_job}.{ext}', f'conf/{name}_low.{ext}')
+                    copyfile(f'{lowest_job}{ext}', f'conf/{name}_low{ext}')
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),
                             'frequencies': last_row.data.get('frequencies'),

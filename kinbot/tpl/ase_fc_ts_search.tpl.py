@@ -10,10 +10,17 @@ from sella import Sella, Constraints
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
 db = connect('{working_dir}/kinbot.db')
+if os.path.isfile('{label}_sella.log'):
+    os.remove('{label}_sella.log')
 
+# molecule
 mol = Atoms(symbols={atom}, 
             positions={geom})
+kwargs = {kwargs}
+mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
+mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
 
+# constraints
 const = Constraints(mol)
 base_0_fix = [[idx - 1 for idx in fix] for fix in {fix}]
 for fix in base_0_fix:
@@ -26,56 +33,30 @@ for fix in base_0_fix:
     else:
         raise ValueError(f'Unexpected length of fix: {{fix}}')
 
-kwargs = {kwargs}
-mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-
-mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
-
-if os.path.isfile('{label}_sella.log'):
-    os.remove('{label}_sella.log')
-
+# sella
+fmax = 0.1
+steps = 100
 sella_kwargs = {sella_kwargs}
 if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
     sella_kwargs['internal'] = False
+
 opt = Sella(mol, 
             order=0,
             constraints=const,
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)
-try:
-    converged = opt.run(fmax=0.1, steps=300)
-    traj = read('{label}.traj', index=':')
-    write('{label}.xyz', traj, format='xyz')
-    if converged:
-        e = mol.get_potential_energy()
-    else:  # TODO Eventually we might want to correct something in case it fails.
-        raise RuntimeError
-except (RuntimeError, ValueError):
-    try:
-        sella_kwargs['internal'] = 1 - sella_kwargs['internal']
-        opt = Sella(mol,
-            order=0,
-            constraints=const,
-            trajectory='{label}.traj',
-            logfile='{label}_sella.log',
-            **sella_kwargs)
-        converged = opt.run(fmax=0.1, steps=300)
-        traj = read('{label}.traj', index=':')
-        write('{label}.xyz', traj, format='xyz')
-        if converged:
-            e = mol.get_potential_energy()
-        else:
-            raise RuntimeError
 
-    except:
-        e = 0.0
+# run
+converged = opt.run(fmax=fmax, steps=steps)
+traj = read('{label}.traj', index=':')
+write('{label}.xyz', traj, format='xyz')
+e = mol.get_potential_energy()
+del mol.calc.results['forces']
 
 if not mol.positions.any():  # If all coordinates are 0
     mol.positions = {geom}   # Reset to the original geometry
 
-random.seed()
 db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
-
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -291,3 +291,15 @@ class NpEncoder(json.JSONEncoder):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return super(NpEncoder, self).default(obj)
+
+def sella_freq_check(freqs, order):
+    if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
+                or np.count_nonzero(np.array(freqs) < -50) >= 1):
+        return False
+
+    elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+        or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
+        or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+        return False
+    else:
+        return True

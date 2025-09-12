@@ -13,14 +13,16 @@ from sella import Sella, Constraints
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
 db = connect('{working_dir}/kinbot.db')
+if os.path.isfile('{label}_sella.log'):
+    os.remove('{label}_sella.log')
 
+# molecule
 mol = Atoms(symbols={atom}, 
             positions={geom})
-
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-
 mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
+mol.calc.label = '{label}'
 
 const = Constraints(mol)
 # make it zero indexed
@@ -39,42 +41,27 @@ base_0_changes = [[idx - 1 for idx in change] for change in {change}]
 for c in base_0_changes:
     const.fix_dihedral(c[:-1], target=c[-1])
 
-    if os.path.isfile('{label}_sella.log'):
-        os.remove('{label}_sella.log')
+# sella
+sella_kwargs = {sella_kwargs}
+fmax = 0.0001
+steps = 250
+if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
+    sella_kwargs['internal'] = False
+opt = Sella(mol, 
+            order=0, 
+            constraints=const,
+            trajectory='{label}.traj', 
+            logfile='{label}_sella.log',
+            **sella_kwargs)
 
-    sella_kwargs = {sella_kwargs}
-    if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
-        sella_kwargs['internal'] = False
-    opt = Sella(mol, 
-                order=0, 
-                constraints=const,
-                trajectory='{label}.traj', 
-                logfile='{label}_sella.log',
-                **sella_kwargs)
-    fmax = 1e-4
-    steps = 250
-    mol.calc.label = '{label}'
-    try:
-        converged = opt.run(fmax=fmax, steps=steps)
-    except:
-        sella_kwargs['internal'] = 1 - sella_kwargs['internal']
-        opt = Sella(mol,
-                order=0,
-                constraints=const,
-                trajectory='{label}.traj',
-                logfile='{label}_sella.log',
-                **sella_kwargs)
-        converged = opt.run(fmax=fmax, steps=steps)
-    traj = read('{label}.traj', index=':')
-    write('{label}.xyz', traj, format='xyz')
-    e = mol.get_potential_energy()
+converged = opt.run(fmax=fmax, steps=steps)
+traj = read('{label}.traj', index=':')
+write('{label}.xyz', traj, format='xyz')
+e = mol.get_potential_energy()
+del mol.calc.results['forces']
 
-if converged:
-    random.seed()
-    db.write(mol, name='{label}', 
-             data={{'energy': e, 'status': 'normal'}})
-else:
-    data = {{'status': 'error'}}
-    db.write(mol, name='{label}', data=data)
+# write even if no converged, this is an intermediate
+db.write(mol, name='{label}', 
+         data={{'energy': e, 'status': 'normal'}})
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

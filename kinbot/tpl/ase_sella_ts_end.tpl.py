@@ -50,7 +50,6 @@ while not converged and attempts <= 2:
             or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
             print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
             converged = False
-            mol.calc.label = '{label}'
         else:
             converged = True
             e = mol.get_potential_energy()

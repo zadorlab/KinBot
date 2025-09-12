@@ -12,8 +12,6 @@ from sella import Sella, Constraints
 #from kinbot.ase_modules.calculators.{code} import {Code}
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
-from kinbot.stationary_pt import StationaryPoint
-
 db = connect('{working_dir}/kinbot.db')
 
 mol = Atoms(symbols={atom}, 
@@ -37,9 +35,8 @@ for fix in base_0_fixes:
     else:
         raise ValueError(f'Unexpected length of fix: {{fix}}.')
 
-st_pt = StationaryPoint.from_ase_atoms(mol)
-st_pt.characterize()
-for c in {change}:
+base_0_changes = [[idx - 1 for idx in change] for change in {change}]
+for c in base_0_changes:
     const.fix_dihedral(c[:-1], target=c[-1])
 
     if os.path.isfile('{label}_sella.log'):

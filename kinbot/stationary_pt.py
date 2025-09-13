@@ -218,7 +218,7 @@ class StationaryPoint:
                     err_msg = f'Incorrect geometry for {self.name}: Found an ' \
                               'interatomic distance smaller than 0.5 Angstrom.'
                     logger.error(err_msg)
-                    raise ValueError(err_msg)
+                    #raise ValueError(err_msg)
 
         self.bond = np.zeros((self.natom, self.natom), dtype=int)
         self.bonds = []  # unique list of bond matrices in case of resonance

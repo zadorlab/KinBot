@@ -107,7 +107,7 @@ def clean_files(diagnostic=False, qc=None):
     files = os.listdir()
     com = []
     for ff in files:
-        if ff.endswith('.com'):
+        if ff.endswith('.com') or ff.endswith('_sella.log'):
             com.append(ff)
 
     for cc in com:

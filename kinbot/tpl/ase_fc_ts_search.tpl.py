@@ -61,4 +61,4 @@ if not mol.positions.any():  # If all coordinates are 0
 
 db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
 with open('{label}_sella.log', 'a') as f:
-    f.write('done\n')
+    f.write('am1\ndone\n')  # is am1 is there, it'll be deleted on restart

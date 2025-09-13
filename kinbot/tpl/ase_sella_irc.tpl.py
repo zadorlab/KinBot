@@ -61,7 +61,7 @@ with open('{label}_sella.log', 'a') as f:
 if success:
     prod_kwargs = {prod_kwargs}
     if '{Code}' == 'ORCA':
-        prod_kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+        prod_kwargs['profile'] = kwargs['profile']
 
     mol.calc = {Code}(**prod_kwargs)
     if '{Code}' == 'Gaussian':

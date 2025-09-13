@@ -79,7 +79,7 @@ elif len(mol.symbols) > 2 and (not converged):
         **sella_kwargs)
     try:
         converged = opt.run(fmax=fmax, steps=steps)
-    except:
+    except RuntimeError:
         converged = False
     e = mol.get_potential_energy()
     del mol.calc.results['forces']

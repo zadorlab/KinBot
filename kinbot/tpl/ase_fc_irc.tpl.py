@@ -59,7 +59,7 @@ opt = Sella(mol,
 
 try:
     converged_opt = opt.run(fmax=0.0001, steps=250)
-except:
+except RuntimeError:
     pass
 traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')

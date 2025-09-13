@@ -36,14 +36,17 @@ opt = Sella(mol, order=1,
             **sella_kwargs)
 
 # run
-converged = opt.run(fmax=fmax, steps=steps)
+try:
+    converged = opt.run(fmax=fmax, steps=steps)
+except RuntimeError:
+    converged = False
 traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')
-freqs, zpe, hessian = calc_vibrations(mol, '{label}')
 e = mol.get_potential_energy()
 del mol.calc.results['forces']
 
 if converged:
+    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
     if sella_freq_check(freqs, 1):
         data = {{'energy': e, 'frequencies': freqs, 'zpe': zpe,
                  'hess': hessian, 'status': 'normal'}}
@@ -57,13 +60,16 @@ else:
         logfile='{label}_sella.log',
         **sella_kwargs)
 
-    converged = opt.run(fmax=fmax, steps=steps)
+    try:
+        converged = opt.run(fmax=fmax, steps=steps)
+    except RuntimeError:
+        converged = False
     traj = read('{label}.traj', index=':')
     write('{label}.xyz', traj, format='xyz')
-    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
     e = mol.get_potential_energy()
     del mol.calc.results['forces']
     if converged:
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
         if sella_freq_check(freqs, 1):
             data = {{'energy': e, 'frequencies': freqs, 'zpe': zpe,
                      'hess': hessian, 'status': 'normal'}}

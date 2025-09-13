@@ -53,7 +53,11 @@ opt = Sella(mol,
             logfile='{label}_sella.log',
             **sella_kwargs)
 
-converged = opt.run(fmax=fmax, steps=steps)
+try:
+    converged = opt.run(fmax=fmax, steps=steps)
+except RuntimeError:
+    pass
+    
 traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')
 e = mol.get_potential_energy()

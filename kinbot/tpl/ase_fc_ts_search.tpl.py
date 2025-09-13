@@ -47,7 +47,10 @@ opt = Sella(mol,
             **sella_kwargs)
 
 # run
-converged = opt.run(fmax=fmax, steps=steps)
+try:
+    converged = opt.run(fmax=fmax, steps=steps)
+except:
+    converged = False
 traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')
 e = mol.get_potential_energy()

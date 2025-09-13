@@ -316,7 +316,6 @@ class QuantumChemistry:
                 else:
                     kwargs['rpath_direction'] = '1'
         elif self.qc == 'orca':
-            logger.warning('Generating ORCA input')
             kwargs = {
                 'label': job,
                 'orcasimpleinput': f"EnGrad {self.method} {self.basis}",

@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 
 from ase import Atoms
@@ -16,6 +17,10 @@ base_0_fix = [idx - 1 for idx in {fix}]
 const.fix_dihedral(base_0_fix)
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
@@ -58,6 +63,9 @@ except (RuntimeError, ValueError):
             raise RuntimeError
     except:
         db.write(mol, name='{label}', data={{'status': 'error'}})
+
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

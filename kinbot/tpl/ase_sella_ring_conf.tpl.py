@@ -16,6 +16,10 @@ mol = Atoms(symbols={atom},
             positions={geom})
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
@@ -64,5 +68,9 @@ except (RuntimeError, ValueError):
     except:
         data = {{'status': 'error'}}
         db.write(mol, name='{label}', data=data)
+
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')
+
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -24,6 +24,10 @@ for fix in base_0_fix:
         raise ValueError(f'Unexpected length of fix: {{fix}}')
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
@@ -63,6 +67,9 @@ except:
 if not mol.positions.any():  # If all coordinates are 0
     mol.positions = {geom}   # Reset to the original geometry
 db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
+
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

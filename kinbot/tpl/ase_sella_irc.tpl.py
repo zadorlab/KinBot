@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 
 from ase import Atoms
@@ -13,6 +14,10 @@ mol = Atoms(symbols={atom},
             positions={geom})
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
@@ -94,3 +99,5 @@ if success:
 
     with open('{label}_prod_sella.log', 'a') as f:
         f.write('done\n')
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')

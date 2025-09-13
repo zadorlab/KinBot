@@ -17,6 +17,10 @@ mol = Atoms(symbols={atom},
             positions={geom})
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
@@ -39,12 +43,10 @@ attempts = 1
 while not converged and attempts <= 2:
     fmax = 1e-4
     steps = 250
-    if '{code}' == 'orca':
-        mol.calc.command.replace("_vib", "")
     mol.calc.label = '{label}'
     try:
         converged = opt.run(fmax=fmax, steps=steps)
-        freqs, zpe, hessian = calc_vibrations(mol, '{label}', orca='{code}'=='orca')
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
         if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
             or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
             or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
@@ -75,6 +77,9 @@ if not converged:
     if freqs:
         data['frequencies'] = freqs
     db.write(mol, name='{label}', data=data)
+
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -16,6 +16,10 @@ base_0_fix = [idx - 1 for idx in {fix}]
 const.fix_dihedral(base_0_fix)
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()

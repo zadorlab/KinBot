@@ -19,6 +19,10 @@ mol = Atoms(symbols={atom},
             positions={geom})
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
@@ -59,12 +63,10 @@ converged = False
 while attempts <= 2:
     fmax = 1e-4
     steps = 250
-    if '{code}' == 'orca':
-        mol.calc.command.replace("_vib", "")
     mol.calc.label = '{label}'
     try:
         converged = opt.run(fmax=fmax, steps=steps)
-        freqs, zpe, hessian = calc_vibrations(mol, '{label}', orca='{code}'=='orca')
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
         if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                        or np.count_nonzero(np.array(freqs) < -50) >= 1):
             print(f'Found one or more imaginary frequencies. {{freqs[1:6]}}')

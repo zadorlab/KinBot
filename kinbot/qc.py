@@ -316,15 +316,16 @@ class QuantumChemistry:
                 else:
                     kwargs['rpath_direction'] = '1'
         elif self.qc == 'orca':
-            #logger.warning('Generating ORCA input')
+            logger.warning('Generating ORCA input')
             kwargs = {
                 'label': job,
-                'orcasimpleinput': f"{self.method} {self.basis}",
+                'orcasimpleinput': f"EnGrad {self.method} {self.basis}",
                 'charge': charge,
                 'mult': mult,
                 'task': 'gradient',
                 #'orcablocks': f"%method\n {self.integral}\nend",
-                'command': f"{self.qc_command} {job}.inp > {job}.out"
+                'profile': self.qc_command,
+                'directory': job
             }
             if high_level:
                 kwargs['orcasimpleinput'] = f"{self.high_level_method} {self.high_level_basis}"

@@ -1,5 +1,4 @@
 import os
-import random
 import sys
 
 import numpy as np
@@ -12,25 +11,25 @@ from sella import Sella
 #from kinbot.ase_modules.calculators.{code} import {Code}
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 from kinbot.frequencies import calc_vibrations
+from kinbot.utils import sella_freq_check
 
 db = connect('{working_dir}/kinbot.db')
-mol = Atoms(symbols={atom}, 
-            positions={geom})
-
-kwargs = {kwargs}
-mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-
-mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
-
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
+
+# molecule
+mol = Atoms(symbols={atom}, 
+            positions={geom})
+kwargs = {kwargs}
+mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
+mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
+mol.calc.label = '{label}'
+freqs = []
 
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
     e = mol.get_potential_energy()
-    forces = mol.calc.results['forces']
     del mol.calc.results['forces']
-    random.seed()
     db.write(mol, name='{label}',
              data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
                  'hess': np.zeros([3, 3]), 'status': 'normal'}})
@@ -38,13 +37,15 @@ if len(mol) == 1:
         f.write('Sella optimization is not needed for atoms.\ndone\n')
     sys.exit(0)
 
-order = {order}
+# sella
 sella_kwargs = {sella_kwargs}
+fmax = 0.0001
+steps = 250
 if len(mol.symbols) > 2:
     if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
         sella_kwargs['internal'] = False
     opt = Sella(mol, 
-                order=order, 
+                order={order}, 
                 trajectory='{label}.traj', 
                 logfile='{label}_sella.log',
                 **sella_kwargs)
@@ -53,55 +54,50 @@ else:
                trajectory='{label}.traj',
                logfile='{label}_sella.log')
 
-freqs = []
-fmax = 1e-4
-steps = 250
-converged = False
-attempts = 1
-while attempts <= 2:
-    mol.calc.label = '{label}'
+#run
+try:
+    converged = opt.run(fmax=fmax, steps=steps)
+except:
+    converged = False
+e = mol.get_potential_energy()
+del mol.calc.results['forces']
+traj = read('{label}.traj', index=':')
+write('{label}.xyz', traj, format='xyz')
+
+if converged:
+    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+    if sella_freq_check(freqs, {order}):
+        data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
+            'hess': hessian, 'status': 'normal'}}
+elif len(mol.symbols) > 2 and (not converged):
+    mol.positions = {geom}
+    sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+    opt = Sella(mol,
+        order={order},
+        trajectory='{label}.traj',
+        logfile='{label}_sella.log',
+        **sella_kwargs)
     try:
         converged = opt.run(fmax=fmax, steps=steps)
-        traj = read('{label}.traj', index=':')
-        write('{label}.xyz', traj, format='xyz')
-
+    except RuntimeError:
+        converged = False
+    e = mol.get_potential_energy()
+    del mol.calc.results['forces']
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
+    if converged:
         freqs, zpe, hessian = calc_vibrations(mol, '{label}')
-
-        if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
-                        or np.count_nonzero(np.array(freqs) < -50) >= 1):
-            converged = False
-        elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
-                         or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
-                         or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-            converged = False
+        if sella_freq_check(freqs, {order}):
+            data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
+                'hess': hessian, 'status': 'normal'}}
         else:
-            converged = True
-            e = mol.get_potential_energy()
-            forces = mol.calc.results['forces']
-            del mol.calc.results['forces']
-            random.seed()
-            db.write(mol, name='{label}', 
-                    data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                    'hess': hessian, 'forces': forces, 'status': 'normal'}})
-            break
-        if not converged:
-            raise RuntimeError("Did not converge")
-    except:
-        attempts += 1
-        if len(mol.symbols) > 2 and attempts == 2:
-            sella_kwargs['internal'] = 1 - sella_kwargs['internal']
-            opt = Sella(mol,
-                order=order,
-                trajectory='{label}.traj',
-                logfile='{label}_sella.log',
-                **sella_kwargs)
-        else:
-            break
-if not converged:
+            data = {{'status': 'error'}}
+    else:
+        data = {{'status': 'error'}}
+else:
     data = {{'status': 'error'}}
-    if freqs:
-        data['frequencies'] = freqs
-    db.write(mol, name='{label}', data=data)
+
+db.write(mol, name='{label}', data=data)
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

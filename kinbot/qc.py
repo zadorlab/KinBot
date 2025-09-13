@@ -1266,6 +1266,7 @@ class QuantumChemistry:
         Checks if the current job is in the database:
         '''
         # open the database
+        logger.debug(f'Looking for {job} in the db.')
         rows = self.db.select(name=job)
 
         mol = None

@@ -55,14 +55,17 @@ else:
                logfile='{label}_sella.log')
 
 #run
-converged = opt.run(fmax=fmax, steps=steps)
+try:
+    converged = opt.run(fmax=fmax, steps=steps)
+except:
+    converged = False
 e = mol.get_potential_energy()
 del mol.calc.results['forces']
 traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')
-freqs, zpe, hessian = calc_vibrations(mol, '{label}')
 
 if converged:
+    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
     if sella_freq_check(freqs, {order}):
         data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
             'hess': hessian, 'status': 'normal'}}
@@ -74,15 +77,21 @@ elif len(mol.symbols) > 2 and (not converged):
         trajectory='{label}.traj',
         logfile='{label}_sella.log',
         **sella_kwargs)
-    converged = opt.run(fmax=fmax, steps=steps)
+    try:
+        converged = opt.run(fmax=fmax, steps=steps)
+    except:
+        converged = False
     e = mol.get_potential_energy()
     del mol.calc.results['forces']
     traj = read('{label}.traj', index=':')
     write('{label}.xyz', traj, format='xyz')
-    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
-    if sella_freq_check(freqs, {order}):
-        data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
-            'hess': hessian, 'status': 'normal'}}
+    if converged:
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+        if sella_freq_check(freqs, {order}):
+            data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
+                'hess': hessian, 'status': 'normal'}}
+        else:
+            data = {{'status': 'error'}}
     else:
         data = {{'status': 'error'}}
 else:

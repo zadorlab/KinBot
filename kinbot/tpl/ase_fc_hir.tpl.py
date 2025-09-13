@@ -37,7 +37,10 @@ fmax = 0.001
 steps = 250
 
 # run
-converged = opt.run(fmax=fmax, steps=steps)
+try:
+    converged = opt.run(fmax=fmax, steps=steps)
+except RuntimeError:
+    converged = False
 traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')
 e = mol.get_potential_energy()

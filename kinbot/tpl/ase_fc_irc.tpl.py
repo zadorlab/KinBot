@@ -35,7 +35,10 @@ elif '{label}'.endswith('R'):
     direction = 'reverse'
 
 # run
-converged_irc = irc.run(fmax=0.01, steps=100, direction=direction)
+try:
+    converged_irc = irc.run(fmax=0.01, steps=100, direction=direction)
+except RuntimeError:
+    pass
 e = mol.get_potential_energy()
 del mol.calc.results['forces']
 
@@ -54,7 +57,10 @@ opt = Sella(mol,
             logfile='{label}_prod_sella.log',
             **sella_kwargs)
 
-converged_opt = opt.run(fmax=0.0001, steps=250)
+try:
+    converged_opt = opt.run(fmax=0.0001, steps=250)
+except:
+    pass
 traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')
 e = mol.get_potential_energy()

@@ -68,5 +68,9 @@ except (RuntimeError, ValueError):
     except:
         data = {{'status': 'error'}}
         db.write(mol, name='{label}', data=data)
+
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')
+
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 
 from ase import Atoms
@@ -98,3 +99,5 @@ if success:
 
     with open('{label}_prod_sella.log', 'a') as f:
         f.write('done\n')
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')

@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 
 from ase import Atoms
@@ -62,6 +63,9 @@ except (RuntimeError, ValueError):
             raise RuntimeError
     except:
         db.write(mol, name='{label}', data={{'status': 'error'}})
+
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -68,5 +68,8 @@ if not mol.positions.any():  # If all coordinates are 0
     mol.positions = {geom}   # Reset to the original geometry
 db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
 
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')
+
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

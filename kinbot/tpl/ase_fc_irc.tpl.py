@@ -1,8 +1,10 @@
 import os
 import numpy as np
+import pickle
+
 from ase import Atoms
 from ase.io import read, write
-from ase.db import connect
+#from ase.db import connect
 
 from sella import Sella, IRC
 
@@ -10,7 +12,7 @@ from sella import Sella, IRC
 from kinbot.frequencies import calc_vibrations
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
-db = connect('{working_dir}/kinbot.db')
+#db = connect('{working_dir}/kinbot.db')
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
@@ -42,7 +44,11 @@ except RuntimeError:
 e = mol.get_potential_energy()
 del mol.calc.results['forces']
 
-db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
+data={{'energy': e, 'status': 'normal'}}
+mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
+with open('{label}.pickle', 'wb') as f:
+    pickle.dump(mol_pkl, f)
+#db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')
 
@@ -61,16 +67,20 @@ try:
     converged_opt = opt.run(fmax=0.0001, steps=250)
 except RuntimeError:
     pass
-traj = read('{label}.traj', index=':')
-write('{label}.xyz', traj, format='xyz')
+traj = read('{label}_prod.traj', index=':')
+write('{label}_prod.xyz', traj, format='xyz')
 e = mol.get_potential_energy()
 del mol.calc.results['forces']
-freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+freqs, zpe, hessian = calc_vibrations(mol, '{label}_prod')
 
 # product optimizations will not always converge, it's okay
 data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
             'hess': hessian, 'status': 'normal'}}
-db.write(mol, name='{label}_prod', data=data)
+
+mol_pkl = {{'mol': mol, 'name': '{label}_prod', 'data': data}}
+with open('{label}_prod.pickle', 'wb') as f:
+    pickle.dump(mol_pkl, f)
+#db.write(mol, name='{label}_prod', data=data)
 
 with open('{label}_prod_sella.log', 'a') as f:
     f.write('done\n')

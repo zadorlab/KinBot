@@ -1,9 +1,10 @@
 import os
 import sys
+import pickle
 
 import numpy as np
 from ase import Atoms
-from ase.db import connect
+#from ase.db import connect
 from ase.io import read, write
 from ase.optimize import BFGS
 from sella import Sella
@@ -13,7 +14,7 @@ from fairchem.core import pretrained_mlip, FAIRChemCalculator
 from kinbot.frequencies import calc_vibrations
 from kinbot.utils import sella_freq_check
 
-db = connect('{working_dir}/kinbot.db')
+#db = connect('{working_dir}/kinbot.db')
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
@@ -30,9 +31,14 @@ freqs = []
 if len(mol) == 1:
     e = mol.get_potential_energy()
     del mol.calc.results['forces']
-    db.write(mol, name='{label}',
-             data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
-                 'hess': np.zeros([3, 3]), 'status': 'normal'}})
+    data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
+                 'hess': np.zeros([3, 3]), 'status': 'normal'}}
+    mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
+    with open('{label}.pickle', 'wb') as f:
+        pickle.dump(mol_pkl, f)
+    #db.write(mol, name='{label}',
+    #         data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
+    #             'hess': np.zeros([3, 3]), 'status': 'normal'}})
     with open('{label}_sella.log', 'a') as f:
         f.write('Sella optimization is not needed for atoms.\ndone\n')
     sys.exit(0)
@@ -97,7 +103,11 @@ elif len(mol.symbols) > 2 and (not converged):
 else:
     data = {{'status': 'error'}}
 
-db.write(mol, name='{label}', data=data)
+mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
+with open('{label}.pickle', 'wb') as f:
+    pickle.dump(mol_pkl, f)
+
+#db.write(mol, name='{label}', data=data)
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

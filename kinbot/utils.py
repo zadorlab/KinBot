@@ -103,12 +103,16 @@ def clean_files(diagnostic=False, qc=None):
     import numpy as np
     from kinbot.ase_modules.io.formats import read
     logger = logging.getLogger('KinBot')
-    # delete leftover AM1 calculations
     files = os.listdir()
+
+    # delete pickle files from previous run - there should be none 
+    # delete leftover AM1 calculations
     com = []
     for ff in files:
         if ff.endswith('.com') or ff.endswith('_sella.log'):
             com.append(ff)
+        elif ff.endswith('.pickle'):
+            os.remove(ff)
 
     for cc in com:
         delfile = False

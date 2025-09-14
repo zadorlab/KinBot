@@ -1,9 +1,10 @@
 import os
-
+import pickle
 import numpy as np
+
 from ase import Atoms
 from ase.io import read, write
-from ase.db import connect
+#from ase.db import connect
 from sella import Sella
 
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
@@ -11,7 +12,7 @@ from fairchem.core import pretrained_mlip, FAIRChemCalculator
 from kinbot.frequencies import calc_vibrations
 from kinbot.utils import sella_freq_check
 
-db = connect('{working_dir}/kinbot.db')
+#db = connect('{working_dir}/kinbot.db')
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
@@ -78,6 +79,9 @@ else:
     else: 
         data = {{'status': 'error'}}
  
-db.write(mol, name='{label}', data=data)
+mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
+with open('{label}.pickle', 'wb') as f:
+    pickle.dump(mol_pkl, f)
+#db.write(mol, name='{label}', data=data)
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

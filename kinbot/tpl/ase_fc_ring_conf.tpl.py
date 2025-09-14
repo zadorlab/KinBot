@@ -1,17 +1,17 @@
 import os
 import sys
-import shutil
+import pickle
 
 import numpy as np
 from ase import Atoms
 from ase.io import read, write
-from ase.db import connect
+#from ase.db import connect
 from sella import Sella, Constraints
 
 #from kinbot.ase_modules.calculators.{code} import {Code}
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
-db = connect('{working_dir}/kinbot.db')
+#db = connect('{working_dir}/kinbot.db')
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
@@ -62,9 +62,13 @@ traj = read('{label}.traj', index=':')
 write('{label}.xyz', traj, format='xyz')
 e = mol.get_potential_energy()
 del mol.calc.results['forces']
+data={{'energy': e, 'status': 'normal'}}
 
 # write even if no converged, this is an intermediate
-db.write(mol, name='{label}', 
-         data={{'energy': e, 'status': 'normal'}})
+mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
+with open('{label}.pickle', 'wb') as f:
+    pickle.dump(mol_pkl, f)
+#db.write(mol, name='{label}', 
+#         data={{'energy': e, 'status': 'normal'}})
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -4,7 +4,6 @@ import numpy as np
 
 from ase import Atoms
 from ase.io import read, write
-#from ase.db import connect
 from sella import Sella
 
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
@@ -49,8 +48,11 @@ del mol.calc.results['forces']
 if converged:
     freqs, zpe, hessian = calc_vibrations(mol, '{label}')
     if sella_freq_check(freqs, 1):
-        data = {{'energy': e, 'frequencies': freqs, 'zpe': zpe,
-                 'hess': hessian, 'status': 'normal'}}
+        data = {{'energy': e, 
+                 'frequencies': freqs, 
+                 'zpe': zpe,
+                 'hess': hessian, 
+                 'status': 'normal'}}
     else: 
         data = {{'status': 'error'}}
 else:
@@ -72,16 +74,22 @@ else:
     if converged:
         freqs, zpe, hessian = calc_vibrations(mol, '{label}')
         if sella_freq_check(freqs, 1):
-            data = {{'energy': e, 'frequencies': freqs, 'zpe': zpe,
-                     'hess': hessian, 'status': 'normal'}}
+            data = {{'energy': e, 
+                     'frequencies': freqs, 
+                     'zpe': zpe,
+                     'hess': hessian, 
+                     'status': 'normal'}}
         else: 
             data = {{'status': 'error'}}
     else: 
         data = {{'status': 'error'}}
  
-mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
-with open('{label}.pickle', 'wb') as f:
+mol_pkl = {{'sym': mol.symbols,
+            'pos': mol.positions,
+            'calc': 'fairchemcalculator',
+            'name': '{label}',
+            'data': data}}
+with open('{label}.pkl', 'wb') as f:
     pickle.dump(mol_pkl, f)
-#db.write(mol, name='{label}', data=data)
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

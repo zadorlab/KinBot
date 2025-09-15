@@ -4,7 +4,6 @@ import pickle
 
 import numpy as np
 from ase import Atoms
-#from ase.db import connect
 from ase.io import read, write
 from ase.optimize import BFGS
 from sella import Sella
@@ -31,14 +30,18 @@ freqs = []
 if len(mol) == 1:
     e = mol.get_potential_energy()
     del mol.calc.results['forces']
-    data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
-                 'hess': np.zeros([3, 3]), 'status': 'normal'}}
-    mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
-    with open('{label}.pickle', 'wb') as f:
+    data={{'energy': e, 
+           'frequencies': np.array([]), 
+           'zpe': 0.0,
+           'hess': np.zeros([3, 3]), 
+           'status': 'normal'}}
+    mol_pkl = {{'sym': mol.symbols,
+                'pos': mol.positions,
+                'calc': 'fairchemcalculator',
+                'name': '{label}',
+                'data': data}}
+    with open('{label}.pkl', 'wb') as f:
         pickle.dump(mol_pkl, f)
-    #db.write(mol, name='{label}',
-    #         data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
-    #             'hess': np.zeros([3, 3]), 'status': 'normal'}})
     with open('{label}_sella.log', 'a') as f:
         f.write('Sella optimization is not needed for atoms.\ndone\n')
     sys.exit(0)
@@ -73,8 +76,11 @@ write('{label}.xyz', traj, format='xyz')
 if converged:
     freqs, zpe, hessian = calc_vibrations(mol, '{label}')
     if sella_freq_check(freqs, {order}):
-        data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
-            'hess': hessian, 'status': 'normal'}}
+        data={{'energy': e, 
+               'frequencies': freqs, 
+               'zpe': zpe,
+               'hess': hessian, 
+               'status': 'normal'}}
 elif len(mol.symbols) > 2 and (not converged):
     mol.positions = {geom}
     sella_kwargs['internal'] = 1 - sella_kwargs['internal']
@@ -94,8 +100,11 @@ elif len(mol.symbols) > 2 and (not converged):
     if converged:
         freqs, zpe, hessian = calc_vibrations(mol, '{label}')
         if sella_freq_check(freqs, {order}):
-            data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
-                'hess': hessian, 'status': 'normal'}}
+            data={{'energy': e, 
+                   'frequencies': freqs, 
+                   'zpe': zpe,
+                   'hess': hessian, 
+                   'status': 'normal'}}
         else:
             data = {{'status': 'error'}}
     else:
@@ -103,11 +112,13 @@ elif len(mol.symbols) > 2 and (not converged):
 else:
     data = {{'status': 'error'}}
 
-mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
-with open('{label}.pickle', 'wb') as f:
+mol_pkl = {{'sym': mol.symbols,
+            'pos': mol.positions,
+            'calc': 'fairchemcalculator',
+            'name': '{label}',
+            'data': data}}
+with open('{label}.pkl', 'wb') as f:
     pickle.dump(mol_pkl, f)
-
-#db.write(mol, name='{label}', data=data)
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

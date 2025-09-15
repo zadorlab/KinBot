@@ -747,12 +747,12 @@ class ReactionGenerator:
         names.append(name + '_IRC_R')
         names.append(name + '_IRC_F_prod')
         names.append(name + '_IRC_R_prod')
-        extensions = ['chk', 'py', 'sbatch']
+        extensions = ['.chk', '.sbatch', '.traj']
 
         for name in names:
             for ext in extensions:
                 # delete file
-                file = '.'.join([name, ext])
+                file = f'{name}{ext}'
                 try:
                     os.remove(file)
                 except OSError:

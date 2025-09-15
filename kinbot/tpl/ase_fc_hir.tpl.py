@@ -53,10 +53,13 @@ if converged:
 else:
     data={{'status': 'error'}}
 
-mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
-with open('{label}.pickle', 'wb') as f:
+mol_pkl = {{'sym': mol.symbols, 
+            'pos': mol.positions, 
+            'calc': 'fairchemcalculator', 
+            'name': '{label}', 
+            'data': data}}
+with open('{label}.pkl', 'wb') as f:
     pickle.dump(mol_pkl, f)
 
-#db.write(mol, name='{label}', data=data)
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

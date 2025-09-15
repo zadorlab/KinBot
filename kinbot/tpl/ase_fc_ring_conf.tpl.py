@@ -5,7 +5,6 @@ import pickle
 import numpy as np
 from ase import Atoms
 from ase.io import read, write
-#from ase.db import connect
 from sella import Sella, Constraints
 
 #from kinbot.ase_modules.calculators.{code} import {Code}
@@ -65,10 +64,12 @@ del mol.calc.results['forces']
 data={{'energy': e, 'status': 'normal'}}
 
 # write even if no converged, this is an intermediate
-mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
-with open('{label}.pickle', 'wb') as f:
+mol_pkl = {{'sym': mol.symbols,
+            'pos': mol.positions,
+            'calc': 'fairchemcalculator',
+            'name': '{label}',
+            'data': data}}
+with open('{label}.pkl', 'wb') as f:
     pickle.dump(mol_pkl, f)
-#db.write(mol, name='{label}', 
-#         data={{'energy': e, 'status': 'normal'}})
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

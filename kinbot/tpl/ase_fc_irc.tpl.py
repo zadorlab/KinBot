@@ -4,7 +4,6 @@ import pickle
 
 from ase import Atoms
 from ase.io import read, write
-#from ase.db import connect
 
 from sella import Sella, IRC
 
@@ -45,10 +44,13 @@ e = mol.get_potential_energy()
 del mol.calc.results['forces']
 
 data={{'energy': e, 'status': 'normal'}}
-mol_pkl = {{'mol': mol, 'name': '{label}', 'data': data}}
-with open('{label}.pickle', 'wb') as f:
+mol_pkl = {{'sym': mol.symbols,
+            'pos': mol.positions,
+            'calc': 'fairchemcalculator',
+            'name': '{label}',
+            'data': data}}
+with open('{label}.pkl', 'wb') as f:
     pickle.dump(mol_pkl, f)
-#db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')
 
@@ -74,13 +76,19 @@ del mol.calc.results['forces']
 freqs, zpe, hessian = calc_vibrations(mol, '{label}_prod')
 
 # product optimizations will not always converge, it's okay
-data={{'energy': e, 'frequencies': freqs, 'zpe': zpe,
-            'hess': hessian, 'status': 'normal'}}
+data={{'energy': e, 
+       'frequencies': freqs, 
+       'zpe': zpe,
+       'hess': hessian, 
+       'status': 'normal'}}
 
-mol_pkl = {{'mol': mol, 'name': '{label}_prod', 'data': data}}
-with open('{label}_prod.pickle', 'wb') as f:
+mol_pkl = {{'sym': mol.symbols,
+            'pos': mol.positions,
+            'calc': 'fairchemcalculator',
+            'name': '{label}_prod',
+            'data': data}}
+with open('{label}_prod.pkl', 'wb') as f:
     pickle.dump(mol_pkl, f)
-#db.write(mol, name='{label}_prod', data=data)
 
 with open('{label}_prod_sella.log', 'a') as f:
     f.write('done\n')

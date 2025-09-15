@@ -111,8 +111,6 @@ def clean_files(diagnostic=False, qc=None):
     for ff in files:
         if ff.endswith('.com') or ff.endswith('_sella.log'):
             com.append(ff)
-        elif ff.endswith('.pickle'):
-            os.remove(ff)
 
     for cc in com:
         delfile = False
@@ -147,6 +145,8 @@ def clean_files(diagnostic=False, qc=None):
         if qc == 'fc':
             if len(ff) > 9 and ff[-9:] == 'sella.log':
                 log.append(ff)
+            elif ff.endswith('.pkl'):
+                os.remove(ff)
         else:
             if len(ff) > 4 and ff[-4:] == '.log':
                 log.append(ff)

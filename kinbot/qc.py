@@ -1292,20 +1292,38 @@ class QuantumChemistry:
             ==> this one resets the step number to 0
         '''
         
-        if os.path.exists(f'{job}.pickle'):
+        if os.path.exists(f'{job}.pkl'):
             while True:
                 try:
-                    with open(f'{job}.pickle', 'rb') as f:
+                    with open(f'{job}.pkl', 'rb') as f:
                         loaded_data = pickle.load(f)
                     break
                 except (EOFError, pickle.UnpicklingError):
                     time.sleep(1)
 
-            mol = loaded_data['mol']
+            mol = Atoms(symbols=loaded_data['sym'], positions=loaded_data['pos'])
             name = loaded_data['name']
             data = loaded_data['data']
+            rows = self.db.select(name=name)
+            count0 = 0
+            for row in rows:
+                count0 += 1
             self.db.write(mol, name=name, data=data)
-            os.remove(f'{job}.pickle')
+            rows = self.db.select(name=name)
+            while True:
+                count1 = 0
+                for row in rows:
+                    count1 += 1
+                if count1 != count0 + 1:
+                    time.sleep(1)
+                else:
+                    break
+            os.remove(f'{job}.pkl')
+            while True:
+                if os.path.exists(f'{job}.pkl'):
+                    time.sleep(1)
+                else:
+                    break
 
         logger.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')

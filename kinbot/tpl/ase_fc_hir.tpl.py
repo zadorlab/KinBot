@@ -1,5 +1,7 @@
 import os
 import numpy as np
+import pickle
+
 from ase import Atoms
 from ase.db import connect
 from ase.io import read, write
@@ -51,6 +53,13 @@ if converged:
 else:
     data={{'status': 'error'}}
 
-db.write(mol, name='{label}', data=data)
+mol_pkl = {{'sym': mol.symbols, 
+            'pos': mol.positions, 
+            'calc': 'fairchemcalculator', 
+            'name': '{label}', 
+            'data': data}}
+with open('{label}.pkl', 'wb') as f:
+    pickle.dump(mol_pkl, f)
+
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

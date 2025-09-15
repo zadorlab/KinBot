@@ -6,9 +6,11 @@ import re
 import time
 from datetime import datetime
 import copy
+import pickle
 
 import numpy as np
 from ase.db import connect
+from ase import Atoms
 
 from kinbot import kb_path
 from kinbot import constants
@@ -1193,8 +1195,8 @@ class QuantumChemistry:
             return []
 
         if self.use_sella or self.qc == 'fc':
-            db = connect('kinbot.db')
-            for row in db.select(name=job):
+            #db = connect('kinbot.db')
+            for row in self.db.select(name=job):
                 last_row = row
             hess = last_row.data['hess']
         elif self.qc == 'gauss':
@@ -1224,8 +1226,8 @@ class QuantumChemistry:
                     break
             else:
                 # Try to see if the Hessian is the database.
-                db = connect('kinbot.db')
-                for row in db.select(name=job):
+                #db = connect('kinbot.db')
+                for row in self.db.select(name=job):
                     last_row = row
                 if 'hess' in last_row.data:
                     hess = last_row.data['hess']
@@ -1289,6 +1291,40 @@ class QuantumChemistry:
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
         '''
+        
+        if os.path.exists(f'{job}.pkl'):
+            while True:
+                try:
+                    with open(f'{job}.pkl', 'rb') as f:
+                        loaded_data = pickle.load(f)
+                    break
+                except (EOFError, pickle.UnpicklingError):
+                    time.sleep(1)
+
+            mol = Atoms(symbols=loaded_data['sym'], positions=loaded_data['pos'])
+            name = loaded_data['name']
+            data = loaded_data['data']
+            rows = self.db.select(name=name)
+            count0 = 0
+            for row in rows:
+                count0 += 1
+            self.db.write(mol, name=name, data=data)
+            rows = self.db.select(name=name)
+            while True:
+                count1 = 0
+                for row in rows:
+                    count1 += 1
+                if count1 != count0 + 1:
+                    time.sleep(1)
+                else:
+                    break
+            os.remove(f'{job}.pkl')
+            while True:
+                if os.path.exists(f'{job}.pkl'):
+                    time.sleep(1)
+                else:
+                    break
+
         logger.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':

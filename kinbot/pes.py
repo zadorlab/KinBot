@@ -1855,6 +1855,9 @@ def submit_job(chemid, par):
         if par[tmpl] != '':
             shutil.copyfile('{}'.format(par[tmpl]), 
                             '{}/{}'.format(chemid, par[tmpl]))
+    if par['qc'] == 'fc':
+        shutil.copyfile('fc_model.pkl',
+                        '{}/fc_model.pkl'.format(chemid))
     if par['single_point_template'] != '':
         shutil.copyfile('{}'.format(par['single_point_template']), 
                         '{}/{}'.format(chemid, par['single_point_template']))

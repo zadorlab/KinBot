@@ -307,3 +307,14 @@ def sella_freq_check(freqs, order):
         return False
     else:
         return True
+
+def get_unique_list_of_lists(list_of_lists):
+    """
+    Returns a new list containing only the unique sub-lists from the input list of lists.
+    Uniqueness is determined by the content and not the order of elements within each sub-list.
+    """
+    # Sort each inner list to normalize it, then convert to a tuple to make it hashable
+    normalized_tuples = {tuple(sorted(sublist)) for sublist in list_of_lists}
+    # Convert the unique tuples back to lists
+    unique_list_of_lists = [list(t) for t in normalized_tuples]
+    return unique_list_of_lists

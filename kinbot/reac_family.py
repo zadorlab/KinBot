@@ -5,6 +5,7 @@ from kinbot import kb_path
 from kinbot import modify_geom
 from kinbot import geometry
 from kinbot.reactions.reac_abstraction import abstraction_align
+from kinbot.utils import get_unique_list_of_lists
 
 
 def carry_out_reaction(rxn, step, command, bimol=0):
@@ -172,7 +173,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 scan=rxn.scan,
                                 code=code,  # Sella
                                 Code=Code,  # Sella
-                                fix=fix,  # Sella
+                                fix=get_unique_list_of_lists(fix),  # Sella
                                 sella_kwargs=rxn.par['sella_kwargs']  # Sella
                                 )
     else:

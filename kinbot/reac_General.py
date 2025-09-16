@@ -81,7 +81,6 @@ class GeneralReac:
                 if self.species.bonds[0][i][j] > 0:
                     fix.append([i + 1, j + 1])
 
-
     def fix_bond_single(self, a, b, fix):
         fix.append([self.instance[a] + 1, self.instance[b] + 1])
 

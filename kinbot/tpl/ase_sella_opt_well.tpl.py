@@ -38,7 +38,7 @@ if len(mol) == 1:
     db.write(mol, name='{label}',
              data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
                     'hess': np.zeros([3, 3]), 'status': 'normal'}})
-    with open('{label}.log', 'a') as f:
+    with open('{label}_sella.log', 'a') as f:
         f.write('done\n')
     sys.exit(0)
 

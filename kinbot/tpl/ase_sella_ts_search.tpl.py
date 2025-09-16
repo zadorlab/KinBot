@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import shutil
 
 from ase import Atoms
 from ase.db import connect

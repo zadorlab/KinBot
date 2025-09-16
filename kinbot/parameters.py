@@ -444,7 +444,7 @@ class Parameters:
                       'must be the same as "method" and "high_level_basis" ' \
                       'must be the same as "basis".'
         
-        if self.par['sella_kwargs'] == {}:
+        if self.par['sella_kwargs'] == {} and (self.par['use_sella'] == 1 or self.par['qc'] == 'fc' or self.par['qc'] == 'orca'):
             self.par['sella_kwargs']['internal'] = True
             logger.warning('Sella internal parameter not found. Using internal Sella')
 

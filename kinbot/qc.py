@@ -329,7 +329,7 @@ class QuantumChemistry:
                 'directory': job
             }
             if high_level:
-                kwargs['orcasimpleinput'] = f"{self.high_level_method} {self.high_level_basis}"
+                kwargs['orcasimpleinput'] = f"EnGrad {self.high_level_method} {self.high_level_basis}"
 
         elif self.qc == 'nn_pes':
             if self.par['nn_model']:

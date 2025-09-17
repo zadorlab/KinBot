@@ -6,8 +6,8 @@ from ase import Atoms
 from ase.io import read, write
 from sella import Sella, Constraints
 
+from kinbot.utils import too_far
 #from kinbot.ase_modules.calculators.{code} import {Code}
-from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
 #db = connect('{working_dir}/kinbot.db')
 if os.path.isfile('{label}_sella.log'):
@@ -18,7 +18,6 @@ mol = Atoms(symbols={atom},
             positions={geom})
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-#mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
 with open('fc_model.pkl', 'rb') as f:
     mol.calc = pickle.load(f)
 
@@ -59,7 +58,7 @@ write('{label}.xyz', traj, format='xyz')
 e = mol.get_potential_energy()
 del mol.calc.results['forces']
 
-if not mol.positions.any():  # If all coordinates are 0
+if not mol.positions.any() or too_far(mol.positions):  # If all coordinates are 0 or too far
     mol.positions = {geom}   # Reset to the original geometry
 data = {{'energy': e, 'status': 'normal'}}
 

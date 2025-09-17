@@ -318,3 +318,14 @@ def get_unique_list_of_lists(list_of_lists):
     # Convert the unique tuples back to lists
     unique_list_of_lists = [list(t) for t in normalized_tuples]
     return unique_list_of_lists
+
+def too_far(geom):
+    """
+    Detect if fragments are just way-way too far form each other.
+    Simply taking the max of the coordinate differences in each dimension.
+    """
+    for i in range(3):
+        coo = [g[i] for g in geom]
+        if max(coo) - min(coo) > 20.:
+            return -1
+    return 0

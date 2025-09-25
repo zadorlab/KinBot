@@ -942,6 +942,7 @@ class QuantumChemistry:
         '''
         # if the logfile already exists, copy it with another name
 
+        logger.debug(f'checking {job}')
         check = self.check_qc(job)
         if singlejob == 1:
             if check != 0:

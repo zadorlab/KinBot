@@ -167,7 +167,7 @@ def main():
             if job in par['skip_chemids'] and 'none' not in par['skip_chemids']:
                 kb = 0
             if job not in par['keep_chemids'] and 'none' not in par['keep_chemids']:
-                kb = 0
+                kb = 0 
             logger.info(f'kb: {kb} for {job}')
             if kb == 1:
                 pid = 0
@@ -180,7 +180,7 @@ def main():
                 logger.info(f'Started job {job} at {t}. PID = {pid}')
                 running.append(job)
             elif kb == 0:
-                logger.info('Skipping Kinbot for {}'.format(job))
+                logger.info('Skipping KinBot for {}'.format(job))
                 finished.append(job)
             else:
                 logger.info('kb value not 0 or 1')
@@ -237,6 +237,7 @@ def main():
             pass
 
     # only keep the jobs we wanted
+    # this was commented - we want to also see the outgoing wells
     if 'none' not in par['keep_chemids']:
         jobs = par['keep_chemids']
 
@@ -295,7 +296,6 @@ def postprocess(par, jobs, task, names, mass):
     jobs: all of the kinbot jobs that were run
     temp: this is a temporary output file writing
     """
-
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
@@ -350,7 +350,7 @@ def postprocess(par, jobs, task, names, mass):
                 #products this is the chemid of the product
                 if len(par['keep_chemids']) > 1:
                     if len(products) == 1 and products[0] not in par['keep_chemids']:
-                        continue
+                        pass 
                 # calculate the barrier based on the new energy base
                 barrier = 0. - base_energy - base_zpe
 
@@ -1705,6 +1705,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
         if not os.path.isfile(well + '/kinbot.db'):
             logger.warning(f'Database file missing for {well}')
             continue
+        logger.info(f'Looking at {well}')
         db = connect(well + '/kinbot.db')
         rows = db.select(name=j)
         for row in reversed(list(rows)):  # only take the last one and ignore others

@@ -564,6 +564,7 @@ class Conformers:
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
                     rows = self.db.select(name='{}'.format(lowest_job))
+                    logger.debug(f'Looking at {name} in conformers')
                     for row in rows:
                         row_last = row
                     mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)

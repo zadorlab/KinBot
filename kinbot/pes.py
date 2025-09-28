@@ -1705,7 +1705,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
         if not os.path.isfile(well + '/kinbot.db'):
             logger.warning(f'Database file missing for {well}')
             continue
-        logger.info(f'Looking at {well}')
+        logger.debug(f'Looking at {well}')
         db = connect(well + '/kinbot.db')
         rows = db.select(name=j)
         for row in reversed(list(rows)):  # only take the last one and ignore others

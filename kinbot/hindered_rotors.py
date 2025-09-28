@@ -168,7 +168,7 @@ class HIR:
                     logger.warning(rotor)
                     logger.warning(energies)
                     self.hir_status = [[1 for ai in ri] for ri in self.hir_status]
-                    return 0
+                #    return 0
                 # energies taken if status = 0, successful geom check or normal gauss termination
                 ens = [(energies[i] - energies[0]) * constants.AUtoKCAL 
                        for i in range(len(status)) if status[i] == 0]

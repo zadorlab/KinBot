@@ -444,9 +444,13 @@ class Parameters:
                       'must be the same as "method" and "high_level_basis" ' \
                       'must be the same as "basis".'
         
-        if self.par['sella_kwargs'] == {} and (self.par['use_sella'] == 1 or self.par['qc'] == 'fc' or self.par['qc'] == 'orca'):
-            self.par['sella_kwargs']['internal'] = True
-            logger.warning('Sella internal parameter not found. Using internal Sella')
+        if (self.par['use_sella'] == 1 or self.par['qc'] == 'fc' or self.par['qc'] == 'orca'):
+            if 'internal' not in self.par['sella_kwargs']:
+                self.par['sella_kwargs']['internal'] = True
+                logger.warning('Automatically turning on internal coordiantes for Sella.')
+            if 'gamma' not in self.par['sella_kwargs'] and self.par['calcall_ts']:
+                self.par['sella_kwargs']['gamma'] = 0.0
+                logger.warning('Automatically setting gamma=1 in Sella to mimic CalcAll.')
 
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1

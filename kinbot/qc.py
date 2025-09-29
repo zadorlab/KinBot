@@ -320,7 +320,7 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             kwargs = {
                 'label': job,
-                'orcasimpleinput': f"EnGrad {self.method} {self.basis}",
+                'orcasimpleinput': f"EnGrad TightSCF {self.method} {self.basis}",
                 'charge': charge,
                 'mult': mult,
                 'task': 'gradient',
@@ -329,7 +329,7 @@ class QuantumChemistry:
                 'directory': job
             }
             if high_level:
-                kwargs['orcasimpleinput'] = f"EnGrad {self.high_level_method} {self.high_level_basis}"
+                kwargs['orcasimpleinput'] = f"EnGrad TightSCF {self.high_level_method} {self.high_level_basis}"
 
         elif self.qc == 'nn_pes':
             if self.par['nn_model']:

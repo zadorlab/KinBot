@@ -61,8 +61,8 @@ freqs = []
 attempts = 1
 converged = False
 while attempts <= 2:
-    fmax = 1e-4
-    steps = 250
+    fmax = {fmax}
+    steps = {steps}
     mol.calc.label = '{label}'
     try:
         converged = opt.run(fmax=fmax, steps=steps)

@@ -40,7 +40,7 @@ opt = Sella(mol,
             logfile='{label}_sella.log',
             **sella_kwargs)
 try:
-    converged = opt.run(fmax=0.001, steps=250)
+    converged = opt.run(fmax={fmax}, steps={steps})
     if converged:
         e = mol.get_potential_energy()
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
@@ -55,7 +55,7 @@ except (RuntimeError, ValueError):
             trajectory='{label}.traj',
             logfile='{label}_sella.log',
             **sella_kwargs)
-        converged = opt.run(fmax=0.001, steps=250)
+        converged = opt.run(fmax={fmax}, steps={steps})
         if converged:
             e = mol.get_potential_energy()
             db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})

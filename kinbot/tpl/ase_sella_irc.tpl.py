@@ -77,7 +77,7 @@ if success:
                 logfile='{label}_prod_sella.log',
                 **sella_kwargs)
     try:
-        converged_opt = opt.run(fmax=0.0001, steps=250)
+        converged_opt = opt.run(fmax={fmax}, steps={steps})
         if converged_opt:
             e = mol.get_potential_energy()
             db.write(mol, name='{label}_prod', 
@@ -92,7 +92,7 @@ if success:
                 trajectory='{label}_prod.traj',
                 logfile='{label}_prod_sella.log',
                 **sella_kwargs)
-            converged_opt = opt.run(fmax=0.0001, steps=250)
+            converged_opt = opt.run(fmax={fmax}, steps={steps})
             e = mol.get_potential_energy()
             db.write(mol, name='{label}_prod',
                      data={{'energy': e, 'status': 'normal'}})

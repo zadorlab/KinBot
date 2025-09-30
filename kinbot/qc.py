@@ -70,7 +70,7 @@ class QuantumChemistry:
             logger.warning('ORCA not supported without Sella. Turning "use_sella" on.')
             self.use_sella = True
         if self.use_sella and self.qc.lower() == 'fc':
-            self.use_sella = False #Sella template files are separate from fairchem
+            self.use_sella = False  # Sella template files are separate from fairchem
 
     def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
@@ -412,7 +412,9 @@ class QuantumChemistry:
                                    code=code,  # Sella
                                    Code=Code,  # Sella
                                    order=species.wellorts,  # Sella
-                                   sella_kwargs=self.par['sella_kwargs']  # Sella
+                                   sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -489,7 +491,9 @@ class QuantumChemistry:
                                    working_dir=os.getcwd(),
                                    code=code,  # Sella
                                    Code=Code,  # Sella
-                                   sella_kwargs=self.par['sella_kwargs']  # Sella
+                                   sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -571,7 +575,9 @@ class QuantumChemistry:
                                    code=code,    # Sella
                                    Code=Code,    # Sella
                                    order=species.wellorts,      # Sella
-                                   sella_kwargs=self.par['sella_kwargs']  # Sella
+                                   sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
                                    )    
         
         with open(f'{job}.py', 'w') as f:
@@ -709,6 +715,8 @@ class QuantumChemistry:
                                    Code=Code,    # Sella
                                    order=0,      # Sella
                                    sella_kwargs=self.par['sella_kwargs'], # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
                                    charge=species.charge, #fc
                                    spin=species.mult #fc
                                    )
@@ -775,7 +783,9 @@ class QuantumChemistry:
                                    working_dir=os.getcwd(),
                                    code=code, # Sella
                                    Code=Code, # Sella
-                                   sella_kwargs=self.par['sella_kwargs'] # Sella
+                                   sella_kwargs=self.par['sella_kwargs'], # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
                                    )
 
         with open(f'{job}.py', 'w') as f:

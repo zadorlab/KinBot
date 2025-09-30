@@ -68,7 +68,7 @@ opt = Sella(mol,
             **sella_kwargs)
 
 try:
-    converged_opt = opt.run(fmax=0.0001, steps=250)
+    converged_opt = opt.run(fmax={fmax}, steps={steps})
 except RuntimeError:
     pass
 traj = read('{label}_prod.traj', index=':')

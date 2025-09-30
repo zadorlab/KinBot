@@ -35,8 +35,8 @@ opt = Sella(mol,
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)
-fmax = 0.001
-steps = 250
+fmax = {fmax}
+steps = {steps}
 
 # run
 try:

@@ -258,6 +258,10 @@ class Parameters:
             'use_sella': False,
             # Sella hyperparameters
             'sella_kwargs': {},
+            # fmax for Sella
+            'sella_fmax': 0.005,
+            # steps for Sella
+            'sella_steps': 250,
             # calc_kwargs
             'calc_kwargs': {},
             # Threshold to accept negative frequencies for floppy structures, this is a positive number

@@ -190,8 +190,10 @@ class IRC:
                                        working_dir=os.getcwd(),
                                        code=code,
                                        Code=Code,
-                                       sella_kwargs=self.par['sella_kwargs']  # Sella
-            )
+                                       sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                       fmax=self.par['sella_fmax'],
+                                       steps=self.par['sella_steps'],
+                                       )
 
             with open('{}.py'.format(irc_name), 'w') as f:
                 f.write(template)

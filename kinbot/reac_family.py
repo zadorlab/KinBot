@@ -174,7 +174,9 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 code=code,  # Sella
                                 Code=Code,  # Sella
                                 fix=get_unique_list_of_lists(fix),  # Sella
-                                sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                sella_kwargs=rxn.par['sella_kwargs'],  # Sella
+                                fmax=self.par['sella_fmax'],
+                                steps=self.par['sella_steps'],
                                 )
     else:
         if rxn.par['calc_kwargs']:
@@ -196,7 +198,9 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    working_dir=os.getcwd(),
                                    code=code,  # Sella
                                    Code=Code,  # Sella
-                                   sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                   sella_kwargs=rxn.par['sella_kwargs'],  # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
                                    )
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:

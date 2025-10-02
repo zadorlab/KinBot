@@ -62,6 +62,8 @@ class Parameters:
             'reaction_search': 1,
             # Which reaction families to include in the search
             'families': ['all'],
+            # Restrict certain families to just the more likely cases
+            'family_restrict': 0, 
             # Which reaction families to include in the search bimolecular reactions
             'bimol_families': ['all'],
             # Which reaction families to skip in the search

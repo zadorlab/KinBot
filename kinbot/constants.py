@@ -112,7 +112,7 @@ exact_mass['I'] = 126.904477
 # data is expected in CHEMKIN format, where
 # sigma is in Angstrom (no need to convert for MESS)
 # epsilon is in epsilon/kB (K), need to be converted to cm-1
-mass['He'] = 4.0
+mass['He'] = 4.002602 # u
 sigma = {'He': 2.715}  # Angstrom
 epsilon = {'He': 11.442}  # e/kB
 
@@ -120,9 +120,18 @@ mass['N2'] = mass['N'] * 2.
 sigma['N2'] = 3.610
 epsilon['N2'] = 97.839
 
-mass['Ar'] = 40.
+mass['Ar'] = 39.948 # u
 sigma['Ar'] = 3.462
 epsilon['Ar'] = 127.697
+
+# for Krypton
+# Gábor Rutkai, Monika Thol, Roland Span & Jadran Vrabec (2017) How well
+# does the Lennard-Jones potential represent the thermodynamic properties of noble gases? ,
+# Molecular Physics, 115:9-12, 1104-1121, DOI: 10.1080/00268976.2016.1246760
+
+mass['Kr'] = 83.798 # u
+sigma['Kr'] = 3.6274 # Angstrom
+epsilon['Kr'] = 162.58  # K, e/kB
 
 for e in epsilon:
     epsilon[e] = epsilon[e] * units.kB / units.invcm

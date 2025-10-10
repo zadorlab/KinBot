@@ -626,10 +626,10 @@ def postprocess(par, jobs, task, names, mass):
                           mass,
                           l3done)
 
-    #if par['single_point_qc'].lower() == 'molpro':
-    #    if l3done:
-    #        check_l3_l2(par['single_point_key'], parent, reactions)
-    #    t1_analysis(par['single_point_key'])
+    if par['single_point_qc'].lower() == 'molpro':
+        if l3done:
+            check_l3_l2(par['single_point_key'], parent, reactions)
+        t1_analysis(par['single_point_key'])
 
 
 def filter_stat_points(par, wells, products, reactions, conn, bars, well_energies, task,
@@ -1983,7 +1983,7 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
                     l3_energies[st_pt] = float(line.split()[3])
                     break
 
-    # Get L2 Energies and its difference respect L3.
+    # Get L2 Energies and its difference to L3.
     e_diffs = {}
     for st_pt in l3_energies:
         if any([c.isalpha() for c in st_pt]):  # TSs (have letters in the name)
@@ -2036,7 +2036,8 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
     for st_pt, e_diff in e_diffs.items():
         if not e_diff_avg * 0.9 < e_diff < e_diff_avg * 1.1:
             logger.info(f"Outlying L2-L3 difference found for {st_pt}. "
-                         f"Energy difference: {np.round(e_diff, 1)} kcal/mol.")
+                        f"Energy difference after subtracting the avg difference:"
+                        f"{np.round(e_diff-e_diff_avg, 1)} kcal/mol.")
 
 
 def t1_analysis(lot='TZ'):

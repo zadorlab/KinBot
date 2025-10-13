@@ -2041,6 +2041,7 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
 
 
 def t1_analysis(lot='TZ'):
+    logger.info('T1 diagnostic analysis...')
     import os
     try:
         import matplotlib.pyplot as plt
@@ -2071,6 +2072,7 @@ def t1_analysis(lot='TZ'):
                     do_read2 = True
                 elif do_read1 and do_read2 and 'T1 diagnostic:' in line:
                     T1s.append(float(line.split()[9]))
+                    logger.info(f'{f} {line.split()[9]}')
                     break
     if T1s:
         counts, bins = np.histogram(T1s)

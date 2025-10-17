@@ -7,6 +7,7 @@ from ase import Atoms
 from ase.db import connect
 from ase.vibrations import Vibrations
 from ase.optimize import BFGS
+from ase.io import read, write
 from sella import Sella
 
 from kinbot.constants import EVtoHARTREE
@@ -66,6 +67,8 @@ while attempts <= 2:
     mol.calc.label = '{label}'
     try:
         converged = opt.run(fmax=fmax, steps=steps)
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
         freqs, zpe, hessian = calc_vibrations(mol, '{label}')
         if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                        or np.count_nonzero(np.array(freqs) < -50) >= 1):
@@ -105,6 +108,9 @@ if not converged:
 
 if os.path.isdir('{label}'):
     shutil.rmtree('{label}')
+
+if os.path.isdir('{label}_vib'):
+    shutil.rmtree('{label}_vib')
 
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

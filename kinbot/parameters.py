@@ -226,6 +226,10 @@ class Parameters:
             'irc_stepsize': 20,
             # for Gaussian, allow Guess=(Mix,Always)
             'guessmix': 0,
+            # orcablocks
+            'orcablocks': '',
+            # orcasimpleinput
+            'orcasimpleinput': '',
             # Turn off/on (0/1) molpro L3 calculations
             'L3_calc': 0,
             # name of the single point code's name

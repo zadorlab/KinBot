@@ -122,5 +122,8 @@ mol_pkl = {{'sym': mol.symbols,
 with open('{label}.pkl', 'wb') as f:
     pickle.dump(mol_pkl, f)
 
+if os.path.isdir('{label}_vib'):
+    shutil.rmtree('{label}_vib')
+
 with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

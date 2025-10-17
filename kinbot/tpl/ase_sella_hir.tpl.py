@@ -4,6 +4,7 @@ import numpy as np
 
 from ase import Atoms
 from ase.db import connect
+from ase.io import read, write
 from sella import Sella, Constraints
 
 from kinbot.ase_modules.calculators.{code} import {Code}
@@ -41,6 +42,8 @@ opt = Sella(mol,
             **sella_kwargs)
 try:
     converged = opt.run(fmax={fmax}, steps={steps})
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
     if converged:
         e = mol.get_potential_energy()
         db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
@@ -56,6 +59,8 @@ except (RuntimeError, ValueError):
             logfile='{label}_sella.log',
             **sella_kwargs)
         converged = opt.run(fmax={fmax}, steps={steps})
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
         if converged:
             e = mol.get_potential_energy()
             db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})

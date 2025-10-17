@@ -45,6 +45,8 @@ class QuantumChemistry:
         self.single_point_template = par['single_point_template']
         self.single_point_key = par['single_point_key']
         self.integral = par['integral']
+        self.orcablocks = par['orcablocks']
+        self.orcasimpleinput = par['orcasimpleinput']
         self.opt = par['opt']
         self.ppn = par['ppn']
         self.queuing = par['queuing']
@@ -320,18 +322,17 @@ class QuantumChemistry:
         elif self.qc == 'orca':
             kwargs = {
                 'label': job,
-                'orcasimpleinput': f'EnGrad TightSCF {self.method} {self.basis}',
-                'orcablocks': f'%pal nprocs {self.ppn} end',
+                'orcasimpleinput': f'EnGrad TightSCF {self.method} {self.basis} {self.orcasimpleinput}',
+                'orcablocks': f'{self.orcablocks} %pal nprocs {self.ppn} end',
                 'charge': charge,
                 'mult': mult,
                 'task': 'gradient',
-                #'orcablocks': f"%method\n {self.integral}\nend",
                 'profile': self.qc_command,
                 'directory': job
             }
             if high_level:
-                kwargs['orcasimpleinput'] = f'EnGrad TightSCF {self.high_level_method} {self.high_level_basis}'
-                kwargs['orcablocks'] = f'%pal nprocs {self.ppn} end'
+                kwargs['orcasimpleinput'] = f'EnGrad TightSCF {self.high_level_method} {self.high_level_basis} {self.orcasimpleinput}'
+                kwargs['orcablocks'] = f'{self.orcablocks} %pal nprocs {self.ppn} end'
 
         elif self.qc == 'nn_pes':
             if self.par['nn_model']:

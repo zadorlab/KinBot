@@ -42,6 +42,13 @@ try:
     converged_irc = irc.run(fmax=0.01, steps=100, direction=direction)
 except RuntimeError:
     pass
+# write xyz
+try:
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
+except:
+    pass
+# save results
 e = mol.get_potential_energy()
 del mol.calc.results['forces']
 
@@ -91,6 +98,9 @@ mol_pkl = {{'sym': mol.symbols,
             'data': data}}
 with open('{label}_prod.pkl', 'wb') as f:
     pickle.dump(mol_pkl, f)
+
+if os.path.isdir('{label}_prod_vib'):
+    shutil.rmtree('{label}_prod_vib')
 
 with open('{label}_prod_sella.log', 'a') as f:
     f.write('done\n')

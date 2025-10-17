@@ -86,6 +86,9 @@ else:
     else: 
         data = {{'status': 'error'}}
  
+if os.path.isdir('{label}_vib'):
+    shutil.rmtree('{label}_vib')
+
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,
             'calc': 'fairchemcalculator',

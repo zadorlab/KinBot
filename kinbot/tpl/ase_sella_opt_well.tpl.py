@@ -59,51 +59,30 @@ else:
                trajectory='{label}.traj',
                logfile='{label}_sella.log')
 freqs = []
-attempts = 1
-converged = False
-while attempts <= 2:
-    fmax = {fmax}
-    steps = {steps}
-    mol.calc.label = '{label}'
-    try:
-        converged = opt.run(fmax=fmax, steps=steps)
-        traj = read('{label}.traj', index=':')
-        write('{label}.xyz', traj, format='xyz')
-        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
-        if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
-                       or np.count_nonzero(np.array(freqs) < -50) >= 1):
-            print(f'Found one or more imaginary frequencies. {{freqs[1:6]}}')
-            converged = False
-        elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
-                         or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
-                         or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-            print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
-            converged = False
-        else:
-            converged = True
-            e = mol.get_potential_energy()
-            db.write(mol, name='{label}', 
-                 data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                        'hess': hessian, 'status': 'normal'}})
-            break
-        if not converged:
-            raise RuntimeError
-    except:
-        attempts += 1
-        if len(mol.symbols) > 2 and attempts == 2:
-            sella_kwargs['internal'] = 1 - sella_kwargs['internal']
-            opt = Sella(mol,
-                order=order,
-                trajectory='{label}.traj',
-                logfile='{label}_sella.log',
-                **sella_kwargs)
-        else:
-            break
 
-if not converged:
+mol.calc.label = '{label}'
+
+converged = opt.run(fmax={fmax}, steps={steps})
+traj = read('{label}.traj', index=':')
+write('{label}.xyz', traj, format='xyz')
+error = False
+if converged:
+    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+    if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
+                   or np.count_nonzero(np.array(freqs) < -50) >= 1):
+        error = True
+    elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+                     or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
+                     or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+        error = True
+    else:
+        e = mol.get_potential_energy()
+        db.write(mol, name='{label}', 
+             data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
+                    'hess': hessian, 'status': 'normal'}})
+
+if error:
     data = {{'status': 'error'}}
-    if freqs:
-        data['frequencies'] = freqs
     db.write(mol, name='{label}', data=data)
 
 if os.path.isdir('{label}'):

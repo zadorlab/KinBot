@@ -40,34 +40,16 @@ opt = Sella(mol,
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)
-try:
-    converged = opt.run(fmax={fmax}, steps={steps})
-    traj = read('{label}.traj', index=':')
-    write('{label}.xyz', traj, format='xyz')
-    if converged:
-        e = mol.get_potential_energy()
-        db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
-    else:
-        raise RuntimeError
-except (RuntimeError, ValueError):
-    try:
-        sella_kwargs['internal'] = 1 - sella_kwargs['internal']
-        opt = Sella(mol,
-            order={order},
-            constraints=const,
-            trajectory='{label}.traj',
-            logfile='{label}_sella.log',
-            **sella_kwargs)
-        converged = opt.run(fmax={fmax}, steps={steps})
-        traj = read('{label}.traj', index=':')
-        write('{label}.xyz', traj, format='xyz')
-        if converged:
-            e = mol.get_potential_energy()
-            db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
-        else:
-            raise RuntimeError
-    except:
-        db.write(mol, name='{label}', data={{'status': 'error'}})
+
+converged = opt.run(fmax={fmax}, steps={steps})
+traj = read('{label}.traj', index=':')
+write('{label}.xyz', traj, format='xyz')
+if converged:
+    e = mol.get_potential_energy()
+    db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
+
+else:
+    db.write(mol, name='{label}', data={{'status': 'error'}})
 
 if os.path.isdir('{label}'):
     shutil.rmtree('{label}')

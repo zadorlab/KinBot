@@ -28,15 +28,15 @@ if '{Code}' == 'Gaussian':
     kwargs['guess'] = 'Read'
     mol.calc = {Code}(**kwargs)
 
-if os.path.isfile('{label}_sella.log'):
-    os.remove('{label}_sella.log')
+if os.path.isfile(f'{{basename}}_sella.log'):
+    os.remove(f'{{basename}}_sella.log')
 
 sella_kwargs = {sella_kwargs}
 if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
     sella_kwargs['internal'] = False
 opt = Sella(mol, order=1, 
-            trajectory='{label}.traj',
-            logfile='{label}_sella.log',
+            trajectory=f'{{basename}}.traj',
+            logfile=f'{{basename}}_sella.log',
             **sella_kwargs)
 freqs = []
 
@@ -45,10 +45,10 @@ steps = {steps}
 mol.calc.label = '{label}'
 
 converged = opt.run(fmax=fmax, steps=steps)
-traj = read('{label}.traj', index=':')
-write('{label}.xyz', traj, format='xyz')
+traj = read(f'{{basename}}.traj', index=':')
+write(f'{{basename}}.xyz', traj, format='xyz')
 if converged:
-    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+    freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
     if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
         or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
         or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
@@ -63,11 +63,11 @@ if converged:
              data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
                     'hess': hessian, 'status': 'normal'}})            
 
-if os.path.isdir('{label}'):
-    shutil.rmtree('{label}')
+if os.path.isdir(f'{{basename}}'):
+    shutil.rmtree(f'{{basename}}')
 
-if os.path.isdir('{label}_vib'):
-    shutil.rmtree('{label}_vib')
+if os.path.isdir(f'{{basename}}_vib'):
+    shutil.rmtree(f'{{basename}}_vib')
 
-with open('{label}_sella.log', 'a') as f:
+with open(f'{{basename}}_sella.log', 'a') as f:
     f.write('done\n')

@@ -30,8 +30,10 @@ if '{Code}' == 'Gaussian':
     kwargs['guess'] = 'Read'
     mol.calc = {Code}(**kwargs)
 
-if os.path.isfile('{label}_sella.log'):
-    os.remove('{label}_sella.log')
+basename = os.path.basename('{label}')
+
+if os.path.isfile(f'{{basename}}_sella.log'):
+    os.remove(f'{{basename}}_sella.log')
 
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
@@ -39,7 +41,7 @@ if len(mol) == 1:
     db.write(mol, name='{label}',
              data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
                     'hess': np.zeros([3, 3]), 'status': 'normal'}})
-    with open('{label}_sella.log', 'a') as f:
+    with open(f'{{basename}}_sella.log', 'a') as f:
         f.write('done\n')
     sys.exit(0)
 
@@ -51,23 +53,23 @@ if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
 if len(mol.symbols) > 2:
     opt = Sella(mol, 
                 order=order, 
-                trajectory='{label}.traj', 
-                logfile='{label}_sella.log',
+                trajectory=f'{{basename}}.traj', 
+                logfile=f'{{basename}}_sella.log',
                 **sella_kwargs)
 else:
     opt = BFGS(mol,
-               trajectory='{label}.traj',
-               logfile='{label}_sella.log')
+               trajectory=f'{{basename}}.traj',
+               logfile=f'{{basename}}_sella.log')
 freqs = []
 
 mol.calc.label = '{label}'
 
 converged = opt.run(fmax={fmax}, steps={steps})
-traj = read('{label}.traj', index=':')
-write('{label}.xyz', traj, format='xyz')
+traj = read(f'{{basename}}.traj', index=':')
+write(f'{{basename}}.xyz', traj, format='xyz')
 error = False
 if converged:
-    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+    freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
     if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                    or np.count_nonzero(np.array(freqs) < -50) >= 1):
         error = True
@@ -85,11 +87,11 @@ if error:
     data = {{'status': 'error'}}
     db.write(mol, name='{label}', data=data)
 
-if os.path.isdir('{label}'):
-    shutil.rmtree('{label}')
+if os.path.isdir(f'{{basename}}'):
+    shutil.rmtree(f'{{basename}}')
 
-if os.path.isdir('{label}_vib'):
-    shutil.rmtree('{label}_vib')
+if os.path.isdir(f'{{basename}}_vib'):
+    shutil.rmtree(f'{{basename}}_vib')
 
-with open('{label}_sella.log', 'a') as f:
+with open(f'{{basename}}_sella.log', 'a') as f:
     f.write('done\n')

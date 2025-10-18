@@ -328,7 +328,7 @@ class QuantumChemistry:
                 'mult': mult,
                 'task': 'gradient',
                 'profile': self.qc_command,
-                'directory': job
+                'directory': os.path.basename(job)
             }
             if high_level:
                 kwargs['orcasimpleinput'] = f'EnGrad TightSCF {self.high_level_method} {self.high_level_basis} {self.orcasimpleinput}'
@@ -969,7 +969,7 @@ class QuantumChemistry:
         python_file = f'{job}.py'
         job_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
         if self.qc == 'orca': 
-            job_template += '\ncp -r $SCRATCH_DIR/ $SLURM_SUBMIT_DIR/\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
+            job_template += '\ncp -r $SCRATCH_DIR/ $SLURM_SUBMIT_DIR/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
 
         if self.queuing == 'pbs':
             job_template = job_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,

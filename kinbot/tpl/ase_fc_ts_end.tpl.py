@@ -1,6 +1,7 @@
 import os
 import pickle
 import numpy as np
+import shutil
 
 from ase import Atoms
 from ase.io import read, write
@@ -87,6 +88,7 @@ else:
         data = {{'status': 'error'}}
  
 if os.path.isdir('{label}_vib'):
+    shutil.copy2(os.path.join(f'{{label}}_vib', f'vib.xyz'), os.getcwd())
     shutil.rmtree('{label}_vib')
 
 mol_pkl = {{'sym': mol.symbols,

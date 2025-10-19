@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pickle
+import shutil
 
 from ase import Atoms
 from ase.io import read, write

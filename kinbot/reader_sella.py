@@ -8,7 +8,7 @@ def read_imag_mode(job, natom):
     """
 
     nmode = np.zeros([natom, 3])
-    joblog = '{}_vib/vib.xyz'.format(job)
+    joblog = '{}_vib.xyz'.format(job)
     with open(joblog) as f:
         lines = f.read().split('\n')
 

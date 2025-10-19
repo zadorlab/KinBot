@@ -966,10 +966,16 @@ class QuantumChemistry:
                 return -1
 
         template_file = f'{kb_path}/tpl/{self.queuing}_python.tpl'
-        python_file = f'{job}.py'
+        if self.qc == 'orca':
+            python_file = f'{os.path.basename(job)}.py'
+        else:
+            python_file = f'{job}.py'
         job_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
         if self.qc == 'orca': 
-            job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
+            if 'hir' not in job: 
+                job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
+            else:
+                job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/hir/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
 
         if self.queuing == 'pbs':
             job_template = job_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,

@@ -28,6 +28,8 @@ if '{Code}' == 'Gaussian':
     kwargs['guess'] = 'Read'
     mol.calc = {Code}(**kwargs)
 
+basename = os.path.basename('{label}')
+
 if os.path.isfile(f'{{basename}}_sella.log'):
     os.remove(f'{{basename}}_sella.log')
 
@@ -67,6 +69,7 @@ if os.path.isdir(f'{{basename}}'):
     shutil.rmtree(f'{{basename}}')
 
 if os.path.isdir(f'{{basename}}_vib'):
+    shutil.copy2(os.path.join(f'{{basename}}_vib', f'vib.xyz'), os.getcwd())
     shutil.rmtree(f'{{basename}}_vib')
 
 with open(f'{{basename}}_sella.log', 'a') as f:

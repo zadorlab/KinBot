@@ -88,7 +88,8 @@ else:
         data = {{'status': 'error'}}
  
 if os.path.isdir('{label}_vib'):
-    shutil.copy2(os.path.join(f'{{label}}_vib', f'vib.xyz'), os.getcwd())
+    shutil.copy2(os.path.join('{label}_vib', 'vib.xyz'), 
+                 os.path.join(os.getcwd(), '{label}_vib.xyz'))
     shutil.rmtree('{label}_vib')
 
 mol_pkl = {{'sym': mol.symbols,

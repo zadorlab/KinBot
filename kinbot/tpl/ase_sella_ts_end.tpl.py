@@ -69,7 +69,8 @@ if os.path.isdir(f'{{basename}}'):
     shutil.rmtree(f'{{basename}}')
 
 if os.path.isdir(f'{{basename}}_vib'):
-    shutil.copy2(os.path.join(f'{{basename}}_vib', f'vib.xyz'), os.getcwd())
+    shutil.copy2(os.path.join(f'{{basename}}_vib', 'vib.xyz'), 
+                 os.path.join(os.getcwd(), f'{{basename}}_vib.xyz'))
     shutil.rmtree(f'{{basename}}_vib')
 
 with open(f'{{basename}}_sella.log', 'a') as f:

@@ -39,6 +39,9 @@ opt = Sella(mol, order=1,
             **sella_kwargs)
 
 # run
+
+data = {{'status': 'error'}}
+
 try:
     converged = opt.run(fmax=fmax, steps=steps)
 except RuntimeError:
@@ -56,8 +59,6 @@ if converged:
                  'zpe': zpe,
                  'hess': hessian, 
                  'status': 'normal'}}
-    else: 
-        data = {{'status': 'error'}}
 else:
     sella_kwargs['internal'] = 1 - sella_kwargs['internal']
     mol.positions = {geom}
@@ -82,10 +83,6 @@ else:
                      'zpe': zpe,
                      'hess': hessian, 
                      'status': 'normal'}}
-        else: 
-            data = {{'status': 'error'}}
-    else: 
-        data = {{'status': 'error'}}
  
 if os.path.isdir('{label}_vib'):
     shutil.copy2(os.path.join('{label}_vib', 'vib.xyz'), 

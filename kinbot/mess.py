@@ -3,6 +3,7 @@ import stat
 import numpy as np
 import subprocess
 import time
+import logging
 from collections import Counter
 
 from kinbot import kb_path
@@ -10,6 +11,7 @@ from kinbot import constants
 from kinbot import frequencies
 from kinbot.uncertaintyAnalysis import UQ
 
+logger = logging.getLogger('KinBot')
 
 class MESS:
     """
@@ -560,6 +562,7 @@ class MESS:
                                         welldepth1=round(left_zeroenergy, 2),
                                         welldepth2=round(right_zeroenergy, 2))
         else: 
+            logger.info(f'Barrier {reaction.instance_name}')
             tun = self.tunneltpl.format(cutoff='{cutoff}',
                                         imfreq=round(-reaction.ts.reduced_freqs[0] * imagfreq_factor, 2),
                                         welldepth1='{welldepth1}',

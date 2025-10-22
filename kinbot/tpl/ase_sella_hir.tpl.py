@@ -43,7 +43,10 @@ opt = Sella(mol,
             logfile=f'{{basename}}_sella.log',
             **sella_kwargs)
 
-converged = opt.run(fmax={fmax}, steps={steps})
+try:
+    converged = opt.run(fmax={fmax}, steps={steps})
+except:
+    converged = False
 traj = read(f'{{basename}}.traj', index=':')
 write(f'{{basename}}.xyz', traj, format='xyz')
 if converged:

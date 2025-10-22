@@ -64,26 +64,32 @@ freqs = []
 
 mol.calc.label = '{label}'
 
-converged = opt.run(fmax={fmax}, steps={steps})
-traj = read(f'{{basename}}.traj', index=':')
-write(f'{{basename}}.xyz', traj, format='xyz')
-error = False
+converged = False
+try:
+    converged = opt.run(fmax={fmax}, steps={steps})
+except:
+    converged = False
+if os.path.exists(f'{{basename}}.traj'):
+    traj = read(f'{{basename}}.traj', index=':')
+    write(f'{{basename}}.xyz', traj, format='xyz')
 if converged:
-    freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
-    if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
-                   or np.count_nonzero(np.array(freqs) < -50) >= 1):
-        error = True
-    elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
-                     or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
-                     or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-        error = True
-    else:
-        e = mol.get_potential_energy()
-        db.write(mol, name='{label}', 
-             data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                    'hess': hessian, 'status': 'normal'}})
-
-if error:
+    try:
+        freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
+        if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
+                       or np.count_nonzero(np.array(freqs) < -50) >= 1):
+            converged = False
+        elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+                         or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
+                         or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+            converged = False
+        else:
+            e = mol.get_potential_energy()
+            db.write(mol, name='{label}', 
+                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
+                     'hess': hessian, 'status': 'normal'}})
+    except:
+        converged = False
+if not converged:
     data = {{'status': 'error'}}
     db.write(mol, name='{label}', data=data)
 

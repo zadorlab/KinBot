@@ -1133,7 +1133,7 @@ class QuantumChemistry:
 
     def get_qc_energy(self, job, wait=0):
         '''
-        Read the last energy from a job.
+        Read the last energy from the db for job.
         For Gaussian currently works for DFT and HF only.
         For NWChem it works for optimization jobs, using the @ handle.
         If wait is set to 1, it will wait for the job to finish, otherwise
@@ -1167,14 +1167,13 @@ class QuantumChemistry:
                            'This will lead to erroneous energies.')
             energy = 0
 
-        # ase energies are always in ev, convert to hartree
         energy *= constants.EVtoHARTREE
 
         return 0, energy
 
     def get_qc_zpe(self, job, wait=1):
         '''
-        Read the zero point energy.
+        Read the zero point energy from the db for job.
         If wait is set to 1 (default), it will wait for the job to finish.
         '''
 
@@ -1246,7 +1245,7 @@ class QuantumChemistry:
                             n += 1
                     break
             else:
-                # Try to see if the Hessian is the database.
+                # Try to see if the Hessian is in the database.
                 #db = connect('kinbot.db')
                 for row in self.db.select(name=job):
                     last_row = row

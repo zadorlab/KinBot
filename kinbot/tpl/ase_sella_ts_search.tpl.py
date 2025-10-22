@@ -52,8 +52,6 @@ opt = Sella(mol,
 try:
     converged = opt.run(fmax=0.1, steps=100)
     e = mol.get_potential_energy()
-    #if not converged:
-        #raise RuntimeError
 except:
     sella_kwargs['internal'] = 1 - sella_kwargs['internal']
     opt = Sella(mol,
@@ -62,8 +60,12 @@ except:
             trajectory='{label}.traj',
             logfile='{label}_sella.log',
             **sella_kwargs)
-    converged = opt.run(fmax=0.1, steps=100)
-    e = mol.get_potential_energy()
+    try:
+        converged = opt.run(fmax=0.1, steps=100)
+        e = mol.get_potential_energy()
+    except:
+        e = 0.
+        converged = False
 
 if not mol.positions.any():  # If all coordinates are 0
     mol.positions = {geom}   # Reset to the original geometry

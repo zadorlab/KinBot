@@ -29,6 +29,9 @@ with open('fc_model.pkl', 'rb') as f:
 mol.calc.label = '{label}'
 freqs = []
 
+# this will change if success
+data = {{'status': 'error'}}
+
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
     e = mol.get_potential_energy()
@@ -108,12 +111,6 @@ elif len(mol.symbols) > 2 and (not converged):
                    'zpe': zpe,
                    'hess': hessian, 
                    'status': 'normal'}}
-        else:
-            data = {{'status': 'error'}}
-    else:
-        data = {{'status': 'error'}}
-else:
-    data = {{'status': 'error'}}
 
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,

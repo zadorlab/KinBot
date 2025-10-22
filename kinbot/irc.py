@@ -161,9 +161,10 @@ class IRC:
             kwargs = self.rxn.qc.get_qc_arguments(irc_name,
                                                   self.rxn.species.mult,
                                                   self.rxn.species.charge,
+                                                  self.rxn.species.nel,
                                                   irc=direction.lower(),
                                                   start_from_geom=start_from_geometry)
-            prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge)
+            prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge, self.rxn.species.nel)
             if self.rxn.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'

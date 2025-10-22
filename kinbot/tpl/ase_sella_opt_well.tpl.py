@@ -41,63 +41,64 @@ if len(mol) == 1:
     db.write(mol, name='{label}',
              data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
                     'hess': np.zeros([3, 3]), 'status': 'normal'}})
+
+    if os.path.isdir(f'{{basename}}'):
+        shutil.rmtree(f'{{basename}}')
+
     with open(f'{{basename}}_sella.log', 'a') as f:
-        f.write('done\n')
-    sys.exit(0)
-
-order = {order}
-sella_kwargs = {sella_kwargs}
-if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
-    sella_kwargs['internal'] = False
-
-if len(mol.symbols) > 2:
-    opt = Sella(mol, 
-                order=order, 
-                trajectory=f'{{basename}}.traj', 
-                logfile=f'{{basename}}_sella.log',
-                **sella_kwargs)
+        f.write('Sella optimization is not needed for atoms.\ndone\n')
 else:
-    opt = BFGS(mol,
-               trajectory=f'{{basename}}.traj',
-               logfile=f'{{basename}}_sella.log')
-freqs = []
+    order = {order}
+    sella_kwargs = {sella_kwargs}
+    if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
+        sella_kwargs['internal'] = False
 
-mol.calc.label = '{label}'
-
-converged = False
-try:
-    converged = opt.run(fmax={fmax}, steps={steps})
-except:
+    if len(mol.symbols) > 2:
+        opt = Sella(mol, 
+                    order=order, 
+                    trajectory=f'{{basename}}.traj', 
+                    logfile=f'{{basename}}_sella.log',
+                    **sella_kwargs)
+    else:
+        opt = BFGS(mol,
+                   trajectory=f'{{basename}}.traj',
+                   logfile=f'{{basename}}_sella.log')
+    freqs = []
+    mol.calc.label = '{label}'
     converged = False
-if os.path.exists(f'{{basename}}.traj'):
-    traj = read(f'{{basename}}.traj', index=':')
-    write(f'{{basename}}.xyz', traj, format='xyz')
-if converged:
     try:
-        freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
-        if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
-                       or np.count_nonzero(np.array(freqs) < -50) >= 1):
-            converged = False
-        elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
-                         or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
-                         or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-            converged = False
-        else:
-            e = mol.get_potential_energy()
-            db.write(mol, name='{label}', 
-                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                     'hess': hessian, 'status': 'normal'}})
+        converged = opt.run(fmax={fmax}, steps={steps})
     except:
         converged = False
-if not converged:
-    data = {{'status': 'error'}}
-    db.write(mol, name='{label}', data=data)
+    if os.path.exists(f'{{basename}}.traj'):
+        traj = read(f'{{basename}}.traj', index=':')
+        write(f'{{basename}}.xyz', traj, format='xyz')
+    if converged:
+        try:
+            freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
+            if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
+                           or np.count_nonzero(np.array(freqs) < -50) >= 1):
+                converged = False
+            elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+                             or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one imag frequency larger than 50i
+                             or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+                converged = False
+            else:
+                e = mol.get_potential_energy()
+                db.write(mol, name='{label}', 
+                         data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
+                         'hess': hessian, 'status': 'normal'}})
+        except:
+            converged = False
+    if not converged:
+        data = {{'status': 'error'}}
+        db.write(mol, name='{label}', data=data)
 
-if os.path.isdir(f'{{basename}}'):
-    shutil.rmtree(f'{{basename}}')
+    if os.path.isdir(f'{{basename}}'):
+        shutil.rmtree(f'{{basename}}')
 
-if os.path.isdir(f'{{basename}}_vib'):
-    shutil.rmtree(f'{{basename}}_vib')
+    if os.path.isdir(f'{{basename}}_vib'):
+        shutil.rmtree(f'{{basename}}_vib')
 
-with open(f'{{basename}}_sella.log', 'a') as f:
-    f.write('done\n')
+    with open(f'{{basename}}_sella.log', 'a') as f:
+        f.write('done\n')

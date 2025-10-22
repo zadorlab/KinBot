@@ -184,6 +184,7 @@ class StationaryPoint:
         self.find_atom_eqv()
         self.calc_chiral()
         self.calc_mass()
+        self.calc_nel()
         self.calc_maxbond()
 
     def calc_mass(self):
@@ -191,6 +192,15 @@ class StationaryPoint:
         self.mass = 0.
         for i in self.atom:
             self.mass += constants.mass[i]
+        return 0
+
+    def calc_nel(self):
+        """ Calculate number of electrons """
+        self.nel = 0
+        for i in self.atom:
+            self.nel += constants.znumber[i]
+        self.nel -= self.charge
+        return 0
 
     def distance_mx(self):
         """ 

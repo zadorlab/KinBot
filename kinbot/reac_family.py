@@ -23,8 +23,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         if status != 'normal' and status != 'error':
             return step
   
-    kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.nel, 
-                                     rxn.species.charge, ts=ts, step=step, 
+    kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge, 
+                                     rxn.species.nel, ts=ts, step=step, 
                                      max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):

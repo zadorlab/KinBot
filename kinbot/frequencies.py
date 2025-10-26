@@ -279,17 +279,18 @@ def calc_vibrations(mol, label):
     if os.path.isdir('vib'):
         shutil.rmtree('vib')
     vib = Vibrations(mol)
-    vib.run()
-    vib.write_jmol()
-    # Use kinbot frequencies to avoid mixing low vib frequencies with 
-    # the values associated with external rotations.
-    _ = vib.get_frequencies()
-    zpe = vib.get_zero_point_energy() * EVtoHARTREE
-    hessian = vib.H / 97.17370087
-    st_pt = StationaryPoint.from_ase_atoms(mol)
-    st_pt.characterize()
-    freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
-    os.chdir(init_dir)
-    #shutil.rmtree('{label}_vib')
-    return freqs, zpe, hessian
-
+    try:
+        vib.run()
+        vib.write_jmol()
+        # Use kinbot frequencies to avoid mixing low vib frequencies with 
+        # the values associated with external rotations.
+        _ = vib.get_frequencies()
+        zpe = vib.get_zero_point_energy() * EVtoHARTREE
+        hessian = vib.H / 97.17370087
+        st_pt = StationaryPoint.from_ase_atoms(mol)
+        st_pt.characterize()
+        freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
+        os.chdir(init_dir)
+        return freqs, zpe, hessian
+    except:
+        return None, None, None

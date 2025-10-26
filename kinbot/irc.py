@@ -186,7 +186,7 @@ class IRC:
                                        prod_kwargs=prod_kwargs,
                                        atom=list(self.rxn.species.atom),
                                        geom=list([list(gi) for gi in geom]),
-                                       ppn=self.rxn.qc.ppn,
+                                       ppn=min(self.rxn.species.nel, self.rxn.qc.ppn),
                                        qc_command=self.par['qc_command'],
                                        working_dir=os.getcwd(),
                                        code=code,
@@ -199,6 +199,6 @@ class IRC:
             with open('{}.py'.format(irc_name), 'w') as f:
                 f.write(template)
 
-            self.rxn.qc.submit_qc(irc_name, singlejob=0)
+            self.rxn.qc.submit_qc(irc_name, min(self.rxn.species.nel, self.rxn.qc.ppn), singlejob=0)
 
         return 0

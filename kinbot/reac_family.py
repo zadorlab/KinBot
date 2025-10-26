@@ -167,7 +167,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 atom=list(rxn.species.atom),
                                 geom=list([list(gi) for gi in geom]),
                                 bimol=bimol,
-                                ppn=rxn.qc.ppn,
+                                ppn=min(rxn.species.nel, rxn.qc.ppn),
                                 qc_command=command,
                                 working_dir=os.getcwd(),
                                 scan=rxn.scan,
@@ -193,7 +193,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    kwargs=kwargs,
                                    atom=list(rxn.species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   ppn=rxn.qc.ppn,
+                                   ppn=min(rxn.species.nel, rxn.qc.ppn),
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    code=code,  # Sella
@@ -206,7 +206,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:
         f_out.write(template)
 
-    step += rxn.qc.submit_qc(rxn.instance_name, singlejob=0, 
+    step += rxn.qc.submit_qc(rxn.instance_name, min(rxn.species.nel, rxn.qc.ppn), singlejob=0, 
                              jobtype=kwargs.pop('method', None))
 
     return step

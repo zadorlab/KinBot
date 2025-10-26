@@ -49,15 +49,16 @@ mol.calc.label = '{label}'
 converged = False
 try:
     converged = opt.run(fmax=fmax, steps=steps)
-except:
-    pass
-if os.path.exists(f'{{basename}}.traj'):
     traj = read(f'{{basename}}.traj', index=':')
     write(f'{{basename}}.xyz', traj, format='xyz')
+except:
+    pass
 if converged:
     try:
         freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
-        if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+        if freqs is None:
+            converged = False
+        elif (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
             or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
             or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
             converged = False
@@ -68,6 +69,10 @@ if converged:
                         'hess': hessian, 'status': 'normal'}})            
     except:
         converge = False
+
+if 'vib' in os.getcwd():
+    os.chdir("..")
+
 if not converged:
     data = {{'status': 'error'}}
     data['frequencies'] = freqs
@@ -77,8 +82,9 @@ if os.path.isdir(f'{{basename}}'):
     shutil.rmtree(f'{{basename}}')
 
 if os.path.isdir(f'{{basename}}_vib'):
-    shutil.copy2(os.path.join(f'{{basename}}_vib', 'vib.xyz'), 
-                 os.path.join(os.getcwd(), f'{{basename}}_vib.xyz'))
+    if os.path.exists(os.path.join(f'{{basename}}_vib', 'vib.xyz')):
+        shutil.copy2(os.path.join(f'{{basename}}_vib', 'vib.xyz'), 
+                     os.path.join(os.getcwd(), f'{{basename}}_vib.xyz'))
     shutil.rmtree(f'{{basename}}_vib')
 
 with open(f'{{basename}}_sella.log', 'a') as f:

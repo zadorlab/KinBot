@@ -15,6 +15,8 @@ from kinbot.ase_modules.calculators.{code} import {Code}
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.frequencies import calc_vibrations, get_frequencies
 
+scratch_dir = os.getcwd()
+
 db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom}, 
             positions={geom})
@@ -68,15 +70,16 @@ else:
     converged = False
     try:
         converged = opt.run(fmax={fmax}, steps={steps})
-    except:
-        converged = False
-    if os.path.exists(f'{{basename}}.traj'):
         traj = read(f'{{basename}}.traj', index=':')
         write(f'{{basename}}.xyz', traj, format='xyz')
+    except:
+        converged = False
     if converged:
         try:
             freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
-            if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
+            if freqs is None:
+                converged = False
+            elif order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
                            or np.count_nonzero(np.array(freqs) < -50) >= 1):
                 converged = False
             elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
@@ -90,10 +93,13 @@ else:
                          'hess': hessian, 'status': 'normal'}})
         except:
             converged = False
+
+    os.chdir(scratch_dir)
+
     if not converged:
         data = {{'status': 'error'}}
         db.write(mol, name='{label}', data=data)
-
+    
     if os.path.isdir(f'{{basename}}'):
         shutil.rmtree(f'{{basename}}')
 

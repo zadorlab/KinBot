@@ -4,7 +4,7 @@ import pickle
 
 from ase import Atoms
 from ase.io import read, write
-from sella import Sella, Constraints
+from sella import Sella, Constraints, Internals
 
 from kinbot.utils import too_far
 #from kinbot.ase_modules.calculators.{code} import {Code}
@@ -12,6 +12,8 @@ from kinbot.utils import too_far
 #db = connect('{working_dir}/kinbot.db')
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
+if os.path.isfile('{label}.pkl'):
+    os.remove('{label}.pkl')
 
 # molecule
 mol = Atoms(symbols={atom}, 
@@ -23,9 +25,12 @@ with open('fc_model.pkl', 'rb') as f:
 
 # constraints
 const = Constraints(mol)
+#internals = Internals(mol)
 base_0_fix = [[idx - 1 for idx in fix] for fix in {fix}]
 for fix in base_0_fix:
     if len(fix) == 2:
+        #if fix not in internals:
+        #    internals.add_bond(fix)
         const.fix_bond(fix)
     elif len(fix) == 3:
         const.fix_angle(fix)

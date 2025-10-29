@@ -13,7 +13,6 @@ from kinbot import geometry
 
 logger = logging.getLogger('KinBot')
 
-
 class StationaryPoint:
     """
     This object contains the properties of wells.

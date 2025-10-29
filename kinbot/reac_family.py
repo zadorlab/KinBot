@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import logging
 
 from kinbot import kb_path
 from kinbot import modify_geom
@@ -7,6 +8,7 @@ from kinbot import geometry
 from kinbot.reactions.reac_abstraction import abstraction_align
 from kinbot.utils import get_unique_list_of_lists
 
+logger = logging.getLogger('KinBot')
 
 def carry_out_reaction(rxn, step, command, bimol=0):
     """
@@ -58,6 +60,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 _, geom_prod, geom_ts = abstraction_align(geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
     step, fix, change, release = rxn.get_constraints(step, geom)
+    logger.debug(f'status of constraints step {step} fix {fix} chage {change} release {release}')
 
     if step > rxn.max_step:
         return step
@@ -82,6 +85,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         for c in change:
             fix.append(c[:-1])
         change = []
+        logger.debug(f'status 2  of constraints step {step} fix {fix} chage {change} release {release}')
     elif "frozen" in rxn.instance_name:
         if step != 0:
             tmp_species = rxn.get_frozen_species(distance=rxn.scan_list[step])
@@ -204,6 +208,9 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    )
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:
+        f_out.write(template)
+
+    with open('{}_{}.py'.format(rxn.instance_name, step),'w') as f_out:
         f_out.write(template)
 
     step += rxn.qc.submit_qc(rxn.instance_name, min(rxn.species.nel, rxn.qc.ppn), singlejob=0, 

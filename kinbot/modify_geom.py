@@ -216,7 +216,6 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=Fa
             gradi = np.reshape(g_i[i], (species.natom, 3))
             step = append_geom(species.natom, step, 2., species.atom, geomi, gradi, atoms_list, f_out=f_out)
 
-
     if write_files:
         write(fname.replace('.xyz', '.traj'), atoms_list)
         f_out.close()

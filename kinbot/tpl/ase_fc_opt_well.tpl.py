@@ -17,6 +17,8 @@ from kinbot.utils import sella_freq_check
 #db = connect('{working_dir}/kinbot.db')
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
+if os.path.isfile('{label}.pkl'):
+    os.remove('{label}.pkl')
 
 # molecule
 mol = Atoms(symbols={atom}, 

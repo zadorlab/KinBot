@@ -43,8 +43,6 @@ for fix in base_0_fix:
 fmax = 0.1
 steps = 100
 sella_kwargs = {sella_kwargs}
-if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
-    sella_kwargs['internal'] = False
 
 opt = Sella(mol, 
             order=0,

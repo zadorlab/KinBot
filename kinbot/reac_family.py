@@ -166,6 +166,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         else:
             template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
+        skw = rxn.par['sella_kwargs'].copy()
+        skw['internal'] = False
         template = template.format(label=rxn.instance_name, 
                                 kwargs=kwargs, 
                                 atom=list(rxn.species.atom),
@@ -178,7 +180,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 code=code,  # Sella
                                 Code=Code,  # Sella
                                 fix=get_unique_list_of_lists(fix),  # Sella
-                                sella_kwargs=rxn.par['sella_kwargs'],  # Sella
+                                sella_kwargs=skw, 
                                 fmax=rxn.par['sella_fmax'],
                                 steps=rxn.par['sella_steps'],
                                 )
@@ -210,9 +212,9 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:
         f_out.write(template)
 
-    with open('{}_{}.py'.format(rxn.instance_name, step),'w') as f_out:
-        f_out.write(template)
-
+# uncommet if you want intermediate runs to be printed into files, for debugging
+#    with open('{}_{}.py'.format(rxn.instance_name, step),'w') as f_out:
+#        f_out.write(template)
     step += rxn.qc.submit_qc(rxn.instance_name, min(rxn.species.nel, rxn.qc.ppn), singlejob=0, 
                              jobtype=kwargs.pop('method', None))
 

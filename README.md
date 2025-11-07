@@ -96,7 +96,7 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 * Clément Soulié (csoulie@sandia.gov)
 
 ## Papers using KinBot
-1. Osborn, D. L., Samanta, B. R., Soulié, C., Reisler, H., Zádor, J.: _Chemistry of sugar formation in the gas phase: Following the activated aldehyde_. J. Am. Chem. Soc., **2025** accepted.
+1. Osborn, D. L., Samanta, B. R., Soulié, C., Reisler, H., Zádor, J.: _Chemistry of sugar formation in the gas phase: Following the activated aldehyde_. J. Am. Chem. Soc., **2025** 147, 32468–32479. https://doi.org/10.1021/jacs.5c05357
 2. Hansen, N., Gaiser, N., Bierkandt, T., Oßwald, P., Köhler, M., Zádor, J., Hemberger, P.: _Identification of dihydropentalenes as products of the molecular-weight growth reaction of cyclopentadienyl plus propargyl_. J. Phys. Chem. A, **2025**, 129, 1714-1725. https://doi.org/10.1021/acs.jpca.4c06549
 3. Wang, Z.-M., Wang, D., Mansy, A. E., Tian, Z.-Y.: _Pyrolysis and kinetic modeling investigation of 1-methoxy-2-propanol_. Combust. Flame, **2025**, 271, 113804. https://doi.org/10.1016/j.combustflame.2024.113804
 4. Almeida, T. G., Martí, C., Kurtén, T., Zádor, J., Johansen, S. L.: _Theoretical analysis of the OH-Initiated atmospheric oxidation reactions of imidazole_. Phys. Chem. Chem. Phys., **2024**, 26, 23570-23587. https://doi.org/10.1039/D4CP02103G

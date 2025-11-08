@@ -36,7 +36,7 @@ data = {{'status': 'error'}}
 
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
-    if {label} == '10000000000000000001':
+    if '{label}'.split('_')[0] == '10000000000000000001':
         e = 0.0
     else:
         e = mol.get_potential_energy()

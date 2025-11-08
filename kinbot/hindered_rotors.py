@@ -28,6 +28,8 @@ class HIR:
         self.nrotation = par['nrotation']
         # boolean tells if profiles should be plotted
         self.plot_hir_profiles = par['plot_hir_profiles']
+        # if 1 (default), remove bad rotors
+        self.rotor_0_test = par['rotor_0_test']
 
         # -1 (not finished), 0 (successful) or
         # 1 (failed) for each HIR scan point
@@ -155,7 +157,7 @@ class HIR:
                 if self.hir_status[rotor][0] == 1:  # the starting point failed
                     continue
                 energies = self.hir_energies[rotor]
-                if abs(energies[0] - self.species.energy) * constants.AUtoKCAL > 0.1:
+                if abs(energies[0] - self.species.energy) * constants.AUtoKCAL > 0.1 and self.rotor_0_test:
                     logger.warning(f'\t0 angle rotor for rotor {rotor} has a different energy than '
                                    'the optimized structure for '
                                    f'{self.species.name} ({energies[0]} vs {self.species.energy}).')

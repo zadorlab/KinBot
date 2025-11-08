@@ -258,6 +258,8 @@ class Parameters:
             'hir_maxcycle': None,
             # Non-rigid or rigid hir
             'rigid_hir': 0,
+            # Turn off bad rotors based on 0 angle energies
+            'rotor_0_test': 1,
             # Whether to use sella as optimizer or not
             'use_sella': False,
             # Sella hyperparameters

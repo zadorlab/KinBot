@@ -480,6 +480,8 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
         else:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
+        skw = self.par['sella_kwargs'].copy()
+        skw['internal'] = False
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -492,7 +494,7 @@ class QuantumChemistry:
                                    working_dir=os.getcwd(),
                                    code=code,  # Sella
                                    Code=Code,  # Sella
-                                   sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                   sella_kwargs=skw, # internal turned off, constraints used instead
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
                                    )
@@ -978,10 +980,10 @@ class QuantumChemistry:
                 job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/hir/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
 
         if self.queuing == 'pbs':
-            job_template = job_template.format(name=job, ppn=nproc, queue_name=self.queue_name,
+            job_template = job_template.format(name=job, ppn=max(1, proc), queue_name=self.queue_name,
                                                errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
-            job_template = job_template.format(name=job, ppn=nproc, queue_name=self.queue_name, errdir='perm',
+            job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name, errdir='perm',
                                                slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
         else:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))

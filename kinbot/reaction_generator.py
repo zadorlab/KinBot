@@ -206,7 +206,10 @@ class ReactionGenerator:
                                 if self.qc.qc == 'fc':
                                     shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well_sella.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
                                 else:
-                                    shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
+                                    try:
+                                        shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
+                                    except:  # if sella was used
+                                        shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well_sella.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
                                 self.species.reac_ts_done[index] = -999
 
                 elif self.species.reac_ts_done[index] == 1:

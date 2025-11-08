@@ -36,8 +36,11 @@ data = {{'status': 'error'}}
 
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
-    e = mol.get_potential_energy()
-    del mol.calc.results['forces']
+    if {label} == '10000000000000000001':
+        e = 0.0
+    else:
+        e = mol.get_potential_energy()
+        del mol.calc.results['forces']
     data={{'energy': e, 
            'frequencies': np.array([]), 
            'zpe': 0.0,

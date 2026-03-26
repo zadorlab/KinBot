@@ -460,7 +460,7 @@ class Parameters:
                 logger.warning('Automatically turning on internal coordiantes for Sella.')
             if 'gamma' not in self.par['sella_kwargs'] and self.par['calcall_ts']:
                 self.par['sella_kwargs']['gamma'] = 0.0
-                logger.warning('Automatically setting gamma=1 in Sella to mimic CalcAll.')
+                logger.warning('Automatically setting gamma=0.0 in Sella to mimic CalcAll.')
 
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1

@@ -370,11 +370,11 @@ class MESS:
                 # molecule template
                 if species.chemid == 170170000000000000002:  # exception for OH
                     fragments += self.fragmenttplOH.format(chemid=name,
-                                                         smi=species.smiles,
-                                                         natom=species.natom,
-                                                         geom=self.make_geom(species.geom, species.atom),
-                                                         symm=float(species.sigma_ext) / float(species.nopt),
-                                                         freq=self.make_freq(species.reduced_freqs, freq_factor, 0))
+                                                           smi=species.smiles,
+                                                           natom=species.natom,
+                                                           geom=self.make_geom(species.geom, species.atom),
+                                                           symm=float(species.sigma_ext) / float(species.nopt),
+                                                           freq=self.make_freq(species.reduced_freqs, freq_factor, 0))
                 else:
                     fragments += self.fragmenttpl.format(chemid=name,
                                                          smi=species.smiles,

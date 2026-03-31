@@ -1,5 +1,6 @@
 import os
 import stat
+import logging
 import numpy as np
 import subprocess
 import time
@@ -110,8 +111,6 @@ class MESS:
         """
         Create a short name for all the wells, all the bimolecular products and all the transition states
         """
-        # add the initial well to the well names:
-
         # add the initial well to the well names:
         self.well_names[self.species.chemid] = 'w_1'
         for index, reaction in enumerate(self.species.reac_obj):

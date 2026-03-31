@@ -278,6 +278,7 @@ class ReactionGenerator:
                     if obj.prod_done == 0:  # not started optimization yet
                         # identify bimolecular products and wells from IRC - do it once
                         obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
+                        self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
                         if self.species.charge == 0:
                             logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
                                         f'{[fr.chemid for fr in obj.products]} {["".join(fr.atom) for fr in obj.products]}')
@@ -287,10 +288,12 @@ class ReactionGenerator:
                                         '(including all possible charge distributions)')
 
                         self.equate_identical(obj.products)
+                        self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
                         obj.valid_prod = len(obj.products) * [True]
 
                         # make the geom of products in frag_unique the one from the multi_molecular (not optimized)
                         self.equate_unique(obj.products, frag_unique)
+                        self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
                         obj.prod_done = 1
 
                     for frag in obj.products:
@@ -331,14 +334,18 @@ class ReactionGenerator:
                                 hom_sci_energy += frag.energy + frag.zpe
                             # Reinitialize rads and bonds
                             frag.reset_order()
+                            self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", frag)
                             # connectivity changed
                             if chemid_orig != frag.chemid:
                                 for fri, fr in enumerate(obj.products):
                                     if fr.chemid == chemid_orig:
                                         obj.valid_prod[fri] = False
                                 newfrags, _ = frag.start_multi_molecular(vary_charge=True)  
+                                self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                 self.equate_identical(newfrags)
+                                self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                 self.equate_unique(newfrags, frag_unique)
+                                self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                 logger.warning(f'Product {chemid_orig} optimized to {[nf.chemid for nf in newfrags]} '
                                                f'in reaction {obj.instance_name}')
                                 for nf in newfrags:
@@ -400,8 +407,11 @@ class ReactionGenerator:
                             e, obj.irc_prod.zpe = self.qc.get_qc_zpe(f'{obj.irc_prod.name}')
                             e, obj.irc_prod.geom = self.qc.get_qc_geom(obj.irc_prod.name, obj.irc_prod.natom)
                             e, obj.irc_prod.freq = self.qc.get_qc_freq(obj.irc_prod.name, obj.irc_prod.natom) 
+                            self._debug_fragment_freqs(f"{obj.instance_name}:irc_prod_after_get_qc_freq", obj.irc_prod)
                             for this_frag in obj.irc_fragments:
+                                self._debug_fragment_freqs(f"{obj.instance_name}:frag_after_get_qc_freq", this_frag)
                                 e, this_frag.freq = self.qc.get_qc_freq(f'{this_frag.name}_well', this_frag.natom) 
+                                logger.debug(f'{this_frag.freq}')
                             fragments_energies = sum([(this_frag.energy + this_frag.zpe) for this_frag in obj.irc_fragments ])
                             obj.vdW_depth = (fragments_energies - (obj.irc_prod.energy + obj.irc_prod.zpe)) * constants.AUtoKCAL
                             if obj.vdW_depth > self.par['vdW_detection']:
@@ -422,14 +432,17 @@ class ReactionGenerator:
 
                 elif self.species.reac_ts_done[index] == 3:
                     for frag in obj.products:
-                        # # Reordering in case different fragment
+                        # Reordering in case different fragment
+                        self._debug_fragment_freqs(f"{obj.instance_name}:state3_before_get_qc_geom", frag)
                         e, frag.geom, frag.atom = self.qc.get_qc_geom(
                             str(frag.chemid) + '_well',
                             frag.natom,
                             reorder=True)
+                        self._debug_fragment_freqs(f"{obj.instance_name}:state3_after_get_qc_geom", frag)
                         # Create a new stp instead of updating geom and atom
                         # because rads and bonds need to be changed
                         frag.reset_order()
+                        self._debug_fragment_freqs(f"{obj.instance_name}:state3_after_reset_order", frag)
                         # e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
 
                     # Do the TS and product optimization
@@ -794,3 +807,51 @@ class ReactionGenerator:
                 if new:
                     frag_unique.append(frag)
         return
+
+    def _fmt_freqs(self, freqs, n=8):
+        """Format frequency list/array for compact debug printing."""
+        if freqs is None:
+            return "None"
+        try:
+            arr = list(freqs)
+        except Exception:
+            return str(freqs)
+        if len(arr) == 0:
+            return "[]"
+        head = ", ".join(f"{float(x):.2f}" for x in arr[:n])
+        if len(arr) > n:
+            head += f", ... (+{len(arr)-n})"
+        return f"[{head}]"
+
+    def _debug_fragment_freqs(self, tag, frag):
+        """Print key identifiers and any available frequency fields for a fragment."""
+        try:
+            nat = getattr(frag, "natom", None)
+            chemid = getattr(frag, "chemid", None)
+            name = getattr(frag, "name", None)
+            atom = getattr(frag, "atom", None)
+            sym = "".join(atom) if atom is not None else None
+
+            freq = getattr(frag, "freq", None)
+            red = getattr(frag, "reduced_freqs", None)
+
+            logger.info(
+                "FRAGFREQ %-22s id=%s name=%s chemid=%s natom=%s atoms=%s "
+                "freq=%s reduced=%s",
+                tag,
+                id(frag),
+                name,
+                chemid,
+                nat,
+                sym,
+                self._fmt_freqs(freq),
+                self._fmt_freqs(red),
+            )
+        except Exception as e:
+            logger.info("FRAGFREQ %-22s (failed to print fragment freqs): %s", tag, e)
+
+    def _debug_fraglist_freqs(self, tag, fragments):
+        """Print frequencies for a list of fragments."""
+        logger.info("FRAGFREQ_LIST %s nfrags=%d", tag, len(fragments))
+        for i, fr in enumerate(fragments):
+            self._debug_fragment_freqs(f"{tag}[{i}]", fr)

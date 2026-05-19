@@ -203,7 +203,13 @@ class ReactionGenerator:
                                 # error line, H atom is just placeholder
                                 db.write(Atoms('H'), name=obj.instance_name, data={'status': 'error'})
                                 # this is copied here so that a non-AM1 file is in place
-                                shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
+                                if self.qc.qc == 'fc':
+                                    shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well_sella.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
+                                else:
+                                    try:
+                                        shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
+                                    except:  # if sella was used
+                                        shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well_sella.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
                                 self.species.reac_ts_done[index] = -999
 
                 elif self.species.reac_ts_done[index] == 1:
@@ -219,11 +225,11 @@ class ReactionGenerator:
                         ts_energy = self.qc.get_qc_energy(obj.instance_name)[1]
                         ts_zpe = self.qc.get_qc_zpe(obj.instance_name)[1]
                         if self.species.reac_type[index] in constants.mp2_list \
-                                and self.qc.qc != 'nn_pes':
+                                and self.qc.qc != 'nn_pes' and self.qc.qc != 'fc':
                             ending = 'well_mp2'
                             thresh = self.par['barrier_threshold']  # need to fix for mp2 specific
                         elif self.species.reac_type[index] == 'barrierless_saddle' \
-                                and self.qc.qc != 'nn_pes':
+                                and self.qc.qc != 'nn_pes' and self.qc.qc != 'fc':
                             ending = 'well_bls'
                             thresh = self.par['barrier_threshold']
                         else:
@@ -744,12 +750,12 @@ class ReactionGenerator:
         names.append(name + '_IRC_R')
         names.append(name + '_IRC_F_prod')
         names.append(name + '_IRC_R_prod')
-        extensions = ['chk', 'py', 'sbatch']
+        extensions = ['.chk', '.sbatch', '.traj']
 
         for name in names:
             for ext in extensions:
                 # delete file
-                file = '.'.join([name, ext])
+                file = f'{name}{ext}'
                 try:
                     os.remove(file)
                 except OSError:

@@ -101,12 +101,12 @@ def append_geom(natom, step, new_e, atom, x_new, grad, atoms_list, f_out=None):
 
     atoms = Atoms(symbols=atom, positions=np.reshape(x_new, (natom, 3)))
     calc = SinglePointCalculator(atoms, energy=new_e, forces=10. * np.reshape(grad, (natom, 3)))
-    atoms.set_calculator(calc)
+    atoms.calc = calc
     atoms_list.append(atoms)
     return step
 
 
-def modify_coordinates(species, name, geom, changes, bond, write_files=0):
+def modify_coordinates(species, name, geom, changes, bond, write_files=0, err=False):
     """
     Geom is the geometry (n x 3 matrix with n the number of atoms)
     in cartesian coordinates
@@ -156,7 +156,9 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
                     zmat[i][2] += dih_diff
                 if zmat_ref[i][2] == 1:
                     zmat[i][2] += dih_diff
-            new_geom = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, species.natom, species.atom, zmatorder)
+            new_geom = zmatrix.make_cart_from_zmat(zmat, zmat_atom, zmat_ref, species.natom, species.atom, zmatorder, err=err)
+            if new_geom == -1:
+                return -1, None 
             # write_zmat(zmat_atom, zmat_ref, zmat, new_geom, species.atom)
             step = append_geom(species.natom, step, 0., species.atom, new_geom, np.zeros((species.natom * 3)), atoms_list, f_out=f_out)
         # change angles, if necessary
@@ -213,7 +215,6 @@ def modify_coordinates(species, name, geom, changes, bond, write_files=0):
             geomi = np.reshape(xi, (species.natom, 3))
             gradi = np.reshape(g_i[i], (species.natom, 3))
             step = append_geom(species.natom, step, 2., species.atom, geomi, gradi, atoms_list, f_out=f_out)
-
 
     if write_files:
         write(fname.replace('.xyz', '.traj'), atoms_list)

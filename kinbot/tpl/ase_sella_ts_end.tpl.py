@@ -4,94 +4,88 @@ import shutil
 import numpy as np
 from ase import Atoms
 from ase.db import connect
+from ase.io import read, write
 from ase.vibrations import Vibrations
 from sella import Sella
 
 from kinbot.constants import EVtoHARTREE
 from kinbot.ase_modules.calculators.{code} import {Code}
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.frequencies import get_frequencies
-
-
-def calc_vibrations(mol):
-        mol.calc.label = '{label}_vib'
-        if 'chk' in mol.calc.parameters:
-            del mol.calc.parameters['chk']
-        # Compute frequencies in a separate temporary directory to avoid 
-        # conflicts accessing the cache in parallel calculations.
-        if not os.path.isdir('{label}_vib'):
-            os.mkdir('{label}_vib')
-        init_dir = os.getcwd()
-        os.chdir('{label}_vib')
-        if os.path.isdir('vib'):
-            shutil.rmtree('vib')
-        vib = Vibrations(mol)
-        vib.run()
-        # Use kinbot frequencies to avoid mixing low vib frequencies with 
-        # the values associated with external rotations.
-        _ = vib.get_frequencies()
-        zpe = vib.get_zero_point_energy() * EVtoHARTREE
-        hessian = vib.H / 97.17370087
-        st_pt = StationaryPoint.from_ase_atoms(mol)
-        st_pt.characterize()
-        freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
-        os.chdir(init_dir)
-        shutil.rmtree('{label}_vib')
-        return freqs, zpe, hessian
-
+from kinbot.frequencies import calc_vibrations, get_frequencies
 
 db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom},
             positions={geom})
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
     kwargs['guess'] = 'Read'
     mol.calc = {Code}(**kwargs)
 
-if os.path.isfile('{label}_sella.log'):
-    os.remove('{label}_sella.log')
+basename = os.path.basename('{label}')
+
+if os.path.isfile(f'{{basename}}_sella.log'):
+    os.remove(f'{{basename}}_sella.log')
 
 sella_kwargs = {sella_kwargs}
+if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
+    sella_kwargs['internal'] = False
 opt = Sella(mol, order=1, 
-            trajectory='{label}.traj',
-            logfile='{label}_sella.log',
+            trajectory=f'{{basename}}.traj',
+            logfile=f'{{basename}}_sella.log',
             **sella_kwargs)
 freqs = []
+
+fmax = {fmax}
+steps = {steps}
+mol.calc.label = '{label}'
+
+converged = False
 try:
-    converged = False
-    fmax = 1e-4
-    attempts = 1
-    steps=500
-    while not converged and attempts <= 3:
-        mol.calc.label = '{label}'
-        converged = opt.run(fmax=fmax, steps=steps)
-        freqs, zpe, hessian = calc_vibrations(mol)
-        if (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
-                or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
-                or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
-            print(f'Wrong number of imaginary frequencies: {{freqs[6:]}}')
+    converged = opt.run(fmax=fmax, steps=steps)
+    traj = read(f'{{basename}}.traj', index=':')
+    write(f'{{basename}}.xyz', traj, format='xyz')
+except:
+    pass
+if converged:
+    try:
+        freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
+        if freqs is None:
             converged = False
-            mol.calc.label = '{label}'
-            attempts += 1
-            fmax *= 0.3
-            if attempts <= 3:
-                print(f'Retrying with a tighter criterion: fmax={{fmax}}.')
+        elif (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+            or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
+            or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+            converged = False
         else:
-            converged = True
             e = mol.get_potential_energy()
             db.write(mol, name='{label}', 
-                     data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                            'hess': hessian, 'status': 'normal'}})            
-    if not converged:
-        raise RuntimeError
-except (RuntimeError, ValueError):
+                 data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
+                        'hess': hessian, 'status': 'normal'}})            
+    except:
+        converge = False
+
+if 'vib' in os.getcwd():
+    os.chdir("..")
+
+if not converged:
     data = {{'status': 'error'}}
-    if freqs:
-        data['frequencies'] = freqs
+    data['frequencies'] = freqs
     db.write(mol, name='{label}', data=data)
 
-with open('{label}.log', 'a') as f:
+if os.path.isdir(f'{{basename}}'):
+    shutil.rmtree(f'{{basename}}')
+
+if os.path.isdir(f'{{basename}}_vib'):
+    if os.path.exists(os.path.join(f'{{basename}}_vib', 'vib.xyz')):
+        shutil.copy2(os.path.join(f'{{basename}}_vib', 'vib.xyz'), 
+                     os.path.join(os.getcwd(), f'{{basename}}_vib.xyz'))
+    shutil.rmtree(f'{{basename}}_vib')
+
+with open(f'{{basename}}_sella.log', 'a') as f:
     f.write('done\n')

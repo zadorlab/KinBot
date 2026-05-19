@@ -1,0 +1,98 @@
+import os
+import pickle
+import numpy as np
+import shutil
+
+from ase import Atoms
+from ase.io import read, write
+from sella import Sella
+
+from fairchem.core.units.mlip_unit import load_predict_unit
+from fairchem.core import FAIRChemCalculator
+from kinbot.frequencies import calc_vibrations
+from kinbot.utils import sella_freq_check
+
+if os.path.isfile('{label}_sella.log'):
+    os.remove('{label}_sella.log')
+if os.path.isfile('{label}.pkl'):
+    os.remove('{label}.pkl')
+
+# molecule
+mol = Atoms(symbols={atom},
+            positions={geom})
+kwargs = {kwargs}
+mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
+mol.calc = FAIRChemCalculator(load_predict_unit('{fc_model_path}', device='{fc_device}'), task_name='{fc_task_name}')
+freqs = []
+
+# sella
+sella_kwargs = {sella_kwargs}
+fmax = {fmax}
+steps = {steps}
+if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
+    sella_kwargs['internal'] = False
+opt = Sella(mol, order=1, 
+            trajectory='{label}.traj',
+            logfile='{label}_sella.log',
+            **sella_kwargs)
+
+# run
+
+data = {{'status': 'error'}}
+
+try:
+    converged = opt.run(fmax=fmax, steps=steps)
+except RuntimeError:
+    converged = False
+traj = read('{label}.traj', index=':')
+write('{label}.xyz', traj, format='xyz')
+e = mol.get_potential_energy()
+del mol.calc.results['forces']
+
+if converged:
+    freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+    if sella_freq_check(freqs, 1):
+        data = {{'energy': e, 
+                 'frequencies': freqs, 
+                 'zpe': zpe,
+                 'hess': hessian, 
+                 'status': 'normal'}}
+else:
+    sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+    mol.positions = {geom}
+    opt = Sella(mol, order=1,
+        trajectory='{label}.traj',
+        logfile='{label}_sella.log',
+        **sella_kwargs)
+
+    try:
+        converged = opt.run(fmax=fmax, steps=steps)
+    except RuntimeError:
+        converged = False
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
+    e = mol.get_potential_energy()
+    del mol.calc.results['forces']
+    if converged:
+        freqs, zpe, hessian = calc_vibrations(mol, '{label}')
+        if sella_freq_check(freqs, 1):
+            data = {{'energy': e, 
+                     'frequencies': freqs, 
+                     'zpe': zpe,
+                     'hess': hessian, 
+                     'status': 'normal'}}
+ 
+if os.path.isdir('{label}_vib'):
+    shutil.copy2(os.path.join('{label}_vib', 'vib.xyz'), 
+                 os.path.join(os.getcwd(), '{label}_vib.xyz'))
+    shutil.rmtree('{label}_vib')
+
+mol_pkl = {{'sym': mol.symbols,
+            'pos': mol.positions,
+            'calc': 'fairchemcalculator',
+            'name': '{label}',
+            'data': data}}
+with open('{label}.pkl', 'wb') as f:
+    pickle.dump(mol_pkl, f)
+with open('{label}_sella.log', 'a') as f:
+    f.write('done\n')

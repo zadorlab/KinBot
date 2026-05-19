@@ -95,7 +95,7 @@ def make_dir(name):
         os.makedirs(name)
     return
 
-def clean_files(diagnostic=False):
+def clean_files(diagnostic=False, qc=None):
     """Removes files from jobs that ended up erroneously.
     if diagnostic is True, it will just print the list of files but not delete
     """
@@ -103,11 +103,13 @@ def clean_files(diagnostic=False):
     import numpy as np
     from kinbot.ase_modules.io.formats import read
     logger = logging.getLogger('KinBot')
-    # delete leftover AM1 calculations
     files = os.listdir()
+
+    # delete pickle files from previous run - there should be none 
+    # delete leftover AM1 calculations
     com = []
     for ff in files:
-        if ff.endswith('.com'):
+        if ff.endswith('.com') or ff.endswith('_sella.log'):
             com.append(ff)
 
     for cc in com:
@@ -140,8 +142,14 @@ def clean_files(diagnostic=False):
     files = files + conf_files + hir_files
     log = []
     for ff in files:
-        if len(ff) > 4 and ff[-4:] == '.log':
-            log.append(ff)
+        if qc == 'fc':
+            if len(ff) > 9 and ff[-9:] == 'sella.log':
+                log.append(ff)
+            elif ff.endswith('.pkl'):
+                os.remove(ff)
+        else:
+            if len(ff) > 4 and ff[-4:] == '.log':
+                log.append(ff)
 
     for ll in log:
         if not os.path.isfile(ll):
@@ -287,3 +295,37 @@ class NpEncoder(json.JSONEncoder):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return super(NpEncoder, self).default(obj)
+
+def sella_freq_check(freqs, order):
+    if order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
+                or np.count_nonzero(np.array(freqs) < -50) >= 1):
+        return False
+
+    elif order == 1 and (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
+        or np.count_nonzero(np.array(freqs) < -50) >= 2  # More than one frequency smaller than 50i
+        or np.count_nonzero(np.array(freqs) < 0) == 0):  # No imaginary frequencies
+        return False
+    else:
+        return True
+
+def get_unique_list_of_lists(list_of_lists):
+    """
+    Returns a new list containing only the unique sub-lists from the input list of lists.
+    Uniqueness is determined by the content and not the order of elements within each sub-list.
+    """
+    # Sort each inner list to normalize it, then convert to a tuple to make it hashable
+    normalized_tuples = {tuple(sorted(sublist)) for sublist in list_of_lists}
+    # Convert the unique tuples back to lists
+    unique_list_of_lists = [list(t) for t in normalized_tuples]
+    return unique_list_of_lists
+
+def too_far(geom):
+    """
+    Detect if fragments are just way-way too far form each other.
+    Simply taking the max of the coordinate differences in each dimension.
+    """
+    for i in range(3):
+        coo = [g[i] for g in geom]
+        if max(coo) - min(coo) > 20.:
+            return -1
+    return 0

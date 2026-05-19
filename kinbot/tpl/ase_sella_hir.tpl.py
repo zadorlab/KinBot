@@ -1,7 +1,10 @@
 import os
+import shutil
+import numpy as np
 
 from ase import Atoms
 from ase.db import connect
+from ase.io import read, write
 from sella import Sella, Constraints
 
 from kinbot.ase_modules.calculators.{code} import {Code}
@@ -15,31 +18,46 @@ base_0_fix = [idx - 1 for idx in {fix}]
 const.fix_dihedral(base_0_fix)
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
     kwargs['guess'] = 'Read'
     mol.calc = {Code}(**kwargs)
 
-if os.path.isfile('{label}_sella.log'):
-    os.remove('{label}_sella.log')
+basename = os.path.basename('{label}')
+
+if os.path.isfile(f'{{basename}}_sella.log'):
+    os.remove(f'{{basename}}_sella.log')
 
 sella_kwargs = {sella_kwargs}
+if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
+    sella_kwargs['internal'] = False
 opt = Sella(mol, 
             order={order}, 
             constraints=const,
-            trajectory='{label}.traj', 
-            logfile='{label}_sella.log',
+            trajectory=f'{{basename}}.traj', 
+            logfile=f'{{basename}}_sella.log',
             **sella_kwargs)
+
 try:
-    converged = opt.run(fmax=0.001, steps=300)
-    if converged:
-        e = mol.get_potential_energy()
-        db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
-    else:  # TODO Eventually we might want to correct something in case it fails.
-        raise RuntimeError
-except (RuntimeError, ValueError):
+    converged = opt.run(fmax={fmax}, steps={steps})
+except:
+    converged = False
+traj = read(f'{{basename}}.traj', index=':')
+write(f'{{basename}}.xyz', traj, format='xyz')
+if converged:
+    e = mol.get_potential_energy()
+    db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
+
+else:
     db.write(mol, name='{label}', data={{'status': 'error'}})
 
-with open('{label}.log', 'a') as f:
+if os.path.isdir(f'{{basename}}'):
+    shutil.rmtree(f'{{basename}}')
+
+with open(f'{{basename}}_sella.log', 'a') as f:
     f.write('done\n')

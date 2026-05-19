@@ -436,14 +436,16 @@ class Conformers:
 
                 if all(status):  # if all conformers are invalid, 1 (different) or fail (-1)
                     if self.qc.qc == 'gauss':
-                        ext = 'log'
+                        ext = '.log'
                     elif self.qc.qc == 'qchem':
-                        ext = 'out'
+                        ext = '.out'
                     elif self.qc.qc == 'nn_pes':
-                        ext = 'log'
+                        ext = '.log'
+                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
+                        ext = '_sella.log'
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
-                    copyfile(f'{lowest_job}.{ext}', f'conf/{name}_low.{ext}')
+                    copyfile(f'{lowest_job}{ext}', f'conf/{name}_low{ext}')
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),
                             'frequencies': last_row.data.get('frequencies'),
@@ -555,11 +557,14 @@ class Conformers:
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
                     elif self.qc.qc == 'qchem':
                         copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
-                    elif self.qc.qc == 'nn_pes':
+                    elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
                         pass
+                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
+                        copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
                     rows = self.db.select(name='{}'.format(lowest_job))
+                    logger.debug(f'Looking at {name} in conformers')
                     for row in rows:
                         row_last = row
                     mol = Atoms(symbols=row_last.symbols, positions=row_last.positions)

@@ -13,7 +13,6 @@ from kinbot import geometry
 
 logger = logging.getLogger('KinBot')
 
-
 class StationaryPoint:
     """
     This object contains the properties of wells.
@@ -184,6 +183,7 @@ class StationaryPoint:
         self.find_atom_eqv()
         self.calc_chiral()
         self.calc_mass()
+        self.calc_nel()
         self.calc_maxbond()
 
     def calc_mass(self):
@@ -191,6 +191,15 @@ class StationaryPoint:
         self.mass = 0.
         for i in self.atom:
             self.mass += constants.mass[i]
+        return 0
+
+    def calc_nel(self):
+        """ Calculate number of electrons """
+        self.nel = 0
+        for i in self.atom:
+            self.nel += constants.znumber[i]
+        self.nel -= self.charge
+        return 0
 
     def distance_mx(self):
         """ 
@@ -218,7 +227,7 @@ class StationaryPoint:
                     err_msg = f'Incorrect geometry for {self.name}: Found an ' \
                               'interatomic distance smaller than 0.5 Angstrom.'
                     logger.error(err_msg)
-                    raise ValueError(err_msg)
+                    #raise ValueError(err_msg)
 
         self.bond = np.zeros((self.natom, self.natom), dtype=int)
         self.bonds = []  # unique list of bond matrices in case of resonance

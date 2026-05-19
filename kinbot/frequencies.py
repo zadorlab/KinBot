@@ -1,8 +1,14 @@
+import os
+import shutil
 import numpy as np
 from ase.data import atomic_numbers, covalent_radii
+from ase import Atoms
+from ase.vibrations import Vibrations
 
 from kinbot import constants
 from kinbot import geometry
+from kinbot.stationary_pt import StationaryPoint
+from kinbot.constants import EVtoHARTREE
 
 
 def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
@@ -257,3 +263,34 @@ def skip_rotor(name, rot):
         return 0
     elif 'prod' in name:
         return 1
+
+
+def calc_vibrations(mol, label):
+    # this is a frequency calculator when ASE is used
+    mol.calc.label = f'{label}_vib'
+    if 'chk' in mol.calc.parameters:
+        del mol.calc.parameters['chk']
+    # Compute frequencies in a separate temporary directory to avoid 
+    # conflicts accessing the cache in parallel calculations.
+    if not os.path.isdir(f'{label}_vib'):
+        os.mkdir(f'{label}_vib')
+    init_dir = os.getcwd()
+    os.chdir(f'{label}_vib')
+    if os.path.isdir('vib'):
+        shutil.rmtree('vib')
+    vib = Vibrations(mol)
+    try:
+        vib.run()
+        vib.write_jmol()
+        # Use kinbot frequencies to avoid mixing low vib frequencies with 
+        # the values associated with external rotations.
+        _ = vib.get_frequencies()
+        zpe = vib.get_zero_point_energy() * EVtoHARTREE
+        hessian = vib.H / 97.17370087
+        st_pt = StationaryPoint.from_ase_atoms(mol)
+        st_pt.characterize()
+        freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
+        os.chdir(init_dir)
+        return freqs, zpe, hessian
+    except:
+        return None, None, None

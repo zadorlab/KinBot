@@ -6,9 +6,11 @@ import re
 import time
 from datetime import datetime
 import copy
+import pickle
 
 import numpy as np
 from ase.db import connect
+from ase import Atoms
 
 from kinbot import kb_path
 from kinbot import constants
@@ -43,6 +45,8 @@ class QuantumChemistry:
         self.single_point_template = par['single_point_template']
         self.single_point_key = par['single_point_key']
         self.integral = par['integral']
+        self.orcablocks = par['orcablocks']
+        self.orcasimpleinput = par['orcasimpleinput']
         self.opt = par['opt']
         self.ppn = par['ppn']
         self.queuing = par['queuing']
@@ -64,8 +68,13 @@ class QuantumChemistry:
         if not self.use_sella and self.qc.lower() == 'nn_pes':
             logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
             self.use_sella = True
+        if not self.use_sella and self.qc.lower() == 'orca':
+            logger.warning('ORCA not supported without Sella. Turning "use_sella" on.')
+            self.use_sella = True
+        if self.use_sella and self.qc.lower() == 'fc':
+            self.use_sella = False  # Sella template files are separate from fairchem
 
-    def get_qc_arguments(self, job, mult, charge, ts=0, step=0, max_step=0,
+    def get_qc_arguments(self, job, mult, charge, nel, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
                          start_from_geom=0, rigid=0, aie=0, L3=False, vts=0):
         '''
@@ -86,7 +95,7 @@ class QuantumChemistry:
             kwargs = {
                 'method': self.method,
                 'basis': self.basis,
-                'nprocshared': self.ppn,
+                'nprocshared': min(nel, self.ppn),
                 'mem': '700MW',
                 'chk': job,
                 'label': job,
@@ -207,7 +216,7 @@ class QuantumChemistry:
                 kwargs = {
                     'method': 'cbs-qb3',
                     'basis': None,
-                    'nprocshared': self.ppn,
+                    'nprocshared': min(nel, self.ppn),
                     'mem': '700MW',
                     'label': job,
                     'Symm': 'None',
@@ -263,7 +272,7 @@ class QuantumChemistry:
             kwargs = {
                 'label': job,
                 'jobtype': 'opt',
-                'nt': self.ppn,
+                'nt': min(nel, self.ppn),
                 'method': self.method,
                 'basis': self.basis,
                 'unrestricted': 'True',
@@ -310,11 +319,31 @@ class QuantumChemistry:
                     kwargs['rpath_direction'] = '-1'
                 else:
                     kwargs['rpath_direction'] = '1'
+        elif self.qc == 'orca':
+            kwargs = {
+                'label': job,
+                'orcasimpleinput': f'EnGrad TightSCF {self.method} {self.basis} {self.orcasimpleinput}',
+                'orcablocks': f'{self.orcablocks} %pal nprocs {min(nel, self.ppn)} end',
+                'charge': charge,
+                'mult': mult,
+                'task': 'gradient',
+                'profile': self.qc_command,
+                'directory': os.path.basename(job)
+            }
+            if high_level:
+                kwargs['orcasimpleinput'] = f'EnGrad TightSCF {self.high_level_method} {self.high_level_basis} {self.orcasimpleinput}'
+                kwargs['orcablocks'] = f'{self.orcablocks} %pal nprocs {min(nel, self.ppn)} end'
+
         elif self.qc == 'nn_pes':
             if self.par['nn_model']:
                 kwargs = {'fname': self.par['nn_model']}
             else:
                 kwargs = {}
+        elif self.qc == 'fc':
+            kwargs = {
+                    'mult': mult,
+                    'charge': charge
+            }
 
         return kwargs
 
@@ -331,7 +360,7 @@ class QuantumChemistry:
         else:
             job = 'hir/' + str(species.chemid) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
                                        ts=species.wellorts, step=1, max_step=1,
                                        high_level=1, hir=1, rigid=rigid)
         if self.par['calc_kwargs']:
@@ -354,9 +383,15 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         if self.use_sella:
@@ -371,20 +406,25 @@ class QuantumChemistry:
                                    kwargs=kwargs,
                                    atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn,
+                                   ppn=min(species.nel, self.ppn),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
                                    fix=fix[0],
                                    code=code,  # Sella
                                    Code=Code,  # Sella
                                    order=species.wellorts,  # Sella
-                                   sella_kwargs=self.par['sella_kwargs']  # Sella
+                                   sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
                                    )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
-        self.submit_qc(job)
+        self.submit_qc(job, min(species.nel, self.ppn))
 
         return 0
 
@@ -407,7 +447,7 @@ class QuantumChemistry:
                   + str(conf_idx).zfill(self.zf) + '_' \
                   + str(dih_idx).zfill(self.zf)
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
                                        ts=species.wellorts, step=1, max_step=1, 
                                        hir=1)
         if self.par['calc_kwargs']:
@@ -426,18 +466,25 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             kwargs.pop('method', None)
             kwargs.pop('basis', None)
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
-        template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
-        # if self.use_sella:
-        #     template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
-        # else:
-        #     template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
+        if self.use_sella:
+            template_file = f'{kb_path}/tpl/ase_sella_ring_conf.tpl.py'
+        else:
+            template_file = f'{kb_path}/tpl/ase_{self.qc}_ring_conf.tpl.py'
+        skw = self.par['sella_kwargs'].copy()
+        skw['internal'] = False
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
@@ -445,18 +492,23 @@ class QuantumChemistry:
                                    geom=list([list(gi) for gi in geom]),
                                    fix=fix,
                                    change=change,
-                                   ppn=self.ppn,
+                                   ppn=min(species.nel, self.ppn),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
                                    code=code,  # Sella
                                    Code=Code,  # Sella
-                                   sella_kwargs=self.par['sella_kwargs']  # Sella
+                                   sella_kwargs=skw, # internal turned off, constraints used instead
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
                                    )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
-        self.submit_qc(job)
+        self.submit_qc(job, min(species.nel, self.ppn))
         return 0
 
     def qc_conf(self, species, geom, index, semi_emp=0):
@@ -476,10 +528,10 @@ class QuantumChemistry:
                   + str(index).zfill(self.zf)
 
         if species.wellorts:
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge, 
+            kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
                                            ts=1, step=1, max_step=1)
         else:
-            kwargs = self.get_qc_arguments(job, species.mult, species.charge)
+            kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel)
             if self.qc == 'gauss' and not self.use_sella:
                 if self.par['opt'].casefold() == 'Tight'.casefold(): 
                     kwargs['opt'] = 'CalcFC, Tight'
@@ -496,9 +548,15 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
@@ -520,19 +578,24 @@ class QuantumChemistry:
                                    kwargs=kwargs,
                                    atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn,  # QChem and NWChem
+                                   ppn=min(species.nel, self.ppn),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
                                    code=code,    # Sella
                                    Code=Code,    # Sella
                                    order=species.wellorts,      # Sella
-                                   sella_kwargs=self.par['sella_kwargs']  # Sella
-                                   )    
+                                   sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
+                                   )
         
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
-        self.submit_qc(job)
+        self.submit_qc(job, min(species.nel, self.ppn))
 
         return 0
 
@@ -545,25 +608,25 @@ class QuantumChemistry:
         '''
         job0 = f'aie/{str(species.chemid)}_AIE0_{ext}'  # neutral
         job1 = f'aie/{str(species.chemid)}_AIE1_{ext}'  # cation
-        kwargs0 = self.get_qc_arguments(job0, species.mult, species.charge, aie=1)
+        kwargs0 = self.get_qc_arguments(job0, species.mult, species.charge, species.nel, aie=1)
         if species.mult == 1: m1 = 2
         elif species.mult == 2: m1 = 1
         elif species.mult == 3: m1 = 2
-        kwargs1 = self.get_qc_arguments(job1, m1, species.charge + 1, aie=1)
+        kwargs1 = self.get_qc_arguments(job1, m1, species.charge + 1, species.nel - 1, aie=1)
         template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         t0 = template.format(label=job0,
                              kwargs=kwargs0,
                              atom=list(species.atom),
                              geom=list([list(gi) for gi in geom]),
-                             ppn=self.ppn,
+                             ppn=min(species.nel, self.ppn),
                              qc_command=self.qc_command,
                              working_dir=os.getcwd())
         t1 = template.format(label=job1,
                              kwargs=kwargs1,
                              atom=list(species.atom),
                              geom=list([list(gi) for gi in geom]),
-                             ppn=self.ppn,
+                             ppn=min(species.nel-1, self.ppn),
                              qc_command=self.qc_command,
                              working_dir=os.getcwd())
         
@@ -571,8 +634,8 @@ class QuantumChemistry:
             f.write(t0)
         with open(f'{job1}.py', 'w') as f:
             f.write(t1)
-        self.submit_qc(job0)
-        self.submit_qc(job1)
+        self.submit_qc(job0, min(species.nel, self.ppn))
+        self.submit_qc(job1, min(species.nel-1, self.ppn))
 
         return 0
 
@@ -581,6 +644,8 @@ class QuantumChemistry:
         '''
         Creates a geometry optimization input and runs it.
         '''
+        #if mp2 and (self.qc == 'fc' or self.qc == 'orca'):
+        #    return 0
         if do_vdW:
             if high_level:
                 job = f'{species.name}_high'
@@ -603,7 +668,7 @@ class QuantumChemistry:
         # TODO: Fix symmetry numbers for calcs as well if needed
         mult = exceptions.get_multiplicity(species.chemid, species.mult)
 
-        kwargs = self.get_qc_arguments(job, mult, species.charge,
+        kwargs = self.get_qc_arguments(job, mult, species.charge, species.nel,
                                        high_level=high_level)
         if 'opt' not in kwargs:
             kwargs['opt'] = ''
@@ -621,9 +686,15 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'   
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
@@ -649,19 +720,26 @@ class QuantumChemistry:
                                    kwargs=kwargs,
                                    atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn,  # QChem and NWChem
+                                   ppn=min(species.nel, self.ppn),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
                                    code=code,    # Sella
                                    Code=Code,    # Sella
                                    order=0,      # Sella
-                                   sella_kwargs=self.par['sella_kwargs'] # Sella
+                                   sella_kwargs=self.par['sella_kwargs'], # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
+                                   charge=species.charge,
+                                   spin=species.mult,
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
                                    )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
-        self.submit_qc(job)
+        self.submit_qc(job, min(species.nel, self.ppn))
         return 0
 
     def qc_opt_ts(self, species, geom, high_level=0, ext=None, fdir=None):
@@ -678,7 +756,7 @@ class QuantumChemistry:
         if fdir is not None:
             job = f'{fdir}/{job}'
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, ts=1, 
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel, ts=1, 
                                        step=1, max_step=1, high_level=1)
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
@@ -691,9 +769,15 @@ class QuantumChemistry:
         elif self.qc == 'nwchem':
             code = 'nwchem'
             Code = 'NWChem'
+        elif self.qc == 'orca':
+            code = 'orca'
+            Code = 'ORCA'
         elif self.qc == 'nn_pes':
             code = 'nn_pes'
             Code = 'Nn_surr'
+        elif self.qc == 'fc':
+            code = 'fairchem'
+            Code = 'Fairchem'
         else:
             raise ValueError(f'Unrecognized qc option: {self.qc}')
         
@@ -709,18 +793,23 @@ class QuantumChemistry:
                                    kwargs=kwargs,
                                    atom=list(species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   ppn=self.ppn,
+                                   ppn=min(species.nel, self.ppn),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
                                    code=code, # Sella
                                    Code=Code, # Sella
-                                   sella_kwargs=self.par['sella_kwargs'] # Sella
+                                   sella_kwargs=self.par['sella_kwargs'], # Sella
+                                   fmax=self.par['sella_fmax'],
+                                   steps=self.par['sella_steps'],
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
                                    )
 
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
-        self.submit_qc(job)
+        self.submit_qc(job, min(species.nel, self.ppn))
 
         return 0
 
@@ -731,7 +820,7 @@ class QuantumChemistry:
 
         job = f'vrctst/{str(frag.chemid)}_vts'
         mult = exceptions.get_multiplicity(frag.chemid, frag.mult)
-        kwargs = self.get_qc_arguments(job, mult, frag.charge, vts=1)
+        kwargs = self.get_qc_arguments(job, mult, frag.charge, species.nel, vts=1)
         # Add chk to fragments only
         kwargs['chk'] = f'{str(frag.chemid)}_vts'
 
@@ -756,7 +845,7 @@ class QuantumChemistry:
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
-        self.submit_qc(job)
+        self.submit_qc(job, min(species.nel, self.ppn))
         
         return job 
 
@@ -771,7 +860,7 @@ class QuantumChemistry:
         else:
             job = f'vrctst/{reac.instance_name}_vts_pt_asymptote'
         mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
-        kwargs = self.get_qc_arguments(job, mult, reac.species.charge, vts=1)
+        kwargs = self.get_qc_arguments(job, mult, reac.species.charge, species.nel, vts=1)
 
         if self.qc == 'gauss' and not self.par['vrc_tst_scan_sella']:
             kwargs['addsec'] = f'{reac.scan_coo[0]+1} {reac.scan_coo[1]+1} F\n'
@@ -837,10 +926,10 @@ class QuantumChemistry:
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
-        self.submit_qc(job)
+        self.submit_qc(job, min(species.nel, self.ppn))
         return job 
 
-    def submit_qc(self, job, singlejob=1, jobtype=None):
+    def submit_qc(self, job, nproc, singlejob=1, jobtype=None):
         '''Submit a job to the queue, unless the job:
             * has finished with Normal termination
             * has finished with Error termination
@@ -894,14 +983,22 @@ class QuantumChemistry:
                 return -1
 
         template_file = f'{kb_path}/tpl/{self.queuing}_python.tpl'
-        python_file = f'{job}.py'
+        if self.qc == 'orca':
+            python_file = f'{os.path.basename(job)}.py'
+        else:
+            python_file = f'{job}.py'
         job_template = open(template_head_file, 'r').read() + open(template_file, 'r').read()
+        if self.qc == 'orca': 
+            if 'hir' not in job: 
+                job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
+            else:
+                job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/hir/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
 
         if self.queuing == 'pbs':
-            job_template = job_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name,
+            job_template = job_template.format(name=job, ppn=max(1, proc), queue_name=self.queue_name,
                                                errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
-            job_template = job_template.format(name=job, ppn=self.ppn, queue_name=self.queue_name, errdir='perm',
+            job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name, errdir='perm',
                                                slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
         else:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
@@ -1053,7 +1150,7 @@ class QuantumChemistry:
 
     def get_qc_energy(self, job, wait=0):
         '''
-        Read the last energy from a job.
+        Read the last energy from the db for job.
         For Gaussian currently works for DFT and HF only.
         For NWChem it works for optimization jobs, using the @ handle.
         If wait is set to 1, it will wait for the job to finish, otherwise
@@ -1087,14 +1184,13 @@ class QuantumChemistry:
                            'This will lead to erroneous energies.')
             energy = 0
 
-        # ase energies are always in ev, convert to hartree
         energy *= constants.EVtoHARTREE
 
         return 0, energy
 
     def get_qc_zpe(self, job, wait=1):
         '''
-        Read the zero point energy.
+        Read the zero point energy from the db for job.
         If wait is set to 1 (default), it will wait for the job to finish.
         '''
 
@@ -1135,9 +1231,9 @@ class QuantumChemistry:
         if check != 'normal':
             return []
 
-        if self.use_sella:
-            db = connect('kinbot.db')
-            for row in db.select(name=job):
+        if self.use_sella or self.qc == 'fc':
+            #db = connect('kinbot.db')
+            for row in self.db.select(name=job):
                 last_row = row
             hess = last_row.data['hess']
         elif self.qc == 'gauss':
@@ -1166,9 +1262,9 @@ class QuantumChemistry:
                             n += 1
                     break
             else:
-                # Try to see if the Hessian is the database.
-                db = connect('kinbot.db')
-                for row in db.select(name=job):
+                # Try to see if the Hessian is in the database.
+                #db = connect('kinbot.db')
+                for row in self.db.select(name=job):
                     last_row = row
                 if 'hess' in last_row.data:
                     hess = last_row.data['hess']
@@ -1208,6 +1304,7 @@ class QuantumChemistry:
         Checks if the current job is in the database:
         '''
         # open the database
+        logger.debug(f'Looking for {job} in the db.')
         rows = self.db.select(name=job)
 
         mol = None
@@ -1231,6 +1328,40 @@ class QuantumChemistry:
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
         '''
+        
+        if os.path.exists(f'{job}.pkl'):
+            while True:
+                try:
+                    with open(f'{job}.pkl', 'rb') as f:
+                        loaded_data = pickle.load(f)
+                    break
+                except (EOFError, pickle.UnpicklingError):
+                    time.sleep(1)
+
+            mol = Atoms(symbols=loaded_data['sym'], positions=loaded_data['pos'])
+            name = loaded_data['name']
+            data = loaded_data['data']
+            rows = self.db.select(name=name)
+            count0 = 0
+            for row in rows:
+                count0 += 1
+            self.db.write(mol, name=name, data=data)
+            rows = self.db.select(name=name)
+            while True:
+                count1 = 0
+                for row in rows:
+                    count1 += 1
+                if count1 != count0 + 1:
+                    time.sleep(1)
+                else:
+                    break
+            os.remove(f'{job}.pkl')
+            while True:
+                if os.path.exists(f'{job}.pkl'):
+                    time.sleep(1)
+                else:
+                    break
+
         logger.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')
         if self.queuing == 'pbs':
@@ -1273,6 +1404,10 @@ class QuantumChemistry:
                     log_file = job + '.out'
                 elif self.qc == 'qchem':
                     log_file = job + '.out'
+                elif self.qc == 'orca':
+                    log_file = job + '_sella.log'
+                elif self.qc == 'fc':
+                    log_file = job + '_sella.log'
                 elif self.qc == 'nn_pes':
                     log_file_exists = False
                 else:

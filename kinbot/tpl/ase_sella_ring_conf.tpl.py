@@ -16,6 +16,10 @@ mol = Atoms(symbols={atom},
             positions={geom})
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
@@ -38,6 +42,8 @@ if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
 sella_kwargs = {sella_kwargs}
+if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
+    sella_kwargs['internal'] = False
 opt = Sella(mol, 
             order=0, 
             constraints=const,
@@ -45,15 +51,26 @@ opt = Sella(mol,
             logfile='{label}_sella.log',
             **sella_kwargs,
             )
+mol.calc.label = '{label}'
 
 try:
-    mol.calc.label = '{label}'
-    opt.run(fmax=1e-4, steps=100)
+    opt.run(fmax={fmax}, steps={steps})
     e = mol.get_potential_energy()
     db.write(mol, name='{label}', 
              data={{'energy': e, 'status': 'normal'}})
 except (RuntimeError, ValueError):
-    data = {{'status': 'error'}}
-    db.write(mol, name='{label}', data=data)
-with open('{label}.log', 'a') as f:
+    try:
+        sella_kwargs['internal'] = 1 - sella_kwargs['internal']
+        opt.run(fmax={fmax}, steps={steps})
+        e = mol.get_potential_energy()
+        db.write(mol, name='{label}',
+             data={{'energy': e, 'status': 'normal'}})
+    except:
+        data = {{'status': 'error'}}
+        db.write(mol, name='{label}', data=data)
+
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')
+
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import shutil
 
 from ase import Atoms
 from ase.db import connect
@@ -23,6 +25,10 @@ for fix in base_0_fix:
         raise ValueError(f'Unexpected length of fix: {{fix}}')
 
 kwargs = {kwargs}
+if '{Code}' == 'ORCA':
+    from kinbot.ase_modules.calculators.orca import OrcaProfile
+    kwargs['profile'] = OrcaProfile(command=kwargs['profile'])
+
 mol.calc = {Code}(**kwargs)
 if '{Code}' == 'Gaussian':
     mol.get_potential_energy()
@@ -33,24 +39,24 @@ if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
 sella_kwargs = {sella_kwargs}
+
 opt = Sella(mol, 
             order=0,
             constraints=const,
             trajectory='{label}.traj', 
             logfile='{label}_sella.log',
             **sella_kwargs)
-try:
-    cvgd = opt.run(fmax=0.1, steps=300)
-    if cvgd:
-        e = mol.get_potential_energy()
-    else:  # TODO Eventually we might want to correct something in case it fails.
-        raise RuntimeError
-except (RuntimeError, ValueError):
-    e = 0.0
+
+# intermediate steps don't need to fully converge
+converged = opt.run(fmax=0.1, steps=100)
+e = mol.get_potential_energy()
 
 if not mol.positions.any():  # If all coordinates are 0
     mol.positions = {geom}   # Reset to the original geometry
 db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
 
-with open('{label}.log', 'a') as f:
+if os.path.isdir('{label}'):
+    shutil.rmtree('{label}')
+
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

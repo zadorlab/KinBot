@@ -226,6 +226,10 @@ class Parameters:
             'irc_stepsize': 20,
             # for Gaussian, allow Guess=(Mix,Always)
             'guessmix': 0,
+            # orcablocks
+            'orcablocks': '',
+            # orcasimpleinput
+            'orcasimpleinput': '',
             # Turn off/on (0/1) molpro L3 calculations
             'L3_calc': 0,
             # name of the single point code's name
@@ -254,16 +258,29 @@ class Parameters:
             'hir_maxcycle': None,
             # Non-rigid or rigid hir
             'rigid_hir': 0,
+            # Turn off bad rotors based on 0 angle energies
+            'rotor_0_test': 1,
             # Whether to use sella as optimizer or not
             'use_sella': False,
             # Sella hyperparameters
             'sella_kwargs': {},
+            # fmax for Sella
+            'sella_fmax': 0.005,
+            # steps for Sella
+            'sella_steps': 250,
             # calc_kwargs
             'calc_kwargs': {},
             # Threshold to accept negative frequencies for floppy structures, this is a positive number
             'imagfreq_threshold': 50.,
-            # List of files containing the parameters for the NN model. 
+            # List of files containing the parameters for the NN model.
             'nn_model': None,
+            # FairChem MLIP model configuration (used when qc = 'fc')
+            # Path to local checkpoint file, e.g. /path/to/uma-s-1p2.pt
+            'fc_model_path': '',
+            # Task name for FAIRChemCalculator: omol, omat, oc20, oc22, odac, omc
+            'fc_task_name': 'omol',
+            # Device to run on: cpu, cuda, cuda:0, etc.
+            'fc_device': 'cpu',
 
             # VRC-TST PARAMETERS
             # Amount (Mb) of memory to use in rotdPy for each job during the sampling.
@@ -443,6 +460,17 @@ class Parameters:
                 err = 'When running the hindered rotors at L1, "high_level_method" ' \
                       'must be the same as "method" and "high_level_basis" ' \
                       'must be the same as "basis".'
+        
+        if self.par['qc'] == 'fc' and not self.par['fc_model_path']:
+            err = 'fc_model_path must be set when using qc = "fc".'
+
+        if (self.par['use_sella'] == 1 or self.par['qc'] == 'fc' or self.par['qc'] == 'orca'):
+            if 'internal' not in self.par['sella_kwargs']:
+                self.par['sella_kwargs']['internal'] = True
+                logger.warning('Automatically turning on internal coordiantes for Sella.')
+            if 'gamma' not in self.par['sella_kwargs'] and self.par['calcall_ts']:
+                self.par['sella_kwargs']['gamma'] = 0.0
+                logger.warning('Automatically setting gamma=0.0 in Sella to mimic CalcAll.')
 
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1

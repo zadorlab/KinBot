@@ -1,11 +1,14 @@
 import os
 import numpy as np
+import logging
 
 from kinbot import kb_path
 from kinbot import modify_geom
 from kinbot import geometry
 from kinbot.reactions.reac_abstraction import abstraction_align
+from kinbot.utils import get_unique_list_of_lists
 
+logger = logging.getLogger('KinBot')
 
 def carry_out_reaction(rxn, step, command, bimol=0):
     """
@@ -22,8 +25,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         if status != 'normal' and status != 'error':
             return step
   
-    kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, 
-                                     rxn.species.charge, ts=ts, step=step, 
+    kwargs = rxn.qc.get_qc_arguments(rxn.instance_name, rxn.species.mult, rxn.species.charge, 
+                                     rxn.species.nel, ts=ts, step=step, 
                                      max_step=rxn.max_step, scan=rxn.scan)
     if step == 0:
         if rxn.qc.is_in_database(rxn.instance_name):
@@ -57,6 +60,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                 _, geom_prod, geom_ts = abstraction_align(geom, rxn.instance, rxn.species.atom, rxn.species.fragA.natom)
 
     step, fix, change, release = rxn.get_constraints(step, geom)
+    logger.debug(f'status of constraints step {step} fix {fix} chage {change} release {release}')
 
     if step > rxn.max_step:
         return step
@@ -81,6 +85,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         for c in change:
             fix.append(c[:-1])
         change = []
+        logger.debug(f'status 2  of constraints step {step} fix {fix} chage {change} release {release}')
     elif "frozen" in rxn.instance_name:
         if step != 0:
             tmp_species = rxn.get_frozen_species(distance=rxn.scan_list[step])
@@ -141,9 +146,17 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         elif bimol and step == 1:
             raise NotImplementedError('Bimolecular reactions are not yet '
                                       'implemented in QChem')
+    elif rxn.qc.qc == 'orca':
+        code = 'orca'
+        Code = 'ORCA'
+
     elif rxn.qc.qc == 'nn_pes' and step >= rxn.max_step:
         code = 'nn_pes'
         Code = 'Nn_surr'
+
+    elif rxn.qc.qc == 'fc':
+        code = 'fairchem'
+        Code = 'Fairchem'
 
     if step < rxn.max_step:
         if rxn.qc.use_sella:
@@ -153,19 +166,26 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         else:
             template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_search.tpl.py'
         template = open(template_file,'r').read()
-        template = template.format(label=rxn.instance_name, 
-                                kwargs=kwargs, 
+        skw = rxn.par['sella_kwargs'].copy()
+        skw['internal'] = False
+        template = template.format(label=rxn.instance_name,
+                                kwargs=kwargs,
                                 atom=list(rxn.species.atom),
                                 geom=list([list(gi) for gi in geom]),
                                 bimol=bimol,
-                                ppn=rxn.qc.ppn,
+                                ppn=min(rxn.species.nel, rxn.qc.ppn),
                                 qc_command=command,
                                 working_dir=os.getcwd(),
                                 scan=rxn.scan,
                                 code=code,  # Sella
                                 Code=Code,  # Sella
-                                fix=fix,  # Sella
-                                sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                fix=get_unique_list_of_lists(fix),  # Sella
+                                sella_kwargs=skw,
+                                fmax=rxn.par['sella_fmax'],
+                                steps=rxn.par['sella_steps'],
+                                fc_model_path=rxn.par['fc_model_path'],
+                                fc_task_name=rxn.par['fc_task_name'],
+                                fc_device=rxn.par['fc_device'],
                                 )
     else:
         if rxn.par['calc_kwargs']:
@@ -178,22 +198,30 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
     
-        template = template.format(label=rxn.instance_name, 
+        template = template.format(label=rxn.instance_name,
                                    kwargs=kwargs,
                                    atom=list(rxn.species.atom),
                                    geom=list([list(gi) for gi in geom]),
-                                   ppn=rxn.qc.ppn,
+                                   ppn=min(rxn.species.nel, rxn.qc.ppn),
                                    qc_command=command,
                                    working_dir=os.getcwd(),
                                    code=code,  # Sella
                                    Code=Code,  # Sella
-                                   sella_kwargs=rxn.par['sella_kwargs']  # Sella
+                                   sella_kwargs=rxn.par['sella_kwargs'],  # Sella
+                                   fmax=rxn.par['sella_fmax'],
+                                   steps=rxn.par['sella_steps'],
+                                   fc_model_path=rxn.par['fc_model_path'],
+                                   fc_task_name=rxn.par['fc_task_name'],
+                                   fc_device=rxn.par['fc_device'],
                                    )
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:
         f_out.write(template)
 
-    step += rxn.qc.submit_qc(rxn.instance_name, singlejob=0, 
+# uncommet if you want intermediate runs to be printed into files, for debugging
+#    with open('{}_{}.py'.format(rxn.instance_name, step),'w') as f_out:
+#        f_out.write(template)
+    step += rxn.qc.submit_qc(rxn.instance_name, min(rxn.species.nel, rxn.qc.ppn), singlejob=0, 
                              jobtype=kwargs.pop('method', None))
 
     return step

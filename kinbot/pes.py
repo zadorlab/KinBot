@@ -357,7 +357,7 @@ def postprocess(par, jobs, task, names, mass):
                 # overwrite energies with mp2 energy if needed
                 if any([mm in reaction_name for mm in constants.mp2_list]) \
                        and not par['high_level'] \
-                       and par['qc'] != 'nn_pes':
+                       and par['qc'] != 'nn_pes' and par['qc'] != 'fc':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
                                               mp2=1, conf=par['conformer_search'])
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
@@ -1689,7 +1689,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
         wells = [job.split('_')[0]]
     else:
         j = job + '_well'
-    if conf and not high_level and not mp2:
+    if conf and not high_level and not mp2 and 'IRC' not in job:
         j = f'conf/{job}_low'
     if mp2:
         j += '_mp2'

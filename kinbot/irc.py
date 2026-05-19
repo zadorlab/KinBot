@@ -146,18 +146,25 @@ class IRC:
             elif self.rxn.qc.qc == 'qchem':
                 code = 'qchem'  # Sella
                 Code = 'QChem'  # Sella
+            elif self.rxn.qc.qc == 'orca':
+                code = 'orca'
+                Code = 'ORCA'
             elif self.rxn.qc.qc == 'nn_pes':
                 code = 'nn_pes'
                 Code = 'Nn_surr'
+            elif self.rxn.qc.qc == 'fc':
+                code = 'fairchem'
+                Code = 'Fairchem'
             else:
                 raise ValueError(f'Unexpected code name: {self.rxn.qc.qc}.')
 
             kwargs = self.rxn.qc.get_qc_arguments(irc_name,
                                                   self.rxn.species.mult,
                                                   self.rxn.species.charge,
+                                                  self.rxn.species.nel,
                                                   irc=direction.lower(),
                                                   start_from_geom=start_from_geometry)
-            prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge)
+            prod_kwargs = self.rxn.qc.get_qc_arguments(irc_name + '_prod', self.rxn.species.mult, self.rxn.species.charge, self.rxn.species.nel)
             if self.rxn.qc.qc == 'gauss':
                 #prod_kwargs['opt'] = 'CalcFC, Tight'
                 prod_kwargs['opt'] = 'CalcFC'
@@ -179,17 +186,22 @@ class IRC:
                                        prod_kwargs=prod_kwargs,
                                        atom=list(self.rxn.species.atom),
                                        geom=list([list(gi) for gi in geom]),
-                                       ppn=self.rxn.qc.ppn,
+                                       ppn=min(self.rxn.species.nel, self.rxn.qc.ppn),
                                        qc_command=self.par['qc_command'],
                                        working_dir=os.getcwd(),
                                        code=code,
                                        Code=Code,
-                                       sella_kwargs=self.par['sella_kwargs']  # Sella
-            )
+                                       sella_kwargs=self.par['sella_kwargs'],  # Sella
+                                       fmax=self.par['sella_fmax'],
+                                       steps=self.par['sella_steps'],
+                                       fc_model_path=self.par['fc_model_path'],
+                                       fc_task_name=self.par['fc_task_name'],
+                                       fc_device=self.par['fc_device'],
+                                       )
 
             with open('{}.py'.format(irc_name), 'w') as f:
                 f.write(template)
 
-            self.rxn.qc.submit_qc(irc_name, singlejob=0)
+            self.rxn.qc.submit_qc(irc_name, min(self.rxn.species.nel, self.rxn.qc.ppn), singlejob=0)
 
         return 0

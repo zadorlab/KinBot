@@ -1,5 +1,6 @@
 import os
 import copy
+import subprocess
 from collections.abc import Iterable
 from shutil import which
 from typing import Dict, Optional
@@ -101,6 +102,21 @@ class Gaussian(FileIOCalculator):
 
     def __init__(self, *args, label='Gaussian', **kwargs):
         FileIOCalculator.__init__(self, *args, label=label, **kwargs)
+
+    def _initialize_profile(self, command):
+        # KinBot resolves the Gaussian executable dynamically in calculate();
+        # skip ASE's profile/config-file system entirely.
+        return None
+
+    def execute(self):
+        command = self.command.replace('PREFIX', self.prefix)
+        directory = getattr(self, 'directory', '.')
+        proc = subprocess.Popen(command, shell=True, cwd=directory)
+        errorcode = proc.wait()
+        if errorcode:
+            raise RuntimeError(
+                f'Gaussian exited with error code {errorcode} '
+                f'(command: {command})')
 
     def calculate(self, *args, **kwargs):
         gaussians = ('g16', 'g09', 'g03')

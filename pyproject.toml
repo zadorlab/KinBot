@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 exclude = ["build", "dist", "KinBot.egg-info", "graphics"]
 
 [tool.setuptools.package-data]
-"kinbot.tpl" = ["*.tpl"]
+"kinbot.tpl" = ["*.tpl.py", "*.tpl", "*.png"]
 
 [project]
 name = "kinbot"

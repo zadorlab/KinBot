@@ -1,3 +1,4 @@
+import subprocess
 import numpy as np
 from ase.calculators.calculator import FileIOCalculator
 import ase.units
@@ -19,35 +20,9 @@ class QChem(FileIOCalculator):
                           'jobtype': None,
                           'charge': 0}
 
-    def __init__(self, restart=None,
-                 ignore_bad_restart_file=FileIOCalculator._deprecated,
-                 label='qchem', scratch=None, np=1, nt=1, pbs=False,
-                 basisfile=None, ecpfile=None, atoms=None, **kwargs):
-        """
-        The scratch directory, number of processor and threads as well as a few
-        other command line options can be set using the arguments explained
-        below. The remaining kwargs are copied as options to the input file.
-        The calculator will convert these options to upper case
-        (Q-Chem standard) when writing the input file.
-
-        scratch: str
-            path of the scratch directory
-        np: int
-            number of processors for the -np command line flag
-        nt: int
-            number of threads for the -nt command line flag
-        pbs: boolean
-            command line flag for pbs scheduler (see Q-Chem manual)
-        basisfile: str
-            path to file containing the basis. Use in combination with
-            basis='gen' keyword argument.
-        ecpfile: str
-            path to file containing the effective core potential. Use in
-            combination with ecp='gen' keyword argument.
-        """
-
-        FileIOCalculator.__init__(self, restart, ignore_bad_restart_file,
-                                  label, atoms, **kwargs)
+    def __init__(self, label='qchem', scratch=None, np=1, nt=1, pbs=False,
+                 basisfile=None, ecpfile=None, **kwargs):
+        FileIOCalculator.__init__(self, label=label, **kwargs)
 
         # Augment the command by various flags
         if pbs:
@@ -64,6 +39,19 @@ class QChem(FileIOCalculator):
 
         self.basisfile = basisfile
         self.ecpfile = ecpfile
+
+    def _initialize_profile(self, command):
+        return None
+
+    def execute(self):
+        command = self.command.replace('PREFIX', self.prefix)
+        directory = getattr(self, 'directory', '.')
+        proc = subprocess.Popen(command, shell=True, cwd=directory)
+        errorcode = proc.wait()
+        if errorcode:
+            raise RuntimeError(
+                f'QChem exited with error code {errorcode} '
+                f'(command: {command})')
 
     def read(self, label):
         raise NotImplementedError

@@ -168,8 +168,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         template = open(template_file,'r').read()
         skw = rxn.par['sella_kwargs'].copy()
         skw['internal'] = False
-        template = template.format(label=rxn.instance_name, 
-                                kwargs=kwargs, 
+        template = template.format(label=rxn.instance_name,
+                                kwargs=kwargs,
                                 atom=list(rxn.species.atom),
                                 geom=list([list(gi) for gi in geom]),
                                 bimol=bimol,
@@ -180,9 +180,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                 code=code,  # Sella
                                 Code=Code,  # Sella
                                 fix=get_unique_list_of_lists(fix),  # Sella
-                                sella_kwargs=skw, 
+                                sella_kwargs=skw,
                                 fmax=rxn.par['sella_fmax'],
                                 steps=rxn.par['sella_steps'],
+                                fc_model_path=rxn.par['fc_model_path'],
+                                fc_task_name=rxn.par['fc_task_name'],
+                                fc_device=rxn.par['fc_device'],
                                 )
     else:
         if rxn.par['calc_kwargs']:
@@ -195,7 +198,7 @@ def carry_out_reaction(rxn, step, command, bimol=0):
             template_file = f'{kb_path}/tpl/ase_{rxn.qc.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
     
-        template = template.format(label=rxn.instance_name, 
+        template = template.format(label=rxn.instance_name,
                                    kwargs=kwargs,
                                    atom=list(rxn.species.atom),
                                    geom=list([list(gi) for gi in geom]),
@@ -207,6 +210,9 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                                    sella_kwargs=rxn.par['sella_kwargs'],  # Sella
                                    fmax=rxn.par['sella_fmax'],
                                    steps=rxn.par['sella_steps'],
+                                   fc_model_path=rxn.par['fc_model_path'],
+                                   fc_task_name=rxn.par['fc_task_name'],
+                                   fc_device=rxn.par['fc_device'],
                                    )
                                    
     with open('{}.py'.format(rxn.instance_name),'w') as f_out:

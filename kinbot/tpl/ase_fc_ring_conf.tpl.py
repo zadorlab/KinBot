@@ -7,22 +7,18 @@ from ase import Atoms
 from ase.io import read, write
 from sella import Sella, Constraints
 
-#from kinbot.ase_modules.calculators.{code} import {Code}
-from fairchem.core import pretrained_mlip, FAIRChemCalculator
+from fairchem.core.units.mlip_unit import load_predict_unit
+from fairchem.core import FAIRChemCalculator
 
-#db = connect('{working_dir}/kinbot.db')
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
 # molecule
-mol = Atoms(symbols={atom}, 
+mol = Atoms(symbols={atom},
             positions={geom})
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-#mol.calc = FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1", device="cpu"), task_name="omol")
-with open('fc_model.pkl', 'rb') as f:
-    mol.calc = pickle.load(f)
-mol.calc.label = '{label}'
+mol.calc = FAIRChemCalculator(load_predict_unit('{fc_model_path}', device='{fc_device}'), task_name='{fc_task_name}')
 
 const = Constraints(mol)
 # make it zero indexed

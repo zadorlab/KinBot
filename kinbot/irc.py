@@ -194,6 +194,9 @@ class IRC:
                                        sella_kwargs=self.par['sella_kwargs'],  # Sella
                                        fmax=self.par['sella_fmax'],
                                        steps=self.par['sella_steps'],
+                                       fc_model_path=self.par['fc_model_path'],
+                                       fc_task_name=self.par['fc_task_name'],
+                                       fc_device=self.par['fc_device'],
                                        )
 
             with open('{}.py'.format(irc_name), 'w') as f:

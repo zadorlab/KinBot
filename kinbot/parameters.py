@@ -272,8 +272,15 @@ class Parameters:
             'calc_kwargs': {},
             # Threshold to accept negative frequencies for floppy structures, this is a positive number
             'imagfreq_threshold': 50.,
-            # List of files containing the parameters for the NN model. 
+            # List of files containing the parameters for the NN model.
             'nn_model': None,
+            # FairChem MLIP model configuration (used when qc = 'fc')
+            # Path to local checkpoint file, e.g. /path/to/uma-s-1p2.pt
+            'fc_model_path': '',
+            # Task name for FAIRChemCalculator: omol, omat, oc20, oc22, odac, omc
+            'fc_task_name': 'omol',
+            # Device to run on: cpu, cuda, cuda:0, etc.
+            'fc_device': 'cpu',
 
             # VRC-TST PARAMETERS
             # Amount (Mb) of memory to use in rotdPy for each job during the sampling.
@@ -454,6 +461,9 @@ class Parameters:
                       'must be the same as "method" and "high_level_basis" ' \
                       'must be the same as "basis".'
         
+        if self.par['qc'] == 'fc' and not self.par['fc_model_path']:
+            err = 'fc_model_path must be set when using qc = "fc".'
+
         if (self.par['use_sella'] == 1 or self.par['qc'] == 'fc' or self.par['qc'] == 'orca'):
             if 'internal' not in self.par['sella_kwargs']:
                 self.par['sella_kwargs']['internal'] = True

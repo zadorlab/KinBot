@@ -3,22 +3,21 @@ import numpy as np
 import pickle
 
 from ase import Atoms
-from ase.db import connect
 from ase.io import read, write
 from sella import Sella, Constraints
-#from kinbot.ase_modules.calculators.{code} import {Code}
 
-db = connect('{working_dir}/kinbot.db')
+from fairchem.core.units.mlip_unit import load_predict_unit
+from fairchem.core import FAIRChemCalculator
+
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
 
 # molecule
-mol = Atoms(symbols={atom}, 
+mol = Atoms(symbols={atom},
             positions={geom})
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-with open('fc_model.pkl', 'rb') as f:
-    mol.calc = pickle.load(f)
+mol.calc = FAIRChemCalculator(load_predict_unit('{fc_model_path}', device='{fc_device}'), task_name='{fc_task_name}')
 
 # constraints 
 const = Constraints(mol)

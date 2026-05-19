@@ -416,6 +416,9 @@ class QuantumChemistry:
                                    sella_kwargs=self.par['sella_kwargs'],  # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -497,6 +500,9 @@ class QuantumChemistry:
                                    sella_kwargs=skw, # internal turned off, constraints used instead
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -581,7 +587,10 @@ class QuantumChemistry:
                                    sella_kwargs=self.par['sella_kwargs'],  # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
-                                   )    
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
+                                   )
         
         with open(f'{job}.py', 'w') as f:
             f.write(template)
@@ -720,8 +729,11 @@ class QuantumChemistry:
                                    sella_kwargs=self.par['sella_kwargs'], # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
-                                   charge=species.charge, #fc
-                                   spin=species.mult #fc
+                                   charge=species.charge,
+                                   spin=species.mult,
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
                                    )
 
         with open(f'{job}.py', 'w') as f:
@@ -789,6 +801,9 @@ class QuantumChemistry:
                                    sella_kwargs=self.par['sella_kwargs'], # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
+                                   fc_model_path=self.par['fc_model_path'],
+                                   fc_task_name=self.par['fc_task_name'],
+                                   fc_device=self.par['fc_device'],
                                    )
 
         with open(f'{job}.py', 'w') as f:

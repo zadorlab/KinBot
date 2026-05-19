@@ -145,7 +145,7 @@ def clean_files(diagnostic=False, qc=None):
         if qc == 'fc':
             if len(ff) > 9 and ff[-9:] == 'sella.log':
                 log.append(ff)
-            elif ff.endswith('.pkl') and ff != 'fc_model.pkl':
+            elif ff.endswith('.pkl'):
                 os.remove(ff)
         else:
             if len(ff) > 4 and ff[-4:] == '.log':

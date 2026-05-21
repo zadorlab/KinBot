@@ -334,7 +334,7 @@ class ReactionGenerator:
                                 hom_sci_energy += frag.energy + frag.zpe
                             # Reinitialize rads and bonds
                             frag.reset_order()
-                            self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", frag)
+                            self._debug_fragment_freqs(f"{obj.instance_name}:after_start_multi_molecular", frag)
                             # connectivity changed
                             if chemid_orig != frag.chemid:
                                 for fri, fr in enumerate(obj.products):
@@ -835,7 +835,7 @@ class ReactionGenerator:
             freq = getattr(frag, "freq", None)
             red = getattr(frag, "reduced_freqs", None)
 
-            logger.info(
+            logger.debug(
                 "FRAGFREQ %-22s id=%s name=%s chemid=%s natom=%s atoms=%s "
                 "freq=%s reduced=%s",
                 tag,
@@ -848,10 +848,10 @@ class ReactionGenerator:
                 self._fmt_freqs(red),
             )
         except Exception as e:
-            logger.info("FRAGFREQ %-22s (failed to print fragment freqs): %s", tag, e)
+            logger.debug("FRAGFREQ %-22s (failed to print fragment freqs): %s", tag, e)
 
     def _debug_fraglist_freqs(self, tag, fragments):
         """Print frequencies for a list of fragments."""
-        logger.info("FRAGFREQ_LIST %s nfrags=%d", tag, len(fragments))
+        logger.debug("FRAGFREQ_LIST %s nfrags=%d", tag, len(fragments))
         for i, fr in enumerate(fragments):
             self._debug_fragment_freqs(f"{tag}[{i}]", fr)

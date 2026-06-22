@@ -226,6 +226,8 @@ class Parameters:
             'irc_maxpoints': 30,
             # for Gaussian irc, IRC(StepSize=n)
             'irc_stepsize': 20,
+            # for Gaussian irc, IRC(MaxCycle=n)
+            'irc_maxcycle': 999,
             # for Gaussian, allow Guess=(Mix,Always)
             'guessmix': 0,
             # orcablocks

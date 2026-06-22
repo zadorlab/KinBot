@@ -57,6 +57,7 @@ class QuantumChemistry:
         self.job_ids = {}
         self.irc_maxpoints = par['irc_maxpoints']
         self.irc_stepsize = par['irc_stepsize']
+        self.irc_maxcycle = par['irc_maxcycle']
         self.qc_command = par['qc_command']
         if par['slurm_feature'] == '':
             self.slurm_feature = ''
@@ -168,9 +169,9 @@ class QuantumChemistry:
                         kwargs['guess'] = 'Read,Mix'  # Always is illegal here
                     else:
                         kwargs['guess'] = 'Read'
-                    kwargs['irc'] = 'RCFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
+                    kwargs['irc'] = 'RCFC,{},MaxPoints={},StepSize={},MaxCycle={}'.format(irc, self.irc_maxpoints, self.irc_stepsize, self.irc_maxcycle)
                 else:
-                    kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={}'.format(irc, self.irc_maxpoints, self.irc_stepsize)
+                    kwargs['irc'] = 'RCFC,CalcFC,{},MaxPoints={},StepSize={},MaxCycle={}'.format(irc, self.irc_maxpoints, self.irc_stepsize, self.irc_maxcycle)
                 kwargs.pop('freq', None)
             if high_level:
                 kwargs['method'] = self.high_level_method

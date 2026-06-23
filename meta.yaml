@@ -8,7 +8,7 @@ package:
 
 source:
     url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/kinbot-{{ version }}.tar.gz
-    sha256: 75f9373fe7932d3da585ef5e889b048d35d1a84a0a5b05788f694b6bbf08c3c4
+    sha256: 23d0db17d24295bb1e4f5b7444f2c5f5dd797f966dc5d578e82aa2b4441075ba
 
 build:
     noarch: python

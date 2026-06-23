@@ -668,21 +668,21 @@ class Fragment(StationaryPoint):
         save_pos = np.arange(0, box_dim[2])
         for ln, line in enumerate(cubefile[start_line:stop_line]):
             nx = int(np.trunc((ln+start_line-start) / xsize))
-            if np.in1d(nx, np.arange(search_origin[0], search_end[0])):
+            if np.isin(nx, np.arange(search_origin[0], search_end[0])):
                 rest_y = (ln+start_line-start) % xsize
                 ny = int(np.trunc(rest_y / ysize))
-                if np.in1d(ny, np.arange(search_origin[1], search_end[1])):
+                if np.isin(ny, np.arange(search_origin[1], search_end[1])):
                     # rest_z goes from 0 to ysize-1
                     rest_z = rest_y % ysize
                     indexes_in_line: NDArray[Any] = np.arange(rest_z*6, rest_z*6+6)
-                    is_in_box: NDArray[bool_] = np.in1d(
+                    is_in_box: NDArray[bool_] = np.isin(
                         indexes_in_line,
                         np.arange(search_origin[2], search_end[2]))
                     zidx_in_box = (
                         indexes_in_line[is_in_box] - search_origin[2]
                         ).tolist()
                     # Boolean mask
-                    where2save = np.in1d(save_pos, zidx_in_box)
+                    where2save = np.isin(save_pos, zidx_in_box)
                     which2save = np.where(is_in_box)[0]
                     if not any(where2save):
                         continue

@@ -10,7 +10,7 @@ exclude = ["build", "dist", "KinBot.egg-info", "graphics"]
 
 [project]
 name = "kinbot"
-version = "2.2.4a"
+version = "2.3.0"
 description = "Automated reaction kinetics for gas-phase species"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -43,7 +43,7 @@ dependencies = [
         "ase>=3.26",
         "networkx",
         "rmsd>=1.5.1",
-        "sella"
+        "sella>=2.5.0"
 ]
 
 [project.optional-dependencies]
@@ -55,12 +55,10 @@ plot = [
 # FAIRChem/UMA machine-learning interatomic potential backend (qc = 'fc').
 # fairchem-core pins numpy>=2.0 and ase>=3.26 and pulls in torch, so it is
 # kept as an optional extra rather than a core dependency.
-# scipy is capped <1.18: scipy 1.18 added array-namespace support to
-# LinearOperator, which breaks sella's optimizer at runtime (sella PR #77,
-# not yet released). >=1.15 is required by fairchem-core.
+# scipy>=1.15 is required by fairchem-core.
 fc = [
     "fairchem-core>=2.0",
-    "scipy>=1.15,<1.18"
+    "scipy>=1.15"
 ]
 
 [project.urls]

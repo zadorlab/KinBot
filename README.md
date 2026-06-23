@@ -74,7 +74,7 @@ utilities:
 ### From Github
 
 If you want to have the very last version of KinBot without waiting for a 
-release or you want to modify KinBot acccording to your needs you can clone the project 
+release or you want to modify KinBot according to your needs you can clone the project 
 from github:
 
     git clone git@github.com:zadorlab/KinBot.git

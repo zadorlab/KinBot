@@ -1,6 +1,6 @@
 {% set name = "kinbot" %}
 {% set version = "2.2.4a" %}
-{% set python_min = "3.10" %}
+{% set python_min = "3.11" %}
 
 package:
     name: {{ name|lower }}
@@ -26,7 +26,7 @@ requirements:
     run:
         - python {{ python_min }}
         - numpy >=1.17.0
-        - ase >=3.19
+        - ase >=3.26
         - networkx
         - rmsd >=1.5.1
         - sella

@@ -42,7 +42,7 @@ We appreciate if you send us the DOI of your published paper that used KinBot, s
 
 ## How to Install
 
-KinBot can be installed both in three different ways, from the PyPI index (`pip install`), from the conda-forge repo (`conda install`) or by cloning this github repo and then install it locally.
+KinBot can be installed in three different ways: from the PyPI index (`pip install`), from the conda-forge repo (`conda install`), or by cloning this github repo and installing it locally.
 
 ### PyPI
 
@@ -51,9 +51,25 @@ KinBot can be installed both in three different ways, from the PyPI index (`pip 
 > **Note**
 >  KinBot only works with Python >= 3.11.
 
+To use the FAIRChem/UMA machine-learning interatomic potential backend
+(`qc = 'fc'`), install the optional `fc` dependencies (this also pulls in
+`fairchem-core`, `torch`, and a compatible `numpy`/`scipy`):
+
+    pip install kinbot[fc]
+
+The optional `plot` extra (`matplotlib`, `pyvis`, `rdkit`) enables the plotting
+utilities:
+
+    pip install kinbot[plot]
+
 ### conda-forge
 
     conda install -c conda-forge kinbot
+
+> **Note**
+> The conda-forge package currently lags behind PyPI. For the latest release
+> and features (e.g. the FAIRChem/UMA backend and ASE 3.26 support introduced
+> in 2.3.0), install from PyPI or from GitHub instead.
 
 ### From Github
 

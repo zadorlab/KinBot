@@ -18,7 +18,7 @@ R = 8.31446261815324  # J K−1 mol−1
 CALtoJ = 4.184
 
 # elements currently in KinBot
-elements = ['C', 'H', 'O', 'N', 'S', 'F', 'Cl', 'Br', 'I']
+elements = ['C', 'H', 'O', 'N', 'S', 'F', 'Cl', 'Br', 'I', 'Si']
 
 znumber = {'H': 1}
 znumber['C'] = 6
@@ -29,6 +29,7 @@ znumber['F'] = 9
 znumber['Cl'] = 17
 znumber['Br'] = 35
 znumber['I'] = 53
+znumber['Si'] = 14
 
 # standard bond lengths, cutoffs, and oxidation numbers
 
@@ -71,6 +72,7 @@ st_bond['F'] = 1
 st_bond['Cl'] = 1
 st_bond['Br'] = 1
 st_bond['I'] = 1
+st_bond['Si'] = 4  # maximum valence
 
 for el1 in elements:
     for el2 in elements:
@@ -95,7 +97,8 @@ mass['S'] = 32
 mass['F'] = 19
 mass['Cl'] = 35  # isotopes = Cl-35, Cl-37, Cl-36 (3 most stable/common)
 mass['Br'] = 79  # isotopes = Br-79, Br-81, Br-77 (3 most stable/common)
-mass['I'] = 127  
+mass['I'] = 127
+mass['Si'] = 28  # isotopes = Si-28, Si-29, Si-30
 
 exact_mass = {'H': 1.00782503207}
 exact_mass['C'] = 12.00000000000
@@ -106,6 +109,7 @@ exact_mass['F'] = 18.9984
 exact_mass['Cl'] = 34.9689
 exact_mass['Br'] = 78.9183
 exact_mass['I'] = 126.904477
+exact_mass['Si'] = 27.9769265
 
 # collision parameters
 # Jasper & Miller, C&F 161, 101-110 (2014)

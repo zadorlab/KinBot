@@ -4,6 +4,7 @@ import logging
 
 import numpy as np
 from PIL import Image
+from ase.data import chemical_symbols, atomic_numbers
 
 from kinbot import kb_path
 
@@ -22,8 +23,9 @@ except ImportError:
 
 logger = logging.getLogger('KinBot')
 
-num_to_syms = {1: 'H', 6: 'C', 7: 'N', 8: 'O', 16: 'S'}
-syms_to_num = {'H': 1, 'C': 6, 'N': 7, 'O': 8, 'S': 16}
+# full periodic table from ASE (index 0 is the 'X' dummy); covers Si, halogens, etc.
+num_to_syms = {z: sym for z, sym in enumerate(chemical_symbols)}
+syms_to_num = dict(atomic_numbers)
 
 
 def get_molecular_formula(smi):

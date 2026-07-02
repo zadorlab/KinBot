@@ -83,11 +83,15 @@ write('{label}.xyz', traj, format='xyz')
 if converged:
     freqs, zpe, hessian = calc_vibrations(mol, '{label}')
     if sella_freq_check(freqs, {order}):
-        data={{'energy': e, 
-               'frequencies': freqs, 
+        data={{'energy': e,
+               'frequencies': freqs,
                'zpe': zpe,
-               'hess': hessian, 
+               'hess': hessian,
                'status': 'normal'}}
+    else:
+        with open('{label}_sella.log', 'a') as f:
+            f.write('Converged but frequency check failed (order={order}); frequencies (cm-1):\n')
+            f.write(str(list(freqs)) + '\n')
 elif len(mol.symbols) > 2 and (not converged):
     mol.positions = {geom}
     sella_kwargs['internal'] = 1 - sella_kwargs['internal']
@@ -107,11 +111,15 @@ elif len(mol.symbols) > 2 and (not converged):
     if converged:
         freqs, zpe, hessian = calc_vibrations(mol, '{label}')
         if sella_freq_check(freqs, {order}):
-            data={{'energy': e, 
-                   'frequencies': freqs, 
+            data={{'energy': e,
+                   'frequencies': freqs,
                    'zpe': zpe,
-                   'hess': hessian, 
+                   'hess': hessian,
                    'status': 'normal'}}
+        else:
+            with open('{label}_sella.log', 'a') as f:
+                f.write('Converged but frequency check failed (order={order}); frequencies (cm-1):\n')
+                f.write(str(list(freqs)) + '\n')
 
 mol_pkl = {{'sym': mol.symbols,
             'pos': mol.positions,

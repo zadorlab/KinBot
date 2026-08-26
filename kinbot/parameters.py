@@ -412,6 +412,13 @@ class Parameters:
             # Uncertainty in negative frequency values, mult/div by a maximum factor of 1.1.
             # factor of 1.1 corresponds to values ranging from 0.909 to 1.1 times the original frequency
             'imagfreq_uq': 1.1,
+            # Reference frequency in cm-1 at which freq_uq is applied as is.
+            # Below it the perturbation is amplified, above it dampened.
+            'freq_uq_ref': 100.,
+            # Cap on the amplification exponent, which bounds how hard the very
+            # lowest frequencies are perturbed. The default of 4 freezes the
+            # amplification below freq_uq_ref / 4 = 25 cm-1.
+            'freq_uq_max_exp': 4.,
             # LJ parameters
             'epsilon_uq': 1.2,
             'sigma_uq': 1.2,

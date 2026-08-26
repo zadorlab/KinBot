@@ -801,12 +801,28 @@ class MESS:
             geom += '        {} {:.6f} {:.6f} {:.6f}\n'.format(at, x, y, z)
         return geom[:-1]
 
+    def scale_freq(self, fr, factor):
+        """
+        Apply the UQ factor to a single frequency, amplified at low
+        frequencies and dampened at high ones. See make_freq.
+        """
+        exponent = min(self.par['freq_uq_ref'] / fr,
+                       self.par['freq_uq_max_exp'])
+        return fr * factor ** exponent
+
     def make_freq(self, fr, factor, wellorts):
         """
         Frequencies are scaled with factor in UQ.
-        At 100 cm-1 the scaling is applied as is.
+        At freq_uq_ref the scaling is applied as is.
         For lower frequencies the scaling is amplified.
         For higher frequencies the scaling is dampened.
+
+        The scaling is the power law v' = v * factor**(freq_uq_ref / v). The
+        UQ factor is sampled log-uniformly, so factor and 1/factor are equally
+        likely and have to cancel exactly; the power law guarantees that at
+        every frequency, whereas a shift or a division does not. The exponent
+        is capped at freq_uq_max_exp so that the amplification stays bounded
+        as v approaches zero.
         """
         freq = '        '
         #wellorts: 0 for wells and 1 for saddle points
@@ -815,11 +831,7 @@ class MESS:
         else:
             frequencies = fr[1:]
         for i, fr in enumerate(frequencies):
-            if factor >= 1:
-                fr = fr * (1 / fr * (factor - 1 ) * 100 + 1)
-            else:
-                fr = fr / ( 1 / fr * (1 - factor) * 100 + 1)
-            freq += '{:.1f} '.format(fr)
+            freq += '{:.1f} '.format(self.scale_freq(fr, factor))
             if i % 3 == 2:
                 freq += '\n        '
         return(freq[:-1])

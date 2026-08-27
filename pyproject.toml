@@ -47,6 +47,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+bimol = [
+    "fairchem-core>=2.14"
+]
 plot = [
     "matplotlib",
     "pyvis",

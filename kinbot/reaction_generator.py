@@ -235,8 +235,11 @@ class ReactionGenerator:
                         else:
                             ending = 'well'
                             thresh = self.par['barrier_threshold']
-                        sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
-                        sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
+                        if self.par['bimol']:
+                            sp_energy, sp_zpe = self.species.energy, self.species.zpe
+                        else:
+                            sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
+                            sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
                         try:
                             barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
                         except TypeError:
@@ -619,11 +622,17 @@ class ReactionGenerator:
                                 logger.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}.')
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1
-                    if any([fi < 0. for fi in obj.ts.reduced_freqs[1:]]):
-                        logger.warning('Found more than one negative frequency for ' + obj.instance_name)
+                    ts_freq = np.asarray(obj.ts.reduced_freqs)
+                    if (np.count_nonzero(ts_freq < 0.) >= 3
+                            or np.count_nonzero(
+                                ts_freq < -self.par['imagfreq_threshold']) >= 2
+                            or np.count_nonzero(ts_freq < 0.) == 0):
+                        logger.warning('Wrong number of imaginary frequencies for ' + obj.instance_name)
                         logger.warning(obj.ts.reduced_freqs)
                         self.species.reac_ts_done[index] = -999
                         neg_freq = 1
+                    elif np.count_nonzero(ts_freq < 0.) == 2:
+                        logger.warning('Ignoring small secondary negative frequency for ' + obj.instance_name)
                         
                     if not neg_freq:
                         # the reaction search is finished

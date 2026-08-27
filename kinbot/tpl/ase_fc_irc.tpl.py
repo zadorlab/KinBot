@@ -6,11 +6,19 @@ import shutil
 from ase import Atoms
 from ase.io import read, write
 
-from sella import Sella, IRC
+from sella import Sella, IRC as SellaIRC
 
-from fairchem.core.units.mlip_unit import load_predict_unit
 from fairchem.core import FAIRChemCalculator
+from kinbot.fairchem import load_predictor
 from kinbot.frequencies import calc_vibrations
+
+
+class IRC(SellaIRC):
+    """Keep Sella's first-step guard with ASE 3.28 and newer."""
+
+    def gradient_converged(self, gradient=None):
+        return self.converged()
+
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
@@ -20,7 +28,7 @@ mol = Atoms(symbols={atom},
             positions={geom})
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-mol.calc = FAIRChemCalculator(load_predict_unit('{fc_model_path}', device='{fc_device}'), task_name='{fc_task_name}')
+mol.calc = FAIRChemCalculator(load_predictor('{fc_model_path}', '{fc_device}'), task_name='{fc_task_name}')
 
 # irc
 irc = IRC(mol, 

@@ -7,8 +7,8 @@ from ase import Atoms
 from ase.io import read, write
 from sella import Sella
 
-from fairchem.core.units.mlip_unit import load_predict_unit
 from fairchem.core import FAIRChemCalculator
+from kinbot.fairchem import load_predictor
 from kinbot.frequencies import calc_vibrations
 from kinbot.utils import sella_freq_check
 
@@ -22,7 +22,7 @@ mol = Atoms(symbols={atom},
             positions={geom})
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-mol.calc = FAIRChemCalculator(load_predict_unit('{fc_model_path}', device='{fc_device}'), task_name='{fc_task_name}')
+mol.calc = FAIRChemCalculator(load_predictor('{fc_model_path}', '{fc_device}'), task_name='{fc_task_name}')
 freqs = []
 
 # sella

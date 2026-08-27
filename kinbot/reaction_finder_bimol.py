@@ -66,8 +66,12 @@ class ReactionFinderBimol:
                 for rn in reaction_names:
                     if rn in self.families or 'all' in self.families:
                         if not rn in self.skip_families:
-                            reaction_names[rn](natomA, atomA, bondA, radA, uniqA, natomB, atomB, bondB, radB, uniqB, natomA)  # last natomA is a shift
-                            reaction_names[rn](natomB, atomB, bondB, radB, uniqB, natomA, atomA, bondA, radA, uniqA, natomA)  # swapping roles for all families
+                            reaction_names[rn](
+                                natomA, atomA, bondA, radA, uniqA,
+                                natomB, atomB, bondB, radB, uniqB, 0, natomA)
+                            reaction_names[rn](
+                                natomB, atomB, bondB, radB, uniqB,
+                                natomA, atomA, bondA, radA, uniqA, natomA, 0)
 
         for name in self.reactions:
             self.reaction_matrix(self.reactions[name], name) 
@@ -86,7 +90,9 @@ class ReactionFinderBimol:
         return 0  
    
 
-    def search_abstraction(self, natomA, atomA, bondA, radA, uniqA, natomB, atomB, bondB, radB, uniqB, shift):
+    def search_abstraction(self, natomA, atomA, bondA, radA, uniqA,
+                           natomB, atomB, bondB, radB, uniqB,
+                           shiftA, shiftB):
         """ 
         This is a general atom abstraction family.
 
@@ -101,6 +107,8 @@ class ReactionFinderBimol:
         a is an abstractor site
             - radical location
             - ?
+
+        shiftA and shiftB map fragment-local indices to the combined order.
         """
         
         name = 'abstraction'
@@ -116,7 +124,9 @@ class ReactionFinderBimol:
                 if atomB[bb] in ['H']:  # TODO expand to other atoms
                     for ee, bond in enumerate(bondB[bb]):
                         if bond == 1:
-                            instances.append([radA_site, bb + shift, ee + shift])
+                            instances.append([int(radA_site + shiftA),
+                                              int(bb + shiftB),
+                                              int(ee + shiftB)])
                             break
 
         for instance in instances: 

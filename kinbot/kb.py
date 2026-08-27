@@ -243,13 +243,13 @@ def main():
                 return
             err, frag.freq = qc.get_qc_freq(str(frag.chemid) + '_well',
                                             frag.natom, wait=1)
-            if frag.freq[0] <= 0. and frag.freq[0] >= -20.:
+            if frag.freq and frag.freq[0] <= 0. and frag.freq[0] >= -20.:
                 logger.warning(f'Found imaginary frequency {frag.freq[0]} for {frag.name}. It is flipped.')
                 frag.freq[0] *= -1.
-            elif frag.freq[0] < -20.:
+            elif frag.freq and frag.freq[0] < -20.:
                 logger.error(f'Found imaginary frequency {frag.freq[0]} for {frag.name}.')
                 return
-            if frag.freq[1] <= 0:
+            if len(frag.freq) > 1 and frag.freq[1] <= 0:
                 logger.error(f'Found two imaginary frequencies {frag.freq[1]} for {frag.name}.')
                 return
             # characterize again and look for differences

@@ -6,8 +6,8 @@ from ase import Atoms
 from ase.io import read, write
 from sella import Sella, Constraints
 
-from fairchem.core.units.mlip_unit import load_predict_unit
 from fairchem.core import FAIRChemCalculator
+from kinbot.fairchem_utils import load_predictor
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
@@ -17,7 +17,7 @@ mol = Atoms(symbols={atom},
             positions={geom})
 kwargs = {kwargs}
 mol.info.update({{"charge": kwargs['charge'], "spin": kwargs['mult']}})
-mol.calc = FAIRChemCalculator(load_predict_unit('{fc_model_path}', device='{fc_device}'), task_name='{fc_task_name}')
+mol.calc = FAIRChemCalculator(load_predictor('{fc_model_path}', '{fc_device}'), task_name='{fc_task_name}')
 
 # constraints 
 const = Constraints(mol)

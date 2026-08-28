@@ -7,7 +7,7 @@ from ase.io import read, write
 from sella import Sella, Constraints, Internals
 
 from fairchem.core import FAIRChemCalculator
-from kinbot.fairchem import load_predictor
+from kinbot.fairchem_utils import load_predictor
 from kinbot.utils import too_far
 
 if os.path.isfile('{label}_sella.log'):

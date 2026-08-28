@@ -9,7 +9,7 @@ from ase.io import read, write
 from sella import Sella, IRC as SellaIRC
 
 from fairchem.core import FAIRChemCalculator
-from kinbot.fairchem import load_predictor
+from kinbot.fairchem_utils import load_predictor
 from kinbot.frequencies import calc_vibrations
 
 

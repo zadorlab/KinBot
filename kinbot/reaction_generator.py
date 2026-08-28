@@ -236,7 +236,11 @@ class ReactionGenerator:
                             ending = 'well'
                             thresh = self.par['barrier_threshold']
                         if self.par['bimol']:
-                            sp_energy, sp_zpe = self.species.energy, self.species.zpe
+                            fragments = (self.species.fragA, self.species.fragB)
+                            sp_energy = sum(self.qc.get_qc_energy(
+                                f'{frag.chemid}_well')[1] for frag in fragments)
+                            sp_zpe = sum(self.qc.get_qc_zpe(
+                                f'{frag.chemid}_well')[1] for frag in fragments)
                         else:
                             sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
                             sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
@@ -623,16 +627,20 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1
                     ts_freq = np.asarray(obj.ts.reduced_freqs)
-                    if (np.count_nonzero(ts_freq < 0.) >= 3
-                            or np.count_nonzero(
+                    if len(ts_freq):
+                        nneg = np.count_nonzero(ts_freq < 0.)
+                        if (nneg >= 3 or np.count_nonzero(
                                 ts_freq < -self.par['imagfreq_threshold']) >= 2
-                            or np.count_nonzero(ts_freq < 0.) == 0):
-                        logger.warning('Wrong number of imaginary frequencies for ' + obj.instance_name)
-                        logger.warning(obj.ts.reduced_freqs)
-                        self.species.reac_ts_done[index] = -999
-                        neg_freq = 1
-                    elif np.count_nonzero(ts_freq < 0.) == 2:
-                        logger.warning('Ignoring small secondary negative frequency for ' + obj.instance_name)
+                                or nneg == 0):
+                            logger.warning('Wrong number of imaginary frequencies for ' + obj.instance_name)
+                            logger.warning(obj.ts.reduced_freqs)
+                            self.species.reac_ts_done[index] = -999
+                            neg_freq = 1
+                        elif nneg == 2:
+                            idx = int(np.argsort(ts_freq)[1])
+                            logger.warning(f'Flipping small secondary imaginary frequency '
+                                           f'{obj.ts.reduced_freqs[idx]} cm-1 for {obj.instance_name}.')
+                            obj.ts.reduced_freqs[idx] *= -1.
                         
                     if not neg_freq:
                         # the reaction search is finished

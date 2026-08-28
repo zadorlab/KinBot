@@ -10,7 +10,7 @@ from ase.optimize import BFGS
 from sella import Sella
 
 from fairchem.core import FAIRChemCalculator
-from kinbot.fairchem import load_predictor
+from kinbot.fairchem_utils import load_predictor
 from kinbot.frequencies import calc_vibrations
 from kinbot.utils import sella_freq_check
 

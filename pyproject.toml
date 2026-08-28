@@ -48,7 +48,7 @@ dependencies = [
 
 [project.optional-dependencies]
 bimol = [
-    "fairchem-core>=2.14"
+    "kinbot[fc]"
 ]
 plot = [
     "matplotlib",
@@ -60,7 +60,7 @@ plot = [
 # kept as an optional extra rather than a core dependency.
 # scipy>=1.15 is required by fairchem-core.
 fc = [
-    "fairchem-core>=2.0",
+    "fairchem-core>=2.14",
     "scipy>=1.15"
 ]
 

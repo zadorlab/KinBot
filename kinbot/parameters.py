@@ -119,6 +119,13 @@ class Parameters:
             # CONFORMATIONAL SEARCH
             # Do a conformational search
             'conformer_search': 0,
+            # Expert option: allow L2 to run with conformer_search off. L2
+            # normally requires a conformer search so that it refines the
+            # lowest conformer; with this on, L2 refines whatever conformer it
+            # is given and the energies are not guaranteed to be the lowest.
+            # Useful when L1 was done elsewhere, e.g. reusing geometries from a
+            # different code or level. A warning is logged when it is used.
+            'allow_l2_without_conf': 0,
             # Threshold to differentiate two structures, kcal/mol
             'difference_threshold': 0.1,
             # The angular grid for dihedrals, angle = 360 / grid
@@ -457,7 +464,14 @@ class Parameters:
             err = 'Specific reaction cannot be searched in PES mode.'
 
         if self.par['high_level'] == 1 and self.par['conformer_search'] == 0:
-            err = 'Conformer search has to be done before L2.'
+            if not self.par['allow_l2_without_conf']:
+                err = 'Conformer search has to be done before L2.'
+            elif show_warnings:
+                logger.warning('Running L2 without a conformer search, '
+                               'because allow_l2_without_conf is on. L2 will '
+                               'refine the conformer it is given, and the '
+                               'energies are not guaranteed to belong to the '
+                               'lowest conformer.')
 
         if self.par['high_level'] == 0 and self.par['rotor_scan'] == 1:
             if show_warnings:

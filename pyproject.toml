@@ -43,7 +43,7 @@ dependencies = [
         "ase>=3.26",
         "networkx",
         "rmsd>=1.5.1",
-        "sella>=2.5.0"
+        "sella>=2.6.0"
 ]
 
 [project.optional-dependencies]

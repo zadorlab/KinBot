@@ -6,18 +6,11 @@ import shutil
 from ase import Atoms
 from ase.io import read, write
 
-from sella import Sella, IRC as SellaIRC
+from sella import Sella, IRC
 
 from fairchem.core import FAIRChemCalculator
 from kinbot.fairchem_utils import load_predictor
 from kinbot.frequencies import calc_vibrations
-
-
-class IRC(SellaIRC):
-    """Keep Sella's first-step guard with ASE 3.28 and newer."""
-
-    def gradient_converged(self, gradient=None):
-        return self.converged()
 
 
 if os.path.isfile('{label}_sella.log'):

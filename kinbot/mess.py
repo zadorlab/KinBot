@@ -845,7 +845,7 @@ class MESS:
         # solution for 6-fold symmetry, not general enough
         if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
             fit_angle = 15. * 2. * np.pi / 360. 
-            fit_energy = species.hir.get_fit_value(fit_angle)  # kcal/mol
+            fit_energy = species.hir.get_fit_value(fit_angle, rotor=i)  # kcal/mol
             rotorpot_num.insert(1, fit_energy)
             rotorpot_num = [freq_factor * rpn for rpn in rotorpot_num]
             rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm + 1]])

@@ -36,6 +36,8 @@ class HIR:
         self.hir_status = []
         # energies of all the HIR scan points
         self.hir_energies = []
+        # Results before failed points are filled from a Fourier fit.
+        self.hir_raw_energies = []
         # Fourier fit of each scan
         self.hir_fourier = []
         # number of terms for Fourier
@@ -50,6 +52,8 @@ class HIR:
         # re-initialize the lists in case of a restart of the HIR scans
         self.hir_status = []
         self.hir_energies = []
+        self.hir_raw_energies = []
+        self.hir_fourier = []
         self.hir_geoms = []
 
         while len(self.hir_status) < len(self.species.dihed):
@@ -192,8 +196,6 @@ class HIR:
                     a = self.fourier_fit(job, angles, rotor)
                     if(a == 0):
                         logger.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
-                    else:
-                        self.hir_fourier.append(self.fourier_fit(job, angles, rotor))
                 return 1
             else:
                 if wait:
@@ -224,6 +226,12 @@ class HIR:
         """
         energies = self.hir_energies[rotor]
         status = self.hir_status[rotor]
+        while len(self.hir_fourier) <= rotor:
+            self.hir_fourier.append(None)
+        while len(self.hir_raw_energies) <= rotor:
+            self.hir_raw_energies.append(None)
+        if self.hir_raw_energies[rotor] is None:
+            self.hir_raw_energies[rotor] = list(energies)
 
         ang = [angles[i] for i in range(len(status)) if status[i] == 0]
         ens = [(energies[i] - energies[0])*constants.AUtoKCAL for i in range(len(status)) if status[i] == 0]
@@ -237,6 +245,7 @@ class HIR:
         if(len(ens) > 0):
             a = 1
             self.A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
+            self.hir_fourier[rotor] = self.A.copy().tolist()
 
             for i, si in enumerate(status):
                 if si == 1:
@@ -253,16 +262,20 @@ class HIR:
                 plt.clf()
         else:
             self.A = 0
+            self.hir_fourier[rotor] = None
             a = 0
 
         return a
 
-    def get_fit_value(self, ai):
+    def get_fit_value(self, ai, rotor=None):
         """
         Get the fitted energy
         """
+        coefficients = self.A if rotor is None else self.hir_fourier[rotor]
+        if coefficients is None:
+            raise ValueError(f'No Fourier fit is available for rotor {rotor}.')
         e = 0.
         for j in range(self.n_terms):
-            e += self.A[j] * (1 - np.cos((j+1) * ai))
-            e += self.A[j+self.n_terms] * np.sin((j+1) * ai)
+            e += coefficients[j] * (1 - np.cos((j+1) * ai))
+            e += coefficients[j+self.n_terms] * np.sin((j+1) * ai)
         return e

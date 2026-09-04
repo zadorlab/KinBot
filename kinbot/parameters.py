@@ -473,7 +473,8 @@ class Parameters:
                                'energies are not guaranteed to belong to the '
                                'lowest conformer.')
 
-        if self.par['high_level'] == 0 and self.par['rotor_scan'] == 1:
+        if (self.par['high_level'] == 0 and self.par['rotor_scan'] == 1
+                and self.par['qc'].lower() != 'fc'):
             if show_warnings:
                 logger.warning('L1 level of theory (here set to '
                                f'{self.par["method"].upper()}/{self.par["basis"].upper()}) is '
@@ -500,7 +501,8 @@ class Parameters:
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
 
-        if self.par['bimol'] == 1 and self.par['method'] == 'b3lyp':
+        if (self.par['bimol'] == 1 and self.par['method'] == 'b3lyp'
+                and self.par['qc'].lower() != 'fc'):
             logger.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
             logger.warning('Choose for instance M06-2X or wB97XD.')
             print('B3LYP is not recommended as L1 for bimolecular reactions.')

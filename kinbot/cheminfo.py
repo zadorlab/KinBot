@@ -33,8 +33,10 @@ def get_molecular_formula(smi):
     Return the molecular formula of the molecule corresponding to the smiles
     """
     try:
+        from rdkit import Chem
+        from rdkit.Chem import rdMolDescriptors
         mol = Chem.AddHs(Chem.MolFromSmiles(smi))
-    except NameError:
+    except ImportError:
         logger.error('RDKit is not installed or loaded correctly.')
         sys.exit()
     return rdMolDescriptors.CalcMolFormula(mol)
@@ -117,8 +119,10 @@ def generate_3d_structure(smi, obabel=1):
         return obmol, structure, bond
     else:  # use RDKit
         try:
+            from rdkit import Chem
+            from rdkit.Chem import AllChem
             rdmol = Chem.AddHs(Chem.MolFromSmiles(smi))
-        except NameError:
+        except ImportError:
             logger.error('RDKit is not installed or loaded correctly.')
             sys.exit()
         AllChem.EmbedMolecule(rdmol, AllChem.ETKDG())
@@ -249,5 +253,4 @@ def create_smiles(inchi):
 def create_smi_from_geom(atom, geom):
     inchi = create_inchi_from_geom(atom, geom)
     return create_smiles(inchi)
-
 

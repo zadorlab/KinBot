@@ -62,11 +62,13 @@ class Optimize:
             #  1: finished
             # -999:failed
             self.scycconf = -1
+            self.ssemi_empconf = -1
             self.sconf = -1
             self.shir = -1
         else:
             # Do not perform conformer search for vdW wells
             self.scycconf = 1
+            self.ssemi_empconf = 1
             self.sconf = 1
             self.shir = 1
 
@@ -106,9 +108,9 @@ class Optimize:
                         self.scycconf = 1
                 # first do an semi empirical optimization if requested by the user
                 if self.par['semi_emp_conformer_search'] == 1:
-                    logger.info('\tSemi-empirical conformer search is starting '
-                                f'for {self.name}')
-                    if self.ssemi_empconf == -1:
+                    if self.ssemi_empconf == -1 and self.scycconf == 1:
+                        logger.info('\tSemi-empirical conformer search is starting '
+                                    f'for {self.name}')
                         # semi empirical part has not started yet
                         self.species.semi_emp_confs = Conformers(self.species, self.par, self.qc, semi_emp=1)
                         for geom in self.species.confs.cyc_conf_geoms:
@@ -117,16 +119,17 @@ class Optimize:
                             self.species.semi_emp_confs.generate_conformers(0, geom)
                         # set conf status to running
                         self.ssemi_empconf = 0
-                        if self.ssemi_empconf == 0:
-                            # semi empirical conformational search is running
-                            # check if the conformational search is done
-                            status, lowest_conf, geom, self.semi_emp_low_energy, self.semi_emp_conformers, self.semi_emp_energies = self.species.semi_emp_confs.check_conformers(wait=self.wait)
-                            if status == 1:
-                                logger.info("\tSemi- empirical lowest energy "
-                                            f"conformer for species {self.name}"
-                                            f" is number {lowest_conf}")
-                                # set conf status to finished
-                                self.ssemi_empconf = 1
+                    if self.ssemi_empconf == 0:
+                        # Poll on subsequent calls as well as immediately after submission.
+                        (status, lowest_conf, geom, self.semi_emp_low_energy,
+                         self.semi_emp_conformers, self.semi_emp_energies,
+                         _, self.semi_emp_valid) = \
+                            self.species.semi_emp_confs.check_conformers(wait=self.wait)
+                        if status == 1:
+                            logger.info("\tSemi-empirical lowest energy "
+                                        f"conformer for species {self.name}"
+                                        f" is number {lowest_conf}")
+                            self.ssemi_empconf = 1
                 else:
                     self.ssemi_empconf = 1
                 if self.ssemi_empconf == 1 and self.scycconf == 1:
@@ -137,11 +140,23 @@ class Optimize:
                         # else start from cyclic conformers
                         if self.par['semi_emp_conformer_search'] == 1:
                             self.species.confs.nconfs = 1
-                            for i, geom in enumerate(self.semi_emp_conformers):
-                                if (self.semi_emp_energies[i] - self.semi_emp_low_energy) * constants.AUtoKCAL < self.par['semi_emp_confomer_threshold']:
-                                    self.species.confs.generate_conformers(-999, geom)
+                            valid = [(geom, energy) for geom, energy, status in zip(
+                                self.semi_emp_conformers, self.semi_emp_energies,
+                                self.semi_emp_valid) if status == 0]
+                            if valid:
+                                # check_conformers supplies E + ZPE for this list.
+                                minimum = min(energy for _, energy in valid)
+                                seeds = [geom for geom, energy in valid
+                                         if (energy - minimum) * constants.AUtoKCAL
+                                         < self.par['semi_emp_confomer_threshold']]
+                            else:
+                                logger.warning('No valid semi-empirical conformers for %s; '
+                                               'using the input ring conformers at L1.', self.name)
+                                seeds = self.species.confs.cyc_conf_geoms
+                            for geom in seeds:
+                                self.species.confs.generate_conformers(-999, geom)
                             logger.info("\tThere are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
-                                         format(i, self.par['semi_emp_confomer_threshold'], self.name))
+                                         format(len(seeds), self.par['semi_emp_confomer_threshold'], self.name))
                         else:
                             print_warning = True
                             for geom in self.species.confs.cyc_conf_geoms:

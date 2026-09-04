@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
@@ -11,8 +12,33 @@ from ase.build import molecule
 import numpy as np
 
 from kinbot.optimize import Optimize
+from kinbot.conformers import Conformers
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
+
+
+class TestConformerWeights(unittest.TestCase):
+    def setUp(self):
+        self.conformers = Conformers.__new__(Conformers)
+        atoms = molecule('H2O')
+        self.conformers.species = SimpleNamespace(atom=atoms.get_chemical_symbols(), mult=1)
+        self.geometries = [atoms.positions.copy(), atoms.positions * 1.2]
+
+    def test_equal_total_energies_do_not_acquire_a_second_zpe_bias(self):
+        # Both supplied E + ZPE values are equal. Different high-frequency
+        # modes must not add their ground-state energies a second time.
+        result = self.conformers.find_unique(
+            self.geometries, [0., 0.],
+            [[1000., 1500., 3000.], [2000., 2500., 4000.]], [0, 0],
+            temp=298.15, boltz=.1)
+        self.assertEqual(result[-1], [0, 1])
+        self.assertEqual(result[1], [0., 0.])
+
+    def test_invalid_conformer_cannot_set_the_boltzmann_reference(self):
+        result = self.conformers.find_unique(
+            self.geometries, [0., -100.], [[1000., 1500., 3000.]] * 2,
+            [0, 1], temp=298.15, boltz=.1)
+        self.assertEqual(result[-1], [0])
 
 
 class TestSemiEmpiricalConformers(unittest.TestCase):

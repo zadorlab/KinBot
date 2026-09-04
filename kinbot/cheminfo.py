@@ -1,6 +1,7 @@
 import sys
 import os
 import logging
+from contextlib import ExitStack
 
 import numpy as np
 from PIL import Image
@@ -65,21 +66,22 @@ def create_rxn_depiction(react_smiles, prod_smiles, cdir, name):
     obmol.draw(show=False, filename=prod_png)
 
     arrow = f'{kb_path}/tpl/arrow.png'
-    images = map(Image.open, [react_png, arrow, prod_png])
-    widths, heights = zip(*(i.size for i in images))
+    with ExitStack() as stack:
+        images = [stack.enter_context(Image.open(path))
+                  for path in (react_png, arrow, prod_png)]
+        widths, heights = zip(*(i.size for i in images))
 
-    total_width = sum(widths)
-    total_height = max(heights)
+        total_width = sum(widths)
+        total_height = max(heights)
 
-    new_im = Image.new('RGB', (total_width, total_height), (255, 255, 255))
+        with Image.new('RGB', (total_width, total_height), (255, 255, 255)) as new_im:
+            x = 0
+            for im in images:
+                y = (total_height - im.size[1]) // 2
+                new_im.paste(im, (x, y))
+                x += im.size[0]
 
-    x = 0
-    for im in images:
-        y = total_height / 2 - im.size[1] / 2
-        new_im.paste(im, (x, y))
-        x += im.size[0]
-
-    new_im.save(f'{cdir}/{name}.png')
+            new_im.save(f'{cdir}/{name}.png')
 
 
 def generate_3d_structure(smi, obabel=1):
@@ -253,4 +255,3 @@ def create_smiles(inchi):
 def create_smi_from_geom(atom, geom):
     inchi = create_inchi_from_geom(atom, geom)
     return create_smiles(inchi)
-

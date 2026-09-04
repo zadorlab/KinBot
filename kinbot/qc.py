@@ -997,7 +997,7 @@ class QuantumChemistry:
                 job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/hir/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
 
         if self.queuing == 'pbs':
-            job_template = job_template.format(name=job, ppn=max(1, proc), queue_name=self.queue_name,
+            job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name,
                                                errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
             job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name, errdir='perm',

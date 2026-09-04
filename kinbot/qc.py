@@ -562,7 +562,7 @@ class QuantumChemistry:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
         if semi_emp:
-            kwargs['method'] = self.par['semi_emp_method']
+            kwargs['method'] = self.par['l0_method']
             kwargs['basis'] = ''
         if species.natom < 3:
             kwargs.pop('Symm', None)

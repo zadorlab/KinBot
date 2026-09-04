@@ -130,9 +130,9 @@ class Parameters:
             'difference_threshold': 0.1,
             # The angular grid for dihedrals, angle = 360 / grid
             'conf_grid': 3,
-            # Do a semi empirical conformational search and select the lowest conformers
+            # Do an L0 conformational search and select the lowest conformers
             # for the L1 conformer search
-            'semi_emp_conformer_search': 0,
+            'L0_conformer_search': 0,
             # Do a hindered rotor scan
             'rotor_scan': 0,
             # Energy threshold for free rotor in kcal/mol
@@ -223,8 +223,8 @@ class Parameters:
             'high_level_method': 'M062X',
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
-            # method for semi empirical conformer search
-            'semi_emp_method': 'am1',
+            # Method for L0 conformer search
+            'l0_method': 'am1',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
             # Optimization threshold
@@ -634,6 +634,18 @@ class Parameters:
         except IOError:
             msg = 'Input file {} does not exist'.format(self.input_file)
             raise IOError(msg)
+        aliases = {
+            'semi_emp_conformer_search': 'L0_conformer_search',
+            'semi_emp_method': 'l0_method',
+        }
+        for old, new in aliases.items():
+            if old not in user_data:
+                continue
+            if new in user_data and user_data[new] != user_data[old]:
+                raise IOError(
+                    f'KinBot options {old} and {new} specify different values.')
+            logger.warning('Input option %s is deprecated; use %s.', old, new)
+            user_data[new] = user_data.pop(old)
         for key in user_data:
             if key in self.par:
                 self.par[key] = user_data[key]

@@ -871,6 +871,8 @@ class MESS:
         rotors = []
         if self.par['rotor_scan']:
             for i, rot in enumerate(species.dihed):
+                if not species.hir.is_valid_rotor(i):
+                    continue
                 if norot is not None:
                     if frequencies.skip_rotor(norot, rot) == 1:
                         continue

@@ -355,10 +355,7 @@ class Optimize:
                         and not self.just_high:
                     fr_file = self.log_name(self.par['high_level'])
                     hess = self.qc.read_qc_hess(fr_file, self.species.natom)
-                    if self.qc.qc == 'qchem':
-                        massweighted = True
-                    else:
-                        massweighted = False
+                    massweighted = self.qc.hessian_is_massweighted()
                     self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, 
                                                                                                         hess, 
                                                                                                         self.species.geom, 

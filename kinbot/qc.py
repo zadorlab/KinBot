@@ -1224,6 +1224,10 @@ class QuantumChemistry:
 
         return 0, zpe
 
+    def hessian_is_massweighted(self):
+        """Native QChem Hessians are weighted; ASE/Sella Hessians are not."""
+        return self.qc == 'qchem' and not self.use_sella
+
     def read_qc_hess(self, job, natom):
         '''
         Read the hessian of a gaussian chk file

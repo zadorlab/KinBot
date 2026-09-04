@@ -641,6 +641,7 @@ class Conformers:
         test all previous structures.
 
         temp is temperature, and only exp(-G/RT) > boltz conformers are considered if defined.
+        energies contains E + ZPE in Hartree, as returned by check_conformers.
         returns the geometries, total energies, frequencies, and indices (as in the /conf directory)
         """
 
@@ -653,9 +654,11 @@ class Conformers:
         if temp is not None:
             # calculate the Gibbs free energy for all conformers
             # at T = temp, P = 101325 Pa
-            gibbs = []
+            gibbs = [np.inf for _ in valid]
             geo_type = 'nonlinear'
             for vi, val in enumerate(valid):
+                if val != 0:
+                    continue
                 if frequencies == [None]:
                     vib_energies = [0]
                     geo_type = 'monatomic'
@@ -663,14 +666,18 @@ class Conformers:
                     vib_energies = [ff * invcm for ff in frequencies[vi] if ff > 0]  # convert to eV
                     if np.shape(frequencies)[1] == 3 * len(self.species.atom) - 5:
                         geo_type = 'linear'
-                potentialenergy = energies[vi] * Hartree  # convert to eV
+                potentialenergy = energies[vi] * Hartree  # E + ZPE, in eV
                 atoms = Atoms(symbols=self.species.atom, positions=conformers[vi])
                 thermo = IdealGasThermo(vib_energies=vib_energies,
                                         potentialenergy=potentialenergy,
                                         atoms=atoms,
                                         geometry=geo_type,
                                         symmetrynumber=1, spin=(self.species.mult-1)/2)
-                gibbs.append(thermo.get_gibbs_energy(temperature=temp, pressure=101325., verbose=False))
+                # The input already contains the calculation's ZPE. Add only
+                # thermal corrections, removing ASE's additional harmonic ZPE.
+                gibbs[vi] = (thermo.get_gibbs_energy(
+                    temperature=temp, pressure=101325., verbose=False)
+                    - thermo.get_ZPE_correction())
 
         for vi, val in enumerate(valid):
             unique = True

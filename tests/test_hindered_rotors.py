@@ -120,6 +120,39 @@ class TestHIRFits(unittest.TestCase):
 
 
 class TestHIRStatus(unittest.TestCase):
+    def test_successful_rotors_keep_the_original_restart_reference(self):
+        hir = completed_hir()
+        # Both reference points pass the 0.1 kcal/mol check. The second
+        # scan finds a point below the restart threshold relative to rotor
+        # zero, even though its own reference is slightly lower already.
+        hir.hir_energies = [[-100.] * 12, [-100.00015] * 12]
+        hir.hir_energies[1][1] = -100.0003
+        optimization = Optimize.__new__(Optimize)
+        optimization.species = hir.species
+        optimization.name = hir.species.name
+        optimization.qc = SimpleNamespace(
+            read_qc_hess=lambda *args: np.eye(12),
+            hessian_is_massweighted=lambda: False,
+            qc='gauss',
+        )
+        optimization.par = {
+            'conformer_search': 0, 'rotation_restart': 1, 'high_level': 0,
+            'rotor_scan': 1, 'multi_conf_tst': 0, 'L3_calc': 0,
+        }
+        optimization.shir = 0
+        optimization.restart = 0
+        optimization.just_high = False
+        optimization.defer_hir = False
+        optimization.wait = 0
+        optimization.log_name = lambda *args, **kwargs: 'test'
+        hir.species.geom = np.zeros((4, 3))
+        with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'), \
+                patch('kinbot.optimize.symmetry.calculate_symmetry'), \
+                patch('kinbot.optimize.frequencies.get_frequencies', return_value=([], [])):
+            optimization.do_optimization()
+        self.assertEqual(optimization.restart, 1)
+        self.assertEqual(optimization.shir, 1)
+
     def test_failed_first_rotor_does_not_trigger_a_conformer_restart(self):
         atoms = molecule('CH3OH')
         species = StationaryPoint('methanol', 0, 1,

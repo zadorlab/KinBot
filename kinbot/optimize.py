@@ -276,10 +276,16 @@ class Optimize:
                                 if status:  # Finished correctly
                                     if len(self.species.hir.hir_energies) > 0:
                                         # check if along the hir potential a structure was found with a lower energy
-                                        min_en = self.species.hir.hir_energies[0][0]
+                                        min_en = min((
+                                            self.species.hir.hir_energies[rotor][0]
+                                            for rotor in range(len(self.species.dihed))
+                                            if self.species.hir.is_valid_rotor(rotor)),
+                                            default=np.inf)
                                         min_rotor = -1
                                         min_ai = -1
                                         for rotor in range(len(self.species.dihed)):
+                                            if not self.species.hir.is_valid_rotor(rotor):
+                                                continue
                                             for ai in range(self.species.hir.nrotation):
                                                 # use a 0.1 kcal/mol cutoff for numerical noise
                                                 if self.species.hir.hir_status[rotor][ai] == 0:  # do not test for fails

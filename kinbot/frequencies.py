@@ -122,7 +122,10 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
 
     # Build set of internal rotation vectors to project out
     R = []
-    for rot in species.dihed:
+    for rotor, rot in enumerate(species.dihed):
+        hir = getattr(species, 'hir', None)
+        if hir is not None and not hir.is_valid_rotor(rotor):
+            continue
         if skip_rotor(species.name, rot) == 1:
             continue
             

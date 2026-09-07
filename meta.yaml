@@ -1,5 +1,5 @@
 {% set name = "kinbot" %}
-{% set version = "2.3.0" %}
+{% set version = "2.4.0" %}
 {% set python_min = "3.11" %}
 
 package:
@@ -29,7 +29,7 @@ requirements:
         - ase >=3.26
         - networkx
         - rmsd >=1.5.1
-        - sella >=2.5.0
+        - sella >=2.6.0
 
 test:
   imports:

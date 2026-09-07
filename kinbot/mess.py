@@ -845,7 +845,7 @@ class MESS:
         # solution for 6-fold symmetry, not general enough
         if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
             fit_angle = 15. * 2. * np.pi / 360. 
-            fit_energy = species.hir.get_fit_value(fit_angle)  # kcal/mol
+            fit_energy = species.hir.get_fit_value(fit_angle, rotor=i)  # kcal/mol
             rotorpot_num.insert(1, fit_energy)
             rotorpot_num = [freq_factor * rpn for rpn in rotorpot_num]
             rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm + 1]])
@@ -874,6 +874,16 @@ class MESS:
                 if norot is not None:
                     if frequencies.skip_rotor(norot, rot) == 1:
                         continue
+                if species.hir is None:
+                    # Species optimized with just_high never ran a scan.
+                    continue
+                why = species.hir.invalid_rotor_reason(i)
+                if why is not None:
+                    # Leave a trace in the MESS input: this torsion stays a
+                    # harmonic oscillator in the frequency list above.
+                    rotors.append(f'      ! Rotor about atoms {rot[1] + 1}-{rot[2] + 1} '
+                                  f'kept as a harmonic oscillator: {why}')
+                    continue
                 rotorpot, rotortype = self.make_rotorpot(species, i, rot, freq_factor)
                 if rotortype == 'hindered' and bless == False:
                     rotors.append(self.hinderedrotortpl.format(group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),

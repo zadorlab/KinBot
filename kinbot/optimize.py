@@ -276,9 +276,18 @@ class Optimize:
                                 if status:  # Finished correctly
                                     if len(self.species.hir.hir_energies) > 0:
                                         # check if along the hir potential a structure was found with a lower energy
-                                        min_en = self.species.hir.hir_energies[0][0]
+                                        # Preserve the original first-rotor reference
+                                        # unless that scan failed or was skipped.
+                                        min_en = next((
+                                            self.species.hir.hir_energies[rotor][0]
+                                            for rotor in range(len(self.species.dihed))
+                                            if self.species.hir.is_valid_rotor(rotor)),
+                                            np.inf)
                                         min_rotor = -1
                                         min_ai = -1
+                                        # Search every converged point, including those on
+                                        # rotors whose own reference failed: they passed the
+                                        # geometry check, and a low point is a real conformer.
                                         for rotor in range(len(self.species.dihed)):
                                             for ai in range(self.species.hir.nrotation):
                                                 # use a 0.1 kcal/mol cutoff for numerical noise

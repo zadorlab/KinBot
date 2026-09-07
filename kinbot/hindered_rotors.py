@@ -31,11 +31,13 @@ class HIR:
         # if 1 (default), remove bad rotors
         self.rotor_0_test = par['rotor_0_test']
 
-        # -1 (not finished), 0 (successful) or
-        # 1 (failed) for each HIR scan point
+        # -1 (not finished), 0 (successful), 1 (failed), or 2 (skipped)
+        # for each HIR scan point
         self.hir_status = []
         # energies of all the HIR scan points
         self.hir_energies = []
+        # Results before failed points are filled from a Fourier fit.
+        self.hir_raw_energies = []
         # Fourier fit of each scan
         self.hir_fourier = []
         # number of terms for Fourier
@@ -50,6 +52,8 @@ class HIR:
         # re-initialize the lists in case of a restart of the HIR scans
         self.hir_status = []
         self.hir_energies = []
+        self.hir_raw_energies = []
+        self.hir_fourier = []
         self.hir_geoms = []
 
         while len(self.hir_status) < len(self.species.dihed):
@@ -95,6 +99,10 @@ class HIR:
     def test_hir(self):
         for rotor in range(len(self.species.dihed)):
             for ai in range(self.nrotation):
+                if ai and self.hir_status[rotor][0] == -1:
+                    # A completed point cannot be screened against an unknown
+                    # reference energy. Revisit it after point zero finishes.
+                    continue
                 success = None
                 if self.hir_status[rotor][ai] == -1:
                     if self.species.wellorts:
@@ -119,7 +127,9 @@ class HIR:
                                                temp,
                                                0.15):
                             err, energy = self.qc.get_qc_energy(job)
-                            if ai == 0: 
+                            if err or not np.isfinite(energy):
+                                success = -1
+                            elif ai == 0:
                                 success = 1
                             # cut off barriers above 20 kcal/mol to prevent the Fourier fit to oscillate
                             elif (energy - self.hir_energies[rotor][0]) < 20. / constants.AUtoKCAL:
@@ -129,7 +139,6 @@ class HIR:
                         else:
                             success = -1
                 if success == 1:
-                    err, energy = self.qc.get_qc_energy(job)
                     self.hir_status[rotor][ai] = 0
                     self.hir_energies[rotor][ai] = energy
                     self.hir_geoms[rotor][ai] = geom
@@ -141,9 +150,48 @@ class HIR:
 
         return 0
 
+    def invalid_rotor_reason(self, rotor):
+        """Why a rotor is excluded from the hindered-rotor treatment.
+
+        Returns None for a usable scan. Failed non-reference points retain
+        the existing Fourier-fill policy and do not make a rotor invalid.
+        """
+        if rotor >= len(self.hir_status) or len(self.hir_status[rotor]) != self.nrotation:
+            return 'no scan recorded'
+        status = self.hir_status[rotor]
+        if status[0] == 2:
+            return 'scan skipped'
+        if status[0] == 1:
+            return 'reference point failed or scans disabled by the rotor-0 energy test'
+        if any(value < 0 for value in status):
+            return 'scan incomplete'
+        return None
+
+    def is_valid_rotor(self, rotor):
+        """Whether a completed scan has a usable reference point.
+
+        Completion alone does not enable a failed or skipped rotor; such
+        rotors stay harmonic oscillators in the frequency set and in MESS.
+        """
+        return self.invalid_rotor_reason(rotor) is None
+
+    def demoted_rotor_summary(self):
+        """One-line account of the rotors MESS will treat as harmonic, or ''."""
+        demoted = []
+        for rotor, rot in enumerate(self.species.dihed):
+            why = self.invalid_rotor_reason(rotor)
+            if why is not None:
+                demoted.append(f'rotor {rotor} (atoms {rot[1] + 1}-{rot[2] + 1}): {why}')
+        if not demoted:
+            return ''
+        return (f'{len(demoted)} of {len(self.species.dihed)} rotors of '
+                f'{self.species.name} will be treated as harmonic oscillators '
+                f'in MESS: ' + '; '.join(demoted))
+
     def check_hir(self, wait=0):
         """
-        Check for hir calculations and optionally wait for them to finish
+        Return completion, including failed/skipped scans. Use is_valid_rotor
+        to decide which completed scans can replace harmonic modes.
         """
         while 1:
             # check if all the calculations are finished
@@ -154,7 +202,7 @@ class HIR:
                 status = self.hir_status[rotor]
                 if any([st < 0 for st in status]):  # at least one is running
                     continue
-                if self.hir_status[rotor][0] == 1:  # the starting point failed
+                if self.hir_status[rotor][0] in (1, 2):  # failed or skipped
                     continue
                 energies = self.hir_energies[rotor]
                 if abs(energies[0] - self.species.energy) * constants.AUtoKCAL > 0.1 and self.rotor_0_test:
@@ -168,10 +216,6 @@ class HIR:
                     logger.warning(rotor)
                     logger.warning(energies)
                     self.hir_status = [[1 for ai in ri] for ri in self.hir_status]
-                #    return 0
-                # energies taken if status = 0, successful geom check or normal gauss termination
-                ens = [(energies[i] - energies[0]) * constants.AUtoKCAL 
-                       for i in range(len(status)) if status[i] == 0]
 
             # if job finishes status set to 0 or 1, if all done then do the following calculation
             if all([all([test >= 0 for test in status]) for status in self.hir_status]):
@@ -182,7 +226,7 @@ class HIR:
                         job = self.species.name + '_hir_' + str(rotor)
                     else:
                         job = str(self.species.chemid) + '_hir_' + str(rotor)
-                    if len(ens) < self.nrotation - 2:
+                    if self.hir_status[rotor].count(0) < self.nrotation - 2:
                         logger.warning("More than 2 HIR calculations failed for " + job)
 
                     angles = [i * 2 * np.pi / float(self.nrotation) for i in range(self.nrotation)]
@@ -192,8 +236,9 @@ class HIR:
                     a = self.fourier_fit(job, angles, rotor)
                     if(a == 0):
                         logger.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
-                    else:
-                        self.hir_fourier.append(self.fourier_fit(job, angles, rotor))
+                summary = self.demoted_rotor_summary()
+                if summary:
+                    logger.warning('\t' + summary)
                 return 1
             else:
                 if wait:
@@ -208,10 +253,14 @@ class HIR:
         """
         with open('hir/' + job + '.xyz', 'w') as ff:
             for i in range(self.nrotation):
+                geom = np.asarray(self.hir_geoms[rotor][i])
+                if geom.shape != (self.species.natom, 3):
+                    # Failed calculations may have no geometry to display.
+                    continue
                 s = str(self.species.natom) + '\n'
                 s += 'energy = ' + str(self.hir_energies[rotor][i]) + '\n'
                 for j, at in enumerate(self.species.atom):
-                    x, y, z = self.hir_geoms[rotor][i][j]
+                    x, y, z = geom[j]
                     s += '{} {:.8f} {:.8f} {:.8f}\n'.format(at, x, y, z)
                 ff.write(s)
         return
@@ -224,6 +273,12 @@ class HIR:
         """
         energies = self.hir_energies[rotor]
         status = self.hir_status[rotor]
+        while len(self.hir_fourier) <= rotor:
+            self.hir_fourier.append(None)
+        while len(self.hir_raw_energies) <= rotor:
+            self.hir_raw_energies.append(None)
+        if self.hir_raw_energies[rotor] is None:
+            self.hir_raw_energies[rotor] = list(energies)
 
         ang = [angles[i] for i in range(len(status)) if status[i] == 0]
         ens = [(energies[i] - energies[0])*constants.AUtoKCAL for i in range(len(status)) if status[i] == 0]
@@ -237,6 +292,7 @@ class HIR:
         if(len(ens) > 0):
             a = 1
             self.A = np.linalg.lstsq(X, np.array(ens), rcond=None)[0]
+            self.hir_fourier[rotor] = self.A.copy().tolist()
 
             for i, si in enumerate(status):
                 if si == 1:
@@ -253,16 +309,20 @@ class HIR:
                 plt.clf()
         else:
             self.A = 0
+            self.hir_fourier[rotor] = None
             a = 0
 
         return a
 
-    def get_fit_value(self, ai):
+    def get_fit_value(self, ai, rotor=None):
         """
         Get the fitted energy
         """
+        coefficients = self.A if rotor is None else self.hir_fourier[rotor]
+        if coefficients is None:
+            raise ValueError(f'No Fourier fit is available for rotor {rotor}.')
         e = 0.
         for j in range(self.n_terms):
-            e += self.A[j] * (1 - np.cos((j+1) * ai))
-            e += self.A[j+self.n_terms] * np.sin((j+1) * ai)
+            e += coefficients[j] * (1 - np.cos((j+1) * ai))
+            e += coefficients[j+self.n_terms] * np.sin((j+1) * ai)
         return e

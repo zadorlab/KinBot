@@ -139,7 +139,6 @@ class Optimize:
                         # if semi empirical conformer were searched for, start from those,
                         # else start from cyclic conformers
                         if self.par['semi_emp_conformer_search'] == 1:
-                            self.species.confs.nconfs = 1
                             valid = [(geom, energy) for geom, energy, status in zip(
                                 self.semi_emp_conformers, self.semi_emp_energies,
                                 self.semi_emp_valid) if status == 0]
@@ -149,14 +148,24 @@ class Optimize:
                                 seeds = [geom for geom, energy in valid
                                          if (energy - minimum) * constants.AUtoKCAL
                                          < self.par['semi_emp_confomer_threshold']]
+                                # The dihedrals were already sampled semi-empirically,
+                                # so each surviving geometry is optimized as given.
+                                self.species.confs.nconfs = 1
+                                for geom in seeds:
+                                    self.species.confs.generate_conformers(-999, geom)
+                                logger.info("\tThere are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
+                                             format(len(seeds), self.par['semi_emp_confomer_threshold'], self.name))
                             else:
+                                # Seeding L1 with the ring conformers alone would
+                                # skip the dihedral search entirely. Run the
+                                # regular search instead.
                                 logger.warning('No valid semi-empirical conformers for %s; '
-                                               'using the input ring conformers at L1.', self.name)
-                                seeds = self.species.confs.cyc_conf_geoms
-                            for geom in seeds:
-                                self.species.confs.generate_conformers(-999, geom)
-                            logger.info("\tThere are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
-                                         format(len(seeds), self.par['semi_emp_confomer_threshold'], self.name))
+                                               'falling back to the standard conformer search.', self.name)
+                                print_warning = True
+                                for geom in self.species.confs.cyc_conf_geoms:
+                                    self.skip_conf_check = self.species.confs.generate_conformers(
+                                        0, geom, print_warning=print_warning)
+                                    print_warning = False
                         else:
                             print_warning = True
                             for geom in self.species.confs.cyc_conf_geoms:

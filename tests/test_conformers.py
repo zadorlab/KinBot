@@ -97,14 +97,20 @@ class TestSemiEmpiricalConformers(unittest.TestCase):
         self.optimization.do_optimization()
         self.assertEqual(self.regular.generate_conformers.call_count, 1)
         np.testing.assert_array_equal(self.regular.generate_conformers.call_args.args[1], self.geom)
+        # Surviving geometries are optimized as given, without a new scan.
+        self.assertEqual(self.regular.generate_conformers.call_args.args[0], -999)
 
-    def test_all_failed_search_falls_back_to_input_conformers(self):
+    def test_all_failed_search_falls_back_to_the_standard_search(self):
         self.semi.check_conformers.side_effect = None
         self.semi.check_conformers.return_value = (
             1, '0000', self.geom, -10., [], [], [], [1])
         self.optimization.do_optimization()
         self.assertEqual(self.regular.generate_conformers.call_count, 1)
         np.testing.assert_array_equal(self.regular.generate_conformers.call_args.args[1], self.geom)
+        # Without valid seeds the dihedrals still have to be searched, so the
+        # rotor index must start the recursion rather than skip it.
+        self.assertEqual(self.regular.generate_conformers.call_args.args[0], 0)
+        self.assertNotEqual(self.optimization.species.confs.nconfs, 1)
 
 
 if __name__ == '__main__':

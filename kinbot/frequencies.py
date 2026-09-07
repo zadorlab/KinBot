@@ -276,10 +276,10 @@ def calc_vibrations(mol, label):
         os.mkdir(f'{label}_vib')
     init_dir = os.getcwd()
     os.chdir(f'{label}_vib')
-    if os.path.isdir('vib'):
-        shutil.rmtree('vib')
-    vib = Vibrations(mol)
     try:
+        if os.path.isdir('vib'):
+            shutil.rmtree('vib')
+        vib = Vibrations(mol)
         vib.run()
         vib.write_jmol()
         # Use kinbot frequencies to avoid mixing low vib frequencies with 
@@ -290,7 +290,8 @@ def calc_vibrations(mol, label):
         st_pt = StationaryPoint.from_ase_atoms(mol)
         st_pt.characterize()
         freqs, _ = get_frequencies(st_pt, hessian, st_pt.geom)
-        os.chdir(init_dir)
         return freqs, zpe, hessian
-    except:
+    except Exception:
         return None, None, None
+    finally:
+        os.chdir(init_dir)

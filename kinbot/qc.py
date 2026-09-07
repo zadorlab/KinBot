@@ -821,7 +821,7 @@ class QuantumChemistry:
 
         job = f'vrctst/{str(frag.chemid)}_vts'
         mult = exceptions.get_multiplicity(frag.chemid, frag.mult)
-        kwargs = self.get_qc_arguments(job, mult, frag.charge, species.nel, vts=1)
+        kwargs = self.get_qc_arguments(job, mult, frag.charge, frag.nel, vts=1)
         # Add chk to fragments only
         kwargs['chk'] = f'{str(frag.chemid)}_vts'
 
@@ -846,7 +846,7 @@ class QuantumChemistry:
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
-        self.submit_qc(job, min(species.nel, self.ppn))
+        self.submit_qc(job, min(frag.nel, self.ppn))
         
         return job 
 
@@ -861,7 +861,7 @@ class QuantumChemistry:
         else:
             job = f'vrctst/{reac.instance_name}_vts_pt_asymptote'
         mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
-        kwargs = self.get_qc_arguments(job, mult, reac.species.charge, species.nel, vts=1)
+        kwargs = self.get_qc_arguments(job, mult, reac.species.charge, reac.species.nel, vts=1)
 
         if self.qc == 'gauss' and not self.par['vrc_tst_scan_sella']:
             kwargs['addsec'] = f'{reac.scan_coo[0]+1} {reac.scan_coo[1]+1} F\n'
@@ -927,7 +927,7 @@ class QuantumChemistry:
         with open(f'{job}.py', 'w') as f:
             f.write(template)
 
-        self.submit_qc(job, min(species.nel, self.ppn))
+        self.submit_qc(job, min(reac.species.nel, self.ppn))
         return job 
 
     def submit_qc(self, job, nproc, singlejob=1, jobtype=None):
@@ -997,7 +997,7 @@ class QuantumChemistry:
                 job_template += '\ncp -r $SCRATCH_DIR/* $SLURM_SUBMIT_DIR/hir/.\ncd /scratch/$USER\nrm -rf $SCRATCH_DIR'
 
         if self.queuing == 'pbs':
-            job_template = job_template.format(name=job, ppn=max(1, proc), queue_name=self.queue_name,
+            job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name,
                                                errdir='perm', python_file=python_file, arguments='')
         elif self.queuing == 'slurm':
             job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name, errdir='perm',
@@ -1223,6 +1223,10 @@ class QuantumChemistry:
             zpe = 0.00
 
         return 0, zpe
+
+    def hessian_is_massweighted(self):
+        """Native QChem Hessians are weighted; ASE/Sella Hessians are not."""
+        return self.qc == 'qchem' and not self.use_sella
 
     def read_qc_hess(self, job, natom):
         '''

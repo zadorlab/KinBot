@@ -285,9 +285,10 @@ class Optimize:
                                             np.inf)
                                         min_rotor = -1
                                         min_ai = -1
+                                        # Search every converged point, including those on
+                                        # rotors whose own reference failed: they passed the
+                                        # geometry check, and a low point is a real conformer.
                                         for rotor in range(len(self.species.dihed)):
-                                            if not self.species.hir.is_valid_rotor(rotor):
-                                                continue
                                             for ai in range(self.species.hir.nrotation):
                                                 # use a 0.1 kcal/mol cutoff for numerical noise
                                                 if self.species.hir.hir_status[rotor][ai] == 0:  # do not test for fails

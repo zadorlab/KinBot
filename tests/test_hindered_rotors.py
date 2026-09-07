@@ -189,6 +189,50 @@ class TestHIRStatus(unittest.TestCase):
         self.assertEqual(optimization.restart, 0)
         self.assertEqual(optimization.shir, 1)
 
+    def test_low_point_on_a_failed_rotor_still_triggers_a_restart(self):
+        """A failed reference does not hide a genuine minimum found on that rotor."""
+        atoms = molecule('CH3OH')
+        species = StationaryPoint('methanol', 0, 1,
+                                  atom=atoms.get_chemical_symbols(), geom=atoms.positions)
+        species.characterize()
+        species.dihed = species.dihed * 2
+        species.energy = -100.
+        hir = HIR(species, None, {
+            'nrotation': 12, 'plot_hir_profiles': False, 'rotor_0_test': True,
+        })
+        species.hir = hir
+        # Rotor 0: reference failed, the rest converged and point 5 is 1 kcal/mol
+        # below the optimized structure. Rotor 1: a clean scan at the reference.
+        hir.hir_status = [[1] + [0] * 11, [0] * 12]
+        hir.hir_energies = [[-1.] + [-100.] * 11, [-100.] * 12]
+        hir.hir_energies[0][5] = -100. - 1. / constants.AUtoKCAL
+        hir.hir_geoms = [[np.zeros((species.natom, 3)) for _ in range(12)] for _ in range(2)]
+        optimization = Optimize.__new__(Optimize)
+        optimization.species = species
+        optimization.name = species.name
+        optimization.qc = SimpleNamespace(
+            get_qc_geom=Mock(return_value=(0, species.geom)),
+            read_qc_hess=lambda *args: np.eye(3 * species.natom),
+            hessian_is_massweighted=lambda: False,
+        )
+        optimization.par = {
+            'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,
+            'rotor_scan': 1, 'multi_conf_tst': 0, 'L3_calc': 0,
+        }
+        optimization.shir = 0
+        optimization.restart = 0
+        optimization.just_high = False
+        optimization.defer_hir = False
+        optimization.wait = 0
+        requested = []
+        optimization.log_name = lambda *args, **kwargs: requested.append(kwargs) or 'test'
+        with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'):
+            optimization.do_optimization()
+        self.assertEqual(optimization.restart, 1)
+        self.assertEqual((optimization.shigh, optimization.shir), (-1, -1))
+        optimization.qc.get_qc_geom.assert_called_once()
+        self.assertIn({'hir': 1, 'r': 0, 's': 5}, requested)
+
     def test_skipped_rotor_does_not_disable_successful_rotors(self):
         hir = completed_hir([[2] * 12, [0] * 12])
         hir.hir_energies[0] = [-1.] * 12

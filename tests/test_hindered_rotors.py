@@ -250,7 +250,13 @@ class TestHIRStatus(unittest.TestCase):
                 writer.freerotortpl = 'free rotor'
                 writer.make_rotorpot = Mock(return_value=('0', 'free'))
                 result = writer.make_rotors(species, 1.)
-                self.assertEqual(result, 'free rotor' if status == 0 else '')
+                if status == 0:
+                    self.assertEqual(result, 'free rotor')
+                else:
+                    # The demoted rotor is documented in the MESS input itself.
+                    self.assertTrue(result.lstrip().startswith('!'), result)
+                    self.assertIn('harmonic oscillator', result)
+                    self.assertIn(f'atoms {species.dihed[0][1] + 1}-{species.dihed[0][2] + 1}', result)
                 self.assertEqual(writer.make_rotorpot.call_count, int(status == 0))
 
     def test_wells_without_a_scan_are_written_without_rotors(self):
@@ -276,6 +282,26 @@ class TestHIRStatus(unittest.TestCase):
         hir.hir_status = hir.hir_status[:1]
         self.assertTrue(hir.is_valid_rotor(0))
         self.assertFalse(hir.is_valid_rotor(1))
+        self.assertEqual(hir.invalid_rotor_reason(1), 'no scan recorded')
+
+    def test_demoted_rotors_are_reported_once_per_species(self):
+        """A rotor that falls back to harmonic must be visible in the log."""
+        hir = completed_hir([[1] * 12, [0] * 12])
+        hir.hir_energies[0] = [-1.] * 12
+        with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'), \
+                self.assertLogs('KinBot', level='WARNING') as logs:
+            self.assertEqual(hir.check_hir(), 1)
+        text = '\n'.join(logs.output)
+        self.assertIn('1 of 2 rotors of rotor_test will be treated as harmonic oscillators', text)
+        self.assertIn('rotor 0 (atoms 2-3): reference point failed', text)
+        self.assertNotIn('rotor 1 (', text)
+
+    def test_valid_scans_produce_no_demotion_warning(self):
+        hir = completed_hir()
+        self.assertEqual(hir.demoted_rotor_summary(), '')
+        with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'), \
+                self.assertNoLogs('KinBot', level='WARNING'):
+            self.assertEqual(hir.check_hir(), 1)
 
 
 if __name__ == '__main__':

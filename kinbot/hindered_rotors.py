@@ -150,17 +150,43 @@ class HIR:
 
         return 0
 
+    def invalid_rotor_reason(self, rotor):
+        """Why a rotor is excluded from the hindered-rotor treatment.
+
+        Returns None for a usable scan. Failed non-reference points retain
+        the existing Fourier-fill policy and do not make a rotor invalid.
+        """
+        if rotor >= len(self.hir_status) or len(self.hir_status[rotor]) != self.nrotation:
+            return 'no scan recorded'
+        status = self.hir_status[rotor]
+        if status[0] == 2:
+            return 'scan skipped'
+        if status[0] == 1:
+            return 'reference point failed or scans disabled by the rotor-0 energy test'
+        if any(value < 0 for value in status):
+            return 'scan incomplete'
+        return None
+
     def is_valid_rotor(self, rotor):
         """Whether a completed scan has a usable reference point.
 
-        Failed non-reference points retain the existing Fourier-fill policy.
-        Completion alone does not enable a failed or skipped rotor.
+        Completion alone does not enable a failed or skipped rotor; such
+        rotors stay harmonic oscillators in the frequency set and in MESS.
         """
-        if rotor >= len(self.hir_status):
-            return False
-        status = self.hir_status[rotor]
-        return (len(status) == self.nrotation and status[0] == 0
-                and all(value >= 0 for value in status))
+        return self.invalid_rotor_reason(rotor) is None
+
+    def demoted_rotor_summary(self):
+        """One-line account of the rotors MESS will treat as harmonic, or ''."""
+        demoted = []
+        for rotor, rot in enumerate(self.species.dihed):
+            why = self.invalid_rotor_reason(rotor)
+            if why is not None:
+                demoted.append(f'rotor {rotor} (atoms {rot[1] + 1}-{rot[2] + 1}): {why}')
+        if not demoted:
+            return ''
+        return (f'{len(demoted)} of {len(self.species.dihed)} rotors of '
+                f'{self.species.name} will be treated as harmonic oscillators '
+                f'in MESS: ' + '; '.join(demoted))
 
     def check_hir(self, wait=0):
         """
@@ -210,6 +236,9 @@ class HIR:
                     a = self.fourier_fit(job, angles, rotor)
                     if(a == 0):
                         logger.warning("FAILED HIR - empty energy array sent to fourier_fit for " + job)
+                summary = self.demoted_rotor_summary()
+                if summary:
+                    logger.warning('\t' + summary)
                 return 1
             else:
                 if wait:

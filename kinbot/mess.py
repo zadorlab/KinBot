@@ -877,7 +877,12 @@ class MESS:
                 if species.hir is None:
                     # Species optimized with just_high never ran a scan.
                     continue
-                if not species.hir.is_valid_rotor(i):
+                why = species.hir.invalid_rotor_reason(i)
+                if why is not None:
+                    # Leave a trace in the MESS input: this torsion stays a
+                    # harmonic oscillator in the frequency list above.
+                    rotors.append(f'      ! Rotor about atoms {rot[1] + 1}-{rot[2] + 1} '
+                                  f'kept as a harmonic oscillator: {why}')
                     continue
                 rotorpot, rotortype = self.make_rotorpot(species, i, rot, freq_factor)
                 if rotortype == 'hindered' and bless == False:

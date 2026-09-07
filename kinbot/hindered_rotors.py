@@ -156,6 +156,8 @@ class HIR:
         Failed non-reference points retain the existing Fourier-fill policy.
         Completion alone does not enable a failed or skipped rotor.
         """
+        if rotor >= len(self.hir_status):
+            return False
         status = self.hir_status[rotor]
         return (len(status) == self.nrotation and status[0] == 0
                 and all(value >= 0 for value in status))

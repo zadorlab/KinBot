@@ -871,11 +871,14 @@ class MESS:
         rotors = []
         if self.par['rotor_scan']:
             for i, rot in enumerate(species.dihed):
-                if not species.hir.is_valid_rotor(i):
-                    continue
                 if norot is not None:
                     if frequencies.skip_rotor(norot, rot) == 1:
                         continue
+                if species.hir is None:
+                    # Species optimized with just_high never ran a scan.
+                    continue
+                if not species.hir.is_valid_rotor(i):
+                    continue
                 rotorpot, rotortype = self.make_rotorpot(species, i, rot, freq_factor)
                 if rotortype == 'hindered' and bless == False:
                     rotors.append(self.hinderedrotortpl.format(group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),

@@ -253,6 +253,30 @@ class TestHIRStatus(unittest.TestCase):
                 self.assertEqual(result, 'free rotor' if status == 0 else '')
                 self.assertEqual(writer.make_rotorpot.call_count, int(status == 0))
 
+    def test_wells_without_a_scan_are_written_without_rotors(self):
+        """Species optimized with just_high never build an HIR instance."""
+        atoms = molecule('CH3OH')
+        species = StationaryPoint('rxn_prod', 0, 1,
+                                  atom=atoms.get_chemical_symbols(), geom=atoms.positions)
+        species.characterize()
+        self.assertIsNone(species.hir)
+        self.assertTrue(species.dihed)
+
+        for norot in (str(species.name), None):
+            with self.subTest(norot=norot):
+                writer = MESS.__new__(MESS)
+                writer.par = {'rotor_scan': 1}
+                writer.make_rotorpot = Mock(return_value=('0', 'free'))
+                self.assertEqual(writer.make_rotors(species, 1., norot=norot), '')
+                writer.make_rotorpot.assert_not_called()
+
+    def test_rotor_without_a_recorded_scan_is_invalid(self):
+        """dihed may outrun hir_status; that is not a usable rotor."""
+        hir = completed_hir()
+        hir.hir_status = hir.hir_status[:1]
+        self.assertTrue(hir.is_valid_rotor(0))
+        self.assertFalse(hir.is_valid_rotor(1))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -7,7 +7,7 @@
 </p>
 
 ## Description
-This repository contains the KinBot code version 2.2.1,
+This repository contains the KinBot code version 2.4.0,
 a tool for automatically searching for reactions on the potential energy surface.
 
 If you are using this tool in scientific publications, please reference the following publications:

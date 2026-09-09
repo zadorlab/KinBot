@@ -10,6 +10,7 @@ from unittest.mock import Mock, mock_open, patch
 
 from ase.io import read
 from ase.build import molecule
+from ase.db import connect
 import numpy as np
 
 from kinbot.hindered_rotors import HIR
@@ -82,6 +83,32 @@ class TestHIRProfile(unittest.TestCase):
 
 
 class TestHIRFits(unittest.TestCase):
+
+
+
+
+
+
+    def test_free_rotor_output_keeps_internal_symmetry(self):
+        from kinbot import symmetry
+
+        atoms = molecule('CH3OH')
+        species = StationaryPoint(
+            'methanol', 0, 1, atom=atoms.get_chemical_symbols(),
+            geom=atoms.positions)
+        species.characterize()
+        symmetry.calculate_symmetry(species)
+        hir = HIR(species, None, {
+            'nrotation': 12, 'plot_hir_profiles': False, 'rotor_0_test': True})
+        species.hir = hir
+        hir.hir_status = [[0] * 12]
+        hir.hir_energies = [[-100.] * 12]
+        writer = MESS({'rotor_scan': 1, 'free_rotor_thrs': .1}, species)
+        output = writer.make_rotors(species, 1.)
+        self.assertIn('Rotor     Free', output)
+        self.assertIn('Symmetry                  3', output)
+
+
     def test_completed_rotors_keep_distinct_coefficients(self):
         hir = completed_hir()
         with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'), \
@@ -120,6 +147,10 @@ class TestHIRFits(unittest.TestCase):
 
 
 class TestHIRStatus(unittest.TestCase):
+
+
+
+
     def test_successful_rotors_keep_the_original_restart_reference(self):
         hir = completed_hir()
         # Both reference points pass the 0.1 kcal/mol check. The second
@@ -273,16 +304,20 @@ class TestHIRStatus(unittest.TestCase):
         self.assertEqual(hir.hir_status[0], [0] + [1] * 11)
 
     def test_failed_or_skipped_rotors_keep_their_harmonic_modes(self):
+        from kinbot import symmetry
+
         atoms = molecule('CH3OH')
         for status in (-1, 0, 1, 2):
             with self.subTest(status=status):
                 species = StationaryPoint('methanol', 0, 1,
                                           atom=atoms.get_chemical_symbols(), geom=atoms.positions)
                 species.characterize()
+                symmetry.calculate_symmetry(species)
                 species.hir = HIR(species, None, {
                     'nrotation': 12, 'plot_hir_profiles': False, 'rotor_0_test': True,
                 })
                 species.hir.hir_status = [[status] * 12]
+                species.hir.hir_energies = [[-100.] * 12]
                 raw, projected = frequencies.get_frequencies(
                     species, np.eye(3 * species.natom), species.geom)
                 self.assertEqual(len(projected), len(raw) - (status == 0))

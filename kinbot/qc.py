@@ -806,8 +806,9 @@ class QuantumChemistry:
         if fdir is not None:
             job = f'{fdir}/{job}'
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel, ts=1, 
-                                       step=1, max_step=1, high_level=1)
+        kwargs = self.get_qc_arguments(
+            job, species.mult, species.charge, species.nel, ts=1,
+            step=1, max_step=1, high_level=high_level)
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
         if self.qc == 'gauss':
@@ -978,6 +979,27 @@ class QuantumChemistry:
 
         self.submit_qc(job, min(reac.species.nel, self.ppn))
         return job 
+
+    def invalidate_qc(self, job):
+        """Retire a completed result before a HIR restart, for every backend.
+
+        Preserve database observations and archive output/checkpoint files.
+        A database marker also invalidates backends without a completion log.
+        Queued/running jobs must never be invalidated.
+        """
+        if self.check_qc(job) == 'running':
+            raise ValueError(f'Cannot invalidate a running calculation: {job}')
+        rows = list(self.db.select(name=job))
+        if not rows:
+            return
+        previous = rows[-1]
+        marker = self.db.write(previous.toatoms(), name=job, data={
+            'status': 0, 'reason': 'HIR restart', 'supersedes_row_id': previous.id})
+        for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
+            path = job + suffix
+            if os.path.isfile(path):
+                os.replace(path, f'{path}.restart_{marker}')
+        self.job_ids.pop(job, None)
 
     def submit_qc(self, job, nproc, singlejob=1, jobtype=None):
         '''Submit a job to the queue, unless the job:

@@ -1,6 +1,7 @@
 """Job-writing regressions with all scheduler submission mocked out."""
 
 import ast
+import json
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -9,6 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from kinbot.qc import QuantumChemistry
+from kinbot.parameters import Parameters
 
 
 class TestSchedulerJobs(unittest.TestCase):
@@ -17,6 +19,22 @@ class TestSchedulerJobs(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.addCleanup(os.chdir, Path.cwd())
         os.chdir(temporary.name)
+
+    def test_ts_refinement_uses_the_requested_level_in_the_actual_job(self):
+        Path('input.json').write_text(json.dumps({'barrier_threshold': 100.,
+            'method': 'HF', 'basis': 'sto-3g',
+            'high_level_method': 'MP2', 'high_level_basis': '6-31g'}))
+        qc = QuantumChemistry(Parameters('input.json', show_warnings=False).par)
+        qc.submit_qc = Mock()
+        point = SimpleNamespace(name='ts', mult=1, charge=0, nel=2,
+                                atom=['H', 'H'], geom=[[0., 0., 0.], [1., 0., 0.]])
+        for level, suffix, method, basis in ((0, '_hir_restart_1', 'hf', 'sto-3g'),
+                                             (1, '_high', 'mp2', '6-31g')):
+            qc.qc_opt_ts(point, point.geom, high_level=level, ext=suffix)
+            script = Path(f'ts{suffix}.py').read_text().lower()
+            ast.parse(script)
+            self.assertIn(f"'method': '{method}'", script)
+            self.assertIn(f"'basis': '{basis}'", script)
 
     def test_pbs_uses_requested_processors_and_records_job_id(self):
         for requested, expected in ((4, 4), (0, 1)):

@@ -257,9 +257,21 @@ class Optimize:
 
                 while self.restart <= self.par['rotation_restart']:
                     # do the high level calculations
-                    if self.par['high_level'] == 1:
+                    if self.par['high_level'] == 1 or self.restart > 0:
                         if self.shigh == -1:
-                            if self.species.wellorts:
+                            if not self.par['high_level']:
+                                # A low HIR point is constrained, not yet a new
+                                # stationary conformer. Refine it at L1 too.
+                                name = self.species.name
+                                suffix = f'_hir_restart_{self.restart}'
+                                if self.species.wellorts:
+                                    self.qc.qc_opt_ts(self.species, self.species.geom,
+                                                      high_level=0, ext=suffix)
+                                else:
+                                    self.qc.qc_opt(self.species, self.species.geom,
+                                                   high_level=0, ext='_well' + suffix)
+                                self._hir_refinement_job = self.log_name(0) + suffix
+                            elif self.species.wellorts:
                                 name = self.species.name
                                 self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)
                                 if self.par['multi_conf_tst']:
@@ -370,15 +382,15 @@ class Optimize:
                                                 err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # err, geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # self.species.confs.add_new_conf_from_hir(geom)
-                                                # delete the high_level log file and the hir log files
-                                                if os.path.exists(self.log_name(1) + '.log'):
-                                                    logger.debug(f'Removing file {self.log_name(1)}.log')
-                                                    os.remove(self.log_name(1) + '.log')
+                                                # QC owns cache/status conventions. Retire every
+                                                # old scan and any reused L2 refinement source.
+                                                if self.par['high_level']:
+                                                    self.qc.invalidate_qc(self.log_name(1))
                                                 for rotor in range(len(self.species.dihed)):
                                                     for ai in range(self.species.hir.nrotation):
-                                                        if os.path.exists(self.log_name(1, hir=1, r=rotor, s=ai) + '.log'):
-                                                            logger.debug('Removing file ' + self.log_name(1, hir=1, r=rotor, s=ai) + '.log')
-                                                            os.remove(self.log_name(1, hir=1, r=rotor, s=ai)  + '.log')
+                                                        self.qc.invalidate_qc(self.log_name(
+                                                            1, hir=1, r=rotor, s=ai))
+                                                self._projection_source = None
                                                 # set the status of high and hir back to not started
                                                 self.shigh = -1
                                                 self.shir = -1
@@ -529,6 +541,9 @@ class Optimize:
         if hir == 1:
             return f'hir/{self.name}_hir_{str(r)}_{str(s).zfill(2)}'
 
+        if high and conf < 0 and getattr(self, '_hir_refinement_job', None):
+            return self._hir_refinement_job
+
         if conf >= 0 and high:
             return f'{self.name}_{str(conf).zfill(4)}_high'  # running in the main dir
         if conf >= 0:
@@ -560,7 +575,11 @@ class Optimize:
         dummy.calc_chemid()
 
         # comparing L1 and L2 geometries and imaginary mode if TS
-        if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
+        if self.species.wellorts and getattr(self, '_hir_refinement_job', None):
+            # Same-level refinement of a constrained HIR point. Retain the
+            # geometry/connectivity and frequency checks without another IRC.
+            same_geom = geometry.equal_geom(self.species, dummy, 0.2)
+        elif self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
             if conf < 0 and getattr(self, 'l1_reference_job', None):
                 l1_file = self.l1_reference_job
             elif self.par['conformer_search'] == 0:

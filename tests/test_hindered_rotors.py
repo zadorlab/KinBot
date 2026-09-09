@@ -147,7 +147,62 @@ class TestHIRFits(unittest.TestCase):
 
 
 class TestHIRStatus(unittest.TestCase):
+    def test_l1_hir_restart_refines_the_new_geometry_before_rescanning(self):
+        hir = completed_hir()
+        hir.species.wellorts = 1
+        hir.species.geom = np.zeros((4, 3))
+        optimization = Optimize.__new__(Optimize)
+        optimization.species, optimization.name = hir.species, hir.species.name
+        optimization.par = {'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,
+                            'rotor_scan': 1, 'multi_conf_tst': 0, 'calc_aie': 0,
+                            'L3_calc': 0, 'rigid_hir': 0}
+        optimization.qc = SimpleNamespace(qc_opt_ts=Mock(), check_qc=Mock(return_value='running'))
+        optimization.shir, optimization.shigh, optimization.restart = -1, -1, 1
+        optimization.wait, optimization.just_high, optimization.defer_hir = 0, False, False
+        with patch('kinbot.optimize.HIR', return_value=hir) as constructor, \
+                patch.object(hir, 'generate_hir_geoms'), patch.object(hir, 'check_hir', return_value=0):
+            optimization.do_optimization()
+        optimization.qc.qc_opt_ts.assert_called_once_with(
+            hir.species, hir.species.geom, high_level=0, ext='_hir_restart_1')
+        optimization.qc.check_qc.assert_called_once_with('rotor_test_hir_restart_1')
+        constructor.assert_not_called()
 
+    def test_completed_l1_restart_selects_its_own_record_for_wells_and_saddles(self):
+        atoms = molecule('CH3OH')
+        for saddle in (0, 1):
+            species = StationaryPoint('restart', 0, 1,
+                                      atom=atoms.get_chemical_symbols(), geom=atoms.positions,
+                                      wellorts=saddle)
+            species.characterize()
+            optimization = Optimize.__new__(Optimize)
+            optimization.species, optimization.name = species, species.name
+            optimization.par = {'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,
+                                'rotor_scan': 0, 'multi_conf_tst': 0, 'calc_aie': 0,
+                                'L3_calc': 0, 'rigid_hir': 0, 'imagfreq_threshold': 50.}
+            freq = ([-800.] if saddle else [100.]) + [200.] * 11
+            optimization.qc = SimpleNamespace(
+                qc_opt_ts=Mock(), qc_opt=Mock(), check_qc=Mock(return_value='normal'),
+                get_qc_geom=Mock(return_value=(0, species.geom.copy())),
+                get_qc_energy=Mock(return_value=(0, -100.)), get_qc_zpe=Mock(return_value=(0, .03)),
+                get_qc_freq=Mock(return_value=(0, freq)))
+            optimization.shir, optimization.shigh, optimization.restart = -1, -1, 1
+            optimization.wait, optimization.just_high, optimization.defer_hir = 0, False, False
+            expected = species.name + ('' if saddle else '_well') + '_hir_restart_1'
+            temporary = TemporaryDirectory()
+            self.addCleanup(temporary.cleanup)
+            optimization.qc.db = connect(str(Path(temporary.name) / 'kinbot.db'))
+            optimization.qc.db.write(atoms, name=expected, data={
+                'energy': -100. / constants.EVtoHARTREE, 'zpe': .03,
+                'frequencies': freq, 'status': 'normal'})
+            # Use the same unit conversion as actual QC energy retrieval.
+            energy = optimization.qc.db.get(name=expected).data.energy * constants.EVtoHARTREE
+            optimization.qc.get_qc_energy.return_value = (0, energy)
+            optimization.do_optimization()
+            self.assertEqual(optimization.selected_job, expected)
+            self.assertEqual(species.source_job, expected)
+            self.assertAlmostEqual(species.energy, -100.)
+            self.assertEqual(species.zpe, .03)
+            self.assertEqual(species.freq, freq)
 
 
 
@@ -242,6 +297,7 @@ class TestHIRStatus(unittest.TestCase):
         optimization.species = species
         optimization.name = species.name
         optimization.qc = SimpleNamespace(
+            invalidate_qc=Mock(),
             get_qc_geom=Mock(return_value=(0, species.geom)),
             read_qc_hess=lambda *args: np.eye(3 * species.natom),
             hessian_is_massweighted=lambda: False,
@@ -262,6 +318,8 @@ class TestHIRStatus(unittest.TestCase):
         self.assertEqual(optimization.restart, 1)
         self.assertEqual((optimization.shigh, optimization.shir), (-1, -1))
         optimization.qc.get_qc_geom.assert_called_once()
+        self.assertEqual(optimization.qc.invalidate_qc.call_count, 24)
+        self.assertIsNone(optimization._projection_source)
         self.assertIn({'hir': 1, 'r': 0, 's': 5}, requested)
 
     def test_skipped_rotor_does_not_disable_successful_rotors(self):

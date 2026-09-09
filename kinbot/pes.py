@@ -27,6 +27,7 @@ from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
 from kinbot.mess import MESS, finalize_mc_mess
+from kinbot.calculation import optimization_selection_row
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
 from kinbot.utils import queue_command
@@ -300,7 +301,7 @@ def postprocess(par, jobs, task, names, mass):
 
     # base of the energy is the first well, these are L2 energies
     base_energy, base_zpe = get_energy(jobs, jobs[0], 0, par['high_level'],
-                                       conf=par['conformer_search'])
+                                       conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
@@ -359,14 +360,14 @@ def postprocess(par, jobs, task, names, mass):
                        and not par['high_level'] \
                        and par['qc'] != 'nn_pes' and par['qc'] != 'fc':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
-                                              mp2=1, conf=par['conformer_search'])
+                                              mp2=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
                 if 'barrierless_saddle' in reaction_name and not par['high_level']:
                     bls_energies = get_energy(jobs, jobs[0], 0, par['high_level'],
-                                              bls=1, conf=par['conformer_search'])
+                                              bls=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
                     base_energy_bls, base_zpe_bls = bls_energies
                     barrier = 0. - base_energy_bls - base_zpe_bls
 
@@ -376,7 +377,7 @@ def postprocess(par, jobs, task, names, mass):
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
                     ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
-                                               conf=par['conformer_search'])
+                                               conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
                     barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
                 if reactant not in wells:
@@ -469,7 +470,7 @@ def postprocess(par, jobs, task, names, mass):
     well_l3energies = {}
     for index, well in enumerate(wells):
         energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
-                            conf=par['conformer_search'])  # from the db
+                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'])  # from the db
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -486,7 +487,7 @@ def postprocess(par, jobs, task, names, mass):
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
             pr_energy, pr_zpe = get_energy(jobs, pr, 0, par['high_level'], 
-                                           conf=par['conformer_search'])
+                                           conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
             energy += pr_energy + pr_zpe
             status, l3e = get_l3energy(pr, par)
             if not status:
@@ -1653,7 +1654,8 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     return 0
 
 
-def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
+def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
+               rotor_scan=None):
     
     if ts:
         j = job
@@ -1678,7 +1680,15 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
             continue
         logger.debug(f'Looking at {well}')
         db = connect(well + '/kinbot.db')
-        rows = db.select(name=j)
+        rows = list(db.select(name=j))
+        if not mp2 and not bls and 'IRC' not in job:
+            # A newly calculated conventional job supersedes an older
+            # selection marker from another run of the same directory.
+            selected = optimization_selection_row(
+                db, job if ts else job + '_well', high_level, conf, rotor_scan,
+                newer_than=rows[-1].id if rows else 0)
+            if selected is not None:
+                rows = [selected]
         for row in reversed(list(rows)):  # only take the last one and ignore others
             try:
                 new_energy = row.data.get('energy') * constants.EVtoHARTREE

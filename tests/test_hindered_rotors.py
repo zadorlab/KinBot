@@ -203,6 +203,8 @@ class TestHIRStatus(unittest.TestCase):
             self.assertAlmostEqual(species.energy, -100.)
             self.assertEqual(species.zpe, .03)
             self.assertEqual(species.freq, freq)
+            selected = optimization.qc.db.get(name='optimization/' + optimization.log_name(0))
+            self.assertEqual(selected.data.source_job, expected)
 
 
 

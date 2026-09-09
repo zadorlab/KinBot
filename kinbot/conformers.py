@@ -92,6 +92,10 @@ class Conformers:
         self.imagfreq_threshold = par['imagfreq_threshold']
         self.flat_ring_dih_angle = par['flat_ring_dih_angle']
         self.print_warning = True
+        # Retain the actual calculation selected by check_conformers so
+        # downstream properties can load a coherent geometry/property record.
+        self.selected_job = None
+        self.selected_conf = None
 
     def generate_ring_conformers(self, cart):
         """
@@ -455,6 +459,8 @@ class Conformers:
                                   data=data)
                     #logger.warning(f'All conformer optimizations failed for {name}.')
 
+                    self.selected_job = lowest_job
+                    self.selected_conf = lowest_conf
                     return 1, lowest_conf, lowest_e_geom, last_row.data.get('energy'),\
                            final_geoms, totenergies, frequencies, status
 
@@ -582,6 +588,8 @@ class Conformers:
                 except UnboundLocalError:
                     pass
 
+                self.selected_job = lowest_job
+                self.selected_conf = lowest_conf
                 return 1, lowest_conf, lowest_e_geom, lowest_energy,\
                        final_geoms, totenergies, frequencies, status
 
@@ -625,7 +633,8 @@ class Conformers:
             err, zpe = self.qc.get_qc_zpe(job)
             err, geom = self.qc.get_qc_geom(job, self.species.natom)
                 
-        return geom, energy, zpe 
+        self.selected_job = job
+        return geom, energy, zpe
 
     def find_unique(self, conformers, energies, frequencies, valid, temp=None, boltz=None):
         """

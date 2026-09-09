@@ -273,6 +273,7 @@ class QuantumChemistry:
             kwargs = {
                 'label': job,
                 'jobtype': 'opt',
+                'vibman_print': '4',
                 'nt': min(nel, self.ppn),
                 'method': self.method,
                 'basis': self.basis,
@@ -542,7 +543,8 @@ class QuantumChemistry:
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
-            kwargs.pop('chk', None)
+            if self.use_sella or semi_emp or not self.par['rotor_scan']:
+                kwargs.pop('chk', None)
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
@@ -599,6 +601,53 @@ class QuantumChemistry:
         self.submit_qc(job, min(species.nel, self.ppn))
 
         return 0
+
+    def qc_freq(self, species, source_job, high_level=0):
+        """Recover native frequencies/Hessian at the selected, fixed geometry.
+
+        Older Gaussian conformer jobs did not retain a checkpoint, and native
+        QChem L1 jobs did not request the printed Hessian. Keep their records
+        intact and use a separate, same-level frequency calculation.
+        """
+        if self.use_sella or self.qc not in ('gauss', 'qchem'):
+            raise ValueError(f'Missing stored Hessian for {source_job} ({self.qc}).')
+        rows = list(self.db.select(name=source_job))
+        source_id = rows[-1].id
+        # Include the immutable source observation to avoid reusing a recovery
+        # after the same optimization name has been calculated again.
+        job = f'{source_job}_freq_recovery_{source_id}'
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge,
+            species.nel, ts=species.wellorts, step=1, max_step=1,
+            high_level=high_level)
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
+        kwargs.pop('opt', None)
+        if self.qc == 'gauss':
+            # Recovery has no predecessor checkpoint under its new job name.
+            # Preserve electronic-state choices (e.g. broken-symmetry Mix).
+            guess = kwargs.get('guess')
+            if isinstance(guess, str):
+                options = [option.strip() for option in guess.strip('()').split(',')
+                           if option.strip().lower() != 'read']
+                if any(options):
+                    kwargs['guess'] = ','.join(options)
+                else:
+                    kwargs.pop('guess', None)
+            kwargs.update(freq='', chk=job, label=job)
+            template_file = f'{kb_path}/tpl/ase_gauss_opt_well.tpl.py'
+        else:
+            kwargs.update(jobtype='freq', vibman_print='4', xc_grid='3',
+                          label=job + '_freq')
+            template_file = f'{kb_path}/tpl/ase_qchem_freq.tpl.py'
+        with open(template_file) as handle:
+            template = handle.read().format(label=job, kwargs=kwargs,
+                atom=list(species.atom), geom=np.asarray(species.geom).tolist(),
+                ppn=min(species.nel, self.ppn), qc_command=self.qc_command,
+                working_dir=os.getcwd())
+        with open(job + '.py', 'w') as handle:
+            handle.write(template)
+        self.submit_qc(job, min(species.nel, self.ppn))
+        return job
 
     def qc_aie(self, species, geom, ext):
         '''
@@ -1237,6 +1286,11 @@ class QuantumChemistry:
         if check != 'normal':
             return []
 
+        rows = list(self.db.select(name=job))
+        if (not (self.qc == 'qchem' and not self.use_sella)
+                and rows and rows[-1].data.get('hess') is not None):
+            return np.asarray(rows[-1].data['hess'])
+
         if self.use_sella or self.qc == 'fc':
             #db = connect('kinbot.db')
             for row in self.db.select(name=job):
@@ -1247,7 +1301,10 @@ class QuantumChemistry:
             fchk = str(job) + '.fchk'
             if not os.path.exists(fchk):
                 # create the fchk file using formchk
-                os.system('formchk ' + job + '.chk > /dev/null')
+                if not os.path.exists(job + '.chk'):
+                    return []
+                subprocess.run(['formchk', job + '.chk', fchk],
+                               check=True, stdout=subprocess.DEVNULL)
 
             with open(fchk) as f:
                 lines = f.read().split('\n')
@@ -1284,6 +1341,8 @@ class QuantumChemistry:
             do_read = False
             if natom == 1:
                 return np.zeros([3, 3])
+            if not os.path.exists(job + '_freq.out'):
+                return []
             with open(job + '_freq.out') as f:
                 for line in f:
                     if not do_read and line.startswith(' Mass-Weighted Hessian Matrix'):

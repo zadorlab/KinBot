@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from ase.build import molecule
+from ase.thermochemistry import IdealGasThermo
 import numpy as np
 
 from kinbot.optimize import Optimize
@@ -23,6 +24,8 @@ class TestConformerWeights(unittest.TestCase):
         atoms = molecule('H2O')
         self.conformers.species = SimpleNamespace(atom=atoms.get_chemical_symbols(), mult=1)
         self.geometries = [atoms.positions.copy(), atoms.positions * 1.2]
+
+
 
     def test_equal_total_energies_do_not_acquire_a_second_zpe_bias(self):
         # Both supplied E + ZPE values are equal. Different high-frequency
@@ -39,6 +42,17 @@ class TestConformerWeights(unittest.TestCase):
             self.geometries, [0., -100.], [[1000., 1500., 3000.]] * 2,
             [0, 1], temp=298.15, boltz=.1)
         self.assertEqual(result[-1], [0])
+
+    def test_final_l1_conformers_keep_their_zero_point_inclusive_energies(self):
+        energies = [-76.0, -75.99]
+        result = self.conformers.find_unique(
+            self.geometries, energies, [[1000., 1500., 3000.]] * 2,
+            [0, 0])
+        self.assertEqual(result[-1], [0, 1])
+        self.assertEqual(result[2], energies)
+        # L2 refinement may later replace either array independently.
+        self.assertIsNot(result[1], result[2])
+
 
 
 class TestSemiEmpiricalConformers(unittest.TestCase):
@@ -111,6 +125,8 @@ class TestSemiEmpiricalConformers(unittest.TestCase):
         # rotor index must start the recursion rather than skip it.
         self.assertEqual(self.regular.generate_conformers.call_args.args[0], 0)
         self.assertNotEqual(self.optimization.species.confs.nconfs, 1)
+
+
 
 
 if __name__ == '__main__':

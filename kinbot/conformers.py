@@ -727,7 +727,9 @@ class Conformers:
                             frequencies_unq.append(frequencies[vi])
                             indices_unq.append(vi)
 
-        zeroenergies_unq = [0.] * len(energies_unq)
+        # check_conformers already supplies E + ZPE. Keep these L1 ground
+        # energies unless a later L2 calculation replaces the conformer.
+        zeroenergies_unq = list(energies_unq)
         return conformers_unq, energies_unq, zeroenergies_unq, frequencies_unq, indices_unq
 
     def write_profile(self, status, final_geoms, energies, ring=0):

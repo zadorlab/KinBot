@@ -16,6 +16,7 @@ from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
+from kinbot.frequencies import thermochemical_frequencies
 
 logger = logging.getLogger('KinBot')
 
@@ -672,8 +673,15 @@ class Conformers:
                     vib_energies = [0]
                     geo_type = 'monatomic'
                 else:
-                    vib_energies = [ff * invcm for ff in frequencies[vi] if ff > 0]  # convert to eV
-                    if np.shape(frequencies)[1] == 3 * len(self.species.atom) - 5:
+                    thermal_modes = thermochemical_frequencies(
+                        frequencies[vi], getattr(self.species, 'wellorts', 0),
+                        getattr(self, 'imagfreq_threshold', 50.))
+                    # Supply the complete mode list so ASE can check its size,
+                    # then discard the one imaginary reaction coordinate. Keep
+                    # accepted secondary soft modes in the thermal partition.
+                    vib_energies = [ff * invcm if ff >= 0 else 1j * abs(ff) * invcm
+                                    for ff in thermal_modes]
+                    if len(frequencies[vi]) == 3 * len(self.species.atom) - 5:
                         geo_type = 'linear'
                 potentialenergy = energies[vi] * Hartree  # E + ZPE, in eV
                 atoms = Atoms(symbols=self.species.atom, positions=conformers[vi])
@@ -681,6 +689,7 @@ class Conformers:
                                         potentialenergy=potentialenergy,
                                         atoms=atoms,
                                         geometry=geo_type,
+                                        ignore_imag_modes=bool(getattr(self.species, 'wellorts', 0)),
                                         symmetrynumber=1, spin=(self.species.mult-1)/2)
                 # The input already contains the calculation's ZPE. Add only
                 # thermal corrections, removing ASE's additional harmonic ZPE.

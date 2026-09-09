@@ -613,7 +613,8 @@ class MESS:
             base_zeroen = species.energy + species.zpe
             for ci in valid_conformers:
                 shift = constants.AUtoKCAL * (species.conformer_zeroenergy[ci] - base_zeroen)
-                conformer_freq = species.conformer_freq[ci]
+                conformer_freq = frequencies.thermochemical_frequencies(
+                    species.conformer_freq[ci], 0, self.par.get('imagfreq_threshold', 50.))
                 conformer_zeroenergy = (zeroenergy if self.par['pes'] else
                                         round(zeroenergy + shift, 2))
                 corerr = self.corerrtpl.format(symm=float(species.sigma_ext) / float(species.nopt))
@@ -768,7 +769,8 @@ class MESS:
             base_zeroen = reaction.ts.energy + reaction.ts.zpe
             for ci in valid_conformers:
                 shift = constants.AUtoKCAL * (reaction.ts.conformer_zeroenergy[ci] - base_zeroen)
-                conformer_freq = reaction.ts.conformer_freq[ci]
+                conformer_freq = frequencies.thermochemical_frequencies(
+                    reaction.ts.conformer_freq[ci], 1, self.par.get('imagfreq_threshold', 50.))
                 conformer_zeroenergy = (zeroenergy if self.par['pes'] else
                                         round(zeroenergy + shift, 2))
                 corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))

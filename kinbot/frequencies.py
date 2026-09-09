@@ -11,6 +11,19 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot.constants import EVtoHARTREE
 
 
+def thermochemical_frequencies(raw, wellorts=0, imagfreq_threshold=50.):
+    """Copy modes and apply KinBot's accepted small-imaginary correction.
+
+    The first saddle mode remains the reaction coordinate. This prepares
+    thermochemical data; it does not validate or change the raw calculation.
+    """
+    result = [float(value) for value in raw]
+    for index in range(int(bool(wellorts)), len(result)):
+        if -imagfreq_threshold <= result[index] < 0.:
+            result[index] *= -1.
+    return result
+
+
 def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
     """"Calculates three sets of frequencies:
 

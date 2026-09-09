@@ -420,8 +420,17 @@ class Optimize:
                                                                                                         self.species.geom, 
                                                                                                         massweighted=massweighted)
                 else:
-                    self.species.kinbot_freqs = self.species.freq
-                    self.species.reduced_freqs = self.species.freq
+                    self.species.kinbot_freqs = list(self.species.freq)
+                    self.species.reduced_freqs = list(self.species.freq)
+
+                # Raw frequencies remain attached to the selected calculation.
+                # Thermal representations also correct accepted small imaginary
+                # modes when there is no MC member writer to do it later.
+                for attr in ('kinbot_freqs', 'reduced_freqs'):
+                    setattr(self.species, attr, frequencies.thermochemical_frequencies(
+                        getattr(self.species, attr), self.species.wellorts,
+                        self.par.get('imagfreq_threshold', 50.)))
+
 
                 # write the L3 input and read the L3 energy, if available
                 if self.par['L3_calc'] == 1:

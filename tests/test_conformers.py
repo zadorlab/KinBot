@@ -25,7 +25,31 @@ class TestConformerWeights(unittest.TestCase):
         self.conformers.species = SimpleNamespace(atom=atoms.get_chemical_symbols(), mult=1)
         self.geometries = [atoms.positions.copy(), atoms.positions * 1.2]
 
+    def test_real_saddle_populations_exclude_only_the_reaction_coordinate(self):
+        self.conformers.species.wellorts = 1
+        raw = [[-1000., 1500., 3000.]] * 2
+        with self.assertWarnsRegex(UserWarning, '1 imag modes removed'):
+            retained = self.conformers.find_unique(
+                self.geometries, [-76., -75.99], raw, [0, 0], temp=300., boltz=1.e-4)
+        self.assertEqual(retained[-1], [0])
+        with self.assertWarnsRegex(UserWarning, '1 imag modes removed'):
+            retained = self.conformers.find_unique(
+                self.geometries, [-76., -75.99], raw, [0, 0], temp=300., boltz=1.e-6)
+        self.assertEqual(retained[-1], [0, 1])
+        self.assertEqual(retained[2], [-76., -75.99])
 
+    def test_saddle_population_preserves_accepted_secondary_soft_mode(self):
+        self.conformers.species.wellorts = 1
+        raw = [[-1000., -20., 3000.]]
+        with patch('kinbot.conformers.IdealGasThermo', wraps=IdealGasThermo) as thermo, \
+                self.assertWarnsRegex(UserWarning, '1 imag modes removed'):
+            retained = self.conformers.find_unique(
+                [self.geometries[0]], [-76.], raw, [0], temp=300., boltz=.001)
+        supplied = thermo.call_args.kwargs['vib_energies']
+        self.assertEqual(sum(np.iscomplex(value) for value in supplied), 1)
+        self.assertEqual(sum(np.real(value) > 0 for value in supplied), 2)
+        self.assertEqual(raw, [[-1000., -20., 3000.]])
+        self.assertEqual(retained[-1], [0])
 
     def test_equal_total_energies_do_not_acquire_a_second_zpe_bias(self):
         # Both supplied E + ZPE values are equal. Different high-frequency
@@ -53,6 +77,17 @@ class TestConformerWeights(unittest.TestCase):
         # L2 refinement may later replace either array independently.
         self.assertIsNot(result[1], result[2])
 
+    def test_failed_frequency_record_does_not_crash_population_filtering(self):
+        for valid_index in (0, 1):
+            with self.subTest(valid_index=valid_index):
+                valid = [1, 1]
+                valid[valid_index] = 0
+                frequencies = [None, None]
+                frequencies[valid_index] = [1000., 1500., 3000.]
+                result = self.conformers.find_unique(
+                    self.geometries, [-76., -76.], frequencies, valid,
+                    temp=298.15, boltz=.1)
+                self.assertEqual(result[-1], [valid_index])
 
 
 class TestSemiEmpiricalConformers(unittest.TestCase):

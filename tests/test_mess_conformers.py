@@ -193,6 +193,15 @@ class TestConformerSerialization(unittest.TestCase):
         # PES removes this zero-cutoff block in its final serialization pass.
         self.assertEqual(values(deferred, 'CutoffEnergy')[0], 0.)
 
+    def test_accepted_small_imaginary_modes_are_corrected_without_mutating_raw_members(self):
+        for barrier in (False, True):
+            species = self.ts if barrier else self.well
+            raw = [-1000., -20., 3000.] if barrier else [-20., 2000., 3000.]
+            species.conformer_freq[0] = raw.copy()
+            output = self.render(barrier)
+            self.assertNotIn('-20.0', output)
+            self.assertIn('20.0', output)
+            self.assertEqual(species.conformer_freq[0], raw)
 
     def test_legacy_pes_comments_and_unshifted_blocks_remain_supported(self):
         text = ('ZeroEnergy[kcal/mol] 0\nCutoffEnergy[kcal/mol] 4\nEnd ! RRHO\n'

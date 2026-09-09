@@ -26,7 +26,7 @@ from kinbot import pp_settings
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
-from kinbot.mess import MESS
+from kinbot.mess import MESS, finalize_mc_mess
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
 from kinbot.utils import queue_command
@@ -1231,29 +1231,35 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             name.append(rxn[1])
             energy = rxn[3] + uq.calc_factor('barrier', uq_iter)
             welldepth1 = energy - well_energies_current[rxn[0]] 
-            if welldepth1 < 0 and par['correct_submerged']== 1:  # submerged, not allowed in MESS
+            if welldepth1 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
                 # tunneling block for submerged is cleaned later
                 energy = well_energies_current[rxn[0]]
                 logger.warning(f'Submerged barrier corrected for {name}')
             if len(rxn[2]) == 1:
                 welldepth2 = energy - well_energies_current[rxn[2][0]] 
-                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                if welldepth2 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
                     energy = well_energies_current[rxn[2][0]]
                     logger.warning(f'Submerged barrier corrected for {name}')
             else:
                 prodname = '_'.join(sorted(rxn[2]))
                 welldepth2 = energy - prod_energies_current[prodname] 
-                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                if welldepth2 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
                     energy = prod_energies_current[prodname]
                     logger.warning(f'Submerged barrier corrected for {name}')
+            right_energy = (well_energies_current[rxn[2][0]] if len(rxn[2]) == 1
+                            else prod_energies_current['_'.join(sorted(rxn[2]))])
+            # Recompute both depths after any representative correction.
+            welldepth1 = energy - well_energies_current[rxn[0]]
+            welldepth2 = energy - right_energy
             cutoff = min(welldepth1, welldepth2)
             with open(rxn[0] + '/' + rxn[1] + '_' + mess_iter + '.mess') as f:
-                s.append(f.read().format(name=' '.join(name), 
+                barrier = f.read().format(name=' '.join(name),
                          zeroenergy=round(energy, 2),
                          cutoff=round(cutoff, 2),
                          welldepth1=round(welldepth1, 2),
                          welldepth2=round(welldepth2, 2),
-                         ))
+                         )
+            s.append(barrier)
             s.append('!****************************************')
         s.append(divider)
         s.append('End ! end kinetics\n')
@@ -1269,42 +1275,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             logger.debug('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
             with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
                 with open(f'me/mess_{mess_iter}.inp', 'r') as f:
-                    lines = f.read().split('\n')
-                    for line in lines:
-                        words = line.split()
-                        if 'ZeroEnergy' in line:
-                            if len(words) == 4:
-                                space = ' ' * (len(line) - len(line.lstrip(' ')))
-                                ecorr = float(words[3])
-                                words[1] = str(round(float(words[1]) + ecorr, 2))
-                                newline = ' '.join(words)
-                                newline = space + newline
-                            else:
-                                newline = line
-                            fcorr.write(newline)
-                        elif 'End ! RRHO' in line:
-                            ecorr = None  # reset correction at the end of block
-                            fcorr.write(line)
-                        elif len(words) == 0:
-                            continue
-                        elif ('CutoffEnergy' in line or 'WellDepth' in line) and ecorr is not None:
-                            space = ' ' * (len(line) - len(line.lstrip(' ')))
-                            words[1] = str(round(float(words[1]) + ecorr, 2))
-                            newline = ' '.join(words)
-                            newline = space + newline
-                            fcorr.write(newline)
-                        elif 'ImaginaryFrequency' in line:
-                            if len(words) == 4:
-                                space = ' ' * (len(line) - len(line.lstrip(' ')))
-                                words[1] = words[3][1:]  # cutting off - sign
-                                newline = ' '.join(words)
-                                newline = space + newline
-                            else:
-                                newline = line
-                            fcorr.write(newline)
-                        else:
-                            fcorr.write(line)
-                        fcorr.write('\n')
+                    fcorr.write(finalize_mc_mess(f.read(), par['correct_submerged']))
 
             shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
             os.remove(f'me/mess_{mess_iter}_corr.inp')

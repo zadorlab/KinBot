@@ -66,11 +66,6 @@ utilities:
 
     conda install -c conda-forge kinbot
 
-> **Note**
-> The conda-forge package currently lags behind PyPI. For the latest release
-> and features (e.g. the FAIRChem/UMA backend and ASE 3.26 support introduced
-> in 2.3.0), install from PyPI or from GitHub instead.
-
 ### From Github
 
 If you want to have the very last version of KinBot without waiting for a 

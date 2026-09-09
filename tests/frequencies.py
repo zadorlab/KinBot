@@ -126,12 +126,34 @@ class TestFrequencies(unittest.TestCase):
             warn += 'expected {}, calculated {}'.format(exp, freq[i])
             self.assertAlmostEqual(exp, freq[i], places=2, msg=warn)
 
-        # check if the reduced frequencies are as expected
-        exps = [323.2231139328416, 443.06424130022316, 670.1999625377555, 765.4302138965138, 805.4817609384712, 923.6453995768678, 998.4208652995756, 1010.1550075636384, 1026.2590199716992, 1035.9563299669474, 1110.728140649036, 1237.3899533374413, 1297.0701335112522, 1319.639259548847, 1338.4248295874343, 1402.476769356911, 1417.8484347981505, 1476.7358681560938, 1487.8976160436305, 1525.2008164401302, 1544.0032443689747, 1547.12404969892, 1549.9807205743023, 2426.2794467384574, 2507.323795982035, 2864.813636413937, 3024.7798090881265, 3034.7484086579275, 3037.1066584298032, 3052.278595042064, 3107.809971415559, 3113.170533468414, 3113.8054919074493]
-        for i, exp in enumerate(exps):
-            warn = 'Frequency values have wrong number: '
-            warn += 'expected {}, calculated {}'.format(exp, reduced_freqs[i])
-            self.assertAlmostEqual(exp, reduced_freqs[i], places=2, msg=warn)
+        # Independent finite-rotation oracle: the old frozen reduced values
+        # were generated from axes between mass-weighted coordinates.
+        from scipy.linalg import null_space
+        from scipy.spatial.transform import Rotation
+        from kinbot import constants
+        mass = np.array([constants.exact_mass[at] for at in st_pt.atom])
+        xyz = geom - np.average(geom, axis=0, weights=mass)
+        motions = [np.tile(axis, (natom, 1)) for axis in np.eye(3)]
+        motions += [np.cross(xyz, axis) for axis in np.eye(3)]
+        for rotor in st_pt.dihed:
+            top = frequencies.partition(st_pt, rotor, natom)[0]
+            axis = xyz[rotor[2]] - xyz[rotor[1]]
+            axis /= np.linalg.norm(axis)
+            moved = []
+            for angle in (-1.e-5, 1.e-5):
+                positions = xyz.copy()
+                positions[top] = Rotation.from_rotvec(angle * axis).apply(
+                    xyz[top] - xyz[rotor[1]]) + xyz[rotor[1]]
+                moved.append(positions)
+            motions.append((moved[1] - moved[0]) / 2.e-5)
+        weighted_motions = (np.array(motions) * np.sqrt(mass[None, :, None])).reshape(len(motions), -1)
+        complement = null_space(weighted_motions)
+        masses = np.repeat(mass, 3)
+        weighted_hessian = hess / np.sqrt(np.outer(masses, masses))
+        values = np.linalg.eigvalsh(complement.T @ weighted_hessian @ complement)
+        expected = [frequencies.convert_to_wavenumbers(value) for value in values]
+        np.testing.assert_allclose(reduced_freqs, expected, atol=1.e-5)
+
 
 
 if __name__ == "__main__":

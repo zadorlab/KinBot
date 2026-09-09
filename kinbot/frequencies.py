@@ -132,15 +132,13 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
         # partition the molecule in two parts divided by the rotor bond
         Ri = np.zeros(3 * natom)
         l1, l2 = partition(species, rot, natom, checkdist=checkdist)
-        # mass weight the cartesian coordinates
-        mgeom = np.zeros((natom, 3))
-        for i in range(natom):
-            mgeom[i][0:3] += geom[i] * np.sqrt(constants.exact_mass[atom[i]])
-
-        axis = mgeom[rot[1]] - mgeom[rot[2]]
+        # Construct the physical rotation in Cartesian coordinates. Weight
+        # the displacement afterwards: differences of mass-weighted atom
+        # positions do not describe rotation about the actual bond axis.
+        axis = geom[rot[1]] - geom[rot[2]]
         axis = axis / np.linalg.norm(axis)
         for at in range(natom):
-            vect = mgeom[at] - mgeom[rot[2]]
+            vect = geom[at] - geom[rot[2]]
             proj = np.dot(vect, axis)*axis/np.linalg.norm(axis)**2
             # vector perpendicular to the rotational axis through the atom
             per = vect - proj
@@ -152,7 +150,8 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
                     sign = -1
                 else:
                     sign = 0
-                rot_vect = sign * np.cross(per, axis)
+                rot_vect = (sign * np.cross(per, axis)
+                            * np.sqrt(constants.exact_mass[atom[at]]))
                 Ri[3*at:3*at+3] = rot_vect
         # project the translational, external rotational and previous
         # internal rotations out of the current vector

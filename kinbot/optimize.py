@@ -1,6 +1,7 @@
 import os
 import copy
 import logging
+import subprocess
 import time
 
 import rmsd
@@ -10,6 +11,8 @@ from kinbot import frequencies
 from kinbot import geometry
 from kinbot import symmetry
 from kinbot.conformers import Conformers
+from kinbot.calculation import (load_calculation_record, selected_calculation_job,
+                               publish_optimization_result)
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
 from kinbot.orca import Orca
@@ -77,6 +80,60 @@ class Optimize:
         self.restart = 0
 
         self.skip_conf_check = 0  # initialize
+
+    def _ensure_selected_hessian(self):
+        """Prepare projection from the selected source, recovering old caches."""
+        if getattr(self, '_projection_failure', None):
+            return False
+        try:
+            return self._read_selected_hessian()
+        except (ValueError, OSError, subprocess.SubprocessError) as error:
+            # Keep the accepted stationary calculation if its optional Hessian
+            # cannot be recovered. Do not combine full harmonic frequencies
+            # with additional torsional partition functions.
+            reason = f'no usable selected-geometry Hessian: {error}'
+            logger.warning('%s: %s; retaining harmonic frequencies and omitting '
+                           'hindered rotors.', self.name, reason)
+            self._projection_failure = reason
+            self.shir = 1
+            hir = getattr(self.species, 'hir', None)
+            if hir is not None:
+                hir.projection_failure = reason
+            self.species.rotor_projection = {
+                'method': 'harmonic_fallback', 'internal_rank': 0,
+                'rotors': [{'rotor_index': i, 'projected': False, 'reason': reason}
+                           for i in range(len(self.species.dihed))],
+            }
+            return False
+
+    def _read_selected_hessian(self):
+        job = selected_calculation_job(self)
+        if getattr(self, '_projection_source', None) == job:
+            return True
+        hess = np.asarray(self.qc.read_qc_hess(job, self.species.natom))
+        shape = (3 * self.species.natom, 3 * self.species.natom)
+        if hess.shape != shape or not np.all(np.isfinite(hess)):
+            recovery = self.qc.qc_freq(self.species, job,
+                                       high_level=self.par['high_level'])
+            status = self.qc.check_qc(recovery)
+            if status == 'error':
+                raise ValueError(f'Selected-geometry frequency recovery failed: {recovery}')
+            if status != 'normal':
+                return False
+            rows = list(self.qc.db.select(name=recovery))
+            if not rows:
+                raise ValueError(f'Frequency recovery has no result record: {recovery}')
+            row = rows[-1]
+            if not np.allclose(row.positions, self.species.geom, rtol=0., atol=1.e-6):
+                raise ValueError(f'Frequency recovery changed the selected geometry: {recovery}')
+            hess = np.asarray(self.qc.read_qc_hess(recovery, self.species.natom))
+            if hess.shape != shape or not np.all(np.isfinite(hess)):
+                raise ValueError(f'Frequency recovery produced no usable Hessian: {recovery}')
+            load_calculation_record(self.species, self.qc, recovery)
+            self.selected_job = job = recovery
+        self.species.hess = hess.tolist()
+        self._projection_source = job
+        return True
 
     def do_optimization(self):
         while 1:
@@ -216,15 +273,34 @@ class Optimize:
                 self.sconf = 1
             if self.sconf == 1:  # conf search is finished
                 # if the conformers were already done in a previous run
-                if self.par['conformer_search'] == 1 and not self.just_high and self.restart == 0:
+                if (self.par['conformer_search'] == 1 and not self.just_high
+                        and self.restart == 0 and self.shigh == -1):
                     status, lowest_conf, self.species.geom, self.species.low_energy, conformers, energies, frequency_vals, valid = \
                         self.species.confs.check_conformers(wait=self.wait)
-                        
+                    if status == 1:
+                        # Load the accepted L1 record before L2/HIR starts.
+                        # Later polls must not restore an earlier geometry or
+                        # replace the rotor-projected frequencies with raw ones.
+                        load_calculation_record(self.species, self.qc,
+                                                selected_calculation_job(self))
+
                 while self.restart <= self.par['rotation_restart']:
                     # do the high level calculations
-                    if self.par['high_level'] == 1:
+                    if self.par['high_level'] == 1 or self.restart > 0:
                         if self.shigh == -1:
-                            if self.species.wellorts:
+                            if not self.par['high_level']:
+                                # A low HIR point is constrained, not yet a new
+                                # stationary conformer. Refine it at L1 too.
+                                name = self.species.name
+                                suffix = f'_hir_restart_{self.restart}'
+                                if self.species.wellorts:
+                                    self.qc.qc_opt_ts(self.species, self.species.geom,
+                                                      high_level=0, ext=suffix)
+                                else:
+                                    self.qc.qc_opt(self.species, self.species.geom,
+                                                   high_level=0, ext='_well' + suffix)
+                                self._hir_refinement_job = self.log_name(0) + suffix
+                            elif self.species.wellorts:
                                 name = self.species.name
                                 self.qc.qc_opt_ts(self.species, self.species.geom, high_level=1)
                                 if self.par['multi_conf_tst']:
@@ -262,13 +338,14 @@ class Optimize:
                         if self.shigh == 0:
                             # high level calculation is running
                             # check if finished
-                            status = self.qc.check_qc(self.log_name(1))
+                            job = getattr(self, '_hir_refinement_job', None) or self.log_name(1)
+                            status = self.qc.check_qc(job)
                             if status == 'error':
                                 # found an error
                                 logger.warning('High level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
                             elif status == 'normal':
-                                self.compare_structures()  # this switches shigh to 0.5 or 1 and updates the geometry
+                                self.compare_structures(job=job)  # accepts the explicitly requested result
                         if self.shigh == 0.5:  # the top one was tested already and was ok
                             stati = [0] * len(self.species.conformer_index)
                             for ci, conindx in enumerate(self.species.conformer_index):
@@ -287,6 +364,9 @@ class Optimize:
                     if self.shigh == 1:
                         # do the HIR calculation
                         if self.par['rotor_scan'] == 1 and self.par['multi_conf_tst'] != 1:
+                            if (not self.just_high
+                                    and not self._ensure_selected_hessian()):
+                                break
                             if self.shir == -1:
                                 # hir not stated yet
                                 logger.info('\tStarting hindered rotor calculations of {}'.format(self.name))
@@ -332,15 +412,15 @@ class Optimize:
                                                 err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # err, geom = self.qc.get_qc_geom(job, self.species.natom)
                                                 # self.species.confs.add_new_conf_from_hir(geom)
-                                                # delete the high_level log file and the hir log files
-                                                if os.path.exists(self.log_name(1) + '.log'):
-                                                    logger.debug(f'Removing file {self.log_name(1)}.log')
-                                                    os.remove(self.log_name(1) + '.log')
+                                                # QC owns cache/status conventions. Retire every
+                                                # old scan and any reused L2 refinement source.
+                                                if self.par['high_level']:
+                                                    self.qc.invalidate_qc(self.log_name(1))
                                                 for rotor in range(len(self.species.dihed)):
                                                     for ai in range(self.species.hir.nrotation):
-                                                        if os.path.exists(self.log_name(1, hir=1, r=rotor, s=ai) + '.log'):
-                                                            logger.debug('Removing file ' + self.log_name(1, hir=1, r=rotor, s=ai) + '.log')
-                                                            os.remove(self.log_name(1, hir=1, r=rotor, s=ai)  + '.log')
+                                                        self.qc.invalidate_qc(self.log_name(
+                                                            1, hir=1, r=rotor, s=ai))
+                                                self._projection_source = None
                                                 # set the status of high and hir back to not started
                                                 self.shigh = -1
                                                 self.shir = -1
@@ -369,18 +449,32 @@ class Optimize:
                 symmetry.calculate_symmetry(self.species)
 
                 # calculate the new frequencies with the internal rotations projected out
-                if self.par['multi_conf_tst'] == 0 and self.par['rotor_scan'] \
-                        and not self.just_high:
-                    fr_file = self.log_name(self.par['high_level'])
-                    hess = self.qc.read_qc_hess(fr_file, self.species.natom)
+                if (self.par['multi_conf_tst'] == 0
+                        and self.par['rotor_scan']
+                        and not self.just_high
+                        and not getattr(self, '_projection_failure', None)):
+                    fr_file = selected_calculation_job(self)
+                    hess = (self.species.hess
+                            if getattr(self, '_projection_source', None) == fr_file
+                            else self.qc.read_qc_hess(fr_file, self.species.natom))
                     massweighted = self.qc.hessian_is_massweighted()
                     self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(self.species, 
                                                                                                         hess, 
                                                                                                         self.species.geom, 
                                                                                                         massweighted=massweighted)
                 else:
-                    self.species.kinbot_freqs = self.species.freq
-                    self.species.reduced_freqs = self.species.freq
+                    self.species.kinbot_freqs = list(self.species.freq)
+                    self.species.reduced_freqs = list(self.species.freq)
+
+                # Raw frequencies remain attached to the selected calculation.
+                # Thermal representations also correct accepted small imaginary
+                # modes when there is no MC member writer to do it later.
+                for attr in ('kinbot_freqs', 'reduced_freqs'):
+                    setattr(self.species, attr, frequencies.thermochemical_frequencies(
+                        getattr(self.species, attr), self.species.wellorts,
+                        self.par.get('imagfreq_threshold', 50.)))
+
+                publish_optimization_result(self)
 
                 # write the L3 input and read the L3 energy, if available
                 if self.par['L3_calc'] == 1:
@@ -493,14 +587,15 @@ class Optimize:
         return(name)
 
 
-    def compare_structures(self, conf=-1):
+    def compare_structures(self, conf=-1, job=None):
         """
         Function to compare L1 and L2 strctures and decide is high is successful or not.
         If conf is >= 0, then we are testing for conformer number conf in the conf/ directory.
         """
 
         # creating a species for the L2
-        err, new_geom = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom, wait=self.wait)
+        job = self.log_name(1, conf=conf) if job is None else job
+        err, new_geom = self.qc.get_qc_geom(job, self.species.natom, wait=self.wait)
         dummy = StationaryPoint('dummy',
                                 self.species.charge,
                                 self.species.mult,
@@ -510,14 +605,20 @@ class Optimize:
         dummy.calc_chemid()
 
         # comparing L1 and L2 geometries and imaginary mode if TS
-        if self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
-            if self.par['conformer_search'] == 0:
+        if self.species.wellorts and job == getattr(self, '_hir_refinement_job', None):
+            # Same-level refinement of a constrained HIR point. Retain the
+            # geometry/connectivity and frequency checks without another IRC.
+            same_geom = geometry.equal_geom(self.species, dummy, 0.2)
+        elif self.species.wellorts:  # for TS we need reasonable geometry agreement and normal mode correlation
+            if conf < 0 and getattr(self, 'l1_reference_job', None):
+                l1_file = self.l1_reference_job
+            elif self.par['conformer_search'] == 0:
                 l1_file = self.log_name(0)  # name of the original L1 TS file
             elif self.par['multi_conf_tst'] or self.skip_conf_check == 0:
                 l1_file = self.log_name(0, conf=conf)
             else:
                 l1_file = 'conf/{}_low'.format(self.log_name(0))
-            l2_file = self.log_name(1, conf=conf)
+            l2_file = job
             if self.qc.qc == 'fc' or self.qc.use_sella:
                 imagmode = reader_sella.read_imag_mode(l1_file, self.species.natom)
                 imagmode_high = reader_sella.read_imag_mode(l2_file, self.species.natom)
@@ -561,7 +662,7 @@ class Optimize:
             same_geom = geometry.equal_geom(self.species, dummy, 0.1)
 
         # checking if L2 frequencies are okay
-        err, freq = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
+        err, freq = self.qc.get_qc_freq(job, self.species.natom)
         if self.species.natom == 1:
             freq_ok = 1
         elif len(freq) == 1 and freq[0] == 0:
@@ -583,10 +684,12 @@ class Optimize:
         if conf == -1:
             # update properties for base structure
             if same_geom and freq_ok:
-                err, self.species.geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom)
-                err, self.species.energy = self.qc.get_qc_energy(self.log_name(1))
-                err, self.species.freq = self.qc.get_qc_freq(self.log_name(1), self.species.natom)   # TODO use fr variable
-                err, self.species.zpe = self.qc.get_qc_zpe(self.log_name(1))
+                err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
+                err, self.species.energy = self.qc.get_qc_energy(job)
+                err, self.species.freq = self.qc.get_qc_freq(job, self.species.natom)   # TODO use fr variable
+                err, self.species.zpe = self.qc.get_qc_zpe(job)
+                self.selected_job = job
+                self.species.source_job = self.selected_job
                 if self.par['multi_conf_tst'] == 0:
                     self.shigh = 1
                 else:
@@ -602,10 +705,10 @@ class Optimize:
             # update property of conformers
             inx = self.species.conformer_index.index(conf) 
             if same_geom and freq_ok:
-                err, self.species.conformer_geom[inx] = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom)
-                err, self.species.conformer_energy[inx] = self.qc.get_qc_energy(self.log_name(1, conf=conf))
-                err, self.species.conformer_freq[inx] = self.qc.get_qc_freq(self.log_name(1, conf=conf), self.species.natom)   # TODO use fr variable
-                err, zpe = self.qc.get_qc_zpe(self.log_name(1, conf=conf))
+                err, self.species.conformer_geom[inx] = self.qc.get_qc_geom(job, self.species.natom)
+                err, self.species.conformer_energy[inx] = self.qc.get_qc_energy(job)
+                err, self.species.conformer_freq[inx] = self.qc.get_qc_freq(job, self.species.natom)
+                err, zpe = self.qc.get_qc_zpe(job)
                 self.species.conformer_zeroenergy[inx] = self.species.conformer_energy[inx] + zpe
             else:
                 self.species.conformer_index[inx] = -999

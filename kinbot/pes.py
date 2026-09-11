@@ -26,7 +26,7 @@ from kinbot import pp_settings
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
-from kinbot.mess import MESS
+from kinbot.mess import MESS, finalize_mc_mess
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
 from kinbot.utils import queue_command
@@ -300,7 +300,7 @@ def postprocess(par, jobs, task, names, mass):
 
     # base of the energy is the first well, these are L2 energies
     base_energy, base_zpe = get_energy(jobs, jobs[0], 0, par['high_level'],
-                                       conf=par['conformer_search'])
+                                       conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
@@ -359,14 +359,14 @@ def postprocess(par, jobs, task, names, mass):
                        and not par['high_level'] \
                        and par['qc'] != 'nn_pes' and par['qc'] != 'fc':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
-                                              mp2=1, conf=par['conformer_search'])
+                                              mp2=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
                 if 'barrierless_saddle' in reaction_name and not par['high_level']:
                     bls_energies = get_energy(jobs, jobs[0], 0, par['high_level'],
-                                              bls=1, conf=par['conformer_search'])
+                                              bls=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
                     base_energy_bls, base_zpe_bls = bls_energies
                     barrier = 0. - base_energy_bls - base_zpe_bls
 
@@ -376,7 +376,7 @@ def postprocess(par, jobs, task, names, mass):
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
                     ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
-                                               conf=par['conformer_search'])
+                                               conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
                     barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
                 if reactant not in wells:
@@ -469,7 +469,7 @@ def postprocess(par, jobs, task, names, mass):
     well_l3energies = {}
     for index, well in enumerate(wells):
         energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
-                            conf=par['conformer_search'])  # from the db
+                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'])  # from the db
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -486,7 +486,7 @@ def postprocess(par, jobs, task, names, mass):
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
             pr_energy, pr_zpe = get_energy(jobs, pr, 0, par['high_level'], 
-                                           conf=par['conformer_search'])
+                                           conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
             energy += pr_energy + pr_zpe
             status, l3e = get_l3energy(pr, par)
             if not status:
@@ -1231,29 +1231,35 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             name.append(rxn[1])
             energy = rxn[3] + uq.calc_factor('barrier', uq_iter)
             welldepth1 = energy - well_energies_current[rxn[0]] 
-            if welldepth1 < 0 and par['correct_submerged']== 1:  # submerged, not allowed in MESS
+            if welldepth1 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
                 # tunneling block for submerged is cleaned later
                 energy = well_energies_current[rxn[0]]
                 logger.warning(f'Submerged barrier corrected for {name}')
             if len(rxn[2]) == 1:
                 welldepth2 = energy - well_energies_current[rxn[2][0]] 
-                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                if welldepth2 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
                     energy = well_energies_current[rxn[2][0]]
                     logger.warning(f'Submerged barrier corrected for {name}')
             else:
                 prodname = '_'.join(sorted(rxn[2]))
                 welldepth2 = energy - prod_energies_current[prodname] 
-                if welldepth2 < 0 and par['correct_submerged'] == 1:  # submerged, not allowed in MESS
+                if welldepth2 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
                     energy = prod_energies_current[prodname]
                     logger.warning(f'Submerged barrier corrected for {name}')
+            right_energy = (well_energies_current[rxn[2][0]] if len(rxn[2]) == 1
+                            else prod_energies_current['_'.join(sorted(rxn[2]))])
+            # Recompute both depths after any representative correction.
+            welldepth1 = energy - well_energies_current[rxn[0]]
+            welldepth2 = energy - right_energy
             cutoff = min(welldepth1, welldepth2)
             with open(rxn[0] + '/' + rxn[1] + '_' + mess_iter + '.mess') as f:
-                s.append(f.read().format(name=' '.join(name), 
+                barrier = f.read().format(name=' '.join(name),
                          zeroenergy=round(energy, 2),
                          cutoff=round(cutoff, 2),
                          welldepth1=round(welldepth1, 2),
                          welldepth2=round(welldepth2, 2),
-                         ))
+                         )
+            s.append(barrier)
             s.append('!****************************************')
         s.append(divider)
         s.append('End ! end kinetics\n')
@@ -1269,42 +1275,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             logger.debug('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
             with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
                 with open(f'me/mess_{mess_iter}.inp', 'r') as f:
-                    lines = f.read().split('\n')
-                    for line in lines:
-                        words = line.split()
-                        if 'ZeroEnergy' in line:
-                            if len(words) == 4:
-                                space = ' ' * (len(line) - len(line.lstrip(' ')))
-                                ecorr = float(words[3])
-                                words[1] = str(round(float(words[1]) + ecorr, 2))
-                                newline = ' '.join(words)
-                                newline = space + newline
-                            else:
-                                newline = line
-                            fcorr.write(newline)
-                        elif 'End ! RRHO' in line:
-                            ecorr = None  # reset correction at the end of block
-                            fcorr.write(line)
-                        elif len(words) == 0:
-                            continue
-                        elif ('CutoffEnergy' in line or 'WellDepth' in line) and ecorr is not None:
-                            space = ' ' * (len(line) - len(line.lstrip(' ')))
-                            words[1] = str(round(float(words[1]) + ecorr, 2))
-                            newline = ' '.join(words)
-                            newline = space + newline
-                            fcorr.write(newline)
-                        elif 'ImaginaryFrequency' in line:
-                            if len(words) == 4:
-                                space = ' ' * (len(line) - len(line.lstrip(' ')))
-                                words[1] = words[3][1:]  # cutting off - sign
-                                newline = ' '.join(words)
-                                newline = space + newline
-                            else:
-                                newline = line
-                            fcorr.write(newline)
-                        else:
-                            fcorr.write(line)
-                        fcorr.write('\n')
+                    fcorr.write(finalize_mc_mess(f.read(), par['correct_submerged']))
 
             shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
             os.remove(f'me/mess_{mess_iter}_corr.inp')
@@ -1682,7 +1653,8 @@ def create_interactive_graph(wells, products, reactions, title, well_energies, p
     return 0
 
 
-def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
+def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
+               rotor_scan=None):
     
     if ts:
         j = job
@@ -1707,7 +1679,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0):
             continue
         logger.debug(f'Looking at {well}')
         db = connect(well + '/kinbot.db')
-        rows = db.select(name=j)
+        rows = list(db.select(name=j))
         for row in reversed(list(rows)):  # only take the last one and ignore others
             try:
                 new_energy = row.data.get('energy') * constants.EVtoHARTREE

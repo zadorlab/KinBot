@@ -1,5 +1,6 @@
 import os
 import stat
+import re
 import logging
 import numpy as np
 import subprocess
@@ -13,6 +14,103 @@ from kinbot import frequencies
 from kinbot.uncertaintyAnalysis import UQ
 
 logger = logging.getLogger('KinBot')
+
+
+def apply_conformer_shifts(contents, ground_min=None):
+    """Resolve deferred conformer offsets after PES energy placeholders.
+
+    Older intermediate files also defer imaginary frequencies in comments.
+    Consume those comments once. If requested, apply the existing submerged
+    barrier correction to each resolved member, before adjusting its depths.
+    """
+    output = []
+    correction = None
+    for line in contents.splitlines():
+        words = line.split()
+        changed = False
+        if words and words[0].startswith('ZeroEnergy['):
+            correction = None
+            shift = float(words[3]) if len(words) == 4 and words[2] == '!' else 0.
+            original = float(words[1])
+            energy = original + shift
+            if ground_min is not None:
+                energy = max(energy, ground_min)
+            if shift or ground_min is not None or len(words) == 4:
+                correction = energy - original
+                words = [words[0], str(round(energy, 2))]
+                changed = True
+        elif 'End ! RRHO' in line:
+            correction = None
+        elif words and words[0].startswith(('CutoffEnergy[', 'WellDepth[')):
+            if correction is not None:
+                words[1] = str(round(float(words[1]) + correction, 2))
+                changed = True
+        elif words and words[0].startswith('ImaginaryFrequency['):
+            if len(words) == 4 and words[2] == '!':
+                words = [words[0], str(abs(float(words[3])))]
+                changed = True
+        if changed:
+            line = line[:len(line) - len(line.lstrip())] + ' '.join(words)
+        output.append(line)
+    return '\n'.join(output) + ('\n' if contents.endswith('\n') else '')
+
+
+def finalize_mc_mess(contents, correct_submerged=False):
+    """Resolve MC offsets, then enforce bounds from the serialized endpoints.
+
+    MESS uses the lowest rendered member as a well's ground. This bound is
+    distinct from the selected-parent approximation used for Eckart depths.
+    Keep that shape convention, adjusting depths only when the barrier itself
+    is raised, and omit tunneling at/below the actual connected-well ground.
+    """
+    contents = apply_conformer_shifts(contents)
+    starts = list(re.finditer(r'^\s*(Well|Bimolecular|Barrier)\s+(\S+)[^\n]*',
+                              contents, re.MULTILINE))
+    blocks = [contents[match.start():starts[i+1].start() if i+1 < len(starts) else len(contents)]
+              for i, match in enumerate(starts)]
+    grounds, wells = {}, set()
+    for match, block in zip(starts, blocks):
+        kind, name = match.group(1, 2)
+        if kind == 'Barrier':
+            continue
+        keyword = 'ZeroEnergy' if kind == 'Well' else 'GroundEnergy'
+        values = [float(line.split()[1]) for line in block.splitlines()
+                  if line.strip().startswith(keyword + '[kcal/mol]')]
+        if values:
+            grounds[name] = min(values)
+        if kind == 'Well':
+            wells.add(name)
+    for i, (match, block) in enumerate(zip(starts, blocks)):
+        if match.group(1) != 'Barrier':
+            continue
+        endpoints = match.group().split()[2:4]
+        floor = max((grounds[name] for name in endpoints if name in grounds), default=None)
+        well_floor = max((grounds[name] for name in endpoints if name in wells and name in grounds),
+                         default=float('-inf'))
+        if correct_submerged and floor is not None:
+            block = apply_conformer_shifts(block, ground_min=floor)
+        lines = block.splitlines(keepends=True)
+        output, energy, j = [], None, 0
+        while j < len(lines):
+            words = lines[j].split()
+            if words and words[0].startswith('ZeroEnergy[kcal/mol]'):
+                energy = float(words[1])
+            if words[:2] == ['Tunneling', 'Eckart']:
+                end = j + 1
+                while end < len(lines) and lines[end].split()[:1] != ['End']:
+                    end += 1
+                parameters = [float(line.split()[1]) for line in lines[j+1:end]
+                              if line.strip().startswith(('CutoffEnergy[', 'WellDepth['))]
+                if ((energy is not None and energy <= well_floor)
+                        or any(value <= 0. for value in parameters)):
+                    output.append('! barrier is submerged or has zero serialized tunneling depth\n')
+                    j = end + 1
+                    continue
+            output.append(lines[j])
+            j += 1
+        blocks[i] = ''.join(output)
+    return (contents[:starts[0].start()] + ''.join(blocks)) if starts else contents
+
 
 class MESS:
     """
@@ -326,7 +424,10 @@ class MESS:
             mess_iter = "{0:04d}".format(uq_iter)
 
             with open('me/mess_%s.inp' % mess_iter, 'w') as f_out:
-                f_out.write(header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n')
+                contents = header + divider + wells + bimols + tss + termols + barrierless + divider + 'End ! end kinetics\n'
+                if self.par['multi_conf_tst']:
+                    contents = finalize_mc_mess(contents, self.par.get('correct_submerged', 0))
+                f_out.write(contents)
 
         return 0
 
@@ -491,12 +592,11 @@ class MESS:
             zeroenergy += well_add
             zeroenergy = round(zeroenergy, 2)
 
-        nunq_confs = 0  # number of unique conformers
-        for co in species.conformer_index:
-            if co >= 0:
-                nunq_confs += 1
+        valid_conformers = [ci for ci, co in enumerate(species.conformer_index)
+                            if co >= 0]
+        nunq_confs = len(valid_conformers)
 
-        if not self.par['multi_conf_tst'] or nunq_confs == 1: 
+        if not self.par['multi_conf_tst'] or not valid_conformers:
             mess_well = self.welltpl.format(chemid=name,
                                             smi=species.smiles,
                                             natom=species.natom,
@@ -510,20 +610,25 @@ class MESS:
                                             zeroenergy=zeroenergy)
         else:
             rrho = '      '
-            base_zeroen = min(species.conformer_zeroenergy)
-            for ci, co in enumerate(species.conformer_index):
+            base_zeroen = species.energy + species.zpe
+            for ci in valid_conformers:
+                shift = constants.AUtoKCAL * (species.conformer_zeroenergy[ci] - base_zeroen)
+                conformer_freq = frequencies.thermochemical_frequencies(
+                    species.conformer_freq[ci], 0, self.par.get('imagfreq_threshold', 50.))
+                conformer_zeroenergy = (zeroenergy if self.par['pes'] else
+                                        round(zeroenergy + shift, 2))
                 corerr = self.corerrtpl.format(symm=float(species.sigma_ext) / float(species.nopt))
                 rrho += self.rrhotpl.format(natom=species.natom,
                                             geom=self.make_geom(species.conformer_geom[ci], species.atom),
                                             core=corerr,
                                             nfreq=len(species.conformer_freq[ci]),
-                                            freq=self.make_freq(species.conformer_freq[ci], freq_factor, 0),
+                                            freq=self.make_freq(conformer_freq, freq_factor, 0),
                                             rotors='',
                                             tunneling='',
                                             nelec=1,
                                             mult=species.mult,
-                                            zeroenergy=zeroenergy,
-                                            shift=constants.AUtoKCAL*(species.conformer_zeroenergy[ci]-base_zeroen),
+                                            zeroenergy=conformer_zeroenergy,
+                                            shift=shift if self.par['pes'] else '',
                                            )
             rrho = '      '.join(rrho.splitlines(True))  # indent
             mess_well = self.welluniontpl.format(chemid=name,
@@ -547,13 +652,13 @@ class MESS:
         left_zeroenergy += barrier_add
         right_zeroenergy += barrier_add
 
-        nunq_confs = 0  # number of unique conformers
-        for co in reaction.ts.conformer_index:
-            if co >= 0:
-                nunq_confs += 1
+        valid_conformers = [ci for ci, co in enumerate(reaction.ts.conformer_index)
+                            if co >= 0]
+        nunq_confs = len(valid_conformers)
 
         # write tunneling block
-        if left_zeroenergy < 0 or right_zeroenergy < 0 and not self.par['pes']: # at L3 a submerged can change...
+        if (not self.par['pes']
+                and min(round(left_zeroenergy, 2), round(right_zeroenergy, 2)) <= 0):
             tun = f'! barrier is submerged {left_zeroenergy} {right_zeroenergy}'
         elif self.par['pes'] == 0:
             tun = self.tunneltpl.format(cutoff=round(min(left_zeroenergy, right_zeroenergy), 2),
@@ -640,7 +745,7 @@ class MESS:
                                                   chemid_prod=chemid_prod,
                                                   long_rxn_name=long_rxn_name,
                                                   model=variational)
-        elif not self.par['multi_conf_tst'] or nunq_confs == 1: 
+        elif not self.par['multi_conf_tst'] or not valid_conformers:
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
                                        geom=self.make_geom(reaction.ts.geom, reaction.ts.atom),
@@ -661,26 +766,38 @@ class MESS:
                                                   model=rrho)
         else:
             rrho = '      '
-            base_zeroen = min(reaction.ts.conformer_zeroenergy)
-            for ci, co in enumerate(reaction.ts.conformer_index):
+            base_zeroen = reaction.ts.energy + reaction.ts.zpe
+            for ci in valid_conformers:
+                shift = constants.AUtoKCAL * (reaction.ts.conformer_zeroenergy[ci] - base_zeroen)
+                conformer_freq = frequencies.thermochemical_frequencies(
+                    reaction.ts.conformer_freq[ci], 1, self.par.get('imagfreq_threshold', 50.))
+                conformer_zeroenergy = (zeroenergy if self.par['pes'] else
+                                        round(zeroenergy + shift, 2))
                 corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
-                tun_conf = tun.split('\n')
-                try:
-                    tun_conf[1] += f' ! {reaction.ts.conformer_freq[ci][0]}'
-                    tun_conf = '\n'.join(tun_conf)
-                except IndexError:  # happens for submerged barrier
-                    tun_conf = tun
+                imfreq = round(-reaction.ts.conformer_freq[ci][0] * imagfreq_factor, 2)
+                if self.par['pes']:
+                    tun_conf = self.tunneltpl.format(
+                        cutoff='{cutoff}', imfreq=imfreq,
+                        welldepth1='{welldepth1}', welldepth2='{welldepth2}')
+                else:
+                    left, right = left_zeroenergy + shift, right_zeroenergy + shift
+                    if min(round(left, 2), round(right, 2)) <= 0:
+                        tun_conf = f'! barrier is submerged {left} {right}'
+                    else:
+                        tun_conf = self.tunneltpl.format(
+                            cutoff=round(min(left, right), 2), imfreq=imfreq,
+                            welldepth1=round(left, 2), welldepth2=round(right, 2))
                 rrho += self.rrhotpl.format(natom=reaction.ts.natom,
                                             geom=self.make_geom(reaction.ts.conformer_geom[ci], reaction.ts.atom),
                                             core=corerr,
                                             nfreq=len(reaction.ts.conformer_freq[ci])-1,
-                                            freq=self.make_freq(reaction.ts.conformer_freq[ci], freq_factor, 1),
+                                            freq=self.make_freq(conformer_freq, freq_factor, 1),
                                             rotors='',
                                             tunneling=tun_conf,
                                             nelec=1,
                                             mult=reaction.ts.mult,
-                                            zeroenergy=zeroenergy,
-                                            shift=constants.AUtoKCAL*(reaction.ts.conformer_zeroenergy[ci]-base_zeroen),
+                                            zeroenergy=conformer_zeroenergy,
+                                            shift=shift if self.par['pes'] else '',
                                            )  
             rrho = '      '.join(rrho.splitlines(True))  # indent
             mess_barrier = self.barrieruniontpl.format(rxn_name=name,
@@ -902,6 +1019,7 @@ class MESS:
                 elif rotortype == 'free':
                     rotors.append(self.freerotortpl.format(geom=self.make_geom(species.geom, species.atom),
                                                            natom=species.natom,
+                                                           rotorsymm=self.rotorsymm(species, rot),
                                                            group=' '.join([str(pi + 1) for pi in frequencies.partition(species, rot, species.natom)[0][1:]]),
                                                            axis='{} {}'.format(str(rot[1] + 1), str(rot[2] + 1)),
                                                            ))

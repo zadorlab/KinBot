@@ -16,6 +16,7 @@ from kinbot import geometry
 from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
+from kinbot.frequencies import thermochemical_frequencies
 
 logger = logging.getLogger('KinBot')
 
@@ -92,6 +93,10 @@ class Conformers:
         self.imagfreq_threshold = par['imagfreq_threshold']
         self.flat_ring_dih_angle = par['flat_ring_dih_angle']
         self.print_warning = True
+        # Retain the actual calculation selected by check_conformers so
+        # downstream properties can load a coherent geometry/property record.
+        self.selected_job = None
+        self.selected_conf = None
 
     def generate_ring_conformers(self, cart):
         """
@@ -455,6 +460,8 @@ class Conformers:
                                   data=data)
                     #logger.warning(f'All conformer optimizations failed for {name}.')
 
+                    self.selected_job = lowest_job
+                    self.selected_conf = lowest_conf
                     return 1, lowest_conf, lowest_e_geom, last_row.data.get('energy'),\
                            final_geoms, totenergies, frequencies, status
 
@@ -582,6 +589,8 @@ class Conformers:
                 except UnboundLocalError:
                     pass
 
+                self.selected_job = lowest_job
+                self.selected_conf = lowest_conf
                 return 1, lowest_conf, lowest_e_geom, lowest_energy,\
                        final_geoms, totenergies, frequencies, status
 
@@ -625,7 +634,8 @@ class Conformers:
             err, zpe = self.qc.get_qc_zpe(job)
             err, geom = self.qc.get_qc_geom(job, self.species.natom)
                 
-        return geom, energy, zpe 
+        self.selected_job = job
+        return geom, energy, zpe
 
     def find_unique(self, conformers, energies, frequencies, valid, temp=None, boltz=None):
         """
@@ -663,8 +673,15 @@ class Conformers:
                     vib_energies = [0]
                     geo_type = 'monatomic'
                 else:
-                    vib_energies = [ff * invcm for ff in frequencies[vi] if ff > 0]  # convert to eV
-                    if np.shape(frequencies)[1] == 3 * len(self.species.atom) - 5:
+                    thermal_modes = thermochemical_frequencies(
+                        frequencies[vi], getattr(self.species, 'wellorts', 0),
+                        getattr(self, 'imagfreq_threshold', 50.))
+                    # Supply the complete mode list so ASE can check its size,
+                    # then discard the one imaginary reaction coordinate. Keep
+                    # accepted secondary soft modes in the thermal partition.
+                    vib_energies = [ff * invcm if ff >= 0 else 1j * abs(ff) * invcm
+                                    for ff in thermal_modes]
+                    if len(frequencies[vi]) == 3 * len(self.species.atom) - 5:
                         geo_type = 'linear'
                 potentialenergy = energies[vi] * Hartree  # E + ZPE, in eV
                 atoms = Atoms(symbols=self.species.atom, positions=conformers[vi])
@@ -672,6 +689,7 @@ class Conformers:
                                         potentialenergy=potentialenergy,
                                         atoms=atoms,
                                         geometry=geo_type,
+                                        ignore_imag_modes=bool(getattr(self.species, 'wellorts', 0)),
                                         symmetrynumber=1, spin=(self.species.mult-1)/2)
                 # The input already contains the calculation's ZPE. Add only
                 # thermal corrections, removing ASE's additional harmonic ZPE.
@@ -718,7 +736,9 @@ class Conformers:
                             frequencies_unq.append(frequencies[vi])
                             indices_unq.append(vi)
 
-        zeroenergies_unq = [0.] * len(energies_unq)
+        # check_conformers already supplies E + ZPE. Keep these L1 ground
+        # energies unless a later L2 calculation replaces the conformer.
+        zeroenergies_unq = list(energies_unq)
         return conformers_unq, energies_unq, zeroenergies_unq, frequencies_unq, indices_unq
 
     def write_profile(self, status, final_geoms, energies, ring=0):

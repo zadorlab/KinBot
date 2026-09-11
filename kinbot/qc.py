@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 import copy
 import pickle
+from shutil import copyfile
 
 import numpy as np
 from ase.db import connect
@@ -273,6 +274,7 @@ class QuantumChemistry:
             kwargs = {
                 'label': job,
                 'jobtype': 'opt',
+                'vibman_print': '4',
                 'nt': min(nel, self.ppn),
                 'method': self.method,
                 'basis': self.basis,
@@ -600,6 +602,53 @@ class QuantumChemistry:
 
         return 0
 
+    def qc_freq(self, species, source_job, high_level=0):
+        """Recover native frequencies/Hessian at the selected, fixed geometry.
+
+        Older Gaussian conformer jobs did not retain a checkpoint, and native
+        QChem L1 jobs did not request the printed Hessian. Keep their records
+        intact and use a separate, same-level frequency calculation.
+        """
+        if self.use_sella or self.qc not in ('gauss', 'qchem'):
+            raise ValueError(f'Missing stored Hessian for {source_job} ({self.qc}).')
+        rows = list(self.db.select(name=source_job))
+        source_id = rows[-1].id
+        # Include the immutable source observation to avoid reusing a recovery
+        # after the same optimization name has been calculated again.
+        job = f'{source_job}_freq_recovery_{source_id}'
+        kwargs = self.get_qc_arguments(job, species.mult, species.charge,
+            species.nel, ts=species.wellorts, step=1, max_step=1,
+            high_level=high_level)
+        if self.par['calc_kwargs']:
+            kwargs = self.merge_kwargs(kwargs)
+        kwargs.pop('opt', None)
+        if self.qc == 'gauss':
+            # Recovery has no predecessor checkpoint under its new job name.
+            # Preserve electronic-state choices (e.g. broken-symmetry Mix).
+            guess = kwargs.get('guess')
+            if isinstance(guess, str):
+                options = [option.strip() for option in guess.strip('()').split(',')
+                           if option.strip().lower() != 'read']
+                if any(options):
+                    kwargs['guess'] = ','.join(options)
+                else:
+                    kwargs.pop('guess', None)
+            kwargs.update(freq='', chk=job, label=job)
+            template_file = f'{kb_path}/tpl/ase_gauss_opt_well.tpl.py'
+        else:
+            kwargs.update(jobtype='freq', vibman_print='4', xc_grid='3',
+                          label=job + '_freq')
+            template_file = f'{kb_path}/tpl/ase_qchem_freq.tpl.py'
+        with open(template_file) as handle:
+            template = handle.read().format(label=job, kwargs=kwargs,
+                atom=list(species.atom), geom=np.asarray(species.geom).tolist(),
+                ppn=min(species.nel, self.ppn), qc_command=self.qc_command,
+                working_dir=os.getcwd())
+        with open(job + '.py', 'w') as handle:
+            handle.write(template)
+        self.submit_qc(job, min(species.nel, self.ppn))
+        return job
+
     def qc_aie(self, species, geom, ext):
         '''
         Sets up AIE calculations. Currently results are not digested by KinBot.
@@ -757,8 +806,9 @@ class QuantumChemistry:
         if fdir is not None:
             job = f'{fdir}/{job}'
 
-        kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel, ts=1, 
-                                       step=1, max_step=1, high_level=1)
+        kwargs = self.get_qc_arguments(
+            job, species.mult, species.charge, species.nel, ts=1,
+            step=1, max_step=1, high_level=high_level)
         if self.par['calc_kwargs']:
             kwargs = self.merge_kwargs(kwargs)
         if self.qc == 'gauss':
@@ -929,6 +979,61 @@ class QuantumChemistry:
 
         self.submit_qc(job, min(reac.species.nel, self.ppn))
         return job 
+
+    def invalidate_qc(self, job):
+        """Retire a completed result before a HIR restart, for every backend.
+
+        Preserve database observations and archive output/checkpoint files.
+        A database marker also invalidates backends without a completion log.
+        Queued/running jobs must never be invalidated.
+        """
+        if self.check_qc(job) == 'running':
+            raise ValueError(f'Cannot invalidate a running calculation: {job}')
+        rows = list(self.db.select(name=job))
+        if not rows:
+            return
+        previous = rows[-1]
+        marker = self.db.write(previous.toatoms(), name=job, data={
+            'status': 0, 'reason': 'HIR restart', 'supersedes_row_id': previous.id})
+        self._archive_outputs(job, marker)
+        self.job_ids.pop(job, None)
+
+    @staticmethod
+    def _archive_outputs(job, marker):
+        for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
+            path = job + suffix
+            if os.path.isfile(path):
+                os.replace(path, f'{path}.restart_{marker}')
+
+    def publish_result(self, source, target):
+        """Copy an accepted result and its native outputs to a conventional name.
+
+        The normal database row is written last. An interrupted copy leaves an
+        incomplete result, rather than pairing new properties with old files.
+        Original calculations and earlier conventional outputs are preserved.
+        """
+        if source.name == target:
+            return source.id
+        rows = list(self.db.select(name=target))
+        if (rows and rows[-1].data.get('status') == 'normal'
+                and rows[-1].data.get('copied_from_job') == source.name
+                and rows[-1].data.get('copied_from_row_id') == source.id):
+            return rows[-1].id
+        if self.check_qc(target) == 'running':
+            raise ValueError(f'Cannot publish over a running calculation: {target}')
+        os.makedirs(os.path.dirname(target) or '.', exist_ok=True)
+        marker = self.db.write(source.toatoms(), name=target, data={
+            'status': 0, 'reason': 'Publishing accepted optimization result'})
+        self._archive_outputs(target, marker)
+        for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
+            if os.path.isfile(source.name + suffix):
+                copyfile(source.name + suffix, target + suffix)
+        data = dict(source.data)
+        data.update(copied_from_job=source.name, copied_from_row_id=source.id)
+        keys = dict(source.key_value_pairs, name=target)
+        result = self.db.write(source.toatoms(), key_value_pairs=keys, data=data)
+        self.job_ids.pop(target, None)
+        return result
 
     def submit_qc(self, job, nproc, singlejob=1, jobtype=None):
         '''Submit a job to the queue, unless the job:
@@ -1237,6 +1342,11 @@ class QuantumChemistry:
         if check != 'normal':
             return []
 
+        rows = list(self.db.select(name=job))
+        if (not (self.qc == 'qchem' and not self.use_sella)
+                and rows and rows[-1].data.get('hess') is not None):
+            return np.asarray(rows[-1].data['hess'])
+
         if self.use_sella or self.qc == 'fc':
             #db = connect('kinbot.db')
             for row in self.db.select(name=job):
@@ -1247,7 +1357,10 @@ class QuantumChemistry:
             fchk = str(job) + '.fchk'
             if not os.path.exists(fchk):
                 # create the fchk file using formchk
-                os.system('formchk ' + job + '.chk > /dev/null')
+                if not os.path.exists(job + '.chk'):
+                    return []
+                subprocess.run(['formchk', job + '.chk', fchk],
+                               check=True, stdout=subprocess.DEVNULL)
 
             with open(fchk) as f:
                 lines = f.read().split('\n')
@@ -1284,6 +1397,8 @@ class QuantumChemistry:
             do_read = False
             if natom == 1:
                 return np.zeros([3, 3])
+            if not os.path.exists(job + '_freq.out'):
+                return []
             with open(job + '_freq.out') as f:
                 for line in f:
                     if not do_read and line.startswith(' Mass-Weighted Hessian Matrix'):

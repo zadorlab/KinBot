@@ -107,7 +107,7 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 * Clément Soulié (csoulie@sandia.gov)
 
 ## Papers using KinBot
-1.	Kendall, D. T., Zádorm J.: _Benchmarking the UMA foundation interatomic potential for gas-phase chemical kinetics_ J. Phys. Chem. A, **2026**, 130, 4450-4468. https://pubs.acs.org/doi/10.1021/acs.jpca.6c01748
+1.	Kendall, D. T., Zádor J.: _Benchmarking the UMA foundation interatomic potential for gas-phase chemical kinetics_ J. Phys. Chem. A, **2026**, 130, 4450-4468. https://pubs.acs.org/doi/10.1021/acs.jpca.6c01748
 2.	Kjaersgaard, A., Zádor J., Zwier, T. S., Shiels, O.J., Sheps, L.: _Measurement of the CH3SCH2O2 -> CH2SCH2OOH rate coefficient and mass spectrometric characterization of hydroperoxymethyl thioformate (HPMTF) at T = 400 – 550 K._ J. Phys. Chem. A, **2025**, 129, 10452-10462. https://doi.org/10.1021/acs.jpca.5c06279
 3. Shiels, O. J., Kjaersgaard, A., Zádor, J., Sheps, L.: _Low-temperature autooxidation of cyclopentanone and 3-pentanone: The critical role of competing radical chain-branching and chain inhibiting pathways._ Phys. Chem. Chem. Phys., **2025**, 27, 23813-23825. https://doi.org/10.1039/D5CP03403E
 4. Osborn, D. L., Samanta, B. R., Soulié, C., Reisler, H., Zádor, J.: _Chemistry of sugar formation in the gas phase: Following the activated aldehyde_. J. Am. Chem. Soc., **2025** 147, 32468–32479. https://doi.org/10.1021/jacs.5c05357

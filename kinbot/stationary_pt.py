@@ -718,29 +718,42 @@ class StationaryPoint:
             self.bonds = [self.bond]
         self.dihed = []
         self.dihed_allrot = []
-        hit = 0
 
         if self.natom < 4: return 0
 
-        # a-b-c-d, rotation around b-c
-        for b in range(self.natom):
-            if hit == 1: hit = 0
-            for c in range(b, self.natom):
-                if hit == 1: hit = 0
-                if all([bi[b][c] == 1 for bi in self.bonds]) and self.cycle[b] * self.cycle[c] == 0:
+        # a-b-c-d rotates around b-c; the outer bonds only define the angle.
+        # Keep existing single-bond references and rotor indices first (HIR
+        # restart names use those indices). Then add missing axes, such as
+        # C-N in nitro groups, allowing multiple bonds as outer references.
+        rotors = self.dihed_allrot if findall else self.dihed
+        found_axes = set()
+        for allow_multiple in (False, True):
+            for b in range(self.natom):
+                for c in range(b + 1, self.natom):
+                    if ((b, c) in found_axes
+                            or not all(bi[b][c] == 1 for bi in self.bonds)
+                            or self.cycle[b] * self.cycle[c] != 0):
+                        continue
+                    found = False
                     for a in range(self.natom):
-                        if hit == 1: break
-                        if self.bond[a][b] == 1 and a != c:
-                            for d in range(self.natom):
-                                if hit == 1: break
-                                if self.bond[c][d] == 1 and d != b:
-                                    dihedral_angle, warning = geometry.calc_dihedral(self.geom[a], self.geom[b], self.geom[c], self.geom[d])
-                                    if warning == 0:
-                                        if findall == 0:
-                                            self.dihed.append([a, b, c, d])
-                                            hit = 1 
-                                        else:
-                                            self.dihed_allrot.append([a, b, c, d])
+                        if found and not findall:
+                            break
+                        if (a == c or self.bond[a][b] <= 0
+                                or (not allow_multiple and self.bond[a][b] != 1)):
+                            continue
+                        for d in range(self.natom):
+                            if (d == b or self.bond[c][d] <= 0
+                                    or (not allow_multiple and self.bond[c][d] != 1)):
+                                continue
+                            _, warning = geometry.calc_dihedral(
+                                self.geom[a], self.geom[b], self.geom[c], self.geom[d])
+                            if warning == 0:
+                                rotors.append([a, b, c, d])
+                                found = True
+                                if not findall:
+                                    break
+                    if found:
+                        found_axes.add((b, c))
 
         return 0
 

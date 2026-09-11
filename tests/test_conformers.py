@@ -164,5 +164,33 @@ class TestSemiEmpiricalConformers(unittest.TestCase):
 
 
 
+    def test_saddle_skips_l0_and_polls_l1_without_l0_seed_results(self):
+        self.species.wellorts = 1
+        self.regular.generate_conformers.return_value = 0
+        for _ in range(2):
+            self.optimization.do_optimization()
+        self.semi.generate_conformers.assert_not_called()
+        self.semi.check_conformers.assert_not_called()
+        self.assertEqual(self.optimization.ssemi_empconf, 1)
+        self.regular.generate_conformers.assert_called_once()
+        self.assertEqual(self.regular.generate_conformers.call_args.args[0], 0)
+        self.assertEqual(self.regular.check_conformers.call_count, 2)
+
+
+    def test_ring_saddle_keeps_ring_sampling_then_proceeds_directly_to_l1(self):
+        self.species.wellorts = 1
+        self.species.cycle_chain = [[0, 1, 2, 3]]
+        self.regular.generate_conformers.return_value = 0
+        self.regular.check_ring_conformers.side_effect = [(0, []), (1, [self.geom])]
+        self.optimization.do_optimization()
+        self.regular.generate_conformers.assert_not_called()
+        self.optimization.do_optimization()
+        self.regular.generate_ring_conformers.assert_called_once()
+        self.semi.generate_conformers.assert_not_called()
+        self.regular.generate_conformers.assert_called_once()
+        self.assertEqual(self.regular.generate_conformers.call_args.args[0], 0)
+
+
+
 if __name__ == '__main__':
     unittest.main()

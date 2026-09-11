@@ -156,6 +156,8 @@ class HIR:
         Returns None for a usable scan. Failed non-reference points retain
         the existing Fourier-fill policy and do not make a rotor invalid.
         """
+        if getattr(self, 'projection_failure', None):
+            return self.projection_failure
         if rotor >= len(self.hir_status) or len(self.hir_status[rotor]) != self.nrotation:
             return 'no scan recorded'
         status = self.hir_status[rotor]

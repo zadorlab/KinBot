@@ -12,6 +12,8 @@ from ase.build import molecule
 
 from kinbot import constants
 from kinbot.calculation import load_calculation_record
+from kinbot.hindered_rotors import HIR
+from kinbot.mess import MESS
 from kinbot.optimize import Optimize
 from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
@@ -168,6 +170,64 @@ class TestSelectedHessian(unittest.TestCase):
         self.record(self.job, self.hess)
         Path(self.job + '.log').write_text('done\n')
         np.testing.assert_allclose(self.qc.read_qc_hess(self.job, len(self.atoms)), self.hess)
+
+    def test_failed_recovery_finishes_with_harmonic_frequencies_and_no_rotors(self):
+        self.record(self.job)
+        load_calculation_record(self.species, self.qc, self.job)
+        opt = self.optimization()
+        old_hir = HIR(self.species, self.qc, self.par)
+        old_hir.hir_status = [[0] * old_hir.nrotation]
+        self.species.hir = old_hir
+        with patch.object(self.qc, 'read_qc_hess', return_value=[]), \
+                patch.object(self.qc, 'qc_freq', return_value='failed_recovery') as recover, \
+                patch.object(self.qc, 'check_qc', return_value='error'), \
+                patch('kinbot.optimize.frequencies.get_frequencies') as project, \
+                self.assertLogs('KinBot', level='WARNING') as messages:
+            opt.do_optimization()
+            opt.do_optimization()
+        recover.assert_called_once()
+        project.assert_not_called()
+        self.assertEqual(opt.shir, 1)
+        self.assertEqual(self.species.freq, self.freq)
+        self.assertEqual(self.species.reduced_freqs, self.freq)
+        self.assertEqual(self.species.source_job, self.job)
+        self.assertEqual(old_hir.hir_status, [[0] * old_hir.nrotation])
+        self.assertEqual(len(messages.output), 1)
+        self.assertIn('retaining harmonic frequencies', messages.output[0])
+        writer = MESS(self.par, self.species)
+        text = writer.make_rotors(self.species, 1.)
+        self.assertNotIn('Rotor Hindered', text)
+        self.assertNotIn('Rotor Free', text)
+        self.assertIn('kept as a harmonic oscillator', text)
+
+    def test_invalid_recovery_results_do_not_replace_selected_properties(self):
+        self.record(self.job)
+        for failure in ('missing_record', 'changed_geometry', 'missing_hessian',
+                        'unreadable_hessian', 'unsupported_backend'):
+            with self.subTest(failure=failure):
+                load_calculation_record(self.species, self.qc, self.job)
+                opt = self.optimization()
+                recovery = 'recovery_' + failure
+                if failure != 'missing_record':
+                    atoms = self.atoms.copy()
+                    if failure == 'changed_geometry':
+                        atoms.positions[0, 0] += .1
+                    self.qc.db.write(atoms, name=recovery, data={
+                        'status': 'normal', 'energy': -110. / constants.EVtoHARTREE,
+                        'zpe': .02, 'frequencies': [200.] * len(self.freq)})
+                with patch.object(self.qc, 'read_qc_hess',
+                                  side_effect=OSError('unreadable') if failure == 'unreadable_hessian' else None,
+                                  return_value=[]), \
+                        patch.object(self.qc, 'qc_freq', return_value=recovery,
+                                     side_effect=ValueError('unsupported backend') if failure == 'unsupported_backend' else None), \
+                        patch.object(self.qc, 'check_qc', return_value='normal'), \
+                        self.assertLogs('KinBot', level='WARNING'):
+                    opt.do_optimization()
+                self.assertEqual(opt.shir, 1)
+                self.assertEqual(self.species.source_job, self.job)
+                self.assertAlmostEqual(self.species.energy, -100.)
+                np.testing.assert_array_equal(self.species.geom, self.atoms.positions)
+                self.assertEqual(self.species.reduced_freqs, self.freq)
 
 
 if __name__ == '__main__':

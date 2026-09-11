@@ -1,6 +1,7 @@
 import os
 import copy
 import logging
+import subprocess
 import time
 
 import rmsd
@@ -82,6 +83,30 @@ class Optimize:
 
     def _ensure_selected_hessian(self):
         """Prepare projection from the selected source, recovering old caches."""
+        if getattr(self, '_projection_failure', None):
+            return False
+        try:
+            return self._read_selected_hessian()
+        except (ValueError, OSError, subprocess.SubprocessError) as error:
+            # Keep the accepted stationary calculation if its optional Hessian
+            # cannot be recovered. Do not combine full harmonic frequencies
+            # with additional torsional partition functions.
+            reason = f'no usable selected-geometry Hessian: {error}'
+            logger.warning('%s: %s; retaining harmonic frequencies and omitting '
+                           'hindered rotors.', self.name, reason)
+            self._projection_failure = reason
+            self.shir = 1
+            hir = getattr(self.species, 'hir', None)
+            if hir is not None:
+                hir.projection_failure = reason
+            self.species.rotor_projection = {
+                'method': 'harmonic_fallback', 'internal_rank': 0,
+                'rotors': [{'rotor_index': i, 'projected': False, 'reason': reason}
+                           for i in range(len(self.species.dihed))],
+            }
+            return False
+
+    def _read_selected_hessian(self):
         job = selected_calculation_job(self)
         if getattr(self, '_projection_source', None) == job:
             return True
@@ -95,7 +120,10 @@ class Optimize:
                 raise ValueError(f'Selected-geometry frequency recovery failed: {recovery}')
             if status != 'normal':
                 return False
-            row = list(self.qc.db.select(name=recovery))[-1]
+            rows = list(self.qc.db.select(name=recovery))
+            if not rows:
+                raise ValueError(f'Frequency recovery has no result record: {recovery}')
+            row = rows[-1]
             if not np.allclose(row.positions, self.species.geom, rtol=0., atol=1.e-6):
                 raise ValueError(f'Frequency recovery changed the selected geometry: {recovery}')
             hess = np.asarray(self.qc.read_qc_hess(recovery, self.species.natom))
@@ -423,7 +451,8 @@ class Optimize:
                 # calculate the new frequencies with the internal rotations projected out
                 if (self.par['multi_conf_tst'] == 0
                         and self.par['rotor_scan']
-                        and not self.just_high):
+                        and not self.just_high
+                        and not getattr(self, '_projection_failure', None)):
                     fr_file = selected_calculation_job(self)
                     hess = (self.species.hess
                             if getattr(self, '_projection_source', None) == fr_file

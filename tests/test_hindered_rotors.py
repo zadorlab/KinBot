@@ -199,6 +199,11 @@ class TestHIRStatus(unittest.TestCase):
             optimization.qc.get_qc_energy.return_value = (0, energy)
             optimization.do_optimization()
             self.assertEqual(optimization.selected_job, expected)
+            base = species.name + ('' if saddle else '_well')
+            self.assertEqual(optimization.log_name(1), base + '_high')
+            self.assertEqual(optimization.log_name(1, conf=2), species.name + '_0002_high')
+            self.assertEqual(optimization.log_name(1, hir=1, r=0, s=1),
+                             f'hir/{species.name}_hir_0_01')
             self.assertEqual(species.source_job, expected)
             self.assertAlmostEqual(species.energy, -100.)
             self.assertEqual(species.zpe, .03)

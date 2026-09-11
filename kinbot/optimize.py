@@ -310,13 +310,14 @@ class Optimize:
                         if self.shigh == 0:
                             # high level calculation is running
                             # check if finished
-                            status = self.qc.check_qc(self.log_name(1))
+                            job = getattr(self, '_hir_refinement_job', None) or self.log_name(1)
+                            status = self.qc.check_qc(job)
                             if status == 'error':
                                 # found an error
                                 logger.warning('High level optimization failed for {}'.format(self.name))
                                 self.shigh = -999
                             elif status == 'normal':
-                                self.compare_structures()  # this switches shigh to 0.5 or 1 and updates the geometry
+                                self.compare_structures(job=job)  # accepts the explicitly requested result
                         if self.shigh == 0.5:  # the top one was tested already and was ok
                             stati = [0] * len(self.species.conformer_index)
                             for ci, conindx in enumerate(self.species.conformer_index):
@@ -543,9 +544,6 @@ class Optimize:
         if hir == 1:
             return f'hir/{self.name}_hir_{str(r)}_{str(s).zfill(2)}'
 
-        if high and conf < 0 and getattr(self, '_hir_refinement_job', None):
-            return self._hir_refinement_job
-
         if conf >= 0 and high:
             return f'{self.name}_{str(conf).zfill(4)}_high'  # running in the main dir
         if conf >= 0:
@@ -560,14 +558,15 @@ class Optimize:
         return(name)
 
 
-    def compare_structures(self, conf=-1):
+    def compare_structures(self, conf=-1, job=None):
         """
         Function to compare L1 and L2 strctures and decide is high is successful or not.
         If conf is >= 0, then we are testing for conformer number conf in the conf/ directory.
         """
 
         # creating a species for the L2
-        err, new_geom = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom, wait=self.wait)
+        job = self.log_name(1, conf=conf) if job is None else job
+        err, new_geom = self.qc.get_qc_geom(job, self.species.natom, wait=self.wait)
         dummy = StationaryPoint('dummy',
                                 self.species.charge,
                                 self.species.mult,
@@ -577,7 +576,7 @@ class Optimize:
         dummy.calc_chemid()
 
         # comparing L1 and L2 geometries and imaginary mode if TS
-        if self.species.wellorts and getattr(self, '_hir_refinement_job', None):
+        if self.species.wellorts and job == getattr(self, '_hir_refinement_job', None):
             # Same-level refinement of a constrained HIR point. Retain the
             # geometry/connectivity and frequency checks without another IRC.
             same_geom = geometry.equal_geom(self.species, dummy, 0.2)
@@ -590,7 +589,7 @@ class Optimize:
                 l1_file = self.log_name(0, conf=conf)
             else:
                 l1_file = 'conf/{}_low'.format(self.log_name(0))
-            l2_file = self.log_name(1, conf=conf)
+            l2_file = job
             if self.qc.qc == 'fc' or self.qc.use_sella:
                 imagmode = reader_sella.read_imag_mode(l1_file, self.species.natom)
                 imagmode_high = reader_sella.read_imag_mode(l2_file, self.species.natom)
@@ -634,7 +633,7 @@ class Optimize:
             same_geom = geometry.equal_geom(self.species, dummy, 0.1)
 
         # checking if L2 frequencies are okay
-        err, freq = self.qc.get_qc_freq(self.log_name(1, conf), self.species.natom)
+        err, freq = self.qc.get_qc_freq(job, self.species.natom)
         if self.species.natom == 1:
             freq_ok = 1
         elif len(freq) == 1 and freq[0] == 0:
@@ -656,11 +655,11 @@ class Optimize:
         if conf == -1:
             # update properties for base structure
             if same_geom and freq_ok:
-                err, self.species.geom = self.qc.get_qc_geom(self.log_name(1), self.species.natom)
-                err, self.species.energy = self.qc.get_qc_energy(self.log_name(1))
-                err, self.species.freq = self.qc.get_qc_freq(self.log_name(1), self.species.natom)   # TODO use fr variable
-                err, self.species.zpe = self.qc.get_qc_zpe(self.log_name(1))
-                self.selected_job = self.log_name(1)
+                err, self.species.geom = self.qc.get_qc_geom(job, self.species.natom)
+                err, self.species.energy = self.qc.get_qc_energy(job)
+                err, self.species.freq = self.qc.get_qc_freq(job, self.species.natom)   # TODO use fr variable
+                err, self.species.zpe = self.qc.get_qc_zpe(job)
+                self.selected_job = job
                 self.species.source_job = self.selected_job
                 if self.par['multi_conf_tst'] == 0:
                     self.shigh = 1
@@ -677,10 +676,10 @@ class Optimize:
             # update property of conformers
             inx = self.species.conformer_index.index(conf) 
             if same_geom and freq_ok:
-                err, self.species.conformer_geom[inx] = self.qc.get_qc_geom(self.log_name(1, conf=conf), self.species.natom)
-                err, self.species.conformer_energy[inx] = self.qc.get_qc_energy(self.log_name(1, conf=conf))
-                err, self.species.conformer_freq[inx] = self.qc.get_qc_freq(self.log_name(1, conf=conf), self.species.natom)   # TODO use fr variable
-                err, zpe = self.qc.get_qc_zpe(self.log_name(1, conf=conf))
+                err, self.species.conformer_geom[inx] = self.qc.get_qc_geom(job, self.species.natom)
+                err, self.species.conformer_energy[inx] = self.qc.get_qc_energy(job)
+                err, self.species.conformer_freq[inx] = self.qc.get_qc_freq(job, self.species.natom)
+                err, zpe = self.qc.get_qc_zpe(job)
                 self.species.conformer_zeroenergy[inx] = self.species.conformer_energy[inx] + zpe
             else:
                 self.species.conformer_index[inx] = -999

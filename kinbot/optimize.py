@@ -351,6 +351,11 @@ class Optimize:
                         if self.shigh == 0.5:  # the top one was tested already and was ok
                             stati = [0] * len(self.species.conformer_index)
                             for ci, conindx in enumerate(self.species.conformer_index):
+                                if conindx < 0:
+                                    # A terminal failure is not a job index;
+                                    # log_name would resolve it to the parent.
+                                    stati[ci] = 1
+                                    continue
                                 status = self.qc.check_qc(self.log_name(1, conf=conindx))
                                 if status == 'error':
                                     stati[ci] = 1

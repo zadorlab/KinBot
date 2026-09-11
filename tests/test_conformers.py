@@ -192,5 +192,38 @@ class TestSemiEmpiricalConformers(unittest.TestCase):
 
 
 
+class TestHighLevelConformerPolling(unittest.TestCase):
+    def test_failed_conformer_is_terminal_while_another_is_running(self):
+        optimization = Optimize.__new__(Optimize)
+        optimization.species = SimpleNamespace(
+            conformer_index=[0, 1], wellorts=1, freq=[-100., 100.])
+        optimization.name = 'fixture'
+        optimization.par = {
+            'conformer_search': 0, 'high_level': 1, 'rotation_restart': 0,
+            'rotor_scan': 0, 'multi_conf_tst': 1, 'L3_calc': 0,
+        }
+        optimization.shigh = .5
+        optimization.shir = -1
+        optimization.restart = 0
+        optimization.wait = 0
+        optimization.just_high = False
+        statuses = {'fixture_0000_high': 'error',
+                    'fixture_0001_high': 'running', 'fixture_high': 'normal'}
+        optimization.qc = SimpleNamespace(check_qc=Mock(side_effect=statuses.get))
+        optimization.compare_structures = Mock()
+        optimization.do_optimization()
+        self.assertEqual(optimization.species.conformer_index, [-999, 1])
+        optimization.qc.check_qc.reset_mock()
+        optimization.do_optimization()
+        optimization.qc.check_qc.assert_called_once_with('fixture_0001_high')
+        optimization.compare_structures.assert_not_called()
+        statuses['fixture_0001_high'] = 'normal'
+        with patch('kinbot.optimize.symmetry.calculate_symmetry'):
+            optimization.do_optimization()
+        self.assertEqual(optimization.shigh, 1)
+        optimization.compare_structures.assert_called_once_with(conf=1)
+
+
+
 if __name__ == '__main__':
     unittest.main()

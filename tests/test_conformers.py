@@ -164,5 +164,66 @@ class TestSemiEmpiricalConformers(unittest.TestCase):
 
 
 
+    def test_saddle_skips_l0_and_polls_l1_without_l0_seed_results(self):
+        self.species.wellorts = 1
+        self.regular.generate_conformers.return_value = 0
+        for _ in range(2):
+            self.optimization.do_optimization()
+        self.semi.generate_conformers.assert_not_called()
+        self.semi.check_conformers.assert_not_called()
+        self.assertEqual(self.optimization.ssemi_empconf, 1)
+        self.regular.generate_conformers.assert_called_once()
+        self.assertEqual(self.regular.generate_conformers.call_args.args[0], 0)
+        self.assertEqual(self.regular.check_conformers.call_count, 2)
+
+
+    def test_ring_saddle_keeps_ring_sampling_then_proceeds_directly_to_l1(self):
+        self.species.wellorts = 1
+        self.species.cycle_chain = [[0, 1, 2, 3]]
+        self.regular.generate_conformers.return_value = 0
+        self.regular.check_ring_conformers.side_effect = [(0, []), (1, [self.geom])]
+        self.optimization.do_optimization()
+        self.regular.generate_conformers.assert_not_called()
+        self.optimization.do_optimization()
+        self.regular.generate_ring_conformers.assert_called_once()
+        self.semi.generate_conformers.assert_not_called()
+        self.regular.generate_conformers.assert_called_once()
+        self.assertEqual(self.regular.generate_conformers.call_args.args[0], 0)
+
+
+
+class TestHighLevelConformerPolling(unittest.TestCase):
+    def test_failed_conformer_is_terminal_while_another_is_running(self):
+        optimization = Optimize.__new__(Optimize)
+        optimization.species = SimpleNamespace(
+            conformer_index=[0, 1], wellorts=1, freq=[-100., 100.])
+        optimization.name = 'fixture'
+        optimization.par = {
+            'conformer_search': 0, 'high_level': 1, 'rotation_restart': 0,
+            'rotor_scan': 0, 'multi_conf_tst': 1, 'L3_calc': 0,
+        }
+        optimization.shigh = .5
+        optimization.shir = -1
+        optimization.restart = 0
+        optimization.wait = 0
+        optimization.just_high = False
+        statuses = {'fixture_0000_high': 'error',
+                    'fixture_0001_high': 'running', 'fixture_high': 'normal'}
+        optimization.qc = SimpleNamespace(check_qc=Mock(side_effect=statuses.get))
+        optimization.compare_structures = Mock()
+        optimization.do_optimization()
+        self.assertEqual(optimization.species.conformer_index, [-999, 1])
+        optimization.qc.check_qc.reset_mock()
+        optimization.do_optimization()
+        optimization.qc.check_qc.assert_called_once_with('fixture_0001_high')
+        optimization.compare_structures.assert_not_called()
+        statuses['fixture_0001_high'] = 'normal'
+        with patch('kinbot.optimize.symmetry.calculate_symmetry'):
+            optimization.do_optimization()
+        self.assertEqual(optimization.shigh, 1)
+        optimization.compare_structures.assert_called_once_with(conf=1)
+
+
+
 if __name__ == '__main__':
     unittest.main()

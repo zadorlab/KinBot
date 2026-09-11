@@ -83,6 +83,26 @@ class TestHIRProfile(unittest.TestCase):
 
 
 class TestHIRFits(unittest.TestCase):
+    def test_mess_interpolates_uniform_points_within_the_rotor_symmetry_period(self):
+        writer = MESS.__new__(MESS)
+        writer.par = {'free_rotor_thrs': .1}
+        rot = [0, 1, 2, 3]
+        for nrotation, sigma in ((12, 6), (11, 2), (12, 3)):
+            with self.subTest(nrotation=nrotation, sigma=sigma):
+                angles = np.arange(nrotation) * 2 * np.pi / nrotation
+                energies = 2 * (1 - np.cos(sigma * angles))
+                point = SimpleNamespace(sigma_int=np.ones((4, 4), dtype=int),
+                    hir=SimpleNamespace(nrotation=nrotation,
+                        hir_energies=[(-100. + energies / constants.AUtoKCAL).tolist()],
+                        get_fit_value=lambda angle, rotor: 2 * (1 - np.cos(sigma * angle))))
+                point.sigma_int[1, 2] = sigma
+                potential, _ = writer.make_rotorpot(point, 0, rot, 1.)
+                count = writer.nrotorpot(point, rot)
+                expected = 2 * (1 - np.cos(2 * np.pi * np.arange(count) / count))
+                np.testing.assert_allclose(list(map(float, potential.split())), expected, atol=.005)
+                self.assertGreaterEqual(count, 3)
+
+
 
 
 
@@ -143,7 +163,7 @@ class TestHIRFits(unittest.TestCase):
         writer.rotorsymm = lambda species, rotor: 6
         potential, kind = writer.make_rotorpot(hir.species, 0, hir.species.dihed[0], 1.)
         self.assertEqual(kind, 'hindered')
-        self.assertEqual(float(potential.split()[1]), round(1 - np.cos(np.pi / 12), 2))
+        self.assertEqual(float(potential.split()[1]), round(1 - np.cos(np.pi / 9), 2))
 
 
 class TestHIRStatus(unittest.TestCase):

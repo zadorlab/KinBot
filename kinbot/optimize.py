@@ -139,6 +139,8 @@ class Optimize:
         while 1:
             # do the conformational search
             if self.par['conformer_search'] == 1:
+                l0_conformer_search = (self.par['semi_emp_conformer_search'] == 1
+                                       and not self.species.wellorts)
                 if self.scycconf == -1 and self.sconf == -1:
                     logger.info('\tStarting conformational search of '
                                 f'{self.name}')
@@ -164,7 +166,7 @@ class Optimize:
                         # ring conf search is finished
                         self.scycconf = 1
                 # first do an semi empirical optimization if requested by the user
-                if self.par['semi_emp_conformer_search'] == 1:
+                if l0_conformer_search:
                     if self.ssemi_empconf == -1 and self.scycconf == 1:
                         logger.info('\tSemi-empirical conformer search is starting '
                                     f'for {self.name}')
@@ -195,7 +197,7 @@ class Optimize:
                         # open chain part has not started yet
                         # if semi empirical conformer were searched for, start from those,
                         # else start from cyclic conformers
-                        if self.par['semi_emp_conformer_search'] == 1:
+                        if l0_conformer_search:
                             valid = [(geom, energy) for geom, energy, status in zip(
                                 self.semi_emp_conformers, self.semi_emp_energies,
                                 self.semi_emp_valid) if status == 0]
@@ -349,6 +351,11 @@ class Optimize:
                         if self.shigh == 0.5:  # the top one was tested already and was ok
                             stati = [0] * len(self.species.conformer_index)
                             for ci, conindx in enumerate(self.species.conformer_index):
+                                if conindx < 0:
+                                    # A terminal failure is not a job index;
+                                    # log_name would resolve it to the parent.
+                                    stati[ci] = 1
+                                    continue
                                 status = self.qc.check_qc(self.log_name(1, conf=conindx))
                                 if status == 'error':
                                     stati[ci] = 1

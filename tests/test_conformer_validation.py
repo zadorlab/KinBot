@@ -82,5 +82,24 @@ class TestConformerValidation(unittest.TestCase):
         self.assertEqual(result[7], [0, 0])
 
 
+    def test_parent_fallback_returns_electronic_hartree_for_both_paths(self):
+        parent = f'{self.species.name}_well'
+        self.record(parent, -100., [100.] * self.nfreq, zpe=.1)
+        # The all-failed path retains the existing native-output copy.
+        self.qc.qc = 'gauss'
+        Path(parent + '.log').write_text('completed parent output')
+        for all_failed in (True, False):
+            with self.subTest(all_failed=all_failed):
+                search = Conformers(self.species, self.par, self.qc)
+                search.conf, search.conf_status = 1, [int(all_failed)]
+                if not all_failed:
+                    self.record(search.get_job_name(0), -99., [100.] * self.nfreq, zpe=.1)
+                result = search.check_conformers()
+                self.assertEqual(search.selected_job, parent)
+                self.assertAlmostEqual(result[3], -100.)
+                if not all_failed:
+                    self.assertAlmostEqual(result[5][0], -98.9)  # E + ZPE stays separate.
+
+
 if __name__ == '__main__':
     unittest.main()

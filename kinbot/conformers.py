@@ -462,7 +462,7 @@ class Conformers:
 
                     self.selected_job = lowest_job
                     self.selected_conf = lowest_conf
-                    return 1, lowest_conf, lowest_e_geom, last_row.data.get('energy'),\
+                    return 1, lowest_conf, lowest_e_geom, last_row.data.get('energy') * constants.EVtoHARTREE,\
                            final_geoms, totenergies, frequencies, status
 
                 for ci in range(self.conf):
@@ -568,7 +568,9 @@ class Conformers:
                     lowest_job = l1_last_row.name
                     lowest_conf = 'low'
                     lowest_e_geom = l1_last_row.positions
-                    lowest_energy = l1energy
+                    # This return field is electronic energy in Hartree;
+                    # only totenergies and the comparison above include ZPE.
+                    lowest_energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
                 
                 low_row = None
                 low_rows = self.db.select(name='conf/{}_low'.format(name))

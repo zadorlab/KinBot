@@ -481,6 +481,21 @@ class Conformers:
                             frequencies.append(freq)
                         else:
                             frequencies.append(None)
+                        if not self.semi_emp and self.species.natom > 1:
+                            values = np.asarray(freq)
+                            invalid = (err != 0 or not len(values)
+                                       or not np.all(np.isfinite(values)))
+                            if self.species.wellorts:
+                                invalid |= (np.count_nonzero(values < 0) == 0
+                                            or np.count_nonzero(values < 0) >= 3
+                                            or np.count_nonzero(values < -self.imagfreq_threshold) >= 2)
+                            else:
+                                invalid |= np.any(values <= -self.imagfreq_threshold)
+                            if invalid:
+                                # Every member can enter a population sum,
+                                # even if it cannot replace the minimum.
+                                status[ci] = 1
+                                continue
                         if lowest_energy is np.inf:
                             if self.species.natom > 1:
                                 # job fails if conformer freq array is empty

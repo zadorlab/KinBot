@@ -543,8 +543,7 @@ class QuantumChemistry:
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
-            if self.use_sella or semi_emp or not self.par['rotor_scan']:
-                kwargs.pop('chk', None)
+            kwargs.pop('chk', None)
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'

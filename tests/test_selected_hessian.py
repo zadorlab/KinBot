@@ -68,7 +68,7 @@ class TestSelectedHessian(unittest.TestCase):
         opt.shigh, opt.sconf = 1, 1
         return opt
 
-    def test_native_conformer_jobs_retain_required_hessian_output(self):
+    def test_conformers_drop_gaussian_checkpoints_but_keep_qchem_hessian_printing(self):
         for backend in ('gauss', 'qchem'):
             self.qc.qc = backend
             self.qc.qc_conf(self.species, self.species.geom, 1)
@@ -78,7 +78,7 @@ class TestSelectedHessian(unittest.TestCase):
                           if isinstance(node, ast.Assign) and any(
                               isinstance(t, ast.Name) and t.id == 'kwargs' for t in node.targets))
             if backend == 'gauss':
-                self.assertEqual(kwargs['chk'], job)
+                self.assertNotIn('chk', kwargs)
             else:
                 self.assertEqual(kwargs['vibman_print'], '4')
             self.assertEqual(kwargs['method'].lower(), 'hf')

@@ -988,9 +988,12 @@ class MESS:
                     if frequencies.skip_rotor(norot, rot) == 1:
                         continue
                 if species.hir is None:
-                    # Species optimized with just_high never ran a scan.
-                    continue
-                why = species.hir.invalid_rotor_reason(i)
+                    if (getattr(species, 'rotor_projection', None) or {}).get('method') != 'harmonic_fallback':
+                        # Species optimized with just_high never ran a scan.
+                        continue
+                    why = 'no usable selected-geometry Hessian; hindered rotors omitted'
+                else:
+                    why = species.hir.invalid_rotor_reason(i)
                 if why is not None:
                     # Leave a trace in the MESS input: this torsion stays a
                     # harmonic oscillator in the frequency list above.

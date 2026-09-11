@@ -204,6 +204,38 @@ class TestSelectedHessian(unittest.TestCase):
         self.assertNotIn('Rotor Free', text)
         self.assertIn('kept as a harmonic oscillator', text)
 
+    def test_failed_recovery_without_hir_is_documented_in_mess_output(self):
+        self.record(self.job)
+        load_calculation_record(self.species, self.qc, self.job)
+        opt = self.optimization()
+        self.assertIsNone(self.species.hir)
+        with patch.object(self.qc, 'read_qc_hess', return_value=[]), \
+                patch.object(self.qc, 'qc_freq', return_value='failed_recovery'), \
+                patch.object(self.qc, 'check_qc', return_value='error'), \
+                self.assertLogs('KinBot', level='WARNING'):
+            opt.do_optimization()
+        self.assertIsNone(self.species.hir)
+        self.assertEqual(self.species.freq, self.freq)
+        self.assertEqual(self.species.reduced_freqs, self.freq)
+        self.assertEqual(self.species.source_job, self.job)
+        self.assertAlmostEqual(self.species.energy, -100.)
+        for pes in (0, 1):
+            with self.subTest(pes=pes):
+                self.par['pes'] = pes
+                writer = MESS(self.par, self.species)
+                writer.well_names[self.species.chemid] = 'W1'
+                text = writer.write_well(self.species, 0., 1., 0)
+                self.assertEqual(Path(f'{self.species.chemid}_0000.mess').read_text(), text)
+                self.assertNotIn('Rotor Hindered', text)
+                self.assertNotIn('Rotor Free', text)
+                self.assertRegex(text, r'Frequencies\[1/cm\]\s+12\b')
+                self.assertTrue(self.species.dihed)
+                for rot in self.species.dihed:
+                    self.assertIn(
+                        f'! Rotor about atoms {rot[1] + 1}-{rot[2] + 1} '
+                        'kept as a harmonic oscillator: no usable selected-geometry '
+                        'Hessian; hindered rotors omitted', text)
+
     def test_invalid_recovery_results_do_not_replace_selected_properties(self):
         self.record(self.job)
         for failure in ('missing_record', 'changed_geometry', 'missing_hessian',

@@ -27,7 +27,6 @@ from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
 from kinbot.mess import MESS, finalize_mc_mess
-from kinbot.calculation import optimization_selection_row
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
 from kinbot.utils import queue_command
@@ -1681,14 +1680,6 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
         logger.debug(f'Looking at {well}')
         db = connect(well + '/kinbot.db')
         rows = list(db.select(name=j))
-        if not mp2 and not bls and 'IRC' not in job:
-            # A newly calculated conventional job supersedes an older
-            # selection marker from another run of the same directory.
-            selected = optimization_selection_row(
-                db, job if ts else job + '_well', high_level, conf, rotor_scan,
-                newer_than=rows[-1].id if rows else 0)
-            if selected is not None:
-                rows = [selected]
         for row in reversed(list(rows)):  # only take the last one and ignore others
             try:
                 new_energy = row.data.get('energy') * constants.EVtoHARTREE

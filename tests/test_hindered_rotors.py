@@ -181,6 +181,7 @@ class TestHIRStatus(unittest.TestCase):
                                 'L3_calc': 0, 'rigid_hir': 0, 'imagfreq_threshold': 50.}
             freq = ([-800.] if saddle else [100.]) + [200.] * 11
             optimization.qc = SimpleNamespace(
+                publish_result=Mock(),
                 qc_opt_ts=Mock(), qc_opt=Mock(), check_qc=Mock(return_value='normal'),
                 get_qc_geom=Mock(return_value=(0, species.geom.copy())),
                 get_qc_energy=Mock(return_value=(0, -100.)), get_qc_zpe=Mock(return_value=(0, .03)),
@@ -208,8 +209,9 @@ class TestHIRStatus(unittest.TestCase):
             self.assertAlmostEqual(species.energy, -100.)
             self.assertEqual(species.zpe, .03)
             self.assertEqual(species.freq, freq)
-            selected = optimization.qc.db.get(name='optimization/' + optimization.log_name(0))
-            self.assertEqual(selected.data.source_job, expected)
+            source, target = optimization.qc.publish_result.call_args.args
+            self.assertEqual(source.name, expected)
+            self.assertEqual(target, optimization.log_name(0))
 
 
 

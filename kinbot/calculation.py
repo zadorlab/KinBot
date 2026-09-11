@@ -1,4 +1,5 @@
 """Load the coherent record selected by a completed optimization."""
+import logging
 import numpy as np
 
 from kinbot import constants
@@ -45,26 +46,27 @@ def selected_calculation_job(optimization):
     return optimization.log_name(0)
 
 
-def record_optimization_selection(optimization):
-    """Publish an accepted source reference, without claiming IRC validation.
+def publish_optimization_result(optimization):
+    """Publish the complete accepted calculation under its conventional name.
 
-    Ordinary unchanged calculations keep their legacy lookup. Conformer or
-    refinement selections have an explicit source_job and need provenance.
+    Keep the original calculation as evidence. PES and legacy restart readers
+    continue to use the latest result under the usual well/high/low job name.
     """
-    job = getattr(optimization.species, 'source_job', None)
-    if not job:
-        return
-    if (optimization.shigh != 1 or optimization.shir != 1
+    logger = logging.getLogger('KinBot')
+    point = optimization.species
+    job = getattr(point, 'source_job', None)
+    if (not job or optimization.shigh != 1 or optimization.shir != 1
             or getattr(optimization, 'defer_hir', False)):
+        logger.debug('Not publishing %s: optimization is not final or has no selected source.',
+                     optimization.name)
         return
-    db = optimization.qc.db
-    sources = list(db.select(name=job))
+    sources = list(optimization.qc.db.select(name=job))
     if not sources:
+        logger.warning('Cannot publish accepted result for %s: source %s is missing.',
+                       optimization.name, job)
         return
     source = sources[-1]
-    point = optimization.species
-    # A later database row is not automatically a newly accepted geometry.
-    # Publish only a record matching the properties accepted by Optimize.
+    # Do not substitute a later observation for the result accepted by Optimize.
     if (source.data.get('status') != 'normal'
             or source.data.get('energy') is None
             or not np.isfinite(point.energy) or not np.isfinite(point.zpe)
@@ -72,50 +74,13 @@ def record_optimization_selection(optimization):
             or point.zpe != source.data.get('zpe')
             or not np.array_equal(point.geom, source.positions)
             or not np.array_equal(point.freq, source.data.get('frequencies'))):
+        logger.warning('Cannot publish accepted result for %s: latest source %s '
+                       'does not match the accepted calculation.', optimization.name, job)
         return
-    data = {
-        'schema_version': 1, 'status': 'accepted',
-        'source_job': job, 'source_row_id': source.id,
-        'high_level': bool(optimization.par['high_level']),
-        'conformer_search': bool(optimization.par['conformer_search']),
-        'rotor_scan': bool(optimization.par['rotor_scan']),
-    }
-    name = f'optimization/{optimization.log_name(0)}'
-    # Deduplicate polls of this optimization, not a new acceptance in a new
-    # run that happens to select the same cached source again.
-    if getattr(optimization, '_recorded_selection', None) != (name, data):
-        db.write(source.toatoms(), name=name, data=data)
-        optimization._recorded_selection = (name, data)
-
-
-def optimization_selection_row(db, base_job, high_level, conformer_search,
-                               rotor_scan=None, newer_than=0):
-    """Resolve a current accepted selection, or use the legacy PES lookup.
-
-    Never guess a selection from job names or choose a lower-energy row.
-    Existing QC cache invalidation still governs method/basis changes.
-    """
-    selections = list(db.select(name=f'optimization/{base_job}'))
-    if not selections:
-        return None
-    selection = selections[-1]
-    data = selection.data
-    if (selection.id <= newer_than
-            or data.get('schema_version') != 1 or data.get('status') != 'accepted'
-            or data.get('high_level') != bool(high_level)
-            or data.get('conformer_search') != bool(conformer_search)
-            or (rotor_scan is not None
-                and data.get('rotor_scan') != bool(rotor_scan))):
-        return None
-    job = data.get('source_job')
-    if not job:
-        return None
-    rows = list(db.select(name=job))
-    if not rows or rows[-1].id != data.get('source_row_id'):
-        return None
-    row = rows[-1]
-    values = [row.data.get('energy'), row.data.get('zpe')]
-    if (row.data.get('status') != 'normal'
-            or any(value is None or not np.isfinite(value) for value in values)):
-        return None
-    return row
+    if optimization.par['high_level']:
+        target = optimization.log_name(1)
+    elif optimization.par['conformer_search'] and not optimization.just_high:
+        target = f'conf/{optimization.name}_low'
+    else:
+        target = optimization.log_name(0)
+    optimization.qc.publish_result(source, target)

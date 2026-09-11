@@ -12,7 +12,7 @@ from kinbot import geometry
 from kinbot import symmetry
 from kinbot.conformers import Conformers
 from kinbot.calculation import (load_calculation_record, selected_calculation_job,
-                               record_optimization_selection)
+                               publish_optimization_result)
 from kinbot.hindered_rotors import HIR
 from kinbot.molpro import Molpro
 from kinbot.orca import Orca
@@ -474,7 +474,7 @@ class Optimize:
                         getattr(self.species, attr), self.species.wellorts,
                         self.par.get('imagfreq_threshold', 50.)))
 
-                record_optimization_selection(self)
+                publish_optimization_result(self)
 
                 # write the L3 input and read the L3 energy, if available
                 if self.par['L3_calc'] == 1:

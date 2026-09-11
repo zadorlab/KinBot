@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 import copy
 import pickle
+from shutil import copyfile
 
 import numpy as np
 from ase.db import connect
@@ -994,11 +995,45 @@ class QuantumChemistry:
         previous = rows[-1]
         marker = self.db.write(previous.toatoms(), name=job, data={
             'status': 0, 'reason': 'HIR restart', 'supersedes_row_id': previous.id})
+        self._archive_outputs(job, marker)
+        self.job_ids.pop(job, None)
+
+    @staticmethod
+    def _archive_outputs(job, marker):
         for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
             path = job + suffix
             if os.path.isfile(path):
                 os.replace(path, f'{path}.restart_{marker}')
-        self.job_ids.pop(job, None)
+
+    def publish_result(self, source, target):
+        """Copy an accepted result and its native outputs to a conventional name.
+
+        The normal database row is written last. An interrupted copy leaves an
+        incomplete result, rather than pairing new properties with old files.
+        Original calculations and earlier conventional outputs are preserved.
+        """
+        if source.name == target:
+            return source.id
+        rows = list(self.db.select(name=target))
+        if (rows and rows[-1].data.get('status') == 'normal'
+                and rows[-1].data.get('copied_from_job') == source.name
+                and rows[-1].data.get('copied_from_row_id') == source.id):
+            return rows[-1].id
+        if self.check_qc(target) == 'running':
+            raise ValueError(f'Cannot publish over a running calculation: {target}')
+        os.makedirs(os.path.dirname(target) or '.', exist_ok=True)
+        marker = self.db.write(source.toatoms(), name=target, data={
+            'status': 0, 'reason': 'Publishing accepted optimization result'})
+        self._archive_outputs(target, marker)
+        for suffix in ('.log', '.out', '_sella.log', '.chk', '.fchk', '_freq.out'):
+            if os.path.isfile(source.name + suffix):
+                copyfile(source.name + suffix, target + suffix)
+        data = dict(source.data)
+        data.update(copied_from_job=source.name, copied_from_row_id=source.id)
+        keys = dict(source.key_value_pairs, name=target)
+        result = self.db.write(source.toatoms(), key_value_pairs=keys, data=data)
+        self.job_ids.pop(target, None)
+        return result
 
     def submit_qc(self, job, nproc, singlejob=1, jobtype=None):
         '''Submit a job to the queue, unless the job:

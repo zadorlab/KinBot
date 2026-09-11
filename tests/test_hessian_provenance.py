@@ -56,6 +56,7 @@ class TestHessianWeighting(unittest.TestCase):
                         optimization.defer_hir = False
                         optimization.wait = 0
                         optimization.log_name = lambda level: 'audit'
+                        optimization.name = point.name
                         optimization.do_optimization()
                         np.testing.assert_allclose(point.reduced_freqs, expected, rtol=1.e-8)
             finally:

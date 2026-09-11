@@ -100,6 +100,10 @@ class TestSelectedHessian(unittest.TestCase):
                 self.write_hessian(self.job)
                 np.testing.assert_allclose(self.qc.read_qc_hess(self.job, len(self.atoms)), self.hess)
                 self.assertEqual(self.qc.hessian_is_massweighted(), backend == 'qchem')
+                target = 'conf/published_' + backend + '_low'
+                source = list(self.qc.db.select(name=self.job))[-1]
+                self.qc.publish_result(source, target)
+                np.testing.assert_allclose(self.qc.read_qc_hess(target, len(self.atoms)), self.hess)
 
     def test_legacy_missing_hessian_recovers_without_optimizing_or_using_parent(self):
         for backend in ('gauss', 'qchem'):

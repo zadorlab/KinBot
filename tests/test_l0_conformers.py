@@ -86,8 +86,8 @@ class TestL0ConformerResults(unittest.TestCase):
         self.assertEqual(self.species.zpe, .1001)
         self.assertEqual(self.species.freq, selected_freq)
         self.assertEqual(self.species.reduced_freqs, selected_freq)
-        selection = self.qc.db.get(name='optimization/ethanol_ts')
-        self.assertEqual(selection.data.source_job, search.get_job_name(1))
+        selection = list(self.qc.db.select(name='conf/ethanol_ts_low'))[-1]
+        self.assertEqual(selection.data.copied_from_job, search.get_job_name(1))
 
 
 

@@ -1,5 +1,5 @@
 {% set name = "kinbot" %}
-{% set version = "2.4.0" %}
+{% set version = "2.4.1" %}
 {% set python_min = "3.11" %}
 
 package:

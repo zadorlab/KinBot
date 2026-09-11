@@ -959,17 +959,16 @@ class MESS:
         ens = species.hir.hir_energies[i]
         rotorpot_num = [(ei - ens[0]) * constants.AUtoKCAL for ei in ens]
         maxen = max(rotorpot_num)
-        # solution for 6-fold symmetry, not general enough
-        if species.hir.nrotation // rotorsymm == 2:  # MESS needs at least 3 potential points
-            fit_angle = 15. * 2. * np.pi / 360. 
-            fit_energy = species.hir.get_fit_value(fit_angle, rotor=i)  # kcal/mol
-            rotorpot_num.insert(1, fit_energy)
-            rotorpot_num = [freq_factor * rpn for rpn in rotorpot_num]
-            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm + 1]])
+        count = self.nrotorpot(species, rot)
+        if species.hir.nrotation % rotorsymm or species.hir.nrotation // rotorsymm < 3:
+            # MESS interprets these as equally spaced points in one symmetry
+            # period, excluding its repeated endpoint. Interpolate on that grid.
+            rotorpot_num = [species.hir.get_fit_value(
+                2 * np.pi * point / (rotorsymm * count), rotor=i)
+                for point in range(count)]
         else:
-            rotorpot_num = [freq_factor * rpn for rpn in rotorpot_num]
-            rotorpot = ' '.join(['{:.2f}'.format(ei) for ei in rotorpot_num[:species.hir.nrotation // rotorsymm]])
-        rotorpot = '        {}'.format(rotorpot)
+            rotorpot_num = rotorpot_num[:count]
+        rotorpot = '        ' + ' '.join(f'{freq_factor * energy:.2f}' for energy in rotorpot_num)
         if maxen < self.par['free_rotor_thrs']:
             rotortype = 'free'
         return rotorpot, rotortype
@@ -979,10 +978,7 @@ class MESS:
 
     def nrotorpot(self, species, rot): 
         rotorsymm = self.rotorsymm(species, rot)
-        if species.hir.nrotation // rotorsymm > 2:
-            return species.hir.nrotation // rotorsymm
-        else:
-            return species.hir.nrotation // rotorsymm + 1
+        return max(3, int(np.ceil(species.hir.nrotation / rotorsymm)))
 
     def make_rotors(self, species, freq_factor, norot=None, bless=False):
         rotors = []

@@ -308,6 +308,21 @@ def sella_freq_check(freqs, order):
     else:
         return True
 
+def plain_symbols(symbols):
+    """Element symbols as builtin str, for embedding in generated job scripts.
+
+    Fragment species carry their symbols in a numpy array. Under numpy >= 2
+    the repr of such an element is ``np.str_('C')``, which only evaluates in
+    a script that happens to import numpy as np (issue #84).
+    """
+    return [str(symbol) for symbol in symbols]
+
+
+def plain_geometry(geom):
+    """Cartesian coordinates as nested builtin lists of float, same reason."""
+    return np.asarray(geom, dtype=float).tolist()
+
+
 def get_unique_list_of_lists(list_of_lists):
     """
     Returns a new list containing only the unique sub-lists from the input list of lists.

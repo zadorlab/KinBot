@@ -3,6 +3,7 @@ import os
 import logging
 from shutil import copyfile
 
+from kinbot.utils import plain_symbols, plain_geometry
 from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
 
@@ -184,8 +185,8 @@ class IRC:
             template = template.format(label=irc_name,
                                        kwargs=kwargs,
                                        prod_kwargs=prod_kwargs,
-                                       atom=list(self.rxn.species.atom),
-                                       geom=list([list(gi) for gi in geom]),
+                                       atom=plain_symbols(self.rxn.species.atom),
+                                       geom=plain_geometry(geom),
                                        ppn=min(self.rxn.species.nel, self.rxn.qc.ppn),
                                        qc_command=self.par['qc_command'],
                                        working_dir=os.getcwd(),

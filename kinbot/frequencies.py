@@ -10,6 +10,14 @@ from kinbot import geometry
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.constants import EVtoHARTREE
 
+# An external rotation about the axis of a linear molecule has a vanishing
+# mass-weighted rotation vector. Optimised geometries are never exactly linear,
+# so "vanishing" is judged relative to the largest rotation vector: a residual
+# bend of a few degrees gives a ratio of order 1e-2, a genuinely bent molecule
+# 0.4 or more. The value corresponds to the smallest principal moment of
+# inertia being about 1% of the largest.
+LINEAR_ROTATION_TOLERANCE = 0.1
+
 
 def thermochemical_frequencies(raw, wellorts=0, imagfreq_threshold=50.):
     """Copy modes and apply KinBot's accepted small-imaginary correction.
@@ -54,9 +62,12 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
     if not massweighted:
         # Cannot use /= on immutable arrays read from db. (Sella)
         hess = hess / np.sqrt(np.outer(masses, masses))
+    # The Hessian is symmetric up to numerical noise; enforce it so that the
+    # symmetric eigensolver below is exact and never returns complex modes.
+    hess = 0.5 * (hess + hess.T)
 
     # STEP 1: calculate the initial frequencies
-    all_eigvals, all_eigvecs = np.linalg.eig(hess)
+    all_eigvals, all_eigvecs = np.linalg.eigh(hess)
 
     all_modes = all_eigvecs.T
     all_modes /= np.sqrt(masses[np.newaxis, :])
@@ -82,20 +93,16 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
     D5 = D[:, :, 1].ravel()
     D6 = D[:, :, 2].ravel()
 
-    # Small rotation vector magnitudes mean it's not a real rotation
-    # (this can happen for linear molecules), so don't include those
+    # A rotation vector that is small compared with the others is not a real
+    # external rotation: the molecule is linear (or linear up to an optimiser
+    # residual) and that motion is a vibration, so keep it in the spectrum.
     rvecs = []
-    D4_norm = np.linalg.norm(D4)
-    if D4_norm > 1e-5:
-        rvecs.append(D4 / D4_norm)
-
-    D5_norm = np.linalg.norm(D5)
-    if D5_norm > 1e-5:
-        rvecs.append(D5 / D5_norm)
-
-    D6_norm = np.linalg.norm(D6)
-    if D6_norm > 1e-5:
-        rvecs.append(D6 / D6_norm)
+    rotations = (D4, D5, D6)
+    norms = [np.linalg.norm(Dk) for Dk in rotations]
+    largest = max(norms)
+    for Dk, norm in zip(rotations, norms):
+        if largest > 0. and norm > LINEAR_ROTATION_TOLERANCE * largest:
+            rvecs.append(Dk / norm)
     rvecs = np.array(rvecs)
 
     nvecs = 3 * natom - 3 - len(rvecs)
@@ -122,7 +129,7 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
 
     # Projected Hessian
     Phess = np.dot(np.dot(vecs, hess), vecs.T)
-    eigvals, eigvecs = np.linalg.eig(Phess)
+    eigvals, eigvecs = np.linalg.eigh(Phess)
 
     modes = np.dot(eigvecs.T, vecs)
     modes /= np.sqrt(masses[np.newaxis, :])
@@ -205,7 +212,7 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
 
     # Projected Hessian
     Phess = np.dot(np.dot(vecs, hess), vecs.T)
-    eigvals, eigvecs = np.linalg.eig(Phess)
+    eigvals, eigvecs = np.linalg.eigh(Phess)
 
     modes = np.dot(eigvecs.T, vecs)
     modes /= np.sqrt(masses[np.newaxis, :])

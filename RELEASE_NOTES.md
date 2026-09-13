@@ -1,5 +1,18 @@
 # Unreleased
 
+**Near-linear molecules keep 3N-5 vibrations.** `get_frequencies` decided how
+many external rotations to project out by an absolute cutoff of 1e-5 on the
+mass-weighted rotation vectors. Any optimised geometry that is linear only up
+to an optimiser residual (a bend of 0.01 degrees is enough) exceeded it, so
+three rotations were projected and one component of the degenerate bend was
+lost: 3N-6 frequencies instead of 3N-5. With Gaussian or Q-Chem this reached
+MESS only through the rotor-projected frequency set; with FairChem or Sella,
+where all frequencies come from this routine, it affected every near-linear
+species (CO2, HCN, C2H2, ...) and made `find_unique` classify them as
+nonlinear tops. The cutoff is now relative to the largest rotation vector. The
+same routine now uses the symmetric eigensolver, so degenerate modes can no
+longer come back as complex numbers.
+
 # 2.4.1
 
 Bugfix release. Two groups of changes alter numerical output for inputs that

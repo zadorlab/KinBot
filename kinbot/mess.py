@@ -472,14 +472,14 @@ class MESS:
                     fragments += self.fragmenttplOH.format(chemid=name,
                                                            smi=species.smiles,
                                                            natom=species.natom,
-                                                           geom=self.make_geom(species.geom, species.atom),
+                                                           geom=self.rotor_geom(species),
                                                            symm=float(species.sigma_ext) / float(species.nopt),
                                                            freq=self.make_freq(species.reduced_freqs, freq_factor, 0))
                 else:
                     fragments += self.fragmenttpl.format(chemid=name,
                                                          smi=species.smiles,
                                                          natom=species.natom,
-                                                         geom=self.make_geom(species.geom, species.atom),
+                                                         geom=self.rotor_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
                                                          nfreq=len(species.reduced_freqs),
                                                          freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
@@ -495,12 +495,12 @@ class MESS:
                         frag1 = self.pstfragmenttpl.format(chemid=name,
                                                            smi=species.smiles,
                                                            natom=species.natom,
-                                                           geom=self.make_geom(species.geom, species.atom))
+                                                           geom=self.rotor_geom(species))
                     if nsp == 1: 
                         frag2 = self.pstfragmenttpl.format(chemid=name,
                                                            smi=species.smiles,
                                                            natom=species.natom,
-                                                           geom=self.make_geom(species.geom, species.atom))
+                                                           geom=self.rotor_geom(species))
             else:
                 if self.par['pes']:
                     name = '{{fr_name_{}}}'.format(species.chemid)
@@ -516,12 +516,12 @@ class MESS:
                         frag1 = self.pstfragmenttpl.format(chemid=name,
                                                            smi=species.smiles,
                                                            natom=species.natom,
-                                                           geom=self.make_geom(species.geom, species.atom))
+                                                           geom=self.rotor_geom(species))
                     if nsp == 1: 
                         frag2 = self.pstfragmenttpl.format(chemid=name,
                                                            smi=species.smiles,
                                                            natom=species.natom,
-                                                           geom=self.make_geom(species.geom, species.atom))
+                                                           geom=self.rotor_geom(species))
  
 
         pr_name = '_'.join(sorted([str(species.chemid) for species in prod_list]))
@@ -600,7 +600,7 @@ class MESS:
             mess_well = self.welltpl.format(chemid=name,
                                             smi=species.smiles,
                                             natom=species.natom,
-                                            geom=self.make_geom(species.geom, species.atom),
+                                            geom=self.rotor_geom(species),
                                             symm=float(species.sigma_ext) / float(species.nopt),
                                             nfreq=len(species.reduced_freqs),
                                             freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
@@ -619,7 +619,7 @@ class MESS:
                                         round(zeroenergy + shift, 2))
                 corerr = self.corerrtpl.format(symm=float(species.sigma_ext) / float(species.nopt))
                 rrho += self.rrhotpl.format(natom=species.natom,
-                                            geom=self.make_geom(species.conformer_geom[ci], species.atom),
+                                            geom=self.rotor_geom(species, species.conformer_geom[ci], species.conformer_freq[ci]),
                                             core=corerr,
                                             nfreq=len(species.conformer_freq[ci]),
                                             freq=self.make_freq(conformer_freq, freq_factor, 0),
@@ -710,9 +710,9 @@ class MESS:
                                  (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
 
             outerts = self.psttpl.format(natom1=reaction.prod_opt[0].species.natom,
-                                         geom1=self.make_geom(reaction.prod_opt[0].species.geom, reaction.prod_opt[0].species.atom),
+                                         geom1=self.rotor_geom(reaction.prod_opt[0].species),
                                          natom2=reaction.prod_opt[1].species.natom,
-                                         geom2=self.make_geom(reaction.prod_opt[1].species.geom, reaction.prod_opt[1].species.atom),
+                                         geom2=self.rotor_geom(reaction.prod_opt[1].species),
                                          symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
                                          prefact='prefactor',
                                          exponent=6,
@@ -726,7 +726,7 @@ class MESS:
             twotst = self.twotstpl.format(outerts=outerts)
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
-                                       geom=self.make_geom(reaction.ts.geom, reaction.ts.atom),
+                                       geom=self.rotor_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=self.make_freq(reaction.ts.reduced_freqs, freq_factor, 1),
@@ -748,7 +748,7 @@ class MESS:
         elif not self.par['multi_conf_tst'] or not valid_conformers:
             corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
-                                       geom=self.make_geom(reaction.ts.geom, reaction.ts.atom),
+                                       geom=self.rotor_geom(reaction.ts),
                                        core=corerr,
                                        nfreq=len(reaction.ts.reduced_freqs)-1,
                                        freq=self.make_freq(reaction.ts.reduced_freqs, freq_factor, 1),
@@ -788,7 +788,7 @@ class MESS:
                             cutoff=round(min(left, right), 2), imfreq=imfreq,
                             welldepth1=round(left, 2), welldepth2=round(right, 2))
                 rrho += self.rrhotpl.format(natom=reaction.ts.natom,
-                                            geom=self.make_geom(reaction.ts.conformer_geom[ci], reaction.ts.atom),
+                                            geom=self.rotor_geom(reaction.ts, reaction.ts.conformer_geom[ci], reaction.ts.conformer_freq[ci]),
                                             core=corerr,
                                             nfreq=len(reaction.ts.conformer_freq[ci])-1,
                                             freq=self.make_freq(conformer_freq, freq_factor, 1),
@@ -910,6 +910,34 @@ class MESS:
  
         stat = int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
         return stat
+
+    def rotor_geom(self, species, geom=None, freqs=None):
+        """Geometry block for a rigid-rotor species.
+
+        A species that carries 3N-5 frequencies was judged linear when its
+        frequencies were derived (see frequencies.assess_linearity). Write a
+        linearised copy so that MESS's own test on the moments of inertia
+        agrees, and say so in the input and in the log. The stored geometry is
+        never modified, and other species are written as calculated.
+        """
+        geom = species.geom if geom is None else geom
+        if freqs is None:
+            freqs = getattr(species, 'reduced_freqs', None) or species.freq
+        natom = len(species.atom)
+        block = self.make_geom(geom, species.atom)
+        if natom < 3 or freqs is None or len(freqs) != 3 * natom - 5:
+            return block
+        deviation = frequencies.max_bend_deviation(geom, species.bond)
+        if deviation > frequencies.LINEAR_ANGLE_TOLERANCE:
+            logger.warning(f'{species.name}: carries 3N-5 frequencies but its geometry deviates '
+                           f'{deviation:.1f} deg from linear; written to MESS as calculated.')
+            return block + (f'\n        ! WARNING: 3N-5 frequencies but the geometry deviates '
+                            f'{deviation:.1f} deg from linear; written as calculated')
+        logger.info(f'{species.name}: written to MESS as an exactly linear rotor '
+                    f'(max bend deviation {deviation:.2f} deg).')
+        return (self.make_geom(frequencies.linearize(geom, species.atom), species.atom)
+                + f'\n        ! geometry linearised for the rigid-rotor model '
+                  f'(max bend deviation {deviation:.2f} deg, 3N-5 frequencies)')
 
     def make_geom(self, g, a):
         geom = ''

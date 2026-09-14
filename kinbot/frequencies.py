@@ -1,5 +1,6 @@
 import os
 import shutil
+import logging
 import numpy as np
 from ase.data import atomic_numbers, covalent_radii
 from ase import Atoms
@@ -10,15 +11,114 @@ from kinbot import geometry
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.constants import EVtoHARTREE
 
-# A molecule is treated as linear, and only two external rotations are
-# projected out, when every atom lies within this distance (Angstrom) of the
-# principal axis with the smallest moment of inertia. Optimised geometries are
-# never exactly linear: a residual bend of a few degrees on a 1.2 A bond moves
-# an atom by a few hundredths of an Angstrom, well inside the tolerance, while
-# any real substituent sits 0.5 A or more off axis. A ratio of moments of
-# inertia is not a usable test: a long chain with one methyl group has a tiny
-# smallest moment yet is not linear.
-LINEAR_AXIS_TOLERANCE = 0.1
+logger = logging.getLogger('KinBot')
+
+# Linearity is decided in get_frequencies by three gates (see assess_linearity):
+#  1. every bond angle lies within LINEAR_ANGLE_TOLERANCE degrees of 180, which
+#     is what an optimiser without symmetry constraints leaves behind;
+#  2. the curvature of the Hessian along the rigid rotation about the
+#     molecular axis, expressed as a wavenumber, exceeds LINEAR_AXIS_MODE_MIN.
+#     For a molecule whose minimum is linear that curvature is the second
+#     component of the degenerate bend (hundreds of cm-1); for a molecule whose
+#     minimum is genuinely bent it is a free rotation (zero);
+#  3. it also exceeds LINEAR_AXIS_MODE_NOISE_FACTOR times the residual
+#     curvature of the other five rigid-body motions, i.e. the noise of that
+#     particular Hessian.
+# A geometry is never modified; a linearised copy is used for the rigid-body
+# vectors here and for the MESS geometry block, so MESS's own linearity test
+# reaches the same conclusion.
+LINEAR_ANGLE_TOLERANCE = 2.0
+LINEAR_AXIS_MODE_MIN = 50.
+LINEAR_AXIS_MODE_NOISE_FACTOR = 3.
+
+
+def max_bend_deviation(geom, bond):
+    """Largest deviation (degrees) of any bond angle a-b-c from 180."""
+    geom = np.asarray(geom, dtype=float)
+    natom = len(geom)
+    worst = 0.
+    for b in range(natom):
+        neighbours = [i for i in range(natom) if i != b and bond[b][i] > 0]
+        for k, a in enumerate(neighbours):
+            for c in neighbours[k + 1:]:
+                u = geom[a] - geom[b]
+                v = geom[c] - geom[b]
+                cosine = np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v))
+                worst = max(worst, 180. - np.degrees(np.arccos(np.clip(cosine, -1., 1.))))
+    return worst
+
+
+def linearize(geom, atom):
+    """Copy of geom with every atom projected onto the principal axis with the
+    smallest moment of inertia. The input array is not modified."""
+    geom = np.asarray(geom, dtype=float)
+    com = geometry.get_center_of_mass(geom, atom)
+    axis = geometry.get_moments_of_inertia(geom - com, atom)[1][0]
+    axis = axis / np.linalg.norm(axis)
+    return com + np.outer(np.dot(geom - com, axis), axis)
+
+
+def rigid_body_vectors(geom, atom):
+    """Mass-weighted translation vectors (normalised) and rotation vectors
+    (unnormalised; their norms are the square roots of the principal moments)
+    for a geometry centred on its centre of mass."""
+    natom = len(atom)
+    masses = np.repeat([constants.exact_mass[at] for at in atom], 3)
+    tvecs = np.zeros((3, 3 * natom))
+    for i in range(3):
+        ar = [np.array([1., 0., 0.] * natom) * np.sqrt(masses)]
+        tvecs[i] = np.roll(ar, i)
+        tvecs[i] /= np.linalg.norm(tvecs[i])
+    I = geometry.get_moments_of_inertia(geom, atom)[1]
+    P = np.dot(geom, I.T)
+    D = np.zeros((natom, 3, 3))
+    for i, Pi in enumerate(P):
+        D[i] = np.cross(Pi, I.T) * np.sqrt(constants.exact_mass[atom[i]])
+    return tvecs, [D[:, :, k].ravel() for k in range(3)]
+
+
+def assess_linearity(species, hess_mw, geom):
+    """Three-gate linearity decision; see the module constants.
+
+    geom must be centred on the centre of mass and hess_mw mass-weighted and
+    symmetric, as prepared in get_frequencies. Returns a dict with 'linear'
+    and the diagnostics behind the decision.
+    """
+    natom = len(species.atom)
+    result = {'linear': False, 'angle_deviation': 0., 'axis_mode': None,
+              'noise_floor': None, 'reason': ''}
+    if natom < 3:
+        result.update(linear=(natom == 2), reason='diatomic' if natom == 2 else 'atom')
+        return result
+    deviation = max_bend_deviation(geom, species.bond)
+    result['angle_deviation'] = deviation
+    if deviation > LINEAR_ANGLE_TOLERANCE:
+        result['reason'] = f'bond angles deviate up to {deviation:.1f} degrees from 180'
+        return result
+    tvecs, rotations = rigid_body_vectors(geom, species.atom)
+    norms = [np.linalg.norm(r) for r in rotations]
+    k_axis = int(np.argmin(norms))
+    if norms[k_axis] == 0.:
+        result.update(linear=True, axis_mode=np.inf, noise_floor=0.,
+                      reason='exactly linear geometry')
+        return result
+    others = list(tvecs) + [rotations[k] / norms[k] for k in range(3) if k != k_axis]
+    v = rotations[k_axis] / norms[k_axis]
+    for b in others:
+        v = v - np.dot(v, b) * b
+    v /= np.linalg.norm(v)
+    axis_mode = convert_to_wavenumbers(v @ hess_mw @ v)
+    noise = max(abs(convert_to_wavenumbers(b @ hess_mw @ b)) for b in others)
+    result.update(axis_mode=axis_mode, noise_floor=noise)
+    if axis_mode > max(LINEAR_AXIS_MODE_MIN, LINEAR_AXIS_MODE_NOISE_FACTOR * noise):
+        result.update(linear=True, reason=(
+            f'curvature along the axis rotation is a vibration ({axis_mode:.0f} cm-1, '
+            f'rigid-body noise {noise:.0f} cm-1)'))
+    else:
+        result['reason'] = (f'curvature along the axis rotation is {axis_mode:.0f} cm-1 '
+                            f'(rigid-body noise {noise:.0f} cm-1): a free rotation, so the '
+                            'minimum is bent')
+    return result
 
 
 def thermochemical_frequencies(raw, wellorts=0, imagfreq_threshold=50.):
@@ -76,39 +176,26 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
     for mode in all_modes:
         mode /= np.linalg.norm(mode)
 
-    # STEP 2: project out translation and rotation
-    # Build set of translation vectors to project out
-    tvecs = np.zeros((3, 3 * natom))
-    for i in range(3):
-        ar = [np.array([1., 0., 0.] * natom) * np.sqrt(masses)]
-        tvecs[i] = np.roll(ar, i)
-        tvecs[i] /= np.linalg.norm(tvecs[i])
-
-    # Start to build rotation vectors
-    I = geometry.get_moments_of_inertia(geom, atom)[1]
-    X = I.T
-    P = np.dot(geom, X)
-    D = np.zeros((natom, 3, 3))
-    for i, Pi in enumerate(P):
-        D[i] = np.cross(Pi, I.T) * np.sqrt(constants.exact_mass[atom[i]])
-    D4 = D[:, :, 0].ravel()
-    D5 = D[:, :, 1].ravel()
-    D6 = D[:, :, 2].ravel()
-
-    # For a linear molecule the rotation about the molecular axis is not an
-    # external rotation but part of the degenerate bend, so it must stay in the
-    # spectrum. Decide linearity geometrically: every atom, hydrogens included,
-    # within LINEAR_AXIS_TOLERANCE of the smallest-moment principal axis (geom
-    # is already centred on the centre of mass; I holds the principal axes as
-    # rows in ascending order of moment). If linear, drop the rotation vector
-    # with the smallest norm, which is the one about that axis.
-    axis = I[0] / np.linalg.norm(I[0])
-    off_axis = np.linalg.norm(geom - np.outer(np.dot(geom, axis), axis), axis=1)
-    linear = natom == 2 or off_axis.max() < LINEAR_AXIS_TOLERANCE
-    rotations = (D4, D5, D6)
-    norms = [np.linalg.norm(Dk) for Dk in rotations]
-    keep = np.argsort(norms)[1:] if linear else range(3)
-    rvecs = np.array([rotations[k] / norms[k] for k in keep if norms[k] > 0.])
+    # STEP 2: project out translation and rotation. For a linear molecule the
+    # rotation about the molecular axis is part of the degenerate bend and must
+    # stay in the spectrum; assess_linearity decides, and a linearised copy of
+    # the geometry then makes that rotation vanish exactly.
+    verdict = assess_linearity(species, hess, geom)
+    if natom >= 3:
+        name = getattr(species, 'name', '')
+        if verdict['linear']:
+            logger.info(f'{name}: treated as a linear rotor, 3N-5 frequencies '
+                        f'(max bend deviation {verdict["angle_deviation"]:.2f} deg; '
+                        f'{verdict["reason"]}).')
+        elif verdict['angle_deviation'] <= 10.:
+            logger.warning(f'{name}: geometry is within {verdict["angle_deviation"]:.1f} deg '
+                           f'of linear but is treated as non-linear ({verdict["reason"]}). '
+                           'If this species is linear, tighten the optimisation.')
+    if verdict['linear']:
+        geom = linearize(geom, atom)
+    tvecs, rotations = rigid_body_vectors(geom, atom)
+    norms = [np.linalg.norm(r) for r in rotations]
+    rvecs = np.array([r / n for r, n in zip(rotations, norms) if n > 1e-8 * max(norms)])
 
     nvecs = 3 * natom - 3 - len(rvecs)
     vecs = np.zeros((nvecs, 3 * natom))

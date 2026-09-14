@@ -1,5 +1,10 @@
-"""Near-linear molecules must keep 3N-5 vibrations after external-mode projection,
-and elongated but non-linear molecules must keep 3N-6."""
+"""Linearity decision for the external-mode projection and for the MESS geometry.
+
+A linear molecule left slightly bent by an optimiser must keep 3N-5 vibrations;
+a genuinely bent molecule, a clearly bent one, and a prolate molecule with
+off-axis atoms must keep 3N-6. Species judged linear are written to MESS as
+exactly linear, with a comment; stored geometries are never modified.
+"""
 
 import unittest
 
@@ -8,32 +13,71 @@ from ase.build import molecule
 import numpy as np
 
 from kinbot import frequencies
+from kinbot.mess import MESS
 from kinbot.stationary_pt import StationaryPoint
 
+A2B = 1.0 / 0.529177210903
+R0 = 1.16 * A2B
 
-def projected_count(atoms, hessian=None):
-    """Number of frequencies get_frequencies keeps; independent of the Hessian values."""
-    natom = len(atoms)
+
+# --- a rotation/translation-invariant model potential for CO2 (Hartree, Bohr) ----
+def model_energy(x, ks, kb, d0):
+    """Two harmonic C-O stretches plus a harmonic bend on the carbon's distance
+    from the O...O line; d0 = 0 gives a linear minimum, d0 > 0 a bent one."""
+    o1, c, o2 = x[0:3], x[3:6], x[6:9]
+    energy = 0.5 * ks * ((np.linalg.norm(c - o1) - R0) ** 2 + (np.linalg.norm(c - o2) - R0) ** 2)
+    u = o2 - o1
+    u = u / np.linalg.norm(u)
+    v = c - o1
+    d = np.linalg.norm(v - np.dot(v, u) * u)
+    return energy + 0.5 * kb * (d - d0) ** 2
+
+
+def model_hessian(geom_angstrom, d0=0., ks=0.573, kb=0.147, h=1e-4):
+    """Numerical Cartesian Hessian (Hartree/Bohr^2); ks, kb reproduce 2349 and
+    667 cm-1 for CO2 at the linear geometry."""
+    x = np.asarray(geom_angstrom, dtype=float).ravel() * A2B
+    n = len(x)
+    hess = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            pts = []
+            for si, sj in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+                y = x.copy()
+                y[i] += si * h
+                y[j] += sj * h
+                pts.append(model_energy(y, ks, kb, d0))
+            hess[i, j] = (pts[0] - pts[1] - pts[2] + pts[3]) / (4 * h * h)
+    return 0.5 * (hess + hess.T)
+
+
+def co2(angle):
+    """CO2 with the given O-C-O angle, carbon at the origin."""
+    half = np.radians((180. - angle) / 2.)
+    return np.array([[-1.16 * np.cos(half), 1.16 * np.sin(half), 0.],
+                     [0., 0., 0.],
+                     [1.16 * np.cos(half), 1.16 * np.sin(half), 0.]])
+
+
+def bent_minimum_offset(angle):
+    return 1.16 * np.sin(np.radians((180. - angle) / 2.)) * A2B
+
+
+def species_from(symbols, geom, name='probe'):
+    point = StationaryPoint(name, 0, 1, atom=list(symbols), geom=np.asarray(geom, dtype=float))
+    point.characterize()
+    return point
+
+
+def count(point, hessian=None):
+    natom = point.natom
     if hessian is None:
         hessian = np.eye(3 * natom)
-    point = StationaryPoint('probe', 0, 1, atom=atoms.get_chemical_symbols(),
-                            geom=atoms.positions)
-    point.characterize()
-    freqs, _ = frequencies.get_frequencies(point, hessian, atoms.positions)
+    freqs, _ = frequencies.get_frequencies(point, hessian, point.geom)
     return len(freqs), freqs
 
 
-def co2_with_angle(degrees):
-    """CO2 with the given O-C-O angle, carbon at the origin."""
-    atoms = molecule('CO2')
-    half = np.radians((180. - degrees) / 2.)
-    atoms.positions[1] = [1.16 * np.cos(half), 1.16 * np.sin(half), 0.]
-    atoms.positions[2] = [-1.16 * np.cos(half), 1.16 * np.sin(half), 0.]
-    return atoms
-
-
 def methyl_cyanodiyne():
-    """CH3-C#C-C#C-C#N: a long, prolate but non-linear molecule."""
     x = [0.0, 1.46, 2.67, 4.05, 5.26, 6.64, 7.80]
     symbols = ['C', 'C', 'C', 'C', 'C', 'C', 'N']
     positions = [[xi, 0., 0.] for xi in x]
@@ -44,48 +88,120 @@ def methyl_cyanodiyne():
     return Atoms(symbols, positions=positions)
 
 
-class TestLinearProjection(unittest.TestCase):
+class TestProjectionCount(unittest.TestCase):
     def test_exactly_linear_molecules_keep_3n_minus_5(self):
         for name in ('CO2', 'HCN', 'C2H2', 'N2'):
             with self.subTest(molecule=name):
                 atoms = molecule(name)
-                count, _ = projected_count(atoms)
-                self.assertEqual(count, 3 * len(atoms) - 5)
+                point = species_from(atoms.get_chemical_symbols(), atoms.positions)
+                self.assertEqual(count(point)[0], 3 * len(atoms) - 5)
 
-    def test_optimiser_residual_bend_still_counts_as_linear(self):
-        for degrees in (179.99, 179.5, 178., 175.):
-            with self.subTest(oco_angle=degrees):
-                count, _ = projected_count(co2_with_angle(degrees))
-                self.assertEqual(count, 4)
+    def test_linear_minimum_left_bent_by_optimiser_keeps_the_bend(self):
+        """Case A: the potential's minimum is linear, the geometry is a residual."""
+        for angle in (179.9, 179.5, 179., 178.5):
+            with self.subTest(oco_angle=angle):
+                geom = co2(angle)
+                point = species_from('OCO', geom)
+                n, freqs = count(point, model_hessian(geom, d0=0.))
+                self.assertEqual(n, 4)
+                # both bend components present at ~667 cm-1, nothing near zero
+                self.assertGreater(min(freqs), 600.)
 
-    def test_clearly_bent_co2_is_not_linear(self):
-        for degrees in (160., 150., 120.):
-            with self.subTest(oco_angle=degrees):
-                count, _ = projected_count(co2_with_angle(degrees))
-                self.assertEqual(count, 3)
+    def test_genuinely_bent_minimum_is_not_linear(self):
+        """Case B: the same angles, but the potential's minimum is at that angle."""
+        for angle in (179.9, 179.5, 179.):
+            with self.subTest(oco_angle=angle):
+                geom = co2(angle)
+                point = species_from('OCO', geom)
+                n, freqs = count(point, model_hessian(geom, d0=bent_minimum_offset(angle)))
+                self.assertEqual(n, 3)
+                self.assertGreater(min(freqs), 600.)   # the ~0 cm-1 rotation is gone
+
+    def test_angle_gate_rejects_clearly_bent_geometries(self):
+        for angle in (175., 170., 160.):
+            with self.subTest(oco_angle=angle):
+                geom = co2(angle)
+                point = species_from('OCO', geom)
+                # even with a linear-minimum Hessian: 175 deg is not a residual
+                self.assertEqual(count(point, model_hessian(geom, d0=0.))[0], 3)
 
     def test_prolate_molecule_with_off_axis_hydrogens_is_not_linear(self):
-        # Its smallest moment of inertia is under 1% of the largest, so a
-        # moment-ratio test calls it linear; the off-axis methyl hydrogens say no.
         atoms = methyl_cyanodiyne()
-        count, _ = projected_count(atoms)
-        self.assertEqual(count, 3 * len(atoms) - 6)
+        point = species_from(atoms.get_chemical_symbols(), atoms.positions)
+        self.assertEqual(count(point)[0], 3 * len(atoms) - 6)
 
     def test_genuinely_bent_molecules_keep_3n_minus_6(self):
         for name in ('H2O', 'NH3', 'CH3OH', 'C2H6'):
             with self.subTest(molecule=name):
                 atoms = molecule(name)
-                count, _ = projected_count(atoms)
-                self.assertEqual(count, 3 * len(atoms) - 6)
+                point = species_from(atoms.get_chemical_symbols(), atoms.positions)
+                self.assertEqual(count(point)[0], 3 * len(atoms) - 6)
+
+    def test_decision_is_logged(self):
+        geom = co2(179.)
+        point = species_from('OCO', geom, name='co2')
+        with self.assertLogs('KinBot', level='INFO') as logs:
+            count(point, model_hessian(geom, d0=0.))
+        self.assertIn('treated as a linear rotor', '\n'.join(logs.output))
 
     def test_frequencies_are_real_for_degenerate_spectra(self):
         atoms = molecule('CO2')
+        point = species_from(atoms.get_chemical_symbols(), atoms.positions)
         rng = np.random.default_rng(7)
         block = rng.normal(size=(9, 9))
-        hessian = block @ block.T
-        count, freqs = projected_count(atoms, hessian)
-        self.assertEqual(count, 4)
+        n, freqs = count(point, block @ block.T)
+        self.assertEqual(n, 4)
         self.assertTrue(all(isinstance(f, float) for f in freqs), freqs)
+
+
+class TestLinearize(unittest.TestCase):
+    def test_returns_collinear_copy_and_leaves_input_alone(self):
+        geom = co2(179.)
+        before = geom.copy()
+        linear = frequencies.linearize(geom, ['O', 'C', 'O'])
+        np.testing.assert_array_equal(geom, before)
+        self.assertEqual(frequencies.max_bend_deviation(linear, species_from('OCO', geom).bond), 0.)
+        # bond lengths change only in second order
+        for i in (0, 2):
+            self.assertLess(abs(np.linalg.norm(linear[i] - linear[1]) - np.linalg.norm(geom[i] - geom[1])), 1e-3)
+
+
+class TestMessGeometry(unittest.TestCase):
+    def writer(self):
+        writer = MESS.__new__(MESS)
+        writer.par = {}
+        return writer
+
+    def test_linear_species_is_written_exactly_linear_with_a_note(self):
+        point = species_from('OCO', co2(179.), name='co2')
+        point.reduced_freqs = [667., 667., 1333., 2349.]           # 3N-5
+        block = self.writer().rotor_geom(point)
+        lines = [l for l in block.splitlines() if not l.strip().startswith('!')]
+        coords = np.array([[float(v) for v in l.split()[1:]] for l in lines])
+        self.assertEqual(frequencies.max_bend_deviation(coords, point.bond), 0.)
+        self.assertIn('! geometry linearised for the rigid-rotor model', block)
+        np.testing.assert_allclose(point.geom, co2(179.))        # stored geometry untouched
+
+    def test_nonlinear_species_is_written_as_calculated_without_note(self):
+        point = species_from('OCO', co2(179.), name='co2')
+        point.reduced_freqs = [667., 1333., 2349.]                 # 3N-6
+        block = self.writer().rotor_geom(point)
+        self.assertNotIn('!', block)
+        self.assertEqual(block, self.writer().make_geom(point.geom, point.atom))
+
+    def test_inconsistent_count_and_geometry_gets_a_warning_not_a_snap(self):
+        point = species_from('OCO', co2(170.), name='co2')
+        point.reduced_freqs = [667., 667., 1333., 2349.]
+        with self.assertLogs('KinBot', level='WARNING'):
+            block = self.writer().rotor_geom(point)
+        self.assertIn('! WARNING: 3N-5 frequencies but the geometry deviates', block)
+        self.assertIn(self.writer().make_geom(point.geom, point.atom), block)
+
+    def test_diatomic_and_ordinary_species_untouched(self):
+        atoms = molecule('H2O')
+        point = species_from(atoms.get_chemical_symbols(), atoms.positions, name='h2o')
+        point.reduced_freqs = [1595., 3657., 3756.]
+        self.assertEqual(self.writer().rotor_geom(point), self.writer().make_geom(point.geom, point.atom))
 
 
 if __name__ == '__main__':

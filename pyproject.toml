@@ -52,7 +52,6 @@ bimol = [
 ]
 plot = [
     "matplotlib",
-    "pyvis",
     "rdkit"
 ]
 # FAIRChem/UMA machine-learning interatomic potential backend (qc = 'fc').

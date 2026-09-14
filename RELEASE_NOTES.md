@@ -1,5 +1,15 @@
 # Unreleased
 
+**PES post-processing writes `pesviewer.inp` first and no longer draws its own
+graph (#82).** The pyvis-based "interactive graph" duplicated what PESViewer
+does from `pesviewer.inp`, and it was the only post-processing step with a
+third-party dependency that could fail or hang for reasons unrelated to the
+kinetics; a PES whose KinBot runs had all finished could end without a
+combined `pesviewer.inp`. The graph is removed and `pyvis` dropped from the
+`plot` extra. `pesviewer.inp` is now written immediately after the energies
+are assembled, before the rotdPy and MESS inputs, and each post-processing
+stage announces itself in `pes.log`.
+
 **Near-linear molecules keep 3N-5 vibrations, and MESS agrees.** `get_frequencies`
 decided how many external rotations to project out by an absolute cutoff of 1e-5
 on the mass-weighted rotation vectors. Any optimised geometry that is linear only

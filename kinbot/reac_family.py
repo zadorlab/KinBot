@@ -135,13 +135,12 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                     fix_type = 'tors'
                     val = geometry.calc_dihedral(geom[fixi[0]-1], geom[fixi[1]-1], geom[fixi[2]-1],
                                                  geom[fixi[3]-1])[0]
-                    kwargs['addsec'] += f"{fix_type} {' '.join(str(f) for f in fixi)} {val}\n"
+                kwargs['addsec'] += f"{fix_type} {' '.join(str(f) for f in fixi)} {val}\n"
             for chi in change:
                 dist = np.linalg.norm(geom[chi[0] - 1] - geom[chi[1] - 1])
                 kwargs['addsec'] += f"{' '.join(str(ch) for ch in chi)} {dist}\n"
-            for reli in release:
-                dist = np.linalg.norm(geom[reli][0] - geom[reli][1])
-                kwargs['addsec'] += f"{' '.join(str(rel) for rel in reli)} {dist}\n"
+            # Each input lists active constraints afresh; released coordinates
+            # need no entry in the new Q-Chem $opt block.
             kwargs['addsec'] += 'ENDCONSTRAINT\n$end\n'
         elif bimol and step == 1:
             raise NotImplementedError('Bimolecular reactions are not yet '

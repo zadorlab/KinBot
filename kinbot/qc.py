@@ -721,7 +721,7 @@ class QuantumChemistry:
 
         kwargs = self.get_qc_arguments(job, mult, species.charge, species.nel,
                                        high_level=high_level)
-        if 'opt' not in kwargs:
+        if self.qc != 'qchem' and 'opt' not in kwargs:
             kwargs['opt'] = ''
 
         if self.qc == 'gauss':

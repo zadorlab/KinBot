@@ -16,7 +16,8 @@ class TestQChemAddsec(unittest.TestCase):
     def render(self, **extra):
         atoms = Atoms('H2', positions=[[0., 0., 0.], [0., 0., 0.74]])
         kwargs = dict(label='probe', jobtype='opt', method='b3lyp', basis='sto-3g',
-                      unrestricted='true', nt=2, **extra)
+                      unrestricted='true', nt=2)
+        kwargs.update(extra)
         with tempfile.TemporaryDirectory() as directory:
             cwd = os.getcwd()
             os.chdir(directory)
@@ -39,7 +40,9 @@ class TestQChemAddsec(unittest.TestCase):
 
     def test_template_kwargs_are_accepted(self):
         # what qc.py hands the calculator for a Q-Chem frequency recovery job
-        text = self.render(vibman_print='4', xc_grid='3')
+        text = self.render(jobtype='freq', vibman_print='4', xc_grid='3')
+        jobtype = next(line.split()[-1] for line in text.splitlines() if 'JOBTYPE' in line)
+        self.assertEqual(jobtype, 'FREQ')
         self.assertIn('VIBMAN_PRINT', text.upper())
         self.assertIn('SYM_IGNORE', text.upper())
 

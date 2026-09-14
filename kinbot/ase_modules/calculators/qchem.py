@@ -66,9 +66,11 @@ class QChem(FileIOCalculator):
                     raise RuntimeError()
                 elif 'ERROR: alpha_min' in line:
                     raise RuntimeError()
-                elif ' Total energy in the final basis set =' in line:
+                elif (' Total energy in the final basis set =' in line
+                      or line.lstrip().startswith('Total energy =')):
+                    # The SCF summary format differs between Q-Chem versions.
                     convert = ase.units.Hartree
-                    self.results['energy'] = float(line.split()[8]) * convert
+                    self.results['energy'] = float(line.split('=', 1)[1].split()[0]) * convert
                 elif ' Gradient of SCF Energy' in line:
                     # Read gradient as 3 by N array and transpose at the end
                     gradient = [[] for _ in range(3)]

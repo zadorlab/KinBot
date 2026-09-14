@@ -10,13 +10,15 @@ from kinbot import geometry
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.constants import EVtoHARTREE
 
-# An external rotation about the axis of a linear molecule has a vanishing
-# mass-weighted rotation vector. Optimised geometries are never exactly linear,
-# so "vanishing" is judged relative to the largest rotation vector: a residual
-# bend of a few degrees gives a ratio of order 1e-2, a genuinely bent molecule
-# 0.4 or more. The value corresponds to the smallest principal moment of
-# inertia being about 1% of the largest.
-LINEAR_ROTATION_TOLERANCE = 0.1
+# A molecule is treated as linear, and only two external rotations are
+# projected out, when every atom lies within this distance (Angstrom) of the
+# principal axis with the smallest moment of inertia. Optimised geometries are
+# never exactly linear: a residual bend of a few degrees on a 1.2 A bond moves
+# an atom by a few hundredths of an Angstrom, well inside the tolerance, while
+# any real substituent sits 0.5 A or more off axis. A ratio of moments of
+# inertia is not a usable test: a long chain with one methyl group has a tiny
+# smallest moment yet is not linear.
+LINEAR_AXIS_TOLERANCE = 0.1
 
 
 def thermochemical_frequencies(raw, wellorts=0, imagfreq_threshold=50.):
@@ -93,17 +95,20 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
     D5 = D[:, :, 1].ravel()
     D6 = D[:, :, 2].ravel()
 
-    # A rotation vector that is small compared with the others is not a real
-    # external rotation: the molecule is linear (or linear up to an optimiser
-    # residual) and that motion is a vibration, so keep it in the spectrum.
-    rvecs = []
+    # For a linear molecule the rotation about the molecular axis is not an
+    # external rotation but part of the degenerate bend, so it must stay in the
+    # spectrum. Decide linearity geometrically: every atom, hydrogens included,
+    # within LINEAR_AXIS_TOLERANCE of the smallest-moment principal axis (geom
+    # is already centred on the centre of mass; I holds the principal axes as
+    # rows in ascending order of moment). If linear, drop the rotation vector
+    # with the smallest norm, which is the one about that axis.
+    axis = I[0] / np.linalg.norm(I[0])
+    off_axis = np.linalg.norm(geom - np.outer(np.dot(geom, axis), axis), axis=1)
+    linear = natom == 2 or off_axis.max() < LINEAR_AXIS_TOLERANCE
     rotations = (D4, D5, D6)
     norms = [np.linalg.norm(Dk) for Dk in rotations]
-    largest = max(norms)
-    for Dk, norm in zip(rotations, norms):
-        if largest > 0. and norm > LINEAR_ROTATION_TOLERANCE * largest:
-            rvecs.append(Dk / norm)
-    rvecs = np.array(rvecs)
+    keep = np.argsort(norms)[1:] if linear else range(3)
+    rvecs = np.array([rotations[k] / norms[k] for k in keep if norms[k] > 0.])
 
     nvecs = 3 * natom - 3 - len(rvecs)
     vecs = np.zeros((nvecs, 3 * natom))

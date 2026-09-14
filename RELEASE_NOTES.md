@@ -9,7 +9,10 @@ lost: 3N-6 frequencies instead of 3N-5. With Gaussian or Q-Chem this reached
 MESS only through the rotor-projected frequency set; with FairChem or Sella,
 where all frequencies come from this routine, it affected every near-linear
 species (CO2, HCN, C2H2, ...) and made `find_unique` classify them as
-nonlinear tops. The cutoff is now relative to the largest rotation vector. The
+nonlinear tops. Linearity is now decided geometrically: a molecule is linear
+when every atom lies within 0.1 A of the principal axis with the smallest
+moment of inertia, so residual bends pass while a methyl group on a long
+linear chain, or CO2 bent to 160 degrees, do not. The
 same routine now uses the symmetric eigensolver, so degenerate modes can no
 longer come back as complex numbers.
 

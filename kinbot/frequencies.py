@@ -28,6 +28,13 @@ logger = logging.getLogger('KinBot')
 # vectors here and for the MESS geometry block, so MESS's own linearity test
 # reaches the same conclusion.
 LINEAR_ANGLE_TOLERANCE = 2.0
+# MESS decides the rotational dimension itself from the geometry it is given:
+# linear when I_min/I_mid < 1e-5 (libmess model.cc, RigidRotor). KinBot's
+# decision above is stricter about a bent minimum, so a species can be
+# non-linear for KinBot yet linear for MESS; MESS.rotor_core_line handles it.
+MESS_LINEAR_MOMENT_RATIO = 1.e-5
+# h / (8 pi^2 c) in cm-1 amu Angstrom^2: B = ROTATIONAL_CONSTANT_FACTOR / I
+ROTATIONAL_CONSTANT_FACTOR = 16.857629
 LINEAR_AXIS_MODE_MIN = 50.
 LINEAR_AXIS_MODE_NOISE_FACTOR = 3.
 
@@ -46,6 +53,18 @@ def max_bend_deviation(geom, bond):
                 cosine = np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v))
                 worst = max(worst, 180. - np.degrees(np.arccos(np.clip(cosine, -1., 1.))))
     return worst
+
+
+def moment_ratio(geom, atom):
+    """I_min / I_mid of the principal moments of inertia; MESS's linearity measure."""
+    moments = geometry.get_moments_of_inertia(np.asarray(geom, dtype=float), atom)[0]
+    return moments[0] / moments[1] if moments[1] > 0. else 0.
+
+
+def rotational_constants(geom, atom):
+    """Rotational constants in cm-1 from the principal moments (amu Angstrom^2)."""
+    moments = geometry.get_moments_of_inertia(np.asarray(geom, dtype=float), atom)[0]
+    return [ROTATIONAL_CONSTANT_FACTOR / moment for moment in moments]
 
 
 def linearize(geom, atom):

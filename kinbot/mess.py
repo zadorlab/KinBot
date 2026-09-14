@@ -474,6 +474,7 @@ class MESS:
                                                            natom=species.natom,
                                                            geom=self.rotor_geom(species),
                                                            symm=float(species.sigma_ext) / float(species.nopt),
+                                                           rotconst=self.rotor_core_line(species),
                                                            freq=self.make_freq(species.reduced_freqs, freq_factor, 0))
                 else:
                     fragments += self.fragmenttpl.format(chemid=name,
@@ -481,6 +482,7 @@ class MESS:
                                                          natom=species.natom,
                                                          geom=self.rotor_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
+                                                         rotconst=self.rotor_core_line(species),
                                                          nfreq=len(species.reduced_freqs),
                                                          freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
                                                          hinderedrotor=self.make_rotors(species, freq_factor),
@@ -602,6 +604,7 @@ class MESS:
                                             natom=species.natom,
                                             geom=self.rotor_geom(species),
                                             symm=float(species.sigma_ext) / float(species.nopt),
+                                            rotconst=self.rotor_core_line(species),
                                             nfreq=len(species.reduced_freqs),
                                             freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
                                             hinderedrotor=self.make_rotors(species, freq_factor, norot=norot),
@@ -617,7 +620,8 @@ class MESS:
                     species.conformer_freq[ci], 0, self.par.get('imagfreq_threshold', 50.))
                 conformer_zeroenergy = (zeroenergy if self.par['pes'] else
                                         round(zeroenergy + shift, 2))
-                corerr = self.corerrtpl.format(symm=float(species.sigma_ext) / float(species.nopt))
+                corerr = self.corerrtpl.format(symm=float(species.sigma_ext) / float(species.nopt),
+                                               rotconst=self.rotor_core_line(species, species.conformer_geom[ci], species.conformer_freq[ci]))
                 rrho += self.rrhotpl.format(natom=species.natom,
                                             geom=self.rotor_geom(species, species.conformer_geom[ci], species.conformer_freq[ci]),
                                             core=corerr,
@@ -724,7 +728,8 @@ class MESS:
                                          prodzeroenergy=prodzeroenergy
                                          )
             twotst = self.twotstpl.format(outerts=outerts)
-            corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
+            corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
+                                           rotconst=self.rotor_core_line(reaction.ts))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
                                        geom=self.rotor_geom(reaction.ts),
                                        core=corerr,
@@ -746,7 +751,8 @@ class MESS:
                                                   long_rxn_name=long_rxn_name,
                                                   model=variational)
         elif not self.par['multi_conf_tst'] or not valid_conformers:
-            corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
+            corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
+                                           rotconst=self.rotor_core_line(reaction.ts))
             rrho = self.rrhotpl.format(natom=reaction.ts.natom,
                                        geom=self.rotor_geom(reaction.ts),
                                        core=corerr,
@@ -773,7 +779,8 @@ class MESS:
                     reaction.ts.conformer_freq[ci], 1, self.par.get('imagfreq_threshold', 50.))
                 conformer_zeroenergy = (zeroenergy if self.par['pes'] else
                                         round(zeroenergy + shift, 2))
-                corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt))
+                corerr = self.corerrtpl.format(symm=float(reaction.ts.sigma_ext) / float(reaction.ts.nopt),
+                                               rotconst=self.rotor_core_line(reaction.ts, reaction.ts.conformer_geom[ci], reaction.ts.conformer_freq[ci]))
                 imfreq = round(-reaction.ts.conformer_freq[ci][0] * imagfreq_factor, 2)
                 if self.par['pes']:
                     tun_conf = self.tunneltpl.format(
@@ -938,6 +945,34 @@ class MESS:
         return (self.make_geom(frequencies.linearize(geom, species.atom), species.atom)
                 + f'\n        ! geometry linearised for the rigid-rotor model '
                   f'(max bend deviation {deviation:.2f} deg, 3N-5 frequencies)')
+
+    def rotor_core_line(self, species, geom=None, freqs=None):
+        """Extra line for the RigidRotor core, normally empty.
+
+        The reverse mismatch to rotor_geom: KinBot judged the species
+        non-linear (3N-6 frequencies, a genuinely bent minimum) but its
+        geometry is so close to linear that MESS's own test (I_min/I_mid <
+        1e-5) would make it a linear rotor, losing one degree of freedom.
+        Give MESS the three rotational constants explicitly so it keeps the
+        3D rotor KinBot's frequency count assumes, and say so.
+        """
+        geom = species.geom if geom is None else geom
+        if freqs is None:
+            freqs = getattr(species, 'reduced_freqs', None) or species.freq
+        natom = len(species.atom)
+        if natom < 3 or freqs is None or len(freqs) != 3 * natom - 6:
+            return ''
+        ratio = frequencies.moment_ratio(geom, species.atom)
+        if ratio >= frequencies.MESS_LINEAR_MOMENT_RATIO:
+            return ''
+        constants_cm = frequencies.rotational_constants(geom, species.atom)
+        logger.warning(f'{species.name}: quasi-linear species (I_min/I_mid = {ratio:.1e}) with '
+                       '3N-6 frequencies; explicit rotational constants written so MESS keeps a '
+                       'non-linear rotor. RRHO is unreliable for this species.')
+        return ('          RotationalConstants[1/cm]   '
+                + ' '.join(f'{b:.6f}' for b in constants_cm)
+                + f'\n          ! quasi-linear species (I_min/I_mid = {ratio:.1e}): constants '
+                  'given explicitly to keep a non-linear rotor consistent with 3N-6 frequencies')
 
     def make_geom(self, g, a):
         geom = ''

@@ -18,7 +18,10 @@ judged linear is written to the MESS input as an exactly linear rotor, with a
 comment, so that MESS's own moment-of-inertia test (I_min/I_mid < 1e-5) reaches
 the same conclusion; otherwise MESS would treat a 179-degree CO2 as a
 non-linear top with a tiny third moment, a factor of ~3 in its rotational
-partition function. Both decisions are logged. The same routine now uses the
+partition function. The reverse mismatch is handled too: a genuinely bent minimum so
+close to linear that MESS's test would call it linear gets its three rotational
+constants written explicitly, so MESS keeps the non-linear rotor that the 3N-6
+frequencies assume. Both decisions are logged. The same routine now uses the
 symmetric eigensolver, so degenerate modes can no longer come back as complex
 numbers.
 

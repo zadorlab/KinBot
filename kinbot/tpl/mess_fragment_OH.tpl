@@ -4,6 +4,7 @@
 {geom}
       Core   RigidRotor
         SymmetryFactor              {symm}
+{rotconst}
       End
       Frequencies[1/cm]             1
 {freq}

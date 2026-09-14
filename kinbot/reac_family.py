@@ -6,7 +6,7 @@ from kinbot import kb_path
 from kinbot import modify_geom
 from kinbot import geometry
 from kinbot.reactions.reac_abstraction import abstraction_align
-from kinbot.utils import get_unique_list_of_lists
+from kinbot.utils import get_unique_list_of_lists, plain_symbols, plain_geometry
 
 logger = logging.getLogger('KinBot')
 
@@ -170,8 +170,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         skw['internal'] = False
         template = template.format(label=rxn.instance_name,
                                 kwargs=kwargs,
-                                atom=list(rxn.species.atom),
-                                geom=list([list(gi) for gi in geom]),
+                                atom=plain_symbols(rxn.species.atom),
+                                geom=plain_geometry(geom),
                                 bimol=bimol,
                                 ppn=min(rxn.species.nel, rxn.qc.ppn),
                                 qc_command=command,
@@ -200,8 +200,8 @@ def carry_out_reaction(rxn, step, command, bimol=0):
     
         template = template.format(label=rxn.instance_name,
                                    kwargs=kwargs,
-                                   atom=list(rxn.species.atom),
-                                   geom=list([list(gi) for gi in geom]),
+                                   atom=plain_symbols(rxn.species.atom),
+                                   geom=plain_geometry(geom),
                                    ppn=min(rxn.species.nel, rxn.qc.ppn),
                                    qc_command=command,
                                    working_dir=os.getcwd(),

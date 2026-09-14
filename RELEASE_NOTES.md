@@ -25,6 +25,14 @@ frequencies assume. Both decisions are logged. The same routine now uses the
 symmetric eigensolver, so degenerate modes can no longer come back as complex
 numbers.
 
+**Generated job scripts no longer depend on numpy reprs (#84).** Element
+symbols and coordinates were pasted into the ASE/Molpro job templates via the
+repr of numpy types, which under numpy >= 2 reads ``np.str_('C')`` and
+``np.float64(1.06)``. Scripts from the five templates that do not import
+numpy (Q-Chem TS search, IRC and HIR; NWChem constrained TS search; Molpro TS
+search) failed to run. Values are now converted to builtin Python types
+before formatting.
+
 # 2.4.1
 
 Bugfix release. Two groups of changes alter numerical output for inputs that

@@ -13,6 +13,7 @@ import numpy as np
 from ase.db import connect
 from ase import Atoms
 
+from kinbot.utils import plain_symbols, plain_geometry
 from kinbot import kb_path
 from kinbot import constants
 from kinbot import geometry
@@ -407,8 +408,8 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(species.atom),
-                                   geom=list([list(gi) for gi in geom]),
+                                   atom=plain_symbols(species.atom),
+                                   geom=plain_geometry(geom),
                                    ppn=min(species.nel, self.ppn),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
@@ -491,8 +492,8 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(species.atom),
-                                   geom=list([list(gi) for gi in geom]),
+                                   atom=plain_symbols(species.atom),
+                                   geom=plain_geometry(geom),
                                    fix=fix,
                                    change=change,
                                    ppn=min(species.nel, self.ppn),
@@ -579,8 +580,8 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(species.atom),
-                                   geom=list([list(gi) for gi in geom]),
+                                   atom=plain_symbols(species.atom),
+                                   geom=plain_geometry(geom),
                                    ppn=min(species.nel, self.ppn),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
@@ -641,7 +642,7 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_qchem_freq.tpl.py'
         with open(template_file) as handle:
             template = handle.read().format(label=job, kwargs=kwargs,
-                atom=list(species.atom), geom=np.asarray(species.geom).tolist(),
+                atom=plain_symbols(species.atom), geom=plain_geometry(species.geom),
                 ppn=min(species.nel, self.ppn), qc_command=self.qc_command,
                 working_dir=os.getcwd())
         with open(job + '.py', 'w') as handle:
@@ -667,15 +668,15 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         t0 = template.format(label=job0,
                              kwargs=kwargs0,
-                             atom=list(species.atom),
-                             geom=list([list(gi) for gi in geom]),
+                             atom=plain_symbols(species.atom),
+                             geom=plain_geometry(geom),
                              ppn=min(species.nel, self.ppn),
                              qc_command=self.qc_command,
                              working_dir=os.getcwd())
         t1 = template.format(label=job1,
                              kwargs=kwargs1,
-                             atom=list(species.atom),
-                             geom=list([list(gi) for gi in geom]),
+                             atom=plain_symbols(species.atom),
+                             geom=plain_geometry(geom),
                              ppn=min(species.nel-1, self.ppn),
                              qc_command=self.qc_command,
                              working_dir=os.getcwd())
@@ -768,8 +769,8 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(species.atom),
-                                   geom=list([list(gi) for gi in geom]),
+                                   atom=plain_symbols(species.atom),
+                                   geom=plain_geometry(geom),
                                    ppn=min(species.nel, self.ppn),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
@@ -842,8 +843,8 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(species.atom),
-                                   geom=list([list(gi) for gi in geom]),
+                                   atom=plain_symbols(species.atom),
+                                   geom=plain_geometry(geom),
                                    ppn=min(species.nel, self.ppn),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
@@ -887,8 +888,8 @@ class QuantumChemistry:
         template = open(template_file, 'r').read()
         template = template.format(label=job,
                                    kwargs=kwargs,
-                                   atom=list(frag.atom),
-                                   geom=list([list(gi) for gi in frag.geom]),
+                                   atom=plain_symbols(frag.atom),
+                                   geom=plain_geometry(frag.geom),
                                    qc_command=self.qc_command,
                                    working_dir=os.getcwd(),
                                    )  # TODO add sella keywords
@@ -934,16 +935,16 @@ class QuantumChemistry:
                                        scan_coo=reac.scan_coo,
                                        bonds=reac.irc_prod.bondlist,
                                        kwargs=kwargs,
-                                       atom=list(reac.species.atom),
-                                       init_geom=list([list(gi) for gi in geom]),
+                                       atom=plain_symbols(reac.species.atom),
+                                       init_geom=plain_geometry(geom),
                                        qc_command=self.qc_command,
                                        working_dir=os.getcwd(),
                                        vts_ang_dev=self.par['vts_ang_dev'],
                                        scan_deviation=self.par['vrc_tst_scan_deviation'],
                                        frag_maps=list([list(rm) for rm in reac.maps]),
-                                       froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),
+                                       froz_A_geom=plain_geometry(reac.products[0].geom),
                                        froz_A_atom=reac.products[0].atom,
-                                       froz_B_geom=list([list(gi) for gi in reac.products[1].geom]),
+                                       froz_B_geom=plain_geometry(reac.products[1].geom),
                                        froz_B_atom=reac.products[1].atom,
                                        code=code,
                                        Code=Code,
@@ -962,15 +963,15 @@ class QuantumChemistry:
                                        scan_coo=reac.scan_coo,
                                        bonds=reac.irc_prod.bondlist,
                                        kwargs=kwargs,
-                                       atom=list(reac.species.atom),
-                                       init_geom=list([list(gi) for gi in geom]),
+                                       atom=plain_symbols(reac.species.atom),
+                                       init_geom=plain_geometry(geom),
                                        qc_command=self.qc_command,
                                        working_dir=os.getcwd(),
                                        scan_deviation=self.par['vrc_tst_scan_deviation'],
                                        frag_maps=list([list(rm) for rm in reac.maps]),
-                                       froz_A_geom=list([list(gi) for gi in reac.products[0].geom]),
+                                       froz_A_geom=plain_geometry(reac.products[0].geom),
                                        froz_A_atom=reac.products[0].atom,
-                                       froz_B_geom=list([list(gi) for gi in reac.products[1].geom]),
+                                       froz_B_geom=plain_geometry(reac.products[1].geom),
                                        froz_B_atom=reac.products[1].atom,
                                        )
 

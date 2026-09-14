@@ -1,5 +1,14 @@
 # Unreleased
 
+**Native Q-Chem constraints are written correctly (#67).** The six Q-Chem job
+templates imported ASE's stock `QChem` calculator, which knows nothing about
+KinBot's `addsec` keyword and wrote it into `$rem` as `ADDSEC $OPT ...`,
+which Q-Chem rejects ("Illegal rem input in read_rem"). KinBot's own
+calculator, which writes the constraints as a separate `$opt ... $end`
+block, has existed since 2023 and was already used by every Gaussian and
+Sella template. The Q-Chem templates now use it too. This affected every
+native Q-Chem transition-state search and hindered-rotor scan.
+
 **Near-linear molecules keep 3N-5 vibrations, and MESS agrees.** `get_frequencies`
 decided how many external rotations to project out by an absolute cutoff of 1e-5
 on the mass-weighted rotation vectors. Any optimised geometry that is linear only

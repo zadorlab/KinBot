@@ -1,5 +1,30 @@
 # Unreleased
 
+**Near-linear molecules keep 3N-5 vibrations, and MESS agrees.** `get_frequencies`
+decided how many external rotations to project out by an absolute cutoff of 1e-5
+on the mass-weighted rotation vectors. Any optimised geometry that is linear only
+up to an optimiser residual (a bend of 0.01 degrees is enough) exceeded it, so
+three rotations were projected and one component of the degenerate bend was
+lost: 3N-6 frequencies instead of 3N-5. With Gaussian or Q-Chem this reached
+MESS only through the rotor-projected frequency set; with FairChem or Sella,
+where all frequencies come from this routine, it affected every near-linear
+species (CO2, HCN, C2H2, ...). Linearity is now decided by three gates: all bond
+angles within 2 degrees of 180; the curvature of the Hessian along the rotation
+about the molecular axis is a vibration (above 50 cm-1), not a free rotation,
+which distinguishes a linear molecule left slightly bent by the optimiser from
+a genuinely bent minimum; and that curvature exceeds three times the residual of
+the other rigid-body motions. Stored geometries are never modified. A species
+judged linear is written to the MESS input as an exactly linear rotor, with a
+comment, so that MESS's own moment-of-inertia test (I_min/I_mid < 1e-5) reaches
+the same conclusion; otherwise MESS would treat a 179-degree CO2 as a
+non-linear top with a tiny third moment, a factor of ~3 in its rotational
+partition function. The reverse mismatch is handled too: a genuinely bent minimum so
+close to linear that MESS's test would call it linear gets its three rotational
+constants written explicitly, so MESS keeps the non-linear rotor that the 3N-6
+frequencies assume. Both decisions are logged. The same routine now uses the
+symmetric eigensolver, so degenerate modes can no longer come back as complex
+numbers.
+
 # 2.4.1
 
 Bugfix release. Two groups of changes alter numerical output for inputs that

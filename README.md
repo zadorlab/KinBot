@@ -57,7 +57,7 @@ To use the FAIRChem/UMA machine-learning interatomic potential backend
 
     pip install kinbot[fc]
 
-The optional `plot` extra (`matplotlib`, `pyvis`, `rdkit`) enables the plotting
+The optional `plot` extra (`matplotlib`, `rdkit`) enables the plotting
 utilities:
 
     pip install kinbot[plot]

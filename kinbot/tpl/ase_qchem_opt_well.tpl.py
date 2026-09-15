@@ -1,6 +1,6 @@
 import numpy as np
 from ase import Atoms
-from ase.calculators.qchem import QChem
+from kinbot.ase_modules.calculators.qchem import QChem
 from ase.db import connect
 
 from kinbot import reader_qchem

@@ -1,5 +1,21 @@
 # Unreleased
 
+**Native Q-Chem constraints are written correctly (#67).** The six Q-Chem job
+templates imported ASE's stock `QChem` calculator, which knows nothing about
+KinBot's `addsec` keyword and wrote it into `$rem` as `ADDSEC $OPT ...`,
+which Q-Chem rejects ("Illegal rem input in read_rem"). KinBot's own
+calculator, which writes the constraints as a separate `$opt ... $end`
+block, has existed since 2023 and was already used by every Gaussian and
+Sella template. The Q-Chem templates now use it too. This affected every
+native Q-Chem transition-state search and hindered-rotor scan. Testing against a real
+Q-Chem also turned up four further defects, fixed in the same change: bond and
+angle constraints were computed but never written (only torsions reached the
+`$opt` block); releasing a constraint indexed the geometry with one-based atom
+numbers and raised `IndexError`; the `Total energy =` summary line printed by
+Q-Chem 6.2 was not recognised, so converged jobs reported no energy; and an
+empty `OPT` keyword made Q-Chem frequency jobs run another optimisation.
+Validated on Q-Chem 5.4.2 and 6.2.1.
+
 **PES post-processing writes `pesviewer.inp` first and no longer draws its own
 graph (#82).** The pyvis-based "interactive graph" duplicated what PESViewer
 does from `pesviewer.inp`, and it was the only post-processing step with a

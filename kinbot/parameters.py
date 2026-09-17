@@ -13,6 +13,7 @@ from ase import units
 from kinbot import kb_path
 from kinbot import pp_tables
 from kinbot import constants
+from kinbot.theory import profiled_requested, resolve_profiles
 
 logger = logging.getLogger('KinBot')
 
@@ -197,6 +198,16 @@ class Parameters:
             # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
             'qc': 'gauss',  # or nwchem or nn_pes
+            # Independent, opt-in ASE calculator profiles for L1/L2.
+            'profiled_theory': 0,
+            'theory_preset': '',
+            'l1': '',
+            'l2': '',
+            'l1_profile': {},
+            'l2_profile': {},
+            'composite_method': '',
+            'l3_overrides': {},
+            'l3_resource_overrides': {},
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
@@ -439,6 +450,9 @@ class Parameters:
         if self.input_file is not None:
             self.read_user_input()
 
+        self.par['profiled_theory'] = int(profiled_requested(self.par))
+        self.theory_profiles = resolve_profiles(self.par)
+
         err = None
         if self.par['me'] == 1:
             if self.par['calc_aie'] and not self.par['conformer_search']:
@@ -474,7 +488,8 @@ class Parameters:
                                'lowest conformer.')
 
         if (self.par['high_level'] == 0 and self.par['rotor_scan'] == 1
-                and self.par['qc'].lower() != 'fc'):
+                and self.par['qc'].lower() != 'fc'
+                and not self.par['profiled_theory']):
             if show_warnings:
                 logger.warning('L1 level of theory (here set to '
                                f'{self.par["method"].upper()}/{self.par["basis"].upper()}) is '

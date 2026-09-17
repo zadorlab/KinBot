@@ -3792,3 +3792,49 @@ remain separate implementation gates. Later feature work must not treat
 process exit status as scientific validation.
 
 ATcT source: https://atct.anl.gov/
+
+---
+
+# 73. Pre-smoke audit and reproducible HPC handoff (2026-09-17)
+
+The pre-smoke audit checked the generic dispatcher, its CH4 task graph,
+legacy KinBot interfaces, and vendor input syntax. It corrected these
+execution risks before the first licensed run:
+
+- A completed geometry or output artifact could be changed after acceptance
+  without blocking dependent work. The driver now checks staged input,
+  Slurm-script, geometry, and completed-artifact hashes on every advance.
+- An `execution.json` could be accepted without a matching task identity or
+  complete artifact list. Acceptance now checks the task, schema, geometry
+  hash, every declared artifact hash, and the final XYZ hash.
+- Site modules, the CFOUR basis file, and required executables had no
+  dedicated pre-submission check. `preflight` now sources the same setup file
+  as the batch scripts and checks program paths, `CFOUR_GENBAS`, Python
+  imports, exclusive Slurm directives, and `sbatch --test-only` for staged
+  jobs. Compute-node behavior still
+  requires the actual licensed run.
+- A failed calculation could only be repeated by starting over. `retry`
+  archives a failed attempt and restages that task without rerunning its
+  successful siblings; changed chemistry or resources require a new run.
+- The CFOUR CH4 input now uses the documented `COORD=CARTESIAN` spelling.
+  Molpro CCSD(T) `OPTG` now explicitly requests the numerical gradient
+  required by the vendor's CCSD(T) optimization example. Molpro's `SAVEXYZ`
+  output, F12b `ENERGY(2)`, `SCALE_TRIP=1`, and total-node
+  `-M` memory option were checked against the Molpro manual; direct MRCC
+  `MINP`/`dmrcc` and CFOUR `ZMAT`/`GENBAS`/DBOC were checked against their
+  manuals. These checks establish input plausibility, not runtime success.
+- The direct MRCC XYZ block now includes the blank line required by its
+  documented `geom=xyz` format and explicitly records frozen-core and
+  spherical-basis choices. CFOUR must print its DBOC label, and MRCC must
+  print normal termination without documented fatal/termination-error text;
+  these are interface checks until full output parsers are validated.
+- The earlier environment command could install conda-forge Sella 2.1.0 even
+  though KinBot requires 2.6.0. The HPC runbook now pins ASE 3.29.0 and
+  installs Sella 2.6.0 from PyPI before the editable KinBot install.
+
+Run the exact cluster procedure in `docs/CH4_HPC_smoke_test.md`, using a
+tested commit on the `composite` branch. First collect successful CH4 output
+and method/version banners. Then compare scientific values and build real
+parsers before enabling an ANL label or a MESS handoff. The local regression
+suite passes without the four licensed codes; the external result remains the
+gate for those program interfaces.

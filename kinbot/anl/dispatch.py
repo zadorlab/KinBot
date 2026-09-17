@@ -94,6 +94,10 @@ def _geometry_hash(atoms):
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _file_hash(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
 def _validate_task(task, ids, limits):
     if not isinstance(task, dict):
         raise ValueError('Every task must be an object.')
@@ -136,18 +140,31 @@ def _validate_task(task, ids, limits):
             raise ValueError(f'{ident}: invalid optimizer options.')
         if ('sella_kwargs' in options and not isinstance(options['sella_kwargs'], dict)):
             raise ValueError(f'{ident}: sella_kwargs must be an object.')
+        if ('fmax' in options and
+                (isinstance(options['fmax'], bool) or
+                 not isinstance(options['fmax'], (int, float)) or
+                 not np.isfinite(options['fmax']) or options['fmax'] <= 0)):
+            raise ValueError(f'{ident}: fmax must be a positive finite number.')
+        if 'steps' in options:
+            _positive_integer(options['steps'], f'{ident} steps')
     else:
         _basename(task.get('backend'), f'{ident} backend')
         _basename(task.get('input_name'), f'{ident} input_name')
         if not isinstance(task.get('input_template'), str) or not task['input_template'].strip():
             raise ValueError(f'{ident}: input_template is required.')
         unknown_tokens = set(_TOKEN.findall(task['input_template'])) - _INPUT_TOKENS
-        if unknown_tokens:
+        if (unknown_tokens or
+                _TOKEN.sub('', task['input_template']).find('{{') >= 0 or
+                _TOKEN.sub('', task['input_template']).find('}}') >= 0):
             raise ValueError(f'{ident}: unknown input tokens {sorted(unknown_tokens)}.')
         command = task.get('command')
         if not isinstance(command, list) or not command or any(
                 not isinstance(arg, str) or not arg for arg in command):
             raise ValueError(f'{ident}: command must be an argument list.')
+        command_tokens = {token for arg in command
+                          for token in re.findall(r'\{([^{}]+)\}', arg)}
+        if command_tokens - {'cores', 'input', 'molpro_total_mw'}:
+            raise ValueError(f'{ident}: unsupported command placeholders.')
         if task.get('stdin'):
             if task['stdin'] != task['input_name']:
                 raise ValueError(f'{ident}: stdin must equal input_name.')
@@ -163,8 +180,9 @@ def _validate_task(task, ids, limits):
         if ({task['input_name'], stdout_name, stderr_name, *outputs} & _RESERVED_FILES):
             raise ValueError(f'{ident}: task filenames use reserved dispatch files.')
         if (stdout_name == stderr_name or task['input_name'] in (stdout_name, stderr_name)
+                or task['input_name'] in outputs
                 or (task['backend'].lower() == 'molpro' and stdout_name in outputs)):
-            raise ValueError(f'{ident}: input, stdout, and stderr filenames must not collide.')
+            raise ValueError(f'{ident}: input, output, stdout, and stderr filenames must not collide.')
         backend = task['backend'].lower()
         if backend == 'molpro':
             _molpro_total_mw(resources)
@@ -189,7 +207,7 @@ def _validate_task(task, ids, limits):
         for filename in staged_files:
             _basename(filename, f'{ident} staged filename')
             if filename in (task['input_name'], stdout_name, stderr_name) \
-                    or filename in _RESERVED_FILES:
+                    or filename in _RESERVED_FILES or filename in outputs:
                 raise ValueError(f'{ident}: staged filename collides with task files.')
         if geometry_output:
             _basename(geometry_output, f'{ident} geometry_output')
@@ -204,6 +222,15 @@ def _validate_task(task, ids, limits):
                     or not marker['contains']):
                 raise ValueError(f'{ident}: invalid success_marker.')
             _basename(marker['file'], f'{ident} success_marker file')
+            if marker['file'] not in set(outputs) | {stdout_name, stderr_name}:
+                raise ValueError(f'{ident}: success_marker file must be a required output or stream.')
+        failure_markers = task.get('failure_markers', [])
+        if (not isinstance(failure_markers, list) or any(
+                not isinstance(marker, dict) or set(marker) != {'file', 'contains'}
+                or marker.get('file') not in set(outputs) | {stdout_name, stderr_name}
+                or not isinstance(marker.get('contains'), str)
+                or not marker['contains'] for marker in failure_markers)):
+            raise ValueError(f'{ident}: failure_markers must refer to output files.')
 
 
 def validate_spec(spec):
@@ -284,7 +311,7 @@ def _render_input(template, atoms, molecule, resources):
     replacements = {
         'CARTESIAN': coordinates,
         'XYZ': f'{len(atoms)}\nKinBot accepted geometry\n{coordinates}',
-        'MRCC_XYZ': f'{len(atoms)}\n{coordinates}',
+        'MRCC_XYZ': f'{len(atoms)}\n\n{coordinates}',
         'NATOMS': str(len(atoms)),
         'CHARGE': str(molecule.get('charge', 0)),
         'MULT': str(molecule.get('multiplicity', 1)),
@@ -357,10 +384,16 @@ def _stage_task(run_dir, spec, state, task):
     if directory.exists():
         raise RuntimeError(f'{ident}: existing task directory needs manual review.')
     source = task.get('geometry_from', 'initial')
-    atoms = (_atoms(spec['molecule']) if source == 'initial' else
-             read(run_dir / 'tasks' / source /
-                  next(item['geometry_output'] for item in spec['tasks']
-                       if item['id'] == source)))
+    if source == 'initial':
+        atoms = _atoms(spec['molecule'])
+    else:
+        source_entry = state['tasks'][source]
+        source_file = run_dir / 'tasks' / source / next(
+            item['geometry_output'] for item in spec['tasks'] if item['id'] == source)
+        atoms = read(source_file)
+        if (_geometry_hash(atoms) != source_entry.get('final_geometry_sha256')
+                or source_entry['status'] != 'complete'):
+            raise RuntimeError(f'{ident}: accepted source geometry changed.')
     initial = _atoms(spec['molecule'])
     if atoms.get_chemical_symbols() != initial.get_chemical_symbols():
         raise RuntimeError(f'{ident}: geometry changed atom identity or order.')
@@ -380,9 +413,17 @@ def _stage_task(run_dir, spec, state, task):
                      'multiplicity': spec['molecule'].get('multiplicity', 1)},
         'geometry_sha256': _geometry_hash(read(directory / 'geometry.xyz')),
     })
-    (directory / 'job.slurm').write_text(_slurm_script(task, directory, sys.executable))
-    state['tasks'][ident] = {'status': 'staged', 'geometry_from': source,
-                             'geometry_sha256': _geometry_hash(atoms)}
+    (directory / 'job.slurm').write_text(
+        _slurm_script(task, directory, state['python']))
+    state['tasks'][ident] = {
+        'status': 'staged', 'geometry_from': source,
+        'geometry_sha256': _geometry_hash(atoms),
+        'task_sha256': _file_hash(directory / 'task.json'),
+        'job_sha256': _file_hash(directory / 'job.slurm'),
+    }
+    if task['kind'] == 'external':
+        state['tasks'][ident]['input_sha256'] = _file_hash(
+            directory / task['input_name'])
 
 
 def prepare(spec_path, run_dir):
@@ -395,6 +436,7 @@ def prepare(spec_path, run_dir):
         '# Load licensed QC modules and set CFOUR_GENBAS on this site.\n')
     _atomic_json(run_dir / 'workflow.json', spec)
     state = {'schema': 1,
+             'python': sys.executable,
              'spec_sha256': hashlib.sha256((run_dir / 'workflow.json').read_bytes()).hexdigest(),
              'tasks': {}}
     for task in spec['tasks']:
@@ -402,6 +444,62 @@ def prepare(spec_path, run_dir):
             _stage_task(run_dir, spec, state, task)
     _atomic_json(run_dir / 'state.json', state)
     return run_dir
+
+
+def _verify_stage_files(run_dir, task, entry):
+    """Stop submission or acceptance if prepared inputs have been edited."""
+    directory = run_dir / 'tasks' / task['id']
+    expected = {'task.json': 'task_sha256', 'job.slurm': 'job_sha256'}
+    if task['kind'] == 'external':
+        expected[task['input_name']] = 'input_sha256'
+    for filename, key in expected.items():
+        path = directory / filename
+        if not path.is_file() or _file_hash(path) != entry.get(key):
+            raise RuntimeError(f"{task['id']}: staged {filename} changed or is missing.")
+    geometry = directory / 'geometry.xyz'
+    if (not geometry.is_file() or
+            _geometry_hash(read(geometry)) != entry['geometry_sha256']):
+        raise RuntimeError(f"{task['id']}: staged geometry changed or is missing.")
+
+
+def _verify_execution(run_dir, task, entry, execution):
+    ident = task['id']
+    if (execution.get('schema') != 1 or execution.get('task_id') != ident
+            or execution.get('geometry_sha256') != entry['geometry_sha256']
+            or execution.get('status') not in ('executed', 'failed')):
+        raise RuntimeError(f'{ident}: execution record does not match the task.')
+    if execution['status'] == 'failed':
+        return None
+    artifacts = execution.get('artifacts')
+    if not isinstance(artifacts, dict) or not artifacts:
+        raise RuntimeError(f'{ident}: execution has no artifact hashes.')
+    directory = run_dir / 'tasks' / ident
+    for name, expected in artifacts.items():
+        if (not isinstance(name, str) or not _SAFE_NAME.fullmatch(name)
+                or not isinstance(expected, str) or
+                not re.fullmatch(r'[0-9a-f]{64}', expected)):
+            raise RuntimeError(f'{ident}: invalid artifact record.')
+        path = directory / name
+        if not path.is_file() or _file_hash(path) != expected:
+            raise RuntimeError(f'{ident}: artifact {name} changed or is missing.')
+    needed = {'task.json', 'geometry.xyz'}
+    if task['kind'] == 'external':
+        needed.update({task['input_name'], task.get('stdout', 'stdout.txt'),
+                       task.get('stderr', 'stderr.txt')})
+        needed.update(task['required_outputs'])
+        needed.update(task.get('files_from_env', {}))
+    else:
+        needed.update({'final.xyz', 'optimization.log'})
+    if needed - artifacts.keys():
+        raise RuntimeError(f'{ident}: execution is missing required artifact hashes.')
+    geometry_output = task.get('geometry_output')
+    if geometry_output:
+        final = directory / geometry_output
+        actual_hash = _geometry_hash(read(final))
+        if actual_hash != execution.get('details', {}).get('final_geometry_sha256'):
+            raise RuntimeError(f'{ident}: accepted geometry hash mismatch.')
+        return actual_hash
+    return None
 
 
 def _run_external(directory, record):
@@ -442,6 +540,11 @@ def _run_external(directory, record):
         output = directory / marker['file']
         if not output.is_file() or marker['contains'] not in output.read_text(errors='replace'):
             raise RuntimeError(f"Success marker absent from {marker['file']}.")
+    for marker in task.get('failure_markers', []):
+        output = directory / marker['file']
+        if output.is_file() and marker['contains'] in output.read_text(errors='replace'):
+            raise RuntimeError(f"Failure marker present in {marker['file']}: "
+                               f"{marker['contains']}")
     return {'command': command, 'returncode': result.returncode}
 
 
@@ -472,6 +575,9 @@ def _run_ase_optimize(directory, record):
                                   steps=options.get('steps', 100))
         if not converged:
             raise RuntimeError('ASE geometry optimization did not converge.')
+    else:
+        (directory / 'optimization.log').write_text(
+            'Single atom: geometry optimization is unnecessary.\n')
     energy_ev = float(atoms.get_potential_energy())
     write(directory / 'final.xyz', atoms)
     return {'energy_ev': energy_ev, 'energy_hartree': energy_ev / Hartree,
@@ -489,6 +595,11 @@ def run_task(task_file):
     result = {'schema': 1, 'task_id': task['id'],
               'geometry_sha256': record['geometry_sha256']}
     try:
+        run_dir, spec, state = _load(directory.parents[1])
+        task_spec = next(item for item in spec['tasks'] if item['id'] == task['id'])
+        if task != task_spec or task['id'] != directory.name:
+            raise RuntimeError('Task record does not match prepared workflow.')
+        _verify_stage_files(run_dir, task, state['tasks'][task['id']])
         atoms = read(directory / 'geometry.xyz')
         if _geometry_hash(atoms) != record['geometry_sha256']:
             raise RuntimeError('Staged geometry changed after preparation.')
@@ -508,7 +619,7 @@ def run_task(task_file):
             names.update(task.get('files_from_env', {}))
         else:
             names |= {'final.xyz', 'optimization.log'}
-        artifacts = {name: hashlib.sha256((directory / name).read_bytes()).hexdigest()
+        artifacts = {name: _file_hash(directory / name)
                      for name in sorted(names) if (directory / name).is_file()}
         result.update(status='executed', details=details, artifacts=artifacts)
     except Exception as exc:
@@ -528,35 +639,124 @@ def _job_active(job_id):
     return str(job_id) in result.stdout.split()
 
 
+def preflight(run_dir):
+    """Check login-node tools and the same site setup sourced by batch jobs."""
+    run_dir, spec, state = _load(run_dir)
+    for name in ('sbatch', 'squeue', 'bash'):
+        if not shutil.which(name):
+            raise RuntimeError(f'Preflight: {name} is unavailable on PATH.')
+    programs = set()
+    env_files = set()
+    for task in spec['tasks']:
+        if task['kind'] == 'external':
+            programs.add(task['command'][0])
+            env_files.update(task.get('files_from_env', {}).values())
+        else:
+            profile = _runtime_profile(task)
+            if profile.calculator.lower() in ('gaussian', 'gauss'):
+                programs.add(shlex.split(profile.command or 'g16')[0])
+        entry = state['tasks'].get(task['id'])
+        if entry and entry['status'] in ('staged', 'submitted', 'complete'):
+            _verify_stage_files(run_dir, task, entry)
+            script = (run_dir / 'tasks' / task['id'] / 'job.slurm').read_text()
+            if '#SBATCH --exclusive\n' not in script:
+                raise RuntimeError(f"{task['id']}: job does not request an exclusive node.")
+    lines = ['set -euo pipefail',
+             f'source {shlex.quote(str(run_dir / "site_setup.sh"))}']
+    for program in sorted(programs):
+        lines.append(f'command -v {shlex.quote(program)} >/dev/null || '
+                     f'{{ echo {shlex.quote("Missing executable: " + program)} >&2; exit 1; }}')
+    for env_name in sorted(env_files):
+        lines.append(f'test -f "${{{env_name}:-}}" || '
+                     f'{{ echo {shlex.quote("Missing file in $" + env_name)} >&2; exit 1; }}')
+    python = shlex.quote(state['python'])
+    lines.append(f'{python} -c '
+                 + shlex.quote('import ase, sella; import kinbot.anl.dispatch'))
+    result = subprocess.run(['bash', '-c', '\n'.join(lines)],
+                            cwd=run_dir, capture_output=True, text=True,
+                            check=False)
+    if result.returncode:
+        raise RuntimeError('Preflight failed after sourcing site_setup.sh: '
+                           + (result.stderr.strip() or result.stdout.strip()))
+    checked = 0
+    for task in spec['tasks']:
+        entry = state['tasks'].get(task['id'])
+        if not entry or entry['status'] != 'staged':
+            continue
+        result = subprocess.run(['sbatch', '--test-only', 'job.slurm'],
+                                cwd=run_dir / 'tasks' / task['id'],
+                                capture_output=True, text=True, check=False)
+        if result.returncode:
+            raise RuntimeError(f"{task['id']}: Slurm rejected test-only batch script: "
+                               + (result.stderr.strip() or result.stdout.strip()))
+        checked += 1
+    return {'programs': sorted(programs), 'file_variables': sorted(env_files),
+            'exclusive_jobs_checked': len(state['tasks']),
+            'slurm_scripts_tested': checked}
+
+
+def retry_failed(run_dir, ident):
+    """Archive one failed attempt and restage it without rerunning siblings."""
+    run_dir, spec, state = _load(run_dir)
+    by_id = {task['id']: task for task in spec['tasks']}
+    if ident not in by_id or state['tasks'].get(ident, {}).get('status') != 'failed':
+        raise ValueError(f'{ident}: only a failed, staged task can be retried.')
+    entry = state['tasks'][ident]
+    if entry.get('job_id') and _job_active(entry['job_id']):
+        raise RuntimeError(f'{ident}: Slurm job is still active.')
+    if any(other != ident and other in state['tasks']
+           and ident in _task_dependencies(task)
+           for other, task in by_id.items()):
+        raise RuntimeError(f'{ident}: downstream task already exists; review run.')
+    old = run_dir / 'tasks' / ident
+    attempt = entry.get('attempt', 1)
+    archive = run_dir / 'attempts' / ident / str(attempt)
+    if archive.exists():
+        raise RuntimeError(f'{ident}: retry archive already exists.')
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    old.replace(archive)
+    try:
+        _stage_task(run_dir, spec, state, by_id[ident])
+    except Exception:
+        state['tasks'][ident] = {**entry, 'archive': str(archive)}
+        _atomic_json(run_dir / 'state.json', state)
+        raise
+    state['tasks'][ident]['attempt'] = attempt + 1
+    state['tasks'][ident]['previous_attempt'] = str(archive)
+    _atomic_json(run_dir / 'state.json', state)
+    return archive
+
+
 def advance(run_dir, submit=False):
     """Complete finished tasks, stage ready tasks, and optionally submit jobs."""
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
     for ident, entry in state['tasks'].items():
+        task = by_id[ident]
         if entry['status'] == 'submitting':
             raise RuntimeError(f'{ident}: submission outcome uncertain; reconcile Slurm job manually.')
+        if entry['status'] in ('staged', 'submitted', 'complete'):
+            _verify_stage_files(run_dir, task, entry)
+        if entry['status'] == 'complete':
+            outcome = run_dir / 'tasks' / ident / 'execution.json'
+            if not outcome.is_file():
+                raise RuntimeError(f'{ident}: completed execution record is missing.')
+            actual_hash = _verify_execution(run_dir, task, entry,
+                                            json.loads(outcome.read_text()))
+            if actual_hash != entry.get('final_geometry_sha256'):
+                raise RuntimeError(f'{ident}: completed geometry state changed.')
         if entry['status'] not in ('staged', 'submitted'):
             continue
         outcome = run_dir / 'tasks' / ident / 'execution.json'
         if outcome.exists():
             execution = json.loads(outcome.read_text())
-            if execution['geometry_sha256'] != json.loads(
-                    (run_dir / 'tasks' / ident / 'task.json').read_text())['geometry_sha256']:
-                raise RuntimeError(f'{ident}: execution geometry hash mismatch.')
             if entry['status'] == 'submitted' and _job_active(entry['job_id']):
                 continue
-            geometry_output = by_id[ident].get('geometry_output')
-            if execution['status'] == 'executed' and geometry_output:
-                final = run_dir / 'tasks' / ident / geometry_output
-                if not final.is_file():
-                    raise RuntimeError(f'{ident}: accepted geometry file is missing.')
-                actual_hash = _geometry_hash(read(final))
-                if actual_hash != execution.get('details', {}).get('final_geometry_sha256'):
-                    raise RuntimeError(f'{ident}: accepted geometry hash mismatch.')
+            actual_hash = _verify_execution(run_dir, task, entry, execution)
             entry['status'] = ('complete' if execution['status'] == 'executed'
                                else 'failed')
             entry['execution'] = execution['status']
-            if geometry_output and execution['status'] == 'executed':
+            if actual_hash is not None:
                 entry['final_geometry_sha256'] = actual_hash
         elif entry['status'] == 'submitted' and not _job_active(entry['job_id']):
             entry['status'] = 'failed'
@@ -623,6 +823,11 @@ def main(argv=None):
     drive.add_argument('--interval', type=int, default=20)
     status = sub.add_parser('status')
     status.add_argument('run_dir')
+    check = sub.add_parser('preflight')
+    check.add_argument('run_dir')
+    retry = sub.add_parser('retry')
+    retry.add_argument('run_dir')
+    retry.add_argument('task_id')
     run = sub.add_parser('run-task')
     run.add_argument('task_file')
     args = parser.parse_args(argv)
@@ -633,6 +838,16 @@ def main(argv=None):
     elif args.action == 'status':
         _, spec, state = _load(args.run_dir)
         print(json.dumps(_summary(spec, state), indent=2))
+    elif args.action == 'preflight':
+        print(json.dumps(preflight(args.run_dir), indent=2))
+    elif args.action == 'retry':
+        run_dir = Path(args.run_dir).resolve()
+        with (run_dir / 'drive.lock').open('w') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise RuntimeError('Another driver is managing this run.') from exc
+            print(retry_failed(run_dir, args.task_id))
     else:
         run_dir = Path(args.run_dir).resolve()
         with (run_dir / 'drive.lock').open('w') as lock:

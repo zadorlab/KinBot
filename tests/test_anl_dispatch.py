@@ -1,6 +1,8 @@
 """General dispatch behavior, with CH4 as the sole chemistry fixture."""
 
 import json
+import hashlib
+import os
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
@@ -15,8 +17,8 @@ import pytest
 from examples.anl.ch4_dispatch import ch4_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
-    _geometry_hash, _molpro_total_mw, _runtime_profile, advance, prepare, run_task,
-    validate_spec,
+    _geometry_hash, _molpro_total_mw, _runtime_profile, advance, prepare,
+    preflight, retry_failed, run_task, validate_spec,
 )
 
 
@@ -29,6 +31,7 @@ def _write_spec(directory, spec):
 def _mock_execution(run_dir, ident, *, geometry=None):
     task_dir = Path(run_dir) / 'tasks' / ident
     task = json.loads((task_dir / 'task.json').read_text())
+    spec = task['task']
     if geometry:
         write(task_dir / geometry, Atoms(
             symbols=task['molecule']['symbols'],
@@ -36,9 +39,24 @@ def _mock_execution(run_dir, ident, *, geometry=None):
         details = {'final_geometry_sha256': _geometry_hash(read(task_dir / geometry))}
     else:
         details = {}
+    names = {'geometry.xyz', 'task.json'}
+    if spec['kind'] == 'external':
+        names.update({spec['input_name'], spec.get('stdout', 'stdout.txt'),
+                      spec.get('stderr', 'stderr.txt')})
+        names.update(spec['required_outputs'])
+        names.update(spec.get('files_from_env', {}))
+    else:
+        names.update({'final.xyz', 'optimization.log'})
+    for name in names:
+        path = task_dir / name
+        if not path.exists():
+            path.write_text('mock output\n')
+    artifacts = {name: hashlib.sha256((task_dir / name).read_bytes()).hexdigest()
+                 for name in names}
     (task_dir / 'execution.json').write_text(json.dumps({
+        'schema': 1,
         'task_id': ident, 'geometry_sha256': task['geometry_sha256'],
-        'status': 'executed', 'details': details,
+        'status': 'executed', 'details': details, 'artifacts': artifacts,
     }))
 
 
@@ -58,7 +76,7 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
         assert 'harmonic' not in state['tasks']
         molpro_geom = (run_dir / 'tasks' / 'l3_geometry' /
                        'l3_geometry.inp').read_text()
-        assert 'optg,savexyz=l3_geometry.xyz' in molpro_geom
+        assert 'optg,numerical,savexyz=l3_geometry.xyz' in molpro_geom
         assert 'C' in molpro_geom
         assert 'memory,' not in molpro_geom.lower()
         assert 'orient,noorient' in molpro_geom
@@ -72,16 +90,19 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
             assert script.count('#SBATCH --exclusive') == 1
             assert script.index('#SBATCH --exclusive') < script.index('set -euo pipefail')
         f12 = (run_dir / 'tasks' / 'f12_tz' / 'f12_tz.inp').read_text()
+        harmonic = (run_dir / 'tasks' / 'harmonic' / 'harmonic.inp').read_text()
+        assert 'frequencies,numerical' in harmonic
         assert 'ccsd(t)-f12,scale_trip=1' in f12
         assert 'kb_f12b=energy(2)' in f12
         cfour = (run_dir / 'tasks' / 'cfour_dboc' / 'ZMAT').read_text()
-        assert 'COORDINATES=CARTESIAN' in cfour
+        assert 'COORD=CARTESIAN' in cfour
         assert 'DBOC=ON' in cfour
         assert 'MEM_UNIT=MB,MEMORY_SIZE=11200' in cfour
         mrcc = (run_dir / 'tasks' / 'mrcc_ccsdtq' / 'MINP').read_text()
         assert 'calc=CCSDT(Q)' in mrcc
         assert 'mem=22400MB' in mrcc
-        assert 'geom=xyz\n5\n' in mrcc
+        assert 'geom=xyz\n5\n\nC' in mrcc
+        assert 'core=frozen' in mrcc
         gaussian = (run_dir / 'tasks' / 'gaussian_vpt2' / 'vpt2.com').read_text()
         assert 'Freq=Anharmonic' in gaussian
         assert 'Opt=(Tight,CalcFC)' in gaussian
@@ -151,6 +172,28 @@ def test_generic_external_task_runs_with_isolated_io_and_accepted_geometry():
             run_task(run_dir / 'tasks' / 'geometry' / 'task.json')
 
 
+def test_program_failure_text_is_rejected_even_with_zero_exit_status():
+    spec = ch4_spec()
+    spec['tasks'] = [{
+        'id': 'check', 'kind': 'external', 'backend': 'fake',
+        'resources': {'cores': 1, 'memory_mb': 512,
+                      'walltime': '00:10:00'},
+        'input_name': 'check.inp', 'input_template': '{{XYZ}}\n',
+        'command': [sys.executable, '-c',
+                    "from pathlib import Path; "
+                    "Path('check.out').write_text('DONE\\nFatal error\\n')"],
+        'required_outputs': ['check.out'],
+        'success_marker': {'file': 'check.out', 'contains': 'DONE'},
+        'failure_markers': [{'file': 'check.out', 'contains': 'Fatal error'}],
+    }]
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        with pytest.raises(RuntimeError, match='Failure marker'):
+            run_task(run_dir / 'tasks' / 'check' / 'task.json')
+        assert advance(run_dir)['tasks']['check']['status'] == 'failed'
+
+
 def test_ch4_ase_sella_runner_with_analytic_toy_calculator():
     class Quadratic(Calculator):
         implemented_properties = ['energy', 'forces']
@@ -170,7 +213,6 @@ def test_ch4_ase_sella_runner_with_analytic_toy_calculator():
 
     spec = ch4_spec()
     spec['tasks'] = [spec['tasks'][0]]
-    spec['tasks'][0]['optimizer']['sella_kwargs'] = {'internal': False}
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
         run_dir = prepare(_write_spec(root, spec), root / 'run')
@@ -246,3 +288,80 @@ def test_missing_sbatch_does_not_leave_uncertain_submission_state():
                 advance(run_dir, submit=True)
         state = json.loads((run_dir / 'state.json').read_text())
         assert state['tasks']['l2_geometry']['status'] == 'staged'
+
+
+def test_completed_geometry_or_artifact_mutation_blocks_children():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        advance(run_dir)
+        final = run_dir / 'tasks' / 'l2_geometry' / 'final.xyz'
+        final.write_text(final.read_text().replace('0.630', '0.635'))
+        with pytest.raises(RuntimeError, match='artifact|geometry'):
+            advance(run_dir)
+
+
+def test_staged_input_mutation_blocks_submission():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        job = run_dir / 'tasks' / 'l2_geometry' / 'job.slurm'
+        job.write_text(job.read_text().replace('--exclusive', '--oversubscribe'))
+        with pytest.raises(RuntimeError, match='staged job.slurm changed'):
+            advance(run_dir, submit=True)
+
+
+def test_failed_task_can_be_archived_and_retried():
+    spec = ch4_spec()
+    spec['tasks'] = [{
+        'id': 'sample', 'kind': 'external', 'backend': 'fake',
+        'resources': {'cores': 1, 'memory_mb': 512,
+                      'walltime': '00:10:00'},
+        'input_name': 'sample.inp',
+        'input_template': '{{XYZ}}\n',
+        'command': [sys.executable, '-c', 'raise SystemExit(2)'],
+        'required_outputs': ['sample.out'],
+    }]
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        with pytest.raises(RuntimeError, match='Program exited'):
+            run_task(run_dir / 'tasks' / 'sample' / 'task.json')
+        assert advance(run_dir)['tasks']['sample']['status'] == 'failed'
+        archive = retry_failed(run_dir, 'sample')
+        assert (archive / 'execution.json').is_file()
+        assert not (run_dir / 'tasks' / 'sample' / 'execution.json').exists()
+        assert advance(run_dir)['tasks']['sample']['status'] == 'staged'
+
+
+def test_preflight_reports_missing_program_before_submission():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/true'):
+            with pytest.raises(RuntimeError, match='Missing executable'):
+                preflight(run_dir)
+
+
+def test_preflight_sources_site_setup_and_validates_slurm_without_submitting():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        bindir = root / 'bin'
+        bindir.mkdir()
+        for program in ('g16', 'molpro', 'xcfour', 'dmrcc', 'sbatch', 'squeue'):
+            executable = bindir / program
+            executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+            executable.chmod(0o755)
+        genbas = root / 'GENBAS'
+        genbas.write_text('basis fixture\n')
+        (run_dir / 'site_setup.sh').write_text(
+            f'export PATH={bindir}:$PATH\n'
+            f'export PYTHONPATH={Path(__file__).resolve().parents[1]}:${{PYTHONPATH:-}}\n'
+            f'export CFOUR_GENBAS={genbas}\n')
+        with patch.dict(os.environ, {'PATH': f'{bindir}:{os.environ["PATH"]}'}):
+            result = preflight(run_dir)
+        assert result['slurm_scripts_tested'] == 1
+        assert result['exclusive_jobs_checked'] == 1
+        assert result['programs'] == ['dmrcc', 'g16', 'molpro', 'xcfour']

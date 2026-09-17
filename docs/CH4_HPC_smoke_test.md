@@ -50,6 +50,42 @@ mamba create -y -c conda-forge -p "$PWD/.venv" \
 .venv/bin/python -c 'import sys, ase, importlib.metadata; print(sys.executable); print("ASE", ase.__version__); print("Sella", importlib.metadata.version("sella"))'
 ```
 
+### If Conda reports `certificate verify failed`
+
+This happens while fetching conda-forge metadata, before the KinBot environment
+is installed. Check the Conda version and the Python used by its base
+installation:
+
+```bash
+conda --version
+conda run -n base python --version
+conda config --show ssl_verify
+```
+
+With Conda 23.9 or newer running on Python 3.10 or newer, try the operating
+system certificate store, then retry environment creation with Conda:
+
+```bash
+conda config --set ssl_verify truststore
+conda create -y -c conda-forge -p "$PWD/.venv" python=3.11 pip numpy scipy ase=3.29.0 networkx rmsd pytest
+```
+
+If that still fails, or the installed Conda is older, obtain the cluster's CA
+bundle path from its software/network documentation or support team. The bundle
+must contain the issuing root and any intermediate CA certificates. Configure
+Conda to use that file and retry the same `conda create` command:
+
+```bash
+conda config --set ssl_verify /absolute/path/to/cluster-ca-chain.pem
+conda config --show ssl_verify
+```
+
+`conda config --set` writes to your user Conda configuration by default. If the
+certificate issue persists, record `conda --version`, `conda config --show-sources`,
+and the error message for the cluster support team. Do not set `ssl_verify` to
+`false` for this test. See the [Conda SSL troubleshooting guide](https://docs.conda.io/projects/conda/en/stable/user-guide/troubleshooting.html)
+and [Conda `ssl_verify` settings](https://docs.conda.io/projects/conda/en/stable/user-guide/configuration/settings.html).
+
 Run preparation with this same `.venv/bin/python` on the cluster. The batch
 scripts store its absolute path. The licensed QC executables need to be
 available on compute nodes through modules or the site setup script below.

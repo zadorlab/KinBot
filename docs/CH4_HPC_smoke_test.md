@@ -32,6 +32,21 @@ git pull --ff-only origin composite
 git rev-parse --short HEAD
 ```
 
+On Blodgett, do this before loading Python or QC modules. If Git's HTTPS
+helper reports a `libhogweed.so.6` / `__gmpn_cnd_sub_n` symbol error after
+modules have been loaded, retry the pull with the module library overrides
+removed for that command only:
+
+```bash
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git pull --ff-only origin composite
+git rev-parse --short HEAD
+```
+
+This keeps the current shell's modules loaded. The [Linux dynamic loader](https://man7.org/linux/man-pages/man8/ld.so.8.html)
+uses `LD_LIBRARY_PATH` when resolving shared libraries, and
+[`env -u`](https://www.gnu.org/s/coreutils/manual/html_node/env-invocation.html)
+removes a variable from the environment of the command it starts.
+
 If you already generated `ch4_dispatch.json` from an older commit, regenerate
 it after the pull. Prepare a new run directory; prepared task graphs are
 immutable and older ones may still contain the deferred MRCC task.

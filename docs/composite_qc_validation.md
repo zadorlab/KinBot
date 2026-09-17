@@ -11,7 +11,8 @@ Use a Miniforge Python 3.11 environment. The FairChem extra is needed only for
 UMA integration tests; the core interface tests do not need it.
 
 ```bash
-mamba create -y -p .venv python=3.11 pip numpy ase sella pytest networkx rmsd openbabel
+mamba create -y -c conda-forge -p .venv python=3.11 pip numpy scipy ase=3.29.0 pytest networkx rmsd openbabel
+.venv/bin/python -m pip install 'sella==2.6.0'
 .venv/bin/python -m pip install -e . --no-deps
 MPLCONFIGDIR=/tmp/kinbot-mpl .venv/bin/python -m pytest -q --ignore=tests/test_kinbot.py
 ```
@@ -47,39 +48,13 @@ program and task type before full recipe arithmetic, open-shell CH3, and
 reactions. `execution.json` means process and artifact checks passed; no
 CFOUR/MRCC energy or DBOC parser has yet certified the printed value.
 
-On the licensed cluster, from an editable checkout of this branch:
-
-```bash
-.venv/bin/python examples/anl/ch4_dispatch.py ch4_dispatch.json
-.venv/bin/python -m kinbot.anl.dispatch prepare ch4_dispatch.json ch4_run
-```
-
-Review `ch4_run/workflow.json` and the staged
-`ch4_run/tasks/l2_geometry/job.slurm`. Edit `ch4_run/site_setup.sh` to load
-the installed Gaussian, Molpro, CFOUR, and MRCC modules and to export
-`CFOUR_GENBAS=/absolute/path/to/GENBAS`. The job script sources this file
-before calling the runner. Prepare **on the cluster**: generated scripts pin
-the Python executable used for preparation and absolute run-directory paths.
-Adjust the fixture's cores, memory, walltime, partition, and `max_nodes` for
-the site's allocation, regenerate the JSON, and prepare a fresh run directory.
-
-From a login node, after verifying queue policy permits a polling driver:
-
-```bash
-.venv/bin/python -m kinbot.anl.dispatch drive ch4_run --once
-.venv/bin/python -m kinbot.anl.dispatch status ch4_run
-.venv/bin/python -m kinbot.anl.dispatch drive ch4_run
-```
-
-The first `--once` call submits only the Gaussian geometry job. The driver
-can be stopped and restarted: it stores Slurm job IDs and will not resubmit
-known jobs. It stops if a submission response is uncertain, for manual
-reconciliation. Subsequent child submissions wait for an accepted geometry.
-Every generated script has `#SBATCH --exclusive` before its first shell
-command, including both geometry jobs. The driver keeps no more than the
-configured number of exclusive nodes in flight for this one-molecule run.
-For an installation that disallows persistent login-node polling, rerun
-`drive --once` periodically from a permitted scheduler or login session.
+For the complete clone, setup, preflight, submission, monitoring, retry, and
+result-collection commands, use [the CH4 HPC runbook](CH4_HPC_smoke_test.md).
+Prepare on the cluster: generated scripts pin the Python executable used for
+preparation and absolute run-directory paths. The dispatcher checks that
+prepared inputs and accepted outputs have not changed before releasing
+dependent jobs. A failed attempt can be archived with `retry` after fixing
+site setup; changing chemistry inputs requires preparing a new run.
 
 Inspect each task directory's exact input, `execution.json`, vendor output,
 stdout/stderr, and Slurm logs. Confirm the printed method, basis, reference,
@@ -98,8 +73,14 @@ Inputs are grounded in the [Molpro XYZ/NOORIENT](https://www.molpro.net/manual/d
 [FREQUENCIES](https://www.molpro.net/manual/doku.php?id=harmonic_vibrational_frequencies_frequencies),
 and [F12 variable](https://www.molpro.net/manual/doku.php?id=quickstart)
 examples; the [CFOUR Cartesian ZMAT](https://cfour.uni-mainz.de/cfour/index.php?n=Main.MolecularGeometryInput)
-and [DBOC](https://cfour.uni-mainz.de/cfour/index.php?n=Main.CalculationOfDiagonalBorn-OppenheimerCorrections)
+and [DBOC input and output example](https://cfour.uni-mainz.de/cfour/index.php?n=Main.CalculationOfDBOC)
 pages; and the [MRCC `MINP`/`dmrcc` manual](https://www.mrcc.hu/MRCC/manual/pdf/manual.pdf).
+The CFOUR task requires the DBOC output label. The MRCC task requires its
+normal-termination label and rejects documented fatal/termination-error text;
+both program outputs still need the manual scientific checks below.
+The direct MRCC `geom=xyz` block includes an atom count and blank line before
+the coordinates, as specified by its manual; the input explicitly sets
+`core=frozen` and `gauss=spher` for reproducible basis/reference comparison.
 Gaussian's local ASE input rendering is tested, but licensed Gaussian must
 confirm the Sella force route and VPT2 output on this site.
 

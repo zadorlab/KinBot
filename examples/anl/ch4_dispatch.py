@@ -56,7 +56,7 @@ def ch4_spec():
             'symbols': ['C', 'H', 'H', 'H', 'H'],
             'positions': [
                 [0.0, 0.0, 0.0],
-                [0.630, 0.630, 0.630],
+                [0.638, 0.627, 0.634],
                 [-0.630, -0.630, 0.630],
                 [-0.630, 0.630, -0.630],
                 [0.630, -0.630, -0.630],
@@ -88,14 +88,14 @@ def ch4_spec():
             molpro_task(
                 'l3_geometry',
                 'basis=cc-pVTZ\nhf\nccsd(t)\n'
-                'optg,savexyz=l3_geometry.xyz\n',
+                'optg,numerical,savexyz=l3_geometry.xyz\n',
                 geometry_from='l2_geometry',
                 geometry_output='l3_geometry.xyz',
                 cores=8, memory_mb=32000, walltime='08:00:00',
             ),
             molpro_task(
                 'harmonic',
-                'basis=cc-pVTZ\nhf\nccsd(t)\nfrequencies\n',
+                'basis=cc-pVTZ\nhf\nccsd(t)\nfrequencies,numerical\n',
                 cores=8, memory_mb=32000, walltime='12:00:00',
             ),
             molpro_task(
@@ -122,12 +122,15 @@ def ch4_spec():
                 'input_template': (
                     'KinBot CH4 DBOC\n{{CARTESIAN}}\n\n'
                     '*CFOUR(CALC=SCF,BASIS=cc-pVTZ,DBOC=ON,'
-                    'COORDINATES=CARTESIAN,UNITS=ANGSTROM,'
+                    'COORD=CARTESIAN,UNITS=ANGSTROM,'
                     'CHARGE={{CHARGE}},MULTIPLICITY={{MULT}},'
                     'MEM_UNIT=MB,MEMORY_SIZE={{WORK_MEMORY_MB}})\n'),
                 'command': ['xcfour'], 'stdout': 'cfour.out',
                 'stderr': 'cfour.err', 'required_outputs': ['cfour.out'],
                 'files_from_env': {'GENBAS': 'CFOUR_GENBAS'},
+                'success_marker': {
+                    'file': 'cfour.out',
+                    'contains': 'The total diagonal Born-Oppenheimer correction (DBOC) is:'},
             },
             {
                 'id': 'mrcc_ccsdtq', 'kind': 'external', 'backend': 'mrcc',
@@ -136,12 +139,20 @@ def ch4_spec():
                 'input_name': 'MINP',
                 'input_template': (
                     'calc=CCSDT(Q)\nbasis=cc-pVDZ\nscftype=RHF\n'
+                    'core=frozen\ngauss=spher\n'
                     'mem={{WORK_MEMORY_MB}}MB\n'
                     'charge={{CHARGE}}\nmult={{MULT}}\nunit=angs\n'
                     'geom=xyz\n{{MRCC_XYZ}}\n'),
                 'command': ['dmrcc'], 'stdout': 'mrcc.out',
                 'stderr': 'mrcc.err', 'required_outputs': ['mrcc.out'],
                 'setup': ['export MKL_NUM_THREADS="$OMP_NUM_THREADS"'],
+                'success_marker': {'file': 'mrcc.out',
+                                   'contains': 'Normal termination of mrcc.'},
+                'failure_markers': [
+                    {'file': 'mrcc.out',
+                     'contains': 'Error at the termination of mrcc.'},
+                    {'file': 'mrcc.out', 'contains': 'Fatal error'},
+                ],
             },
             {
                 'id': 'gaussian_vpt2', 'kind': 'external',

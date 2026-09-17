@@ -54,95 +54,60 @@ The bundle must be made after the final test commit.
 
 ## 2. Install the Python environment on shared storage
 
-Use a Miniforge installation on the cluster if one is available; it need not
-appear in `module avail`. The site's Python 3.7 module is not the Python 3.11
-environment requested below. The commands assume `mamba` is available;
-replace `mamba` with `conda` if needed.
+On Blodgett, `module load python/3.7.3` exposes Conda 22.9.0. This is only
+the bootstrap: the new `.venv` below uses Python 3.11. System curl reports
+`/etc/ssl/certs/ca-certificates.crt` as its CA file. Use that **literal path**;
+`/path/printed/after/CAfile` was a placeholder in earlier instructions and
+must not be entered. If an earlier attempt saved that placeholder in
+`~/.condarc`, the guarded replacement below repairs it while saving a backup.
 
 ```bash
-mamba create -y -c conda-forge -p "$PWD/.venv" \
-  python=3.11 pip numpy scipy ase=3.29.0 networkx rmsd pytest
-.venv/bin/python -m pip install 'sella==2.6.0'
-.venv/bin/python -m pip install -e . --no-deps
+module load python/3.7.3
+test -r /etc/ssl/certs/ca-certificates.crt
+if [ -f "$HOME/.condarc" ]; then
+  cp -p "$HOME/.condarc" "$HOME/.condarc.before-kinbot"
+  sed -i 's|/path/printed/after/CAfile|/etc/ssl/certs/ca-certificates.crt|g' "$HOME/.condarc"
+fi
+conda config --set ssl_verify /etc/ssl/certs/ca-certificates.crt
+conda config --show ssl_verify
+```
+
+Continue only when `ssl_verify` prints that exact file path. Then create the
+environment:
+
+```bash
+conda create -y -c conda-forge -p "$PWD/.venv" python=3.11 pip numpy scipy ase=3.29.0 networkx rmsd pytest
+```
+
+Continue only when Conda finishes successfully and `.venv/bin/python` exists.
+Unload the bootstrap Python module so its `/opt/anaconda3` libraries do not
+affect later programs, then install and check KinBot with the new interpreter:
+
+```bash
+module unload python/3.7.3
+PIP_CERT=/etc/ssl/certs/ca-certificates.crt .venv/bin/python -m pip install 'sella==2.6.0'
+PIP_CERT=/etc/ssl/certs/ca-certificates.crt .venv/bin/python -m pip install -e . --no-deps
 .venv/bin/python -m pytest -q tests/test_molpro_ase.py tests/test_anl_dispatch.py tests/test_theory_profiles.py
 .venv/bin/python -c 'import sys, ase, importlib.metadata; print(sys.executable); print("ASE", ase.__version__); print("Sella", importlib.metadata.version("sella"))'
 ```
 
-### If Conda reports `certificate verify failed`
+### If environment creation still fails
 
-This happens while fetching conda-forge metadata, before the KinBot environment
-is installed. Check the Conda version and the Python used by its base
-installation:
+The earlier `CustomValidationError` came from entering the placeholder path.
+If the repair block above does not clear it, inspect `~/.condarc` for any
+remaining `/path/printed/after/CAfile` text, then replace it with the literal
+path above. Conda 22.9.0 does not support `ssl_verify: truststore`, but it does
+support a CA bundle path. `conda config --set` writes to `~/.condarc` by
+default. See the [Conda 22.9 configuration command](https://docs.conda.io/projects/conda/en/22.9.x/commands/config.html)
+and [certificate settings](https://docs.conda.io/projects/conda/en/22.9.x/user-guide/configuration/use-condarc.html).
 
-```bash
-conda --version
-conda run -n base python --version
-conda config --show ssl_verify
-```
-
-For example, Conda 22.9.0 with base Python 3.7.3 cannot use `truststore`.
-The base Python version is separate from the requested environment's Python 3.11.
-`conda info --base` and `type -a conda mamba` show which installation your
-shell is using. A `/opt/anaconda3` result means it is using that site Anaconda
-installation. If a separate, newer Miniforge is installed on the cluster,
-initialize it from its actual installation path and recheck the versions:
-
-```bash
-source /path/to/miniforge3/etc/profile.d/conda.sh
-conda --version
-conda info --base
-conda run -n base python --version
-```
-
-If Miniforge is not installed on the cluster, a user installation is possible
-when HTTPS access to GitHub works and the cluster meets the installer's Linux
-requirements. Use the [official Miniforge installer](https://github.com/conda-forge/miniforge/blob/main/README.md)
-in a fresh shell, with a prefix on shared storage:
-
-```bash
-curl -fsSLo Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
-bash Miniforge3.sh -b -p "$HOME/miniforge3"
-source "$HOME/miniforge3/etc/profile.d/conda.sh"
-conda info --base
-```
-
-An installer download does not fix an HTTPS trust failure by itself. For the
-older Conda installation, first check whether the system curl can verify
-conda-forge, then identify the CA file that curl uses:
-
-```bash
-curl -fsSI https://conda.anaconda.org/conda-forge/linux-64/current_repodata.json -o /dev/null
-curl -vI https://conda.anaconda.org/conda-forge/linux-64/current_repodata.json 2>&1 | grep 'CAfile:'
-```
-
-If the first command succeeds and the second reports a readable CA file, that
-file is a candidate for Conda's `ssl_verify` path below. [curl documents how
-to find its CA store](https://curl.se/docs/sslcerts.html). If curl also fails
-verification, obtain the cluster CA chain from its support team.
-
-With Conda 23.9 or newer running on Python 3.10 or newer, try the operating
-system certificate store, then retry environment creation with Conda:
-
-```bash
-conda config --set ssl_verify truststore
-conda create -y -c conda-forge -p "$PWD/.venv" python=3.11 pip numpy scipy ase=3.29.0 networkx rmsd pytest
-```
-
-If that still fails, or the installed Conda is older, obtain the cluster's CA
-bundle path from its software/network documentation or support team. The bundle
-must contain the issuing root and any intermediate CA certificates. Configure
-Conda to use that file and retry the same `conda create` command:
-
-```bash
-conda config --set ssl_verify /absolute/path/to/cluster-ca-chain.pem
-conda config --show ssl_verify
-```
-
-`conda config --set` writes to your user Conda configuration by default. If the
-certificate issue persists, record `conda --version`, `conda config --show-sources`,
-and the error message for the cluster support team. Do not set `ssl_verify` to
-`false` for this test. See the [Conda SSL troubleshooting guide](https://docs.conda.io/projects/conda/en/stable/user-guide/troubleshooting.html)
-and [Conda `ssl_verify` settings](https://docs.conda.io/projects/conda/en/stable/user-guide/configuration/settings.html).
+If Conda still reports an SSL error with
+`/etc/ssl/certs/ca-certificates.crt`, the cluster may require a different CA
+chain; ask site support for it. Do not disable certificate verification. The
+missing `.venv/bin/python` messages are a consequence of the failed `conda
+create`; run the pip and test commands only after environment creation succeeds.
+The `PIP_CERT` assignments use the same CA bundle for pip's HTTPS requests,
+as [pip documents](https://pip.pypa.io/en/stable/topics/https-certificates/).
 
 Run preparation with this same `.venv/bin/python` on the cluster. The batch
 scripts store its absolute path. The licensed QC executables need to be

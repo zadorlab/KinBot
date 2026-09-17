@@ -1,10 +1,11 @@
 # CH4 composite dispatcher: first HPC smoke test
 
 This is a single-molecule **dispatch and interface** test. It submits Gaussian
-ASE/Sella geometry, Molpro native geometry, then independent Molpro, CFOUR,
+ASE/Sella geometry, Molpro ASE/Sella geometry, then independent Molpro, CFOUR,
 MRCC, and Gaussian jobs. A green dispatcher status means that the processes
-and declared files passed checks; scientific output parsing and ANL energy
-assembly are later gates.
+and declared files passed checks; the Molpro geometry calculator also parses
+energy and forces. Full scientific parsing and ANL energy assembly are later
+gates.
 
 ## 1. Clone the tested branch on a Slurm login node
 
@@ -45,7 +46,7 @@ mamba create -y -c conda-forge -p "$PWD/.venv" \
   python=3.11 pip numpy scipy ase=3.29.0 networkx rmsd pytest
 .venv/bin/python -m pip install 'sella==2.6.0'
 .venv/bin/python -m pip install -e . --no-deps
-.venv/bin/python -m pytest -q tests/test_anl_dispatch.py tests/test_theory_profiles.py
+.venv/bin/python -m pytest -q tests/test_molpro_ase.py tests/test_anl_dispatch.py tests/test_theory_profiles.py
 .venv/bin/python -c 'import sys, ase, importlib.metadata; print(sys.executable); print("ASE", ase.__version__); print("Sella", importlib.metadata.version("sella"))'
 ```
 
@@ -71,10 +72,19 @@ nodes you may use concurrently (the example is 3). Check every task's
 `resources.cores`, `resources.memory_mb`, and `resources.walltime` against the
 target partition. If required, add `"partition": "YOUR_PARTITION"` inside
 each task's `resources`. The two geometry jobs are sequential; only after
-the Molpro geometry is accepted can up to `max_nodes` independent jobs run
+the Molpro ASE/Sella geometry is accepted can up to `max_nodes` independent jobs run
 at once. Each task's Slurm script requests `--exclusive`.
-Molpro CCSD(T) geometry and harmonic frequencies use numerical derivatives,
-so check those two walltimes against the site's expected CH4 performance.
+Molpro `FORCE,NUMERICAL` is run once per Sella geometry step; harmonic
+frequencies also use numerical derivatives. Check their walltimes against
+the site's expected CH4 performance. Each Sella step writes its own Molpro
+`.inp`, `.out`, `.log`, and gradient `.xyz`. The calculator passes Molpro's
+`-g` option to request the detailed `.log` for every force step.
+Sella writes `optimization.traj`, `optimization.log`, and `final.xyz`.
+Molpro runs `-n` MPI processes with `OMP_NUM_THREADS=1` and
+`MKL_NUM_THREADS=1` inside its exclusive node to avoid multiplying threads
+per process. For Molpro 2024's default single-node disk mode, the generated
+commands use per-process `-m`; check that the site's `.molprorc` does not add
+`-M` or `-G`.
 
 ```bash
 .venv/bin/python -m kinbot.anl.dispatch prepare ch4_dispatch.json ch4_run
@@ -94,11 +104,15 @@ actual site installations:
 #!/usr/bin/env bash
 # If the module function is unavailable in non-login batch shells, source
 # your site's module initialization file here.
-module load gaussian/YOUR_VERSION
-module load molpro/YOUR_VERSION
-module load cfour/YOUR_VERSION
-module load mrcc/YOUR_VERSION
-export CFOUR_GENBAS=/absolute/path/to/cfour/basis/GENBAS
+case "$KINBOT_BACKEND" in
+  gaussian) module load gaussian/YOUR_VERSION ;;
+  molpro)   module load molpro/YOUR_VERSION ;;
+  cfour)
+    module load cfour/YOUR_VERSION
+    export CFOUR_GENBAS=/absolute/path/to/cfour/basis/GENBAS
+    ;;
+  mrcc)     module load mrcc/YOUR_VERSION ;;
+esac
 ```
 
 Do not run the four QC programs on the login node. This check only verifies
@@ -109,7 +123,8 @@ the actual test:
 .venv/bin/python -m kinbot.anl.dispatch preflight ch4_run
 ```
 
-Preflight must report `g16`, `molpro`, `xcfour`, and `dmrcc`, a valid
+Preflight checks each task's own module environment and must report `g16`,
+`molpro`, `xcfour`, and `dmrcc`, a valid
 `CFOUR_GENBAS`, and an exclusive Slurm directive for each staged job. It also
 imports ASE, Sella, and KinBot with the Python path pinned for batch jobs and
 uses Slurm's `sbatch --test-only` to validate currently staged job scripts
@@ -128,8 +143,58 @@ The first call submits only the Gaussian ASE/Sella geometry job:
 squeue -u "$USER"
 ```
 
-To keep releasing ready jobs automatically, run the driver in a permitted
-login or workflow session:
+Wait for `ch4_run/tasks/l2_geometry/execution.json` and for that job to leave
+`squeue`, then accept its geometry
+and stage Molpro without submitting it yet. Check the newly staged Slurm script
+and submit Molpro:
+
+```bash
+.venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run", submit=False)'
+.venv/bin/python -m kinbot.anl.dispatch preflight ch4_run
+.venv/bin/python -m kinbot.anl.dispatch drive ch4_run --once
+```
+
+Wait for `ch4_run/tasks/l3_geometry/execution.json` and for that job to leave
+`squeue`. Before releasing the
+other programs, inspect the first force evaluation and Sella's final geometry:
+
+```bash
+cat ch4_run/tasks/l3_geometry/execution.json
+cat ch4_run/tasks/l3_geometry/l3_geometry_step_0001.inp
+tail -n 40 ch4_run/tasks/l3_geometry/l3_geometry_step_0001.out
+tail -n 40 ch4_run/tasks/l3_geometry/l3_geometry_step_0001.log
+ls -lh ch4_run/tasks/l3_geometry/l3_geometry_step_0001.xyz \
+  ch4_run/tasks/l3_geometry/final.xyz \
+  ch4_run/tasks/l3_geometry/optimization.traj
+.venv/bin/python - <<'PY'
+from pathlib import Path
+from ase.io import read
+from kinbot.ase_modules.calculators.molpro import parse_output, parse_xyzgrad
+task = Path('ch4_run/tasks/l3_geometry')
+atoms = read(task / 'geometry.xyz')
+print('first CCSD(T) energy, eV:', parse_output(task / 'l3_geometry_step_0001.out'))
+print('first max |force|, eV/Angstrom:',
+      abs(parse_xyzgrad(task / 'l3_geometry_step_0001.xyz', atoms)).max())
+PY
+```
+
+Confirm the first `.out` prints CCSD(T)/cc-pVTZ and normal termination.
+Inspect the `.log` as well; in the supplied Molpro 2024
+`OPTG` cases the detailed numerical gradient table is in `.log`, not `.out`.
+Check that the XYZGRAD force sign and units agree with any native gradient table,
+and that the Sella geometry has the same atom order. If the installed Molpro
+output differs from the documented format, stop and return that input/output
+pair for a parser fix. Then accept the L3 result, preflight the newly staged
+jobs, and release them:
+
+```bash
+.venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run", submit=False)'
+.venv/bin/python -m kinbot.anl.dispatch preflight ch4_run
+.venv/bin/python -m kinbot.anl.dispatch drive ch4_run --once
+```
+
+To keep checking and releasing ready jobs automatically, run the driver in a
+permitted login or workflow session:
 
 ```bash
 .venv/bin/python -m kinbot.anl.dispatch drive ch4_run --interval 30
@@ -142,14 +207,16 @@ are created. `status` prints `waiting`, `staged`, `submitted`, `complete`, or
 `failed` for every task. The parent `drive` command exits successfully only
 when every task is `complete`.
 
-Inspect a task with, for example:
+Inspect a task later with, for example:
 
 ```bash
 cat ch4_run/tasks/l3_geometry/execution.json
 tail -n 40 ch4_run/tasks/l3_geometry/slurm.stderr
-tail -n 40 ch4_run/tasks/l3_geometry/l3_geometry.out
-ls -lh ch4_run/tasks/l3_geometry/l3_geometry.log \
-  ch4_run/tasks/l3_geometry/l3_geometry.xyz
+tail -n 40 ch4_run/tasks/l3_geometry/l3_geometry_step_0001.out
+cat ch4_run/tasks/l3_geometry/l3_geometry_step_0001.inp
+cat ch4_run/tasks/l3_geometry/l3_geometry_step_0001.xyz
+ls -lh ch4_run/tasks/l3_geometry/final.xyz \
+  ch4_run/tasks/l3_geometry/optimization.traj
 ```
 
 If a task fails, read its `execution.json`, `slurm.stderr`, launcher stderr,
@@ -171,8 +238,9 @@ ID manually before any new submission; the driver deliberately stops.
 
 Once all tasks finish, retain `workflow.json`, `state.json`, each task's
 `task.json`, `execution.json`, `job.slurm`, input, stdout/stderr, native
-output, and Slurm logs. In particular, retain Molpro geometry `.out`, `.log`,
-and final `.xyz`. Record `git rev-parse HEAD`, `module list`, and version
+output, and Slurm logs. In particular, retain every Molpro geometry step's
+`.inp`, `.out`, `.log`, and gradient `.xyz`, plus Sella's final `.xyz` and
+trajectory. Record `git rev-parse HEAD`, `module list`, and version
 banners from all four codes. One way to package the run is:
 
 ```bash

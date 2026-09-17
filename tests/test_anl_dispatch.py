@@ -17,7 +17,7 @@ import pytest
 from examples.anl.ch4_dispatch import ch4_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
-    _geometry_hash, _molpro_total_mw, _runtime_profile, advance, prepare,
+    _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, prepare,
     preflight, retry_failed, run_task, validate_spec,
 )
 
@@ -47,6 +47,11 @@ def _mock_execution(run_dir, ident, *, geometry=None):
         names.update(spec.get('files_from_env', {}))
     else:
         names.update({'final.xyz', 'optimization.log'})
+        if spec['profile']['calculator'] == 'molpro':
+            generated = [f'{ident}_step_0001{suffix}'
+                         for suffix in ('.inp', '.out', '.log', '.xyz')]
+            names.update(generated)
+            details['generated_files'] = generated
     for name in names:
         path = task_dir / name
         if not path.exists():
@@ -74,14 +79,17 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
         assert state['tasks']['l2_geometry']['status'] == 'complete'
         assert state['tasks']['l3_geometry']['status'] == 'staged'
         assert 'harmonic' not in state['tasks']
-        molpro_geom = (run_dir / 'tasks' / 'l3_geometry' /
-                       'l3_geometry.inp').read_text()
-        assert 'optg,numerical,savexyz=l3_geometry.xyz' in molpro_geom
-        assert 'C' in molpro_geom
-        assert 'memory,' not in molpro_geom.lower()
-        assert 'orient,noorient' in molpro_geom
+        molpro_record = json.loads(
+            (run_dir / 'tasks' / 'l3_geometry' / 'task.json').read_text())
+        assert molpro_record['task']['kind'] == 'ase_optimize'
+        assert molpro_record['task']['profile']['calculator'] == 'molpro'
+        assert molpro_record['task']['profile']['optimizer'] == 'sella'
+        assert not list((run_dir / 'tasks' / 'l3_geometry').glob('*.inp'))
+        molpro_script = (run_dir / 'tasks' / 'l3_geometry' / 'job.slurm').read_text()
+        assert 'export OMP_NUM_THREADS=1' in molpro_script
+        assert 'export MKL_NUM_THREADS=1' in molpro_script
 
-        _mock_execution(run_dir, 'l3_geometry', geometry='l3_geometry.xyz')
+        _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
         state = advance(run_dir)
         assert all(state['tasks'][task['id']]['status'] == 'staged'
                    for task in spec['tasks'][2:])
@@ -92,8 +100,11 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
         f12 = (run_dir / 'tasks' / 'f12_tz' / 'f12_tz.inp').read_text()
         harmonic = (run_dir / 'tasks' / 'harmonic' / 'harmonic.inp').read_text()
         assert 'frequencies,numerical' in harmonic
+        assert 'set,charge=0\nset,spin=0' in harmonic
         assert 'ccsd(t)-f12,scale_trip=1' in f12
         assert 'kb_f12b=energy(2)' in f12
+        assert '-m' in spec['tasks'][3]['command']
+        assert '{molpro_stack_mw}' in spec['tasks'][3]['command']
         cfour = (run_dir / 'tasks' / 'cfour_dboc' / 'ZMAT').read_text()
         assert 'COORD=CARTESIAN' in cfour
         assert 'DBOC=ON' in cfour
@@ -115,7 +126,7 @@ def test_ch4_scheduler_respects_node_cap_after_geometry():
         run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
         _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
         advance(run_dir)
-        _mock_execution(run_dir, 'l3_geometry', geometry='l3_geometry.xyz')
+        _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
         advance(run_dir)
         submitted = []
 
@@ -256,8 +267,8 @@ def test_validation_rejects_cycles_and_oversized_exclusive_jobs():
     with pytest.raises(ValueError, match='exceeds'):
         validate_spec(spec)
     spec = ch4_spec()
-    spec['tasks'][1]['stdout'] = 'l3_geometry.out'
-    with pytest.raises(ValueError, match='collide|Molpro'):
+    spec['tasks'][1]['profile']['calculator_kwargs'] = {'nproc': 4}
+    with pytest.raises(ValueError, match='Molpro nproc'):
         validate_spec(spec)
     spec = ch4_spec()
     spec['tasks'][6]['input_name'] = 'dboc.inp'
@@ -272,6 +283,7 @@ def test_validation_rejects_cycles_and_oversized_exclusive_jobs():
     with pytest.raises(ValueError, match='must match Slurm cores'):
         validate_spec(spec)
     assert _molpro_total_mw({'cores': 8, 'memory_mb': 32000}) == 1800
+    assert _molpro_stack_mw({'cores': 8, 'memory_mb': 32000}) == 225
     spec = ch4_spec()
     spec['tasks'][1]['resources']['memory_mb'] = 2000
     with pytest.raises(ValueError, match='per-process overhead'):
@@ -350,16 +362,30 @@ def test_preflight_sources_site_setup_and_validates_slurm_without_submitting():
         run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
         bindir = root / 'bin'
         bindir.mkdir()
-        for program in ('g16', 'molpro', 'xcfour', 'dmrcc', 'sbatch', 'squeue'):
+        for program in ('sbatch', 'squeue'):
             executable = bindir / program
+            executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+            executable.chmod(0o755)
+        backend_programs = {'gaussian': 'g16', 'molpro': 'molpro',
+                            'cfour': 'xcfour', 'mrcc': 'dmrcc'}
+        for backend, program in backend_programs.items():
+            backend_dir = root / backend
+            backend_dir.mkdir()
+            executable = backend_dir / program
             executable.write_text('#!/usr/bin/env bash\nexit 0\n')
             executable.chmod(0o755)
         genbas = root / 'GENBAS'
         genbas.write_text('basis fixture\n')
         (run_dir / 'site_setup.sh').write_text(
-            f'export PATH={bindir}:$PATH\n'
+            'case "$KINBOT_BACKEND" in\n'
+            + ''.join(f'  {backend}) export PATH={root / backend}:$PATH ;;\n'
+                      for backend in backend_programs)
+            + '  *) exit 7 ;;\n'
+            + 'esac\n'
+            + 'if [ "$KINBOT_BACKEND" = cfour ]; then '
+            + f'export CFOUR_GENBAS={genbas}; fi\n'
             f'export PYTHONPATH={Path(__file__).resolve().parents[1]}:${{PYTHONPATH:-}}\n'
-            f'export CFOUR_GENBAS={genbas}\n')
+        )
         with patch.dict(os.environ, {'PATH': f'{bindir}:{os.environ["PATH"]}'}):
             result = preflight(run_dir)
         assert result['slurm_scripts_tested'] == 1

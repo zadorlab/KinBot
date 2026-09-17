@@ -17,6 +17,8 @@ geomtyp=xyz
 geometry={
 {{XYZ}}
 }
+set,charge={{CHARGE}}
+set,spin={{SPIN}}
 """
 
 
@@ -33,8 +35,8 @@ def molpro_task(ident, body, *, geometry_from='l3_geometry',
         'resources': resources(cores, memory_mb, walltime),
         'input_name': f'{ident}.inp',
         'input_template': MOLPRO_HEADER + body,
-        'command': ['molpro', '-n', '{cores}', '-M',
-                    '{molpro_total_mw}', '{input}'],
+        'command': ['molpro', '-n', '{cores}', '-m',
+                    '{molpro_stack_mw}', '{input}'],
         'stdout': 'launcher.stdout', 'stderr': 'launcher.stderr',
         'required_outputs': [f'{ident}.out'],
         'success_marker': {'file': f'{ident}.out',
@@ -85,14 +87,19 @@ def ch4_spec():
                 'optimizer': {'fmax': 0.03, 'steps': 80,
                               'sella_kwargs': {'internal': True}},
             },
-            molpro_task(
-                'l3_geometry',
-                'basis=cc-pVTZ\nhf\nccsd(t)\n'
-                'optg,numerical,savexyz=l3_geometry.xyz\n',
-                geometry_from='l2_geometry',
-                geometry_output='l3_geometry.xyz',
-                cores=8, memory_mb=32000, walltime='08:00:00',
-            ),
+            {
+                'id': 'l3_geometry', 'kind': 'ase_optimize',
+                'geometry_from': 'l2_geometry',
+                'geometry_output': 'final.xyz',
+                'resources': resources(8, 32000, '24:00:00'),
+                'profile': {
+                    'calculator': 'molpro', 'method': 'CCSD(T)',
+                    'basis': 'cc-pVTZ', 'command': 'molpro',
+                    'optimizer': 'sella',
+                },
+                'optimizer': {'fmax': 0.03, 'steps': 80,
+                              'sella_kwargs': {'internal': True}},
+            },
             molpro_task(
                 'harmonic',
                 'basis=cc-pVTZ\nhf\nccsd(t)\nfrequencies,numerical\n',

@@ -54,13 +54,18 @@ def _positive_integer(value, label):
 
 
 def _molpro_total_mw(resources):
-    """Budget Molpro node memory after documented per-process overhead."""
+    """Budget aggregate Molpro stack after documented per-process overhead."""
     total_mw = int(resources['memory_mb'] * 0.85 / 8) - 200 * resources['cores']
-    if total_mw < 32:
-        raise ValueError('Molpro memory allocation leaves no usable stack/GA '
+    if total_mw // resources['cores'] < 32:
+        raise ValueError('Molpro memory allocation leaves no usable stack '
                          'after per-process overhead; request more node memory '
                          'or fewer cores.')
     return total_mw
+
+
+def _molpro_stack_mw(resources):
+    """Per-process -m allocation for Molpro's single-node disk mode."""
+    return _molpro_total_mw(resources) // resources['cores']
 
 
 def _atoms(molecule):
@@ -163,7 +168,7 @@ def _validate_task(task, ids, limits):
             raise ValueError(f'{ident}: command must be an argument list.')
         command_tokens = {token for arg in command
                           for token in re.findall(r'\{([^{}]+)\}', arg)}
-        if command_tokens - {'cores', 'input', 'molpro_total_mw'}:
+        if command_tokens - {'cores', 'input', 'molpro_stack_mw'}:
             raise ValueError(f'{ident}: unsupported command placeholders.')
         if task.get('stdin'):
             if task['stdin'] != task['input_name']:
@@ -336,7 +341,19 @@ def _runtime_profile(task):
     values = deepcopy(task.get('profile'))
     if not isinstance(values, dict):
         raise ValueError(f"{task['id']}: profile must be an object.")
-    if values.get('calculator', '').lower() in ('gaussian', 'gauss'):
+    backend = values.get('calculator', '').lower()
+    if backend == 'molpro':
+        kwargs = values.setdefault('calculator_kwargs', {})
+        if not isinstance(kwargs, dict):
+            raise ValueError(f"{task['id']}: calculator_kwargs must be an object.")
+        cores = task['resources']['cores']
+        stack_mw = _molpro_stack_mw(task['resources'])
+        if 'nproc' in kwargs and kwargs['nproc'] != cores:
+            raise ValueError(f"{task['id']}: Molpro nproc must match Slurm cores.")
+        if 'stack_mw' in kwargs and kwargs['stack_mw'] != stack_mw:
+            raise ValueError(f"{task['id']}: Molpro stack_mw must match the node budget.")
+        kwargs.update(nproc=cores, stack_mw=stack_mw)
+    if backend in ('gaussian', 'gauss'):
         kwargs = values.setdefault('calculator_kwargs', {})
         if not isinstance(kwargs, dict):
             raise ValueError(f"{task['id']}: calculator_kwargs must be an object.")
@@ -355,6 +372,17 @@ def _runtime_profile(task):
     return TheoryProfile.from_dict(task['id'], values)
 
 
+def _backend(task):
+    return (task['backend'] if task['kind'] == 'external'
+            else _runtime_profile(task).calculator).lower()
+
+
+def _omp_threads(task):
+    # Molpro -n starts one MPI process per requested core. Giving every MPI
+    # rank all cores again through OpenMP oversubscribes the exclusive node.
+    return 1 if _backend(task) == 'molpro' else task['resources']['cores']
+
+
 def _slurm_script(task, directory, python):
     resources = task['resources']
     lines = [
@@ -371,9 +399,13 @@ def _slurm_script(task, directory, python):
     if resources.get('partition'):
         lines.append(f"#SBATCH --partition={resources['partition']}")
     lines += ['', 'set -euo pipefail', f'cd {shlex.quote(str(directory))}',
-              f"export OMP_NUM_THREADS={resources['cores']}",
+              f"export OMP_NUM_THREADS={_omp_threads(task)}",
+              f"export KINBOT_BACKEND={shlex.quote(_backend(task))}",
               'source ../../site_setup.sh']
     lines += task.get('setup', [])
+    lines.append(f'export OMP_NUM_THREADS={_omp_threads(task)}')
+    if _backend(task) == 'molpro':
+        lines.append('export MKL_NUM_THREADS=1')
     lines.append(f'{shlex.quote(python)} -m kinbot.anl.dispatch run-task task.json')
     return '\n'.join(lines) + '\n'
 
@@ -490,6 +522,16 @@ def _verify_execution(run_dir, task, entry, execution):
         needed.update(task.get('files_from_env', {}))
     else:
         needed.update({'final.xyz', 'optimization.log'})
+        if _backend(task) == 'molpro':
+            generated = execution.get('details', {}).get('generated_files')
+            if (not isinstance(generated, list) or
+                    not all(isinstance(name, str) and _SAFE_NAME.fullmatch(name)
+                            for name in generated)):
+                raise RuntimeError(f'{ident}: Molpro ASE artifact list is missing or invalid.')
+            first = f'{ident}_step_0001'
+            if not {first + suffix for suffix in ('.inp', '.out', '.log', '.xyz')} <= set(generated):
+                raise RuntimeError(f'{ident}: first Molpro force step is missing.')
+            needed.update(generated)
     if needed - artifacts.keys():
         raise RuntimeError(f'{ident}: execution is missing required artifact hashes.')
     geometry_output = task.get('geometry_output')
@@ -509,13 +551,13 @@ def _run_external(directory, record):
         if not source or not Path(source).is_file():
             raise RuntimeError(f'{filename} requires existing file in ${env_name}.')
         shutil.copyfile(source, directory / filename)
-    # -M is a total-node limit. Molpro documents at least 200 MW of extra
-    # program memory per compute process, beyond the stack/GA allocation.
-    molpro_total_mw = (_molpro_total_mw(task['resources'])
+    # Molpro 2024 defaults to disk mode on one node. -m is per process, so
+    # reserve 200 MW per MPI process and additional node headroom first.
+    molpro_stack_mw = (_molpro_stack_mw(task['resources'])
                        if task['backend'].lower() == 'molpro' else 0)
     command = [arg.replace('{cores}', str(task['resources']['cores']))
                .replace('{input}', task['input_name'])
-               .replace('{molpro_total_mw}', str(molpro_total_mw))
+               .replace('{molpro_stack_mw}', str(molpro_stack_mw))
                for arg in task['command']]
     stdin = (directory / task['input_name']).open('rb') if task.get('stdin') else None
     try:
@@ -524,7 +566,7 @@ def _run_external(directory, record):
             result = subprocess.run(command, cwd=directory, stdin=stdin,
                                     stdout=stdout, stderr=stderr, check=False,
                                     env={**os.environ,
-                                         'OMP_NUM_THREADS': str(task['resources']['cores'])})
+                                         'OMP_NUM_THREADS': str(_omp_threads(task))})
     finally:
         if stdin:
             stdin.close()
@@ -581,7 +623,8 @@ def _run_ase_optimize(directory, record):
     energy_ev = float(atoms.get_potential_energy())
     write(directory / 'final.xyz', atoms)
     return {'energy_ev': energy_ev, 'energy_hartree': energy_ev / Hartree,
-            'optimizer': profile.optimizer if len(atoms) > 2 else 'bfgs_or_atom'}
+            'optimizer': profile.optimizer if len(atoms) > 2 else 'bfgs_or_atom',
+            'generated_files': getattr(atoms.calc, 'generated_files', [])}
 
 
 def run_task(task_file):
@@ -619,6 +662,10 @@ def run_task(task_file):
             names.update(task.get('files_from_env', {}))
         else:
             names |= {'final.xyz', 'optimization.log'}
+            if (directory / 'optimization.traj').is_file():
+                names.add('optimization.traj')
+            names.update(_basename(name, 'calculator artifact')
+                         for name in details.get('generated_files', []))
         artifacts = {name: _file_hash(directory / name)
                      for name in sorted(names) if (directory / name).is_file()}
         result.update(status='executed', details=details, artifacts=artifacts)
@@ -648,36 +695,51 @@ def preflight(run_dir):
     programs = set()
     env_files = set()
     for task in spec['tasks']:
-        if task['kind'] == 'external':
-            programs.add(task['command'][0])
-            env_files.update(task.get('files_from_env', {}).values())
-        else:
-            profile = _runtime_profile(task)
-            if profile.calculator.lower() in ('gaussian', 'gauss'):
-                programs.add(shlex.split(profile.command or 'g16')[0])
         entry = state['tasks'].get(task['id'])
         if entry and entry['status'] in ('staged', 'submitted', 'complete'):
             _verify_stage_files(run_dir, task, entry)
             script = (run_dir / 'tasks' / task['id'] / 'job.slurm').read_text()
             if '#SBATCH --exclusive\n' not in script:
                 raise RuntimeError(f"{task['id']}: job does not request an exclusive node.")
-    lines = ['set -euo pipefail',
-             f'source {shlex.quote(str(run_dir / "site_setup.sh"))}']
-    for program in sorted(programs):
-        lines.append(f'command -v {shlex.quote(program)} >/dev/null || '
-                     f'{{ echo {shlex.quote("Missing executable: " + program)} >&2; exit 1; }}')
-    for env_name in sorted(env_files):
-        lines.append(f'test -f "${{{env_name}:-}}" || '
-                     f'{{ echo {shlex.quote("Missing file in $" + env_name)} >&2; exit 1; }}')
-    python = shlex.quote(state['python'])
-    lines.append(f'{python} -c '
-                 + shlex.quote('import ase, sella; import kinbot.anl.dispatch'))
-    result = subprocess.run(['bash', '-c', '\n'.join(lines)],
-                            cwd=run_dir, capture_output=True, text=True,
-                            check=False)
-    if result.returncode:
-        raise RuntimeError('Preflight failed after sourcing site_setup.sh: '
-                           + (result.stderr.strip() or result.stdout.strip()))
+        task_programs = set()
+        task_files = set()
+        if task['kind'] == 'external':
+            task_programs.add(task['command'][0])
+            task_files.update(task.get('files_from_env', {}).values())
+        elif _backend(task) in ('gaussian', 'gauss', 'molpro'):
+            backend = _backend(task)
+            parts = shlex.split(_runtime_profile(task).command or
+                                ('molpro' if backend == 'molpro' else 'g16'))
+            if not parts:
+                raise ValueError(f"{task['id']}: calculator command is empty.")
+            task_programs.add(parts[0])
+        programs.update(task_programs)
+        env_files.update(task_files)
+        lines = [
+            'set -euo pipefail',
+            f"export OMP_NUM_THREADS={_omp_threads(task)}",
+            f"export KINBOT_BACKEND={shlex.quote(_backend(task))}",
+            f'source {shlex.quote(str(run_dir / "site_setup.sh"))}',
+            *task.get('setup', []),
+            f"export OMP_NUM_THREADS={_omp_threads(task)}",
+        ]
+        if _backend(task) == 'molpro':
+            lines.append('export MKL_NUM_THREADS=1')
+        for program in sorted(task_programs):
+            lines.append(f'command -v {shlex.quote(program)} >/dev/null || '
+                         f'{{ echo {shlex.quote("Missing executable: " + program)} >&2; exit 1; }}')
+        for env_name in sorted(task_files):
+            lines.append(f'test -f "${{{env_name}:-}}" || '
+                         f'{{ echo {shlex.quote("Missing file in $" + env_name)} >&2; exit 1; }}')
+        python = shlex.quote(state['python'])
+        lines.append(f'{python} -c '
+                     + shlex.quote('import ase, sella; import kinbot.anl.dispatch'))
+        result = subprocess.run(['bash', '-c', '\n'.join(lines)],
+                                cwd=run_dir, capture_output=True, text=True,
+                                check=False)
+        if result.returncode:
+            raise RuntimeError(f"{task['id']}: preflight failed after site setup: "
+                               + (result.stderr.strip() or result.stdout.strip()))
     checked = 0
     for task in spec['tasks']:
         entry = state['tasks'].get(task['id'])

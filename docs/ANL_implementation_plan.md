@@ -3723,21 +3723,22 @@ the documented units, sign, and atom mapping against the installed version.
 
 Only after the accepted Molpro/Sella XYZ passes identity and termination checks,
 the dispatcher releases independent Molpro harmonic, F12b/TZ, F12b/QZ,
-CCSD(T)/DZ, CFOUR DBOC, direct MRCC CCSDT(Q)/DZ, and Gaussian VPT2
+CCSD(T)/DZ, CFOUR DBOC, and Gaussian VPT2
 tasks. The VPT2 task performs its own B3LYP optimization before frequency
 analysis, so its anharmonic correction is defined at a stationary point on
 that surface. They each get their own isolated task directory and one-node Slurm
 script with `#SBATCH --exclusive`; at most the user's configured number
-of exclusive nodes is in flight. The MRCC direct driver is a smoke-test
-choice pending the Molpro→MRCC method-specific compatibility check in
-section 70. It is not a silent switch in a published ANL recipe.
+of exclusive nodes is in flight. MRCC is deferred from the first offsite
+CH4 test at the user's request; the reported site module list does not include
+it. The general dispatcher retains MRCC support for a later test once a licensed
+executable and the method-specific driver are confirmed.
 
 This test is **not** a complete ANL0-F12 result. It does not assemble a
 composite energy or write MESS. The external site's QC outputs must be
 inspected and captured as versioned fixtures before scientific parsers and
 recipes are enabled. `execution.json` currently records process success,
-required artifacts, geometry identity, and artifact hashes; for CFOUR and
-MRCC it does not certify a chosen electronic energy or DBOC value.
+required artifacts, geometry identity, and artifact hashes; for CFOUR it
+does not certify the DBOC value.
 
 The offsite operator should run the exact procedure in
 `docs/composite_qc_validation.md`, edit only site module setup/resources,

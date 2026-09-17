@@ -109,11 +109,6 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
         assert 'COORD=CARTESIAN' in cfour
         assert 'DBOC=ON' in cfour
         assert 'MEM_UNIT=MB,MEMORY_SIZE=11200' in cfour
-        mrcc = (run_dir / 'tasks' / 'mrcc_ccsdtq' / 'MINP').read_text()
-        assert 'calc=CCSDT(Q)' in mrcc
-        assert 'mem=22400MB' in mrcc
-        assert 'geom=xyz\n5\n\nC' in mrcc
-        assert 'core=frozen' in mrcc
         gaussian = (run_dir / 'tasks' / 'gaussian_vpt2' / 'vpt2.com').read_text()
         assert 'Freq=Anharmonic' in gaussian
         assert 'Opt=(Tight,CalcFC)' in gaussian
@@ -367,7 +362,7 @@ def test_preflight_sources_site_setup_and_validates_slurm_without_submitting():
             executable.write_text('#!/usr/bin/env bash\nexit 0\n')
             executable.chmod(0o755)
         backend_programs = {'gaussian': 'g16', 'molpro': 'molpro',
-                            'cfour': 'xcfour', 'mrcc': 'dmrcc'}
+                            'cfour': 'xcfour'}
         for backend, program in backend_programs.items():
             backend_dir = root / backend
             backend_dir.mkdir()
@@ -390,4 +385,4 @@ def test_preflight_sources_site_setup_and_validates_slurm_without_submitting():
             result = preflight(run_dir)
         assert result['slurm_scripts_tested'] == 1
         assert result['exclusive_jobs_checked'] == 1
-        assert result['programs'] == ['dmrcc', 'g16', 'molpro', 'xcfour']
+        assert result['programs'] == ['g16', 'molpro', 'xcfour']

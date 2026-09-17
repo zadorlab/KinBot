@@ -140,28 +140,6 @@ def ch4_spec():
                     'contains': 'The total diagonal Born-Oppenheimer correction (DBOC) is:'},
             },
             {
-                'id': 'mrcc_ccsdtq', 'kind': 'external', 'backend': 'mrcc',
-                'geometry_from': 'l3_geometry',
-                'resources': resources(8, 32000, '12:00:00'),
-                'input_name': 'MINP',
-                'input_template': (
-                    'calc=CCSDT(Q)\nbasis=cc-pVDZ\nscftype=RHF\n'
-                    'core=frozen\ngauss=spher\n'
-                    'mem={{WORK_MEMORY_MB}}MB\n'
-                    'charge={{CHARGE}}\nmult={{MULT}}\nunit=angs\n'
-                    'geom=xyz\n{{MRCC_XYZ}}\n'),
-                'command': ['dmrcc'], 'stdout': 'mrcc.out',
-                'stderr': 'mrcc.err', 'required_outputs': ['mrcc.out'],
-                'setup': ['export MKL_NUM_THREADS="$OMP_NUM_THREADS"'],
-                'success_marker': {'file': 'mrcc.out',
-                                   'contains': 'Normal termination of mrcc.'},
-                'failure_markers': [
-                    {'file': 'mrcc.out',
-                     'contains': 'Error at the termination of mrcc.'},
-                    {'file': 'mrcc.out', 'contains': 'Fatal error'},
-                ],
-            },
-            {
                 'id': 'gaussian_vpt2', 'kind': 'external',
                 'backend': 'gaussian', 'geometry_from': 'l3_geometry',
                 'resources': resources(4, 16000, '08:00:00'),

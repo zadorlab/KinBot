@@ -62,6 +62,20 @@ conda run -n base python --version
 conda config --show ssl_verify
 ```
 
+For example, Conda 22.9.0 with base Python 3.7.3 cannot use `truststore`.
+The base Python version is separate from the requested environment's Python 3.11.
+`conda info --base` and `type -a conda mamba` show which installation your
+shell is using. A `/opt/anaconda3` result means it is using that site Anaconda
+installation. If a separate, newer Miniforge is installed on the cluster,
+initialize it from its actual installation path and recheck the versions:
+
+```bash
+source /path/to/miniforge3/etc/profile.d/conda.sh
+conda --version
+conda info --base
+conda run -n base python --version
+```
+
 With Conda 23.9 or newer running on Python 3.10 or newer, try the operating
 system certificate store, then retry environment creation with Conda:
 

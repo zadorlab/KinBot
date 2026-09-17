@@ -3712,13 +3712,16 @@ restart, and geometry sequencing before full ANL recipe arithmetic.
 
 The CH4 fixture first runs Gaussian B2PLYP-D3(BJ)/cc-pVTZ optimization
 through the existing ASE calculator and Sella. The accepted geometry feeds
-a Molpro CCSD(T)/cc-pVTZ native `OPTG` test. For this first offsite test,
-native Molpro geometry is deliberate: it validates the documented `.out`,
-`.log`, and `SAVEXYZ` `.xyz` artifacts directly. The later production
-Molpro/ASE force interface can replace the geometry driver after real
-gradient fixtures establish units, sign, and atom mapping.
+a Molpro CCSD(T)/cc-pVTZ geometry optimization also controlled by Sella
+through ASE. A KinBot Molpro ASE calculator runs `RHF; CCSD(T); FORCE,NUMERICAL`
+for every requested energy/force evaluation, then `PUT,XYZGRAD` to save
+Molpro's native gradient XYZ. Each step retains its `.inp`, `.out`, `.xyz`,
+launcher stdout/stderr, and a detailed Molpro `.log` requested with `-g`;
+Sella retains its trajectory,
+log, and final `.xyz`. Real licensed output remains required to validate
+the documented units, sign, and atom mapping against the installed version.
 
-Only after the accepted Molpro XYZ passes identity and termination checks,
+Only after the accepted Molpro/Sella XYZ passes identity and termination checks,
 the dispatcher releases independent Molpro harmonic, F12b/TZ, F12b/QZ,
 CCSD(T)/DZ, CFOUR DBOC, direct MRCC CCSDT(Q)/DZ, and Gaussian VPT2
 tasks. The VPT2 task performs its own B3LYP optimization before frequency
@@ -3746,7 +3749,9 @@ The first code review found and corrected two concrete bugs in the initial
 slice: switching an L1/L2 calculator could retain a previous preset's
 method/frequency settings, and translating requested Slurm MB directly to
 a Molpro `MEMORY` card would multiply that amount by the process count.
-The CH4 runner now uses Molpro's total-node `-M` option with headroom.
+The Molpro 2024 audit supersedes that initial memory choice: this one-node
+workflow uses Molpro's default disk implementation and per-process `-m`,
+budgeted across the requested MPI ranks with program and node headroom.
 
 ---
 
@@ -3817,10 +3822,10 @@ execution risks before the first licensed run:
   archives a failed attempt and restages that task without rerunning its
   successful siblings; changed chemistry or resources require a new run.
 - The CFOUR CH4 input now uses the documented `COORD=CARTESIAN` spelling.
-  Molpro CCSD(T) `OPTG` now explicitly requests the numerical gradient
-  required by the vendor's CCSD(T) optimization example. Molpro's `SAVEXYZ`
-  output, F12b `ENERGY(2)`, `SCALE_TRIP=1`, and total-node
-  `-M` memory option were checked against the Molpro manual; direct MRCC
+  The Molpro ASE calculator now requests `FORCE,NUMERICAL` after CCSD(T),
+  reads the undisplaced total energy, and maps `PUT,XYZGRAD` rows back to
+  ASE's coordinates. Molpro's F12b `ENERGY(2)`, `SCALE_TRIP=1`, and per-rank
+  `-m` memory option were checked against the Molpro 2024 manual; direct MRCC
   `MINP`/`dmrcc` and CFOUR `ZMAT`/`GENBAS`/DBOC were checked against their
   manuals. These checks establish input plausibility, not runtime success.
 - The direct MRCC XYZ block now includes the blank line required by its
@@ -3838,3 +3843,48 @@ and method/version banners. Then compare scientific values and build real
 parsers before enabling an ANL label or a MESS handoff. The local regression
 suite passes without the four licensed codes; the external result remains the
 gate for those program interfaces.
+
+The first licensed Molpro force step must be inspected before releasing all
+downstream jobs: compare its CCSD(T) energy and XYZGRAD forces with any
+native `.log` or `.out` gradient table, verify the sign and units by a
+small independent finite displacement, confirm atom mapping, and archive the
+installed Molpro version. The local fake Molpro test verifies Sella's repeated
+calculator calls and artifact handling, but its synthetic output does not
+replace this scientific check.
+
+---
+
+# 74. Molpro 2024.1 examples inspected before the ASE/Sella smoke test
+
+The available local reference is
+`~/Documents/research/zador_group/peroxy/molpro24_autocbh_conformer_f12_workflow_CURRENT_BACKUP/DZ-F12/work/`.
+The CH4 `c000/CH4_c000.inp`, `.out`, and `.log` were inspected directly,
+together with its numbered and final `.xyz` files, the CH3 input, and the
+H2O2 `c000` and `c001` input/output/log/final-XYZ sets. They are
+Molpro's own `OPTG` runs at UCCSD(T)-F12b/VDZ-F12; the CH4 ASE/Sella smoke
+test uses conventional CCSD(T)/cc-pVTZ, so they verify Molpro file behavior
+and syntax without claiming to validate that different energy label.
+
+- The CH4 input uses an XYZ block with atom count, comment, and coordinates,
+  explicit charge/spin, RHF, and a correlated method before
+  `OPTG,...,NUMERICAL,...,SAVEXYZ`. The ASE calculator now uses the same XYZ
+  block and explicit neutral-singlet settings, followed by RHF and CCSD(T).
+- The actual `.out` identifies Version 2024.1, prints the correlated energy
+  and `Molpro calculation terminated`, and says its long optimization output
+  is in `.log`. The `.log` contains `Numerical gradient for UCCSD(T)-F12B`,
+  `Atom dE/dx dE/dy dE/dz` rows, displacement counts, and optimization steps.
+  The final and numbered `.xyz` files have the documented count/comment and
+  coordinate rows. Both H2O2 conformers have distinct final energies and
+  their own `.out`, `.log`, and final `.xyz`. Do not assume the numerical
+  gradient table is in `.out` or conflate conformer files.
+- The inspected tree contains native `OPTG` inputs rather than standalone
+  `FORCE,NUMERICAL` plus `PUT,XYZGRAD` inputs. The latter commands and the
+  `XYZGRAD` force convention come from the Molpro manual and are exercised
+  locally against a simulated executable. The first offsite Sella/Molpro
+  step remains the acceptance gate for the actual Molpro 2024 `XYZGRAD`
+  layout, force sign, units, atom order, and `-g` `.log` content.
+- The Molpro 2024 parallel manual says one-node disk mode is the default and
+  recommends `-m` without `-M`/`-G` there. Both the Sella calculator and
+  the independent Molpro nodes now divide the requested memory into a
+  bounded per-rank stack after reserving at least 200 MW per rank and node
+  headroom. MPI ranks run with one OpenMP/MKL thread each.

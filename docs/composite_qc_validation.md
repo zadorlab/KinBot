@@ -33,8 +33,12 @@ dispatcher. It exercises these gates:
 
 1. Gaussian B2PLYP-D3(BJ)/cc-pVTZ optimization through KinBot's ASE
    calculator and Sella.
-2. Molpro CCSD(T)/cc-pVTZ native geometry optimization from the accepted
-   Gaussian XYZ. Retain its `.out`, `.log`, and `SAVEXYZ` final `.xyz`.
+2. Molpro CCSD(T)/cc-pVTZ geometry optimization through the new ASE calculator
+   and Sella, starting from the accepted Gaussian XYZ. Molpro computes
+   `FORCE,NUMERICAL` at each Sella step and `PUT,XYZGRAD` writes the native
+   coordinates and forces. Retain every step's `.inp`, `.out`, `.xyz`, any
+   `.log`, and Sella's trajectory and final `.xyz`. The calculator invokes
+   Molpro with `-g` so each force evaluation has a detailed `.log`.
 3. After that XYZ passes atom-order, finite-coordinate, and Molpro termination
    checks, stage the independent harmonic, F12b/TZ, F12b/QZ, conventional
    CCSD(T)/DZ, CFOUR HF/cc-pVTZ DBOC, direct MRCC CCSDT(Q)/cc-pVDZ, and
@@ -60,16 +64,18 @@ Inspect each task directory's exact input, `execution.json`, vendor output,
 stdout/stderr, and Slurm logs. Confirm the printed method, basis, reference,
 charge, multiplicity, F12b variable, normal termination, atom order,
 frequencies, and DBOC value against the vendor output. Preserve program
-versions and output hashes. The Molpro launcher stdout is captured in
-`launcher.stdout`, separate from Molpro's own `.out` file. The Molpro command
-uses `-M` as a **total node memory** request after reserving the manual's
-200 MW per compute process plus node headroom; the Molpro manual
-says an input `MEMORY` card or `-m` allocation is per process and multiplies
-across `-n` processes. See its [memory allocation rules](https://www.molpro.net/manual/doku.php?id=general_program_structure)
+versions and output hashes. Each Molpro ASE force step captures launcher
+stdout/stderr separately from its native `.out`; external single points use
+`launcher.stdout`. The Molpro command uses per-process `-m` after reserving
+the manual's 200 MW per MPI process plus node headroom. The calculation is
+single-node disk mode, which Molpro 2024 uses by default; its manual says to
+avoid `-M`/`-G` in this mode because they can preallocate unused GA memory.
+`-m` multiplies across `-n` processes. See its
+[memory allocation rules](https://www.molpro.net/manual/doku.php?id=general_program_structure)
 and [parallel memory guidance](https://www.molpro.net/manual/doku.php?id=running_molpro_on_parallel_computers).
 
-Inputs are grounded in the [Molpro XYZ/NOORIENT](https://www.molpro.net/manual/doku.php?id=molecular_geometry),
-[OPTG/SAVEXYZ](https://www.molpro.net/manual/doku.php?id=geometry_optimization_optg),
+Inputs are grounded in the [Molpro XYZ/NOORIENT and PUT,XYZGRAD](https://www.molpro.net/manual/doku.php?id=molecular_geometry),
+[FORCE,NUMERICAL](https://www.molpro.net/manual/doku.php?id=energy_gradients),
 [FREQUENCIES](https://www.molpro.net/manual/doku.php?id=harmonic_vibrational_frequencies_frequencies),
 and [F12 variable](https://www.molpro.net/manual/doku.php?id=quickstart)
 examples; the [CFOUR Cartesian ZMAT](https://cfour.uni-mainz.de/cfour/index.php?n=Main.MolecularGeometryInput)
@@ -83,6 +89,18 @@ the coordinates, as specified by its manual; the input explicitly sets
 `core=frozen` and `gauss=spher` for reproducible basis/reference comparison.
 Gaussian's local ASE input rendering is tested, but licensed Gaussian must
 confirm the Sella force route and VPT2 output on this site.
+
+The local Molpro 2024.1 CH4 `DZ-F12/work/CH4/c000` reference supplied with
+the peroxy workflow was inspected. Its native `OPTG` input confirms the
+count/comment/coordinate XYZ block, charge and spin settings, RHF, and
+correlated-method syntax. Its `.out` confirms the version, energy label,
+normal-termination marker, and the location of long output in `.log`; the
+`.log` contains numerical `dE/dx` rows, and `SAVEXYZ` plus `PUT,XYZ` produce
+the expected numbered/final XYZ files. That calculation is
+UCCSD(T)-F12b/VDZ-F12, whereas this first Sella calculator requests
+conventional CCSD(T)/cc-pVTZ. The supplied tree has no standalone
+`FORCE,NUMERICAL`/`PUT,XYZGRAD` example, so a real first step on the target
+Molpro installation is still needed to validate that specific parser.
 
 ## Local test matrix
 
@@ -115,13 +133,19 @@ synthetic fixture does not establish that a program output parser is correct.
   template must capture launcher stdout separately and read Molpro's actual
   output file; pointing `BaseProfile.run` stdout at the same `.out` path risks
   overwriting the program output. Use a fixed safe input basename inside each
-  task directory. A native Molpro `OPTG` run also writes optimization geometry
-  information to `.log`; its documented `SAVEXYZ` option writes a final `.xyz`
-  plus numbered intermediate geometries. Test all three artifacts and prefer
-  `SAVEXYZ` for direct-program optimization checks. In KinBot's ASE/Sella path,
-  Sella owns the optimization and Molpro supplies per-step energies/forces;
-  save the accepted geometry as an ASE `.xyz` trajectory or final geometry as
-  well. See the [Molpro `OPTG` manual](https://www.molpro.net/manual/doku.php?id=geometry_optimization_optg).
+  task directory. In KinBot's ASE/Sella path, Sella owns the optimization and
+  Molpro supplies per-step energies/forces. The input saves `ENERGY` into
+  `KB_GEOM_ENERGY` immediately after `CCSD(T)`, then uses
+  `FORCE,NUMERICAL,VARIABLE=KB_GEOM_ENERGY,STARTCMD=RHF` so the force and
+  parsed energy refer to the same method. `PUT,XYZGRAD` writes coordinates and force components
+  in -eV/Å according to the [Molpro geometry manual](https://www.molpro.net/manual/doku.php?id=molecular_geometry).
+  The calculator maps those rows back to ASE atom order by element and
+  coordinate, reads the first `SETTING KB_GEOM_ENERGY` emitted after the
+  undisplaced CCSD(T) calculation and before the numerical displacements,
+  and requires normal termination. Keep Molpro's `-g` `.log` and Sella's
+  trajectory and final XYZ. A separate native
+  `OPTG` reference may be compared later, using Molpro's documented `.log`
+  and `SAVEXYZ` artifacts; it is not the geometry driver here.
   [Molpro's F12 documentation](https://www.molpro.net/manual/doku.php?id=explicitly_correlated_methods)
   distinguishes F12a/F12b and limits analytic gradients to supported DF
   approximations. [The energy-gradient documentation](https://www.molpro.net/manual/doku.php?id=energy_gradients)

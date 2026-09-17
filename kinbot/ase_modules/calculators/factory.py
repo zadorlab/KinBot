@@ -41,6 +41,9 @@ CALCULATORS = {
     'orca': CalculatorSpec(
         'kinbot.ase_modules.calculators.orca', 'ORCA',
         CalculatorCapabilities(forces=True, dipole=True)),
+    'molpro': CalculatorSpec(
+        'kinbot.ase_modules.calculators.molpro', 'Molpro',
+        CalculatorCapabilities(forces=True, numerical_forces=True)),
     'fairchem': CalculatorSpec(
         'fairchem.core', 'FAIRChemCalculator',
         CalculatorCapabilities(forces=True)),
@@ -115,6 +118,11 @@ def build_calculator(profile, directory, task):
         kwargs.update(charge=charge, mult=mult)
         return calc_class(profile=OrcaProfile(command=profile.command),
                           directory=directory / name, **kwargs)
+    if backend == 'molpro':
+        kwargs.update(directory=directory, label=name, method=profile.method,
+                      basis=profile.basis, command=profile.command or 'molpro',
+                      charge=charge, mult=mult)
+        return calc_class(**kwargs)
     if backend == 'fairchem':
         from kinbot.fairchem_utils import load_predictor
         return calc_class(load_predictor(profile.model_path, profile.device),

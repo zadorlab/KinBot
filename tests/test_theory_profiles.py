@@ -121,8 +121,8 @@ class TestCalculatorFactory(unittest.TestCase):
         self.assertEqual(calculator_spec('gauss'), calculator_spec('gaussian'))
         self.assertTrue(capabilities('fairchem').forces)
         self.assertFalse(capabilities('gaussian').native_hessian)
-        with self.assertRaisesRegex(ValueError, 'No profiled ASE calculator registered'):
-            capabilities('molpro')
+        self.assertTrue(capabilities('molpro').forces)
+        self.assertTrue(capabilities('molpro').numerical_forces)
 
     def test_gaussian_builder_scopes_label_and_command_to_one_job(self):
         profile = TheoryProfile(name='l2', calculator='gaussian',

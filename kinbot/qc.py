@@ -21,6 +21,7 @@ from kinbot import kb_path
 from kinbot import constants
 from kinbot import geometry
 from kinbot import exceptions
+from kinbot.theory import profiled_requested
 
 logger = logging.getLogger('KinBot')
 
@@ -34,6 +35,10 @@ class QuantumChemistry:
 
     def __init__(self, par):
         ensure_current_run(create=True)
+        if profiled_requested(par):
+            raise NotImplementedError(
+                'Profiled theory configuration is available, but its ASE job '
+                'router is not implemented yet. No legacy QC job was submitted.')
         self.par = par
         self.qc = par['qc'].lower()
         self.method = par['method']

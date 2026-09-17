@@ -5,3 +5,5 @@ build
 dist
 .vscode
 *.ipynb
+.venv/
+.pytest_cache/

@@ -345,7 +345,9 @@ def test_failed_task_can_be_archived_and_retried():
 def test_preflight_reports_missing_program_before_submission():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        spec = ch4_spec()
+        spec['tasks'][0]['profile']['command'] = str(root / 'missing_g16')
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
         with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/true'):
             with pytest.raises(RuntimeError, match='Missing executable'):
                 preflight(run_dir)

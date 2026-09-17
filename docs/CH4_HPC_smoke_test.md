@@ -2,8 +2,9 @@
 
 This is a single-molecule **dispatch and interface** test. It submits Gaussian
 ASE/Sella geometry, Molpro ASE/Sella geometry, then independent Molpro, CFOUR,
-MRCC, and Gaussian jobs. A green dispatcher status means that the processes
-and declared files passed checks; the Molpro geometry calculator also parses
+and Gaussian jobs. MRCC is deferred for this first offsite test. A green
+dispatcher status means that the processes and declared files passed checks;
+the Molpro geometry calculator also parses
 energy and forces. Full scientific parsing and ANL energy assembly are later
 gates.
 
@@ -19,8 +20,23 @@ git status --short --branch
 ```
 
 Compare the printed commit with the tested commit supplied alongside this
-runbook. If the branch is in a fork, replace the URL with the fork URL. If the
-cluster cannot access GitHub, transfer a Git bundle from the development
+runbook. If the branch is in a fork, replace the URL with the fork URL.
+
+For an existing HPC checkout, update the branch before generating the CH4
+specification:
+
+```bash
+cd ~/KinBot  # replace if the checkout is elsewhere
+git switch composite
+git pull --ff-only origin composite
+git rev-parse --short HEAD
+```
+
+If you already generated `ch4_dispatch.json` from an older commit, regenerate
+it after the pull. Prepare a new run directory; prepared task graphs are
+immutable and older ones may still contain the deferred MRCC task.
+
+If the cluster cannot access GitHub, transfer a Git bundle from the development
 machine and clone it on the cluster:
 
 ```bash
@@ -38,8 +54,10 @@ The bundle must be made after the final test commit.
 
 ## 2. Install the Python environment on shared storage
 
-Load or activate the site's Miniforge installation first. The commands below
-assume `mamba` is available. Replace `mamba` with `conda` if needed.
+Use a Miniforge installation on the cluster if one is available; it need not
+appear in `module avail`. The site's Python 3.7 module is not the Python 3.11
+environment requested below. The commands assume `mamba` is available;
+replace `mamba` with `conda` if needed.
 
 ```bash
 mamba create -y -c conda-forge -p "$PWD/.venv" \
@@ -75,6 +93,32 @@ conda --version
 conda info --base
 conda run -n base python --version
 ```
+
+If Miniforge is not installed on the cluster, a user installation is possible
+when HTTPS access to GitHub works and the cluster meets the installer's Linux
+requirements. Use the [official Miniforge installer](https://github.com/conda-forge/miniforge/blob/main/README.md)
+in a fresh shell, with a prefix on shared storage:
+
+```bash
+curl -fsSLo Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3.sh -b -p "$HOME/miniforge3"
+source "$HOME/miniforge3/etc/profile.d/conda.sh"
+conda info --base
+```
+
+An installer download does not fix an HTTPS trust failure by itself. For the
+older Conda installation, first check whether the system curl can verify
+conda-forge, then identify the CA file that curl uses:
+
+```bash
+curl -fsSI https://conda.anaconda.org/conda-forge/linux-64/current_repodata.json -o /dev/null
+curl -vI https://conda.anaconda.org/conda-forge/linux-64/current_repodata.json 2>&1 | grep 'CAfile:'
+```
+
+If the first command succeeds and the second reports a readable CA file, that
+file is a candidate for Conda's `ssl_verify` path below. [curl documents how
+to find its CA store](https://curl.se/docs/sslcerts.html). If curl also fails
+verification, obtain the cluster CA chain from its support team.
 
 With Conda 23.9 or newer running on Python 3.10 or newer, try the operating
 system certificate store, then retry environment creation with Conda:
@@ -156,16 +200,25 @@ actual site installations:
 # your site's module initialization file here.
 case "$KINBOT_BACKEND" in
   gaussian) module load gaussian/YOUR_VERSION ;;
-  molpro)   module load molpro/YOUR_VERSION ;;
+  molpro)   module load molpro/molpro24 ;;
   cfour)
-    module load cfour/YOUR_VERSION
+    module load cfour/2.1
     export CFOUR_GENBAS=/absolute/path/to/cfour/basis/GENBAS
     ;;
-  mrcc)     module load mrcc/YOUR_VERSION ;;
 esac
 ```
 
-Do not run the four QC programs on the login node. This check only verifies
+The reported module list contains `molpro/molpro24` and `cfour/2.1`, but no
+Gaussian module. Check whether a separate site script exposes `g16`;
+its absence from the module list alone does not establish that the program is
+unavailable. This CH4 test starts with Gaussian L2 geometry and its preflight
+requires `g16`, so do not submit it until that path is resolved. Ask the site
+for the appropriate setup if `command -v g16` fails after loading licensed
+programs. MRCC is omitted from this test because no MRCC module was listed.
+[Molpro's MRCC interface](https://www.molpro.net/manual/doku.php?id=the_mrcc_program_of_m._kallay_mrcc)
+also requires a separate MRCC installation with its executables on `PATH`.
+
+Do not run the three QC programs on the login node. This check only verifies
 module setup and executable/file discovery there; compute-node execution is
 the actual test:
 
@@ -174,7 +227,7 @@ the actual test:
 ```
 
 Preflight checks each task's own module environment and must report `g16`,
-`molpro`, `xcfour`, and `dmrcc`, a valid
+`molpro`, and `xcfour`, a valid
 `CFOUR_GENBAS`, and an exclusive Slurm directive for each staged job. It also
 imports ASE, Sella, and KinBot with the Python path pinned for batch jobs and
 uses Slurm's `sbatch --test-only` to validate currently staged job scripts

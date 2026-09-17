@@ -41,16 +41,16 @@ dispatcher. It exercises these gates:
    Molpro with `-g` so each force evaluation has a detailed `.log`.
 3. After that XYZ passes atom-order, finite-coordinate, and Molpro termination
    checks, stage the independent harmonic, F12b/TZ, F12b/QZ, conventional
-   CCSD(T)/DZ, CFOUR HF/cc-pVTZ DBOC, direct MRCC CCSDT(Q)/cc-pVDZ, and
+   CCSD(T)/DZ, CFOUR HF/cc-pVTZ DBOC, and
    Gaussian B3LYP/cc-pVTZ VPT2 tasks. The VPT2 task first optimizes on its
    own B3LYP surface in the same Gaussian job, then performs the anharmonic
    frequency analysis. Up to `max_nodes` run concurrently.
 
 The CH4 graph is an **interface smoke test**, not a complete ANL0-F12
-electronic-energy expression or a MESS input. It deliberately samples each
-program and task type before full recipe arithmetic, open-shell CH3, and
-reactions. `execution.json` means process and artifact checks passed; no
-CFOUR/MRCC energy or DBOC parser has yet certified the printed value.
+electronic-energy expression or a MESS input. It samples Gaussian, Molpro,
+and CFOUR before full recipe arithmetic, MRCC, open-shell CH3, and reactions.
+`execution.json` means process and artifact checks passed; no CFOUR DBOC
+parser has yet certified the printed value.
 
 For the complete clone, setup, preflight, submission, monitoring, retry, and
 result-collection commands, use [the CH4 HPC runbook](CH4_HPC_smoke_test.md).
@@ -78,16 +78,12 @@ Inputs are grounded in the [Molpro XYZ/NOORIENT and PUT,XYZGRAD](https://www.mol
 [FORCE,NUMERICAL](https://www.molpro.net/manual/doku.php?id=energy_gradients),
 [FREQUENCIES](https://www.molpro.net/manual/doku.php?id=harmonic_vibrational_frequencies_frequencies),
 and [F12 variable](https://www.molpro.net/manual/doku.php?id=quickstart)
-examples; the [CFOUR Cartesian ZMAT](https://cfour.uni-mainz.de/cfour/index.php?n=Main.MolecularGeometryInput)
+examples, plus the [CFOUR Cartesian ZMAT](https://cfour.uni-mainz.de/cfour/index.php?n=Main.MolecularGeometryInput)
 and [DBOC input and output example](https://cfour.uni-mainz.de/cfour/index.php?n=Main.CalculationOfDBOC)
-pages; and the [MRCC `MINP`/`dmrcc` manual](https://www.mrcc.hu/MRCC/manual/pdf/manual.pdf).
-The CFOUR task requires the DBOC output label. The MRCC task requires its
-normal-termination label and rejects documented fatal/termination-error text;
-both program outputs still need the manual scientific checks below.
-The direct MRCC `geom=xyz` block includes an atom count and blank line before
-the coordinates, as specified by its manual; the input explicitly sets
-`core=frozen` and `gauss=spher` for reproducible basis/reference comparison.
-Gaussian's local ASE input rendering is tested, but licensed Gaussian must
+pages. The CFOUR task requires the DBOC output label and its value still needs
+the manual scientific checks below. MRCC is deferred until its executable is
+available on the target site. Gaussian's local ASE input rendering is tested,
+but licensed Gaussian must
 confirm the Sella force route and VPT2 output on this site.
 
 The local Molpro 2024.1 CH4 `DZ-F12/work/CH4/c000` reference supplied with

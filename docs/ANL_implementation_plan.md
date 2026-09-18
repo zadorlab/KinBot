@@ -4087,3 +4087,20 @@ and release the remaining independent jobs up to the configured exclusive
 node count. Their successful process exits are only dispatch gates; each
 native output still needs method, energy, frequency, DBOC, and VPT2 review
 before ANL assembly or MESS handoff.
+
+---
+
+# 81. Refresh completed jobs when reporting status (2026-09-17)
+
+After the first post-geometry fan-out, Blodgett's queue was empty while the
+saved state still showed CFOUR DBOC and Gaussian VPT2 as `submitted`. This is
+expected from the original `status` implementation, which only read
+`state.json`; `advance(..., submit=False)` reconciles finished jobs and
+updates their accepted status without new submissions. The default `status`
+command now performs that reconciliation under `drive.lock` when no driver
+owns the run. If a polling driver holds the lock, it reports the driver's
+last atomic snapshot. `status --cached` explicitly requests the saved
+snapshot without a Slurm query. A regression test verifies that refreshing
+an exited job marks it complete and stages its child without calling
+`sbatch`. Until the live CFOUR and Gaussian execution records are reviewed,
+their scientific output remains unverified.

@@ -442,6 +442,19 @@ ch4_run_auto3 --once` after jobs finish until all tasks complete, or use the
 bounded polling driver described above. Review the actual F12b, harmonic,
 DBOC, and VPT2 outputs before using any numerical result in an ANL expression.
 
+If the Slurm queue is empty but a task still reads `submitted`, the older
+`status` command is showing the saved state. Reconcile without submitting:
+
+```bash
+.venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run_auto3", submit=False)'
+.venv/bin/python -m kinbot.anl.dispatch status ch4_run_auto3
+```
+
+From the subsequent dispatcher update, `status` performs that reconciliation
+itself under the run lock; `status --cached` retains the saved-state view for
+offline inspection. A job that left Slurm without `execution.json` becomes
+`failed`, so inspect its Slurm stderr and native output before retrying.
+
 ## 6. Save results for the next implementation pass
 
 Once all tasks finish, retain `workflow.json`, `state.json`, each task's

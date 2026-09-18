@@ -405,7 +405,10 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
             executable.write_text('#!/usr/bin/env bash\nexit 0\n')
             executable.chmod(0o755)
         (gaussian / 'bsd').mkdir()
-        (gaussian / 'bsd' / 'g16.profile').write_text('export PROFILE_SOURCED=yes\n')
+        (gaussian / 'bsd' / 'g16.profile').write_text(
+            'export PROFILE_SOURCED=yes\n'
+            'export PROFILE_SCRATCH="$GAUSS_SCRDIR"\n'
+            'export GAUSS_SCRDIR=/profile-default\n')
         (root / 'cfour' / 'basis').mkdir()
         genbas = root / 'cfour' / 'basis' / 'GENBAS'
         genbas.write_text('basis fixture\n')
@@ -415,10 +418,17 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
         spec = ch4_spec()
         for task in spec['tasks']:
             task['resources']['partition'] = 'chosen_by_user'
+        blocked_scratch = root / 'not-a-directory'
+        blocked_scratch.write_text('blocks mkdir\n')
+        node_scratch = root / 'node-scratch'
+        site_scratch = root / 'site-scratch'
         base_path = os.environ['PATH']
         environment = {'PATH': f'{gaussian}:{molpro}:{cfour}:{base_path}',
                        'LOADEDMODULES': 'molpro/molpro24:cfour/2.1',
-                       'CFOUR_GENBAS': ''}
+                       'CFOUR_GENBAS': '',
+                       'GAUSS_SCRDIR': str(blocked_scratch),
+                       'SLURM_TMPDIR': str(node_scratch),
+                       'SCRATCH': str(site_scratch)}
         with patch.dict(os.environ, environment):
             run_dir = prepare(_write_spec(root, spec), root / 'run')
             setup = (run_dir / 'site_setup.sh').read_text()
@@ -433,8 +443,9 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
                     f'export KINBOT_BACKEND={backend}\n'
                     'source site_setup.sh\n'
                     f'command -v {program}\n'
-                    'printf "|%s|%s|%s|%s" "${PROFILE_SOURCED:-}" '
-                    '"${g16root:-}" "${CFOUR_GENBAS:-}" "${LOADED_MODULE:-}"\n'
+                    'printf "|%s|%s|%s|%s|%s|%s" "${PROFILE_SOURCED:-}" '
+                    '"${g16root:-}" "${CFOUR_GENBAS:-}" "${LOADED_MODULE:-}" '
+                    '"${GAUSS_SCRDIR:-}" "${PROFILE_SCRATCH:-}"\n'
                 )
                 child_env = os.environ.copy()
                 child_env['PATH'] = base_path
@@ -444,13 +455,15 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
                 if backend == 'gaussian':
                     assert result.stdout.startswith(f'{gaussian / "g16"}\n')
                     assert f'|yes|{root / "gaussian"}|' in result.stdout
+                    assert result.stdout.endswith(f'|{node_scratch}|{node_scratch}')
+                    gaussian_command = command
                 elif backend == 'cfour':
                     assert result.stdout.startswith(f'{cfour / "xcfour"}\n')
                     assert f'|{genbas}|cfour/2.1' in result.stdout
                     cfour_command = command
                 else:
                     assert result.stdout.startswith(f'{molpro / "molpro"}\n')
-                    assert result.stdout.endswith('|molpro/molpro24')
+                    assert '|molpro/molpro24|' in result.stdout
             override = root / 'different-GENBAS'
             override.write_text('override fixture\n')
             child_env['CFOUR_GENBAS'] = str(override)
@@ -458,6 +471,17 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
                                     cwd=run_dir, env=child_env, capture_output=True,
                                     text=True, check=True)
             assert f'|{override}|cfour/2.1' in result.stdout
+            child_env['SLURM_TMPDIR'] = str(blocked_scratch)
+            result = subprocess.run(['bash', '-c', gaussian_command],
+                                    cwd=run_dir, env=child_env, capture_output=True,
+                                    text=True, check=True)
+            assert result.stdout.endswith(f'|{site_scratch}|{site_scratch}')
+            explicit_scratch = root / 'explicit-scratch'
+            child_env['GAUSS_SCRDIR'] = str(explicit_scratch)
+            result = subprocess.run(['bash', '-c', gaussian_command],
+                                    cwd=run_dir, env=child_env, capture_output=True,
+                                    text=True, check=True)
+            assert result.stdout.endswith(f'|{explicit_scratch}|{explicit_scratch}')
 
 
 def test_prepare_selects_fitting_slurm_partition_and_keeps_explicit_choice():

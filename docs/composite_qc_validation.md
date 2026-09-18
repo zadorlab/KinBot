@@ -35,8 +35,9 @@ dispatcher. It exercises these gates:
    calculator and Sella.
 2. Molpro CCSD(T)/cc-pVTZ geometry optimization through the new ASE calculator
    and Sella, starting from the accepted Gaussian XYZ. Molpro computes
-   `FORCE,NUMERICAL` at each Sella step and `PUT,XYZGRAD` writes the native
-   coordinates and forces. Retain every step's `.inp`, `.out`, `.xyz`, any
+   `FORCE,NUMERICAL` at each Sella step. The calculator reads the printed
+   numerical gradient from `.out`; `PUT,XYZ` writes native coordinates used
+   to map the gradient rows to ASE atom order. Retain each step's `.inp`, `.out`, `.xyz`, any
    `.log`, and Sella's trajectory and final `.xyz`. The calculator invokes
    Molpro with `-g` so each force evaluation has a detailed `.log`.
 3. After that XYZ passes atom-order, finite-coordinate, and Molpro termination
@@ -74,7 +75,7 @@ avoid `-M`/`-G` in this mode because they can preallocate unused GA memory.
 [memory allocation rules](https://www.molpro.net/manual/doku.php?id=general_program_structure)
 and [parallel memory guidance](https://www.molpro.net/manual/doku.php?id=running_molpro_on_parallel_computers).
 
-Inputs are grounded in the [Molpro XYZ/NOORIENT and PUT,XYZGRAD](https://www.molpro.net/manual/doku.php?id=molecular_geometry),
+Inputs are grounded in the [Molpro XYZ/NOORIENT and PUT,XYZ](https://www.molpro.net/manual/doku.php?id=molecular_geometry),
 [FORCE,NUMERICAL](https://www.molpro.net/manual/doku.php?id=energy_gradients),
 [FREQUENCIES](https://www.molpro.net/manual/doku.php?id=harmonic_vibrational_frequencies_frequencies),
 and [F12 variable](https://www.molpro.net/manual/doku.php?id=quickstart)
@@ -95,8 +96,16 @@ normal-termination marker, and the location of long output in `.log`; the
 the expected numbered/final XYZ files. That calculation is
 UCCSD(T)-F12b/VDZ-F12, whereas this first Sella calculator requests
 conventional CCSD(T)/cc-pVTZ. The supplied tree has no standalone
-`FORCE,NUMERICAL`/`PUT,XYZGRAD` example, so a real first step on the target
-Molpro installation is still needed to validate that specific parser.
+`FORCE,NUMERICAL` example. The first live Molpro 2024 CH4 step on Blodgett
+computed CCSD(T) energy and the full `Numerical gradient for KB_GEOM_ENERGY`
+table in `.out`, then failed at `PUT,XYZGRAD` because Molpro reported the
+gradient unavailable for saving. The calculator now reads that table in
+Hartree/Bohr and uses `PUT,XYZ` for atom-order mapping. The live output also
+entered mppx mode with 11 processes despite the requested `-n 8`; the force
+input now sets `MPPX=0`, as allowed by
+[Molpro's release notes](https://www.molpro.net/manual/doku.php?id=recent_changes),
+to keep execution within the declared process count. A successful Sella
+step is still needed to validate the revised export and parsing path.
 
 ## Local test matrix
 
@@ -133,10 +142,12 @@ synthetic fixture does not establish that a program output parser is correct.
   Molpro supplies per-step energies/forces. The input saves `ENERGY` into
   `KB_GEOM_ENERGY` immediately after `CCSD(T)`, then uses
   `FORCE,NUMERICAL,VARIABLE=KB_GEOM_ENERGY,STARTCMD=RHF` so the force and
-  parsed energy refer to the same method. `PUT,XYZGRAD` writes coordinates and force components
-  in -eV/Å according to the [Molpro geometry manual](https://www.molpro.net/manual/doku.php?id=molecular_geometry).
-  The calculator maps those rows back to ASE atom order by element and
-  coordinate, reads the first `SETTING KB_GEOM_ENERGY` emitted after the
+  parsed energy refer to the same method. It reads Molpro's printed numerical
+  `dE/dx`, `dE/dy`, and `dE/dz` table in Hartree/Bohr, then returns its
+  negative in eV/Å as ASE forces. `PUT,XYZ` saves coordinates according to
+  the [Molpro geometry manual](https://www.molpro.net/manual/doku.php?id=molecular_geometry).
+  The calculator maps gradient rows back to ASE atom order by element and
+  coordinate in that XYZ, reads the first `SETTING KB_GEOM_ENERGY` emitted after the
   undisplaced CCSD(T) calculation and before the numerical displacements,
   and requires normal termination. Keep Molpro's `-g` `.log` and Sella's
   trajectory and final XYZ. A separate native

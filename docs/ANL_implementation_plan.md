@@ -3779,38 +3779,35 @@ budgeted across the requested MPI ranks with program and node headroom.
 
 # 72. Subsequent validation and thermochemistry ladder (2026-09-17)
 
-After CH4 dispatch passes, use the same graph and result schema in this
-order. Each stage must fit practical cluster time and memory limits:
+After the CH4 dispatch workflow passes, use local tests for orchestration
+and file handoff, then use the external site for each distinct QC interface:
 
-1. Parse and validate CH4 native output for every task, including termination,
-   method/reference identity, F12b selection, frequencies, VPT2 zero-point
-   correction, DBOC, and higher-order energy. Implement complete ANL0-F12
-   expression and compare its components with a pinned reference. Connect
-   the accepted molecular result to KinBot's existing energy and MESS data
-   path, preserving a single consistent geometry and ZPE convention.
-2. Run CH3 as the first open-shell molecule. It must test charge/multiplicity,
-   ROHF/UHF decisions, Molpro open-shell coupled cluster, MRCC compatibility
-   or direct fallback, and any spin-orbit term. Reuse the same offsite
-   dispatch procedure and collect versioned fixtures.
-3. Expand to a small set of stable molecules and radicals, then a small
-   reaction. Prefer systems whose complete selected ANL ladder is reasonably
-   quick on the target site. Add KinBot reaction routing, per-species
-   provenance, restart across species, and final MESS handoff only after the
-   single-species values are correct.
-4. Add CBH-0/1/2/3 and higher connectivity-based reaction generation,
-   chemically valid reference selection, atom and bond balance checks,
-   deduplication, and uncertainty propagation. Let the user choose the ANL
-   and lower-level methods for each rung. Compute heats of formation from
-   the validated reaction ladder, then pass them to MESS with their source
-   and uncertainty.
-5. Integrate ATcT reference species for CBH-0/1 and other supported rungs
-   through an officially supported machine-readable source if one is
-   available. Store the ATcT network/version, species identity, phase,
-   temperature, value, uncertainty, citation, and retrieval date. Cache a
-   pinned snapshot for reproducibility; do not silently change a completed
-   reaction result when the live database updates. The public ATcT site
-   exposes versioned thermochemical tables, but API availability and usage
-   terms need verification before implementing a live connector.
+1. Keep one accepted, provenance-checked electronic-plus-ZPE energy per
+   stationary point. A named ANL tier is available only when its required
+   components and native output checks all pass. A process exit code alone
+   does not establish an accepted energy.
+2. Generate CBH-0/1/2/3 reactions directly from the species' SMILES graph,
+   with connected capped fragments, elemental balance, and explicit
+   electronic states. Read gas-phase 0 K ATcT references from a pinned,
+   cached official release. Require an explicit state ID when matching is
+   ambiguous or a non-singlet reference is used.
+3. Solve 0 K heats of formation from the CBH reaction and accepted 0 K
+   energies. Try ANL1-F12, ANL1, ANL0-F12, ANL0, a preselected L3 partial
+   composite, then bare L2. Use one exact accepted method for every species
+   in a CBH reaction; species elsewhere in the kinetic network may settle
+   on different tiers. A tier name whose full equation is not yet pinned
+   must not be dispatched as though it were a canonical ANL method.
+4. Keep L2 geometries, harmonic frequencies, VPT2 corrections where
+   available, and L2 hindered-rotor scans for MESS state counting. Use
+   accepted ANL E0 values exactly once for MESS relative zero energies.
+   Store each CBH Hf(0), ATcT version, reaction rung, and source identities
+   alongside the MESS input. Derive Hf(T) from the MESS thermal increment
+   only when a validated MESS thermochemistry reader is available.
+5. Extend the graph generator to radicals and other validated states,
+   then run CH3 and a small reaction on the external site. Verify TS and
+   product restart, L2 rotor propagation, PES MESS assembly, and response
+   to a failed constituent calculation. These runs test that the workflow
+   can execute and resume, not numerical agreement with a reference heat.
 
 The dispatcher is a reusable staging and execution layer. The remaining
 calculator wrappers, scientific output parsers, composite recipes, KinBot
@@ -3818,7 +3815,7 @@ result routing, multi-species resource accounting, and MESS integration
 remain separate implementation gates. Later feature work must not treat
 process exit status as scientific validation.
 
-ATcT source: https://atct.anl.gov/
+ATcT source: https://atct.anl.gov/Thermochemical%20Data/
 
 ---
 
@@ -4433,3 +4430,68 @@ configured `l^-3.7` profile. For harmonic ZPE, `X` is the native harmonic
 ZPE. For VPT2, `X` is the within-run anharmonic minus harmonic ZPE, so the
 correction is extrapolated once and then added once to the independent
 CCSD(T) harmonic term.
+
+---
+
+# 91. Local CBH, ATcT, ladder, and MESS handoff fixtures (2026-09-18)
+
+The CBH implementation builds capped graph neighborhoods directly from
+KinBot's SMILES connectivity, using the atom, bond, and larger-neighborhood
+construction of the [original CBH paper](https://pubs.acs.org/doi/10.1021/ct200279q).
+It does not import reaction-generation code from a CBH library. It currently
+generates neutral, closed-shell, nonaromatic C/N/O/F/Cl CBH-0 through CBH-3
+reactions, deduplicates fragments, and checks element balance. Unsupported
+radicals, ions, aromatic states, and unusual valences fail explicitly.
+The 0 K solver can accept an externally specified radical reaction with
+explicit spin states and an explicit ATcT ID for a non-singlet reference;
+systematic radical fragment generation is a separate remaining step.
+
+The ATcT reader fetches and caches a pinned official release, verifies its
+release header, retains the source SHA-256, and requires a unique gas-phase
+0 K state match or an explicit reference ID. It uses the versioned
+[ATcT tables](https://atct.anl.gov/Thermochemical%20Data/), not a moving
+value embedded in the recipe. A completed calculation keeps its original
+reference snapshot even if a newer ATcT release appears.
+
+Local table fixtures check four of the supplied schemes: ethane CBH-0,
+CH3CF3 CBH-1, C2F6 CBH-2, and C3F8 CBH-3. The CH3 radical CBH-0 scheme
+checks explicit doublet state handling in the 0 K solver. The image table
+prints component totals with the opposite sign to the displayed forward
+reaction arrows. Internally, reactants are negative and products positive:
+
+```text
+C2H6 + H2 -> 2 CH4
+table component total: +15.345 kcal/mol
+forward reaction delta H(0): -15.345 kcal/mol
+Hf,0(C2H6) = 2 Hf,0(CH4) - delta H(0) = -16.461 kcal/mol
+
+CH3CF3 + 3 CH4 -> C2H6 + 3 CH3F
+table reverse-signed reaction total: -44.938 kcal/mol
+forward reaction delta H(0): +44.938 kcal/mol
+Hf,0(CH3CF3) = Hf,0(C2H6) + 3 Hf,0(CH3F)
+                 - 3 Hf,0(CH4) - delta H(0) = -176.728 kcal/mol
+```
+
+The tests use the table's rounded ATcT 1.202 kcal/mol numbers as synthetic
+fixtures, not a downloaded ATcT 1.202 release or native electronic
+calculations. They successively remove one reference species' accepted
+energy and verify fallback through ANL1-F12, ANL1, ANL0-F12, ANL0,
+a preselected L3 profile, and L2. The selected method is common to all
+species of one CBH reaction. A separate local MESS network test confirms
+that different wells and a TS may have different accepted tiers while the
+written relative zero energies use each accepted E0 exactly once.
+
+KinBot's direct MESS writer now carries the accepted E0 values and writes a
+`me/formation_0k.json` sidecar when a CBH Hf(0) is attached. The sidecar
+records the rung, 0 K value, method, ATcT release/hash, reference IDs,
+and energy sources. A fake local MESS handoff test checks that the sidecar,
+relative MESS zero energy, and L2 hindered-rotor writer path are present.
+MESS consumes relative energies for kinetics; Hf(0) must later be combined
+with its validated thermodynamic increment to obtain Hf(T).
+
+**Remaining implementation gates:** pin and implement every advertised ANL
+recipe, connect dispatcher results to species objects automatically, extend
+radical/charged CBH graph rules, propagate uncertainty, finish the PES MESS
+energy route, read actual MESS thermochemistry output, and run a small
+TS/reaction restart test on the external site. The local fixtures establish
+reaction algebra and file handoff only.

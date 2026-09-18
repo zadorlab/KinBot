@@ -310,8 +310,8 @@ independent jobs, preflight, and submit only the small Molpro DZ rank probe:
 ```bash
 .venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run", submit=False)'
 .venv/bin/python -m kinbot.anl.dispatch preflight ch4_run
-grep -E '^#SBATCH --(ntasks|cpus-per-task|mem|exclusive)' ch4_run/tasks/ccsdt_dz/job.slurm
-.venv/bin/python -m kinbot.anl.dispatch drive ch4_run --once --only ccsdt_dz
+grep -E '^#SBATCH --(ntasks|cpus-per-task|mem|exclusive)' ch4_run/tasks/molpro_dz_sp/job.slurm
+.venv/bin/python -m kinbot.anl.dispatch drive ch4_run --once --only molpro_dz_sp
 ```
 
 When that job leaves `squeue`, verify the native `.out` reports no more than
@@ -319,7 +319,7 @@ the intended total MPI count and normal termination. Reconcile the completed
 task, then release the other ready jobs:
 
 ```bash
-grep -E 'Distribution of processes|Memory per process|Molpro calculation terminated' ch4_run/tasks/ccsdt_dz/ccsdt_dz.out
+grep -E 'Distribution of processes|Memory per process|Molpro calculation terminated' ch4_run/tasks/molpro_dz_sp/molpro_dz_sp.out
 .venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run", submit=False)'
 .venv/bin/python -m kinbot.anl.dispatch status ch4_run
 .venv/bin/python -m kinbot.anl.dispatch drive ch4_run --once
@@ -420,6 +420,27 @@ other independent jobs with `drive ch4_run_auto3 --once`; the driver admits
 only `limits.max_nodes` exclusive jobs concurrently. If the process count is
 still wrong, retain the DZ input/output and Slurm stderr for diagnosis; the
 automatic count check will fail that task and hold the rest.
+
+The Blodgett DZ probe passed: Molpro 2024.1 reported four total processes
+(three compute, one helper), 225 MW per compute process, a
+`-40.387076267138` Hartree RHF CCSD(T)/cc-pVDZ energy, and normal termination.
+The input coordinates match the accepted L3 CH4 geometry. The historical task
+name `ccsdt_dz` and variable `KB_CCSDT` are misleading: this calculation is
+**CCSD(T), not CCSDT**, and must not enter a CCSDT correction. Fresh CH4
+fixtures name this task `molpro_dz_sp`; the prepared workflow retains its
+original task ID. With the process-count gate passed, continue the live run:
+
+```bash
+.venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run_auto3", submit=False)'
+.venv/bin/python -m kinbot.anl.dispatch preflight ch4_run_auto3
+.venv/bin/python -m kinbot.anl.dispatch drive ch4_run_auto3 --once
+.venv/bin/python -m kinbot.anl.dispatch status ch4_run_auto3
+```
+
+The first driver pass can submit up to three ready tasks. Repeat `drive
+ch4_run_auto3 --once` after jobs finish until all tasks complete, or use the
+bounded polling driver described above. Review the actual F12b, harmonic,
+DBOC, and VPT2 outputs before using any numerical result in an ANL expression.
 
 ## 6. Save results for the next implementation pass
 

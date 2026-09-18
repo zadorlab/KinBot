@@ -168,10 +168,10 @@ def test_selected_submission_keeps_other_ready_jobs_staged():
         advance(run_dir)
         with patch('kinbot.anl.dispatch.subprocess.run', return_value=type(
                 'Response', (), {'returncode': 0, 'stdout': '123\n', 'stderr': ''})()):
-            state = advance(run_dir, submit=True, submit_only={'ccsdt_dz'})
-        assert state['tasks']['ccsdt_dz']['status'] == 'submitted'
+            state = advance(run_dir, submit=True, submit_only={'molpro_dz_sp'})
+        assert state['tasks']['molpro_dz_sp']['status'] == 'submitted'
         assert all(state['tasks'][task['id']]['status'] == 'staged'
-                   for task in ch4_spec()['tasks'][2:] if task['id'] != 'ccsdt_dz')
+                   for task in ch4_spec()['tasks'][2:] if task['id'] != 'molpro_dz_sp')
         with pytest.raises(ValueError, match='Unknown submission'):
             advance(run_dir, submit_only={'missing_task'})
 

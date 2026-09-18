@@ -4063,3 +4063,27 @@ termination. Only then release the independent harmonic, F12, CFOUR DBOC,
 and Gaussian VPT2 jobs up to the user's node limit. The CH4-only fixture and
 its temporary tests may be removed after this acceptance pass; the general
 resource resolver, Slurm layout, and process-count check remain.
+
+---
+
+# 80. CH4 Molpro rank-count probe passed (2026-09-17)
+
+The live Blodgett `ch4_run_auto3/tasks/ccsdt_dz` job exited zero and its
+`execution.json` passed dispatch artifact checks. Molpro 2024.1 reports four
+total MPI processes (three compute plus one helper), matching the requested
+`--ntasks=4`, and 225 MW per compute process. The native input uses the
+accepted L3 geometry, neutral-singlet RHF, `basis=cc-pVDZ`, and `ccsd(t)`.
+Molpro printed `!CCSD(T) total energy = -40.387076267138` Hartree,
+`SETTING KB_CCSDT = -40.38707627 AU`, and its normal-termination marker.
+Thus the Slurm/Hydra rank correction is verified for this four-rank job.
+Eight-rank F12 and harmonic jobs still need their own live output checks.
+
+The historical smoke-fixture name `ccsdt_dz` and its `KB_CCSDT` variable
+falsely suggest full CCSDT; this output is CCSD(T) and cannot be used as an
+ANL CCSDT correction. New generated CH4 fixtures use `molpro_dz_sp` and
+`KB_DZ_ENERGY`, while the already prepared immutable run retains its old
+identifiers. The next step is to reconcile the completed probe, preflight,
+and release the remaining independent jobs up to the configured exclusive
+node count. Their successful process exits are only dispatch gates; each
+native output still needs method, energy, frequency, DBOC, and VPT2 review
+before ANL assembly or MESS handoff.

@@ -4182,6 +4182,56 @@ Future CFOUR DBOC tasks can declare `result_parser` so an invalid or missing
 value fails the task; the CH4 fixture declares HF. The already completed
 immutable run predates this declaration, so a read-only parser command will
 inspect its existing `cfour.out` without rewriting the accepted
-`execution.json`. Full native files from the other seven tasks are still
-needed to verify their scientific methods, energies, harmonic frequencies,
-and VPT2 values before constructing an ANL composite energy or MESS input.
+`execution.json`.
+
+---
+
+# 85. Full CH4 native-output review and method-aware result gates (2026-09-17)
+
+The completed CH4 text archive was inspected locally. It contains native
+inputs, outputs, scheduler records, workflow state, and execution hashes for
+all eight tasks. The original full run remains on the HPC; the review archive
+omits large CFOUR binary scratch, `GENBAS`, and ASE trajectories. Every
+included file named in an execution artifact map matched its SHA-256 hash.
+The audit findings and exact component values are recorded in
+`docs/composite_qc_validation.md`.
+
+The Molpro F12 outputs printed both F12a and F12b totals, so a generic
+`energy` or last-energy parser would be scientifically ambiguous. The native
+F12b values are `-40.454906199189` Hartree at cc-pVTZ-F12 and
+`-40.456608306474` Hartree at cc-pVQZ-F12. The reported `ENERGY(2)` variable
+matches F12b but is rounded to eight decimal places in the assignment line;
+the parser now reads the exact named `!CCSD(T)-F12b total energy` and checks
+the final method summary. The DZ output is conventional CCSD(T), not CCSDT,
+despite the historical `ccsdt_dz` task ID. Molpro's numerical harmonic task
+reports nine positive CH4 modes and ZPE `0.04479801` Hartree. The parser
+checks the half-sum of vibrational wavenumbers against the reported ZPE and
+separates zero rotation/translation modes.
+
+Gaussian's B3LYP/cc-pVTZ Opt/Freq=Anharmonic task completed at a stationary
+point on its own B3LYP surface and reports harmonic ZPE `9783.68667 cm-1`,
+total anharmonic ZPE `9646.36482 cm-1`, and correction `-137.32185 cm-1`.
+The output also contains two warnings about unreliable cubic force constants
+and one rotor/framework warning. Near-degenerate Darling-Dennison resonances
+were active. The VPT2 result is parsed and preserved with
+`review_required=true`, **not accepted for final thermochemistry yet**. A
+repeat with a tighter optimization and integration grid should compare the
+ZPE components and warning behavior before this correction is used in an ANL
+expression. The run's `complete` status records dispatch and output
+completion, not that convergence assessment.
+
+External tasks can now declare method-aware `result_parser` requests. The
+dispatcher validates each parser against its backend, expected basis, and
+input method before submission; after normal program completion it extracts
+the named result and fails malformed or inconsistent output. The CH4 fixture
+declares parsers for both F12b points, conventional DZ, harmonic frequencies,
+Gaussian VPT2, and CFOUR HF DBOC. These are reusable parser kinds; no
+CH4-specific dispatch branch was added. The previously completed prepared
+workflow is immutable and lacks the new declarations, so its native outputs
+are parsed read-only with the CLI rather than editing accepted records.
+
+Remaining before an ANL electronic energy or MESS handoff: resolve the VPT2
+quality flag; establish full ANL0-F12 and later ladder expressions with their
+missing higher-order corrections and open-shell/MRCC checks; then validate
+the arithmetic and MESS mapping on small molecules and a small reaction.
+The CH4 test alone does not authorize an ANL heat of formation.

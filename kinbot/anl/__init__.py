@@ -1,1 +1,1 @@
-"""Opt-in ANL task dispatch and, later, composite result assembly."""
+"""Opt-in ANL dispatch, validated components, and recipe expressions."""

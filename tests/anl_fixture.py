@@ -1,16 +1,7 @@
-"""CH4 input for the general ANL dispatch smoke test.
-
-This tests execution and artifact collection, not the full ANL0-F12 energy
-expression. See docs/composite_qc_validation.md for the external acceptance
-checks and the vendor documentation behind each input.
-"""
-
-import json
-import argparse
-from pathlib import Path
+"""Small synthetic task graph for dispatcher unit tests; never submitted to QC."""
 
 
-MOLPRO_HEADER = """***,KinBot CH4 dispatch
+MOLPRO_HEADER = """***,KinBot dispatch fixture
 symmetry,nosym
 orient,noorient
 geomtyp=xyz
@@ -50,12 +41,11 @@ def molpro_task(ident, body, *, geometry_from='l3_geometry',
     return task
 
 
-def ch4_spec(*, auto_resources=False):
-    # A near-tetrahedral, slightly imperfect starting geometry gives the two
-    # optimizers something to do while keeping this a single-species test.
+def dispatch_spec(*, auto_resources=False):
+    # Slightly imperfect methane coordinates exercise geometry propagation.
     spec = {
         'schema': 1,
-        'name': 'ch4-qc-dispatch',
+        'name': 'synthetic-qc-dispatch',
         'molecule': {
             'symbols': ['C', 'H', 'H', 'H', 'H'],
             'positions': [
@@ -136,7 +126,7 @@ def ch4_spec(*, auto_resources=False):
                 'resources': resources(4, 16000, '04:00:00'),
                 'input_name': 'ZMAT',
                 'input_template': (
-                    'KinBot CH4 DBOC\n{{CARTESIAN}}\n\n'
+                    'KinBot test DBOC\n{{CARTESIAN}}\n\n'
                     '*CFOUR(CALC=SCF\n'
                     'BASIS=cc-pVTZ\n'
                     'DBOC=ON\n'
@@ -153,7 +143,8 @@ def ch4_spec(*, auto_resources=False):
                     'file': 'cfour.out',
                     'contains': 'The total diagonal Born-Oppenheimer correction (DBOC) is:'},
                 'result_parser': {
-                    'kind': 'cfour_dboc', 'file': 'cfour.out', 'level': 'HF'},
+                    'kind': 'cfour_dboc', 'file': 'cfour.out',
+                    'level': 'HF', 'basis': 'cc-pVTZ'},
             },
             # Frequency-only VPT2 uses the accepted, tier-matched L2 geometry.
             # The L3 dependency keeps it in the post-geometry fan-out.
@@ -167,7 +158,7 @@ def ch4_spec(*, auto_resources=False):
                     '%nprocshared={{CORES}}\n%mem={{WORK_MEMORY_MB}}MB\n'
                     '#p B2PLYP/cc-pVTZ Freq=Anharmonic NoSymm SCF=XQC '
                     'EmpiricalDispersion=GD3BJ Integral=UltraFine\n\n'
-                    'KinBot CH4 VPT2\n\n{{CHARGE}} {{MULT}}\n'
+                    'KinBot test VPT2\n\n{{CHARGE}} {{MULT}}\n'
                     '{{CARTESIAN}}\n\n'),
                 'command': ['g16'], 'stdin': 'vpt2.com',
                 'stdout': 'vpt2.log', 'stderr': 'vpt2.err',
@@ -186,14 +177,3 @@ def ch4_spec(*, auto_resources=False):
             task['resources'].pop('cores')
             task['resources'].pop('memory_mb')
     return spec
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Write the CH4 dispatch fixture')
-    parser.add_argument('output', nargs='?', default='ch4_dispatch.json')
-    parser.add_argument('--auto-resources', action='store_true',
-                        help='size cores and memory from the selected Slurm node')
-    args = parser.parse_args()
-    target = Path(args.output)
-    target.write_text(json.dumps(ch4_spec(auto_resources=args.auto_resources), indent=2) + '\n')
-    print(target)

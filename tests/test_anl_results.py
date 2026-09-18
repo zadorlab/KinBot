@@ -14,7 +14,8 @@ from kinbot.anl.results import (
 
 
 # The values and surrounding labels are from the completed Blodgett CH4 job.
-_CFOUR_CH4 = """Total SCF energy including DBOC  -40.210746196622267
+_CFOUR_CH4 = """BASIS=cc-pVTZ
+Total SCF energy including DBOC  -40.210746196622267
 Summary of diagonal Born-Oppenheimer correction at Hartree-Fock level
 The total diagonal Born-Oppenheimer correction (DBOC) is: 0.0025887093 a.u.
 The total diagonal Born-Oppenheimer correction (DBOC) is: 568.156016 cm-1
@@ -41,6 +42,9 @@ def test_cfour_selects_hf_dboc_without_confusing_mp1_or_final_energy():
 
 
 def test_cfour_rejects_incomplete_and_inconsistent_dboc_output():
+    assert parse_cfour_dboc(_CFOUR_CH4, basis='cc-pVTZ')['selected_level'] == 'HF'
+    with pytest.raises(ValueError, match='basis'):
+        parse_cfour_dboc(_CFOUR_CH4, basis='cc-pVQZ')
     with pytest.raises(ValueError, match='completion'):
         parse_cfour_dboc(_CFOUR_CH4.replace('This computation required',
                                            'Computation did not complete'))

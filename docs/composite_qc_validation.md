@@ -24,12 +24,13 @@ development path and a top-level `thread_kinbot` module during collection;
 it cannot be collected in a normal checkout. The new dispatch tests are run
 by this command.
 
-## First offsite test: general dispatcher with CH4
+## Completed first offsite test: general dispatcher with CH4
 
-The first test runs one molecule through the molecule-independent
-`kinbot.anl.dispatch` graph. The CH4 fixture is in
-`examples/anl/ch4_dispatch.py`; no CH4-specific branch exists in the
-dispatcher. It exercises these gates:
+The completed test ran one molecule through the molecule-independent
+`kinbot.anl.dispatch` graph. Its temporary runnable CH4 generator and HPC
+runbook were retired after all eight tasks completed. A small synthetic graph
+remains under `tests/anl_fixture.py` for dispatcher regression tests. No
+CH4-specific branch exists in the dispatcher. The completed run exercised:
 
 1. Gaussian B2PLYP-D3(BJ)/cc-pVTZ optimization through KinBot's ASE
    calculator and Sella.
@@ -56,10 +57,8 @@ declarations, so its native outputs were parsed read-only. A task marked
 `complete` is still a dispatch result; any `review_required` parser flag
 must be resolved before thermochemical use.
 
-For the complete clone, setup, preflight, submission, monitoring, retry, and
-result-collection commands, use [the CH4 HPC runbook](CH4_HPC_smoke_test.md).
-Prepare on the cluster: generated scripts pin the Python executable used for
-preparation and absolute run-directory paths. The dispatcher checks that
+Generated scripts pin the Python executable used for preparation and absolute
+run-directory paths. The dispatcher checks that
 prepared inputs and accepted outputs have not changed before releasing
 dependent jobs. A failed attempt can be archived with `retry` after fixing
 site setup; changing chemistry inputs requires preparing a new run.
@@ -327,7 +326,7 @@ accepted L2 geometry at the identical method, basis, and dispersion level;
 the dispatcher checks this relationship before staging. Gaussian's `Freq`
 keyword alone does not optimize. The first completed CH4 VPT2 job *did*
 optimize because its input explicitly contained `Opt=(Tight,CalcFC)`; the
-revised fixture removes `Opt` and records that distinction in parser output.
+test-only graph omits `Opt` and records that distinction in parser output.
 The revised higher-tier L2 optimization uses Sella with a tighter force
 threshold and an UltraFine grid before VPT2 uses its coordinates. The
 published ANL1 equation's B3LYP anharmonic term and the user-selected

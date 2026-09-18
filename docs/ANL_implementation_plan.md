@@ -3719,10 +3719,12 @@ Official references:
 
 # 71. Prioritized first offsite gate: general dispatch with CH4 (2026-09-17)
 
-The user's current priority is a molecule-independent dispatch framework,
-followed by a CH4-only test of it. `kinbot/anl/dispatch.py` accepts a
-declarative molecule and task graph; CH4 is data in
-`examples/anl/ch4_dispatch.py`, never a conditional in the dispatcher.
+The initial priority was a molecule-independent dispatch framework followed
+by a CH4-only test. `kinbot/anl/dispatch.py` accepts a declarative molecule
+and task graph; CH4 existed only in temporary task data, never as a
+conditional in the dispatcher. That runnable
+smoke-test generator was retired after the successful offsite run; its general
+regression coverage now uses `tests/anl_fixture.py`.
 This first gate tests file generation, actual execution, resource bounds,
 restart, and geometry sequencing before full ANL recipe arithmetic.
 
@@ -3854,11 +3856,12 @@ execution risks before the first licensed run:
   print normal termination without documented fatal/termination-error text;
   these are interface checks until full output parsers are validated.
 - The earlier environment command could install conda-forge Sella 2.1.0 even
-  though KinBot requires 2.6.0. The HPC runbook now pins ASE 3.29.0 and
-  installs Sella 2.6.0 from PyPI before the editable KinBot install.
+  though KinBot requires 2.6.0. The completed HPC procedure pinned ASE
+  3.29.0 and installed Sella 2.6.0 from PyPI before editable KinBot.
 
-Run the exact cluster procedure in `docs/CH4_HPC_smoke_test.md`, using a
-tested commit on the `composite` branch. First collect successful CH4 output
+The historical cluster procedure was retired after the completed first run.
+Future site checks should use a recipe-generated workflow on a tested commit
+of `composite`. First collect successful native output
 and method/version banners. Then compare scientific values and build real
 parsers before enabling an ANL label or a MESS handoff. The local regression
 suite passes without the four licensed codes; the external result remains the
@@ -3942,8 +3945,8 @@ partition that fits the task. An explicit task partition wins. The reported
 Blodgett `short-cpu` default has a 30-minute limit, so the CH4 example's
 multi-hour tasks should select `day-long-cpu` on that site. Preflight uses
 `sbatch --test-only` to catch scheduler restrictions that `sinfo` does not
-expose, including account or QoS access. `docs/CH4_HPC_smoke_test.md` now
-explains how to inspect the generated setup and selected partition.
+expose, including account or QoS access. The completed HPC procedure also
+inspected the generated setup and selected partition.
 
 ---
 
@@ -4272,8 +4275,8 @@ A Gaussian `Freq=Anharmonic` job does **not** optimize unless `Opt` is present.
 The completed first CH4 smoke fixture did include `Opt=(Tight,CalcFC)` at
 B3LYP/cc-pVTZ, and its log explicitly shows a stationary-point search. That
 old result is a historical B3LYP interface test, not the intended higher-tier
-B2PLYP anharmonic correction. The revised CH4 fixture has no Gaussian `Opt`;
-it reads the accepted L2 geometry, requests B2PLYP/cc-pVTZ with
+B2PLYP anharmonic correction. The revised test-only graph omits Gaussian
+`Opt`; it reads the accepted L2 geometry, requests B2PLYP/cc-pVTZ with
 `EmpiricalDispersion=GD3BJ`, and keeps a dependency on L3 geometry completion
 so all post-L3 tasks can still be dispatched together. The L2 Sella
 threshold is tightened to `0.0005 eV/Å` and both L2 and VPT2 request an
@@ -4283,5 +4286,40 @@ dispersion does not match the declared VPT2 level. The parser records whether
 the native VPT2 output optimized in that job.
 
 No replacement CH4 smoke calculation is requested now. Keep the completed
-run immutable; use the revised fixture for future tests when the user elects
-to validate the profiled higher-tier VPT2 result and any warning convergence.
+run immutable. A future licensed-site validation of the profiled higher-tier
+VPT2 result should use a generated recipe workflow and review its warnings.
+
+---
+
+# 87. Post-smoke cleanup and composite assembly foundation (2026-09-18)
+
+The temporary runnable CH4 generator and step-by-step HPC runbook are removed.
+The native-output findings above remain as an audit record. A small task graph
+now lives only in the tests; it is not a production preset or a submission
+script. General dispatcher, scheduler, Molpro/Sella, and parser regression
+tests remain.
+
+`kinbot/anl/model.py` evaluates complete electronic and zero-point expressions
+from method-labeled components. `kinbot/anl/recipes.py` declares ANL0,
+ANL0-F12, and ANL1 term lists; a B2PLYP-D3(BJ) VPT2 substitution receives a
+distinct profiled label. Missing components, wrong method/basis/backend,
+stale L2/L3 geometry, mismatched electronic state, unreviewed native warnings,
+or missing source hashes block the result. Spin-orbit is an explicit term,
+including when a state-specific provider concludes it is zero. Synthetic
+tests cover F12b selection, cross-program higher-order subtraction, both
+energy levels, and these refusal paths.
+
+`kinbot/anl/workflow.py` can convert a *newly prepared* completed task's
+method-aware parsed output into a component only after checking staged files,
+artifact hashes, and a fresh parse of the native output. It currently covers
+individual Molpro energies/harmonic ZPE, Gaussian VPT2 correction, and CFOUR
+DBOC. The first completed CH4 run predates some parser declarations and is
+kept as historical validation rather than being silently upgraded.
+
+**Next implementation gates:** build and verify the actual CBS extrapolation,
+core-valence, scalar-relativistic, higher-order CCSDT(Q)/CCSDTQ(P), and
+state-specific spin-orbit providers with exact references and program versions.
+Then connect the recipe graph and restart engine to KinBot's L3 boundary,
+route the assembled 0 K result through PES and MESS without an extra L2 ZPE,
+and validate on small closed/open-shell species and a small reaction. No
+complete ANL energy, heat of formation, or MESS handoff is claimed yet.

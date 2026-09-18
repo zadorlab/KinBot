@@ -14,7 +14,7 @@ from ase.units import Bohr, Hartree
 import numpy as np
 import pytest
 
-from examples.anl.ch4_dispatch import ch4_spec
+from tests.anl_fixture import dispatch_spec
 from kinbot.anl.dispatch import advance, prepare, run_task
 from kinbot.ase_modules.calculators.molpro import (
     Molpro, check_process_count, parse_numerical_gradient, parse_output, render_input,
@@ -180,8 +180,8 @@ def test_molpro_2024_ch4_gradient_rows_from_first_live_step():
             parse_numerical_gradient(output, geometry, atoms)
 
 
-def test_ch4_l3_sella_calls_molpro_at_each_geometry_and_hashes_native_files():
-    spec = ch4_spec()
+def test_l3_sella_calls_molpro_at_each_geometry_and_hashes_native_files():
+    spec = dispatch_spec()
     spec['tasks'] = [dict(spec['tasks'][1], geometry_from='initial')]
     with TemporaryDirectory() as temporary:
         root = Path(temporary)

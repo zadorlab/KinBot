@@ -1,7 +1,8 @@
 """Declarative ANL expressions over independently validated components.
 
-CBS, core-valence, and scalar-relativistic components are named inputs here;
-their extrapolation and native QC providers still require implementation.
+CBS, core-valence, and scalar-relativistic components are named inputs here.
+Verified Molpro task pairs can provide CBS references; the remaining native
+QC providers still require implementation.
 """
 
 from __future__ import annotations

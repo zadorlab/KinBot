@@ -4375,3 +4375,26 @@ until original computational inputs or component values resolve that setting.
 Using the accepted native CH4 F12b/TZ and F12b/QZ totals only as a numeric
 regression gives `-40.457504545051066` Hartree for their CBS reference.
 That number is one component, not a complete ANL0-F12 energy.
+
+---
+
+# 89. Verified Molpro pair to CBS component (2026-09-18)
+
+`kinbot.anl.workflow.cbs_task_component` now accepts two completed Molpro
+task IDs and a recipe requirement. It reparses both native outputs after
+checking dispatcher stage and execution hashes, then requires the declared
+basis order, method, electronic state, geometry hash, quantity, and native
+calculation settings to agree. It rejects unfinished tasks, warnings requiring
+review, changed output files, and missing extrapolation parameters. The
+derived component records the exact exponent, cardinal number, input paths,
+and a deterministic digest of both native output hashes. It can provide the
+F12 T/Q reference and, once those native pairs are generated, conventional
+CCSD(T) electronic and ANL1 harmonic CBS references. A synthetic completed
+F12 T/Q task pair checks the accepted CH4 numeric result and rejection paths;
+this does not represent a new licensed QC run.
+
+**Next:** produce and parse the conventional `a'QZ/a'5Z` and `a'5Z/a'6Z`
+Molpro basis pairs, then add four validated all-electron/frozen-core tasks for
+the core-valence difference. The scalar-relativistic, higher-order CC, and
+spin-orbit providers, full recipe assembly, KinBot PES/MESS handoff, and
+small-species/reaction validation remain open.

@@ -355,6 +355,16 @@ def test_preflight_reports_missing_program_before_submission():
                 preflight(run_dir)
 
 
+def test_preflight_reports_silent_site_setup_exit_status():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        (run_dir / 'site_setup.sh').write_text('exit 7\n')
+        with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/true'):
+            with pytest.raises(RuntimeError, match='exit status 7 without diagnostics'):
+                preflight(run_dir)
+
+
 def test_preflight_sources_site_setup_and_validates_slurm_without_submitting():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
@@ -406,6 +416,7 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
             executable.chmod(0o755)
         (gaussian / 'bsd').mkdir()
         (gaussian / 'bsd' / 'g16.profile').write_text(
+            'false  # vendor profiles may use an unsuccessful probe\n'
             'export PROFILE_SOURCED=yes\n'
             'export PROFILE_SCRATCH="$GAUSS_SCRDIR"\n'
             'export GAUSS_SCRDIR=/profile-default\n')
@@ -482,6 +493,12 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
                                     cwd=run_dir, env=child_env, capture_output=True,
                                     text=True, check=True)
             assert result.stdout.endswith(f'|{explicit_scratch}|{explicit_scratch}')
+            (gaussian / 'bsd' / 'g16.profile').write_text('false\n')
+            result = subprocess.run(['bash', '-c', gaussian_command],
+                                    cwd=run_dir, env=child_env, capture_output=True,
+                                    text=True, check=False)
+            assert result.returncode == 1
+            assert 'Gaussian profile failed with exit status 1' in result.stderr
 
 
 def test_prepare_selects_fitting_slurm_partition_and_keeps_explicit_choice():

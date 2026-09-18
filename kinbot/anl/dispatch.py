@@ -752,8 +752,10 @@ def preflight(run_dir):
                                 cwd=run_dir, capture_output=True, text=True,
                                 check=False)
         if result.returncode:
+            detail = (result.stderr.strip() or result.stdout.strip()
+                      or f'exit status {result.returncode} without diagnostics')
             raise RuntimeError(f"{task['id']}: preflight failed after site setup: "
-                               + (result.stderr.strip() or result.stdout.strip()))
+                               + detail)
     checked = 0
     for task in spec['tasks']:
         entry = state['tasks'].get(task['id'])

@@ -180,8 +180,16 @@ def render_site_setup(programs_by_backend):
                     '    fi',
                     '    kinbot_gaussian_scratch_selected="$GAUSS_SCRDIR"',
                     '    set +u',
-                    f'    source {shlex.quote(str(profile))}',
-                    '    set -u',
+                    f'    if source {shlex.quote(str(profile))}; then',
+                    '      :',
+                    '    else',
+                    '      kinbot_gaussian_profile_status=$?',
+                    '      set -euo pipefail',
+                    '      echo "Gaussian profile failed with exit status '
+                    '$kinbot_gaussian_profile_status" >&2',
+                    '      return "$kinbot_gaussian_profile_status"',
+                    '    fi',
+                    '    set -euo pipefail',
                     '    export GAUSS_SCRDIR="$kinbot_gaussian_scratch_selected"',
                     '    unset kinbot_gaussian_scratch_selected',
                 ]

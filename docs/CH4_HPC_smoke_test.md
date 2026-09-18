@@ -195,6 +195,9 @@ It uses a writable `GAUSS_SCRDIR` first, then `SLURM_TMPDIR`, `SCRATCH`,
 writable, so preflight may use a fallback even when compute nodes can use
 scratch. Keep the persistent run directory under your chosen working area
 (for example under `$HOME`); Gaussian scratch is temporary.
+The generated setup sources `g16.profile` in a checked conditional because
+profile initialization probes may return nonzero under the batch script's
+`set -e`. A nonzero final profile status is reported explicitly.
 From `xcfour`, it looks for `../basis/GENBAS` and sets `CFOUR_GENBAS`; the
 dispatcher copies that file beside `ZMAT` when the CFOUR task runs. An
 existing `CFOUR_GENBAS` takes priority. The generated script is sourced by

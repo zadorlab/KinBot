@@ -4102,5 +4102,35 @@ owns the run. If a polling driver holds the lock, it reports the driver's
 last atomic snapshot. `status --cached` explicitly requests the saved
 snapshot without a Slurm query. A regression test verifies that refreshing
 an exited job marks it complete and stages its child without calling
-`sbatch`. Until the live CFOUR and Gaussian execution records are reviewed,
-their scientific output remains unverified.
+`sbatch`. The live Gaussian VPT2 process has since passed the dispatch gate;
+its scientific output remains unverified.
+
+---
+
+# 82. Resolve CFOUR's missing compiler runtime (2026-09-17)
+
+The CH4 fan-out completed seven of eight dispatch tasks. CFOUR DBOC failed
+before reading `ZMAT`: `xcfour` exited 127 because the compute node's dynamic
+loader could not find `libgfortran.so.4`. Its `cfour.out` was empty. This is a
+runtime dependency of the site's CFOUR executable, not evidence of a bad DBOC
+input or a completed DBOC result. Both login and compute-node `ldd` showed the
+same missing library. The site's `/opt/anaconda3/lib/libgfortran.so.4` exists
+on the node; a short `srun` probe with that file alone in `LD_PRELOAD` resolved
+the CFOUR executable and its `libquadmath`/`libgcc_s` dependencies. A native
+CFOUR calculation still has to verify that this runtime works through DBOC.
+
+The dispatcher now checks CFOUR ELF dependencies after site setup and again
+on the compute node just before launch. If the module already resolves them,
+it does nothing. For a missing `libgfortran.so.N`, it looks for an exact
+SONAME in the CFOUR/Conda installation and shallow common software roots,
+checks the candidate with `ldd`, and preloads only that file into the CFOUR
+child process. It does not add a complete Conda library directory to
+`LD_LIBRARY_PATH`, which could replace unrelated libraries for Python, Git,
+or Slurm. `CFOUR_LIBGFORTRAN` is an explicit fallback for an unusual site.
+The chosen path is recorded in `execution.json`; unresolved dependencies fail
+early with a specific message. This also works for the already prepared CH4
+run, whose task input and site setup need no edits. After updating the branch,
+preflight, archive/retry only `cfour_dboc`, and submit that task. Keep the
+failed attempt and the eventual native output for provenance. A successful
+process/marker gate still does not certify the numerical DBOC; parse and
+review its value before any ANL arithmetic.

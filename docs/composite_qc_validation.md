@@ -173,7 +173,11 @@ synthetic fixture does not establish that a program output parser is correct.
   [CC modules documentation](https://cfour.uni-mainz.de/cfour/index.php?n=Main.CCModules);
   the external test must identify the installed module/version and distinguish
   this from `CC_PROG=MRCC`. DBOC is a separate property node, not the
-  CCSDT(Q) energy.
+  CCSDT(Q) energy. The first Blodgett CH4 attempt found the site's `xcfour`
+  needed `libgfortran.so.4` before it could read `ZMAT`. KinBot now checks
+  ELF dependencies and supplies a validated matching Fortran runtime only to
+  the CFOUR child when the site module does not already provide one. The
+  retry must still verify actual native DBOC output and its numerical value.
 * [MRCC's manual](https://www.mrcc.hu/MRCC/manual/pdf/manual.pdf) specifies a
   `MINP` file in the run directory, invoked with `dmrcc`; it documents
   `CCSDT(Q)` and `CCSDTQ(P)` as distinct `calc` options and `geom=xyz` with an

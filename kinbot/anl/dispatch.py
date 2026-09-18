@@ -28,6 +28,7 @@ from ase.units import Hartree
 import numpy as np
 
 from kinbot.ase_modules.calculators.factory import capabilities
+from kinbot.anl.runtime import qc_runtime_environment
 from kinbot.anl.site import assign_partitions, render_site_setup
 from kinbot.theory import TheoryProfile
 
@@ -595,19 +596,23 @@ def _run_external(directory, record):
                .replace('{input}', task['input_name'])
                .replace('{molpro_stack_mw}', str(molpro_stack_mw))
                for arg in task['command']]
+    child_env, runtime = qc_runtime_environment(command[0], task['backend'])
+    child_env['OMP_NUM_THREADS'] = str(_omp_threads(task))
     stdin = (directory / task['input_name']).open('rb') if task.get('stdin') else None
     try:
         with (directory / task.get('stdout', 'stdout.txt')).open('wb') as stdout, \
                 (directory / task.get('stderr', 'stderr.txt')).open('wb') as stderr:
             result = subprocess.run(command, cwd=directory, stdin=stdin,
                                     stdout=stdout, stderr=stderr, check=False,
-                                    env={**os.environ,
-                                         'OMP_NUM_THREADS': str(_omp_threads(task))})
+                                    env=child_env)
     finally:
         if stdin:
             stdin.close()
     if result.returncode:
-        raise RuntimeError(f'Program exited with status {result.returncode}.')
+        error_file = directory / task.get('stderr', 'stderr.txt')
+        detail = error_file.read_text(errors='replace').strip()[-1200:]
+        suffix = f' Last stderr: {detail}' if detail else ''
+        raise RuntimeError(f'Program exited with status {result.returncode}.{suffix}')
     missing = [name for name in task['required_outputs']
                if not (directory / name).is_file()
                or not (directory / name).stat().st_size]
@@ -627,7 +632,7 @@ def _run_external(directory, record):
         if output.is_file() and marker['contains'] in output.read_text(errors='replace'):
             raise RuntimeError(f"Failure marker present in {marker['file']}: "
                                f"{marker['contains']}")
-    return {'command': command, 'returncode': result.returncode}
+    return {'command': command, 'returncode': result.returncode, **runtime}
 
 
 def _run_ase_optimize(directory, record):
@@ -779,6 +784,11 @@ def preflight(run_dir):
         for program in sorted(task_programs):
             lines.append(f'command -v {shlex.quote(program)} >/dev/null || '
                          f'{{ echo {shlex.quote("Missing executable: " + program)} >&2; exit 1; }}')
+            if _backend(task) == 'cfour':
+                lines.append(f'{shlex.quote(state["python"])} -c '
+                             + shlex.quote('from kinbot.anl.runtime import '
+                                           'qc_runtime_environment; '
+                                           f'qc_runtime_environment({program!r}, "cfour")'))
         for env_name in sorted(task_files):
             lines.append(f'test -f "${{{env_name}:-}}" || '
                          f'{{ echo {shlex.quote("Missing file in $" + env_name)} >&2; exit 1; }}')

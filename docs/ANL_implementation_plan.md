@@ -4157,3 +4157,31 @@ retry of the already prepared immutable workflow, since `retry` regenerates
 `ZMAT` from its original template using the updated code. The previous
 attempt's input and output remain archived. The next live retry must confirm
 the printed keyword table, SCF, DBOC value, and normal CFOUR termination.
+
+---
+
+# 84. First complete CH4 dispatch and CFOUR result gate (2026-09-17)
+
+The next retry completed: all eight CH4 tasks now report `complete`. CFOUR
+2.1 ran on a compute node using an automatically selected
+`/opt/anaconda2/lib/libgfortran.so.4.0.0`, exited zero, and archived hashes
+of `ZMAT`, `GENBAS`, native output, and execution record. Its echoed input
+contains `BASIS=cc-pVTZ` and `MULTIPLICITY=1`; the keyword table reports PVTZ
+and 86 basis functions. The final output reports the HF DBOC as
+`0.0025887093` Hartree, `568.156016 cm-1`, and `6.797 kJ/mol`. These three
+values agree within print precision. The same output also reports an MP1 DBOC
+of `0.0026718675` Hartree; this is a distinct level and must not be selected
+by matching the last occurrence of the repeated DBOC label. CFOUR's final
+electronic energy `-40.210746196622267` Hartree includes DBOC and is not the
+DBOC correction itself.
+
+The first method-aware native parser now selects the named HF summary,
+cross-checks its reported units, retains the MP1 summary as separately
+labeled provenance, and verifies CFOUR's completion and final energy.
+Future CFOUR DBOC tasks can declare `result_parser` so an invalid or missing
+value fails the task; the CH4 fixture declares HF. The already completed
+immutable run predates this declaration, so a read-only parser command will
+inspect its existing `cfour.out` without rewriting the accepted
+`execution.json`. Full native files from the other seven tasks are still
+needed to verify their scientific methods, energies, harmonic frequencies,
+and VPT2 values before constructing an ANL composite energy or MESS input.

@@ -143,6 +143,8 @@ def ch4_spec(*, auto_resources=False):
                 'success_marker': {
                     'file': 'cfour.out',
                     'contains': 'The total diagonal Born-Oppenheimer correction (DBOC) is:'},
+                'result_parser': {
+                    'kind': 'cfour_dboc', 'file': 'cfour.out', 'level': 'HF'},
             },
             {
                 'id': 'gaussian_vpt2', 'kind': 'external',

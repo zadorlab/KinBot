@@ -181,7 +181,11 @@ synthetic fixture does not establish that a program output parser is correct.
   `*CFOUR(...)` line at 80 columns. KinBot now stages one keyword per line,
   following the [official continuation syntax](https://cfour.uni-mainz.de/cfour/index.php?n=Main.CfourKeywordSection),
   and rejects a keyword that cannot fit. The next retry must still verify
-  actual native DBOC output and its numerical value.
+  actual native DBOC output and its numerical value. The subsequent CH4 run
+  completed with HF DBOC `0.0025887093` Hartree and a separately printed MP1
+  result. The result parser selects the named HF summary, cross-checks the
+  printed units, and never substitutes the final energy including DBOC for
+  the correction.
 * [MRCC's manual](https://www.mrcc.hu/MRCC/manual/pdf/manual.pdf) specifies a
   `MINP` file in the run directory, invoked with `dmrcc`; it documents
   `CCSDT(Q)` and `CCSDTQ(P)` as distinct `calc` options and `geom=xyz` with an

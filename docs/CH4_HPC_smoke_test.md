@@ -455,6 +455,39 @@ itself under the run lock; `status --cached` retains the saved-state view for
 offline inspection. A job that left Slurm without `execution.json` becomes
 `failed`, so inspect its Slurm stderr and native output before retrying.
 
+### CFOUR runtime failure observed in the first CH4 run
+
+The first `cfour_dboc` attempt exited 127 before reading `ZMAT` because
+`libgfortran.so.4` was missing from the executable's loader path. The
+compute-node probe found a usable copy in the site's Anaconda installation.
+Current dispatch code discovers and checks a matching Fortran runtime for
+the CFOUR child automatically; normal users do not need to find or export a
+library path. It leaves the Python/Slurm environment and other programs'
+library paths alone. If a site has no usable copy, preflight reports the
+missing SONAME and the `CFOUR_LIBGFORTRAN` override. A passing loader check
+does not prove the DBOC calculation will complete.
+
+On the already prepared `ch4_run_auto3`, update the branch and retry only the
+failed leaf task. The immutable CH4 geometry and seven successful siblings
+remain accepted:
+
+```bash
+cd ~/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git pull --ff-only origin composite
+git rev-parse --short HEAD
+.venv/bin/python -m kinbot.anl.dispatch preflight ch4_run_auto3
+.venv/bin/python -m kinbot.anl.dispatch retry ch4_run_auto3 cfour_dboc
+.venv/bin/python -m kinbot.anl.dispatch preflight ch4_run_auto3
+.venv/bin/python -m kinbot.anl.dispatch drive ch4_run_auto3 --once --only cfour_dboc
+.venv/bin/python -m kinbot.anl.dispatch status ch4_run_auto3
+```
+
+Run `status` again after the job leaves Slurm. If CFOUR is still failed,
+review `tasks/cfour_dboc/execution.json`, `cfour.err`, `cfour.out`, and
+`slurm.stderr` before retrying. `retry` archives the previous attempt under
+`attempts/cfour_dboc/1`. Do not hand the DBOC to the composite expression
+until the final native output and numerical value have been reviewed.
+
 ## 6. Save results for the next implementation pass
 
 Once all tasks finish, retain `workflow.json`, `state.json`, each task's

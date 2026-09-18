@@ -177,7 +177,11 @@ synthetic fixture does not establish that a program output parser is correct.
   needed `libgfortran.so.4` before it could read `ZMAT`. KinBot now checks
   ELF dependencies and supplies a validated matching Fortran runtime only to
   the CFOUR child when the site module does not already provide one. The
-  retry must still verify actual native DBOC output and its numerical value.
+  retry then reached `xjoda` and revealed that CFOUR 2.1 truncated a long
+  `*CFOUR(...)` line at 80 columns. KinBot now stages one keyword per line,
+  following the [official continuation syntax](https://cfour.uni-mainz.de/cfour/index.php?n=Main.CfourKeywordSection),
+  and rejects a keyword that cannot fit. The next retry must still verify
+  actual native DBOC output and its numerical value.
 * [MRCC's manual](https://www.mrcc.hu/MRCC/manual/pdf/manual.pdf) specifies a
   `MINP` file in the run directory, invoked with `dmrcc`; it documents
   `CCSDT(Q)` and `CCSDTQ(P)` as distinct `calc` options and `geom=xyz` with an

@@ -484,9 +484,29 @@ git rev-parse --short HEAD
 
 Run `status` again after the job leaves Slurm. If CFOUR is still failed,
 review `tasks/cfour_dboc/execution.json`, `cfour.err`, `cfour.out`, and
-`slurm.stderr` before retrying. `retry` archives the previous attempt under
-`attempts/cfour_dboc/1`. Do not hand the DBOC to the composite expression
+`slurm.stderr` before retrying. `retry` archives each previous attempt under
+`attempts/cfour_dboc/<attempt>`. Do not hand the DBOC to the composite expression
 until the final native output and numerical value have been reviewed.
+
+The next CFOUR attempt reached `xjoda` but exposed a second input problem:
+CFOUR 2.1 read only the first 80 columns of the 123-character keyword line
+and rejected the truncated `MU` keyword. The current branch fixes this at
+staging time, including for the older prepared workflow. To retry that failed
+leaf again, pull the new commit, then run:
+
+```bash
+cd ~/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git pull --ff-only origin composite
+.venv/bin/python -m kinbot.anl.dispatch retry ch4_run_auto3 cfour_dboc
+sed -n '1,30p' ch4_run_auto3/tasks/cfour_dboc/ZMAT
+.venv/bin/python -m kinbot.anl.dispatch preflight ch4_run_auto3
+.venv/bin/python -m kinbot.anl.dispatch drive ch4_run_auto3 --once --only cfour_dboc
+```
+
+The new `ZMAT` should contain separate `CALC`, `BASIS`, `DBOC`, `COORD`,
+`UNITS`, `CHARGE`, `MULTIPLICITY`, `MEM_UNIT`, and `MEMORY_SIZE` lines. After
+the job leaves Slurm, `status` reconciles it. Inspect the native DBOC line
+and numerical value even if the dispatch gate is `complete`.
 
 ## 6. Save results for the next implementation pass
 

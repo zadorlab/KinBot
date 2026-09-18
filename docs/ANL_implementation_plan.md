@@ -4134,3 +4134,26 @@ preflight, archive/retry only `cfour_dboc`, and submit that task. Keep the
 failed attempt and the eventual native output for provenance. A successful
 process/marker gate still does not certify the numerical DBOC; parse and
 review its value before any ANL arithmetic.
+
+---
+
+# 83. Respect CFOUR 2.1's fixed-width keyword input (2026-09-17)
+
+The next Blodgett CFOUR attempt passed the loader and launched `xjoda`, then
+failed before SCF. Its echoed `ZMAT` stopped at `...,CHARGE=0,MU` and reported
+`Must supply value for keyword string MU`. The generated `*CFOUR(...)` line
+was 123 characters; CFOUR 2.1's reader used only its first 80 columns. The
+input was therefore truncated before `MULTIPLICITY`, independently of the
+earlier shared-library failure. No DBOC result has been accepted.
+
+[CFOUR's keyword-section manual](https://cfour.uni-mainz.de/cfour/index.php?n=Main.CfourKeywordSection)
+allows continuation across lines, requires no trailing comma at a continued
+line end, and closes the parenthesis only on the last line. The CH4 template
+now follows this syntax. More generally, every staged CFOUR `*CFOUR(...)`
+section is normalized to one keyword per line, preserving nested method
+parentheses such as `CCSD(T)` and rejecting any individual keyword longer
+than a conservative 72 columns. This stage-time formatting also repairs a
+retry of the already prepared immutable workflow, since `retry` regenerates
+`ZMAT` from its original template using the updated code. The previous
+attempt's input and output remain archived. The next live retry must confirm
+the printed keyword table, SCF, DBOC value, and normal CFOUR termination.

@@ -28,6 +28,7 @@ from ase.units import Hartree
 import numpy as np
 
 from kinbot.ase_modules.calculators.factory import capabilities
+from kinbot.anl.cfour import normalize_cfour_zmat
 from kinbot.anl.runtime import qc_runtime_environment
 from kinbot.anl.site import assign_partitions, render_site_setup
 from kinbot.theory import TheoryProfile
@@ -461,6 +462,8 @@ def _stage_task(run_dir, spec, state, task):
     if task['kind'] == 'external':
         rendered = _render_input(task['input_template'], atoms,
                                  spec['molecule'], task['resources'])
+        if _backend(task) == 'cfour':
+            rendered = normalize_cfour_zmat(rendered)
         (directory / task['input_name']).write_text(rendered)
     _atomic_json(directory / 'task.json', {
         'schema': 1, 'task': task,

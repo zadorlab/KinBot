@@ -411,7 +411,7 @@ E_ANL0 =
 + ZPE_harm[CCSD(T)/TZ]
 + (ZPE_anh[B3LYP/TZ] - ZPE_harm[B3LYP/TZ])
 + (E_CCSDT(Q)/DZ - E_CCSD(T)/DZ)
-+ CV_CBS(cTZ,cQZ)
++ (E_CCSD(T,full)/CBS(cTZ,cQZ) - E_CCSD(T,frozen-core)/CBS(cTZ,cQZ))
 + REL_DKH
 + DBOC_HF/TZ
 + SO
@@ -430,7 +430,7 @@ E_ANL1 =
 + (ZPE_anh[B3LYP/TZ] - ZPE_harm[B3LYP/TZ])
 + (E_CCSDT(Q)/TZ - E_CCSD(T)/TZ)
 + (E_CCSDTQ(P)/DZ - E_CCSDT(Q)/DZ)
-+ CV_CBS(cTZ,cQZ)
++ (E_CCSD(T,full)/CBS(cTZ,cQZ) - E_CCSD(T,frozen-core)/CBS(cTZ,cQZ))
 + REL_DKH
 + DBOC_HF/TZ
 + SO
@@ -4301,8 +4301,9 @@ tests remain.
 
 `kinbot/anl/model.py` evaluates complete electronic and zero-point expressions
 from method-labeled components. `kinbot/anl/recipes.py` declares ANL0,
-ANL0-F12, and ANL1 term lists; a B2PLYP-D3(BJ) VPT2 substitution receives a
-distinct profiled label. Missing components, wrong method/basis/backend,
+ANL0-F12, and ANL1 term lists; the chosen scaled-triples F12 implementation
+and any B2PLYP-D3(BJ) VPT2 substitution receive distinct profiled labels.
+Missing components, wrong method/basis/backend,
 stale L2/L3 geometry, mismatched electronic state, unreviewed native warnings,
 or missing source hashes block the result. Spin-orbit is an explicit term,
 including when a state-specific provider concludes it is zero. Synthetic
@@ -4316,10 +4317,61 @@ individual Molpro energies/harmonic ZPE, Gaussian VPT2 correction, and CFOUR
 DBOC. The first completed CH4 run predates some parser declarations and is
 kept as historical validation rather than being silently upgraded.
 
-**Next implementation gates:** build and verify the actual CBS extrapolation,
-core-valence, scalar-relativistic, higher-order CCSDT(Q)/CCSDTQ(P), and
+**Next implementation gates:** connect the CBS arithmetic to validated native
+task pairs, then build core-valence, scalar-relativistic, higher-order
+CCSDT(Q)/CCSDTQ(P), and
 state-specific spin-orbit providers with exact references and program versions.
 Then connect the recipe graph and restart engine to KinBot's L3 boundary,
 route the assembled 0 K result through PES and MESS without an extra L2 ZPE,
 and validate on small closed/open-shell species and a small reaction. No
 complete ANL energy, heat of formation, or MESS handoff is claimed yet.
+
+---
+
+# 88. Original recipe equation and two-point coefficients verified (2026-09-18)
+
+The [original manuscript, section 2.1, equations 1–3](https://www.osti.gov/servlets/purl/1389058)
+was checked on its rendered pages 6–8. ANL0-F12 is *exactly* ANL0 with the
+conventional `a'QZ/a'5Z` CCSD(T) CBS reference removed and the
+`cc-pVTZ-F12/cc-pVQZ-F12` CCSD(T)-F12b CBS reference added. It retains the
+ANL0 CCSD(T)/TZ geometry and harmonic-ZPE framework. ANL1 instead uses
+CCSD(T)/QZ geometry, a TZ/QZ harmonic-ZPE CBS term, the `a'5Z/a'6Z`
+electronic CBS pair, and both TZ CCSDT(Q) and DZ CCSDTQ(P) increments.
+
+The common core-valence correction is the difference between *all-electron*
+and *frozen-core* CCSD(T) energies, each extrapolated from `cc-pcVTZ` and
+`cc-pcVQZ`. The DKH term is the CCSD(T) energy difference with and without
+Douglas–Kroll one-electron integrals using `aug-cc-pcVTZ-DK`; DBOC is
+HF/cc-pVTZ. The paper obtains state-specific spin-orbit corrections from
+experiment. The published anharmonic correction uses B3LYP/cc-pVTZ. The
+user-selected B2PLYP-D3(BJ) higher-tier VPT2 term remains a *profiled*
+variant; the original paper reports numerical instability for several DFT
+functionals including B2PLYP-D3, so a normal Gaussian exit alone is not
+sufficient to accept it.
+
+For adjacent cardinal numbers `n-1,n`, the paper uses the total-energy rule
+
+```text
+E_CBS = E_n + alpha_n (E_n - E_(n-1))
+alpha_n = (n-1)^3.7 / (n^3.7 - (n-1)^3.7)
+```
+
+| Basis pair | Upper `n` | Derived `alpha_n` | Paper rounded value |
+| --- | ---: | ---: | ---: |
+| TZ/QZ, TF/QF, cTZ/cQZ | 4 | 0.52654647 | 0.53 |
+| a'QZ/a'5Z | 5 | 0.77922802 | 0.78 |
+| a'5Z/a'6Z | 6 | 1.03817643 | 1.04 |
+
+The paper also notes approximate RMSD-minimizing values near 0.5, 0.75,
+and 1.1, respectively. Those are observations, not the adopted coefficients.
+The original paper says its `l^-3.7` rule is used throughout; later
+ANL-family variants may pin different coefficients and must receive distinct
+recipe provenance. `kinbot/anl/extrapolation.py` implements this arithmetic.
+The 2017 article identifies the F12b approximation but does not specify
+whether perturbative triples were scaled. [Molpro's manual](https://www.molpro.net/manual/doku.php?id=explicitly_correlated_methods)
+defines `SCALE_TRIP=1` as an explicit change. The currently generated F12
+inputs use it, so their recipe label remains a profiled ANL0-F12 variant
+until original computational inputs or component values resolve that setting.
+Using the accepted native CH4 F12b/TZ and F12b/QZ totals only as a numeric
+regression gives `-40.457504545051066` Hartree for their CBS reference.
+That number is one component, not a complete ANL0-F12 energy.

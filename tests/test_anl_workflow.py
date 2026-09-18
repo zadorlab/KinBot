@@ -141,6 +141,11 @@ def test_verified_f12_task_pair_builds_recipe_cbs_component():
         with pytest.raises(ValueError, match='basis pair'):
             cbs_task_component(run_dir, 'f12_tz', 'f12_qz',
                                **{**kwargs, 'upper_basis': 'cc-pV5Z-F12'})
+        harmonic = next(item for item in recipe('ANL1').requirements
+                        if item.key == 'harmonic_zpe')
+        with pytest.raises(ValueError, match='electronic CBS'):
+            cbs_task_component(run_dir, 'f12_tz', 'f12_qz',
+                               **{**kwargs, 'requirement': harmonic})
 
 
 def test_cbs_pair_rejects_incomplete_or_changed_native_output():

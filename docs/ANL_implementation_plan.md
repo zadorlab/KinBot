@@ -4389,12 +4389,16 @@ review, changed output files, and missing extrapolation parameters. The
 derived component records the exact exponent, cardinal number, input paths,
 and a deterministic digest of both native output hashes. It can provide the
 F12 T/Q reference and, once those native pairs are generated, conventional
-CCSD(T) electronic and ANL1 harmonic CBS references. A synthetic completed
+CCSD(T) electronic CBS references. Harmonic ZPE extrapolation is deliberately
+separate: the paper describes TZ and QZ geometry/frequency calculations, so
+the provider must retain provenance for each basis-specific optimized geometry
+before it can assemble the ANL1 CBS harmonic term. A synthetic completed
 F12 T/Q task pair checks the accepted CH4 numeric result and rejection paths;
 this does not represent a new licensed QC run.
 
 **Next:** produce and parse the conventional `a'QZ/a'5Z` and `a'5Z/a'6Z`
-Molpro basis pairs, then add four validated all-electron/frozen-core tasks for
-the core-valence difference. The scalar-relativistic, higher-order CC, and
+Molpro basis pairs, implement ANL1 TZ/QZ harmonic ZPE with both geometry
+records, then add four validated all-electron/frozen-core tasks for the
+core-valence difference. The scalar-relativistic, higher-order CC, and
 spin-orbit providers, full recipe assembly, KinBot PES/MESS handoff, and
 small-species/reaction validation remain open.

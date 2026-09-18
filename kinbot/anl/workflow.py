@@ -111,14 +111,16 @@ def cbs_task_component(run_dir, lower_task_id, upper_task_id, *,
 
 
 def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis):
+    # Harmonic ZPE may combine values at independently optimized TZ/QZ
+    # structures; it needs a separate provider with both geometry roles.
+    if requirement.quantity != 'electronic' \
+            or 'composite' not in requirement.backends:
+        raise ValueError('Recipe requirement is not an electronic CBS term.')
     basis_pair = f'CBS({lower_basis},{upper_basis})'
     if (not lower_basis or not upper_basis or lower_basis == upper_basis
             or not (requirement.basis == basis_pair
                     or requirement.basis.startswith(basis_pair + '//'))):
         raise ValueError('CBS basis pair disagrees with the recipe.')
-    if requirement.quantity not in ('electronic', 'zpe') \
-            or 'composite' not in requirement.backends:
-        raise ValueError('Recipe requirement is not a composite CBS term.')
     if (lower.basis, upper.basis) != (lower_basis, upper_basis):
         raise ValueError('CBS native basis order differs from the recipe.')
     if (lower.method != requirement.method or upper.method != requirement.method

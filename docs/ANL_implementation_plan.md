@@ -3909,6 +3909,12 @@ Gaussian scratch selection checks writability of `GAUSS_SCRDIR`, then
 handles sites where `/scratch` is exposed in the login environment but not
 writable there. The task directory under the user's working area (often
 `$HOME`) holds persistent inputs and outputs; scratch is temporary.
+The first offsite preflight exposed a Gaussian profile that exited silently
+under the batch script's `set -e`; the same setup returned zero when checked
+without `errexit`, and the Python imports succeeded. The generated script
+now sources the profile in a checked conditional, then reports a nonzero
+final status explicitly. This still needs confirmation through the next
+offsite preflight and licensed Gaussian job.
 
 For tasks without an explicit partition, preparation reads Slurm's available
 partition, CPU, node-memory, and time-limit fields and chooses the shortest

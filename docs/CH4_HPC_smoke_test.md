@@ -190,6 +190,11 @@ modules visible on the login node. It records the exact Molpro and CFOUR
 module names found in `LOADEDMODULES` and pins their executable directories
 on `PATH`. From `g16`, it finds and sources the adjacent
 `bsd/g16.profile`, sets `g16root`, and gives Gaussian a scratch directory.
+It uses a writable `GAUSS_SCRDIR` first, then `SLURM_TMPDIR`, `SCRATCH`,
+`TMPDIR`, or the task directory. The reported login-node `/scratch` is not
+writable, so preflight may use a fallback even when compute nodes can use
+scratch. Keep the persistent run directory under your chosen working area
+(for example under `$HOME`); Gaussian scratch is temporary.
 From `xcfour`, it looks for `../basis/GENBAS` and sets `CFOUR_GENBAS`; the
 dispatcher copies that file beside `ZMAT` when the CFOUR task runs. An
 existing `CFOUR_GENBAS` takes priority. The generated script is sourced by

@@ -165,11 +165,25 @@ def render_site_setup(programs_by_backend):
             if profile:
                 lines += [
                     f'    export g16root={shlex.quote(str(profile.parent.parent.parent))}',
-                    '    export GAUSS_SCRDIR="${GAUSS_SCRDIR:-${SLURM_TMPDIR:-${TMPDIR:-$PWD}}}"',
-                    '    mkdir -p "$GAUSS_SCRDIR"',
+                    '    for kinbot_gaussian_scratch in "${GAUSS_SCRDIR:-}" '
+                    '"${SLURM_TMPDIR:-}" "${SCRATCH:-}" "${TMPDIR:-}" "$PWD"; do',
+                    '      if [ -n "$kinbot_gaussian_scratch" ] && '
+                    'mkdir -p "$kinbot_gaussian_scratch" 2>/dev/null && '
+                    '[ -w "$kinbot_gaussian_scratch" ]; then',
+                    '        export GAUSS_SCRDIR="$kinbot_gaussian_scratch"',
+                    '        break',
+                    '      fi',
+                    '    done',
+                    '    unset kinbot_gaussian_scratch',
+                    '    if [ ! -w "${GAUSS_SCRDIR:-}" ]; then',
+                    '      echo "No writable Gaussian scratch directory" >&2; return 1',
+                    '    fi',
+                    '    kinbot_gaussian_scratch_selected="$GAUSS_SCRDIR"',
                     '    set +u',
                     f'    source {shlex.quote(str(profile))}',
                     '    set -u',
+                    '    export GAUSS_SCRDIR="$kinbot_gaussian_scratch_selected"',
+                    '    unset kinbot_gaussian_scratch_selected',
                 ]
         if backend == 'cfour':
             candidates = (candidate.parent.parent / 'basis' / 'GENBAS'

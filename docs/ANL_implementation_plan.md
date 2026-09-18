@@ -3904,6 +3904,12 @@ generic dispatcher; the operator should still review the generated script
 and run preflight before submitting. The actual licensed compute-node run
 remains the acceptance gate.
 
+Gaussian scratch selection checks writability of `GAUSS_SCRDIR`, then
+`SLURM_TMPDIR`, `SCRATCH`, `TMPDIR`, and finally the task directory. This
+handles sites where `/scratch` is exposed in the login environment but not
+writable there. The task directory under the user's working area (often
+`$HOME`) holds persistent inputs and outputs; scratch is temporary.
+
 For tasks without an explicit partition, preparation reads Slurm's available
 partition, CPU, node-memory, and time-limit fields and chooses the shortest
 partition that fits the task. An explicit task partition wins. The reported

@@ -3741,7 +3741,7 @@ required artifacts, geometry identity, and artifact hashes; for CFOUR it
 does not certify the DBOC value.
 
 The offsite operator should run the exact procedure in
-`docs/composite_qc_validation.md`, edit only site module setup/resources,
+`docs/composite_qc_validation.md`, review discovered site setup/resources,
 and return the program versions, generated inputs, stdout/stderr, native
 outputs, Slurm logs, and execution manifests or permitted redacted fixtures.
 Compare the Molpro input with a rotdPy-generated case on that site.
@@ -3889,3 +3889,26 @@ and syntax without claiming to validate that different energy label.
   the independent Molpro nodes now divide the requested memory into a
   bounded per-rank stack after reserving at least 200 MW per rank and node
   headroom. MPI ranks run with one OpenMP/MKL thread each.
+
+---
+
+# 75. Portable site discovery before the CH4 run (2026-09-17)
+
+`prepare` now generates `site_setup.sh` from the login-node environment. It
+records the loaded module for each QC backend, pins executable directories,
+finds Gaussian's adjacent `bsd/g16.profile` and `g16root`, and finds CFOUR's
+`basis/GENBAS` beside its installation. It checks both a PATH entry and its
+symlink target for adjacent support files. A user-provided `CFOUR_GENBAS`
+takes priority. This avoids embedding one cluster's paths or versions in the
+generic dispatcher; the operator should still review the generated script
+and run preflight before submitting. The actual licensed compute-node run
+remains the acceptance gate.
+
+For tasks without an explicit partition, preparation reads Slurm's available
+partition, CPU, node-memory, and time-limit fields and chooses the shortest
+partition that fits the task. An explicit task partition wins. The reported
+Blodgett `short-cpu` default has a 30-minute limit, so the CH4 example's
+multi-hour tasks should select `day-long-cpu` on that site. Preflight uses
+`sbatch --test-only` to catch scheduler restrictions that `sinfo` does not
+expose, including account or QoS access. `docs/CH4_HPC_smoke_test.md` now
+explains how to inspect the generated setup and selected partition.

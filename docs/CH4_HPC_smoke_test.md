@@ -144,8 +144,15 @@ Generate the CH4-only task graph, then edit its JSON before preparation:
 In `ch4_dispatch.json`, set `limits.max_nodes` to the number of exclusive
 nodes you may use concurrently (the example is 3). Check every task's
 `resources.cores`, `resources.memory_mb`, and `resources.walltime` against the
-target partition. If required, add `"partition": "YOUR_PARTITION"` inside
-each task's `resources`. The two geometry jobs are sequential; only after
+site's limits. When `resources.partition` is absent, `prepare` reads `sinfo`
+and selects the available partition with the shortest time limit that fits
+that task's cores, memory, and walltime. An explicit `"partition": "NAME"`
+inside a task's `resources` takes priority. On the reported Blodgett layout,
+the default `short-cpu` partition permits only 30 minutes, so the CH4 tasks
+need a longer partition; discovery should select `day-long-cpu`. Review the
+actual choice in `ch4_run/workflow.json` and each staged `job.slurm`. If
+`sinfo` is unavailable during preparation, set the partition explicitly.
+The two geometry jobs are sequential; only after
 the Molpro ASE/Sella geometry is accepted can up to `max_nodes` independent jobs run
 at once. Each task's Slurm script requests `--exclusive`.
 Molpro `FORCE,NUMERICAL` is run once per Sella geometry step; harmonic
@@ -160,41 +167,41 @@ per process. For Molpro 2024's default single-node disk mode, the generated
 commands use per-process `-m`; check that the site's `.molprorc` does not add
 `-M` or `-G`.
 
+Load the QC modules you intend to use **before** preparation. Gaussian is
+already visible as `g16` on the reported Blodgett login node, even though it
+has no listed module. These commands are specific to that site; the dispatcher
+does not contain these paths or module versions:
+
 ```bash
+module load molpro/molpro24 cfour/2.1
+command -v g16 molpro xcfour
 .venv/bin/python -m kinbot.anl.dispatch prepare ch4_dispatch.json ch4_run
+cat ch4_run/site_setup.sh
 cat ch4_run/tasks/l2_geometry/job.slurm
 ```
 
 Use a new run-directory name if you change chemistry, task resources, or
 the JSON after preparation. The dispatcher hashes its prepared specification.
 
-## 4. Configure the site's licensed programs
+## 4. Inspect discovered setup and preflight
 
-Edit `ch4_run/site_setup.sh`. It is sourced by each batch job **after**
-`set -euo pipefail`. For example, replace the names and paths below with the
-actual site installations:
+`prepare` writes `ch4_run/site_setup.sh` from the executables and loaded
+modules visible on the login node. It records the exact Molpro and CFOUR
+module names found in `LOADEDMODULES` and pins their executable directories
+on `PATH`. From `g16`, it finds and sources the adjacent
+`bsd/g16.profile`, sets `g16root`, and gives Gaussian a scratch directory.
+From `xcfour`, it looks for `../basis/GENBAS` and sets `CFOUR_GENBAS`; the
+dispatcher copies that file beside `ZMAT` when the CFOUR task runs. An
+existing `CFOUR_GENBAS` takes priority. The generated script is sourced by
+each batch job after `set -euo pipefail` and can be edited for unusual sites.
+The reported `/opt/cfour/2.1/basis/GENBAS` and
+`/opt/gaussian/g16/bsd/g16.profile` match these discovery rules. Check the
+generated script for the paths actually present on your system.
 
-```bash
-#!/usr/bin/env bash
-# If the module function is unavailable in non-login batch shells, source
-# your site's module initialization file here.
-case "$KINBOT_BACKEND" in
-  gaussian) module load gaussian/YOUR_VERSION ;;
-  molpro)   module load molpro/molpro24 ;;
-  cfour)
-    module load cfour/2.1
-    export CFOUR_GENBAS=/absolute/path/to/cfour/basis/GENBAS
-    ;;
-esac
-```
-
-The reported module list contains `molpro/molpro24` and `cfour/2.1`, but no
-Gaussian module. Check whether a separate site script exposes `g16`;
-its absence from the module list alone does not establish that the program is
-unavailable. This CH4 test starts with Gaussian L2 geometry and its preflight
-requires `g16`, so do not submit it until that path is resolved. Ask the site
-for the appropriate setup if `command -v g16` fails after loading licensed
-programs. MRCC is omitted from this test because no MRCC module was listed.
+If `site_setup.sh` lacks a program or needs special license setup, edit that
+file and rerun preflight. If you change chemistry, resources, or partition,
+edit the JSON and prepare a fresh run directory. MRCC is omitted from this
+test because no MRCC module was listed.
 [Molpro's MRCC interface](https://www.molpro.net/manual/doku.php?id=the_mrcc_program_of_m._kallay_mrcc)
 also requires a separate MRCC installation with its executables on `PATH`.
 
@@ -212,6 +219,9 @@ Preflight checks each task's own module environment and must report `g16`,
 imports ASE, Sella, and KinBot with the Python path pinned for batch jobs and
 uses Slurm's `sbatch --test-only` to validate currently staged job scripts
 without submitting them ([Slurm `sbatch` manual](https://slurm.schedmd.com/sbatch.html)).
+Partition discovery uses the `%P`, `%c`, `%m`, `%l`, and `%a` fields of
+[`sinfo`](https://slurm.schedmd.com/sinfo.html). It cannot determine account
+or QoS access; `sbatch --test-only` is the final scheduler check.
 If your cluster exposes these programs only on compute nodes, use a short
 site-approved test allocation to check the same setup and executable paths
 before starting this workflow.
@@ -324,7 +334,7 @@ Once all tasks finish, retain `workflow.json`, `state.json`, each task's
 output, and Slurm logs. In particular, retain every Molpro geometry step's
 `.inp`, `.out`, `.log`, and gradient `.xyz`, plus Sella's final `.xyz` and
 trajectory. Record `git rev-parse HEAD`, `module list`, and version
-banners from all four codes. One way to package the run is:
+banners from Gaussian, Molpro, and CFOUR. One way to package the run is:
 
 ```bash
 tar -czf ch4_run_results.tgz -C ch4_run workflow.json state.json tasks

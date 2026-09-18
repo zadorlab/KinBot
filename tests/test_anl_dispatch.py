@@ -4,6 +4,8 @@ import json
 import hashlib
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -388,3 +390,104 @@ def test_preflight_sources_site_setup_and_validates_slurm_without_submitting():
         assert result['slurm_scripts_tested'] == 1
         assert result['exclusive_jobs_checked'] == 1
         assert result['programs'] == ['g16', 'molpro', 'xcfour']
+
+
+def test_prepare_discovers_vendor_setup_and_cfour_genbas():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        gaussian = root / 'gaussian' / 'g16'
+        molpro = root / 'molpro' / 'bin'
+        cfour = root / 'cfour' / 'bin'
+        for directory, program in ((gaussian, 'g16'), (molpro, 'molpro'),
+                                   (cfour, 'xcfour')):
+            directory.mkdir(parents=True)
+            executable = directory / program
+            executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+            executable.chmod(0o755)
+        (gaussian / 'bsd').mkdir()
+        (gaussian / 'bsd' / 'g16.profile').write_text('export PROFILE_SOURCED=yes\n')
+        (root / 'cfour' / 'basis').mkdir()
+        genbas = root / 'cfour' / 'basis' / 'GENBAS'
+        genbas.write_text('basis fixture\n')
+        (root / 'cfour' / 'payload').mkdir()
+        (cfour / 'xcfour').replace(root / 'cfour' / 'payload' / 'xcfour')
+        (cfour / 'xcfour').symlink_to(root / 'cfour' / 'payload' / 'xcfour')
+        spec = ch4_spec()
+        for task in spec['tasks']:
+            task['resources']['partition'] = 'chosen_by_user'
+        base_path = os.environ['PATH']
+        environment = {'PATH': f'{gaussian}:{molpro}:{cfour}:{base_path}',
+                       'LOADEDMODULES': 'molpro/molpro24:cfour/2.1',
+                       'CFOUR_GENBAS': ''}
+        with patch.dict(os.environ, environment):
+            run_dir = prepare(_write_spec(root, spec), root / 'run')
+            setup = (run_dir / 'site_setup.sh').read_text()
+            assert 'module load molpro/molpro24' in setup
+            assert 'module load cfour/2.1' in setup
+            for backend in ('gaussian', 'molpro', 'cfour'):
+                program = {'gaussian': 'g16', 'molpro': 'molpro',
+                           'cfour': 'xcfour'}[backend]
+                command = (
+                    'set -euo pipefail\n'
+                    'module() { test "$1" = load; export LOADED_MODULE="$2"; }\n'
+                    f'export KINBOT_BACKEND={backend}\n'
+                    'source site_setup.sh\n'
+                    f'command -v {program}\n'
+                    'printf "|%s|%s|%s|%s" "${PROFILE_SOURCED:-}" '
+                    '"${g16root:-}" "${CFOUR_GENBAS:-}" "${LOADED_MODULE:-}"\n'
+                )
+                child_env = os.environ.copy()
+                child_env['PATH'] = base_path
+                result = subprocess.run(['bash', '-c', command], cwd=run_dir,
+                                        env=child_env, capture_output=True,
+                                        text=True, check=True)
+                if backend == 'gaussian':
+                    assert result.stdout.startswith(f'{gaussian / "g16"}\n')
+                    assert f'|yes|{root / "gaussian"}|' in result.stdout
+                elif backend == 'cfour':
+                    assert result.stdout.startswith(f'{cfour / "xcfour"}\n')
+                    assert f'|{genbas}|cfour/2.1' in result.stdout
+                    cfour_command = command
+                else:
+                    assert result.stdout.startswith(f'{molpro / "molpro"}\n')
+                    assert result.stdout.endswith('|molpro/molpro24')
+            override = root / 'different-GENBAS'
+            override.write_text('override fixture\n')
+            child_env['CFOUR_GENBAS'] = str(override)
+            result = subprocess.run(['bash', '-c', cfour_command],
+                                    cwd=run_dir, env=child_env, capture_output=True,
+                                    text=True, check=True)
+            assert f'|{override}|cfour/2.1' in result.stdout
+
+
+def test_prepare_selects_fitting_slurm_partition_and_keeps_explicit_choice():
+    display = ('short-cpu*|96|126000|30:00|up\n'
+               'day-long-cpu|96|126000|1-00:00:00|up\n'
+               'week-long-cpu|96|126000|7-00:00:00|up\n'
+               'drained|96|126000|31-00:00:00|down\n')
+    spec = ch4_spec()
+    spec['tasks'][0]['resources']['partition'] = 'week-long-cpu'
+    actual_which = shutil.which
+
+    def which(program):
+        return '/usr/bin/sinfo' if program == 'sinfo' else actual_which(program)
+
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        with patch('kinbot.anl.site.shutil.which', side_effect=which), \
+                patch('kinbot.anl.site.subprocess.run', return_value=
+                      subprocess.CompletedProcess([], 0, display, '')):
+            run_dir = prepare(_write_spec(root, spec), root / 'run')
+        prepared = json.loads((run_dir / 'workflow.json').read_text())
+        partitions = {task['id']: task['resources']['partition']
+                      for task in prepared['tasks']}
+        assert partitions['l2_geometry'] == 'week-long-cpu'
+        assert set(partitions.values()) == {'week-long-cpu', 'day-long-cpu'}
+        script = (run_dir / 'tasks' / 'l2_geometry' / 'job.slurm').read_text()
+        assert '#SBATCH --partition=week-long-cpu\n' in script
+        with patch('kinbot.anl.site.shutil.which', side_effect=which), \
+                patch('kinbot.anl.site.subprocess.run', return_value=
+                      subprocess.CompletedProcess([], 0, display.splitlines()[0] + '\n', '')):
+            with pytest.raises(RuntimeError, match='no available Slurm partition'):
+                prepare(_write_spec(root, spec), root / 'impossible')
+        assert not (root / 'impossible').exists()

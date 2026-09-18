@@ -28,6 +28,7 @@ from ase.units import Hartree
 import numpy as np
 
 from kinbot.ase_modules.calculators.factory import capabilities
+from kinbot.anl.site import assign_partitions, render_site_setup
 from kinbot.theory import TheoryProfile
 
 
@@ -460,12 +461,25 @@ def _stage_task(run_dir, spec, state, task):
 
 def prepare(spec_path, run_dir):
     spec = validate_spec(json.loads(Path(spec_path).read_text()))
+    assign_partitions(spec)
+    validate_spec(spec)
+    programs_by_backend = {}
+    for task in spec['tasks']:
+        backend = _backend(task)
+        if task['kind'] == 'external':
+            program = task['command'][0]
+        else:
+            parts = shlex.split(_runtime_profile(task).command or
+                                ('molpro' if backend == 'molpro' else 'g16'))
+            if not parts:
+                raise ValueError(f"{task['id']}: calculator command is empty.")
+            program = parts[0]
+        programs_by_backend.setdefault(backend, set()).add(program)
+    site_setup = render_site_setup(programs_by_backend)
     run_dir = Path(run_dir).resolve()
     run_dir.mkdir(parents=True, exist_ok=False)
     (run_dir / 'tasks').mkdir()
-    (run_dir / 'site_setup.sh').write_text(
-        '#!/usr/bin/env bash\n'
-        '# Load licensed QC modules and set CFOUR_GENBAS on this site.\n')
+    (run_dir / 'site_setup.sh').write_text(site_setup)
     _atomic_json(run_dir / 'workflow.json', spec)
     state = {'schema': 1,
              'python': sys.executable,

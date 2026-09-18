@@ -118,8 +118,8 @@ def ch4_spec(*, auto_resources=False):
                 cores=8, memory_mb=48000, walltime='12:00:00',
             ),
             molpro_task(
-                'ccsdt_dz',
-                'basis=cc-pVDZ\nhf\nccsd(t)\nkb_ccsdt=energy\n',
+                'molpro_dz_sp',
+                'basis=cc-pVDZ\nhf\nccsd(t)\nkb_dz_energy=energy\n',
             ),
             {
                 'id': 'cfour_dboc', 'kind': 'external', 'backend': 'cfour',

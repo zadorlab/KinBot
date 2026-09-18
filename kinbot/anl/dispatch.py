@@ -291,6 +291,23 @@ def validate_spec(spec):
         source = task.get('geometry_from', 'initial')
         if source != 'initial' and not by_id[source].get('geometry_output'):
             raise ValueError(f"{task['id']}: geometry source has no geometry output.")
+        parser = task.get('result_parser', {})
+        if (parser.get('kind') == 'gaussian_vpt2'
+                and re.search(r'\bOpt\s*(?:=|\()', task['input_template'],
+                              re.IGNORECASE) is None):
+            source_task = by_id.get(source)
+            profile = (source_task or {}).get('profile', {})
+            keywords = profile.get('calculator_kwargs', {}) if isinstance(profile, dict) else {}
+            if (source_task is None or source_task.get('kind') != 'ase_optimize'
+                    or not isinstance(profile, dict)
+                    or not isinstance(keywords, dict)
+                    or profile.get('calculator', '').lower() not in ('gaussian', 'gauss')
+                    or profile.get('method', '').casefold() != parser['method'].casefold()
+                    or profile.get('basis', '').casefold() != parser['basis'].casefold()
+                    or keywords.get('EmpiricalDispersion', '').casefold()
+                    != parser.get('dispersion', '').casefold()):
+                raise ValueError(f"{task['id']}: frequency-only VPT2 must use "
+                                 'a matching Gaussian geometry source.')
     visiting, visited = set(), set()
 
     def visit(ident):

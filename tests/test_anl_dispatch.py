@@ -125,9 +125,37 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
         assert 'MEM_UNIT=MB\nMEMORY_SIZE=11200)' in cfour
         assert max(map(len, cfour.splitlines())) <= 72
         gaussian = (run_dir / 'tasks' / 'gaussian_vpt2' / 'vpt2.com').read_text()
+        vpt2_task = next(task for task in spec['tasks']
+                         if task['id'] == 'gaussian_vpt2')
+        assert vpt2_task['geometry_from'] == 'l2_geometry'
+        assert vpt2_task['depends_on'] == ['l3_geometry']
+        assert state['tasks']['gaussian_vpt2']['geometry_from'] == 'l2_geometry'
+        assert 'B2PLYP/cc-pVTZ' in gaussian
+        assert 'EmpiricalDispersion=GD3BJ' in gaussian
         assert 'Freq=Anharmonic' in gaussian
-        assert 'Opt=(Tight,CalcFC)' in gaussian
+        assert 'Opt=' not in gaussian
         assert '\n0 1\n' in gaussian
+
+
+def test_frequency_only_vpt2_requires_matching_l2_geometry_surface():
+    spec = ch4_spec()
+    vpt2 = next(task for task in spec['tasks'] if task['id'] == 'gaussian_vpt2')
+    vpt2['result_parser']['method'] = 'B3LYP'
+    vpt2['input_template'] = vpt2['input_template'].replace('B2PLYP/', 'B3LYP/')
+    with pytest.raises(ValueError, match='matching Gaussian geometry source'):
+        validate_spec(spec)
+
+    lower = ch4_spec()
+    l2 = next(task for task in lower['tasks'] if task['id'] == 'l2_geometry')
+    l2['profile']['method'] = 'B3LYP'
+    l2['profile']['calculator_kwargs'].pop('EmpiricalDispersion')
+    lower_vpt2 = next(task for task in lower['tasks']
+                      if task['id'] == 'gaussian_vpt2')
+    lower_vpt2['input_template'] = lower_vpt2['input_template'].replace(
+        'B2PLYP/', 'B3LYP/').replace('EmpiricalDispersion=GD3BJ ', '')
+    lower_vpt2['result_parser']['method'] = 'B3LYP'
+    lower_vpt2['result_parser'].pop('dispersion')
+    validate_spec(lower)
 
 
 def test_retry_rewrites_old_cfour_keyword_line_without_changing_workflow():
@@ -316,6 +344,7 @@ def test_ch4_gaussian_ase_input_rendering_without_gaussian_executable():
     assert '%mem=11200MB' in gaussian
     assert 'B2PLYP/cc-pVTZ' in gaussian
     assert 'EmpiricalDispersion(GD3BJ)' in gaussian
+    assert 'integral(UltraFine)' in gaussian
     assert '\n0 1\n' in gaussian
     assert 'force' in gaussian.lower()
 
@@ -357,7 +386,7 @@ def test_auto_cores_use_safe_node_memory_and_efficient_rank_counts():
     spec = ch4_spec()
     spec['limits'] = {'max_nodes': 2}
     spec['tasks'] = [dict(spec['tasks'][1], geometry_from='initial'),
-                     spec['tasks'][-1]]
+                     spec['tasks'][0]]
     spec['tasks'][0]['resources'] = {'walltime': '24:00:00'}
     spec['tasks'][1]['resources'] = {'walltime': '08:00:00'}
     node_groups = [

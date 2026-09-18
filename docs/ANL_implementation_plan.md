@@ -8,12 +8,16 @@
 ```text
 UMA / FairChem L1
         ↓
-B2PLYP-D3(BJ)/cc-pVTZ L2
+B3LYP/cc-pVTZ L2 (lower ANL tier)
+or B2PLYP-D3(BJ)/cc-pVTZ L2 (higher ANL tier)
         ↓
 ANL0 / ANL0-F12 / ANL1 / future pinned ANL-family recipe
 ```
 
 while retaining full user control over L1, L2, and every constituent L3/composite calculation.
+For each tier, VPT2 and hindered-rotor scans use that tier's L2 surface.
+The VPT2 frequency job consumes the accepted L2 geometry directly; Gaussian
+does not optimize that geometry unless `Opt` is explicitly requested.
 
 The implementation should:
 
@@ -431,6 +435,16 @@ E_ANL1 =
 + DBOC_HF/TZ
 + SO
 ```
+
+The published ANL1 expression above uses a B3LYP/TZ anharmonic correction.
+The user-selected higher-tier profile instead uses B2PLYP-D3(BJ)/cc-pVTZ
+for L2, hindered rotors, and VPT2. Its anharmonic correction must therefore
+be recorded as a **profiled ANL1 variant**, with method provenance explicit;
+it must not be reported as reproducing the published ANL1 formula. The lower
+tier uses B3LYP/cc-pVTZ for L2, hindered rotors, and VPT2. Both tiers run
+VPT2 frequency analysis at their accepted L2 geometries without a Gaussian
+`Opt` route. A user-requested in-job optimization would be a separate,
+explicit task policy.
 
 ## 3.4 Original ANL0-F12 structure
 
@@ -3550,8 +3564,8 @@ If only the most important decisions are retained, retain these:
 4. **Gaussian, Molpro, CFOUR, and MRCC live as KinBot ASE calculator interfaces.**
 5. **L1 and L2 are independent profiles.**
 6. **Default L1 = UMA/FairChem.**
-7. **Default L2 = Gaussian B2PLYP-D3(BJ)/cc-pVTZ.**
-8. **Default HIR = L2.**
+7. **Lower-tier L2 = Gaussian B3LYP/cc-pVTZ; higher-tier L2 = B2PLYP-D3(BJ)/cc-pVTZ.**
+8. **HIR and VPT2 use the selected tier's L2 surface and accepted geometry.**
 9. **Frequencies/Hessians are capability-aware, not one-size-fits-all finite differences.**
 10. **Generic F12 energy means F12b.**
 11. **Energy-only F12b defaults to `SCALE_TRIP=1`.**
@@ -3727,9 +3741,11 @@ the documented units, sign, and atom mapping against the installed version.
 Only after the accepted Molpro/Sella XYZ passes identity and termination checks,
 the dispatcher releases independent Molpro harmonic, F12b/TZ, F12b/QZ,
 CCSD(T)/DZ, CFOUR DBOC, and Gaussian VPT2
-tasks. The VPT2 task performs its own B3LYP optimization before frequency
-analysis, so its anharmonic correction is defined at a stationary point on
-that surface. They each get their own isolated task directory and one-node Slurm
+tasks. The higher-tier VPT2 task uses the accepted B2PLYP-D3(BJ)/cc-pVTZ
+L2 geometry and performs `Freq=Anharmonic` at that same level, without
+Gaussian `Opt`. It retains an L3-completion dependency to join the post-L3
+fan-out while reading coordinates from L2. They each get their own isolated
+task directory and one-node Slurm
 script with `#SBATCH --exclusive`; at most the user's configured number
 of exclusive nodes is in flight. MRCC is deferred from the first offsite
 CH4 test at the user's request; the reported site module list does not include
@@ -4215,9 +4231,10 @@ The output also contains two warnings about unreliable cubic force constants
 and one rotor/framework warning. Near-degenerate Darling-Dennison resonances
 were active. The VPT2 result is parsed and preserved with
 `review_required=true`, **not accepted for final thermochemistry yet**. A
-repeat with a tighter optimization and integration grid should compare the
-ZPE components and warning behavior before this correction is used in an ANL
-expression. The run's `complete` status records dispatch and output
+future calculation at the selected tier must check the ZPE components and
+warning behavior before the correction is used in an ANL expression. The
+user does not request another CH4 smoke run now. The run's `complete` status
+records dispatch and output
 completion, not that convergence assessment.
 
 External tasks can now declare method-aware `result_parser` requests. The
@@ -4235,3 +4252,36 @@ quality flag; establish full ANL0-F12 and later ladder expressions with their
 missing higher-order corrections and open-shell/MRCC checks; then validate
 the arithmetic and MESS mapping on small molecules and a small reaction.
 The CH4 test alone does not authorize an ANL heat of formation.
+
+---
+
+# 86. Tie VPT2 and hindered rotors to the selected L2 tier (2026-09-18)
+
+The user clarified the intended two-tier surface policy. Lower ANL-tier
+work uses B3LYP/cc-pVTZ for L2 geometry, VPT2, and hindered-rotor scans.
+Higher ANL-tier work uses B2PLYP-D3(BJ)/cc-pVTZ for those three calculations.
+The corresponding theory presets are `uma-b3lyp-anl-low` and
+`uma-b2plyp-anl`; absent an explicit preset, ANL0/ANL0-F12 select the lower
+profile and ANL1/ANL1-QZF select the higher profile. Explicit L2 profile
+overrides remain possible and must propagate consistently to VPT2 and HIR.
+An ANL1 energy with the higher-tier B2PLYP correction is a profiled variant
+of the published B3LYP-corrected equation, so its final provenance must say
+so rather than claiming an exact published ANL1 reproduction.
+
+A Gaussian `Freq=Anharmonic` job does **not** optimize unless `Opt` is present.
+The completed first CH4 smoke fixture did include `Opt=(Tight,CalcFC)` at
+B3LYP/cc-pVTZ, and its log explicitly shows a stationary-point search. That
+old result is a historical B3LYP interface test, not the intended higher-tier
+B2PLYP anharmonic correction. The revised CH4 fixture has no Gaussian `Opt`;
+it reads the accepted L2 geometry, requests B2PLYP/cc-pVTZ with
+`EmpiricalDispersion=GD3BJ`, and keeps a dependency on L3 geometry completion
+so all post-L3 tasks can still be dispatched together. The L2 Sella
+threshold is tightened to `0.0005 eV/Å` and both L2 and VPT2 request an
+UltraFine integration grid. The general spec validator rejects a
+frequency-only VPT2 node if its Gaussian geometry-source method, basis, or
+dispersion does not match the declared VPT2 level. The parser records whether
+the native VPT2 output optimized in that job.
+
+No replacement CH4 smoke calculation is requested now. Keep the completed
+run immutable; use the revised fixture for future tests when the user elects
+to validate the profiled higher-tier VPT2 result and any warning convergence.

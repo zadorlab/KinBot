@@ -60,12 +60,40 @@ THEORY_PRESETS = {
                 'EmpiricalDispersion': 'GD3BJ',
                 'Symm': 'None',
                 'scf': 'xqc',
+                'integral': 'UltraFine',
             },
             'optimizer': 'sella',
             'frequency_mode': 'native_hessian',
             'label': 'B2PLYP-D3(BJ)/cc-pVTZ',
         },
     },
+    'uma-b3lyp-anl-low': {
+        'l1': {
+            'calculator': 'fairchem',
+            'task_name': 'omol',
+            'frequency_mode': 'ase_forces',
+        },
+        'l2': {
+            'calculator': 'gaussian',
+            'method': 'B3LYP',
+            'basis': 'cc-pVTZ',
+            'calculator_kwargs': {
+                'Symm': 'None',
+                'scf': 'xqc',
+                'integral': 'UltraFine',
+            },
+            'optimizer': 'sella',
+            'frequency_mode': 'native_hessian',
+            'label': 'B3LYP/cc-pVTZ',
+        },
+    },
+}
+
+_COMPOSITE_DEFAULT_PRESET = {
+    'ANL0': 'uma-b3lyp-anl-low',
+    'ANL0-F12': 'uma-b3lyp-anl-low',
+    'ANL1': 'uma-b2plyp-anl',
+    'ANL1-QZF': 'uma-b2plyp-anl',
 }
 
 _ALIASES = {'uma': 'fairchem', 'fc': 'fairchem', 'gauss': 'gaussian'}
@@ -118,7 +146,11 @@ def resolve_profiles(par):
 
     preset_name = par.get('theory_preset')
     if not preset_name and par.get('composite_method'):
-        preset_name = 'uma-b2plyp-anl'
+        method = par['composite_method'].upper()
+        if method not in _COMPOSITE_DEFAULT_PRESET:
+            raise ValueError(f'{method}: select an explicit theory_preset for '
+                             'this composite method.')
+        preset_name = _COMPOSITE_DEFAULT_PRESET[method]
     if preset_name and preset_name not in THEORY_PRESETS:
         raise ValueError(f'Unknown theory_preset: {preset_name}')
     preset = THEORY_PRESETS.get(preset_name, {})

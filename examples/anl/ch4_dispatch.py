@@ -82,11 +82,11 @@ def ch4_spec(*, auto_resources=False):
                     'basis': 'cc-pVTZ', 'command': 'g16',
                     'calculator_kwargs': {
                         'EmpiricalDispersion': 'GD3BJ', 'Symm': 'None',
-                        'scf': 'xqc',
+                        'scf': 'xqc', 'integral': 'UltraFine',
                     },
                     'optimizer': 'sella',
                 },
-                'optimizer': {'fmax': 0.03, 'steps': 80,
+                'optimizer': {'fmax': 0.0005, 'steps': 120,
                               'sella_kwargs': {'internal': True}},
             },
             {
@@ -155,15 +155,18 @@ def ch4_spec(*, auto_resources=False):
                 'result_parser': {
                     'kind': 'cfour_dboc', 'file': 'cfour.out', 'level': 'HF'},
             },
+            # Frequency-only VPT2 uses the accepted, tier-matched L2 geometry.
+            # The L3 dependency keeps it in the post-geometry fan-out.
             {
                 'id': 'gaussian_vpt2', 'kind': 'external',
-                'backend': 'gaussian', 'geometry_from': 'l3_geometry',
-                'resources': resources(4, 16000, '08:00:00'),
+                'backend': 'gaussian', 'geometry_from': 'l2_geometry',
+                'depends_on': ['l3_geometry'],
+                'resources': resources(4, 16000, '24:00:00'),
                 'input_name': 'vpt2.com',
                 'input_template': (
                     '%nprocshared={{CORES}}\n%mem={{WORK_MEMORY_MB}}MB\n'
-                    '#p B3LYP/cc-pVTZ Opt=(Tight,CalcFC) '
-                    'Freq=Anharmonic NoSymm SCF=XQC\n\n'
+                    '#p B2PLYP/cc-pVTZ Freq=Anharmonic NoSymm SCF=XQC '
+                    'EmpiricalDispersion=GD3BJ Integral=UltraFine\n\n'
                     'KinBot CH4 VPT2\n\n{{CHARGE}} {{MULT}}\n'
                     '{{CARTESIAN}}\n\n'),
                 'command': ['g16'], 'stdin': 'vpt2.com',
@@ -172,7 +175,8 @@ def ch4_spec(*, auto_resources=False):
                 'success_marker': {'file': 'vpt2.log',
                                    'contains': 'Normal termination of Gaussian'},
                 'result_parser': {'kind': 'gaussian_vpt2', 'file': 'vpt2.log',
-                                  'method': 'B3LYP', 'basis': 'cc-pVTZ'},
+                                  'method': 'B2PLYP', 'basis': 'cc-pVTZ',
+                                  'dispersion': 'GD3BJ'},
             },
         ],
     }

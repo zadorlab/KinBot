@@ -53,7 +53,20 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertEqual((l2.calculator, l2.method, l2.basis),
                          ('gaussian', 'B2PLYP', 'cc-pVTZ'))
         self.assertEqual(l2.calculator_kwargs['EmpiricalDispersion'], 'GD3BJ')
+        self.assertEqual(l2.calculator_kwargs['integral'], 'UltraFine')
         self.assertEqual(l2.frequency_mode, 'native_hessian')
+
+    def test_lower_and_higher_anl_tiers_select_matching_l2_surfaces(self):
+        lower = self.parameters(composite_method='ANL0-F12',
+                                fc_model_path='/site/uma.pt')
+        self.assertEqual(lower.theory_profiles['l2'].method, 'B3LYP')
+        self.assertNotIn('EmpiricalDispersion',
+                         lower.theory_profiles['l2'].calculator_kwargs)
+        higher = self.parameters(composite_method='ANL1',
+                                 fc_model_path='/site/uma.pt')
+        self.assertEqual(higher.theory_profiles['l2'].method, 'B2PLYP')
+        self.assertEqual(higher.theory_profiles['l2'].calculator_kwargs[
+            'EmpiricalDispersion'], 'GD3BJ')
 
     def test_explicit_profiles_override_preset_without_mutating_it(self):
         parameters = self.parameters(
@@ -69,7 +82,7 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertEqual(parameters.theory_profiles['l2'].basis, 'cc-pVQZ')
         self.assertEqual(parameters.theory_profiles['l2'].calculator_kwargs,
                          {'EmpiricalDispersion': 'GD3BJ', 'Symm': 'None',
-                          'scf': 'tight'})
+                          'scf': 'tight', 'integral': 'UltraFine'})
         fresh = self.parameters(theory_preset='uma-b2plyp-anl',
                                 fc_model_path='/site/uma.pt')
         self.assertEqual(fresh.theory_profiles['l2'].calculator_kwargs['scf'], 'xqc')
@@ -93,6 +106,7 @@ class TestTheoryProfiles(unittest.TestCase):
         parameters = self.parameters(composite_method='ANL0-F12',
                                      fc_model_path='/site/uma.pt')
         self.assertEqual(parameters.theory_profiles['l1'].calculator, 'fairchem')
+        self.assertEqual(parameters.theory_profiles['l2'].method, 'B3LYP')
 
     def test_invalid_profile_and_preset_fail_during_input_parsing(self):
         with self.assertRaisesRegex(ValueError, 'Unknown theory_preset'):

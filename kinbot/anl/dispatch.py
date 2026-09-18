@@ -933,6 +933,22 @@ def _summary(spec, state):
             for task in spec['tasks']}
 
 
+def refresh_status(run_dir):
+    """Reconcile finished jobs before reporting, without submitting QC work."""
+    run_dir = Path(run_dir).resolve()
+    with (run_dir / 'drive.lock').open('w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            # A running driver owns reconciliation; report its last atomic
+            # snapshot rather than racing it or waiting for its polling loop.
+            _, spec, state = _load(run_dir)
+        else:
+            state = advance(run_dir, submit=False)
+            _, spec, _ = _load(run_dir)
+    return _summary(spec, state)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Stage and drive exclusive QC jobs')
     sub = parser.add_subparsers(dest='action', required=True)
@@ -946,6 +962,8 @@ def main(argv=None):
     drive.add_argument('--interval', type=int, default=20)
     status = sub.add_parser('status')
     status.add_argument('run_dir')
+    status.add_argument('--cached', action='store_true',
+                        help='show saved state without querying Slurm')
     check = sub.add_parser('preflight')
     check.add_argument('run_dir')
     retry = sub.add_parser('retry')
@@ -959,8 +977,12 @@ def main(argv=None):
     elif args.action == 'run-task':
         run_task(args.task_file)
     elif args.action == 'status':
-        _, spec, state = _load(args.run_dir)
-        print(json.dumps(_summary(spec, state), indent=2))
+        if args.cached:
+            _, spec, state = _load(args.run_dir)
+            summary = _summary(spec, state)
+        else:
+            summary = refresh_status(args.run_dir)
+        print(json.dumps(summary, indent=2))
     elif args.action == 'preflight':
         print(json.dumps(preflight(args.run_dir), indent=2))
     elif args.action == 'retry':

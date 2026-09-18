@@ -19,7 +19,7 @@ import pytest
 from examples.anl.ch4_dispatch import ch4_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
-    _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, prepare,
+    _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, main, prepare,
     preflight, retry_failed, run_task, validate_spec,
 )
 
@@ -487,6 +487,25 @@ def test_failed_job_missing_from_squeue_can_be_reconciled_and_retried():
         assert (archive / 'execution.json').is_file()
         assert (run_dir / 'tasks' / 'l2_geometry' / 'job.slurm').is_file()
         assert json.loads(state_file.read_text())['tasks']['l2_geometry']['status'] == 'staged'
+
+
+def test_status_refreshes_finished_job_without_submitting(capsys):
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        state_file = run_dir / 'state.json'
+        state = json.loads(state_file.read_text())
+        state['tasks']['l2_geometry'].update(status='submitted', job_id='1234')
+        state_file.write_text(json.dumps(state))
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        with patch('kinbot.anl.dispatch._job_active', return_value=False), \
+                patch('kinbot.anl.dispatch.subprocess.run',
+                      side_effect=AssertionError('status must not submit')):
+            main(['status', str(run_dir)])
+        summary = json.loads(capsys.readouterr().out)
+        assert summary['l2_geometry'] == 'complete'
+        assert summary['l3_geometry'] == 'staged'
+        assert json.loads(state_file.read_text())['tasks']['l2_geometry']['status'] == 'complete'
 
 
 def test_preflight_reports_missing_program_before_submission():

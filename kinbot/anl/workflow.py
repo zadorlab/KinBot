@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import math
+import re
 
 from kinbot.anl.dispatch import _load, _verify_execution, _verify_stage_files
-from kinbot.anl.model import ComponentResult, IncompleteRecipeError
+from kinbot.anl.extrapolation import two_point_cbs
+from kinbot.anl.model import (ComponentRequirement, ComponentResult,
+                              IncompleteRecipeError)
 from kinbot.anl.results import parse_result
 
 
@@ -13,7 +18,7 @@ def task_component(run_dir, task_id, *, key, state_id):
     """Return one validated native QC component from a completed task.
 
     The source is reparsed after checking all staged and output artifact hashes.
-    Derived CBS, core-valence, relativistic, and higher-order providers are
+    Derived core-valence, relativistic, and higher-order providers are
     still separate work; a dispatch success alone cannot create those terms.
     """
     run_dir, spec, state = _load(run_dir)
@@ -81,4 +86,90 @@ def task_component(run_dir, task_id, *, key, state_id):
         geometry_sha256=execution['geometry_sha256'],
         source_sha256=execution['artifacts'][request['file']],
         source=str(native), settings=settings, review_required=review_required,
+    )
+
+
+def cbs_task_component(run_dir, lower_task_id, upper_task_id, *,
+                       requirement: ComponentRequirement, state_id: str,
+                       lower_basis: str, upper_basis: str) -> ComponentResult:
+    """Extrapolate two independently verified Molpro task results.
+
+    Both native outputs are reparsed and checked against their execution
+    records by ``task_component``. The result records a digest of the two
+    source hashes and the exact extrapolation parameters.
+    """
+    if lower_task_id == upper_task_id:
+        raise ValueError('A CBS pair needs two distinct tasks.')
+    if not isinstance(requirement, ComponentRequirement):
+        raise TypeError('CBS requirement must be a ComponentRequirement.')
+    lower = task_component(run_dir, lower_task_id, key=lower_task_id,
+                           state_id=state_id)
+    upper = task_component(run_dir, upper_task_id, key=upper_task_id,
+                           state_id=state_id)
+    return _cbs_components(lower, upper, requirement=requirement,
+                           lower_basis=lower_basis, upper_basis=upper_basis)
+
+
+def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis):
+    basis_pair = f'CBS({lower_basis},{upper_basis})'
+    if (not lower_basis or not upper_basis or lower_basis == upper_basis
+            or not (requirement.basis == basis_pair
+                    or requirement.basis.startswith(basis_pair + '//'))):
+        raise ValueError('CBS basis pair disagrees with the recipe.')
+    if requirement.quantity not in ('electronic', 'zpe') \
+            or 'composite' not in requirement.backends:
+        raise ValueError('Recipe requirement is not a composite CBS term.')
+    if (lower.basis, upper.basis) != (lower_basis, upper_basis):
+        raise ValueError('CBS native basis order differs from the recipe.')
+    if (lower.method != requirement.method or upper.method != requirement.method
+            or lower.quantity != requirement.quantity
+            or upper.quantity != requirement.quantity):
+        raise ValueError('CBS method or quantity differs between inputs.')
+    if lower.backend != 'molpro' or upper.backend != 'molpro':
+        raise ValueError('CBS inputs must come from Molpro native parsers.')
+    if ((lower.state_id, lower.charge, lower.multiplicity,
+         lower.geometry_sha256) !=
+            (upper.state_id, upper.charge, upper.multiplicity,
+             upper.geometry_sha256)):
+        raise ValueError('CBS inputs have different state or geometry.')
+    if lower.geometry_sha256 is None:
+        raise ValueError('CBS inputs lack a geometry hash.')
+    if lower.review_required or upper.review_required:
+        raise IncompleteRecipeError('CBS input requires native quality review.')
+    if lower.settings != upper.settings:
+        raise ValueError('CBS input calculation settings differ.')
+    settings = dict(requirement.settings)
+    if 'upper_cardinal' not in settings or 'extrapolation_power' not in settings:
+        raise ValueError('CBS recipe lacks cardinal number or exponent.')
+    for key, value in settings.items():
+        if key not in ('extrapolation_power', 'upper_cardinal') \
+                and lower.settings.get(key) != value:
+            raise ValueError(f'CBS input {key} setting differs from the recipe.')
+    for item in (lower, upper):
+        if (not item.source or not isinstance(item.source_sha256, str)
+                or re.fullmatch(r'[0-9a-f]{64}', item.source_sha256) is None
+                or not math.isfinite(item.value_hartree)):
+            raise ValueError('CBS input lacks valid native provenance.')
+    cardinal = settings['upper_cardinal']
+    power = settings['extrapolation_power']
+    value = two_point_cbs(lower.value_hartree, upper.value_hartree,
+                          upper_cardinal=cardinal, power=power)
+    provenance = {
+        'formula': 'E_n + alpha_n*(E_n-E_(n-1))',
+        'lower_sha256': lower.source_sha256,
+        'upper_sha256': upper.source_sha256,
+        'lower_basis': lower_basis, 'upper_basis': upper_basis,
+        'upper_cardinal': cardinal, 'power': power,
+    }
+    digest = hashlib.sha256(json.dumps(provenance, sort_keys=True,
+                                       separators=(',', ':')).encode()).hexdigest()
+    return ComponentResult(
+        key=requirement.key, value_hartree=value,
+        quantity=requirement.quantity, method=requirement.method,
+        basis=requirement.basis, backend='composite',
+        state_id=lower.state_id, charge=lower.charge,
+        multiplicity=lower.multiplicity,
+        geometry_sha256=lower.geometry_sha256,
+        source_sha256=digest,
+        source=f'CBS({lower.source},{upper.source})', settings=settings,
     )

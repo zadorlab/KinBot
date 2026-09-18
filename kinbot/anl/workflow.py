@@ -92,11 +92,14 @@ def task_component(run_dir, task_id, *, key, state_id):
 def cbs_task_component(run_dir, lower_task_id, upper_task_id, *,
                        requirement: ComponentRequirement, state_id: str,
                        lower_basis: str, upper_basis: str) -> ComponentResult:
-    """Extrapolate two independently verified Molpro task results.
+    """Extrapolate two verified electronic or zero-point task results.
 
     Both native outputs are reparsed and checked against their execution
-    records by ``task_component``. The result records a digest of the two
-    source hashes and the exact extrapolation parameters.
+    records by ``task_component``. Electronic single points must share one
+    geometry. Harmonic and VPT2 pairs must each trace to a completed,
+    basis-matched optimization, with the higher-basis geometry retained as
+    the composite result's geometry. The source digest records both inputs,
+    geometry sources, and exact extrapolation parameters.
     """
     if lower_task_id == upper_task_id:
         raise ValueError('A CBS pair needs two distinct tasks.')
@@ -106,16 +109,83 @@ def cbs_task_component(run_dir, lower_task_id, upper_task_id, *,
                            state_id=state_id)
     upper = task_component(run_dir, upper_task_id, key=upper_task_id,
                            state_id=state_id)
+    run_dir, spec, state = _load(run_dir)
+    tasks = {task['id']: task for task in spec['tasks']}
+    if requirement.quantity == 'electronic':
+        settings = requirement.settings
+        if (not settings.get('geometry_method')
+                or not settings.get('geometry_basis')):
+            raise ValueError('Electronic CBS recipe lacks a geometry level.')
+        if (tasks[lower_task_id].get('geometry_from') !=
+                tasks[upper_task_id].get('geometry_from')):
+            raise ValueError('Electronic CBS inputs have different geometry sources.')
+        geometry_sources = tuple(
+            _verified_optimized_geometry(
+                run_dir, tasks, state, tasks[task_id], component,
+                expected_method=settings['geometry_method'],
+                expected_basis=settings['geometry_basis'])
+            for task_id, component in ((lower_task_id, lower),
+                                       (upper_task_id, upper)))
+    else:
+        geometry_sources = (
+            _verified_optimized_geometry(run_dir, tasks, state,
+                                         tasks[lower_task_id], lower),
+            _verified_optimized_geometry(run_dir, tasks, state,
+                                         tasks[upper_task_id], upper),
+        )
     return _cbs_components(lower, upper, requirement=requirement,
-                           lower_basis=lower_basis, upper_basis=upper_basis)
+                           lower_basis=lower_basis, upper_basis=upper_basis,
+                           geometry_sources=geometry_sources)
 
 
-def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis):
-    # Harmonic ZPE may combine values at independently optimized TZ/QZ
-    # structures; it needs a separate provider with both geometry roles.
-    if requirement.quantity != 'electronic' \
-            or 'composite' not in requirement.backends:
-        raise ValueError('Recipe requirement is not an electronic CBS term.')
+def _verified_optimized_geometry(run_dir, tasks, state, task, component, *,
+                                 expected_method=None, expected_basis=None):
+    source_id = task.get('geometry_from', 'initial')
+    source_task = tasks.get(source_id)
+    if source_task is None or source_task.get('kind') != 'ase_optimize':
+        raise ValueError(f"{task['id']}: CBS input needs an optimized geometry.")
+    profile = source_task.get('profile', {})
+    backend = ('gaussian' if component.quantity == 'correction' else 'molpro')
+    method = expected_method or (
+        component.method.removesuffix('-D3BJ')
+        if component.quantity == 'correction' else component.method)
+    basis = expected_basis or component.basis
+    if (not isinstance(profile, dict)
+            or profile.get('calculator', '').lower() not in (
+                ('gaussian', 'gauss') if backend == 'gaussian' else ('molpro',))
+            or profile.get('method', '').casefold() != method.casefold()
+            or profile.get('basis', '').casefold() != basis.casefold()):
+        raise ValueError(f"{task['id']}: optimized geometry level differs from CBS input.")
+    if component.quantity == 'correction':
+        keywords = profile.get('calculator_kwargs', {})
+        if (not isinstance(keywords, dict) or
+                keywords.get('EmpiricalDispersion', '').upper()
+                != component.settings.get('dispersion', '')):
+            raise ValueError(f"{task['id']}: optimized geometry dispersion differs.")
+    source_entry = state['tasks'].get(source_id)
+    if source_entry is None or source_entry.get('status') != 'complete':
+        raise IncompleteRecipeError(f'{source_id}: optimized geometry is not complete.')
+    _verify_stage_files(run_dir, source_task, source_entry)
+    execution = json.loads((run_dir / 'tasks' / source_id /
+                            'execution.json').read_text())
+    geometry_hash = _verify_execution(run_dir, source_task, source_entry,
+                                      execution)
+    if (execution['status'] != 'executed' or geometry_hash is None
+            or geometry_hash != source_entry.get('final_geometry_sha256')
+            or geometry_hash != component.geometry_sha256):
+        raise ValueError(f"{task['id']}: accepted optimized geometry differs.")
+    return {'task_id': source_id, 'geometry_sha256': geometry_hash,
+            'final_xyz_sha256': execution['artifacts']['final.xyz']}
+
+
+def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis,
+                    geometry_sources=None):
+    allowed = (requirement.quantity == 'electronic'
+               or requirement.quantity == 'zpe'
+               or (requirement.quantity == 'correction'
+                   and requirement.key == 'vpt2_correction'))
+    if not allowed or 'composite' not in requirement.backends:
+        raise ValueError('Recipe requirement is not a supported CBS term.')
     basis_pair = f'CBS({lower_basis},{upper_basis})'
     if (not lower_basis or not upper_basis or lower_basis == upper_basis
             or not (requirement.basis == basis_pair
@@ -127,15 +197,31 @@ def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis):
             or lower.quantity != requirement.quantity
             or upper.quantity != requirement.quantity):
         raise ValueError('CBS method or quantity differs between inputs.')
-    if lower.backend != 'molpro' or upper.backend != 'molpro':
-        raise ValueError('CBS inputs must come from Molpro native parsers.')
-    if ((lower.state_id, lower.charge, lower.multiplicity,
-         lower.geometry_sha256) !=
-            (upper.state_id, upper.charge, upper.multiplicity,
-             upper.geometry_sha256)):
-        raise ValueError('CBS inputs have different state or geometry.')
-    if lower.geometry_sha256 is None:
-        raise ValueError('CBS inputs lack a geometry hash.')
+    backend = 'gaussian' if requirement.quantity == 'correction' else 'molpro'
+    if lower.backend != backend or upper.backend != backend:
+        raise ValueError(f'CBS inputs must come from {backend} native parsers.')
+    if ((lower.state_id, lower.charge, lower.multiplicity) !=
+            (upper.state_id, upper.charge, upper.multiplicity)):
+        raise ValueError('CBS inputs have different electronic states.')
+    if lower.geometry_sha256 is None or upper.geometry_sha256 is None:
+        raise ValueError('CBS inputs lack geometry hashes.')
+    if requirement.quantity == 'electronic':
+        if lower.geometry_sha256 != upper.geometry_sha256:
+            raise ValueError('Electronic CBS inputs have different geometries.')
+        if (not isinstance(geometry_sources, tuple)
+                or len(geometry_sources) != 2
+                or geometry_sources[0]['task_id'] != geometry_sources[1]['task_id']
+                or any(source['geometry_sha256'] != lower.geometry_sha256
+                       for source in geometry_sources)):
+            raise ValueError('Electronic CBS lacks one verified highest-level geometry.')
+    else:
+        if (requirement.settings.get('geometry_mode') != 'basis_optimized'
+                or not isinstance(geometry_sources, tuple)
+                or len(geometry_sources) != 2
+                or geometry_sources[0]['geometry_sha256'] != lower.geometry_sha256
+                or geometry_sources[1]['geometry_sha256'] != upper.geometry_sha256
+                or geometry_sources[0]['task_id'] == geometry_sources[1]['task_id']):
+            raise ValueError('CBS zero-point inputs lack basis-matched optimized geometries.')
     if lower.review_required or upper.review_required:
         raise IncompleteRecipeError('CBS input requires native quality review.')
     if lower.settings != upper.settings:
@@ -144,7 +230,8 @@ def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis):
     if 'upper_cardinal' not in settings or 'extrapolation_power' not in settings:
         raise ValueError('CBS recipe lacks cardinal number or exponent.')
     for key, value in settings.items():
-        if key not in ('extrapolation_power', 'upper_cardinal') \
+        if key not in ('extrapolation_power', 'upper_cardinal', 'geometry_mode',
+                       'geometry_method', 'geometry_basis') \
                 and lower.settings.get(key) != value:
             raise ValueError(f'CBS input {key} setting differs from the recipe.')
     for item in (lower, upper):
@@ -162,6 +249,7 @@ def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis):
         'upper_sha256': upper.source_sha256,
         'lower_basis': lower_basis, 'upper_basis': upper_basis,
         'upper_cardinal': cardinal, 'power': power,
+        'geometry_sources': geometry_sources,
     }
     digest = hashlib.sha256(json.dumps(provenance, sort_keys=True,
                                        separators=(',', ':')).encode()).hexdigest()
@@ -171,7 +259,7 @@ def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis):
         basis=requirement.basis, backend='composite',
         state_id=lower.state_id, charge=lower.charge,
         multiplicity=lower.multiplicity,
-        geometry_sha256=lower.geometry_sha256,
+        geometry_sha256=upper.geometry_sha256,
         source_sha256=digest,
         source=f'CBS({lower.source},{upper.source})', settings=settings,
     )

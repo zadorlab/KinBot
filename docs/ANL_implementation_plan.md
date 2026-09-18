@@ -3628,9 +3628,10 @@ a separate harmonic task. Add a dependency between post-geometry tasks only
 when the pinned recipe or program actually requires it. Evaluate the final
 composite energy only when all required nodes have passed validation.
 
-Bound dispatch with user-provided global L3 limits for simultaneous jobs,
-cores, and memory, in addition to per-task resource profiles. Count submitted
-and running jobs against those limits across all species in a KinBot run.
+Bound dispatch with the user-provided maximum number of concurrent exclusive
+L3 nodes. Discover node CPU and memory for automatic per-task sizing; optional
+task-specific caps remain available after scaling tests. Count submitted and
+running jobs against the node limit across all species in a KinBot run.
 Reserve resources atomically before submitting and release them on completion
 or failure. A task larger than the configured pool must fail preflight with
 an actionable error. On restart, recover submitted jobs and reservations
@@ -3650,13 +3651,14 @@ VPT2, DBOC, and every constituent single point, must have its own exclusive
 node allocation. For Slurm, every generated L3 batch script must contain
 `#SBATCH --exclusive`; no L3 submission may fall back to a shared node.
 Allocate one node per task initially, even when the task uses only part of
-the node's cores or memory. Distinct concurrent L3 tasks must use distinct
+the node's cores. Automatic resources request all node memory; explicit
+memory caps remain possible for controlled tests. Distinct concurrent L3 tasks use distinct
 exclusive allocations. If another queue backend is used, preflight must
 verify its equivalent exclusive-node request or reject L3 submission.
 
 Interpret the user-provided L3 concurrency limit as the maximum number of
 exclusive nodes KinBot may have submitted or running across the run. Validate
-each task's core and memory request against a single node's capacity. Reserve
+each task's core count and per-rank memory against a single node's capacity. Reserve
 one node slot for each submitted/running task, including the geometry task;
 release the slot only when that allocation ends. The geometry-first barrier
 and post-geometry parallel fan-out from section 68 still apply. Local mode
@@ -3970,11 +3972,10 @@ message that the gradient was unavailable for saving. The `.xyz`
 was empty, so no forces from that failed attempt were accepted.
 
 The live output reported `Switching to mppx mode, nproc=11` although the
-calculator requested `-n 8`. To keep this first geometry job within its
-declared eight processes, the revised force command sets `MPPX=0`, which
-the [Molpro 2022.3+ release notes](https://www.molpro.net/manual/doku.php?id=recent_changes)
-document for `FORCE`. This executes the displacements in standard parallel
-mode and must be confirmed in the next live output.
+calculator requested `-n 8`. That revision set `MPPX=0` to test whether the
+gradient parallel mode caused the process mismatch. The following successful
+attempt still launched 12 total processes, disproving that explanation; see
+section 79 for the scheduler correction.
 
 The ASE calculator now uses `PUT,XYZ` after `FORCE,NUMERICAL`, reads the
 printed numerical-gradient table in `.out`, converts Hartree/Bohr to eV/Å,
@@ -3985,3 +3986,80 @@ run now exercises this format through multiple Sella steps. The next
 offsite retry must confirm Molpro writes the plain XYZ after the numerical
 gradient, completes normally, and supplies forces consistent with an
 independent finite displacement. The downstream L3 tasks remain held.
+
+---
+
+# 78. Successful Molpro/Sella CH4 geometry and process-count audit (2026-09-17)
+
+The third Blodgett L3 geometry attempt completed. Both Molpro 2024.1 force
+evaluations used neutral-singlet conventional CCSD(T)/cc-pVTZ, printed the
+`KB_GEOM_ENERGY` numerical-gradient table, wrote a native `.xyz` and `.log`,
+and terminated normally. Sella accepted the second geometry. The final
+energy in `execution.json` is `-40.43809881` Hartree (the eight-decimal
+Molpro `SETTING` value); Molpro's full-precision CCSD(T) line is
+`-40.438098814910` Hartree. The final C–H distances are 1.08903–1.08920 Å.
+Its maximum atomic force norm is 0.01893 eV/Å, below the requested
+0.03 eV/Å. The final force rows match the signs and Hartree/Bohr to eV/Å
+conversion of Molpro's second printed gradient. As an additional check,
+the energy change between the two Sella geometries is
+`-1.7698552e-5` Hartree, while the trapezoidal projection of the two
+native gradient tables along that step is `-1.7838087e-5` Hartree.
+This confirms the direction and approximate magnitude of the force response
+for the observed step; it is not an independent displaced-coordinate test.
+
+The output still reports 11 compute processes plus one helper, with 225 MW
+per compute process, despite `#SBATCH --cpus-per-task=8` and the ASE
+calculator's `molpro -n 8`. `MPPX=0` prevented the automatic mppx switch
+but did not resolve this discrepancy. The site launcher or compute-node
+environment needs to be checked before submitting the larger Molpro
+harmonic/F12 jobs; otherwise the nominal eight-core and 32 GB budgets
+may be exceeded. The task's `--exclusive` directive did reserve a full
+96-core node, so the CH4 geometry result itself remains usable. The
+downstream tasks can be staged and preflighted, but Molpro jobs should
+remain unsubmitted until the process count is explained or corrected.
+
+---
+
+# 79. Exclusive-node resource sizing and Molpro rank correction (2026-09-17)
+
+The Blodgett Molpro 2024 launch script uses Intel Hydra. Under `SLURM_JOB_ID`
+it removes its own `-np` launcher option, so `molpro -n 8` alone cannot
+control the MPI process count. [Intel's Slurm integration guide](https://www.intel.com/content/www/us/en/docs/mpi-library/developer-guide-linux/2021-10/job-schedulers-support.html)
+lists `SLURM_NTASKS` and `SLURM_CPUS_PER_TASK` as Hydra inputs. The old
+`#SBATCH --cpus-per-task=8` described
+one eight-core Slurm task and left Hydra to infer the count; the CH4 output
+reported 12 total processes (11 compute plus one helper). New Slurm scripts
+request `--ntasks=<Molpro ranks> --cpus-per-task=1`; Gaussian and CFOUR
+retain one task with the requested shared-memory CPU count. Every L3 script
+still requests `--exclusive`. Molpro's default mppx numerical-gradient mode
+is restored, because disabling it did not correct the launcher count. The
+runner now rejects Molpro output that reports more total MPI processes than
+the declared rank allocation. A small live DZ CCSD(T) job is the next gate;
+the larger Molpro jobs remain held until its reported count agrees.
+
+The operator now needs to provide only `limits.max_nodes` for an automatic
+Slurm run. `prepare` reads the selected partition's `sinfo` node CPU count
+and memory, uses its smallest eligible node as the safe sizing basis, and
+requests all node memory with [`--mem=0`](https://slurm.schedmd.com/sbatch.html).
+For Molpro, automatic sizing budgets
+only 85% of that memory and reserves the [manual's 200 MW per-process program
+overhead](https://www.molpro.net/manual/doku.php?id=running_molpro_on_parallel_computers)
+plus a configurable minimum stack of 1024 MW per rank. It fails preparation
+if even one rank cannot meet that minimum. The memory-affordable rank count
+is reduced to an efficient candidate in 1, 2, 4, 8, 12, or 16, with a default
+16-rank performance ceiling. `resources.max_cores` can lower or explicitly
+raise that ceiling for a particular method after timing measurements; no
+single count is assumed optimal for every CCSD(T), F12, or harmonic job.
+Gaussian and CFOUR use an analogous configurable memory-per-core floor.
+Explicit cores/memory remain available for reproducible smoke fixtures; the
+existing `ch4_run_auto3` retains its prepared 4/8-core, 16/32/48-GB values.
+
+The next Blodgett procedure is: pull `composite`, reconcile the completed L3
+geometry with `advance(..., submit=False)`, preflight the newly staged jobs,
+then run `drive ch4_run_auto3 --once --only ccsdt_dz`. Inspect its Slurm script
+for `--ntasks=4 --cpus-per-task=1`, and its native output for at most four
+total processes, the intended CCSD(T)/cc-pVDZ method, and normal
+termination. Only then release the independent harmonic, F12, CFOUR DBOC,
+and Gaussian VPT2 jobs up to the user's node limit. The CH4-only fixture and
+its temporary tests may be removed after this acceptance pass; the general
+resource resolver, Slurm layout, and process-count check remain.

@@ -135,23 +135,29 @@ with pip there.
 
 ## 3. Set resources and prepare a fresh run
 
-Generate the CH4-only task graph, then edit its JSON before preparation:
+For a fresh CH4 run on Slurm, generate the fixture with automatic resources:
 
 ```bash
-.venv/bin/python examples/anl/ch4_dispatch.py ch4_dispatch.json
+.venv/bin/python examples/anl/ch4_dispatch.py ch4_dispatch.json --auto-resources
 ```
 
-In `ch4_dispatch.json`, set `limits.max_nodes` to the number of exclusive
-nodes you may use concurrently (the example is 3). Check every task's
-`resources.cores`, `resources.memory_mb`, and `resources.walltime` against the
-site's limits. When `resources.partition` is absent, `prepare` reads `sinfo`
-and selects the available partition with the shortest time limit that fits
-that task's cores, memory, and walltime. An explicit `"partition": "NAME"`
-inside a task's `resources` takes priority. On the reported Blodgett layout,
-the default `short-cpu` partition permits only 30 minutes, so the CH4 tasks
-need a longer partition; discovery should select `day-long-cpu`. Review the
-actual choice in `ch4_run/workflow.json` and each staged `job.slurm`. If
-`sinfo` is unavailable during preparation, set the partition explicitly.
+Set only `limits.max_nodes` to the number of exclusive nodes you may use
+concurrently (the fixture starts at 3). `prepare` reads `sinfo`, selects the
+shortest available partition that fits each walltime, and sizes the job from
+the smallest eligible node in that partition. An explicit
+`resources.partition` takes priority. Automatic jobs request `--mem=0` so
+Slurm allocates all memory on their exclusive node. Molpro ranks receive at
+least 1024 MW of stack plus the documented 200 MW per-rank overhead, with 15%
+node headroom; preparation fails if even one rank cannot meet the minimum.
+The default performance cap is 16 ranks, chosen from 1, 2, 4, 8, 12, or 16;
+`resources.max_cores` and `resources.min_stack_mw` can adjust a particular
+method after a timing benchmark. Gaussian/CFOUR use one Slurm task with the
+selected shared-memory core count. The CH4 fixture's original fixed-resource
+mode remains available by omitting `--auto-resources` for repeatable local
+tests. An existing prepared run keeps its original resource specification.
+On the reported Blodgett layout, `day-long-cpu` should fit the CH4 walltimes;
+review the choice and resolved resources in `ch4_run/workflow.json` and each
+staged `job.slurm`. Automatic sizing requires `sinfo` on the target site.
 The two geometry jobs are sequential; only after
 the Molpro ASE/Sella geometry is accepted can up to `max_nodes` independent jobs run
 at once. Each task's Slurm script requests `--exclusive`.
@@ -161,11 +167,11 @@ the site's expected CH4 performance. Each Sella step writes its own Molpro
 `.inp`, `.out`, `.log`, and gradient `.xyz`. The calculator passes Molpro's
 `-g` option to request the detailed `.log` for every force step.
 Sella writes `optimization.traj`, `optimization.log`, and `final.xyz`.
-Molpro runs `-n` MPI processes with `OMP_NUM_THREADS=1` and
-`MKL_NUM_THREADS=1` inside its exclusive node to avoid multiplying threads
-per process. For Molpro 2024's default single-node disk mode, the generated
-commands use per-process `-m`; check that the site's `.molprorc` does not add
-`-M` or `-G`.
+Molpro requests `--ntasks=<ranks> --cpus-per-task=1` from Slurm and passes the
+same count with `-n`; `OMP_NUM_THREADS=1` and `MKL_NUM_THREADS=1` avoid
+multiplying threads per rank. For Molpro 2024's default single-node disk
+mode, the generated commands use per-process `-m`; check that the site's
+`.molprorc` does not add `-M` or `-G`.
 
 Load the QC modules you intend to use **before** preparation. Gaussian is
 already visible as `g16` on the reported Blodgett login node, even though it
@@ -286,20 +292,36 @@ Inspect the `.log` as well. In this standalone Molpro 2024
 KB_GEOM_ENERGY` table is in `.out`; it appeared in the second Blodgett attempt.
 The calculator reads that table in Hartree/Bohr, changes its sign to return
 ASE forces in eV/Å, and maps the rows through Molpro's `PUT,XYZ` geometry.
-The live output also reported `mppx mode, nproc=11` despite the requested
-eight processes. The revised `FORCE` command sets `MPPX=0`, as documented
-in [Molpro's release notes](https://www.molpro.net/manual/doku.php?id=recent_changes),
-so the next live run should use the requested `-n 8` process count. Confirm
-that in the Molpro `.out` before releasing the other jobs.
+The second live attempt reported `mppx mode, nproc=11` despite the requested
+eight processes. Setting `MPPX=0` for the successful retry did not change the
+total: its `.out` still reports 11 compute processes plus one helper. The
+Blodgett Molpro launch script discards its own `-np` launcher argument under
+Slurm; Intel Hydra then uses the Slurm task layout. New Molpro scripts request
+one Slurm task per intended MPI rank. The default Molpro mppx path is restored
+for numerical gradients. A Molpro output reporting more total MPI processes
+than declared ranks now fails the task. Verify this fix with the small DZ
+single point before releasing larger jobs.
 Check the force sign and units against the native table and confirm that the
 Sella geometry has the same atom order. If the installed Molpro
 output differs from the documented format, stop and return that input/output
-pair for a parser fix. Then accept the L3 result, preflight the newly staged
-jobs, and release them:
+pair for a parser fix. The completed L3 result may be accepted now. Stage the
+independent jobs, preflight, and submit only the small Molpro DZ rank probe:
 
 ```bash
 .venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run", submit=False)'
 .venv/bin/python -m kinbot.anl.dispatch preflight ch4_run
+grep -E '^#SBATCH --(ntasks|cpus-per-task|mem|exclusive)' ch4_run/tasks/ccsdt_dz/job.slurm
+.venv/bin/python -m kinbot.anl.dispatch drive ch4_run --once --only ccsdt_dz
+```
+
+When that job leaves `squeue`, verify the native `.out` reports no more than
+the intended total MPI count and normal termination. Reconcile the completed
+task, then release the other ready jobs:
+
+```bash
+grep -E 'Distribution of processes|Memory per process|Molpro calculation terminated' ch4_run/tasks/ccsdt_dz/ccsdt_dz.out
+.venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run", submit=False)'
+.venv/bin/python -m kinbot.anl.dispatch status ch4_run
 .venv/bin/python -m kinbot.anl.dispatch drive ch4_run --once
 ```
 
@@ -352,37 +374,52 @@ gradient, confirming that the MPI workaround reached the calculation. It
 then failed at `PUT,XYZGRAD` with Molpro 2024's message "gradient is not
 available ... for saving". The input now uses `PUT,XYZ`; the calculator
 reads the numerical-gradient table in `.out` and verifies atom order using
-the XYZ geometry. A complete successful Sella optimization remains the
-next acceptance gate. See
+the XYZ geometry. The third attempt completed the Sella optimization. See
 [Intel MPI fabric control](https://www.intel.com/content/www/us/en/docs/mpi-library/developer-reference-linux/2021-14/communication-fabrics-control.html).
 The dispatcher treats Slurm's `Invalid job id specified` response for a
 finished job as inactive, so the `advance` call can mark its recorded
 execution failed and permit `retry`.
 
 The original files remain under `ch4_run/attempts/FAILED_TASK_ID/1/` (and
-`2/` for the second attempt). Pull the revised checkout before retrying this
-failed task, because the ASE calculator input and parser changed. The task
-JSON itself still describes the same method, basis, charge, and resources;
-its generated force input is written only when the task runs. Keep the
-single-node `I_MPI_FABRICS=shm` line in the editable `site_setup.sh`.
+`2/` for the second attempt). Keep the single-node `I_MPI_FABRICS=shm` line
+in the editable `site_setup.sh` for this Blodgett run.
 If a submission is marked `submitting`, reconcile its Slurm job ID manually
 before any new submission; the driver deliberately stops.
 
-For the live `ch4_run_auto3` second-attempt failure, first pull the updated
-`composite` branch, then run exactly:
+For the live `ch4_run_auto3`, first pull the updated `composite` branch and
+continue from its completed L3 geometry. Do not retry the completed task or
+regenerate its prepared workflow:
 
 ```bash
 cd ~/KinBot
 env -u LD_LIBRARY_PATH -u LD_PRELOAD git pull --ff-only origin composite
+git rev-parse --short HEAD
 grep -n I_MPI_FABRICS ch4_run_auto3/site_setup.sh
 .venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run_auto3", submit=False)'
-.venv/bin/python -m kinbot.anl.dispatch retry ch4_run_auto3 l3_geometry
 .venv/bin/python -m kinbot.anl.dispatch preflight ch4_run_auto3
-.venv/bin/python -m kinbot.anl.dispatch drive ch4_run_auto3 --once
+grep -E '^#SBATCH --(ntasks|cpus-per-task|mem|exclusive)' ch4_run_auto3/tasks/ccsdt_dz/job.slurm
+.venv/bin/python -m kinbot.anl.dispatch drive ch4_run_auto3 --once --only ccsdt_dz
 ```
 
-This submits only `l3_geometry`; keep the other L3 tasks waiting until its
-first revised Molpro force step and final Sella geometry are inspected.
+This submits only the small DZ CCSD(T) job. Its historical fixture requests
+four ranks and 16 GB; the new Slurm layout should be `--ntasks=4` and
+`--cpus-per-task=1`. `--mem=0` applies to fresh auto-sized runs, not this
+already prepared fixed-resource workflow. Wait for the probe to leave
+`squeue`, then check:
+
+```bash
+cat ch4_run_auto3/tasks/ccsdt_dz/execution.json
+grep -E 'Distribution of processes|Memory per process|Molpro calculation terminated' ch4_run_auto3/tasks/ccsdt_dz/ccsdt_dz.out
+.venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run_auto3", submit=False)'
+.venv/bin/python -m kinbot.anl.dispatch status ch4_run_auto3
+```
+
+The total process count should be at most four, the task should become
+`complete`, and the `.out` should show normal termination. If so, submit the
+other independent jobs with `drive ch4_run_auto3 --once`; the driver admits
+only `limits.max_nodes` exclusive jobs concurrently. If the process count is
+still wrong, retain the DZ input/output and Slurm stderr for diagnosis; the
+automatic count check will fail that task and hold the rest.
 
 ## 6. Save results for the next implementation pass
 

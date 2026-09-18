@@ -21,6 +21,21 @@ _ENERGY = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 _SAFE_BASIS = re.compile(r'[A-Za-z0-9_+./*()-]+\Z')
+_PROCESS_COUNT = re.compile(r'Distribution of processes:\s*nprocs\(total\)=\s*(\d+)',
+                            re.IGNORECASE)
+
+
+def check_process_count(output_path, allocated_ranks):
+    """Reject a Molpro launcher that starts more ranks than Slurm requested."""
+    output = Path(output_path).read_text(errors='replace')
+    counts = {int(match) for match in _PROCESS_COUNT.findall(output)}
+    if len(counts) > 1:
+        raise RuntimeError('Molpro output reports inconsistent MPI process counts.')
+    count = next(iter(counts), None)
+    if count is not None and count > allocated_ranks:
+        raise RuntimeError(f'Molpro launched {count} MPI processes '
+                           f'for an allocation of {allocated_ranks} ranks.')
+    return count
 
 
 def render_input(atoms, *, basis, geometry_name):
@@ -39,7 +54,7 @@ def render_input(atoms, *, basis, geometry_name):
             f'basis={basis}\nset,charge=0\nset,spin=0\n'
             f'gthresh,energy=1.d-9\nrhf\nccsd(t)\n'
             f'kb_geom_energy=energy\n'
-            f'forces,numerical,variable=kb_geom_energy,startcmd=rhf,mppx=0\n'
+            f'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             f'put,xyz,{geometry_name}\n')
 
 
@@ -197,6 +212,7 @@ class Molpro(Calculator):
             path = self.work_directory / name
             if not path.is_file() or not path.stat().st_size:
                 raise RuntimeError(f'Molpro force evaluation {stem} lacks nonempty {name}.')
+        check_process_count(self.work_directory / output_name, self.nproc)
         self.generated_files.extend([output_name, log_name, geometry_name])
         xml_name = f'{stem}.xml'
         if (self.work_directory / xml_name).is_file():

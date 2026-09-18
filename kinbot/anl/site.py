@@ -17,6 +17,11 @@ import subprocess
 
 _MODULE_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.+/-]*\Z')
 _PARTITION_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\Z')
+_MOLPRO_OVERHEAD_MW = 200
+_DEFAULT_MOLPRO_STACK_MW = 1024
+_DEFAULT_MEMORY_PER_CORE_MB = 4096
+_DEFAULT_MAX_CORES = 16
+_EFFICIENT_CORE_COUNTS = (1, 2, 4, 8, 12, 16)
 
 
 def _duration_seconds(value):
@@ -70,36 +75,122 @@ def _partitions():
     return entries
 
 
-def assign_partitions(spec):
-    """Fill missing Slurm partitions with the shortest fitting available one.
+def _automatic_core_count(task, memory_mb, node_cores, limits):
+    """Return a memory-safe count and the policy used to obtain it."""
+    resources = task['resources']
+    core_cap = min(node_cores, limits.get('max_cores_per_node', node_cores))
+    performance_cap = resources.get('max_cores', _DEFAULT_MAX_CORES)
+    if isinstance(performance_cap, bool) or not isinstance(performance_cap, int) \
+            or performance_cap < 1:
+        raise ValueError(f"{task['id']}: max_cores must be positive.")
+    core_cap = min(core_cap, performance_cap)
+    backend = (task.get('backend') if task.get('kind') == 'external'
+               else task.get('profile', {}).get('calculator', ''))
+    if isinstance(backend, str) and backend.lower() == 'molpro':
+        minimum = resources.get('min_stack_mw', _DEFAULT_MOLPRO_STACK_MW)
+        if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 32:
+            raise ValueError(f"{task['id']}: min_stack_mw must be at least 32.")
+        affordable = int(memory_mb * 0.85 / 8) // (_MOLPRO_OVERHEAD_MW + minimum)
+        policy = ('min_stack_mw', minimum)
+    else:
+        minimum = resources.get('min_memory_mb_per_core',
+                                _DEFAULT_MEMORY_PER_CORE_MB)
+        if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
+            raise ValueError(f"{task['id']}: min_memory_mb_per_core must be positive.")
+        affordable = int(memory_mb * 0.85) // minimum
+        policy = ('min_memory_mb_per_core', minimum)
+    affordable = min(core_cap, affordable)
+    if affordable < 1:
+        return None, policy
+    if affordable > _EFFICIENT_CORE_COUNTS[-1]:
+        return affordable, policy
+    candidates = [count for count in _EFFICIENT_CORE_COUNTS if count <= affordable]
+    return (max(candidates) if candidates else affordable), policy
 
-    Explicit task partitions always win.  When Slurm is absent (for example
-    on a development laptop), leave them unset for the target site to choose.
+
+def assign_partitions(spec):
+    """Select partitions and resolve optional node-memory-based core counts.
+
+    Explicit task partitions always win. A task may omit ``cores`` and/or
+    ``memory_mb``; preparation then sizes it from the smallest node reported
+    for the chosen partition, and requests all node memory when uncapped.
+    Explicit resources remain useful for small smoke tests and local mocks.
     """
-    pending = [task for task in spec['tasks']
-               if not task['resources'].get('partition')]
+    tasks = spec.get('tasks', [])
+    if not isinstance(tasks, list):
+        raise ValueError('tasks must be a list.')
+    pending = []
+    for task in tasks:
+        if not isinstance(task, dict) or not isinstance(task.get('resources'), dict):
+            raise ValueError('Every task needs a resources object.')
+        resources = task['resources']
+        auto_cores = resources.get('cores') in (None, 'auto')
+        auto_memory = resources.get('memory_mb') in (None, 'auto', 'node')
+        if not resources.get('partition') or auto_cores or auto_memory:
+            pending.append((task, auto_cores, auto_memory))
     if not pending:
         return
     entries = _partitions()
     if not entries:
+        if any(auto_cores or auto_memory for _, auto_cores, auto_memory in pending):
+            raise RuntimeError('Automatic cores or node memory require sinfo on '
+                               'the target Slurm site during prepare.')
         if shutil.which('sinfo'):
             raise RuntimeError('sinfo returned no usable up partitions; set '
                                'resources.partition explicitly for each task.')
         return
-    for task in pending:
+    limits = spec.get('limits', {})
+    if not isinstance(limits, dict):
+        raise ValueError('limits must be an object.')
+    for name in ('max_cores_per_node', 'max_memory_mb_per_node'):
+        if name in limits and (isinstance(limits[name], bool)
+                               or not isinstance(limits[name], int)
+                               or limits[name] < 1):
+            raise ValueError(f'{name} must be a positive integer.')
+    for task, auto_cores, auto_memory in pending:
         resources = task['resources']
         needed = _duration_seconds(resources['walltime'])
+        selected = resources.get('partition')
         fits = [entry for entry in entries
-                if entry['cores'] >= resources['cores']
-                and entry['memory_mb'] >= resources['memory_mb']
+                if (not selected or entry['name'] == selected)
+                and (auto_cores or entry['cores'] >= resources['cores'])
+                and (auto_memory or entry['memory_mb'] >= resources['memory_mb'])
                 and entry['seconds'] >= needed]
         if not fits:
             raise RuntimeError(f"{task['id']}: no available Slurm partition "
                                'fits requested cores, memory, and walltime; '
                                'adjust resources or set a partition explicitly.')
-        chosen = min(fits, key=lambda item: (
-            item['seconds'], not item['default'], item['name']))
+        groups = {}
+        for entry in fits:
+            groups.setdefault(entry['name'], []).append(entry)
+        choices = []
+        for group in groups.values():
+            # A partition can contain several node types. The job can land
+            # on any eligible node, so every such type must meet the floor.
+            node_cores = min(entry['cores'] for entry in group)
+            node_memory = min(entry['memory_mb'] for entry in group)
+            memory = node_memory if auto_memory else resources['memory_mb']
+            if auto_memory and 'max_memory_mb_per_node' in limits:
+                memory = min(memory, limits['max_memory_mb_per_node'])
+            cores, policy = (_automatic_core_count(task, memory, node_cores, limits)
+                             if auto_cores else (resources['cores'], None))
+            if cores is None:
+                continue
+            representative = min(group, key=lambda item: (
+                item['seconds'], not item['default'], item['name']))
+            choices.append((representative, memory, cores, policy))
+        if not choices:
+            raise RuntimeError(f"{task['id']}: node memory cannot support one "
+                               'core at the configured per-core minimum.')
+        chosen, memory, cores, policy = min(choices, key=lambda item: (
+            item[0]['seconds'], not item[0]['default'], item[0]['name']))
         resources['partition'] = chosen['name']
+        if auto_memory:
+            resources['memory_mb'] = memory
+            resources['use_all_node_memory'] = 'max_memory_mb_per_node' not in limits
+        if auto_cores:
+            resources['cores'] = cores
+            resources[policy[0]] = policy[1]
 
 
 def _loaded_module(backend):

@@ -548,7 +548,12 @@ until a convergence comparison is complete. The Molpro F12b values are
 `0.04479801` Hartree. The historical `ccsdt_dz` directory contains
 conventional CCSD(T), `-40.387076267138` Hartree. Fresh prepared CH4
 fixtures attach these parser kinds to their external tasks automatically;
-the old run remains unchanged.
+the old run remains unchanged. The completed VPT2 input explicitly contained
+`Opt=(Tight,CalcFC)` and optimized at B3LYP/cc-pVTZ. The revised higher-tier
+fixture instead reads the accepted B2PLYP-D3(BJ)/cc-pVTZ L2 geometry and
+runs `Freq=Anharmonic` at that same level without `Opt`. The lower tier uses
+B3LYP/cc-pVTZ consistently for L2, VPT2, and hindered rotors. No new CH4
+smoke job is needed for this configuration correction.
 
 ## 6. Save results for the next implementation pass
 
@@ -576,5 +581,6 @@ This includes matching files under `attempts` while excluding large binary
 scratch such as CFOUR's `IIII`, `MOINTS`, and `GAMLAM`. Review the archive under
 your site's sharing rules before transferring it. The first CH4 native-output
 audit is documented in [composite QC validation](composite_qc_validation.md).
-The VPT2 convergence check and missing ANL higher-order components come next;
-no ANL composite energy or MESS input has been accepted from this smoke test.
+When the higher-tier VPT2 calculation is eventually run, assess its native
+warnings and convergence alongside the missing ANL higher-order components.
+No ANL composite energy or MESS input has been accepted from this smoke test.

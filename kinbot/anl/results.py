@@ -216,7 +216,13 @@ def parse_molpro_harmonic(output, *, basis):
                     'kj_mol': kj_mol}}
 
 
-def parse_gaussian_vpt2(output, *, method, basis):
+def _gaussian_dispersion(route):
+    match = re.search(r'\bEmpiricalDispersion\s*(?:=|\()\s*([A-Za-z0-9]+)',
+                      route, re.IGNORECASE)
+    return match.group(1).upper() if match else ''
+
+
+def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
     """Read the anharmonic ZPE section and surface native quality warnings."""
     lines = output.strip().splitlines()
     if not lines or not lines[-1].lstrip().startswith('Normal termination of Gaussian'):
@@ -225,9 +231,10 @@ def parse_gaussian_vpt2(output, *, method, basis):
     if (not re.search(rf'\b{re.escape(method)}/{re.escape(basis)}(?![\w-])', route,
                       re.IGNORECASE)
             or not re.search(r'\bFreq\s*=\s*Anharmonic\b', route,
-                             re.IGNORECASE)
-            or not re.search(r'\bOpt\s*=', route, re.IGNORECASE)):
-        raise ValueError('Gaussian output does not echo the requested Opt/Freq=Anharmonic route.')
+                             re.IGNORECASE)):
+        raise ValueError('Gaussian output does not echo the requested Freq=Anharmonic route.')
+    if _gaussian_dispersion(route) != dispersion.upper():
+        raise ValueError('Gaussian output dispersion disagrees with the requested level.')
     marker = output.rfind('Anharmonic Zero Point Energy')
     if marker < 0:
         raise ValueError('Gaussian anharmonic ZPE section is absent.')
@@ -248,6 +255,9 @@ def parse_gaussian_vpt2(output, *, method, basis):
                 if re.match(r'^\s*WARNING:', line, re.IGNORECASE)]
     correction = components['total_anharmonic'] - components['harmonic']
     return {'kind': 'gaussian_vpt2', 'method': method, 'basis': basis,
+            'dispersion': dispersion.upper(),
+            'optimized_in_job': bool(re.search(r'\bOpt\s*(?:=|\()', route,
+                                               re.IGNORECASE)),
             'zpe_cm_inverse': components,
             'anharmonic_correction_cm_inverse': correction,
             'anharmonic_correction_hartree': correction * invcm / Hartree,
@@ -288,17 +298,20 @@ def validate_result_parser(request, *, backend, template, outputs):
                  and bool(re.search(r'^\s*frequencies\s*,\s*numerical\s*$',
                                     template, re.IGNORECASE | re.MULTILINE)))
     elif kind == 'gaussian_vpt2':
-        valid = (set(request) == {'kind', 'file', 'method', 'basis'}
+        valid = (set(request) in ({'kind', 'file', 'method', 'basis'},
+                                  {'kind', 'file', 'method', 'basis', 'dispersion'})
                  and backend == 'gaussian'
                  and isinstance(request.get('method'), str)
                  and isinstance(request.get('basis'), str)
                  and bool(request['method']) and bool(request['basis'])
+                 and isinstance(request.get('dispersion', ''), str)
                  and re.search(rf'\b{re.escape(request["method"])}/'
                                rf'{re.escape(request["basis"])}(?![\w-])', template,
                                re.IGNORECASE) is not None
                  and re.search(r'\bFreq\s*=\s*Anharmonic\b', template,
                                re.IGNORECASE) is not None
-                 and re.search(r'\bOpt\s*=', template, re.IGNORECASE) is not None)
+                 and _gaussian_dispersion(template)
+                 == request.get('dispersion', '').upper())
     else:
         valid = False
     if not valid:
@@ -316,7 +329,8 @@ def parse_result(output, request):
         return parse_molpro_harmonic(output, basis=request['basis'])
     if kind == 'gaussian_vpt2':
         return parse_gaussian_vpt2(output, method=request['method'],
-                                   basis=request['basis'])
+                                   basis=request['basis'],
+                                   dispersion=request.get('dispersion', ''))
     raise ValueError(f'Unsupported result parser {kind!r}.')
 
 
@@ -337,6 +351,7 @@ def main(argv=None):
     vpt2.add_argument('output', type=Path)
     vpt2.add_argument('--method', required=True)
     vpt2.add_argument('--basis', required=True)
+    vpt2.add_argument('--dispersion', default='')
     args = parser.parse_args(argv)
     if args.kind == 'cfour-dboc':
         print(json.dumps(parse_cfour_dboc(args.output.read_text(errors='replace'),
@@ -349,7 +364,8 @@ def main(argv=None):
                                                basis=args.basis), indent=2))
     elif args.kind == 'gaussian-vpt2':
         print(json.dumps(parse_gaussian_vpt2(args.output.read_text(errors='replace'),
-                                             method=args.method, basis=args.basis), indent=2))
+                                             method=args.method, basis=args.basis,
+                                             dispersion=args.dispersion), indent=2))
 
 
 if __name__ == '__main__':

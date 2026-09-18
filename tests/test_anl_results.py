@@ -163,6 +163,7 @@ def test_gaussian_vpt2_named_zpe_and_warnings():
     result = parse_gaussian_vpt2(_GAUSSIAN_VPT2, method='B3LYP',
                                  basis='cc-pVTZ')
     assert result['anharmonic_correction_cm_inverse'] == pytest.approx(-137.32185)
+    assert result['optimized_in_job'] is True
     assert result['review_required'] is True
     assert len(result['warnings']) == 1
     with pytest.raises(ValueError, match='components disagree'):
@@ -175,6 +176,16 @@ def test_gaussian_vpt2_named_zpe_and_warnings():
         parse_gaussian_vpt2(_GAUSSIAN_VPT2.replace('B3LYP/cc-pVTZ',
                                                   'B3LYP/cc-pVTZ-F12'),
                              method='B3LYP', basis='cc-pVTZ')
+    frequency_only = _GAUSSIAN_VPT2.replace(
+        'B3LYP/cc-pVTZ Opt=(Tight,CalcFC)',
+        'B2PLYP/cc-pVTZ EmpiricalDispersion=GD3BJ')
+    result = parse_gaussian_vpt2(frequency_only, method='B2PLYP',
+                                 basis='cc-pVTZ', dispersion='GD3BJ')
+    assert result['dispersion'] == 'GD3BJ'
+    assert result['optimized_in_job'] is False
+    with pytest.raises(ValueError, match='dispersion'):
+        parse_gaussian_vpt2(frequency_only, method='B2PLYP',
+                             basis='cc-pVTZ')
 
 
 def test_parser_declaration_must_match_method_and_input():

@@ -42,10 +42,10 @@ dispatcher. It exercises these gates:
    Molpro with `-g` so each force evaluation has a detailed `.log`.
 3. After that XYZ passes atom-order, finite-coordinate, and Molpro termination
    checks, stage the independent harmonic, F12b/TZ, F12b/QZ, conventional
-   CCSD(T)/DZ, CFOUR HF/cc-pVTZ DBOC, and
-   Gaussian B3LYP/cc-pVTZ VPT2 tasks. The VPT2 task first optimizes on its
-   own B3LYP surface in the same Gaussian job, then performs the anharmonic
-   frequency analysis. Up to `max_nodes` run concurrently.
+   CCSD(T)/DZ, CFOUR HF/cc-pVTZ DBOC, and Gaussian VPT2 tasks. The revised
+   higher-tier fixture runs VPT2 at B2PLYP-D3(BJ)/cc-pVTZ on the accepted
+   L2 geometry, with no Gaussian `Opt`; it still joins the post-L3 fan-out.
+   Up to `max_nodes` run concurrently.
 
 The CH4 graph is an **interface smoke test**, not a complete ANL0-F12
 electronic-energy expression or a MESS input. It samples Gaussian, Molpro,
@@ -318,6 +318,28 @@ Persist reservations and job IDs so a restart recovers in-flight work without
 duplicate submissions. Test this with a fake scheduler before using a cluster
 queue, and assert the `--exclusive` directive in generated Slurm scripts.
 
+## L2, hindered rotor, and VPT2 surface policy
+
+For the lower ANL tier, use B3LYP/cc-pVTZ for all three. For the higher tier,
+use B2PLYP-D3(BJ)/cc-pVTZ for all three. Hindered-rotor optimizations and
+scans use the resolved L2 profile. A frequency-only VPT2 task consumes an
+accepted L2 geometry at the identical method, basis, and dispersion level;
+the dispatcher checks this relationship before staging. Gaussian's `Freq`
+keyword alone does not optimize. The first completed CH4 VPT2 job *did*
+optimize because its input explicitly contained `Opt=(Tight,CalcFC)`; the
+revised fixture removes `Opt` and records that distinction in parser output.
+The revised higher-tier L2 optimization uses Sella with a tighter force
+threshold and an UltraFine grid before VPT2 uses its coordinates. The
+published ANL1 equation's B3LYP anharmonic term and the user-selected
+B2PLYP higher-tier variant must carry distinct provenance.
+
+[B2PLYP analytic second derivatives and VPT2](https://pubs.acs.org/doi/10.1021/ct100212p)
+have been reported in the primary literature; a later
+[Gaussian-based VPT2 study](https://pmc.ncbi.nlm.nih.gov/articles/PMC8280743/)
+also treats B2PLYP with D3(BJ). Exact Gaussian 16 input/output for the
+revised higher-tier route still needs licensed-site validation when that
+method is used. No new CH4 run is requested now.
+
 ## Completed CH4 native-output audit
 
 The first Blodgett run finished all eight dispatch tasks. The text-only
@@ -337,16 +359,16 @@ energy or a MESS file.
 | Molpro F12b/QZ | `SCALE_TRIP=1`, `ENERGY(2)`, `cc-pVQZ-F12`; exact F12b total energy `-40.456608306474` Hartree. |
 | Molpro DZ | Conventional **CCSD(T)**/cc-pVDZ energy `-40.387076267138` Hartree. The old task ID `ccsdt_dz` did not perform CCSDT. |
 | CFOUR DBOC | HF/cc-pVTZ correction `0.0025887093` Hartree (`568.156016 cm-1`), with a separate MP1 value `0.0026718675` Hartree. The final electronic energy includes DBOC and is not the correction. |
-| Gaussian VPT2 | B3LYP/cc-pVTZ optimized on its own surface; harmonic ZPE `9783.68667 cm-1`, total anharmonic ZPE `9646.36482 cm-1`, correction `-137.32185 cm-1`. Three native `WARNING:` lines make this value **provisional**. |
+| Gaussian VPT2 in the completed first run | B3LYP/cc-pVTZ **with explicit `Opt`** optimized on its own surface; harmonic ZPE `9783.68667 cm-1`, total anharmonic ZPE `9646.36482 cm-1`, correction `-137.32185 cm-1`. Three native `WARNING:` lines make this value **provisional** and it is not the revised higher-tier B2PLYP component. |
 
 The Gaussian warnings concern the rotor/framework classification and two
 unreliable cubic force constants. Its resonance analysis also found six
 active 2-2 and seven active 1-1 Darling-Dennison resonances. The job
-terminated normally, but the VPT2 correction needs a numerical convergence
+terminated normally, but this VPT2 correction needs a numerical convergence
 review before it enters ANL thermochemistry. This is a quality flag, not
-evidence that Gaussian failed to run. A tighter, site-approved B3LYP
-optimization and integration grid comparison is the next specific check;
-retain the original output and compare the ZPE components and warnings.
+evidence that Gaussian failed to run. The user has not requested another CH4
+smoke run. A future calculation must use the tier-matched L2 geometry and
+compare the ZPE components and warnings before thermochemical acceptance.
 
 Newly prepared external tasks can declare parsers for Molpro's exact
 CCSD(T)-F12b and conventional CCSD(T) energies, Molpro's harmonic modes and

@@ -63,7 +63,9 @@ def test_complete_anl0_expressions_include_zpe_once(name):
     assert result.electronic_hartree == pytest.approx(-100.123)
     assert result.zero_point_hartree == pytest.approx(0.09)
     assert result.zero_k_hartree == pytest.approx(-100.033)
-    assert equation.name == name
+    assert equation.name == (
+        'profiled:ANL0-F12:scaled-triples' if name == 'ANL0-F12'
+        else name)
     if name == 'ANL0-F12':
         assert components['reference_cbs'].method == 'CCSD(T)-F12b'
         assert components['reference_cbs'].settings['scale_trip'] == 1

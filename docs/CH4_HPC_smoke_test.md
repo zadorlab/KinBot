@@ -530,14 +530,23 @@ Once all tasks finish, retain `workflow.json`, `state.json`, each task's
 output, and Slurm logs. In particular, retain every Molpro geometry step's
 `.inp`, `.out`, `.log`, and gradient `.xyz`, plus Sella's final `.xyz` and
 trajectory. Record `git rev-parse HEAD`, `module list`, and version
-banners from Gaussian, Molpro, and CFOUR. One way to package the run is:
+banners from Gaussian, Molpro, and CFOUR. Keep the full run directory on the
+HPC. CFOUR's binary scratch files made the first full archive 99 MB even
+though its text outputs were small. For transfer and parser review, package
+only text inputs, outputs, and state records:
 
 ```bash
-tar -czf ch4_run_results.tgz -C ch4_run workflow.json state.json tasks
-sha256sum ch4_run_results.tgz
+find ch4_run_auto3 -type f \( -name '*.json' -o -name '*.out' \
+  -o -name '*.log' -o -name '*.inp' -o -name '*.com' \
+  -o -name '*.xyz' -o -name '*.xml' -o -name '*.err' \
+  -o -name '*.stderr' -o -name '*.stdout' -o -name '*.slurm' \
+  -o -name 'ZMAT' -o -name 'site_setup.sh' \) -print0 | \
+  tar --null -czf ch4_review.tgz -T -
+sha256sum ch4_review.tgz
 ```
 
-Also retain `ch4_run/attempts` if there were retries. Review the archive under
+This includes matching files under `attempts` while excluding large binary
+scratch such as CFOUR's `IIII`, `MOINTS`, and `GAMLAM`. Review the archive under
 your site's sharing rules before transferring it. The next pass will compare
 printed methods, energies, frequencies, and DBOC/VPT2 values, implement
 versioned parsers, and then assemble the ANL expression and MESS handoff.

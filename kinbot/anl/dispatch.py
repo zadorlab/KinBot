@@ -250,14 +250,12 @@ def _validate_task(task, ids, limits):
                 raise ValueError(f'{ident}: success_marker file must be a required output or stream.')
         result_parser = task.get('result_parser')
         if result_parser is not None:
-            if (not isinstance(result_parser, dict)
-                    or set(result_parser) != {'kind', 'file', 'level'}
-                    or result_parser.get('kind') != 'cfour_dboc'
-                    or backend != 'cfour'
-                    or result_parser.get('level') not in ('HF', 'MP1')
-                    or result_parser.get('file') not in outputs
-                    or 'DBOC=ON' not in task['input_template'].upper()):
-                raise ValueError(f'{ident}: invalid result_parser.')
+            from kinbot.anl.results import validate_result_parser
+            try:
+                validate_result_parser(result_parser, backend=backend,
+                                       template=task['input_template'], outputs=outputs)
+            except ValueError as exc:
+                raise ValueError(f'{ident}: {exc}') from exc
         failure_markers = task.get('failure_markers', [])
         if (not isinstance(failure_markers, list) or any(
                 not isinstance(marker, dict) or set(marker) != {'file', 'contains'}
@@ -649,11 +647,10 @@ def _run_external(directory, record):
                                f"{marker['contains']}")
     details = {'command': command, 'returncode': result.returncode, **runtime}
     if task.get('result_parser'):
-        from kinbot.anl.results import parse_cfour_dboc
+        from kinbot.anl.results import parse_result
         requested = task['result_parser']
-        details['parsed_result'] = parse_cfour_dboc(
-            (directory / requested['file']).read_text(errors='replace'),
-            level=requested['level'])
+        details['parsed_result'] = parse_result(
+            (directory / requested['file']).read_text(errors='replace'), requested)
     return details
 
 

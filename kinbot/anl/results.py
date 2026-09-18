@@ -25,12 +25,14 @@ _FINAL_ENERGY = re.compile(
 _SCF_WITH_DBOC = re.compile(
     rf'^\s*Total SCF energy including DBOC\s+({_NUMBER})\s*$',
     re.IGNORECASE | re.MULTILINE)
+_MOLPRO_CCSD_T = r'^\s*ccsd\(t\)(?:\s*,[^\n]*)?\s*$'
+_MOLPRO_F12B = r'^\s*ccsd\(t\)-f12b?\b[^\n]*\bscale_trip\s*=\s*1\b[^\n]*$'
 
 
 def _number(value):
     number = float(value.replace('D', 'E').replace('d', 'e'))
     if not math.isfinite(number):
-        raise ValueError('CFOUR DBOC output contains a nonfinite number.')
+        raise ValueError('QC output contains a nonfinite number.')
     return number
 
 
@@ -96,16 +98,258 @@ def parse_cfour_dboc(output, *, level='HF'):
     }
 
 
+def _molpro_output(output, basis):
+    if not re.search(r'^\s*Molpro calculation terminated\s*$', output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError('Molpro output has no normal completion line.')
+    if not re.search(rf'^\s*basis\s*=\s*{re.escape(basis)}\s*$', output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError(f'Molpro output does not echo basis {basis}.')
+
+
+def _one_number(output, pattern, label):
+    matches = re.findall(pattern, output, re.IGNORECASE | re.MULTILINE)
+    if len(matches) != 1:
+        raise ValueError(f'Expected exactly one {label}; found {len(matches)}.')
+    return _number(matches[0])
+
+
+def parse_molpro_energy(output, *, method, basis):
+    """Read the exact named total energy, rather than a rounded variable or F12a."""
+    _molpro_output(output, basis)
+    labels = {
+        'CCSD(T)': r'CCSD\(T\)',
+        'CCSD(T)-F12b': r'CCSD\(T\)-F12b',
+    }
+    if method not in labels:
+        raise ValueError(f'Unsupported Molpro energy method {method!r}.')
+    if method == 'CCSD(T)-F12b':
+        if not re.search(_MOLPRO_F12B,
+                         output, re.IGNORECASE | re.MULTILINE):
+            raise ValueError('Molpro output does not echo scaled-triples F12 input.')
+    else:
+        if not re.search(_MOLPRO_CCSD_T, output,
+                         re.IGNORECASE | re.MULTILINE):
+            raise ValueError('Molpro output does not echo conventional CCSD(T).')
+    energy = _one_number(
+        output, rf'^\s*!{labels[method]} total energy\s+({_NUMBER})\s*$',
+        f'Molpro {method} total energy')
+    if method == 'CCSD(T)-F12b':
+        summary = _one_number(
+            output, rf'^\s*CCSD\(T\)-F12/{re.escape(basis)} energy\s*=\s*'
+                    rf'({_NUMBER})\s*$', 'Molpro F12 summary')
+        if abs(summary - energy) > 1e-9:
+            raise ValueError('Molpro F12b total energy disagrees with the summary.')
+    return {'kind': 'molpro_energy', 'method': method, 'basis': basis,
+            'energy_hartree': energy}
+
+
+def parse_molpro_harmonic(output, *, basis):
+    """Read vibrational modes and ZPE, excluding rotations/translations."""
+    _molpro_output(output, basis)
+    if not re.search(r'^\s*frequencies\s*,\s*numerical\s*$', output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError('Molpro output does not echo numerical frequencies.')
+    frequency_sections = re.findall(
+        r'^\s*PROGRAM \* FREQUENCIES \(Calculation of harmonic '
+        r'vibrational spectra for (.+?)\)\s*$', output,
+        re.IGNORECASE | re.MULTILINE)
+    if len(frequency_sections) != 1 or frequency_sections[0].upper() != 'CCSD(T)':
+        raise ValueError('Expected one CCSD(T) Molpro frequency section.')
+    section = output.split('PROGRAM * FREQUENCIES', 1)[1]
+    low_heading = re.search(r'^\s*Low Vibration\s+Wavenumber\s*$', section,
+                            re.IGNORECASE | re.MULTILINE)
+    low_modes = []
+    if low_heading is not None:
+        for line in section[low_heading.end():].splitlines():
+            match = re.match(r'^\s*(\d+)\s+(\S+)\s*$', line)
+            if match is None:
+                if low_modes:
+                    break
+                continue
+            try:
+                low_modes.append(_number(match.group(2)))
+            except ValueError as exc:
+                raise ValueError('Molpro reports a nonreal low mode.') from exc
+        if any(value < -1.0 for value in low_modes):
+            raise ValueError('Molpro reports an imaginary low mode.')
+    heading = re.search(r'^\s*Vibration\s+Wavenumber\s*$', section,
+                        re.IGNORECASE | re.MULTILINE)
+    if heading is None:
+        raise ValueError('Molpro vibrational wavenumber table is absent.')
+    modes = []
+    for line in section[heading.end():].splitlines():
+        match = re.match(r'^\s*(\d+)\s+(\S+)\s*$', line)
+        if match is None:
+            if modes:
+                break
+            continue
+        if int(match.group(1)) != len(modes) + 1:
+            raise ValueError('Molpro vibrational mode numbers are not consecutive.')
+        try:
+            value = _number(match.group(2))
+        except ValueError as exc:
+            raise ValueError('Molpro reports a nonreal vibrational mode.') from exc
+        if value <= 0:
+            raise ValueError('Molpro reports a nonpositive vibrational mode.')
+        modes.append(value)
+    if not modes:
+        raise ValueError('Molpro has no positive vibrational modes.')
+    zpe = re.findall(
+        rf'^\s*Zero point energy:\s*({_NUMBER})\s*\[H\]\s*'
+        rf'({_NUMBER})\s*\[1/CM\]\s*({_NUMBER})\s*\[KJ/MOL\]\s*$',
+        output, re.IGNORECASE | re.MULTILINE)
+    if len(zpe) != 1:
+        raise ValueError('Expected exactly one Molpro harmonic ZPE.')
+    hartree, cm_inverse, kj_mol = map(_number, zpe[0])
+    if abs(hartree * Hartree / invcm - cm_inverse) > 0.02:
+        raise ValueError('Molpro harmonic ZPE units disagree.')
+    if abs(0.5 * sum(modes) - cm_inverse) > 0.02:
+        raise ValueError('Molpro harmonic modes disagree with ZPE.')
+    if abs(hartree * Hartree * mol / kJ - kj_mol) > 0.02:
+        raise ValueError('Molpro harmonic ZPE kJ/mol disagrees.')
+    return {'kind': 'molpro_harmonic', 'method': 'CCSD(T)', 'basis': basis,
+            'wavenumbers_cm_inverse': modes,
+            'low_modes_cm_inverse': low_modes,
+            'review_required': any(abs(value) > 1.0 for value in low_modes),
+            'zpe': {'hartree': hartree, 'cm_inverse': cm_inverse,
+                    'kj_mol': kj_mol}}
+
+
+def parse_gaussian_vpt2(output, *, method, basis):
+    """Read the anharmonic ZPE section and surface native quality warnings."""
+    lines = output.strip().splitlines()
+    if not lines or not lines[-1].lstrip().startswith('Normal termination of Gaussian'):
+        raise ValueError('Gaussian output has no final normal termination.')
+    route = output[:10000]
+    if (not re.search(rf'\b{re.escape(method)}/{re.escape(basis)}(?![\w-])', route,
+                      re.IGNORECASE)
+            or not re.search(r'\bFreq\s*=\s*Anharmonic\b', route,
+                             re.IGNORECASE)
+            or not re.search(r'\bOpt\s*=', route, re.IGNORECASE)):
+        raise ValueError('Gaussian output does not echo the requested Opt/Freq=Anharmonic route.')
+    marker = output.rfind('Anharmonic Zero Point Energy')
+    if marker < 0:
+        raise ValueError('Gaussian anharmonic ZPE section is absent.')
+    section = output[marker:]
+    components = {}
+    for name, label in (('harmonic', 'Harmonic'),
+                        ('anharmonic_potential', r'Anharmonic Pot\.'),
+                        ('watson_coriolis', r'Watson\+Coriolis'),
+                        ('total_anharmonic', 'Total Anharm')):
+        components[name] = _one_number(
+            section, rf'^\s*{label}\s*:\s*cm-1\s*=\s*({_NUMBER})\s*;',
+            f'Gaussian {name} ZPE')
+    expected = (components['harmonic'] + components['anharmonic_potential']
+                + components['watson_coriolis'])
+    if abs(expected - components['total_anharmonic']) > 0.02:
+        raise ValueError('Gaussian anharmonic ZPE components disagree.')
+    warnings = [line.strip() for line in output.splitlines()
+                if re.match(r'^\s*WARNING:', line, re.IGNORECASE)]
+    correction = components['total_anharmonic'] - components['harmonic']
+    return {'kind': 'gaussian_vpt2', 'method': method, 'basis': basis,
+            'zpe_cm_inverse': components,
+            'anharmonic_correction_cm_inverse': correction,
+            'anharmonic_correction_hartree': correction * invcm / Hartree,
+            'warnings': warnings, 'review_required': bool(warnings)}
+
+
+def validate_result_parser(request, *, backend, template, outputs):
+    """Reject a parser whose declared method is inconsistent with its input."""
+    if not isinstance(request, dict) or not isinstance(request.get('file'), str) \
+            or request['file'] not in outputs:
+        raise ValueError('invalid result_parser.')
+    kind = request.get('kind')
+    if kind == 'cfour_dboc':
+        valid = (set(request) == {'kind', 'file', 'level'}
+                 and backend == 'cfour' and request.get('level') in ('HF', 'MP1')
+                 and re.search(r'\bDBOC\s*=\s*ON\b', template,
+                               re.IGNORECASE) is not None)
+    elif kind == 'molpro_energy':
+        valid = (set(request) == {'kind', 'file', 'method', 'basis'}
+                 and backend == 'molpro'
+                 and request.get('method') in ('CCSD(T)', 'CCSD(T)-F12b')
+                 and isinstance(request.get('basis'), str) and bool(request['basis'])
+                 and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
+                               template, re.IGNORECASE | re.MULTILINE) is not None)
+        if valid:
+            method_line = (_MOLPRO_CCSD_T if request['method'] == 'CCSD(T)'
+                           else _MOLPRO_F12B)
+            valid = re.search(method_line, template,
+                              re.IGNORECASE | re.MULTILINE) is not None
+    elif kind == 'molpro_harmonic':
+        valid = (set(request) == {'kind', 'file', 'basis'}
+                 and backend == 'molpro' and isinstance(request.get('basis'), str)
+                 and bool(request['basis'])
+                 and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
+                               template, re.IGNORECASE | re.MULTILINE) is not None
+                 and re.search(_MOLPRO_CCSD_T, template,
+                               re.IGNORECASE | re.MULTILINE) is not None
+                 and bool(re.search(r'^\s*frequencies\s*,\s*numerical\s*$',
+                                    template, re.IGNORECASE | re.MULTILINE)))
+    elif kind == 'gaussian_vpt2':
+        valid = (set(request) == {'kind', 'file', 'method', 'basis'}
+                 and backend == 'gaussian'
+                 and isinstance(request.get('method'), str)
+                 and isinstance(request.get('basis'), str)
+                 and bool(request['method']) and bool(request['basis'])
+                 and re.search(rf'\b{re.escape(request["method"])}/'
+                               rf'{re.escape(request["basis"])}(?![\w-])', template,
+                               re.IGNORECASE) is not None
+                 and re.search(r'\bFreq\s*=\s*Anharmonic\b', template,
+                               re.IGNORECASE) is not None
+                 and re.search(r'\bOpt\s*=', template, re.IGNORECASE) is not None)
+    else:
+        valid = False
+    if not valid:
+        raise ValueError('invalid result_parser.')
+
+
+def parse_result(output, request):
+    kind = request['kind']
+    if kind == 'cfour_dboc':
+        return parse_cfour_dboc(output, level=request['level'])
+    if kind == 'molpro_energy':
+        return parse_molpro_energy(output, method=request['method'],
+                                   basis=request['basis'])
+    if kind == 'molpro_harmonic':
+        return parse_molpro_harmonic(output, basis=request['basis'])
+    if kind == 'gaussian_vpt2':
+        return parse_gaussian_vpt2(output, method=request['method'],
+                                   basis=request['basis'])
+    raise ValueError(f'Unsupported result parser {kind!r}.')
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Inspect native ANL QC output')
     subparsers = parser.add_subparsers(dest='kind', required=True)
     cfour = subparsers.add_parser('cfour-dboc')
     cfour.add_argument('output', type=Path)
     cfour.add_argument('--level', choices=('HF', 'MP1'), default='HF')
+    energy = subparsers.add_parser('molpro-energy')
+    energy.add_argument('output', type=Path)
+    energy.add_argument('--method', choices=('CCSD(T)', 'CCSD(T)-F12b'), required=True)
+    energy.add_argument('--basis', required=True)
+    harmonic = subparsers.add_parser('molpro-harmonic')
+    harmonic.add_argument('output', type=Path)
+    harmonic.add_argument('--basis', required=True)
+    vpt2 = subparsers.add_parser('gaussian-vpt2')
+    vpt2.add_argument('output', type=Path)
+    vpt2.add_argument('--method', required=True)
+    vpt2.add_argument('--basis', required=True)
     args = parser.parse_args(argv)
     if args.kind == 'cfour-dboc':
         print(json.dumps(parse_cfour_dboc(args.output.read_text(errors='replace'),
                                          level=args.level), indent=2))
+    elif args.kind == 'molpro-energy':
+        print(json.dumps(parse_molpro_energy(args.output.read_text(errors='replace'),
+                                             method=args.method, basis=args.basis), indent=2))
+    elif args.kind == 'molpro-harmonic':
+        print(json.dumps(parse_molpro_harmonic(args.output.read_text(errors='replace'),
+                                               basis=args.basis), indent=2))
+    elif args.kind == 'gaussian-vpt2':
+        print(json.dumps(parse_gaussian_vpt2(args.output.read_text(errors='replace'),
+                                             method=args.method, basis=args.basis), indent=2))
 
 
 if __name__ == '__main__':

@@ -50,8 +50,11 @@ dispatcher. It exercises these gates:
 The CH4 graph is an **interface smoke test**, not a complete ANL0-F12
 electronic-energy expression or a MESS input. It samples Gaussian, Molpro,
 and CFOUR before full recipe arithmetic, MRCC, open-shell CH3, and reactions.
-`execution.json` means process and artifact checks passed; no CFOUR DBOC
-parser has yet certified the printed value.
+For newly prepared runs, `result_parser` also checks the named Molpro,
+Gaussian, and CFOUR output values. The completed first run predates those
+declarations, so its native outputs were parsed read-only. A task marked
+`complete` is still a dispatch result; any `review_required` parser flag
+must be resolved before thermochemical use.
 
 For the complete clone, setup, preflight, submission, monitoring, retry, and
 result-collection commands, use [the CH4 HPC runbook](CH4_HPC_smoke_test.md).
@@ -81,11 +84,10 @@ Inputs are grounded in the [Molpro XYZ/NOORIENT and PUT,XYZ](https://www.molpro.
 and [F12 variable](https://www.molpro.net/manual/doku.php?id=quickstart)
 examples, plus the [CFOUR Cartesian ZMAT](https://cfour.uni-mainz.de/cfour/index.php?n=Main.MolecularGeometryInput)
 and [DBOC input and output example](https://cfour.uni-mainz.de/cfour/index.php?n=Main.CalculationOfDBOC)
-pages. The CFOUR task requires the DBOC output label and its value still needs
-the manual scientific checks below. MRCC is deferred until its executable is
-available on the target site. Gaussian's local ASE input rendering is tested,
-but licensed Gaussian must
-confirm the Sella force route and VPT2 output on this site.
+pages. The completed CFOUR run now confirms the DBOC label and its HF value.
+MRCC is deferred until its executable is available on the target site.
+Licensed Gaussian confirmed the CH4 Sella force route and VPT2 execution;
+its anharmonic correction still requires the convergence review below.
 
 The local Molpro 2024.1 CH4 `DZ-F12/work/CH4/c000` reference supplied with
 the peroxy workflow was inspected. Its native `OPTG` input confirms the
@@ -193,10 +195,10 @@ synthetic fixture does not establish that a program output parser is correct.
   reference (`scftype`) in the task spec. Verify output termination and the
   exact final-energy label on a real fixture before enabling a recipe node.
 * KinBot's Gaussian wrapper already writes `.com` and parses `.log` through
-  ASE's Gaussian IO. The local renderer must verify the B2PLYP route,
-  `EmpiricalDispersion=GD3BJ` representation, and charge/multiplicity. A
-  licensed Gaussian run must confirm gradient, native Hessian, and VPT2
-  results separately before those capabilities are advertised.
+  ASE's Gaussian IO. The local renderer verifies the B2PLYP route,
+  `EmpiricalDispersion=GD3BJ` representation, and charge/multiplicity. The
+  licensed CH4 run confirmed the L2 force route and VPT2 execution. Native
+  Hessian integration and VPT2 convergence remain separate validation gates.
 
 ## Existing KinBot interfaces to compare
 
@@ -315,3 +317,51 @@ the node pool across all species in the KinBot run.
 Persist reservations and job IDs so a restart recovers in-flight work without
 duplicate submissions. Test this with a fake scheduler before using a cluster
 queue, and assert the `--exclusive` directive in generated Slurm scripts.
+
+## Completed CH4 native-output audit
+
+The first Blodgett run finished all eight dispatch tasks. The text-only
+archive preserved the native inputs and outputs, `execution.json`, and Slurm
+records. Every archived file that appears in an execution artifact map matches
+its SHA-256 value. The archive intentionally omits CFOUR's binary scratch,
+`GENBAS`, and ASE trajectory files; the full run remains on the cluster.
+These results validate the **CH4 interface smoke test**, not a complete ANL
+energy or a MESS file.
+
+| Task | Native-output finding |
+| --- | --- |
+| Gaussian L2 / Sella | B2PLYP-D3(BJ)/cc-pVTZ geometry converged; final B2PLYP energy `-40.487174956111` Hartree. |
+| Molpro L3 / Sella | CCSD(T)/cc-pVTZ geometry converged in two Molpro force evaluations; final energy about `-40.43809881` Hartree. Both `.out` and `.log` are retained for each step. |
+| Molpro harmonic | CCSD(T)/cc-pVTZ numerical frequencies have nine positive vibrational modes, six zero rotation/translation modes, and ZPE `0.04479801` Hartree (`9832.03 cm-1`). The reference-geometry gradient norm was `0.47427D-03` Hartree/bohr. |
+| Molpro F12b/TZ | `SCALE_TRIP=1`, `ENERGY(2)`, `cc-pVTZ-F12`; exact F12b total energy `-40.454906199189` Hartree. The separately printed F12a energy must not be selected. |
+| Molpro F12b/QZ | `SCALE_TRIP=1`, `ENERGY(2)`, `cc-pVQZ-F12`; exact F12b total energy `-40.456608306474` Hartree. |
+| Molpro DZ | Conventional **CCSD(T)**/cc-pVDZ energy `-40.387076267138` Hartree. The old task ID `ccsdt_dz` did not perform CCSDT. |
+| CFOUR DBOC | HF/cc-pVTZ correction `0.0025887093` Hartree (`568.156016 cm-1`), with a separate MP1 value `0.0026718675` Hartree. The final electronic energy includes DBOC and is not the correction. |
+| Gaussian VPT2 | B3LYP/cc-pVTZ optimized on its own surface; harmonic ZPE `9783.68667 cm-1`, total anharmonic ZPE `9646.36482 cm-1`, correction `-137.32185 cm-1`. Three native `WARNING:` lines make this value **provisional**. |
+
+The Gaussian warnings concern the rotor/framework classification and two
+unreliable cubic force constants. Its resonance analysis also found six
+active 2-2 and seven active 1-1 Darling-Dennison resonances. The job
+terminated normally, but the VPT2 correction needs a numerical convergence
+review before it enters ANL thermochemistry. This is a quality flag, not
+evidence that Gaussian failed to run. A tighter, site-approved B3LYP
+optimization and integration grid comparison is the next specific check;
+retain the original output and compare the ZPE components and warnings.
+
+Newly prepared external tasks can declare parsers for Molpro's exact
+CCSD(T)-F12b and conventional CCSD(T) energies, Molpro's harmonic modes and
+ZPE, Gaussian's named anharmonic ZPE components, and CFOUR's named DBOC
+level. A missing label, inconsistent units/summary, wrong echoed method or
+basis, nonpositive vibrational mode, or absent final termination fails the
+task. Gaussian warnings are preserved as `review_required` in the parsed
+result. Existing completed task records are immutable; inspect their native
+outputs with `python -m kinbot.anl.results` after updating the branch.
+
+The [Molpro F12 manual](https://www.molpro.net/manual/doku.php?id=explicitly_correlated_methods)
+defines `ENERGY(2)` as F12b, and the
+[Molpro frequency manual](https://www.molpro.net/manual/doku.php?id=harmonic_vibrational_frequencies_frequencies)
+defines the numerical frequency/ZPE output. Gaussian's
+[vibrational analysis guide](https://gaussian.com/wp-content/uploads/dl/vib.pdf)
+describes harmonic and anharmonic frequency analysis; the warning assessment
+above is based on the native CH4 output and remains an inference pending the
+repeat calculation.

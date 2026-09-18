@@ -521,7 +521,34 @@ branch, run:
 ```
 
 This command only reads `cfour.out`. It does not change the completed run or
-submit another job. The other native outputs still need scientific review.
+submit another job. The complete text archive was subsequently reviewed.
+After pulling the current branch, the other native results can be inspected
+without resubmitting or rewriting the completed run:
+
+```bash
+cd ~/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git pull --ff-only origin composite
+.venv/bin/python -m kinbot.anl.results molpro-energy \
+  ch4_run_auto3/tasks/f12_tz/f12_tz.out --method 'CCSD(T)-F12b' --basis cc-pVTZ-F12
+.venv/bin/python -m kinbot.anl.results molpro-energy \
+  ch4_run_auto3/tasks/f12_qz/f12_qz.out --method 'CCSD(T)-F12b' --basis cc-pVQZ-F12
+.venv/bin/python -m kinbot.anl.results molpro-energy \
+  ch4_run_auto3/tasks/ccsdt_dz/ccsdt_dz.out --method 'CCSD(T)' --basis cc-pVDZ
+.venv/bin/python -m kinbot.anl.results molpro-harmonic \
+  ch4_run_auto3/tasks/harmonic/harmonic.out --basis cc-pVTZ
+.venv/bin/python -m kinbot.anl.results gaussian-vpt2 \
+  ch4_run_auto3/tasks/gaussian_vpt2/vpt2.log --method B3LYP --basis cc-pVTZ
+```
+
+The Gaussian parser reports `review_required: true` because the native VPT2
+output contains rotor/framework and unreliable cubic-force warnings. It
+reports the correction `-137.32185 cm-1`; treat that value as provisional
+until a convergence comparison is complete. The Molpro F12b values are
+`-40.454906199189` and `-40.456608306474` Hartree; the harmonic ZPE is
+`0.04479801` Hartree. The historical `ccsdt_dz` directory contains
+conventional CCSD(T), `-40.387076267138` Hartree. Fresh prepared CH4
+fixtures attach these parser kinds to their external tasks automatically;
+the old run remains unchanged.
 
 ## 6. Save results for the next implementation pass
 
@@ -547,6 +574,7 @@ sha256sum ch4_review.tgz
 
 This includes matching files under `attempts` while excluding large binary
 scratch such as CFOUR's `IIII`, `MOINTS`, and `GAMLAM`. Review the archive under
-your site's sharing rules before transferring it. The next pass will compare
-printed methods, energies, frequencies, and DBOC/VPT2 values, implement
-versioned parsers, and then assemble the ANL expression and MESS handoff.
+your site's sharing rules before transferring it. The first CH4 native-output
+audit is documented in [composite QC validation](composite_qc_validation.md).
+The VPT2 convergence check and missing ANL higher-order components come next;
+no ANL composite energy or MESS input has been accepted from this smoke test.

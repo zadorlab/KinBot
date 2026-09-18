@@ -28,7 +28,7 @@ def resources(cores=4, memory_mb=16000, walltime='04:00:00'):
 
 def molpro_task(ident, body, *, geometry_from='l3_geometry',
                 geometry_output=None, cores=4, memory_mb=16000,
-                walltime='04:00:00'):
+                walltime='04:00:00', result_parser=None):
     task = {
         'id': ident, 'kind': 'external', 'backend': 'molpro',
         'geometry_from': geometry_from,
@@ -45,6 +45,8 @@ def molpro_task(ident, body, *, geometry_from='l3_geometry',
     if geometry_output:
         task['geometry_output'] = geometry_output
         task['required_outputs'] += [f'{ident}.log', geometry_output]
+    if result_parser:
+        task['result_parser'] = {'file': f'{ident}.out', **result_parser}
     return task
 
 
@@ -104,22 +106,29 @@ def ch4_spec(*, auto_resources=False):
                 'harmonic',
                 'basis=cc-pVTZ\nhf\nccsd(t)\nfrequencies,numerical\n',
                 cores=8, memory_mb=32000, walltime='12:00:00',
+                result_parser={'kind': 'molpro_harmonic', 'basis': 'cc-pVTZ'},
             ),
             molpro_task(
                 'f12_tz',
                 'basis=cc-pVTZ-F12\nhf\nccsd(t)-f12,scale_trip=1\n'
                 'kb_f12b=energy(2)\n',
                 cores=8, memory_mb=32000, walltime='06:00:00',
+                result_parser={'kind': 'molpro_energy',
+                               'method': 'CCSD(T)-F12b', 'basis': 'cc-pVTZ-F12'},
             ),
             molpro_task(
                 'f12_qz',
                 'basis=cc-pVQZ-F12\nhf\nccsd(t)-f12,scale_trip=1\n'
                 'kb_f12b=energy(2)\n',
                 cores=8, memory_mb=48000, walltime='12:00:00',
+                result_parser={'kind': 'molpro_energy',
+                               'method': 'CCSD(T)-F12b', 'basis': 'cc-pVQZ-F12'},
             ),
             molpro_task(
                 'molpro_dz_sp',
                 'basis=cc-pVDZ\nhf\nccsd(t)\nkb_dz_energy=energy\n',
+                result_parser={'kind': 'molpro_energy',
+                               'method': 'CCSD(T)', 'basis': 'cc-pVDZ'},
             ),
             {
                 'id': 'cfour_dboc', 'kind': 'external', 'backend': 'cfour',
@@ -162,6 +171,8 @@ def ch4_spec(*, auto_resources=False):
                 'required_outputs': ['vpt2.log'],
                 'success_marker': {'file': 'vpt2.log',
                                    'contains': 'Normal termination of Gaussian'},
+                'result_parser': {'kind': 'gaussian_vpt2', 'file': 'vpt2.log',
+                                  'method': 'B3LYP', 'basis': 'cc-pVTZ'},
             },
         ],
     }

@@ -86,6 +86,16 @@ def test_anl1_cross_program_higher_order_pairs_and_profiled_label():
     assert components['vpt2_correction'].settings['dispersion'] == 'GD3BJ'
 
 
+def test_optional_vpt2_cbs_remains_one_zero_point_correction():
+    equation = recipe('ANL1', vpt2_method='B2PLYP-D3BJ', vpt2_cbs=True)
+    components = components_for(equation)
+    result = evaluate(equation, components)
+    assert result.recipe == 'profiled:ANL1:B2PLYP-D3BJ:VPT2-CBS'
+    assert result.zero_point_hartree == pytest.approx(0.09)
+    assert components['vpt2_correction'].basis == 'CBS(cc-pVTZ,cc-pVQZ)'
+    assert components['vpt2_correction'].backend == 'composite'
+
+
 def test_incomplete_or_unreviewed_components_cannot_be_called_anl():
     equation = recipe('ANL0-F12')
     components = components_for(equation)

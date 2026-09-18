@@ -4317,8 +4317,7 @@ individual Molpro energies/harmonic ZPE, Gaussian VPT2 correction, and CFOUR
 DBOC. The first completed CH4 run predates some parser declarations and is
 kept as historical validation rather than being silently upgraded.
 
-**Next implementation gates:** connect the CBS arithmetic to validated native
-task pairs, then build core-valence, scalar-relativistic, higher-order
+**Next implementation gates:** build core-valence, scalar-relativistic, higher-order
 CCSDT(Q)/CCSDTQ(P), and
 state-specific spin-orbit providers with exact references and program versions.
 Then connect the recipe graph and restart engine to KinBot's L3 boundary,
@@ -4380,8 +4379,8 @@ That number is one component, not a complete ANL0-F12 energy.
 
 # 89. Verified Molpro pair to CBS component (2026-09-18)
 
-`kinbot.anl.workflow.cbs_task_component` now accepts two completed Molpro
-task IDs and a recipe requirement. It reparses both native outputs after
+`kinbot.anl.workflow.cbs_task_component` accepts two completed electronic
+Molpro task IDs and a recipe requirement. It reparses both native outputs after
 checking dispatcher stage and execution hashes, then requires the declared
 basis order, method, electronic state, geometry hash, quantity, and native
 calculation settings to agree. It rejects unfinished tasks, warnings requiring
@@ -4389,16 +4388,48 @@ review, changed output files, and missing extrapolation parameters. The
 derived component records the exact exponent, cardinal number, input paths,
 and a deterministic digest of both native output hashes. It can provide the
 F12 T/Q reference and, once those native pairs are generated, conventional
-CCSD(T) electronic CBS references. Harmonic ZPE extrapolation is deliberately
-separate: the paper describes TZ and QZ geometry/frequency calculations, so
-the provider must retain provenance for each basis-specific optimized geometry
-before it can assemble the ANL1 CBS harmonic term. A synthetic completed
+CCSD(T) electronic CBS references. A synthetic completed
 F12 T/Q task pair checks the accepted CH4 numeric result and rejection paths;
 this does not represent a new licensed QC run.
 
 **Next:** produce and parse the conventional `a'QZ/a'5Z` and `a'5Z/a'6Z`
-Molpro basis pairs, implement ANL1 TZ/QZ harmonic ZPE with both geometry
-records, then add four validated all-electron/frozen-core tasks for the
+Molpro basis pairs, then add four validated all-electron/frozen-core tasks for the
 core-valence difference. The scalar-relativistic, higher-order CC, and
 spin-orbit providers, full recipe assembly, KinBot PES/MESS handoff, and
 small-species/reaction validation remain open.
+
+---
+
+# 90. Geometry-aware harmonic and anharmonic CBS components (2026-09-18)
+
+The CBS task-pair provider now also accepts Molpro harmonic ZPE and Gaussian
+VPT2 anharmonic-correction pairs. Each TZ and QZ zero-point task must use a
+*separately completed and verified* ASE/Sella geometry optimization at its
+own method, basis, and, for Gaussian, dispersion setting. The provider checks
+both native output hashes and both geometry-task artifact hashes, rejects
+crossed levels or missing quality review, and records each geometry source in
+the derived component digest. Its result geometry is the QZ geometry, which
+the recipe evaluator must match to the accepted highest-level L2 or L3
+geometry. Electronic CBS reference single points must share one completed
+Molpro geometry optimization at the recipe's declared method and geometry
+basis: CCSD(T)/TZ for ANL0 and ANL0-F12 or CCSD(T)/QZ for ANL1. Other
+electronic single point providers must use the highest available geometry
+when implemented. This keeps the TZ and QZ ZPE calculations
+on their own level-matched structures.
+
+ANL1's published TZ/QZ harmonic-ZPE CBS requirement now declares that
+geometry mode. `recipe(..., vpt2_cbs=True)` opts into a separately labeled
+TZ/QZ extrapolation of the B3LYP or B2PLYP-D3(BJ) anharmonic correction;
+the original 2017 recipes use a TZ-only anharmonic correction. The two-point
+power and basis pair remain explicit in the profile so alternate extrapolation
+choices can be identified. Synthetic completed task graphs cover both ZPE
+kinds and source-geometry tampering. They are parser and provenance tests,
+not a claim that the new TZ/QZ frequency calculations have run on Blodgett.
+
+For either type of ZPE term, let `X_TZ` and `X_QZ` be values parsed from
+separately optimized TZ and QZ calculations. The extrapolated value is
+`X_QZ + alpha_4 (X_QZ - X_TZ)`, where `alpha_4 = 0.5265464668` for the
+configured `l^-3.7` profile. For harmonic ZPE, `X` is the native harmonic
+ZPE. For VPT2, `X` is the within-run anharmonic minus harmonic ZPE, so the
+correction is extrapolated once and then added once to the independent
+CCSD(T) harmonic term.

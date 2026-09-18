@@ -75,6 +75,8 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
         assert {path.name for path in (run_dir / 'tasks').iterdir()} == {'l2_geometry'}
         l2_script = (run_dir / 'tasks' / 'l2_geometry' / 'job.slurm').read_text()
         assert l2_script.index('#SBATCH --exclusive') < l2_script.index('set -euo pipefail')
+        assert '#SBATCH --ntasks=1\n' in l2_script
+        assert '#SBATCH --cpus-per-task=4\n' in l2_script
 
         _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
         state = advance(run_dir)
@@ -88,6 +90,8 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
         assert molpro_record['task']['profile']['optimizer'] == 'sella'
         assert not list((run_dir / 'tasks' / 'l3_geometry').glob('*.inp'))
         molpro_script = (run_dir / 'tasks' / 'l3_geometry' / 'job.slurm').read_text()
+        assert '#SBATCH --ntasks=8\n' in molpro_script
+        assert '#SBATCH --cpus-per-task=1\n' in molpro_script
         assert 'export OMP_NUM_THREADS=1' in molpro_script
         assert 'export MKL_NUM_THREADS=1' in molpro_script
 
@@ -99,6 +103,14 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
             script = (run_dir / 'tasks' / task['id'] / 'job.slurm').read_text()
             assert script.count('#SBATCH --exclusive') == 1
             assert script.index('#SBATCH --exclusive') < script.index('set -euo pipefail')
+            backend = (task['backend'] if task['kind'] == 'external'
+                       else task['profile']['calculator'])
+            if backend == 'molpro':
+                assert f"#SBATCH --ntasks={task['resources']['cores']}\n" in script
+                assert '#SBATCH --cpus-per-task=1\n' in script
+            else:
+                assert '#SBATCH --ntasks=1\n' in script
+                assert f"#SBATCH --cpus-per-task={task['resources']['cores']}\n" in script
         f12 = (run_dir / 'tasks' / 'f12_tz' / 'f12_tz.inp').read_text()
         harmonic = (run_dir / 'tasks' / 'harmonic' / 'harmonic.inp').read_text()
         assert 'frequencies,numerical' in harmonic
@@ -144,6 +156,24 @@ def test_ch4_scheduler_respects_node_cap_after_geometry():
                 patch('kinbot.anl.dispatch.subprocess.run', side_effect=fake_sbatch):
             advance(run_dir, submit=True)
         assert len(submitted) == 3
+
+
+def test_selected_submission_keeps_other_ready_jobs_staged():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        advance(run_dir)
+        _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
+        advance(run_dir)
+        with patch('kinbot.anl.dispatch.subprocess.run', return_value=type(
+                'Response', (), {'returncode': 0, 'stdout': '123\n', 'stderr': ''})()):
+            state = advance(run_dir, submit=True, submit_only={'ccsdt_dz'})
+        assert state['tasks']['ccsdt_dz']['status'] == 'submitted'
+        assert all(state['tasks'][task['id']]['status'] == 'staged'
+                   for task in ch4_spec()['tasks'][2:] if task['id'] != 'ccsdt_dz')
+        with pytest.raises(ValueError, match='Unknown submission'):
+            advance(run_dir, submit_only={'missing_task'})
 
 
 def test_generic_external_task_runs_with_isolated_io_and_accepted_geometry():
@@ -285,6 +315,91 @@ def test_validation_rejects_cycles_and_oversized_exclusive_jobs():
     spec['tasks'][1]['resources']['memory_mb'] = 2000
     with pytest.raises(ValueError, match='per-process overhead'):
         validate_spec(spec)
+
+
+def test_auto_cores_use_safe_node_memory_and_efficient_rank_counts():
+    spec = ch4_spec()
+    spec['limits'] = {'max_nodes': 2}
+    spec['tasks'] = [dict(spec['tasks'][1], geometry_from='initial'),
+                     spec['tasks'][-1]]
+    spec['tasks'][0]['resources'] = {'walltime': '24:00:00'}
+    spec['tasks'][1]['resources'] = {'walltime': '08:00:00'}
+    node_groups = [
+        {'name': 'day', 'default': True, 'cores': 96,
+         'memory_mb': 126000, 'seconds': 86400},
+        {'name': 'day', 'default': True, 'cores': 64,
+         'memory_mb': 64000, 'seconds': 86400},
+    ]
+    with TemporaryDirectory() as temporary, \
+            patch('kinbot.anl.site._partitions', return_value=node_groups):
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        resolved = json.loads((run_dir / 'workflow.json').read_text())
+        molpro = resolved['tasks'][0]['resources']
+        gaussian = resolved['tasks'][1]['resources']
+        assert molpro['partition'] == gaussian['partition'] == 'day'
+        assert molpro['memory_mb'] == gaussian['memory_mb'] == 64000
+        assert molpro['use_all_node_memory'] is True
+        assert gaussian['use_all_node_memory'] is True
+        assert molpro['cores'] == 4
+        assert gaussian['cores'] == 12
+        assert _molpro_stack_mw(molpro) >= molpro['min_stack_mw']
+        script = (run_dir / 'tasks' / 'l3_geometry' / 'job.slurm').read_text()
+        assert '#SBATCH --ntasks=4\n' in script
+        assert '#SBATCH --cpus-per-task=1\n' in script
+        assert '#SBATCH --mem=0\n' in script
+
+
+def test_auto_molpro_cores_fail_when_node_cannot_meet_stack_minimum():
+    spec = ch4_spec()
+    spec['limits'] = {'max_nodes': 1}
+    spec['tasks'] = [dict(spec['tasks'][1], geometry_from='initial')]
+    spec['tasks'][0]['resources'] = {'walltime': '24:00:00',
+                                     'min_stack_mw': 512}
+    node_groups = [{'name': 'day', 'default': True, 'cores': 16,
+                    'memory_mb': 3000, 'seconds': 86400}]
+    with TemporaryDirectory() as temporary, \
+            patch('kinbot.anl.site._partitions', return_value=node_groups):
+        root = Path(temporary)
+        with pytest.raises(RuntimeError, match='cannot support one core'):
+            prepare(_write_spec(root, spec), root / 'run')
+
+
+def test_auto_molpro_skips_faster_partition_without_enough_rank_memory():
+    spec = ch4_spec(auto_resources=True)
+    spec['tasks'] = [dict(spec['tasks'][1], geometry_from='initial')]
+    node_groups = [
+        {'name': 'short', 'default': True, 'cores': 32,
+         'memory_mb': 3000, 'seconds': 86400},
+        {'name': 'day', 'default': False, 'cores': 96,
+         'memory_mb': 64000, 'seconds': 172800},
+    ]
+    with TemporaryDirectory() as temporary, \
+            patch('kinbot.anl.site._partitions', return_value=node_groups):
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        resolved = json.loads((run_dir / 'workflow.json').read_text())
+        assert resolved['tasks'][0]['resources']['partition'] == 'day'
+        assert resolved['tasks'][0]['resources']['cores'] == 4
+
+
+def test_auto_resource_ceiling_allows_a_lower_method_specific_rank_cap():
+    spec = ch4_spec(auto_resources=True)
+    assert spec['limits'] == {'max_nodes': 3}
+    spec['tasks'][1]['resources']['max_cores'] = 8
+    node_groups = [{'name': 'day', 'default': True, 'cores': 96,
+                    'memory_mb': 512000, 'seconds': 86400}]
+    with TemporaryDirectory() as temporary, \
+            patch('kinbot.anl.site._partitions', return_value=node_groups):
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        resolved = json.loads((run_dir / 'workflow.json').read_text())
+        by_id = {task['id']: task for task in resolved['tasks']}
+        assert by_id['l3_geometry']['resources']['cores'] == 8
+        assert by_id['harmonic']['resources']['cores'] == 16
+        assert by_id['harmonic']['resources']['use_all_node_memory'] is True
+        script = (run_dir / 'tasks' / 'l2_geometry' / 'job.slurm').read_text()
+        assert '#SBATCH --mem=0\n' in script
 
 
 def test_missing_sbatch_does_not_leave_uncertain_submission_state():

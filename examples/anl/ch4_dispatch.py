@@ -6,8 +6,8 @@ checks and the vendor documentation behind each input.
 """
 
 import json
+import argparse
 from pathlib import Path
-import sys
 
 
 MOLPRO_HEADER = """***,KinBot CH4 dispatch
@@ -48,10 +48,10 @@ def molpro_task(ident, body, *, geometry_from='l3_geometry',
     return task
 
 
-def ch4_spec():
+def ch4_spec(*, auto_resources=False):
     # A near-tetrahedral, slightly imperfect starting geometry gives the two
     # optimizers something to do while keeping this a single-species test.
-    return {
+    spec = {
         'schema': 1,
         'name': 'ch4-qc-dispatch',
         'molecule': {
@@ -158,9 +158,20 @@ def ch4_spec():
             },
         ],
     }
+    if auto_resources:
+        spec['limits'] = {'max_nodes': spec['limits']['max_nodes']}
+        for task in spec['tasks']:
+            task['resources'].pop('cores')
+            task['resources'].pop('memory_mb')
+    return spec
 
 
 if __name__ == '__main__':
-    target = Path(sys.argv[1] if len(sys.argv) > 1 else 'ch4_dispatch.json')
-    target.write_text(json.dumps(ch4_spec(), indent=2) + '\n')
+    parser = argparse.ArgumentParser(description='Write the CH4 dispatch fixture')
+    parser.add_argument('output', nargs='?', default='ch4_dispatch.json')
+    parser.add_argument('--auto-resources', action='store_true',
+                        help='size cores and memory from the selected Slurm node')
+    args = parser.parse_args()
+    target = Path(args.output)
+    target.write_text(json.dumps(ch4_spec(auto_resources=args.auto_resources), indent=2) + '\n')
     print(target)

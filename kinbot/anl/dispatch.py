@@ -122,8 +122,19 @@ def _validate_task(task, ids, limits):
         raise ValueError(f'{ident}: resources must be an object.')
     cores = _positive_integer(resources.get('cores'), f'{ident} cores')
     memory = _positive_integer(resources.get('memory_mb'), f'{ident} memory_mb')
-    if cores > limits['max_cores_per_node'] or memory > limits['max_memory_mb_per_node']:
+    if (cores > limits.get('max_cores_per_node', cores)
+            or memory > limits.get('max_memory_mb_per_node', memory)):
         raise ValueError(f'{ident}: task exceeds per-node resource limits.')
+    if 'use_all_node_memory' in resources and not isinstance(resources['use_all_node_memory'], bool):
+        raise ValueError(f'{ident}: use_all_node_memory must be boolean.')
+    for key in ('max_cores', 'min_memory_mb_per_core'):
+        if key in resources:
+            _positive_integer(resources[key], f'{ident} {key}')
+    if 'min_stack_mw' in resources:
+        if (isinstance(resources['min_stack_mw'], bool)
+                or not isinstance(resources['min_stack_mw'], int)
+                or resources['min_stack_mw'] < 32):
+            raise ValueError(f'{ident}: min_stack_mw must be at least 32.')
     if not isinstance(resources.get('walltime'), str) or not _TIME.fullmatch(resources['walltime']):
         raise ValueError(f'{ident}: walltime must be HH:MM:SS or D-HH:MM:SS.')
     if 'partition' in resources:
@@ -192,6 +203,9 @@ def _validate_task(task, ids, limits):
         backend = task['backend'].lower()
         if backend == 'molpro':
             _molpro_total_mw(resources)
+            if (_molpro_stack_mw(resources)
+                    < resources.get('min_stack_mw', 32)):
+                raise ValueError(f'{ident}: Molpro stack per rank is below min_stack_mw.')
             native_output = Path(task['input_name']).with_suffix('.out').name
             if (not task['input_name'].endswith('.inp')
                     or native_output not in outputs or stdout_name == native_output):
@@ -248,8 +262,10 @@ def validate_spec(spec):
     limits = spec.get('limits')
     if not isinstance(limits, dict):
         raise ValueError('limits must be an object.')
-    for key in ('max_nodes', 'max_cores_per_node', 'max_memory_mb_per_node'):
-        _positive_integer(limits.get(key), key)
+    _positive_integer(limits.get('max_nodes'), 'max_nodes')
+    for key in ('max_cores_per_node', 'max_memory_mb_per_node'):
+        if key in limits:
+            _positive_integer(limits[key], key)
     tasks = spec.get('tasks')
     if not isinstance(tasks, list) or not tasks:
         raise ValueError('tasks must be a nonempty list.')
@@ -349,6 +365,8 @@ def _runtime_profile(task):
             raise ValueError(f"{task['id']}: calculator_kwargs must be an object.")
         cores = task['resources']['cores']
         stack_mw = _molpro_stack_mw(task['resources'])
+        if stack_mw < task['resources'].get('min_stack_mw', 32):
+            raise ValueError(f"{task['id']}: Molpro stack per rank is below min_stack_mw.")
         if 'nproc' in kwargs and kwargs['nproc'] != cores:
             raise ValueError(f"{task['id']}: Molpro nproc must match Slurm cores.")
         if 'stack_mw' in kwargs and kwargs['stack_mw'] != stack_mw:
@@ -386,12 +404,16 @@ def _omp_threads(task):
 
 def _slurm_script(task, directory, python):
     resources = task['resources']
+    mpi_ranks = resources['cores'] if _backend(task) == 'molpro' else 1
+    cpus_per_rank = 1 if _backend(task) == 'molpro' else resources['cores']
     lines = [
         '#!/usr/bin/env bash',
         f"#SBATCH --job-name=kb-{task['id']}",
         '#SBATCH --nodes=1',
-        f"#SBATCH --cpus-per-task={resources['cores']}",
-        f"#SBATCH --mem={resources['memory_mb']}M",
+        f'#SBATCH --ntasks={mpi_ranks}',
+        f'#SBATCH --cpus-per-task={cpus_per_rank}',
+        ("#SBATCH --mem=0" if resources.get('use_all_node_memory')
+         else f"#SBATCH --mem={resources['memory_mb']}M"),
         f"#SBATCH --time={resources['walltime']}",
         '#SBATCH --exclusive',
         '#SBATCH --output=slurm.stdout',
@@ -460,7 +482,7 @@ def _stage_task(run_dir, spec, state, task):
 
 
 def prepare(spec_path, run_dir):
-    spec = validate_spec(json.loads(Path(spec_path).read_text()))
+    spec = json.loads(Path(spec_path).read_text())
     assign_partitions(spec)
     validate_spec(spec)
     programs_by_backend = {}
@@ -591,6 +613,10 @@ def _run_external(directory, record):
                or not (directory / name).stat().st_size]
     if missing:
         raise RuntimeError(f'Missing or empty required output: {missing}')
+    if task['backend'].lower() == 'molpro':
+        from kinbot.ase_modules.calculators.molpro import check_process_count
+        check_process_count(directory / Path(task['input_name']).with_suffix('.out').name,
+                            task['resources']['cores'])
     if task.get('success_marker'):
         marker = task['success_marker']
         output = directory / marker['file']
@@ -720,6 +746,12 @@ def preflight(run_dir):
             script = (run_dir / 'tasks' / task['id'] / 'job.slurm').read_text()
             if '#SBATCH --exclusive\n' not in script:
                 raise RuntimeError(f"{task['id']}: job does not request an exclusive node.")
+            if entry['status'] == 'staged':
+                ranks = task['resources']['cores'] if _backend(task) == 'molpro' else 1
+                cpus = 1 if _backend(task) == 'molpro' else task['resources']['cores']
+                if (f'#SBATCH --ntasks={ranks}\n' not in script
+                        or f'#SBATCH --cpus-per-task={cpus}\n' not in script):
+                    raise RuntimeError(f"{task['id']}: Slurm task/CPU layout does not match the backend.")
         task_programs = set()
         task_files = set()
         if task['kind'] == 'external':
@@ -810,10 +842,15 @@ def retry_failed(run_dir, ident):
     return archive
 
 
-def advance(run_dir, submit=False):
+def advance(run_dir, submit=False, submit_only=None):
     """Complete finished tasks, stage ready tasks, and optionally submit jobs."""
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
+    if submit_only is not None:
+        submit_only = set(submit_only)
+        unknown = submit_only - by_id.keys()
+        if unknown:
+            raise ValueError(f"Unknown submission task(s): {', '.join(sorted(unknown))}")
     for ident, entry in state['tasks'].items():
         task = by_id[ident]
         if entry['status'] == 'submitting':
@@ -862,6 +899,8 @@ def advance(run_dir, submit=False):
             entry = state['tasks'].get(ident)
             if active >= spec['limits']['max_nodes']:
                 break
+            if submit_only is not None and ident not in submit_only:
+                continue
             if not entry or entry['status'] != 'staged':
                 continue
             entry['status'] = 'submitting'
@@ -903,6 +942,7 @@ def main(argv=None):
     drive = sub.add_parser('drive')
     drive.add_argument('run_dir')
     drive.add_argument('--once', action='store_true')
+    drive.add_argument('--only', action='append', metavar='TASK_ID')
     drive.add_argument('--interval', type=int, default=20)
     status = sub.add_parser('status')
     status.add_argument('run_dir')
@@ -932,6 +972,8 @@ def main(argv=None):
                 raise RuntimeError('Another driver is managing this run.') from exc
             print(retry_failed(run_dir, args.task_id))
     else:
+        if args.only and not args.once:
+            parser.error('--only requires --once')
         run_dir = Path(args.run_dir).resolve()
         with (run_dir / 'drive.lock').open('w') as lock:
             try:
@@ -939,7 +981,7 @@ def main(argv=None):
             except BlockingIOError as exc:
                 raise RuntimeError('Another driver is already managing this run.') from exc
             while True:
-                state = advance(run_dir, submit=True)
+                state = advance(run_dir, submit=True, submit_only=args.only)
                 _, spec, _ = _load(run_dir)
                 summary = _summary(spec, state)
                 print(json.dumps(summary, sort_keys=True), flush=True)

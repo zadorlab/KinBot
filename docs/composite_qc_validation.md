@@ -96,16 +96,23 @@ normal-termination marker, and the location of long output in `.log`; the
 the expected numbered/final XYZ files. That calculation is
 UCCSD(T)-F12b/VDZ-F12, whereas this first Sella calculator requests
 conventional CCSD(T)/cc-pVTZ. The supplied tree has no standalone
-`FORCE,NUMERICAL` example. The first live Molpro 2024 CH4 step on Blodgett
+`FORCE,NUMERICAL` example. The second Molpro 2024 CH4 attempt on Blodgett
 computed CCSD(T) energy and the full `Numerical gradient for KB_GEOM_ENERGY`
 table in `.out`, then failed at `PUT,XYZGRAD` because Molpro reported the
 gradient unavailable for saving. The calculator now reads that table in
 Hartree/Bohr and uses `PUT,XYZ` for atom-order mapping. The live output also
-entered mppx mode with 11 processes despite the requested `-n 8`; the force
-input now sets `MPPX=0`, as allowed by
-[Molpro's release notes](https://www.molpro.net/manual/doku.php?id=recent_changes),
-to keep execution within the declared process count. A successful Sella
-step is still needed to validate the revised export and parsing path.
+entered mppx mode with 11 processes despite the requested `-n 8`. The third
+attempt set `MPPX=0` and completed the Sella geometry in two force evaluations.
+It produced native `.out`, `.log`, and `.xyz` files with normal termination
+and a final maximum atomic force norm of 0.01893 eV/Å. `MPPX=0` stopped the
+mppx switch, but the third attempt still reported 11 compute processes plus
+one helper. The Blodgett Molpro launcher drops its `-np` argument in Slurm,
+so Intel Hydra used the Slurm task layout, which had only
+`--cpus-per-task=8`. Prepared Molpro scripts now use `--ntasks=<ranks>` and
+`--cpus-per-task=1`, and Molpro's default mppx numerical-gradient path has
+been restored. A small live DZ job must verify the new count before the larger
+jobs are released. The runtime rejects an output whose reported total MPI
+process count exceeds the declared allocation.
 
 ## Local test matrix
 
@@ -280,11 +287,19 @@ the node has. Use one node per task initially. A different queue system must
 have a verified equivalent exclusive-allocation directive, or L3 submission
 fails preflight. KinBot's `queuing=local` mode only reads existing results.
 
-The user supplies the global maximum number of concurrent exclusive L3 nodes
-and per-node core/memory limits, plus each task's resource profile. Reserve a
-node slot before submission and release it on completion or failure. Reject a
-task that exceeds per-node resources during preflight. Count submitted and
-running jobs against the node pool across all species in the KinBot run.
+The user supplies the global maximum number of concurrent exclusive L3 nodes.
+For automatic resources, preparation discovers the selected partition's node
+CPU and memory through `sinfo`, sizes from the smallest eligible node, and
+requests all node memory with `--mem=0`. Molpro's default rank selection
+reserves 200 MW program overhead plus at least 1024 MW stack per rank and 15%
+node headroom, then caps rank count at 16 to avoid blindly using all cores on
+a memory-bound coupled-cluster calculation. The count is selected from
+1/2/4/8/12/16. Task-specific `max_cores` and `min_stack_mw` permit a
+benchmark-based policy; the default is a conservative starting point, not a
+claim about optimal scaling for every system. Explicit per-node limits remain
+optional for controlled fixtures. Reserve a node slot before submission and
+release it on completion or failure. Count submitted and running jobs against
+the node pool across all species in the KinBot run.
 Persist reservations and job IDs so a restart recovers in-flight work without
 duplicate submissions. Test this with a fake scheduler before using a cluster
 queue, and assert the `--exclusive` directive in generated Slurm scripts.

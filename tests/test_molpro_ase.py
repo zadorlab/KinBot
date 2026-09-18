@@ -17,7 +17,7 @@ import pytest
 from examples.anl.ch4_dispatch import ch4_spec
 from kinbot.anl.dispatch import advance, prepare, run_task
 from kinbot.ase_modules.calculators.molpro import (
-    Molpro, parse_numerical_gradient, parse_output, render_input,
+    Molpro, check_process_count, parse_numerical_gradient, parse_output, render_input,
 )
 
 
@@ -30,10 +30,10 @@ args = sys.argv[1:]
 assert args[:5] == ['-g', '-n', '8', '-m', '225'], args
 inp = Path(args[5])
 text = inp.read_text()
-assert 'forces,numerical,variable=kb_geom_energy,startcmd=rhf,mppx=0' in text.lower()
+assert 'forces,numerical,variable=kb_geom_energy,startcmd=rhf' in text.lower()
 assert 'put,xyz,' in text.lower() and 'xyzgrad' not in text.lower()
 assert ('kb_geom_energy=energy\n'
-        'forces,numerical,variable=kb_geom_energy,startcmd=rhf,mppx=0') in text.lower()
+        'forces,numerical,variable=kb_geom_energy,startcmd=rhf') in text.lower()
 assert 'optg' not in text.lower()
 assert 'memory,' not in text.lower()
 assert 'basis=cc-pVTZ' in text
@@ -76,7 +76,7 @@ def test_documented_molpro_force_input_and_parser_contract():
     deck = render_input(atoms, basis='cc-pVTZ', geometry_name='step.xyz')
     assert 'set,charge=0\nset,spin=0\ngthresh,energy=1.d-9\n' in deck
     assert ('rhf\nccsd(t)\nkb_geom_energy=energy\n'
-            'forces,numerical,variable=kb_geom_energy,startcmd=rhf,mppx=0\n'
+            'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             'put,xyz,step.xyz') in deck
     assert 'optg' not in deck.lower()
     assert '3\nKinBot ASE geometry (angstrom)\nC' in deck
@@ -112,6 +112,16 @@ def test_documented_molpro_force_input_and_parser_contract():
                           ' Molpro calculation terminated\n')
         with pytest.raises(ValueError, match='KB_GEOM_ENERGY missing'):
             parse_output(output)
+
+
+def test_molpro_launcher_process_count_must_fit_allocation():
+    with TemporaryDirectory() as temporary:
+        output = Path(temporary) / 'step.out'
+        output.write_text(' Distribution of processes:   nprocs(total)=   12   '
+                          'nprocs(compute)=   11   nprocs(helper)=    1\n')
+        with pytest.raises(RuntimeError, match='12 MPI processes.*8 ranks'):
+            check_process_count(output, 8)
+        assert check_process_count(output, 12) == 12
 
 
 def test_molpro_numerical_gradient_rejects_missing_or_mismatched_data():

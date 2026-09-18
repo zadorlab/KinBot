@@ -696,6 +696,11 @@ def _job_active(job_id):
     result = subprocess.run(['squeue', '-h', '-j', str(job_id), '-o', '%i'],
                             capture_output=True, text=True, check=False)
     if result.returncode:
+        # A completed job can disappear from slurmctld before its execution
+        # record is reconciled. Some Slurm versions return an error rather
+        # than an empty queue for this specific case.
+        if re.search(r'\binvalid job id specified\b', result.stderr, re.I):
+            return False
         raise RuntimeError(f'squeue failed: {result.stderr.strip()}')
     return str(job_id) in result.stdout.split()
 

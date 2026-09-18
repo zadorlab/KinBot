@@ -344,6 +344,36 @@ def test_failed_task_can_be_archived_and_retried():
         assert advance(run_dir)['tasks']['sample']['status'] == 'staged'
 
 
+def test_failed_job_missing_from_squeue_can_be_reconciled_and_retried():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        state_file = run_dir / 'state.json'
+        state = json.loads(state_file.read_text())
+        entry = state['tasks']['l2_geometry']
+        entry.update(status='submitted', job_id='52301030')
+        state_file.write_text(json.dumps(state))
+        (run_dir / 'tasks' / 'l2_geometry' / 'execution.json').write_text(json.dumps({
+            'schema': 1, 'task_id': 'l2_geometry',
+            'geometry_sha256': entry['geometry_sha256'], 'status': 'failed',
+            'error': 'MPI initialization failed',
+        }))
+        with patch('kinbot.anl.dispatch.subprocess.run', return_value=
+                   subprocess.CompletedProcess([], 1, '',
+                       'slurm_load_jobs error: Unable to contact slurm controller')):
+            with pytest.raises(RuntimeError, match='squeue failed'):
+                advance(run_dir)
+        assert json.loads(state_file.read_text())['tasks']['l2_geometry']['status'] == 'submitted'
+        invalid_id = subprocess.CompletedProcess(
+            [], 1, '', 'slurm_load_jobs error: Invalid job id specified')
+        with patch('kinbot.anl.dispatch.subprocess.run', return_value=invalid_id):
+            assert advance(run_dir)['tasks']['l2_geometry']['status'] == 'failed'
+            archive = retry_failed(run_dir, 'l2_geometry')
+        assert (archive / 'execution.json').is_file()
+        assert (run_dir / 'tasks' / 'l2_geometry' / 'job.slurm').is_file()
+        assert json.loads(state_file.read_text())['tasks']['l2_geometry']['status'] == 'staged'
+
+
 def test_preflight_reports_missing_program_before_submission():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)

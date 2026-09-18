@@ -3924,3 +3924,32 @@ multi-hour tasks should select `day-long-cpu` on that site. Preflight uses
 `sbatch --test-only` to catch scheduler restrictions that `sinfo` does not
 expose, including account or QoS access. `docs/CH4_HPC_smoke_test.md` now
 explains how to inspect the generated setup and selected partition.
+
+---
+
+# 76. First licensed CH4 results and Molpro MPI retry (2026-09-17)
+
+The Gaussian L2 ASE/Sella optimization completed on Blodgett at
+`-40.487174956111` Hartree. Its saved final geometry has four C-H distances
+between 1.0863 and 1.0865 Å, and the maximum stored atomic force is
+0.026075 eV/Å, below the requested 0.03 eV/Å. Sella's final log line shows
+0.0349 eV/Å because its logger uses the previous convergence result before
+ASE checks the new step. The execution record and saved forces verify this
+specific L2 convergence.
+
+The first L3 Molpro task received an exclusive node but failed in four
+seconds before creating a Molpro `.out` or `.log`. The launcher `.stderr`
+reports `PSM3 can't open nic unit`, OFI endpoint failure, and `PMPI_Init`
+abort. Thus the generated Molpro chemistry input and force parser have not
+yet been tested by this attempt. For the one-node retry, set
+`I_MPI_FABRICS=shm` in the Molpro branch of the run's `site_setup.sh`, based
+on Intel MPI's documented shared-memory fabric; its effectiveness remains to
+be checked on the next attempt. Do not release downstream jobs until Molpro
+produces a normal first force step and the input/output/gradient are reviewed.
+
+Blodgett then reported `squeue ... Invalid job id specified` for the already
+failed job. The dispatcher previously raised instead of reconciling the
+existing failed `execution.json`, so `retry` could not proceed. `_job_active`
+now treats only that specific Slurm response as inactive; other scheduler
+errors still stop the driver. A regression test exercises reconciliation,
+archival, and restaging of the failed task.

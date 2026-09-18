@@ -325,10 +325,23 @@ and native output. After correcting only the site module setup or a transient
 cluster issue, archive the failed attempt and restage that one task:
 
 ```bash
+.venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run", submit=False)'
 .venv/bin/python -m kinbot.anl.dispatch retry ch4_run FAILED_TASK_ID
 .venv/bin/python -m kinbot.anl.dispatch preflight ch4_run
 .venv/bin/python -m kinbot.anl.dispatch drive ch4_run --once
 ```
+
+The first Blodgett Molpro attempt exited before creating `.out` or `.log`:
+its step `.stderr` reported `PSM3 can't open nic unit` and an OFI failure
+during `PMPI_Init`. For this one-node job, setting
+`I_MPI_FABRICS=shm` in the `molpro)` branch of the editable
+`site_setup.sh` is the next site-specific retry to test; it asks Intel MPI
+to communicate within the node without initializing the network fabric.
+This setting is not yet a validated Molpro result. See
+[Intel MPI fabric control](https://www.intel.com/content/www/us/en/docs/mpi-library/developer-reference-linux/2021-14/communication-fabrics-control.html).
+The dispatcher treats Slurm's `Invalid job id specified` response for a
+finished job as inactive, so the `advance` call can mark its recorded
+execution failed and permit `retry`.
 
 The original files remain under `ch4_run/attempts/FAILED_TASK_ID/1/`. For
 an input-method or resource change, edit the source JSON and prepare a fresh

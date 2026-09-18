@@ -508,6 +508,21 @@ The new `ZMAT` should contain separate `CALC`, `BASIS`, `DBOC`, `COORD`,
 the job leaves Slurm, `status` reconciles it. Inspect the native DBOC line
 and numerical value even if the dispatch gate is `complete`.
 
+The corrected CH4 run now has all eight tasks `complete`. The CFOUR native
+output prints both HF and MP1 DBOC summaries. The requested HF value is
+`0.0025887093` Hartree (`568.156016 cm-1`); MP1 is
+`0.0026718675` Hartree and is a separate level. To inspect the existing
+completed output with the method-aware parser after pulling the current
+branch, run:
+
+```bash
+.venv/bin/python -m kinbot.anl.results cfour-dboc \
+  ch4_run_auto3/tasks/cfour_dboc/cfour.out --level HF
+```
+
+This command only reads `cfour.out`. It does not change the completed run or
+submit another job. The other native outputs still need scientific review.
+
 ## 6. Save results for the next implementation pass
 
 Once all tasks finish, retain `workflow.json`, `state.json`, each task's

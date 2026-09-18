@@ -148,6 +148,8 @@ def _validate_task(task, ids, limits):
         raise ValueError(f'{ident}: setup must be a list of single shell lines.')
     geometry_output = task.get('geometry_output')
     if kind == 'ase_optimize':
+        if 'result_parser' in task:
+            raise ValueError(f'{ident}: result_parser requires an external task.')
         if geometry_output != 'final.xyz':
             raise ValueError(f'{ident}: ase_optimize geometry_output must be final.xyz.')
         profile = _runtime_profile(task)
@@ -246,6 +248,16 @@ def _validate_task(task, ids, limits):
             _basename(marker['file'], f'{ident} success_marker file')
             if marker['file'] not in set(outputs) | {stdout_name, stderr_name}:
                 raise ValueError(f'{ident}: success_marker file must be a required output or stream.')
+        result_parser = task.get('result_parser')
+        if result_parser is not None:
+            if (not isinstance(result_parser, dict)
+                    or set(result_parser) != {'kind', 'file', 'level'}
+                    or result_parser.get('kind') != 'cfour_dboc'
+                    or backend != 'cfour'
+                    or result_parser.get('level') not in ('HF', 'MP1')
+                    or result_parser.get('file') not in outputs
+                    or 'DBOC=ON' not in task['input_template'].upper()):
+                raise ValueError(f'{ident}: invalid result_parser.')
         failure_markers = task.get('failure_markers', [])
         if (not isinstance(failure_markers, list) or any(
                 not isinstance(marker, dict) or set(marker) != {'file', 'contains'}
@@ -635,7 +647,14 @@ def _run_external(directory, record):
         if output.is_file() and marker['contains'] in output.read_text(errors='replace'):
             raise RuntimeError(f"Failure marker present in {marker['file']}: "
                                f"{marker['contains']}")
-    return {'command': command, 'returncode': result.returncode, **runtime}
+    details = {'command': command, 'returncode': result.returncode, **runtime}
+    if task.get('result_parser'):
+        from kinbot.anl.results import parse_cfour_dboc
+        requested = task['result_parser']
+        details['parsed_result'] = parse_cfour_dboc(
+            (directory / requested['file']).read_text(errors='replace'),
+            level=requested['level'])
+    return details
 
 
 def _run_ase_optimize(directory, record):

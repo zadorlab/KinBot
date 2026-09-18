@@ -122,11 +122,47 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
         cfour = (run_dir / 'tasks' / 'cfour_dboc' / 'ZMAT').read_text()
         assert 'COORD=CARTESIAN' in cfour
         assert 'DBOC=ON' in cfour
-        assert 'MEM_UNIT=MB,MEMORY_SIZE=11200' in cfour
+        assert 'MEM_UNIT=MB\nMEMORY_SIZE=11200)' in cfour
+        assert max(map(len, cfour.splitlines())) <= 72
         gaussian = (run_dir / 'tasks' / 'gaussian_vpt2' / 'vpt2.com').read_text()
         assert 'Freq=Anharmonic' in gaussian
         assert 'Opt=(Tight,CalcFC)' in gaussian
         assert '\n0 1\n' in gaussian
+
+
+def test_retry_rewrites_old_cfour_keyword_line_without_changing_workflow():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        original = ch4_spec()
+        cfour = next(task for task in original['tasks'] if task['id'] == 'cfour_dboc')
+        cfour['geometry_from'] = 'initial'
+        cfour['input_template'] = (
+            'CH4\n{{CARTESIAN}}\n\n'
+            '*CFOUR(CALC=SCF,BASIS=cc-pVTZ,DBOC=ON,COORD=CARTESIAN,'
+            'UNITS=ANGSTROM,CHARGE={{CHARGE}},MULTIPLICITY={{MULT}},'
+            'MEM_UNIT=MB,MEMORY_SIZE={{WORK_MEMORY_MB}})\n')
+        spec = {'schema': 1, 'name': 'cfour-retry',
+                'molecule': original['molecule'], 'limits': {'max_nodes': 1},
+                'tasks': [cfour]}
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        workflow_hash = hashlib.sha256((run_dir / 'workflow.json').read_bytes()).hexdigest()
+        task_dir = run_dir / 'tasks' / 'cfour_dboc'
+        head, keyword_block = (task_dir / 'ZMAT').read_text().split('*CFOUR(', 1)
+        old_input = (head + '*CFOUR('
+                     + ','.join(keyword_block.rstrip().removesuffix(')').splitlines())
+                     + ')\n')
+        (task_dir / 'ZMAT').write_text(old_input)
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['cfour_dboc'].update(
+            status='failed', input_sha256=hashlib.sha256(old_input.encode()).hexdigest())
+        state_path.write_text(json.dumps(state))
+        archive = retry_failed(run_dir, 'cfour_dboc')
+        assert (archive / 'ZMAT').read_text() == old_input
+        new_input = (task_dir / 'ZMAT').read_text()
+        assert 'CHARGE=0\nMULTIPLICITY=1\nMEM_UNIT=MB' in new_input
+        assert max(map(len, new_input.splitlines())) <= 72
+        assert hashlib.sha256((run_dir / 'workflow.json').read_bytes()).hexdigest() == workflow_hash
 
 
 def test_ch4_scheduler_respects_node_cap_after_geometry():

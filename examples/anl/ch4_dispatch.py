@@ -128,10 +128,15 @@ def ch4_spec(*, auto_resources=False):
                 'input_name': 'ZMAT',
                 'input_template': (
                     'KinBot CH4 DBOC\n{{CARTESIAN}}\n\n'
-                    '*CFOUR(CALC=SCF,BASIS=cc-pVTZ,DBOC=ON,'
-                    'COORD=CARTESIAN,UNITS=ANGSTROM,'
-                    'CHARGE={{CHARGE}},MULTIPLICITY={{MULT}},'
-                    'MEM_UNIT=MB,MEMORY_SIZE={{WORK_MEMORY_MB}})\n'),
+                    '*CFOUR(CALC=SCF\n'
+                    'BASIS=cc-pVTZ\n'
+                    'DBOC=ON\n'
+                    'COORD=CARTESIAN\n'
+                    'UNITS=ANGSTROM\n'
+                    'CHARGE={{CHARGE}}\n'
+                    'MULTIPLICITY={{MULT}}\n'
+                    'MEM_UNIT=MB\n'
+                    'MEMORY_SIZE={{WORK_MEMORY_MB}})\n'),
                 'command': ['xcfour'], 'stdout': 'cfour.out',
                 'stderr': 'cfour.err', 'required_outputs': ['cfour.out'],
                 'files_from_env': {'GENBAS': 'CFOUR_GENBAS'},

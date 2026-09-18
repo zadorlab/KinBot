@@ -270,20 +270,29 @@ ls -lh ch4_run/tasks/l3_geometry/l3_geometry_step_0001.xyz \
 .venv/bin/python - <<'PY'
 from pathlib import Path
 from ase.io import read
-from kinbot.ase_modules.calculators.molpro import parse_output, parse_xyzgrad
+from kinbot.ase_modules.calculators.molpro import parse_numerical_gradient, parse_output
 task = Path('ch4_run/tasks/l3_geometry')
 atoms = read(task / 'geometry.xyz')
 print('first CCSD(T) energy, eV:', parse_output(task / 'l3_geometry_step_0001.out'))
 print('first max |force|, eV/Angstrom:',
-      abs(parse_xyzgrad(task / 'l3_geometry_step_0001.xyz', atoms)).max())
+      abs(parse_numerical_gradient(task / 'l3_geometry_step_0001.out',
+                                   task / 'l3_geometry_step_0001.xyz', atoms)).max())
 PY
 ```
 
 Confirm the first `.out` prints CCSD(T)/cc-pVTZ and normal termination.
-Inspect the `.log` as well; in the supplied Molpro 2024
-`OPTG` cases the detailed numerical gradient table is in `.log`, not `.out`.
-Check that the XYZGRAD force sign and units agree with any native gradient table,
-and that the Sella geometry has the same atom order. If the installed Molpro
+Inspect the `.log` as well. In this standalone Molpro 2024
+`FORCE,NUMERICAL` calculation the complete `Numerical gradient for
+KB_GEOM_ENERGY` table is in `.out`; it appeared in the second Blodgett attempt.
+The calculator reads that table in Hartree/Bohr, changes its sign to return
+ASE forces in eV/Å, and maps the rows through Molpro's `PUT,XYZ` geometry.
+The live output also reported `mppx mode, nproc=11` despite the requested
+eight processes. The revised `FORCE` command sets `MPPX=0`, as documented
+in [Molpro's release notes](https://www.molpro.net/manual/doku.php?id=recent_changes),
+so the next live run should use the requested `-n 8` process count. Confirm
+that in the Molpro `.out` before releasing the other jobs.
+Check the force sign and units against the native table and confirm that the
+Sella geometry has the same atom order. If the installed Molpro
 output differs from the documented format, stop and return that input/output
 pair for a parser fix. Then accept the L3 result, preflight the newly staged
 jobs, and release them:
@@ -321,8 +330,9 @@ ls -lh ch4_run/tasks/l3_geometry/final.xyz \
 ```
 
 If a task fails, read its `execution.json`, `slurm.stderr`, launcher stderr,
-and native output. After correcting only the site module setup or a transient
-cluster issue, archive the failed attempt and restage that one task:
+and native output. After correcting site setup, a transient cluster issue,
+or the calculator implementation while keeping the task chemistry and
+resources fixed, archive the failed attempt and restage that one task:
 
 ```bash
 .venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run", submit=False)'
@@ -335,18 +345,44 @@ The first Blodgett Molpro attempt exited before creating `.out` or `.log`:
 its step `.stderr` reported `PSM3 can't open nic unit` and an OFI failure
 during `PMPI_Init`. For this one-node job, setting
 `I_MPI_FABRICS=shm` in the `molpro)` branch of the editable
-`site_setup.sh` is the next site-specific retry to test; it asks Intel MPI
-to communicate within the node without initializing the network fabric.
-This setting is not yet a validated Molpro result. See
+`site_setup.sh` asks Intel MPI to communicate within the node without
+initializing the network fabric.
+The second attempt with this setting completed the CH4 CCSD(T) numerical
+gradient, confirming that the MPI workaround reached the calculation. It
+then failed at `PUT,XYZGRAD` with Molpro 2024's message "gradient is not
+available ... for saving". The input now uses `PUT,XYZ`; the calculator
+reads the numerical-gradient table in `.out` and verifies atom order using
+the XYZ geometry. A complete successful Sella optimization remains the
+next acceptance gate. See
 [Intel MPI fabric control](https://www.intel.com/content/www/us/en/docs/mpi-library/developer-reference-linux/2021-14/communication-fabrics-control.html).
 The dispatcher treats Slurm's `Invalid job id specified` response for a
 finished job as inactive, so the `advance` call can mark its recorded
 execution failed and permit `retry`.
 
-The original files remain under `ch4_run/attempts/FAILED_TASK_ID/1/`. For
-an input-method or resource change, edit the source JSON and prepare a fresh
-run instead. If a submission is marked `submitting`, reconcile its Slurm job
-ID manually before any new submission; the driver deliberately stops.
+The original files remain under `ch4_run/attempts/FAILED_TASK_ID/1/` (and
+`2/` for the second attempt). Pull the revised checkout before retrying this
+failed task, because the ASE calculator input and parser changed. The task
+JSON itself still describes the same method, basis, charge, and resources;
+its generated force input is written only when the task runs. Keep the
+single-node `I_MPI_FABRICS=shm` line in the editable `site_setup.sh`.
+If a submission is marked `submitting`, reconcile its Slurm job ID manually
+before any new submission; the driver deliberately stops.
+
+For the live `ch4_run_auto3` second-attempt failure, first pull the updated
+`composite` branch, then run exactly:
+
+```bash
+cd ~/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git pull --ff-only origin composite
+grep -n I_MPI_FABRICS ch4_run_auto3/site_setup.sh
+.venv/bin/python -c 'from kinbot.anl.dispatch import advance; advance("ch4_run_auto3", submit=False)'
+.venv/bin/python -m kinbot.anl.dispatch retry ch4_run_auto3 l3_geometry
+.venv/bin/python -m kinbot.anl.dispatch preflight ch4_run_auto3
+.venv/bin/python -m kinbot.anl.dispatch drive ch4_run_auto3 --once
+```
+
+This submits only `l3_geometry`; keep the other L3 tasks waiting until its
+first revised Molpro force step and final Sella geometry are inspected.
 
 ## 6. Save results for the next implementation pass
 

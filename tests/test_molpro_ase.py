@@ -1,7 +1,7 @@
 """Molpro ASE/Sella contract tests; the Molpro executable is simulated.
 
-The XYZGRAD rows are synthetic in the format documented by Molpro. The real
-program/version remains an offsite acceptance gate.
+The numerical-gradient table matches the format seen in the real Molpro 2024
+CH4 first step. The revised PUT,XYZ deck remains an offsite acceptance gate.
 """
 
 import json
@@ -10,14 +10,14 @@ import sys
 from tempfile import TemporaryDirectory
 
 from ase import Atoms
-from ase.units import Hartree
+from ase.units import Bohr, Hartree
 import numpy as np
 import pytest
 
 from examples.anl.ch4_dispatch import ch4_spec
 from kinbot.anl.dispatch import advance, prepare, run_task
 from kinbot.ase_modules.calculators.molpro import (
-    Molpro, parse_output, parse_xyzgrad, render_input,
+    Molpro, parse_numerical_gradient, parse_output, render_input,
 )
 
 
@@ -30,9 +30,10 @@ args = sys.argv[1:]
 assert args[:5] == ['-g', '-n', '8', '-m', '225'], args
 inp = Path(args[5])
 text = inp.read_text()
-assert 'forces,numerical,variable=kb_geom_energy,startcmd=rhf' in text.lower()
+assert 'forces,numerical,variable=kb_geom_energy,startcmd=rhf,mppx=0' in text.lower()
+assert 'put,xyz,' in text.lower() and 'xyzgrad' not in text.lower()
 assert ('kb_geom_energy=energy\n'
-        'forces,numerical,variable=kb_geom_energy,startcmd=rhf') in text.lower()
+        'forces,numerical,variable=kb_geom_energy,startcmd=rhf,mppx=0') in text.lower()
 assert 'optg' not in text.lower()
 assert 'memory,' not in text.lower()
 assert 'basis=cc-pVTZ' in text
@@ -48,31 +49,35 @@ k = 0.1
 energy = -40.0 + k * sum((value - goal)**2
                           for (_, xyz), goals in zip(rows, target)
                           for value, goal in zip(xyz, goals))
-grad = [[-2*k*27.211386245988*(value - goal)
+grad = [[2*k*1.8897261254578281*(value - goal)
          for value, goal in zip(xyz, goals)]
         for (_, xyz), goals in zip(rows, target)]
 stem = inp.stem
 Path(stem + '.out').write_text(
     f' SETTING KB_GEOM_ENERGY = {energy:.14f} AU\n'
     f' SETTING KB_GEOM_ENERGY = {energy + 0.1:.14f} AU\n'
+    ' Numerical gradient for KB_GEOM_ENERGY\n'
+    ' Atom          dE/dx               dE/dy               dE/dz'
+    '                  d2E/dx2             d2E/dy2             d2E/dz2\n' +
+    ''.join(f' {index:3d} {force[0]: .12f} {force[1]: .12f} '
+            f'{force[2]: .12f} 0.0 0.0 0.0\n'
+            for index, force in enumerate(grad, 1)) +
     ' Molpro calculation terminated\n')
 Path(stem + '.log').write_text('Molpro gradient log\n')
 Path(stem + '.xyz').write_text(
-    str(n) + '\nMolpro XYZGRAD forces (-eV/Angstrom)\n' +
-    ''.join(f'{symbol} {x:.12f} {y:.12f} {z:.12f} '
-            f'{6 if symbol == "C" else 1} '
-            f'{force[0]:.12f} {force[1]:.12f} {force[2]:.12f}\n'
-            for (symbol, (x, y, z)), force in zip(rows, grad)))
+    str(n) + '\nMolpro PUT,XYZ geometry\n' +
+    ''.join(f'{symbol} {x:.12f} {y:.12f} {z:.12f}\n'
+            for symbol, (x, y, z) in rows))
 '''
 
 
 def test_documented_molpro_force_input_and_parser_contract():
     atoms = Atoms('CH2', positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
-    deck = render_input(atoms, basis='cc-pVTZ', gradient_name='step.xyz')
+    deck = render_input(atoms, basis='cc-pVTZ', geometry_name='step.xyz')
     assert 'set,charge=0\nset,spin=0\ngthresh,energy=1.d-9\n' in deck
     assert ('rhf\nccsd(t)\nkb_geom_energy=energy\n'
-            'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
-            'put,xyzgrad,step.xyz') in deck
+            'forces,numerical,variable=kb_geom_energy,startcmd=rhf,mppx=0\n'
+            'put,xyz,step.xyz') in deck
     assert 'optg' not in deck.lower()
     assert '3\nKinBot ASE geometry (angstrom)\nC' in deck
     with TemporaryDirectory() as temporary:
@@ -81,14 +86,21 @@ def test_documented_molpro_force_input_and_parser_contract():
                           ' SETTING KB_GEOM_ENERGY = -39.0 AU\n'
                           ' Molpro calculation terminated\n')
         assert parse_output(output) == pytest.approx(-40.123456789 * Hartree)
-        gradient = Path(temporary) / 'step.xyz'
-        gradient.write_text(
-            '3\nMolpro XYZGRAD\n'
-            'H 0 1 0 1 0.1 0.2 0.3\n'
-            'C 0 0 0 6 -1 -2 -3\n'
-            'H 0 0 1 1 0.4 0.5 0.6\n')
-        np.testing.assert_allclose(parse_xyzgrad(gradient, atoms),
-                                   [[-1, -2, -3], [.4, .5, .6], [.1, .2, .3]])
+        geometry = Path(temporary) / 'step.xyz'
+        geometry.write_text(
+            '3\nMolpro XYZ\n'
+            'H 0 1 0\n'
+            'C 0 0 0\n'
+            'H 0 0 1\n')
+        output.write_text(output.read_text() +
+                          ' Numerical gradient for KB_GEOM_ENERGY\n'
+                          ' Atom dE/dx dE/dy dE/dz d2E/dx2 d2E/dy2 d2E/dz2\n'
+                          ' 1 0.1 0.2 0.3 0 0 0\n'
+                          ' 2 -1 -2 -3 0 0 0\n'
+                          ' 3 0.4 0.5 0.6 0 0 0\n')
+        np.testing.assert_allclose(parse_numerical_gradient(output, geometry, atoms),
+                                   np.array([[1, 2, 3], [-.4, -.5, -.6],
+                                             [-.1, -.2, -.3]]) * Hartree / Bohr)
         output.write_text(output.read_text().replace('Molpro calculation terminated',
                                                     'ERROR EXIT'))
         with pytest.raises(ValueError, match='terminate normally'):
@@ -100,6 +112,62 @@ def test_documented_molpro_force_input_and_parser_contract():
                           ' Molpro calculation terminated\n')
         with pytest.raises(ValueError, match='KB_GEOM_ENERGY missing'):
             parse_output(output)
+
+
+def test_molpro_numerical_gradient_rejects_missing_or_mismatched_data():
+    atoms = Atoms('CH', positions=[[0, 0, 0], [0, 0, 1]])
+    with TemporaryDirectory() as temporary:
+        output = Path(temporary) / 'step.out'
+        geometry = Path(temporary) / 'step.xyz'
+        geometry.write_text('2\nMolpro XYZ\nC 0 0 0\nH 0 0 1\n')
+        output.write_text('Molpro calculation terminated\n')
+        with pytest.raises(ValueError, match='exactly one'):
+            parse_numerical_gradient(output, geometry, atoms)
+        output.write_text('Numerical gradient for KB_GEOM_ENERGY\n'
+                          'Atom dE/dx dE/dy dE/dz d2E/dx2 d2E/dy2 d2E/dz2\n'
+                          '1 0.1 0.2 0.3 0 0 0\n'
+                          'Molpro calculation terminated\n')
+        with pytest.raises(ValueError, match='incomplete'):
+            parse_numerical_gradient(output, geometry, atoms)
+        output.write_text(output.read_text().replace(
+            'Molpro calculation terminated\n',
+            '2 0.1 0.2 0.3 0 0 0\nMolpro calculation terminated\n'))
+        geometry.write_text('2\nMolpro XYZ\nC 0 0 0\nH 0 0 2\n')
+        with pytest.raises(ValueError, match='cannot be mapped'):
+            parse_numerical_gradient(output, geometry, atoms)
+
+
+def test_molpro_2024_ch4_gradient_rows_from_first_live_step():
+    """Use the five actual numerical-gradient rows from Blodgett's .out."""
+    atoms = Atoms('CH4', positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0],
+                                   [0, 0, 1], [-1, 0, 0]])
+    rows = np.array([
+        [-0.000388912, 0.000324638, -0.000065297],
+        [-0.000809204, -0.001219598, -0.000976978],
+        [0.001072353, 0.001001028, -0.000987025],
+        [0.000982618, -0.001151056, 0.000947788],
+        [-0.000856854, 0.001044988, 0.001081512],
+    ])
+    with TemporaryDirectory() as temporary:
+        output = Path(temporary) / 'step.out'
+        geometry = Path(temporary) / 'step.xyz'
+        output.write_text(
+            'SETTING KB_GEOM_ENERGY = -40.43808112 AU\n'
+            'Numerical gradient for KB_GEOM_ENERGY\n'
+            'Total Energy           -40.43808112\n'
+            'Atom dE/dx dE/dy dE/dz d2E/dx2 d2E/dy2 d2E/dz2\n' +
+            ''.join(f'{i} {x} {y} {z} 0 0 0\n'
+                    for i, (x, y, z) in enumerate(rows, 1)) +
+            'Molpro calculation terminated\n')
+        geometry.write_text('5\nMolpro geometry\nC 0 0 0\nH 0 0 1\n'
+                            'H 1 0 0\nH 0 1 0\nH -1 0 0\n')
+        forces = parse_numerical_gradient(output, geometry, atoms)
+        np.testing.assert_allclose(forces, -rows[[0, 2, 3, 1, 4]] * Hartree / Bohr)
+        assert forces[0, 0] > 0
+        output.write_text(output.read_text().replace('Molpro calculation terminated',
+                                                    'ERROR EXIT'))
+        with pytest.raises(ValueError, match='terminate normally'):
+            parse_numerical_gradient(output, geometry, atoms)
 
 
 def test_ch4_l3_sella_calls_molpro_at_each_geometry_and_hashes_native_files():

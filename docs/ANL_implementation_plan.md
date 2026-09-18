@@ -3714,8 +3714,9 @@ The CH4 fixture first runs Gaussian B2PLYP-D3(BJ)/cc-pVTZ optimization
 through the existing ASE calculator and Sella. The accepted geometry feeds
 a Molpro CCSD(T)/cc-pVTZ geometry optimization also controlled by Sella
 through ASE. A KinBot Molpro ASE calculator runs `RHF; CCSD(T); FORCE,NUMERICAL`
-for every requested energy/force evaluation, then `PUT,XYZGRAD` to save
-Molpro's native gradient XYZ. Each step retains its `.inp`, `.out`, `.xyz`,
+for every requested energy/force evaluation, reads Molpro's printed numerical
+gradient in `.out`, then uses `PUT,XYZ` to save Molpro's native geometry for
+atom-order mapping. Each step retains its `.inp`, `.out`, `.xyz`,
 launcher stdout/stderr, and a detailed Molpro `.log` requested with `-g`;
 Sella retains its trajectory,
 log, and final `.xyz`. Real licensed output remains required to validate
@@ -3824,8 +3825,8 @@ execution risks before the first licensed run:
   successful siblings; changed chemistry or resources require a new run.
 - The CFOUR CH4 input now uses the documented `COORD=CARTESIAN` spelling.
   The Molpro ASE calculator now requests `FORCE,NUMERICAL` after CCSD(T),
-  reads the undisplaced total energy, and maps `PUT,XYZGRAD` rows back to
-  ASE's coordinates. Molpro's F12b `ENERGY(2)`, `SCALE_TRIP=1`, and per-rank
+  reads the undisplaced total energy, and maps the printed numerical-gradient
+  rows back to ASE's coordinates using `PUT,XYZ`. Molpro's F12b `ENERGY(2)`, `SCALE_TRIP=1`, and per-rank
   `-m` memory option were checked against the Molpro 2024 manual; direct MRCC
   `MINP`/`dmrcc` and CFOUR `ZMAT`/`GENBAS`/DBOC were checked against their
   manuals. These checks establish input plausibility, not runtime success.
@@ -3846,8 +3847,8 @@ suite passes without the four licensed codes; the external result remains the
 gate for those program interfaces.
 
 The first licensed Molpro force step must be inspected before releasing all
-downstream jobs: compare its CCSD(T) energy and XYZGRAD forces with any
-native `.log` or `.out` gradient table, verify the sign and units by a
+downstream jobs: compare its CCSD(T) energy and parsed numerical-gradient
+forces with the native `.out` table, verify the sign and units by a
 small independent finite displacement, confirm atom mapping, and archive the
 installed Molpro version. The local fake Molpro test verifies Sella's repeated
 calculator calls and artifact handling, but its synthetic output does not
@@ -3879,11 +3880,12 @@ and syntax without claiming to validate that different energy label.
   their own `.out`, `.log`, and final `.xyz`. Do not assume the numerical
   gradient table is in `.out` or conflate conformer files.
 - The inspected tree contains native `OPTG` inputs rather than standalone
-  `FORCE,NUMERICAL` plus `PUT,XYZGRAD` inputs. The latter commands and the
-  `XYZGRAD` force convention come from the Molpro manual and are exercised
-  locally against a simulated executable. The first offsite Sella/Molpro
-  step remains the acceptance gate for the actual Molpro 2024 `XYZGRAD`
-  layout, force sign, units, atom order, and `-g` `.log` content.
+  `FORCE,NUMERICAL` inputs. The first live Sella/Molpro attempt showed that
+  `PUT,XYZGRAD` fails after that numerical force command on Molpro 2024,
+  even though the complete numerical-gradient table was printed in `.out`.
+  The calculator now parses that table, changes Hartree/Bohr gradients into
+  ASE eV/Å forces, and uses `PUT,XYZ` for atom-order mapping. A successful
+  offsite step remains the acceptance gate for this revised path.
 - The Molpro 2024 parallel manual says one-node disk mode is the default and
   recommends `-m` without `-M`/`-G` there. Both the Sella calculator and
   the independent Molpro nodes now divide the requested memory into a
@@ -3940,11 +3942,12 @@ specific L2 convergence.
 The first L3 Molpro task received an exclusive node but failed in four
 seconds before creating a Molpro `.out` or `.log`. The launcher `.stderr`
 reports `PSM3 can't open nic unit`, OFI endpoint failure, and `PMPI_Init`
-abort. Thus the generated Molpro chemistry input and force parser have not
-yet been tested by this attempt. For the one-node retry, set
+abort. Thus the generated Molpro chemistry input and force parser were not
+tested by that attempt. For the one-node retry, set
 `I_MPI_FABRICS=shm` in the Molpro branch of the run's `site_setup.sh`, based
-on Intel MPI's documented shared-memory fabric; its effectiveness remains to
-be checked on the next attempt. Do not release downstream jobs until Molpro
+on Intel MPI's documented shared-memory fabric. The second attempt reached
+the numerical gradient, confirming that this setting bypassed the MPI
+startup failure on node32. Do not release downstream jobs until Molpro
 produces a normal first force step and the input/output/gradient are reviewed.
 
 Blodgett then reported `squeue ... Invalid job id specified` for the already
@@ -3953,3 +3956,32 @@ existing failed `execution.json`, so `retry` could not proceed. `_job_active`
 now treats only that specific Slurm response as inactive; other scheduler
 errors still stop the driver. A regression test exercises reconciliation,
 archival, and restaging of the failed task.
+
+---
+
+# 77. Molpro numerical-gradient export correction (2026-09-17)
+
+The second CH4 L3 attempt on Blodgett (`52301032`) ran Molpro 2024 far enough
+to finish the CCSD(T)/cc-pVTZ energy and `FORCE,NUMERICAL` evaluation. Its
+`.out` contains `SETTING KB_GEOM_ENERGY = -40.43808112 AU` and five rows
+under `Numerical gradient for KB_GEOM_ENERGY`, with the expected `dE/dx`,
+`dE/dy`, and `dE/dz` columns. It then failed at `PUT,XYZGRAD` with Molpro's
+message that the gradient was unavailable for saving. The `.xyz`
+was empty, so no forces from that failed attempt were accepted.
+
+The live output reported `Switching to mppx mode, nproc=11` although the
+calculator requested `-n 8`. To keep this first geometry job within its
+declared eight processes, the revised force command sets `MPPX=0`, which
+the [Molpro 2022.3+ release notes](https://www.molpro.net/manual/doku.php?id=recent_changes)
+document for `FORCE`. This executes the displacements in standard parallel
+mode and must be confirmed in the next live output.
+
+The ASE calculator now uses `PUT,XYZ` after `FORCE,NUMERICAL`, reads the
+printed numerical-gradient table in `.out`, converts Hartree/Bohr to eV/Å,
+negates it to obtain forces, and maps each table row to the ASE atom using
+the native XYZ symbols and positions. Missing, duplicate, incomplete,
+nonfinite, or unmappable gradient data fail the step. A simulated Molpro
+run now exercises this format through multiple Sella steps. The next
+offsite retry must confirm Molpro writes the plain XYZ after the numerical
+gradient, completes normally, and supplies forces consistent with an
+independent finite displacement. The downstream L3 tasks remain held.

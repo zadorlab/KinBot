@@ -49,6 +49,9 @@ class StationaryPoint:
 
         self.energy = 0.
         self.zpe = 0.
+        # Set only after a complete, provenance-checked composite evaluation.
+        self.final_zero_k_energy = None
+        self.formation_enthalpy_0k = None
         self.elec = 1.
         self.freq = []  # frequencies calculated by the qc program
 

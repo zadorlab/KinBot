@@ -2,6 +2,7 @@ import os
 import stat
 import re
 import logging
+import json
 import numpy as np
 import subprocess
 import time
@@ -11,6 +12,7 @@ from collections import Counter
 from kinbot import kb_path
 from kinbot import constants
 from kinbot import frequencies
+from kinbot.energy import species_zero_k_hartree
 from kinbot.uncertaintyAnalysis import UQ
 
 logger = logging.getLogger('KinBot')
@@ -238,6 +240,62 @@ class MESS:
                     if termol_name not in self.termolec_names:
                         self.termolec_names[termol_name] = 't_{}'.format(len(self.termolec_names) + 1)
 
+    def _validate_composite_coverage(self):
+        """A direct MESS network needs a complete accepted E0 for each species."""
+        species = [self.species]
+        for index, reaction in enumerate(self.species.reac_obj):
+            if self.species.reac_ts_done[index] != -1:
+                continue
+            species.append(reaction.ts)
+            if reaction.do_vdW:
+                species.append(reaction.irc_prod_opt.species)
+            species.extend(opt.species for opt in reaction.prod_opt)
+        finals = [getattr(item, 'final_zero_k_energy', None) for item in species]
+        if not any(final is not None for final in finals):
+            return
+        if any(final is None for final in finals):
+            raise ValueError('MESS needs accepted ANL energies for every well, '
+                             'transition state, and product in this network.')
+        for item in species:
+            species_zero_k_hartree(item)
+
+    def _formation_metadata(self):
+        """Keep absolute Hf(0) next to MESS's relative zero-energy input."""
+        species = [self.species]
+        for index, reaction in enumerate(self.species.reac_obj):
+            if self.species.reac_ts_done[index] != -1:
+                continue
+            if reaction.do_vdW:
+                species.append(reaction.irc_prod_opt.species)
+            species.extend(opt.species for opt in reaction.prod_opt)
+        records = {}
+        for item in species:
+            formation = getattr(item, 'formation_enthalpy_0k', None)
+            if formation is None:
+                continue
+            final = getattr(item, 'final_zero_k_energy', None)
+            from kinbot.anl.atct import _canonical_smiles
+            if (final is None
+                    or _canonical_smiles(formation.target_smiles) !=
+                       _canonical_smiles(final.smiles)
+                    or formation.method != final.method
+                    or formation.energy_sources.get(formation.target_smiles) != final.source):
+                raise ValueError(f'{item.name}: CBH formation provenance does not match E0.')
+            key = str(item.chemid)
+            record = {'smiles': final.smiles, 'method': formation.method,
+                      'zero_k_energy_hartree': final.hartree,
+                      'formation_0k_kj_mol': formation.formation_0k_kj_mol,
+                      'cbh_rung': formation.rung,
+                      'atct_version': formation.atct_version,
+                      'atct_source_sha256': formation.atct_source_sha256,
+                      'energy_sources': dict(formation.energy_sources),
+                      'reference_ids': {smiles: reference.atct_id for smiles, reference
+                                        in formation.references.items()}}
+            if key in records and records[key] != record:
+                raise ValueError(f'{key}: conflicting 0 K formation enthalpies.')
+            records[key] = record
+        return records
+
     def write_input(self, qc):
         """
         write the input for all the wells, bimolecular products and barriers
@@ -245,10 +303,15 @@ class MESS:
         """
         uq = UQ(self.par)
 
+        self._validate_composite_coverage()
+        formation_metadata = self._formation_metadata()
+
         # create short names for all the species, bimolecular products and barriers
         self.create_short_names()
+        final = getattr(self.species, 'final_zero_k_energy', None)
         header = self.write_header(f'{self.par["high_level_method"]}/'
-                                   f'{self.par["high_level_basis"]}')
+                                   f'{self.par["high_level_basis"]}'
+                                   if final is None else 'accepted ANL ladder')
 
         # filter ts's with the same reactants and products:
         ts_unique = {}  # key: ts name, value: [prod_name, energy]
@@ -266,12 +329,12 @@ class MESS:
                 prod_name = '_'.join([str(pi) for pi in rxnProds])
                 new = 1
                 remove = []
-                ts_all[reaction.instance_name] = [prod_name, reaction.ts.energy
-                                                + reaction.ts.zpe]
+                ts_all[reaction.instance_name] = [
+                    prod_name, species_zero_k_hartree(reaction.ts)]
                 for ts in ts_unique:
                     if ts_unique[ts][0] == prod_name:
                         # check for the barrier with the lowest energy  # check if hom_sci is first
-                        if (ts_unique[ts][1] > reaction.ts.energy + reaction.ts.zpe
+                        if (ts_unique[ts][1] > species_zero_k_hartree(reaction.ts)
                                 or 'hom_sci' in ts) \
                                 and 'hom_sci' not in reaction.instance_name:
                             # remove the current barrier
@@ -281,7 +344,8 @@ class MESS:
                 for ts in remove:
                     ts_unique.pop(ts, None)
                 if new:
-                    ts_unique[reaction.instance_name] = [prod_name, reaction.ts.energy + reaction.ts.zpe]
+                    ts_unique[reaction.instance_name] = [
+                        prod_name, species_zero_k_hartree(reaction.ts)]
 
         # write the mess input for the different blocks
         for uq_iter in range(self.par['uq_n']):
@@ -310,13 +374,15 @@ class MESS:
                     imagfreq_factor = uq.calc_factor('imagfreq', uq_iter)
         
         # get left-right barrier
-                    species_zeroenergy = (self.species.energy + self.species.zpe) * constants.AUtoKCAL
+                    species_zeroenergy = species_zero_k_hartree(self.species) * constants.AUtoKCAL
                     if self.species.reac_ts_done[index] == -1:
-                        ts_zeroenergy = (reaction.ts.energy + reaction.ts.zpe) * constants.AUtoKCAL
-                        if not self.par['high_level'] and reaction.mp2 == 1 and self.par['qc'] != 'nn_pes':
+                        ts_zeroenergy = species_zero_k_hartree(reaction.ts) * constants.AUtoKCAL
+                        if (final is None and not self.par['high_level']
+                                and reaction.mp2 == 1 and self.par['qc'] != 'nn_pes'):
                             jobname = '{}_well_mp2'.format(str(self.species.chemid))
                             well_zeroenergy = self.get_zeroenergy(jobname, qc)
-                        elif not self.par['high_level'] and self.species.reac_type[index] == 'barrierless_saddle':
+                        elif (final is None and not self.par['high_level']
+                              and self.species.reac_type[index] == 'barrierless_saddle'):
                             jobname = '{}_well_bls'.format(str(self.species.chemid))
                             well_zeroenergy = self.get_zeroenergy(jobname, qc)
                         else:
@@ -325,10 +391,12 @@ class MESS:
 
                         prod_zeroenergy = 0
                         if reaction.do_vdW:
-                            prod_zeroenergy += (reaction.irc_prod_opt.species.energy + reaction.irc_prod_opt.species.zpe) * constants.AUtoKCAL
+                            prod_zeroenergy += species_zero_k_hartree(
+                                reaction.irc_prod_opt.species) * constants.AUtoKCAL
                         else:
                             for opt in reaction.prod_opt:
-                                prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
+                                prod_zeroenergy += species_zero_k_hartree(
+                                    opt.species) * constants.AUtoKCAL
                         right_zeroenergy = ts_zeroenergy - prod_zeroenergy
 
                     allTS[reaction.instance_name], zeroenergy = self.write_barrier(reaction,
@@ -428,6 +496,13 @@ class MESS:
                 if self.par['multi_conf_tst']:
                     contents = finalize_mc_mess(contents, self.par.get('correct_submerged', 0))
                 f_out.write(contents)
+
+        if formation_metadata:
+            with open('me/formation_0k.json', 'w') as f_out:
+                json.dump({'schema': 1, 'units': 'kJ/mol',
+                           'species': formation_metadata}, f_out,
+                          indent=2, sort_keys=True)
+                f_out.write('\n')
 
         return 0
 
@@ -532,8 +607,8 @@ class MESS:
             energy = '{ground_energy}'
         else:
             name = '{} ! {}'.format(self.bimolec_names[pr_name], pr_name)
-            energy = (sum([sp.energy for sp in prod_list]) + sum([sp.zpe for sp in prod_list]) 
-                      - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+            energy = (sum(species_zero_k_hartree(sp) for sp in prod_list)
+                      - species_zero_k_hartree(self.species)) * constants.AUtoKCAL
             energy += well_add
             energy = round(energy, 2)
         
@@ -590,7 +665,8 @@ class MESS:
             else:
                 name = self.well_names[species.name] + ' ! ' + str(species.name)
                 norot = str(species.name)
-            zeroenergy = ((species.energy + species.zpe) - (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+            zeroenergy = (species_zero_k_hartree(species) -
+                          species_zero_k_hartree(self.species)) * constants.AUtoKCAL
             zeroenergy += well_add
             zeroenergy = round(zeroenergy, 2)
 
@@ -709,9 +785,10 @@ class MESS:
             if self.par['pes']:
                 prodzeroenergy = '{prodzeroenergy}'
             else:
-                prodzeroenergy = ((reaction.prod_opt[0].species.energy + reaction.prod_opt[0].species.zpe + \
-                                 reaction.prod_opt[1].species.energy + reaction.prod_opt[1].species.zpe) - \
-                                 (self.species.energy + self.species.zpe)) * constants.AUtoKCAL
+                prodzeroenergy = (
+                    species_zero_k_hartree(reaction.prod_opt[0].species) +
+                    species_zero_k_hartree(reaction.prod_opt[1].species) -
+                    species_zero_k_hartree(self.species)) * constants.AUtoKCAL
 
             outerts = self.psttpl.format(natom1=reaction.prod_opt[0].species.natom,
                                          geom1=self.rotor_geom(reaction.prod_opt[0].species),

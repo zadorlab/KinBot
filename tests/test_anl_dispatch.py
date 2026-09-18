@@ -1,4 +1,4 @@
-"""General dispatch behavior, with CH4 as the sole chemistry fixture."""
+"""General dispatch behavior with a synthetic small-molecule task graph."""
 
 import json
 import hashlib
@@ -16,7 +16,7 @@ from ase.io import read, write
 import numpy as np
 import pytest
 
-from examples.anl.ch4_dispatch import ch4_spec
+from tests.anl_fixture import dispatch_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
     _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, main, prepare,
@@ -67,8 +67,8 @@ def _mock_execution(run_dir, ident, *, geometry=None):
     }))
 
 
-def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
-    spec = validate_spec(ch4_spec())
+def test_general_graph_stages_geometry_then_all_independent_jobs():
+    spec = validate_spec(dispatch_spec())
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
         run_dir = prepare(_write_spec(root, spec), root / 'run')
@@ -138,14 +138,14 @@ def test_ch4_general_graph_stages_geometry_then_all_independent_jobs():
 
 
 def test_frequency_only_vpt2_requires_matching_l2_geometry_surface():
-    spec = ch4_spec()
+    spec = dispatch_spec()
     vpt2 = next(task for task in spec['tasks'] if task['id'] == 'gaussian_vpt2')
     vpt2['result_parser']['method'] = 'B3LYP'
     vpt2['input_template'] = vpt2['input_template'].replace('B2PLYP/', 'B3LYP/')
     with pytest.raises(ValueError, match='matching Gaussian geometry source'):
         validate_spec(spec)
 
-    lower = ch4_spec()
+    lower = dispatch_spec()
     l2 = next(task for task in lower['tasks'] if task['id'] == 'l2_geometry')
     l2['profile']['method'] = 'B3LYP'
     l2['profile']['calculator_kwargs'].pop('EmpiricalDispersion')
@@ -161,11 +161,11 @@ def test_frequency_only_vpt2_requires_matching_l2_geometry_surface():
 def test_retry_rewrites_old_cfour_keyword_line_without_changing_workflow():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        original = ch4_spec()
+        original = dispatch_spec()
         cfour = next(task for task in original['tasks'] if task['id'] == 'cfour_dboc')
         cfour['geometry_from'] = 'initial'
         cfour['input_template'] = (
-            'CH4\n{{CARTESIAN}}\n\n'
+            'Test molecule\n{{CARTESIAN}}\n\n'
             '*CFOUR(CALC=SCF,BASIS=cc-pVTZ,DBOC=ON,COORD=CARTESIAN,'
             'UNITS=ANGSTROM,CHARGE={{CHARGE}},MULTIPLICITY={{MULT}},'
             'MEM_UNIT=MB,MEMORY_SIZE={{WORK_MEMORY_MB}})\n')
@@ -193,10 +193,10 @@ def test_retry_rewrites_old_cfour_keyword_line_without_changing_workflow():
         assert hashlib.sha256((run_dir / 'workflow.json').read_bytes()).hexdigest() == workflow_hash
 
 
-def test_ch4_scheduler_respects_node_cap_after_geometry():
+def test_scheduler_respects_node_cap_after_geometry():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
         _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
         advance(run_dir)
         _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
@@ -214,7 +214,7 @@ def test_ch4_scheduler_respects_node_cap_after_geometry():
             state = advance(run_dir, submit=True)
         assert len(submitted) == 3
         assert sum(item['status'] == 'submitted' for item in state['tasks'].values()) == 3
-        assert set(submitted) <= {task['id'] for task in ch4_spec()['tasks'][2:]}
+        assert set(submitted) <= {task['id'] for task in dispatch_spec()['tasks'][2:]}
 
         with patch('kinbot.anl.dispatch._job_active', return_value=True), \
                 patch('kinbot.anl.dispatch.subprocess.run', side_effect=fake_sbatch):
@@ -225,7 +225,7 @@ def test_ch4_scheduler_respects_node_cap_after_geometry():
 def test_selected_submission_keeps_other_ready_jobs_staged():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
         _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
         advance(run_dir)
         _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
@@ -235,7 +235,7 @@ def test_selected_submission_keeps_other_ready_jobs_staged():
             state = advance(run_dir, submit=True, submit_only={'molpro_dz_sp'})
         assert state['tasks']['molpro_dz_sp']['status'] == 'submitted'
         assert all(state['tasks'][task['id']]['status'] == 'staged'
-                   for task in ch4_spec()['tasks'][2:] if task['id'] != 'molpro_dz_sp')
+                   for task in dispatch_spec()['tasks'][2:] if task['id'] != 'molpro_dz_sp')
         with pytest.raises(ValueError, match='Unknown submission'):
             advance(run_dir, submit_only={'missing_task'})
 
@@ -275,7 +275,7 @@ def test_generic_external_task_runs_with_isolated_io_and_accepted_geometry():
 
 
 def test_program_failure_text_is_rejected_even_with_zero_exit_status():
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'] = [{
         'id': 'check', 'kind': 'external', 'backend': 'fake',
         'resources': {'cores': 1, 'memory_mb': 512,
@@ -296,7 +296,7 @@ def test_program_failure_text_is_rejected_even_with_zero_exit_status():
         assert advance(run_dir)['tasks']['check']['status'] == 'failed'
 
 
-def test_ch4_ase_sella_runner_with_analytic_toy_calculator():
+def test_ase_sella_runner_with_analytic_toy_calculator():
     class Quadratic(Calculator):
         implemented_properties = ['energy', 'forces']
 
@@ -313,7 +313,7 @@ def test_ch4_ase_sella_runner_with_analytic_toy_calculator():
             self.results = {'energy': float(np.sum(delta * delta)),
                             'forces': -2 * delta}
 
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'] = [spec['tasks'][0]]
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
@@ -329,8 +329,8 @@ def test_ch4_ase_sella_runner_with_analytic_toy_calculator():
         assert advance(run_dir)['tasks']['l2_geometry']['status'] == 'complete'
 
 
-def test_ch4_gaussian_ase_input_rendering_without_gaussian_executable():
-    spec = ch4_spec()
+def test_gaussian_ase_input_rendering_without_gaussian_executable():
+    spec = dispatch_spec()
     task = spec['tasks'][0]
     atoms = Atoms(symbols=spec['molecule']['symbols'],
                   positions=spec['molecule']['positions'])
@@ -350,40 +350,40 @@ def test_ch4_gaussian_ase_input_rendering_without_gaussian_executable():
 
 
 def test_validation_rejects_cycles_and_oversized_exclusive_jobs():
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'][0]['geometry_from'] = 'l3_geometry'
     with pytest.raises(ValueError, match='cycle'):
         validate_spec(spec)
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'][1]['resources']['cores'] = 17
     with pytest.raises(ValueError, match='exceeds'):
         validate_spec(spec)
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'][1]['profile']['calculator_kwargs'] = {'nproc': 4}
     with pytest.raises(ValueError, match='Molpro nproc'):
         validate_spec(spec)
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'][6]['input_name'] = 'dboc.inp'
     with pytest.raises(ValueError, match='ZMAT'):
         validate_spec(spec)
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'][3]['stdout'] = 'execution.json'
     with pytest.raises(ValueError, match='reserved'):
         validate_spec(spec)
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'][0]['profile']['calculator_kwargs']['nprocshared'] = 8
     with pytest.raises(ValueError, match='must match Slurm cores'):
         validate_spec(spec)
     assert _molpro_total_mw({'cores': 8, 'memory_mb': 32000}) == 1800
     assert _molpro_stack_mw({'cores': 8, 'memory_mb': 32000}) == 225
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'][1]['resources']['memory_mb'] = 2000
     with pytest.raises(ValueError, match='per-process overhead'):
         validate_spec(spec)
 
 
 def test_auto_cores_use_safe_node_memory_and_efficient_rank_counts():
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['limits'] = {'max_nodes': 2}
     spec['tasks'] = [dict(spec['tasks'][1], geometry_from='initial'),
                      spec['tasks'][0]]
@@ -416,7 +416,7 @@ def test_auto_cores_use_safe_node_memory_and_efficient_rank_counts():
 
 
 def test_auto_molpro_cores_fail_when_node_cannot_meet_stack_minimum():
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['limits'] = {'max_nodes': 1}
     spec['tasks'] = [dict(spec['tasks'][1], geometry_from='initial')]
     spec['tasks'][0]['resources'] = {'walltime': '24:00:00',
@@ -431,7 +431,7 @@ def test_auto_molpro_cores_fail_when_node_cannot_meet_stack_minimum():
 
 
 def test_auto_molpro_skips_faster_partition_without_enough_rank_memory():
-    spec = ch4_spec(auto_resources=True)
+    spec = dispatch_spec(auto_resources=True)
     spec['tasks'] = [dict(spec['tasks'][1], geometry_from='initial')]
     node_groups = [
         {'name': 'short', 'default': True, 'cores': 32,
@@ -449,7 +449,7 @@ def test_auto_molpro_skips_faster_partition_without_enough_rank_memory():
 
 
 def test_auto_resource_ceiling_allows_a_lower_method_specific_rank_cap():
-    spec = ch4_spec(auto_resources=True)
+    spec = dispatch_spec(auto_resources=True)
     assert spec['limits'] == {'max_nodes': 3}
     spec['tasks'][1]['resources']['max_cores'] = 8
     node_groups = [{'name': 'day', 'default': True, 'cores': 96,
@@ -470,7 +470,7 @@ def test_auto_resource_ceiling_allows_a_lower_method_specific_rank_cap():
 def test_missing_sbatch_does_not_leave_uncertain_submission_state():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
         with patch('kinbot.anl.dispatch.subprocess.run',
                    side_effect=FileNotFoundError('sbatch')):
             with pytest.raises(FileNotFoundError):
@@ -482,7 +482,7 @@ def test_missing_sbatch_does_not_leave_uncertain_submission_state():
 def test_completed_geometry_or_artifact_mutation_blocks_children():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
         _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
         advance(run_dir)
         final = run_dir / 'tasks' / 'l2_geometry' / 'final.xyz'
@@ -494,7 +494,7 @@ def test_completed_geometry_or_artifact_mutation_blocks_children():
 def test_staged_input_mutation_blocks_submission():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
         job = run_dir / 'tasks' / 'l2_geometry' / 'job.slurm'
         job.write_text(job.read_text().replace('--exclusive', '--oversubscribe'))
         with pytest.raises(RuntimeError, match='staged job.slurm changed'):
@@ -502,7 +502,7 @@ def test_staged_input_mutation_blocks_submission():
 
 
 def test_failed_task_can_be_archived_and_retried():
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'] = [{
         'id': 'sample', 'kind': 'external', 'backend': 'fake',
         'resources': {'cores': 1, 'memory_mb': 512,
@@ -527,7 +527,7 @@ def test_failed_task_can_be_archived_and_retried():
 def test_failed_job_missing_from_squeue_can_be_reconciled_and_retried():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
         state_file = run_dir / 'state.json'
         state = json.loads(state_file.read_text())
         entry = state['tasks']['l2_geometry']
@@ -557,7 +557,7 @@ def test_failed_job_missing_from_squeue_can_be_reconciled_and_retried():
 def test_status_refreshes_finished_job_without_submitting(capsys):
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
         state_file = run_dir / 'state.json'
         state = json.loads(state_file.read_text())
         state['tasks']['l2_geometry'].update(status='submitted', job_id='1234')
@@ -576,7 +576,7 @@ def test_status_refreshes_finished_job_without_submitting(capsys):
 def test_preflight_reports_missing_program_before_submission():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        spec = ch4_spec()
+        spec = dispatch_spec()
         spec['tasks'][0]['profile']['command'] = str(root / 'missing_g16')
         run_dir = prepare(_write_spec(root, spec), root / 'run')
         with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/true'):
@@ -587,7 +587,7 @@ def test_preflight_reports_missing_program_before_submission():
 def test_preflight_reports_silent_site_setup_exit_status():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
         (run_dir / 'site_setup.sh').write_text('exit 7\n')
         with patch('kinbot.anl.dispatch.shutil.which', return_value='/bin/true'):
             with pytest.raises(RuntimeError, match='exit status 7 without diagnostics'):
@@ -597,7 +597,7 @@ def test_preflight_reports_silent_site_setup_exit_status():
 def test_preflight_sources_site_setup_and_validates_slurm_without_submitting():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, ch4_spec()), root / 'run')
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
         bindir = root / 'bin'
         bindir.mkdir()
         for program in ('sbatch', 'squeue'):
@@ -655,7 +655,7 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
         (root / 'cfour' / 'payload').mkdir()
         (cfour / 'xcfour').replace(root / 'cfour' / 'payload' / 'xcfour')
         (cfour / 'xcfour').symlink_to(root / 'cfour' / 'payload' / 'xcfour')
-        spec = ch4_spec()
+        spec = dispatch_spec()
         for task in spec['tasks']:
             task['resources']['partition'] = 'chosen_by_user'
         blocked_scratch = root / 'not-a-directory'
@@ -735,7 +735,7 @@ def test_prepare_selects_fitting_slurm_partition_and_keeps_explicit_choice():
                'day-long-cpu|96|126000|1-00:00:00|up\n'
                'week-long-cpu|96|126000|7-00:00:00|up\n'
                'drained|96|126000|31-00:00:00|down\n')
-    spec = ch4_spec()
+    spec = dispatch_spec()
     spec['tasks'][0]['resources']['partition'] = 'week-long-cpu'
     actual_which = shutil.which
 

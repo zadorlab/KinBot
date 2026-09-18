@@ -42,7 +42,7 @@ def _level(name):
             'mp1': 'MP1'}.get(folded, name.strip().upper())
 
 
-def parse_cfour_dboc(output, *, level='HF'):
+def parse_cfour_dboc(output, *, level='HF', basis=None):
     """Select one named DBOC level, preserving separately reported levels.
 
     CFOUR 2.1 prints identical value labels in HF and MP1 summary sections;
@@ -52,6 +52,13 @@ def parse_cfour_dboc(output, *, level='HF'):
         raise ValueError('CFOUR reported an error flag.')
     if 'This computation required' not in output:
         raise ValueError('CFOUR output has no final completion line.')
+    if basis is not None:
+        if not isinstance(basis, str) or not basis:
+            raise ValueError('CFOUR DBOC basis is invalid.')
+        echoed = re.findall(r'^\s*BASIS\s*=\s*([^\s,)]+)\s*$', output,
+                            re.IGNORECASE | re.MULTILINE)
+        if len(echoed) != 1 or echoed[0].casefold() != basis.casefold():
+            raise ValueError(f'CFOUR output does not echo basis {basis}.')
     headers = list(_DBOC_HEADER.finditer(output))
     if not headers:
         raise ValueError('CFOUR output has no named DBOC summary.')
@@ -271,10 +278,15 @@ def validate_result_parser(request, *, backend, template, outputs):
         raise ValueError('invalid result_parser.')
     kind = request.get('kind')
     if kind == 'cfour_dboc':
-        valid = (set(request) == {'kind', 'file', 'level'}
+        valid = (set(request) in ({'kind', 'file', 'level'},
+                                  {'kind', 'file', 'level', 'basis'})
                  and backend == 'cfour' and request.get('level') in ('HF', 'MP1')
                  and re.search(r'\bDBOC\s*=\s*ON\b', template,
                                re.IGNORECASE) is not None)
+        if valid and 'basis' in request:
+            valid = (isinstance(request['basis'], str) and bool(request['basis'])
+                     and re.search(rf'\bBASIS\s*=\s*{re.escape(request["basis"])}(?=\s*[,\n)])',
+                                   template, re.IGNORECASE) is not None)
     elif kind == 'molpro_energy':
         valid = (set(request) == {'kind', 'file', 'method', 'basis'}
                  and backend == 'molpro'
@@ -321,7 +333,8 @@ def validate_result_parser(request, *, backend, template, outputs):
 def parse_result(output, request):
     kind = request['kind']
     if kind == 'cfour_dboc':
-        return parse_cfour_dboc(output, level=request['level'])
+        return parse_cfour_dboc(output, level=request['level'],
+                                basis=request.get('basis'))
     if kind == 'molpro_energy':
         return parse_molpro_energy(output, method=request['method'],
                                    basis=request['basis'])

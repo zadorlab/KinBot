@@ -229,8 +229,64 @@ def _gaussian_dispersion(route):
     return match.group(1).upper() if match else ''
 
 
+def _gaussian_fundamental_bands(output):
+    """Read Gaussian's mode-resolved harmonic/anharmonic fundamental table.
+
+    Gaussian has used both a numeric-only table and a table with a status
+    column.  Resonance flags can also precede the mode number.  Locate the
+    ``n(1)`` mode token, skip any intervening text, and take the first two
+    numeric fields as E(harm) and E(anharm), respectively.
+    """
+    marker = output.rfind('Fundamental Bands')
+    if marker < 0:
+        raise ValueError('Gaussian fundamental-band table is absent.')
+    modes = []
+    labels = set()
+    started = False
+    for line in output[marker:].splitlines()[1:]:
+        if started and re.match(
+                r'^\s*(?:Overtones|Combination Bands|Anharmonic Infrared|Thermochemistry)\b',
+                line, re.IGNORECASE):
+            break
+        tokens = line.split()
+        mode_index = None
+        mode = None
+        label = None
+        for index, token in enumerate(tokens):
+            match = re.fullmatch(r'(\d+)\(1(?:,[+-]?\d+)?\)', token)
+            if match:
+                mode_index, mode, label = index, int(match.group(1)), token
+                break
+        if mode_index is None:
+            continue
+        numbers = []
+        for token in tokens[mode_index + 1:]:
+            if re.fullmatch(_NUMBER, token):
+                numbers.append(_number(token))
+                if len(numbers) == 2:
+                    break
+        if len(numbers) != 2:
+            raise ValueError(f'Gaussian fundamental mode {mode} lacks harmonic '
+                             'or anharmonic energy.')
+        if label in labels:
+            raise ValueError(f'Gaussian repeats fundamental mode {label}.')
+        labels.add(label)
+        modes.append((mode, label, *numbers))
+        started = True
+    if not modes:
+        raise ValueError('Gaussian fundamental-band table has no modes.')
+    base_modes = sorted({row[0] for row in modes})
+    if base_modes != list(range(1, max(base_modes) + 1)):
+        raise ValueError('Gaussian fundamental mode numbers are not consecutive.')
+    harmonic = [row[2] for row in modes]
+    anharmonic = [row[3] for row in modes]
+    if any(value <= 0. for value in harmonic):
+        raise ValueError('Gaussian reports a nonpositive harmonic fundamental.')
+    return [row[1] for row in modes], harmonic, anharmonic
+
+
 def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
-    """Read the anharmonic ZPE section and surface native quality warnings."""
+    """Read VPT2 ZPE and mode fundamentals, surfacing native warnings."""
     lines = output.strip().splitlines()
     if not lines or not lines[-1].lstrip().startswith('Normal termination of Gaussian'):
         raise ValueError('Gaussian output has no final normal termination.')
@@ -260,6 +316,13 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
         raise ValueError('Gaussian anharmonic ZPE components disagree.')
     warnings = [line.strip() for line in output.splitlines()
                 if re.match(r'^\s*WARNING:', line, re.IGNORECASE)]
+    mode_labels, harmonic_modes, anharmonic_modes = \
+        _gaussian_fundamental_bands(output)
+    invalid_modes = [index for index, value in enumerate(anharmonic_modes, 1)
+                     if value <= 0.]
+    if invalid_modes:
+        warnings.append('Nonpositive anharmonic fundamental mode(s): ' +
+                        ', '.join(map(str, invalid_modes)))
     correction = components['total_anharmonic'] - components['harmonic']
     return {'kind': 'gaussian_vpt2', 'method': method, 'basis': basis,
             'dispersion': dispersion.upper(),
@@ -268,6 +331,9 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
             'zpe_cm_inverse': components,
             'anharmonic_correction_cm_inverse': correction,
             'anharmonic_correction_hartree': correction * invcm / Hartree,
+            'harmonic_fundamentals_cm_inverse': harmonic_modes,
+            'anharmonic_fundamentals_cm_inverse': anharmonic_modes,
+            'fundamental_mode_labels': mode_labels,
             'warnings': warnings, 'review_required': bool(warnings)}
 
 

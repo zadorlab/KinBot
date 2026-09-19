@@ -409,6 +409,7 @@ class Parameters:
             # MESS specific keywords
             # Executable and optional arguments; quote paths that contain spaces.
             'mess_command': 'mess',
+            'messpf_command': 'messpf',
             'TemperatureList': [300. + 100. * i for i in range(18)],
             'PressureList': [7.6, 76., 760., 7600., 76000.],
             'EnergyStepOverTemperature': .2,

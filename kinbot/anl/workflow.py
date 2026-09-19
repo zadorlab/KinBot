@@ -14,13 +14,8 @@ from kinbot.anl.model import (ComponentRequirement, ComponentResult,
 from kinbot.anl.results import parse_result
 
 
-def task_component(run_dir, task_id, *, key, state_id):
-    """Return one validated native QC component from a completed task.
-
-    The source is reparsed after checking all staged and output artifact hashes.
-    Derived core-valence, relativistic, and higher-order providers are
-    still separate work; a dispatch success alone cannot create those terms.
-    """
+def _verified_task_result(run_dir, task_id):
+    """Reparse one complete task after verifying every recorded artifact."""
     run_dir, spec, state = _load(run_dir)
     tasks = {task['id']: task for task in spec['tasks']}
     if task_id not in tasks:
@@ -42,6 +37,19 @@ def task_component(run_dir, task_id, *, key, state_id):
     parsed = parse_result(native.read_text(errors='replace'), request)
     if parsed != execution.get('details', {}).get('parsed_result'):
         raise ValueError(f'{task_id}: saved parsed result differs from native output.')
+    return run_dir, spec, task, execution, native, parsed
+
+
+def task_component(run_dir, task_id, *, key, state_id):
+    """Return one validated native QC component from a completed task.
+
+    The source is reparsed after checking all staged and output artifact hashes.
+    Derived core-valence, relativistic, and higher-order providers are
+    still separate work; a dispatch success alone cannot create those terms.
+    """
+    run_dir, spec, task, execution, native, parsed = _verified_task_result(
+        run_dir, task_id)
+    request = task['result_parser']
     kind = parsed['kind']
     settings = {}
     review_required = parsed.get('review_required', False)
@@ -87,6 +95,23 @@ def task_component(run_dir, task_id, *, key, state_id):
         source_sha256=execution['artifacts'][request['file']],
         source=str(native), settings=settings, review_required=review_required,
     )
+
+
+def attach_task_vpt2_frequencies(species, run_dir, task_id, **match_options):
+    """Attach verified mode-resolved VPT2 corrections to a KinBot species."""
+    from kinbot.energy import attach_anharmonic_frequencies
+
+    _, _, task, execution, native, parsed = _verified_task_result(run_dir, task_id)
+    if parsed.get('kind') != 'gaussian_vpt2' or task['backend'].lower() != 'gaussian':
+        raise ValueError(f'{task_id}: expected a Gaussian VPT2 task.')
+    frequencies = attach_anharmonic_frequencies(
+        species, parsed, **match_options)
+    species.anl_thermochemistry_frequency_source.update({
+        'task_id': task_id,
+        'native_output': str(native),
+        'source_sha256': execution['artifacts'][task['result_parser']['file']],
+    })
+    return frequencies
 
 
 def cbs_task_component(run_dir, lower_task_id, upper_task_id, *,

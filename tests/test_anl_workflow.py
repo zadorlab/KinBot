@@ -14,7 +14,8 @@ from kinbot.anl.dispatch import _geometry_hash, advance, prepare
 from kinbot.anl.model import IncompleteRecipeError
 from kinbot.anl.recipes import recipe
 from kinbot.anl.results import parse_result
-from kinbot.anl.workflow import cbs_task_component, task_component
+from kinbot.anl.workflow import (attach_task_vpt2_frequencies,
+                                 cbs_task_component, task_component)
 from tests.anl_fixture import dispatch_spec, molpro_task
 
 
@@ -153,14 +154,39 @@ def _harmonic_output(basis, shift):
 
 def _vpt2_output(basis, correction):
     harmonic = 9800.0
+    modes = [3200., 3150., 3100., 3000., 1600., 1550., 1400., 1350., 1250.]
+    bands = '\n'.join(
+        f'{index}(1) active {value:.3f} {value - 20.:.3f} 1.0 1.0'
+        for index, value in enumerate(modes, 1))
     return (f'#p B2PLYP/{basis} Freq=Anharmonic '
             'EmpiricalDispersion=GD3BJ\n'
+            'Fundamental Bands\n'
+            'Mode(n) Status E(harm) E(anharm) I(harm) I(anharm)\n'
+            f'{bands}\nOvertones\n'
             'Anharmonic Zero Point Energy\n'
             f'Harmonic       : cm-1 = {harmonic:.5f} ;\n'
             f'Anharmonic Pot.: cm-1 = {correction:.5f} ;\n'
             'Watson+Coriolis: cm-1 = 0.00000 ;\n'
             f'Total Anharm   : cm-1 = {harmonic + correction:.5f} ;\n'
             'Normal termination of Gaussian 16\n')
+
+
+def test_verified_vpt2_task_attaches_partition_function_frequencies():
+    with TemporaryDirectory() as temporary:
+        run_dir, _, _ = _completed_zpe_pair(Path(temporary), kind='vpt2')
+        species = type('Species', (), {
+            'reduced_freqs': [1250., 1350., 1400., 1550., 1600.,
+                              3000., 3100., 3150., 3200.],
+            'anl_thermochemistry_frequencies': None,
+            'anl_thermochemistry_frequency_source': None,
+        })()
+        corrected = attach_task_vpt2_frequencies(
+            species, run_dir, 'vpt2_qz')
+        assert corrected == pytest.approx(
+            [1230., 1330., 1380., 1530., 1580., 2980., 3080., 3130., 3180.])
+        source = species.anl_thermochemistry_frequency_source
+        assert source['task_id'] == 'vpt2_qz'
+        assert len(source['source_sha256']) == 64
 
 
 def _completed_zpe_pair(root, *, kind):

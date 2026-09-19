@@ -13,6 +13,7 @@ class GeneralReac:
     def __init__(self, species, qc, par, instance, instance_name):
         self.species = species
         self.ts = None
+        self.zero_k_barrier = None
         self.products = []
         self.product_bonds = []
         self.broken_bonds = []
@@ -170,4 +171,3 @@ class GeneralReac:
             for i in range(4):
                 constraint.append(self.instance[dih + i] + 1)
             release.append(constraint)
-

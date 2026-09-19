@@ -1,18 +1,21 @@
 import os
 import stat
 import re
+import shlex
 import logging
 import json
 import numpy as np
 import subprocess
 import time
-import logging
 from collections import Counter
+from pathlib import Path
 
 from kinbot import kb_path
 from kinbot import constants
 from kinbot import frequencies
-from kinbot.energy import species_zero_k_hartree
+from kinbot.energy import (KJ_PER_KCAL, formation_enthalpy_0k_kj_mol,
+                           reaction_barrier_0k_kj_mol,
+                           species_zero_k_hartree)
 from kinbot.uncertaintyAnalysis import UQ
 
 logger = logging.getLogger('KinBot')
@@ -176,6 +179,56 @@ class MESS:
         with open(f'{kb_path}/tpl/mess_2tst.tpl') as f:
             self.twotstpl = f.read()
 
+        with open(f'{kb_path}/tpl/mess_pf.tpl') as f:
+            self.pftpl = f.read()
+
+    def _cbh_anl_mode(self):
+        """CBH/ANL requests use formation enthalpies as the MESS energy axis."""
+        return bool(self.par.get('composite_method')
+                    or getattr(self.species, 'formation_enthalpy_0k', None))
+
+    def _stable_species(self):
+        result = [self.species]
+        for index, reaction in enumerate(self.species.reac_obj):
+            if self.species.reac_ts_done[index] != -1:
+                continue
+            if reaction.do_vdW:
+                result.append(reaction.irc_prod_opt.species)
+            result.extend(opt.species for opt in reaction.prod_opt)
+        unique = []
+        seen = set()
+        for species in result:
+            key = (str(species.chemid), species.smiles,
+                   species.charge, species.mult)
+            if key not in seen:
+                seen.add(key)
+                unique.append(species)
+        return unique
+
+    def _formation_relative_kcal(self, species):
+        reference = formation_enthalpy_0k_kj_mol(self.species)
+        return (formation_enthalpy_0k_kj_mol(species) - reference) / KJ_PER_KCAL
+
+    def _channel_relative_kcal(self, species_list):
+        reference = formation_enthalpy_0k_kj_mol(self.species)
+        return (sum(formation_enthalpy_0k_kj_mol(species)
+                    for species in species_list) - reference) / KJ_PER_KCAL
+
+    def _transition_state_relative_kcal(self, reaction):
+        return reaction_barrier_0k_kj_mol(reaction, self.species) / KJ_PER_KCAL
+
+    @staticmethod
+    def _channel_threshold_reaction(reaction):
+        """A homolytic VRC channel has no separate stationary saddle."""
+        return ('hom_sci' in reaction.instance_name and not reaction.do_vdW
+                and len(reaction.prod_opt) == 2)
+
+    @staticmethod
+    def _stable_frequencies(species):
+        """Use explicitly accepted ANL frequencies, otherwise KinBot's L2 set."""
+        accepted = getattr(species, 'anl_thermochemistry_frequencies', None)
+        return species.reduced_freqs if accepted is None else accepted
+
 
     def write_header(self, lot):
         """
@@ -242,11 +295,20 @@ class MESS:
 
     def _validate_composite_coverage(self):
         """A direct MESS network needs a complete accepted E0 for each species."""
+        if self._cbh_anl_mode():
+            for item in self._stable_species():
+                formation_enthalpy_0k_kj_mol(item)
+            for index, reaction in enumerate(self.species.reac_obj):
+                if (self.species.reac_ts_done[index] == -1
+                        and not self._channel_threshold_reaction(reaction)):
+                    reaction_barrier_0k_kj_mol(reaction, self.species)
+            return
         species = [self.species]
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] != -1:
                 continue
-            species.append(reaction.ts)
+            if not self._channel_threshold_reaction(reaction):
+                species.append(reaction.ts)
             if reaction.do_vdW:
                 species.append(reaction.irc_prod_opt.species)
             species.extend(opt.species for opt in reaction.prod_opt)
@@ -261,13 +323,9 @@ class MESS:
 
     def _formation_metadata(self):
         """Keep absolute Hf(0) next to MESS's relative zero-energy input."""
-        species = [self.species]
-        for index, reaction in enumerate(self.species.reac_obj):
-            if self.species.reac_ts_done[index] != -1:
-                continue
-            if reaction.do_vdW:
-                species.append(reaction.irc_prod_opt.species)
-            species.extend(opt.species for opt in reaction.prod_opt)
+        if not self._cbh_anl_mode():
+            return {}
+        species = self._stable_species()
         records = {}
         for item in species:
             formation = getattr(item, 'formation_enthalpy_0k', None)
@@ -296,6 +354,107 @@ class MESS:
             records[key] = record
         return records
 
+    def write_partition_function_input(self, species, destination):
+        """Write the same stable-species model as a standalone MESSPF input."""
+        temperatures = sorted(set(float(value) for value in
+                                  (*self.par['TemperatureList'], 298.15)))
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if species.natom == 1:
+            text = (
+                '! KinBot standalone MESS partition-function input.\n'
+                f'TemperatureList[K]                     '
+                f'{" ".join(f"{value:g}" for value in temperatures)}\n'
+                'RelativeTemperatureIncrement           0.001\n'
+                'AtomDistanceMin[angstrom]              0.32\n'
+                f'Species {species.name}\n'
+                '  Atom\n'
+                f'    Name {species.atom[0]}\n'
+                '    ElectronicLevels[1/cm] 1\n'
+                f'      0.0 {species.mult}\n'
+                '  End\n'
+                'End\n')
+        else:
+            stable_freqs = self._stable_frequencies(species)
+            text = self.pftpl.format(
+                temperatures=' '.join(f'{value:g}' for value in temperatures),
+                name=species.name, natom=species.natom,
+                geom=self.rotor_geom(species),
+                symm=float(species.sigma_ext) / float(species.nopt),
+                rotconst=self.rotor_core_line(species),
+                nfreq=len(stable_freqs),
+                freq=self.make_freq(stable_freqs, 1., 0),
+                hinderedrotor=self.make_rotors(species, 1.), mult=species.mult)
+        destination.write_text(text)
+        return destination
+
+    def write_partition_function_inputs(self):
+        """Stage all stable species for RRHO+1DHR thermochemistry."""
+        directory = Path('me/partition_functions')
+        records = {}
+        for species in self._stable_species():
+            ident = str(species.chemid)
+            path = self.write_partition_function_input(
+                species, directory / f'{ident}.inp')
+            records[ident] = {
+                'name': species.name, 'smiles': species.smiles,
+                'input': str(path),
+                'output': str(path.with_suffix('.dat')),
+                'zero_energy_kcal_mol': 0.,
+                'frequency_source': ('accepted_anl'
+                    if getattr(species, 'anl_thermochemistry_frequencies', None)
+                    is not None else 'kinbot_l2'),
+                'frequency_provenance': getattr(
+                    species, 'anl_thermochemistry_frequency_source', None),
+                'hindered_rotor_source': 'kinbot_l2',
+            }
+        manifest = {'schema': 1, 'program': 'messpf',
+                    'command': self.par.get('messpf_command', 'messpf'),
+                    'temperature_anchor_k': 298.15, 'species': records}
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / 'manifest.json').write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + '\n')
+        runner = directory / 'run_messpf.sh'
+        runner.write_text(
+            '#!/usr/bin/env bash\n'
+            'set -euo pipefail\n'
+            'cd "$(dirname "$0")"\n'
+            'messpf_command="${KINBOT_MESSPF_COMMAND:-}"\n'
+            'if [[ -z "$messpf_command" ]]; then\n'
+            f'  messpf_command={shlex.quote(str(self.par.get("messpf_command", "messpf")))}\n'
+            'fi\n'
+            'command -v "$messpf_command" >/dev/null\n'
+            'for input in ./*.inp; do\n'
+            '  "$messpf_command" "$input"\n'
+            'done\n')
+        runner.chmod(runner.stat().st_mode | 0o111)
+        return manifest
+
+    def read_partition_function_outputs(self, outputs=None):
+        """Read completed MESSPF tables and stage the NASA/PAC99 fit data."""
+        from kinbot.anl.thermochemistry import messpf_thermochemistry_record
+
+        outputs = {} if outputs is None else outputs
+        records = {}
+        for species in self._stable_species():
+            ident = str(species.chemid)
+            output = outputs.get(ident, outputs.get(
+                species.chemid,
+                Path('me/partition_functions') / f'{ident}.dat'))
+            if not Path(output).is_file():
+                raise FileNotFoundError(
+                    f'{species.name}: missing MESSPF output {output}.')
+            records[ident] = messpf_thermochemistry_record(species, output)
+            records[ident]['messpf_output'] = str(output)
+        result = {
+            'schema': 1,
+            'fit_contract': 'NASA7/PAC99-compatible Hf298, S(T), and Cp(T)',
+            'species': records,
+        }
+        destination = Path('me/thermochemistry_298.json')
+        destination.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+        return result
+
     def write_input(self, qc):
         """
         write the input for all the wells, bimolecular products and barriers
@@ -309,9 +468,12 @@ class MESS:
         # create short names for all the species, bimolecular products and barriers
         self.create_short_names()
         final = getattr(self.species, 'final_zero_k_energy', None)
+        cbh_anl = self._cbh_anl_mode()
         header = self.write_header(f'{self.par["high_level_method"]}/'
                                    f'{self.par["high_level_basis"]}'
-                                   if final is None else 'accepted ANL ladder')
+                                   if final is None else
+                                   ('CBH/ANL formation enthalpies and barriers'
+                                    if cbh_anl else 'accepted ANL ladder'))
 
         # filter ts's with the same reactants and products:
         ts_unique = {}  # key: ts name, value: [prod_name, energy]
@@ -329,12 +491,17 @@ class MESS:
                 prod_name = '_'.join([str(pi) for pi in rxnProds])
                 new = 1
                 remove = []
-                ts_all[reaction.instance_name] = [
-                    prod_name, species_zero_k_hartree(reaction.ts)]
+                ts_energy = (self._channel_relative_kcal(
+                    [opt.species for opt in reaction.prod_opt])
+                    if cbh_anl and self._channel_threshold_reaction(reaction)
+                    else self._transition_state_relative_kcal(reaction)
+                             if cbh_anl else
+                             species_zero_k_hartree(reaction.ts))
+                ts_all[reaction.instance_name] = [prod_name, ts_energy]
                 for ts in ts_unique:
                     if ts_unique[ts][0] == prod_name:
                         # check for the barrier with the lowest energy  # check if hom_sci is first
-                        if (ts_unique[ts][1] > species_zero_k_hartree(reaction.ts)
+                        if (ts_unique[ts][1] > ts_energy
                                 or 'hom_sci' in ts) \
                                 and 'hom_sci' not in reaction.instance_name:
                             # remove the current barrier
@@ -344,8 +511,7 @@ class MESS:
                 for ts in remove:
                     ts_unique.pop(ts, None)
                 if new:
-                    ts_unique[reaction.instance_name] = [
-                        prod_name, species_zero_k_hartree(reaction.ts)]
+                    ts_unique[reaction.instance_name] = [prod_name, ts_energy]
 
         # write the mess input for the different blocks
         for uq_iter in range(self.par['uq_n']):
@@ -368,15 +534,20 @@ class MESS:
                                                                uq_iter)
             
             for index, reaction in enumerate(self.species.reac_obj):
-                if reaction.instance_name in ts_all: #should be TS unique?
+                if (reaction.instance_name in ts_all
+                        and not self._channel_threshold_reaction(reaction)):
                     barrier_add = uq.calc_factor('barrier', uq_iter)
                     freq_factor = uq.calc_factor('freq', uq_iter)
                     imagfreq_factor = uq.calc_factor('imagfreq', uq_iter)
         
         # get left-right barrier
-                    species_zeroenergy = species_zero_k_hartree(self.species) * constants.AUtoKCAL
+                    species_zeroenergy = (0. if cbh_anl else
+                        species_zero_k_hartree(self.species) * constants.AUtoKCAL)
                     if self.species.reac_ts_done[index] == -1:
-                        ts_zeroenergy = species_zero_k_hartree(reaction.ts) * constants.AUtoKCAL
+                        ts_zeroenergy = (self._transition_state_relative_kcal(reaction)
+                                         if cbh_anl else
+                                         species_zero_k_hartree(reaction.ts)
+                                         * constants.AUtoKCAL)
                         if (final is None and not self.par['high_level']
                                 and reaction.mp2 == 1 and self.par['qc'] != 'nn_pes'):
                             jobname = '{}_well_mp2'.format(str(self.species.chemid))
@@ -389,14 +560,20 @@ class MESS:
                             well_zeroenergy = species_zeroenergy
                         left_zeroenergy = ts_zeroenergy - well_zeroenergy
 
-                        prod_zeroenergy = 0
-                        if reaction.do_vdW:
-                            prod_zeroenergy += species_zero_k_hartree(
-                                reaction.irc_prod_opt.species) * constants.AUtoKCAL
+                        if cbh_anl:
+                            products = ([reaction.irc_prod_opt.species]
+                                        if reaction.do_vdW else
+                                        [opt.species for opt in reaction.prod_opt])
+                            prod_zeroenergy = self._channel_relative_kcal(products)
                         else:
-                            for opt in reaction.prod_opt:
+                            prod_zeroenergy = 0
+                            if reaction.do_vdW:
                                 prod_zeroenergy += species_zero_k_hartree(
-                                    opt.species) * constants.AUtoKCAL
+                                    reaction.irc_prod_opt.species) * constants.AUtoKCAL
+                            else:
+                                for opt in reaction.prod_opt:
+                                    prod_zeroenergy += species_zero_k_hartree(
+                                        opt.species) * constants.AUtoKCAL
                         right_zeroenergy = ts_zeroenergy - prod_zeroenergy
 
                     allTS[reaction.instance_name], zeroenergy = self.write_barrier(reaction,
@@ -410,7 +587,8 @@ class MESS:
 
                 # Only write products once, stops duplicate product writing
                 if reaction.instance_name in ts_unique:
-                    ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
+                    if reaction.instance_name in allTS:
+                        ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
                     if reaction.do_vdW:
                         st_pt = reaction.irc_prod_opt.species
                         energy_add = uq.calc_factor('energy', uq_iter)
@@ -430,7 +608,8 @@ class MESS:
                                                                       pstsymm_factor,
                                                                       uq_iter,
                                                                       bless=bless,
-                                                                      vdW=True)
+                                                                      vdW=True,
+                                                                      reaction=reaction)
                         written_bimol_names.append(bimol_name)
                     elif len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
@@ -456,7 +635,8 @@ class MESS:
                                                                       freq_factor,
                                                                       pstsymm_factor,
                                                                       uq_iter,
-                                                                      bless=bless)
+                                                                      bless=bless,
+                                                                      reaction=reaction)
                         written_bimol_names.append(bimol_name)
                     else:
                         # termol
@@ -498,9 +678,34 @@ class MESS:
                 f_out.write(contents)
 
         if formation_metadata:
+            pf_manifest = self.write_partition_function_inputs()
+            barrier_metadata = {}
+            for index, reaction in enumerate(self.species.reac_obj):
+                if self.species.reac_ts_done[index] == -1:
+                    if self._channel_threshold_reaction(reaction):
+                        barrier_metadata[reaction.instance_name] = {
+                            'kind': 'fragment_channel_threshold',
+                            'relative_0k_kj_mol': self._channel_relative_kcal(
+                                [opt.species for opt in reaction.prod_opt]) * KJ_PER_KCAL,
+                        }
+                    else:
+                        barrier = getattr(reaction, 'zero_k_barrier')
+                        barrier_metadata[reaction.instance_name] = {
+                            'kind': 'stationary_transition_state',
+                            'barrier_0k_kj_mol': barrier.barrier_0k_kj_mol,
+                            'method': barrier.method,
+                            'reactant_source': barrier.reactant_source,
+                            'transition_state_source': barrier.transition_state_source,
+                        }
             with open('me/formation_0k.json', 'w') as f_out:
-                json.dump({'schema': 1, 'units': 'kJ/mol',
-                           'species': formation_metadata}, f_out,
+                json.dump({'schema': 2, 'mode': 'cbh-anl', 'units': 'kJ/mol',
+                           'energy_reference': {
+                               'chemid': str(self.species.chemid),
+                               'formation_0k_kj_mol':
+                                   formation_enthalpy_0k_kj_mol(self.species)},
+                           'species': formation_metadata,
+                           'barriers': barrier_metadata,
+                           'partition_functions': pf_manifest}, f_out,
                           indent=2, sort_keys=True)
                 f_out.write('\n')
 
@@ -520,7 +725,8 @@ class MESS:
         return termol
 
 
-    def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor, uq_iter, bless, vdW=False):
+    def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor,
+                    uq_iter, bless, vdW=False, reaction=None):
         """
         Create the block for MESS for a bimolecular product.
         In case of a barrierless reaction (bless=1) also add a phase-space theory barrier.
@@ -536,6 +742,7 @@ class MESS:
         smi = []
         for nsp, species in enumerate(prod_list):
             smi.append(species.smiles)
+            stable_freqs = self._stable_frequencies(species)
             if species.natom > 1:
 
                 if self.par['pes']:
@@ -550,7 +757,7 @@ class MESS:
                                                            geom=self.rotor_geom(species),
                                                            symm=float(species.sigma_ext) / float(species.nopt),
                                                            rotconst=self.rotor_core_line(species),
-                                                           freq=self.make_freq(species.reduced_freqs, freq_factor, 0))
+                                                           freq=self.make_freq(stable_freqs, freq_factor, 0))
                 else:
                     fragments += self.fragmenttpl.format(chemid=name,
                                                          smi=species.smiles,
@@ -558,14 +765,14 @@ class MESS:
                                                          geom=self.rotor_geom(species),
                                                          symm=float(species.sigma_ext) / float(species.nopt),
                                                          rotconst=self.rotor_core_line(species),
-                                                         nfreq=len(species.reduced_freqs),
-                                                         freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
+                                                         nfreq=len(stable_freqs),
+                                                         freq=self.make_freq(stable_freqs, freq_factor, 0),
                                                          hinderedrotor=self.make_rotors(species, freq_factor),
                                                          nelec=1,
                                                          mult=species.mult)
                 if bless == 1:
-                    tot_nfreq += len(species.reduced_freqs)
-                    combined_freq += self.make_freq(species.reduced_freqs, freq_factor, 0)
+                    tot_nfreq += len(stable_freqs)
+                    combined_freq += self.make_freq(stable_freqs, freq_factor, 0)
                     combined_hir += self.make_rotors(species, freq_factor, bless=True)
 
                     if nsp == 0: 
@@ -607,8 +814,10 @@ class MESS:
             energy = '{ground_energy}'
         else:
             name = '{} ! {}'.format(self.bimolec_names[pr_name], pr_name)
-            energy = (sum(species_zero_k_hartree(sp) for sp in prod_list)
-                      - species_zero_k_hartree(self.species)) * constants.AUtoKCAL
+            energy = (self._channel_relative_kcal(prod_list)
+                      if self._cbh_anl_mode() else
+                      (sum(species_zero_k_hartree(sp) for sp in prod_list)
+                       - species_zero_k_hartree(self.species)) * constants.AUtoKCAL)
             energy += well_add
             energy = round(energy, 2)
         
@@ -619,14 +828,19 @@ class MESS:
                                          ground_energy=energy)
 
         elif bless == 1:
+            if reaction is None:
+                raise ValueError('A barrierless MESS channel needs its reaction identity.')
             stoich = ''
             el_counter = Counter(self.species.atom)
             for el in constants.elements:
                 if el_counter[el]:
                     stoich += '{}{}'.format(el, el_counter[el])
-            bimol = self.blbimoltpl.format(barrier='{blessname}',
-                                           reactant='{wellname}',
-                                           prod='{prodname}',
+            reactant_name = (self.well_names[reaction.irc_prod.name]
+                             if vdW else self.well_names[self.species.chemid])
+            bimol = self.blbimoltpl.format(
+                                           barrier='bl_' + self.ts_names[reaction.instance_name],
+                                           reactant=reactant_name,
+                                           prod=self.bimolec_names[pr_name],
                                            chemids=name,
                                            pstsymm=pstsymm_factor,
                                            stoich=stoich,
@@ -665,8 +879,10 @@ class MESS:
             else:
                 name = self.well_names[species.name] + ' ! ' + str(species.name)
                 norot = str(species.name)
-            zeroenergy = (species_zero_k_hartree(species) -
-                          species_zero_k_hartree(self.species)) * constants.AUtoKCAL
+            zeroenergy = (self._formation_relative_kcal(species)
+                          if self._cbh_anl_mode() else
+                          (species_zero_k_hartree(species) -
+                           species_zero_k_hartree(self.species)) * constants.AUtoKCAL)
             zeroenergy += well_add
             zeroenergy = round(zeroenergy, 2)
 
@@ -675,14 +891,15 @@ class MESS:
         nunq_confs = len(valid_conformers)
 
         if not self.par['multi_conf_tst'] or not valid_conformers:
+            stable_freqs = self._stable_frequencies(species)
             mess_well = self.welltpl.format(chemid=name,
                                             smi=species.smiles,
                                             natom=species.natom,
                                             geom=self.rotor_geom(species),
                                             symm=float(species.sigma_ext) / float(species.nopt),
                                             rotconst=self.rotor_core_line(species),
-                                            nfreq=len(species.reduced_freqs),
-                                            freq=self.make_freq(species.reduced_freqs, freq_factor, 0),
+                                            nfreq=len(stable_freqs),
+                                            freq=self.make_freq(stable_freqs, freq_factor, 0),
                                             hinderedrotor=self.make_rotors(species, freq_factor, norot=norot),
                                             nelec=1,
                                             mult=species.mult,
@@ -776,19 +993,24 @@ class MESS:
             zeroenergy = round(left_zeroenergy, 2)
     
         if self.species.reac_type[index] == 'barrierless_saddle':
-            freq = self.make_freq(reaction.prod_opt[0].species.reduced_freqs, freq_factor, 0) + \
-                   self.make_freq(reaction.prod_opt[1].species.reduced_freqs, freq_factor, 0) 
+            prod_freqs = [self._stable_frequencies(opt.species)
+                          for opt in reaction.prod_opt[:2]]
+            freq = self.make_freq(prod_freqs[0], freq_factor, 0) + \
+                   self.make_freq(prod_freqs[1], freq_factor, 0)
             rotors = self.make_rotors(reaction.prod_opt[0].species, freq_factor) + \
                      self.make_rotors(reaction.prod_opt[1].species, freq_factor) 
-            nfreq = len(reaction.prod_opt[0].species.reduced_freqs) + \
-                    len(reaction.prod_opt[1].species.reduced_freqs)
+            nfreq = len(prod_freqs[0]) + len(prod_freqs[1])
             if self.par['pes']:
                 prodzeroenergy = '{prodzeroenergy}'
             else:
-                prodzeroenergy = (
-                    species_zero_k_hartree(reaction.prod_opt[0].species) +
-                    species_zero_k_hartree(reaction.prod_opt[1].species) -
-                    species_zero_k_hartree(self.species)) * constants.AUtoKCAL
+                prodzeroenergy = (self._channel_relative_kcal(
+                    [reaction.prod_opt[0].species,
+                     reaction.prod_opt[1].species])
+                    if self._cbh_anl_mode() else (
+                        species_zero_k_hartree(reaction.prod_opt[0].species) +
+                        species_zero_k_hartree(reaction.prod_opt[1].species) -
+                        species_zero_k_hartree(self.species))
+                    * constants.AUtoKCAL)
 
             outerts = self.psttpl.format(natom1=reaction.prod_opt[0].species.natom,
                                          geom1=self.rotor_geom(reaction.prod_opt[0].species),

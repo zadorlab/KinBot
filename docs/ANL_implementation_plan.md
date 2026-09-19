@@ -4477,21 +4477,122 @@ fixtures, not a downloaded ATcT 1.202 release or native electronic
 calculations. They successively remove one reference species' accepted
 energy and verify fallback through ANL1-F12, ANL1, ANL0-F12, ANL0,
 a preselected L3 profile, and L2. The selected method is common to all
-species of one CBH reaction. A separate local MESS network test confirms
-that different wells and a TS may have different accepted tiers while the
-written relative zero energies use each accepted E0 exactly once.
+species of one CBH reaction. A separate local MESS network test confirms that
+different stable species may use different accepted tiers after each species
+has been converted to the common physical formation-enthalpy reference. A
+stationary TS barrier still requires one consistent accepted method for the
+reactant and TS.
 
-KinBot's direct MESS writer now carries the accepted E0 values and writes a
-`me/formation_0k.json` sidecar when a CBH Hf(0) is attached. The sidecar
-records the rung, 0 K value, method, ATcT release/hash, reference IDs,
-and energy sources. A fake local MESS handoff test checks that the sidecar,
-relative MESS zero energy, and L2 hindered-rotor writer path are present.
-MESS consumes relative energies for kinetics; Hf(0) must later be combined
-with its validated thermodynamic increment to obtain Hf(T).
+KinBot's direct MESS writer writes a `me/formation_0k.json` sidecar when a CBH
+Hf(0) is attached. The sidecar records the rung, 0 K value, method, ATcT
+release/hash, reference IDs, energy sources, network reference, and stationary
+barrier provenance. The kinetic energy axis uses differences of Hf(0), rather
+than differences of unrelated absolute electronic energies. A fake local MESS
+handoff checks the sidecar, energy axis, and L2 hindered-rotor writer path.
 
 **Remaining implementation gates:** pin and implement every advertised ANL
-recipe, connect dispatcher results to species objects automatically, extend
-radical/charged CBH graph rules, propagate uncertainty, finish the PES MESS
-energy route, read actual MESS thermochemistry output, and run a small
+recipe, extend radical/charged CBH graph rules, propagate uncertainty, compare
+the local NASA7 fitter with PAC99 on real MESSPF output, and run a small
 TS/reaction restart test on the external site. The local fixtures establish
 reaction algebra and file handoff only.
+
+---
+
+# 92. Ram MESS kinetics and partition-function procedure (2026-09-18)
+
+The supplied `jp4c07388_si_001` files from the
+[Ram et al. association study](https://pubs.acs.org/doi/10.1021/acs.jpca.4c07388)
+were compared with KinBot's MESS writer.
+They separate the thermochemical roles that the earlier handoff had conflated:
+
+1. A standalone MESSPF input gives each species `ZeroEnergy = 0` and contains
+   its geometry, corrected frequencies, electronic degeneracy, and explicit
+   hindered rotors. It produces partition functions, entropy, and heat
+   capacity data.
+2. A kinetic MESS input repeats the same state-counting model, but its well
+   `ZeroEnergy` and fragment-channel `GroundEnergy` values are differences of
+   CBH/ANL Hf(0) values on one arbitrary reference axis.
+3. A stationary TS is placed at `Hf,0(reactant) + barrier_0K`, where the
+   barrier is an accepted same-method ANL E0 difference. A barrierless VRC
+   transition state is placed at its fragment-channel threshold and does not
+   acquire a fictitious stationary-saddle energy.
+
+For example, the SI C2F6 input uses the two-CF3 channel as zero:
+
+```text
+Hf,0(C2F6) - 2 Hf,0(CF3)
+= -318.333 - 2(-111.164)
+= -96.005 kcal/mol
+```
+
+KinBot now activates this route whenever a composite method is requested or a
+CBH formation result is attached. It fails if a stable network species lacks
+a validated Hf(0), or if a stationary barrier cannot be derived from a
+consistent accepted reactant/TS pair. Per-species ladder fallback is valid
+after Hf(0) conversion because every stable species is then on the same
+formation scale. The old direct difference of absolute electronic energies is
+bypassed in this mode. The legacy MESS route is unchanged for non-ANL runs.
+
+For every stable network species KinBot also writes
+`me/partition_functions/<chemid>.inp`. These inputs use zero energy, include an
+explicit 298.15 K point, and call the same geometry, frequency, electronic
+degeneracy, and L2 rotor serializers as the kinetic input. If an accepted
+harmonic-plus-VPT2 frequency array is attached it is used in both places;
+otherwise both use the selected L2 frequency array.
+`run_messpf.sh` runs the configurable `messpf_command` (or the
+`KINBOT_MESSPF_COMMAND` environment override) on every input. The reader uses
+the official executable's `<chemid>.dat` output name.
+
+The SI frequency comments such as `VTZ-F + B2D3/VQZ ANH` mean a high-level
+harmonic frequency plus a mode-specific VPT2 shift, not the unmodified DFT
+fundamental. KinBot therefore parses every Gaussian `Fundamental Bands` row
+and constructs
+
+```text
+nu_i(corrected) = nu_i(target harmonic)
+                + nu_j(VPT2 anharmonic) - nu_j(VPT2 harmonic).
+```
+
+The mode assignment minimizes the total harmonic-frequency mismatch and has a
+hard mismatch tolerance; a reviewed explicit one-based map can replace the
+automatic assignment. The target list is `reduced_freqs`, after KinBot has
+projected the internal rotations represented as MESS hindered rotors. Thus the
+Gaussian torsional oscillator is not counted again. Gaussian quality warnings,
+missing modes, nonpositive fundamentals, bad mode assignments, and nonpositive
+corrected frequencies stop this handoff. The verified native output hash and
+mode map are recorded in the partition-function manifest. When the target
+harmonics and VPT2 force field are the same L2 method and geometry, this formula
+reduces to the Gaussian VPT2 fundamentals requested for the profiled L2 model.
+
+The [official MESSPF source](https://github.com/Auto-Mech/MESS/blob/master/src/partition_function.cc)
+reports `Z_1 = d ln(Q)/dT`, entropy, and constant-pressure heat capacity. It
+also appends 298.2 K automatically, so KinBot inserts and selects a separate
+298.15 K point. With the MESSPF species
+ground set to zero, KinBot evaluates
+
+```text
+H_species(T) - H_species(0) = R T^2 Z_1(T) + R T
+```
+
+where the final `RT` is the ideal-gas `pV` term. Formation enthalpy at 298.15 K
+then follows from
+
+```text
+Hf,298(species) = Hf,0(species)
+                 + [H298-H0](species)
+                 - sum_e n_e [H298-H0](element e, standard state per atom).
+```
+
+The parser requires a real 298.15 K MESSPF row. The elemental increments are
+pinned to NIST-JANAF reference-state tables: H2 8.467, graphite 1.051, N2
+8.670, O2 8.683, F2 8.825, and Cl2 9.181 kJ/mol from 0 to 298.15 K; molecular
+values are divided by two per atom.
+
+KinBot now fits two NASA7 heat-capacity polynomials to the MESSPF grid. The
+low-range integration constants reproduce Hf(298.15) and the MESSPF entropy at
+298.15 K. The high-range integration constants reproduce the low-range
+enthalpy and entropy at 1000 K. The JSON record contains both seven-coefficient
+sets, temperature limits, anchors, and Cp root-mean-square errors. This is an
+internal PAC99-compatible fit that still needs comparison against PAC99 before
+it is treated as a replacement for that program. Hf(0) remains the kinetic
+MESS energy anchor; Hf(298) anchors the thermochemical fit.

@@ -400,6 +400,7 @@ class Parameters:
             'correct_submerged': 0,
             # MESS specific keywords
             'mess_command': 'mess',
+            'messpf_command': 'messpf',
             'TemperatureList': [300. + 100. * i for i in range(18)],
             'PressureList': [7.6, 76., 760., 7600., 76000.],
             'EnergyStepOverTemperature': .2,

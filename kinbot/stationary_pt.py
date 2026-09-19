@@ -52,6 +52,10 @@ class StationaryPoint:
         # Set only after a complete, provenance-checked composite evaluation.
         self.final_zero_k_energy = None
         self.formation_enthalpy_0k = None
+        # Optional harmonic frequencies plus an accepted VPT2 correction.
+        # MESS kinetics and MESSPF must consume this same array.
+        self.anl_thermochemistry_frequencies = None
+        self.anl_thermochemistry_frequency_source = None
         self.elec = 1.
         self.freq = []  # frequencies calculated by the qc program
 

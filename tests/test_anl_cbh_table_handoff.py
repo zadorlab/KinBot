@@ -14,7 +14,8 @@ import pytest
 
 from kinbot import constants
 from kinbot.anl.atct import parse_atct_html
-from kinbot.anl.cbh import (CBHReaction, DEFAULT_METHOD_LADDER, HARTREE_TO_KJ_MOL,
+from kinbot.anl.cbh import (CBHReaction, DEFAULT_METHOD_LADDER, FormationEnthalpy,
+                            HARTREE_TO_KJ_MOL,
                             generate_cbh_reaction, select_cbh_ladder,
                             solve_formation_enthalpy)
 from kinbot.energy import ZeroKEnergy, attach_formation_enthalpy
@@ -155,14 +156,22 @@ def test_rounded_ethane_formation_is_handed_to_fake_mess(tmp_path, monkeypatch):
         'barrier_threshold': 100., 'high_level': 1,
         'allow_l2_without_conf': 1}))
     par = Parameters('input.json', show_warnings=False).par
+    writer = MESS(par, well)
     with patch.object(MESS, 'make_rotors', return_value='! L2 HIR fixture') as rotors:
-        MESS(par, well).write_input(None)
+        writer.write_input(None)
     # The writer still calls its L2 HIR path while using the accepted ANL E0.
     rotors.assert_called()
     output = Path('me/mess_0000.inp').read_text()
     assert '! L2 HIR fixture' in output
-    assert 'accepted ANL ladder' in output
+    assert 'CBH/ANL formation enthalpies and barriers' in output
     assert values(output, 'ZeroEnergy') == [0.]
+    partition_input = Path('me/partition_functions/123.inp').read_text()
+    assert '298.15' in partition_input
+    assert 'ZeroEnergy[kcal/mol]               0.0' in partition_input
+    assert '! L2 HIR fixture' in partition_input
+    runner = Path('me/partition_functions/run_messpf.sh')
+    assert runner.stat().st_mode & 0o111
+    assert 'KINBOT_MESSPF_COMMAND' in runner.read_text()
     sidecar = json.loads(Path('me/formation_0k.json').read_text())
     record = sidecar['species']['123']
     assert record['formation_0k_kj_mol'] / KCAL_TO_KJ == pytest.approx(-16.461)
@@ -170,6 +179,21 @@ def test_rounded_ethane_formation_is_handed_to_fake_mess(tmp_path, monkeypatch):
     assert record['method'] == 'ANL0-F12'
     assert record['cbh_rung'] == 0
     assert record['reference_ids']['C'] == '74-82-8*0'
+    pf_output = Path('me/partition_functions/123.dat')
+    rows = '\n'.join(
+        f'{temperature:.2f} 11.0 0.010 0.0 54.0 10.0'
+        for temperature in (200., 250., 298.15, 400., 600., 800., 1000.,
+                            1400., 1800., 2400., 3000.))
+    pf_output.write_text('''
+Natural log of the partition function, its derivatives, entropy, and thermal capacity:
+T, K       ethane       ethane       ethane       ethane       ethane
+                   Z_0          Z_1          Z_2 S, cal/mol/K C, cal/mol/K
+''' + rows + '\n')
+    thermo = writer.read_partition_function_outputs()
+    assert thermo['species']['123']['formation_0k_kj_mol'] == pytest.approx(
+        formation.formation_0k_kj_mol)
+    assert Path('me/thermochemistry_298.json').is_file()
+    assert thermo['species']['123']['nasa7']['format'] == 'NASA7'
 
 
 def test_direct_mess_network_accepts_per_species_ladder_fallback(tmp_path, monkeypatch):
@@ -186,10 +210,15 @@ def test_direct_mess_network_accepts_per_species_ladder_fallback(tmp_path, monke
     for item, energy, method in (
             (root, -75.99, 'ANL1-F12'),
             (product, -75.98, 'ANL0-F12'),
-            (ts, -75.95, 'L3:small-points')):
+            (ts, -75.95, 'ANL1-F12')):
         item.charge = 0
         item.final_zero_k_energy = ZeroKEnergy('O', energy, method,
                                               item.name + ':native-output')
+    for item, formation_kj in ((root, -100.), (product, -50.)):
+        final = item.final_zero_k_energy
+        attach_formation_enthalpy(item, FormationEnthalpy(
+            final.smiles, 0, final.method, 0., formation_kj, {}, 'test',
+            'fixture', {final.smiles: final.source}))
     root.mass = 18.
     reaction = SimpleNamespace(ts=ts, products=[product],
                                instance_name='saddle', do_vdW=False,
@@ -199,8 +228,54 @@ def test_direct_mess_network_accepts_per_species_ladder_fallback(tmp_path, monke
         MESS(par, root).write_input(None)
     output = Path('me/mess_0000.inp').read_text()
     assert sorted(values(output, 'ZeroEnergy')) == pytest.approx(
-        sorted([0., round(.01 * constants.AUtoKCAL, 2),
-                round(.04 * constants.AUtoKCAL, 2)]))
-    product.final_zero_k_energy = None
-    with pytest.raises(ValueError, match='every well'):
+        sorted([0., round(.04 * constants.AUtoKCAL, 2),
+                round(50. / KCAL_TO_KJ, 2)]))
+    # The product well is 50 kJ/mol above the root from Hf(0), independent of
+    # the different accepted electronic-energy ladder rung.
+    assert round(50. / KCAL_TO_KJ, 2) in values(output, 'ZeroEnergy')
+    product.formation_enthalpy_0k = None
+    with pytest.raises(ValueError, match='formation enthalpy'):
         MESS(par, root).write_input(None)
+
+
+def test_cbh_anl_homolytic_channel_uses_fragment_threshold_without_saddle(
+        tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    Path('me').mkdir()
+    Path('input.json').write_text(json.dumps({
+        'smiles': 'O', 'me': 0, 'uq': 0, 'rotor_scan': 0,
+        'multi_conf_tst': 0, 'epsilon': 100., 'sigma': 3.,
+        'barrier_threshold': 100., 'high_level': 1,
+        'allow_l2_without_conf': 1}))
+    par = Parameters('input.json', show_warnings=False).par
+    root, product_a, product_b = (point('water', 123), point('a', 789),
+                                  point('b', 790))
+    for item, energy, method, formation_kj in (
+            (root, -75.99, 'ANL1-F12', -100.),
+            (product_a, -37.1, 'ANL0-F12', -40.),
+            (product_b, -38.2, 'L3', -40.)):
+        item.charge = 0
+        item.final_zero_k_energy = ZeroKEnergy(
+            'O', energy, method, item.name + ':native-output')
+        attach_formation_enthalpy(item, FormationEnthalpy(
+            'O', 0, method, 0., formation_kj, {}, 'test', 'fixture',
+            {'O': item.final_zero_k_energy.source}))
+    root.mass = 18.
+    ts = point('unused_saddle', 456, True)
+    reaction = SimpleNamespace(
+        ts=ts, products=[product_a, product_b], instance_name='hom_sci_fixture',
+        do_vdW=False,
+        prod_opt=[SimpleNamespace(species=product_a),
+                  SimpleNamespace(species=product_b)], mp2=0)
+    root.reac_obj, root.reac_ts_done, root.reac_type = [reaction], [-1], ['hom_sci']
+    with patch.object(MESS, 'make_rotors', return_value=''):
+        MESS(par, root).write_input(None)
+    output = Path('me/mess_0000.inp').read_text()
+    assert '{blessname}' not in output
+    assert 'Barrier       bl_ts_1 w_1 b_1' in output
+    assert 'Barrier       ts_1 ' not in output
+    assert values(output, 'GroundEnergy') == [round(20. / KCAL_TO_KJ, 2)]
+    sidecar = json.loads(Path('me/formation_0k.json').read_text())
+    threshold = sidecar['barriers']['hom_sci_fixture']
+    assert threshold['kind'] == 'fragment_channel_threshold'
+    assert threshold['relative_0k_kj_mol'] == pytest.approx(20.)

@@ -11,6 +11,7 @@ from kinbot.anl.results import (
     parse_cfour_dboc, parse_gaussian_vpt2, parse_molpro_energy,
     parse_molpro_harmonic, validate_result_parser,
 )
+from kinbot.energy import attach_anharmonic_frequencies
 
 
 # The values and surrounding labels are from the completed Blodgett CH4 job.
@@ -115,6 +116,19 @@ frequencies,numerical
 
 _GAUSSIAN_VPT2 = """#p B3LYP/cc-pVTZ Opt=(Tight,CalcFC) Freq=Anharmonic NoSymm
  WARNING: Unreliable CUBIC force constant i= 2,j= 1,k= 4
+ Fundamental Bands
+ -----------------
+ Mode(n) Status      E(harm)   E(anharm)      I(harm)   I(anharm)
+    1(1) active      3153.44     3010.18        0.10       0.12
+ H  2(1) active      3152.19     3009.34        0.11       0.13
+    3(1) active      3151.55     3008.91        0.12       0.14
+    4(1) active      3033.49     2915.22        0.13       0.15
+    5(1) active      1570.88     1534.77        0.14       0.16
+    6(1) active      1570.56     1534.46        0.15       0.17
+    7(1) active      1344.76     1312.63        0.16       0.18
+    8(1) active      1343.90     1311.85        0.17       0.19
+    9(1) active      1343.29     1311.24        0.18       0.20
+ Overtones
  Anharmonic Zero Point Energy
  ----------------------------
  Harmonic       : cm-1 =  9783.68667 ; Kcal/mol =  27.973
@@ -170,6 +184,9 @@ def test_gaussian_vpt2_named_zpe_and_warnings():
     assert result['optimized_in_job'] is True
     assert result['review_required'] is True
     assert len(result['warnings']) == 1
+    assert len(result['anharmonic_fundamentals_cm_inverse']) == 9
+    assert result['harmonic_fundamentals_cm_inverse'][0] == pytest.approx(3153.44)
+    assert result['anharmonic_fundamentals_cm_inverse'][1] == pytest.approx(3009.34)
     with pytest.raises(ValueError, match='components disagree'):
         parse_gaussian_vpt2(_GAUSSIAN_VPT2.replace('9646.36482', '9600.36482'),
                              method='B3LYP', basis='cc-pVTZ')
@@ -190,6 +207,62 @@ def test_gaussian_vpt2_named_zpe_and_warnings():
     with pytest.raises(ValueError, match='dispersion'):
         parse_gaussian_vpt2(frequency_only, method='B2PLYP',
                              basis='cc-pVTZ')
+
+
+def test_gaussian_vpt2_fundamentals_are_an_explicit_mess_handoff():
+    clean = _GAUSSIAN_VPT2.replace(
+        ' WARNING: Unreliable CUBIC force constant i= 2,j= 1,k= 4\n', '')
+    result = parse_gaussian_vpt2(clean, method='B3LYP', basis='cc-pVTZ')
+    species = type('Species', (), {
+        'reduced_freqs': list(reversed(
+            result['harmonic_fundamentals_cm_inverse'])),
+        'anl_thermochemistry_frequencies': None,
+        'anl_thermochemistry_frequency_source': None,
+    })()
+    fundamentals = attach_anharmonic_frequencies(species, result)
+    assert fundamentals[0] == pytest.approx(1311.24)
+    assert fundamentals[-1] == pytest.approx(3010.18)
+    source = species.anl_thermochemistry_frequency_source
+    assert source['model'] == 'harmonic_plus_vpt2_mode_shifts'
+    assert source['method'] == 'B3LYP'
+    assert source['mode_map'] == list(range(9, 0, -1))
+    # A rotor-projected target can contain fewer modes; the unmatched VPT2
+    # mode is omitted rather than serialized alongside the hindered rotor.
+    species.reduced_freqs = species.reduced_freqs[1:]
+    assert len(attach_anharmonic_frequencies(species, result)) == 8
+    species.reduced_freqs = [5000.] * 10
+    with pytest.raises(ValueError, match='KinBot needs 10'):
+        attach_anharmonic_frequencies(species, result)
+    species.reduced_freqs = [5000.] * 9
+    with pytest.raises(ValueError, match='mode match exceeds'):
+        attach_anharmonic_frequencies(species, result)
+    with pytest.raises(ValueError, match='quality review'):
+        attach_anharmonic_frequencies(species, parse_gaussian_vpt2(
+            _GAUSSIAN_VPT2, method='B3LYP', basis='cc-pVTZ'))
+
+
+def test_gaussian_vpt2_rejects_incomplete_or_flags_nonpositive_fundamentals():
+    with pytest.raises(ValueError, match='not consecutive'):
+        parse_gaussian_vpt2(_GAUSSIAN_VPT2.replace('    9(1) active',
+                                                   '   10(1) active'),
+                            method='B3LYP', basis='cc-pVTZ')
+    result = parse_gaussian_vpt2(
+        _GAUSSIAN_VPT2.replace('1311.24', '-1.00'),
+        method='B3LYP', basis='cc-pVTZ')
+    assert result['review_required'] is True
+    assert 'Nonpositive anharmonic fundamental mode(s): 9' in result['warnings']
+
+
+def test_gaussian_linear_mode_labels_keep_degenerate_components():
+    linear = (_GAUSSIAN_VPT2
+              .replace('    5(1) active', '    5(1,-1) active')
+              .replace('    6(1) active', '    5(1,+1) active')
+              .replace('    7(1) active', '    6(1,-1) active')
+              .replace('    8(1) active', '    6(1,+1) active')
+              .replace('    9(1) active', '    7(1) active'))
+    result = parse_gaussian_vpt2(linear, method='B3LYP', basis='cc-pVTZ')
+    assert result['fundamental_mode_labels'][4:8] == [
+        '5(1,-1)', '5(1,+1)', '6(1,-1)', '6(1,+1)']
 
 
 def test_parser_declaration_must_match_method_and_input():

@@ -93,6 +93,10 @@ _COMPOSITE_DEFAULT_PRESET = {
     'ANL0': 'uma-b3lyp-anl-low',
     'ANL0-F12': 'uma-b3lyp-anl-low',
     'ANL1': 'uma-b2plyp-anl',
+    # ANL1-F12 is a ladder request used by the CBH workflow. Its exact
+    # electronic expression remains a separately provenance-labelled recipe;
+    # L1/L2 nevertheless use the higher B2PLYP surface.
+    'ANL1-F12': 'uma-b2plyp-anl',
     'ANL1-QZF': 'uma-b2plyp-anl',
 }
 

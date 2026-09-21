@@ -1,3 +1,2 @@
 cd ${{PBS_O_WORKDIR}}
-python {python_file} {arguments}
-
+{python_executable} {python_file} {arguments}

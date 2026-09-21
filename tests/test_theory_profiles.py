@@ -118,16 +118,42 @@ class TestTheoryProfiles(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'requires composite_method'):
             self.parameters(l3_overrides={'dboc': {'basis': 'cc-pVTZ'}})
 
-    def test_active_profiles_fail_closed_until_job_router_is_connected(self):
+    def test_active_profiles_route_l1_and_l2_without_loading_optional_codes(self):
         parameters = self.parameters(theory_preset='uma-b2plyp-anl',
                                      fc_model_path='/site/uma.pt')
-        with self.assertRaisesRegex(NotImplementedError, 'router'):
-            QuantumChemistry(parameters.par)
-        raw = dict(parameters.par, profiled_theory=0,
-                   l1_profile={'calculator': 'gaussian'})
-        with self.assertRaisesRegex(NotImplementedError, 'router'):
-            QuantumChemistry(raw)
+        qc = QuantumChemistry(parameters.par)
+        self.assertEqual(qc.qc, 'fc')
+        self.assertEqual(qc.l1.qc, 'fc')
+        self.assertEqual(qc.l2.qc, 'gauss')
+        self.assertTrue(qc.l2.use_sella)
+        self.assertEqual(qc.l2.qc_command, 'g16')
+        self.assertEqual(qc.l2.get_qc_arguments(
+            'job_high', 1, 0, 10, high_level=1)['method'], 'B2PLYP')
+        self.assertEqual(qc.l2.par['calc_kwargs']['EmpiricalDispersion'],
+                         'GD3BJ')
         self.assertFalse(Path('kinbot.db').exists())
+
+    def test_profiled_job_routes_and_scheduler_ids_survive_restart(self):
+        parameters = self.parameters(theory_preset='uma-b2plyp-anl',
+                                     fc_model_path='uma-s-1p2')
+        qc = QuantumChemistry(parameters.par)
+        qc._record('conf/a', 'l1', '123')
+        qc._record('a_well_high', 'l2', '456')
+        restarted = QuantumChemistry(parameters.par)
+        self.assertIs(restarted._backend_for('conf/a'), restarted.l1)
+        self.assertIs(restarted._backend_for('a_well_high'), restarted.l2)
+        self.assertEqual(restarted.l1.job_ids['conf/a'], '123')
+        self.assertEqual(restarted.l2.job_ids['a_well_high'], '456')
+        self.assertEqual(restarted.job_ids['a_well_high'], '456')
+        restarted._clear_job_id('a_well_high')
+        final = QuantumChemistry(parameters.par)
+        self.assertNotIn('a_well_high', final.job_ids)
+        self.assertNotIn('a_well_high', final.l2.job_ids)
+
+    def test_anl1_f12_ladder_request_selects_higher_l2_surface(self):
+        parameters = self.parameters(composite_method='ANL1-F12',
+                                     fc_model_path='uma-s-1p2')
+        self.assertEqual(parameters.theory_profiles['l2'].method, 'B2PLYP')
 
 
 class TestCalculatorFactory(unittest.TestCase):

@@ -3,6 +3,7 @@ import sys
 import subprocess
 import logging
 import re
+import shlex
 import time
 from datetime import datetime
 import copy
@@ -30,11 +31,14 @@ class QuantumChemistry:
     the jobs for success or failure
     '''
 
+    def __new__(cls, par=None):
+        """Select the opt-in L1/L2 router without changing legacy inputs."""
+        if cls is QuantumChemistry and par is not None and profiled_requested(par):
+            from kinbot.profiled_qc import ProfiledQuantumChemistry
+            return ProfiledQuantumChemistry(par)
+        return super().__new__(cls)
+
     def __init__(self, par):
-        if profiled_requested(par):
-            raise NotImplementedError(
-                'Profiled theory configuration is available, but its ASE job '
-                'router is not implemented yet. No legacy QC job was submitted.')
         self.par = par
         self.qc = par['qc'].lower()
         self.method = par['method']
@@ -1109,10 +1113,12 @@ class QuantumChemistry:
 
         if self.queuing == 'pbs':
             job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name,
-                                               errdir='perm', python_file=python_file, arguments='')
+                                               errdir='perm', python_file=python_file, arguments='',
+                                               python_executable=shlex.quote(sys.executable))
         elif self.queuing == 'slurm':
             job_template = job_template.format(name=job, ppn=max(1, nproc), queue_name=self.queue_name, errdir='perm',
-                                               slurm_feature=self.slurm_feature, python_file=python_file, arguments='')
+                                               slurm_feature=self.slurm_feature, python_file=python_file, arguments='',
+                                               python_executable=shlex.quote(sys.executable))
         else:
             logger.error('KinBot does not recognize queuing system {}.'.format(self.queuing))
             logger.error('Exiting')

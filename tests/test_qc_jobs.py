@@ -4,6 +4,8 @@ import ast
 import json
 import os
 from pathlib import Path
+import shlex
+import sys
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
@@ -51,9 +53,26 @@ class TestSchedulerJobs(unittest.TestCase):
                 script = Path('test_job.pbs').read_text()
                 self.assertIn(f'nodes=1:ppn={expected}', script)
                 self.assertIn(f'OMP_NUM_THREADS={expected}', script)
+                self.assertIn(
+                    f'{shlex.quote(sys.executable)} test_job.py', script)
                 self.assertEqual(qc.job_ids, {'test_job': '123'})
                 self.assertEqual(result, 1)
                 self.assertEqual(submit.call_args.args[0], ['qsub', 'test_job.pbs'])
+
+    def test_slurm_uses_partition_and_submitting_python(self):
+        qc = SimpleNamespace(
+            check_qc=lambda job: 0, queue_job_limit=0,
+            par={'queue_template': ''}, queuing='slurm', qc='fc',
+            queue_name='day-long-cpu', slurm_feature='', job_ids={},
+        )
+        process = Mock()
+        process.communicate.return_value = (b'Submitted batch job 123\n', b'')
+        with patch('kinbot.qc.subprocess.Popen', return_value=process):
+            QuantumChemistry.submit_qc(qc, 'test_job', 8)
+        script = Path('test_job.sbatch').read_text()
+        self.assertIn('#SBATCH --partition=day-long-cpu', script)
+        self.assertNotIn('#SBATCH -q ', script)
+        self.assertIn(f'{shlex.quote(sys.executable)} test_job.py', script)
 
 
 class TestVRCJobs(unittest.TestCase):

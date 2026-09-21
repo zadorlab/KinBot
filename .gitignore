@@ -7,3 +7,4 @@ dist
 *.ipynb
 .venv/
 .pytest_cache/
+.mpl-cache/

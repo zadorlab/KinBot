@@ -4596,3 +4596,41 @@ sets, temperature limits, anchors, and Cp root-mean-square errors. This is an
 internal PAC99-compatible fit that still needs comparison against PAC99 before
 it is treated as a replacement for that program. Hf(0) remains the kinetic
 MESS energy anchor; Hf(298) anchors the thermochemical fit.
+
+---
+
+# 93. Full workflow audit and first profiled external-site test (2026-09-20)
+
+A full pass found that theory profiles could be parsed but could not execute:
+`QuantumChemistry` deliberately raised `NotImplementedError`. The opt-in
+`ProfiledQuantumChemistry` router now creates independent legacy backends,
+uses FairChem UMA for L1 reaction/conformer work, sends accepted stationary
+points and hindered rotors to the selected Gaussian L2 surface, and persists
+the backend plus scheduler ID for every job. Legacy inputs still construct the
+original `QuantumChemistry` class. Scheduler scripts now use Slurm
+`--partition` and the exact Python interpreter that submitted the job, which
+is required for FairChem installed in a repository-local environment.
+
+The first external-site example is
+`examples/anl/ethane_profiled_hpc`. It performs a restricted ethane C-C homolysis
+search with conformer processing at UMA L1, B2PLYP-D3(BJ)/cc-pVTZ L2
+refinement and hindered rotors, then exports the accepted parent L2 record to
+a general non-MRCC interface graph. That graph runs the Molpro
+CCSD(T)/cc-pVTZ ASE/Sella geometry first and releases Molpro harmonic/F12/DZ,
+CFOUR DBOC, and frequency-only Gaussian VPT2 nodes concurrently under the
+user's node cap. All dispatcher nodes are exclusive and Molpro ranks are
+bounded by both per-rank memory and method scaling caps.
+
+This is not yet the requested production ANL1-F12/CBH/MESS test. Its required
+terminal label is `interface_complete_recipe_incomplete`. The branch has no
+citable canonical `ANL1-F12` equation; MRCC and its CCSDTQ(P)/DZ increment are
+disabled; core-valence, scalar-relativistic, state-specific spin-orbit, and
+closed-shell higher-order providers are not all connected; and L3 graph
+creation is not yet automatic for every accepted well/product/TS. The next
+implementation step is to complete those providers and attach the dispatcher
+at the stationary-point acceptance boundary, then run CBH/ATcT assembly and
+the existing ANL MESS handoff for every network state. A stationary-TS/IRC
+restart test is required after the ethane interface run.
+
+The exact install, pull, run, restart, and acceptance procedure is in
+`docs/ANL_full_HPC_validation.md`.

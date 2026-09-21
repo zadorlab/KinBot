@@ -30,6 +30,15 @@ def _write_spec(directory, spec):
     return path
 
 
+def test_prepare_accepts_an_in_memory_workflow():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(dispatch_spec(), root / 'run')
+        saved = json.loads((run_dir / 'workflow.json').read_text())
+        assert saved['schema'] == 1
+        assert saved['name'] == 'synthetic-qc-dispatch'
+
+
 def _mock_execution(run_dir, ident, *, geometry=None):
     task_dir = Path(run_dir) / 'tasks' / ident
     task = json.loads((task_dir / 'task.json').read_text())

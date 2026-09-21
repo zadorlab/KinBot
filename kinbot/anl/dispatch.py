@@ -513,7 +513,10 @@ def _stage_task(run_dir, spec, state, task):
 
 
 def prepare(spec_path, run_dir):
-    spec = json.loads(Path(spec_path).read_text())
+    if isinstance(spec_path, dict):
+        spec = deepcopy(spec_path)
+    else:
+        spec = json.loads(Path(spec_path).read_text())
     assign_partitions(spec)
     validate_spec(spec)
     programs_by_backend = {}

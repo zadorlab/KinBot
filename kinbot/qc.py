@@ -1440,6 +1440,27 @@ class QuantumChemistry:
 
         return 1
 
+    def ingest_pkl(self, job, max_wait=60):
+        '''
+        Loads the {job}.pkl handoff written by a finished compute job.
+        Returns the unpickled dict, or None if the file is not there.
+        The file can disappear at any moment (the job's own start-up removes
+        stale pkls, another driver may ingest it, NFS may lag), so a missing
+        file is never an error here. A partially written file is retried
+        for up to max_wait seconds, then skipped with a warning.
+        '''
+        for _ in range(max_wait):
+            try:
+                with open(f'{job}.pkl', 'rb') as f:
+                    return pickle.load(f)
+            except FileNotFoundError:
+                return None
+            except (EOFError, pickle.UnpicklingError):
+                time.sleep(1)  # still being written
+        logger.warning(f'{job}.pkl could not be read after {max_wait} s, '
+                       'skipping it.')
+        return None
+
     def check_qc(self, job):
         '''
         Checks the status of the qc job.
@@ -1450,39 +1471,30 @@ class QuantumChemistry:
         0 - job is not in the db or log file is not there with a done stamp or both.
             ==> this one resets the step number to 0
         '''
-        
-        if os.path.exists(f'{job}.pkl'):
-            while True:
-                try:
-                    with open(f'{job}.pkl', 'rb') as f:
-                        loaded_data = pickle.load(f)
-                    break
-                except (EOFError, pickle.UnpicklingError):
-                    time.sleep(1)
 
+        loaded_data = self.ingest_pkl(job)
+        if loaded_data is not None:
             mol = Atoms(symbols=loaded_data['sym'], positions=loaded_data['pos'])
             name = loaded_data['name']
             data = loaded_data['data']
-            rows = self.db.select(name=name)
-            count0 = 0
-            for row in rows:
-                count0 += 1
+            count0 = sum(1 for _ in self.db.select(name=name))
             self.db.write(mol, name=name, data=data)
-            rows = self.db.select(name=name)
-            while True:
-                count1 = 0
-                for row in rows:
-                    count1 += 1
-                if count1 != count0 + 1:
-                    time.sleep(1)
-                else:
+            # wait for the row to become visible, but do not hang forever
+            for _ in range(60):
+                count1 = sum(1 for _ in self.db.select(name=name))
+                if count1 == count0 + 1:
                     break
-            os.remove(f'{job}.pkl')
-            while True:
-                if os.path.exists(f'{job}.pkl'):
-                    time.sleep(1)
-                else:
-                    break
+                time.sleep(1)
+            else:
+                logger.warning(f'Row for {name} was not visible in kinbot.db '
+                               '60 s after writing it.')
+            # the pkl is a one-way handoff from the job, not needed after this
+            # it may already be gone: the job's own start-up removes stale pkls,
+            # a previous driver may have ingested it, or the filesystem lags
+            try:
+                os.remove(f'{job}.pkl')
+            except FileNotFoundError:
+                pass
 
         logger.debug('Checking job {}'.format(job))
         devnull = open(os.devnull, 'w')

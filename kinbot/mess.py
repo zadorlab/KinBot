@@ -1200,50 +1200,9 @@ class MESS:
         return mess_barrier, zeroenergy 
 
     def run(self):
-        """
-        Submit the pbs/slurm file to the queue
-        wait for the mess run to finish
-        """
-
-        pids = []  # list of job pids
-
-        batch_list = ''
-        uq_iter = 0
-        pid_stats = []
-        for uq_iter in range(self.par['uq_n']):
-            if self.par["queuing"] == 'local':
-                return 0
-            submitscript = f'me/run_mess_{str(uq_iter).zfill(4)}{constants.qext[self.par["queuing"]]}'
-            self.write_submitscript(submitscript, uq_iter)
-            batch_list += f'sbatch {submitscript}\n'
-            if not self.par['run_me']:
-                continue
-            while len(pids) > self.par['uq_max_runs']:
-                time.sleep(5)
-                for pid in pids:
-                    stati = self.check_running(pid)
-                    if stati == 0:
-                        pids.remove(pid)
-                        pid_stats.append(stati)
-            
-            pid = self.submit(submitscript)
-            pids.append(pid)
-
-            if self.par['uq_n'] < self.par['uq_max_runs']:
-                stati = 1
-                while stati != 0:
-                    stati = self.check_running(pid)
-                    time.sleep(5)
-                pid_stats.append(stati)
-        
-        # for manual submission
-        batch_me = 'batch_me.sub'
-        with open(batch_me, 'w') as f:
-            f.write(batch_list)
-        os.chmod(batch_me, stat.S_IRWXU)
-
-        if all(stati == 0 for s in pid_stats):
-            return 0
+        """Wait for requested MESS calculations and raise on unsuccessful rates."""
+        from kinbot.mess_execution import run_mess
+        return run_mess(self)
 
     def write_submitscript(self, submitscript, uq_iter):
         """
@@ -1262,39 +1221,20 @@ class MESS:
             tpl = f.read()
 
         with open(submitscript, 'w') as f:
-            mess_iter = "{0:04d}".format(uq_iter)
+            mess_iter = f"{uq_iter:04d}" if isinstance(uq_iter, int) else uq_iter
             if self.par['queue_template'] == '':
                 if self.par['queuing'] == 'pbs':
-                    f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me'))
+                    f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me'))
                     f.write((tpl).format(n=mess_iter))
                 elif self.par['queuing'] == 'slurm':
-                    f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
+                    f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
                     f.write((tpl).format(n=mess_iter))
             else:
-                f.write((tpl_head).format(name='mess', ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
+                f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
                 f.write((tpl).format(n=mess_iter))
         return 0
 
-    def submit(self, submitscript):
-        command = [constants.qsubmit[self.par['queuing']], submitscript]
-        process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = process.communicate()
-        out = out.decode()
-        if self.par['queuing'] == 'pbs':
-            pid = out.split('\n')[0].split('.')[0]
-        elif self.par['queuing'] == 'slurm':
-            pid = out.split('\n')[0].split()[-1]
-        return pid
 
-    def check_running(self, pid):
-        devnull = open(os.devnull, 'w')
-        if self.par['queuing'] == 'pbs':
-            command = 'qstat -f | grep ' + '"Job Id: ' + pid + '"' + ' > /dev/null'
-        elif self.par['queuing'] == 'slurm':
-            command = 'scontrol show job ' + pid + ' | grep "JobId=' + pid + '"' + ' > /dev/null'
- 
-        stat = int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull))
-        return stat
 
     def rotor_geom(self, species, geom=None, freqs=None):
         """Geometry block for a rigid-rotor species.

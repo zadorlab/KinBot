@@ -47,6 +47,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+stereo = ["rdkit"]
 bimol = [
     "kinbot[fc]"
 ]

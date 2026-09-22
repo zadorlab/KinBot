@@ -1,5 +1,109 @@
 # Unreleased
 
+## Stereochemistry and symmetry
+
+**Keep configured stereoisomers separate throughout a calculation.**
+KinBot keeps `chemid` as its connectivity identifier. A stereochemical
+identifier distinguishes configured tetrahedral centers and double bonds.
+Ordinary species keep their existing calculation names. Configured species use
+different names for QC jobs, saved results, reused objects, and direct/PES output.
+The same comparison checks IRC endpoints and fixed configurations during
+conformer searches.
+
+Install `kinbot[stereo]` to get RDKit and use the full set of features.
+Unsupported assignments use the available legacy treatment with a warning.
+This fallback does not establish the missing stereochemistry.
+
+**Select the optical population.**
+`optical_population` accepts `specified` (the default) or `racemic`.
+The first option keeps the specified configuration. The second includes its
+whole-molecule mirror. It does not request all possible diastereomers.
+Both reaction endpoints constrain the allowed TS optical population.
+`stereo_reference` keeps the requested configuration in generated PES inputs.
+`stereo_legacy_inputs` identifies saved inputs that permit reuse of old job names.
+KinBot checks the saved structure before it reuses those names.
+
+**Keep different stereochemical reaction pathways.**
+Virtual substitution distinguishes homotopic, enantiotopic, and diastereotopic
+sites in the related reaction motifs. It does not change the atoms sent to QC.
+The checks include heavy atoms and reactions with several reacting sites.
+Forming and breaking bonds distinguish reacting atoms from spectator atoms.
+Global atom-equivalence groups remain unchanged.
+Direct MESS and PES output keep different stereochemical pathways, also
+when `lowestpath` is selected. Repeated observations within one pathway still
+use the existing lowest-barrier selection. A MESS Union adds the different
+pathway contributions without requiring MC-TST.
+
+**Use the symmetry and properties of each conformer.**
+Each selected conformer keeps its geometry, electronic energy, ZPE, frequencies,
+Hessian when available, calculation source, and status together.
+MC population filtering uses each conformer's rotational and optical weights.
+MESS then uses those same weights. Comparisons allow equivalent atom
+permutations and proper rotations, so the same conformer is not counted twice.
+Explicit mirror pairs receive no additional optical multiplier.
+Conflicting numerical observations produce warnings. They do not require the
+whole calculation to stop. MC-TST continues to disable HIR scans.
+
+**Keep the graph-based rotational (external) symmetry rules with limited corrections.**
+Fixed stereochemistry prevents exchanges between incompatible configurations.
+Pyramidal XY3 has a threefold rotational contribution. Planar XY3 has sixfold.
+
+A departing atom is distinguished from the spectator atoms when rotor (internal)
+symmetry is calculated.
+
+**Apply one optical-counting method to harmonic, HIR, and MC models.**
+The method compares local molecular parts and accounts for the active rotor
+bonds to assign optical symmetry factors. 
+The local geometric RMSD tolerance to identify optical isomers is 0.1 angstrom. 
+Existing HIR scans are used to establish mirror coverage.
+If a HIR model already includes both mirrors, KinBot adds no second factor of
+two. If an allowed mirror is clearly absent, its contribution is included.
+
+For unresolved comparisons within the allowed optical population, KinBot uses
+the selected calculation's Hessian to estimate the stable-mode harmonic energy
+at an aligned mirror midpoint. Each MC conformer uses its own Hessian.
+The optical factor is one for
+an estimate at or below 4 kcal/mol, and two above that value.
+This is an approximation. The estimate is not a calculated inversion barrier.
+If the necessary data remain unavailable, KinBot uses factor one with a warning.
+`optical_factor_assumptions` permits an explicit factor of one or two for a
+named structure, with a necessary written reason.
+
+**Record HIR evidence and recover incompatible scans.**
+Shared records contain units, calculation sources, raw and projected
+frequencies, rotor axes, symmetry numbers, scan angles, energies, and point
+statuses.
+If saved scan definitions no longer match the selected structure, KinBot first
+tries scan recovery. If recovery fails, it removes HIR and restores the full
+harmonic frequencies with a warning. It keeps the old calculation files.
+The initial L1 result is loaded completely when no later optimization replaces
+it. Reused product calculations keep the accepted structure and its properties.
+
+**Separate disconnected well networks.**
+KinBot follows reactions between bound wells from each requested reactant.
+Separated-product channels are exits. A shared product does not connect two
+otherwise disconnected well networks. Each requested disconnected network gets
+its own MESS input and output. For example, this prevents specified R-butanol from acquiring
+an unrelated S-butanol network through a common product.
+
+**Complete MESS jobs before reporting their result.**
+Local, Slurm, and PBS execution waits for the requested calculations to finish.
+KinBot checks the exit result and newly written output. Solver failure is
+reported separately from successful reaction generation. Inputs without an
+accepted reaction network remain available for inspection, but are not run.
+
+**Narrow bug fixes and reaction examples.**
+The initial species reconstruction keeps its checked frequencies. Input-only
+MESS writing converts collision-energy units in the same way as normal writing.
+Three-fragment product names agree with each other through PES assembly.
+Long configured names use bounded file names for MESS intermediates.
+Four peroxy H-transfer inputs compare diastereotopic pathways with an achiral
+control, using HIR or MC-RRHO. Their collision parameters are illustrative.
+Tests include saved methanol, peroxy, pyramidal, and loose-TS structures.
+
+The new stereochemical rate counting targets MESS. MESMER receives the same
+species names but does not implement the new pathway and optical sums.
+
 **Native Q-Chem constraints are written correctly (#67).** The six Q-Chem job
 templates imported ASE's stock `QChem` calculator, which knows nothing about
 KinBot's `addsec` keyword and wrote it into `$rem` as `ADDSEC $OPT ...`,

@@ -105,6 +105,7 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 * Amanda Dewyer
 * Carles Martí
 * Clément Soulié (csoulie@sandia.gov)
+* Luka Dockx
 
 ## Papers using KinBot
 1.	Kendall, D. T., Zádor J.: _Benchmarking the UMA foundation interatomic potential for gas-phase chemical kinetics_ J. Phys. Chem. A, **2026**, 130, 4450-4468. https://pubs.acs.org/doi/10.1021/acs.jpca.6c01748

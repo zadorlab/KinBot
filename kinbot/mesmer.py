@@ -1,3 +1,4 @@
+from kinbot.species_routing import routing_key, routing_name
 import os
 import subprocess
 import time
@@ -6,6 +7,7 @@ import xml.dom.minidom as minidom
 
 from kinbot import kb_path
 from kinbot import constants
+from kinbot import frequencies
 
 
 class MESMER:
@@ -25,7 +27,7 @@ class MESMER:
         ts_unique = {}  # key: ts name, value: [prod_name, energy]
         for index, reaction in enumerate(self.species.reac_obj):
             if self.species.reac_ts_done[index] == -1:
-                prod_name = '_'.join([str(pi.chemid) for pi in reaction.products])
+                prod_name = '_'.join([routing_name(pi) for pi in reaction.products])
                 energy = reaction.ts.energy
                 new = 1
                 remove = []
@@ -47,12 +49,12 @@ class MESMER:
                            'xmlns:me': 'http://www.chem.leeds.ac.uk/mesmer',
                            'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance'})
 
-        ET.SubElement(root, 'me:title').text = str(self.species.chemid)
+        ET.SubElement(root, 'me:title').text = routing_name(self.species)
         mollist = ET.SubElement(root, 'moleculeList')
         reaclist = ET.SubElement(root, 'reactionList')
 
         # write the mess input for the different blocks
-        wells = [self.species.chemid]
+        wells = [routing_key(self.species)]
 
         # write the initial reactant
         well0_energy = self.species.energy - self.species.zpe
@@ -78,12 +80,12 @@ class MESMER:
                     st_pt = st_pt_opt.species
                     prod_energy = st_pt_opt.species.energy
                     prod_energy += st_pt_opt.species.zpe
-                    if st_pt.chemid not in wells:
+                    if routing_key(st_pt) not in wells:
                         energy = 0.
                         if st_pt.chemid == max_natom_chemid:
                             energy = prod_energy
                         self.write_well(st_pt, mollist, prod_energy)
-                        wells.append(st_pt.chemid)
+                        wells.append(routing_key(st_pt))
                 self.write_barrier(reaction, mollist, reaclist)
 
         # add a bath gas molecule
@@ -134,7 +136,7 @@ class MESMER:
         """
         Create the block for MESS for a well.
         """
-        molecule = ET.SubElement(mollist, 'molecule', {'id': str(species.chemid)})
+        molecule = ET.SubElement(mollist, 'molecule', {'id': routing_name(species)})
         atomarray = ET.SubElement(molecule, 'atomArray')
         for i, at in enumerate(species.atom):
             args = {'id': 'a{}'.format(i+1)}
@@ -215,16 +217,16 @@ class MESMER:
 
         # add the reactant refs
         reactant = ET.SubElement(rxn, 'reactant')
-        ET.SubElement(reactant, 'molecule', {'ref': str(self.species.chemid), 'role': 'modelled'})
+        ET.SubElement(reactant, 'molecule', {'ref': routing_name(self.species), 'role': 'modelled'})
 
         # add the product refs
         if len(reaction.products) == 1:
             product = ET.SubElement(rxn, 'product')
-            ET.SubElement(product, 'molecule', {'ref': str(reaction.products[0].chemid), 'role': 'modelled'})
+            ET.SubElement(product, 'molecule', {'ref': routing_name(reaction.products[0]), 'role': 'modelled'})
         else:
             for st_pt in reaction.products:
                 product = ET.SubElement(rxn, 'product')
-                ET.SubElement(product, 'molecule', {'ref': str(st_pt.chemid), 'role': 'sink'})
+                ET.SubElement(product, 'molecule', {'ref': routing_name(st_pt), 'role': 'sink'})
 
         # add the transition state ref
         ts = ET.SubElement(rxn, 'me:transitionState')
@@ -359,6 +361,3 @@ class MESMER:
             else:
                 break
         return 0
-
-
-

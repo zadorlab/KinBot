@@ -16,6 +16,7 @@ from kinbot.stereo_identity import canonical_identity
 
 _KEY = re.compile(r'^(\d+)(?:-s([0-9a-f]{64}))?$')
 _JOB = re.compile(r'(^|/)(\d+-s[0-9a-f]{64})(?=_|$)')
+_MOTIF = re.compile(r'_m\d+(?:-\d+)*(?=_|$)')
 
 
 def routing_key(species):
@@ -65,9 +66,13 @@ def is_species_name(name):
 
 
 def matches_name(name, choices):
-    """Honor legacy connectivity selectors as well as exact configured names."""
+    """Honor connectivity/configured selectors and unsplit reaction names.
+
+    Removing a motif suffix is for selection only, never for QC result reuse.
+    """
     legacy = _JOB.sub(lambda match: match.group(1) + match.group(2).split('-s')[0], str(name))
-    return str(name) in choices or legacy in choices
+    return any(candidate in choices for value in (str(name), legacy)
+               for candidate in (value, _MOTIF.sub('', value)))
 
 
 def configured_selection(mapping, species, default=None):

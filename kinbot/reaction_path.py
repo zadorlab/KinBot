@@ -17,6 +17,10 @@ from kinbot.stereochemistry import (refine_equivalence_group, virtually_labelled
                                     configuration_erased_graph)
 
 
+class StereoAssignmentUnavailable(ValueError):
+    """A demonstrated pathway split lacks a supported stereo assignment."""
+
+
 def endpoint_snapshot(species):
     """Retain the IRC graph/order before product reuse or optimization changes it."""
     from kinbot.stationary_pt import StationaryPoint
@@ -72,7 +76,7 @@ def _tagged_pair(species, geom):
         identities = [canonical_identity(virtually_labelled(endpoint, roles), geom)
                       for endpoint in endpoints]
         if any(item['status'] != 'assigned' for item in identities):
-            raise ValueError('Cannot assign a demonstrated joint stereochemical pathway.')
+            raise StereoAssignmentUnavailable('Cannot assign a demonstrated joint stereochemical pathway.')
         return (tuple(sorted(item['id'] for item in identities)),
                 tuple(sorted(item['mirror_id'] for item in identities)))
     atoms = getattr(species, 'stereopath_atoms', None)
@@ -84,8 +88,8 @@ def _tagged_pair(species, geom):
         identities = [canonical_identity(endpoint, geom, tagged_atom=atom)
                       for endpoint in endpoints]
         if any(identity['status'] != 'assigned' for identity in identities):
-            raise ValueError('Cannot assign a demonstrated stereochemical pathway. '
-                             'A supported canonical stereo assignment is required.')
+            raise StereoAssignmentUnavailable('Cannot assign a demonstrated stereochemical pathway. '
+                                              'A supported canonical stereo assignment is required.')
         pairs.append(tuple(sorted(identity['id'] for identity in identities)))
         mirrors.append(tuple(sorted(identity['mirror_id'] for identity in identities)))
     # Preserve the original single-transfer class convention.
@@ -160,6 +164,11 @@ def prepare_stereopath(ts, reactant, product):
     roles = _reaction_roles(reactant, product, changed)
     joint = len(split_atoms) > 1 or _has_joint_stereo_split((reactant, product), roles)
     if not split_atoms and not joint:
+        from kinbot.stereo_identity import legacy_stereo_warning
+        for side in ts.ts_endpoint_identities:
+            for identity in side:
+                if identity['status'] != 'assigned':
+                    legacy_stereo_warning(ts, identity.get('reason'))
         # An examined ordinary path is not missing legacy classification.
         # All ordinary routes retain one lowest-barrier class per endpoint pair.
         ts.stereopath_id = 'ordinary'

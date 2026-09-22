@@ -11,21 +11,27 @@ import numpy as np
 from kinbot.calculation import array_fingerprint
 
 
-def hessian_record(qc, job, geometry, atoms):
-    """Read this conformer's existing Hessian, without scheduling a calculation."""
+def hessian_record(qc, job, geometry, atoms, *, row=None):
+    """Read an existing Hessian; a supplied row uses only its stored matrix."""
     try:
-        from kinbot.species_routing import resolve_job
-        rows = list(qc.db.select(name=resolve_job(qc.db, job)))
-        if not rows:
-            return {}
-        row = rows[-1]
+        stored_only = row is not None
+        if row is None:
+            from kinbot.species_routing import resolve_job
+            rows = list(qc.db.select(name=resolve_job(qc.db, job)))
+            if not rows:
+                return {}
+            row = rows[-1]
         if (list(row.symbols) != list(atoms)
                 or not np.allclose(row.positions, geometry, rtol=0., atol=1.e-8)):
             return {}
-        hess = np.asarray(qc.read_qc_hess(job, len(atoms)), dtype=float)
+        hess = np.asarray(row.data.get('hess', []) if stored_only
+                          else qc.read_qc_hess(job, len(atoms)), dtype=float)
         if hess.shape != (3 * len(atoms), 3 * len(atoms)) or not np.all(np.isfinite(hess)):
             return {}
-        weighted = qc.hessian_is_massweighted()
+        # KinBot stores calc_vibrations Cartesian Hessians in database rows.
+        # Native Q-Chem's weighted matrix comes from its output parser instead;
+        # the current backend setting must not relabel a stored Sella matrix.
+        weighted = False if stored_only else qc.hessian_is_massweighted()
         if not isinstance(weighted, (bool, np.bool_)):
             return {}
         reference = dict(source_job=job, source_row_id=row.id,

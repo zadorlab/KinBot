@@ -1,3 +1,4 @@
+from kinbot.species_routing import resolve_job, routed_qc_job
 import numpy as np
 import os
 import logging
@@ -6,6 +7,7 @@ from shutil import copyfile
 from kinbot.utils import plain_symbols, plain_geometry
 from kinbot import kb_path
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.stereo_identity import canonical_identity, identity_matches
 
 logger = logging.getLogger('KinBot')
 
@@ -40,6 +42,8 @@ class IRC:
         ini_well_hits = 0
         prod_hit = None
         st_pts = [None, None]
+        reference_identity = (canonical_identity(self.rxn.species)
+                              if not self.par['bimol'] else None)
         for i, direction in enumerate(directions):
             irc_name = '{}_IRC_{}_prod'.format(instance_name, direction[0])
             err, geom = self.rxn.qc.get_qc_geom(irc_name,
@@ -74,7 +78,14 @@ class IRC:
                     else:
                         prod_hit = i
             else:
-                if temp.chemid == self.rxn.species.chemid and all(temp.chiral[at] == self.rxn.species.chiral[at] for at in range(self.rxn.species.natom)):
+                matches = identity_matches(reference_identity, canonical_identity(temp),
+                                           self.par.get('optical_population', 'specified'))
+                if matches is None:
+                    # Preserve legacy connectivity/chirality handling outside
+                    # the supported configured-identity scope.
+                    matches = (temp.chemid == self.rxn.species.chemid and
+                               np.array_equal(temp.chiral, self.rxn.species.chiral))
+                if matches:
                     ini_well_hits += 1
                 else:
                     prod_hit = i  # this leaves the possibility of a chirality changing reaction
@@ -124,6 +135,8 @@ class IRC:
         directions = ['Forward', 'Reverse']
         for direction in directions:
             irc_name = '{}_IRC_{}'.format(instance_name, direction[0])
+            if routed_qc_job(self.rxn.qc, self.rxn.species, irc_name) != irc_name:
+                continue  # Read the verified legacy IRC through its alias.
 
             # This boolean is false if the checkpoint file is available
             # and true if no checkpoint file is found.
@@ -135,8 +148,8 @@ class IRC:
                 code = 'gaussian'  # Sella
                 Code = 'Gaussian'  # Sella
                 # copy the chk file
-                if os.path.exists(instance_name + '.chk'):
-                    copyfile(instance_name + '.chk', irc_name + '.chk')
+                if os.path.exists(resolve_job(self.rxn.qc.db, instance_name) + '.chk'):
+                    copyfile(resolve_job(self.rxn.qc.db, instance_name) + '.chk', irc_name + '.chk')
                 else:
                     start_from_geometry = 1
             elif self.rxn.qc.qc == 'nwchem':

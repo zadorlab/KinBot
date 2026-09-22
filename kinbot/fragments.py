@@ -1,3 +1,4 @@
+from kinbot.species_routing import routing_name, resolve_job, connect
 import os
 from typing import Any
 from kinbot import kb_path
@@ -245,8 +246,8 @@ class Fragment(StationaryPoint):
         # Find the orientation of the pivot point from the orbital analysis
         # Requires the generation of a gaussian cubefile
         # elif self.par['pp_orient'] == 'homo':
-        #     if os.path.isfile(f'{self.parent}/vrctst/{self.chemid}_vts.cube'):
-        #         with open(f'{self.parent}/vrctst/{self.chemid}_vts.cube', 'r') as f:
+        #     if os.path.isfile(f'{self.parent}/vrctst/{routing_name(self)}_vts.cube'):
+        #         with open(f'{self.parent}/vrctst/{routing_name(self)}_vts.cube', 'r') as f:
         #             cubefile: list[str] = f.readlines()
         #     else:
         #         raise TypeError('HOMO mode selected for pivot point orientation, but cubefile is not available.')
@@ -549,8 +550,11 @@ class Fragment(StationaryPoint):
     def pp_from_homo(self,
                      index: int
                      ) -> NDArray[float32]:
-        if os.path.isfile(f'{self.parent}/vrctst/{self.chemid}_vts.cube'):
-            with open(f'{self.parent}/vrctst/{self.chemid}_vts.cube', 'r') as f:
+        cube_job = f'vrctst/{routing_name(self)}_vts'
+        if os.path.isfile(f'{self.parent}/kinbot.db'):
+            cube_job = resolve_job(connect(f'{self.parent}/kinbot.db'), cube_job)
+        if os.path.isfile(f'{self.parent}/{cube_job}.cube'):
+            with open(f'{self.parent}/{cube_job}.cube', 'r') as f:
                 cubefile: list[str] = f.readlines()
         else:
             raise TypeError('HOMO mode selected for pivot point orientation, but cubefile is not available.')

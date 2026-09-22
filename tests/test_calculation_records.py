@@ -26,14 +26,15 @@ class TestCalculationRecords(unittest.TestCase):
         self.assertEqual((energy, zpe), (-10., .02))
 
     def test_selected_record_replaces_all_parent_properties_together(self):
-        row = SimpleNamespace(name='conformer', id=7, positions=np.arange(9).reshape(3, 3), data={
+        row = SimpleNamespace(name='conformer', id=7, symbols=['O', 'H', 'H'],
+                             positions=np.arange(9).reshape(3, 3), data={
             'energy': -10. / constants.EVtoHARTREE, 'zpe': .04,
             'frequencies': [-800., 400., 1500.], 'hess': np.eye(9),
             'status': 'normal'})
         requested = []
         qc = SimpleNamespace(db=SimpleNamespace(
             select=lambda name: requested.append(name) or [row]))
-        species = SimpleNamespace(natom=3, wellorts=1, geom=np.zeros((3, 3)), energy=-9.,
+        species = SimpleNamespace(natom=3, atom=row.symbols, wellorts=1, geom=np.zeros((3, 3)), energy=-9.,
                                   zpe=.03, freq=[-900.], reduced_freqs=[-900.])
         load_calculation_record(species, qc, 'conformer')
         self.assertEqual(requested, ['conformer'])

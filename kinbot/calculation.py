@@ -53,9 +53,12 @@ def load_calculation_record(species, qc, job):
     species.hessian_source_job = row.name if len(hessian) else None
     species.source_job = row.name
     species.source_row_id = row.id
-    if getattr(species, 'conformer_representation', None) == 'MC-RRHO':
+    species.optical_hessian_reference = None
+    mc = getattr(species, 'conformer_representation', None) == 'MC-RRHO'
+    if mc or len(hessian):
         from kinbot.conformer_records import hessian_record
-        optical_hessian = hessian_record(qc, row.name, species.geom, species.atom)
+        optical_hessian = hessian_record(qc, row.name, species.geom, species.atom,
+                                        row=None if mc else row)
         species.optical_hessian_reference = optical_hessian.get('hessian_reference')
         # read_qc_hess also understands existing native-backend Hessian files.
         if optical_hessian.get('hessian') is not None:

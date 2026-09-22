@@ -1,3 +1,4 @@
+from kinbot.species_routing import routing_key
 import numpy as np
 import copy
 import time
@@ -157,6 +158,6 @@ class Combinatorial:
         inchis = []
         for opt in self.prod_opt:
             species = opt.species
-            inchi = cheminfo.create_inchi('', '', 'xyz/{}.xyz'.format(species.chemid))
+            inchi = cheminfo.create_inchi('', '', 'xyz/{}.xyz'.format(routing_key(species)))
             inchis.append(inchi)
         return inchis

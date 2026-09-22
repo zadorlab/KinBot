@@ -1,4 +1,4 @@
-def start_motif(motif, natom, bond, atom, allover, eqv):
+def start_motif(motif, natom, bond, atom, allover, eqv, equivalence_key=None):
     """
     Initialize the motif search.
     If allover is >0, that atom is used as a starting point.
@@ -9,12 +9,12 @@ def start_motif(motif, natom, bond, atom, allover, eqv):
     motifset = []
     mask = []  # to mask new patterns that allow eqv atoms in some cases
     find_motif(motif, visit, chain, nsteps, 0, -1,
-               motifset, allover, natom, bond, atom, eqv, mask, True)
+               motifset, allover, natom, bond, atom, eqv, mask, True, equivalence_key)
     return motifset
 
 
 def find_motif(motif, visit, chain, nsteps, current,
-               previous, motifset, allover, natom, bond, atom, eqv, mask, mask_current):
+               previous, motifset, allover, natom, bond, atom, eqv, mask, mask_current, equivalence_key=None):
     """
     This recursive function finds a specific motif in the structure.
     FIXIT - the comments here
@@ -41,15 +41,21 @@ def find_motif(motif, visit, chain, nsteps, current,
                 chain = [-999] * natom
                 mask_current = True
                 find_motif(motif, visit, chain, nsteps, current, previous,
-                           motifset, allover, natom, bond, atom, eqv, mask, mask_current)
+                           motifset, allover, natom, bond, atom, eqv, mask, mask_current, equivalence_key)
         else:
             current = allover
             visit = [0] * natom
             find_motif(motif, visit, chain, nsteps, current, previous,
-                       motifset, allover, natom, bond, atom, eqv, mask, mask_current)
+                       motifset, allover, natom, bond, atom, eqv, mask, mask_current, equivalence_key)
 
     if nsteps > -1:
         if nsteps > natom:
+            return 0
+        # Reject invalid candidates before any conditional stereo comparison.
+        if (visit[current] == 1 or nsteps == len(motif)
+                or current in chain[:nsteps-1]
+                or (motif[nsteps] != 'X' and atom[current] != motif[nsteps])
+                or (previous > -1 and bond[current][previous] == 0)):
             return 0
         # check if one of the motifs already had an equivalent atom in
         # the same position (that is not the same atom)
@@ -62,20 +68,18 @@ def find_motif(motif, visit, chain, nsteps, current,
             if mask[mi] == False:
                 continue
             if m[nsteps] in eqv_list:
+                if equivalence_key is not None and nsteps > 0:
+                    proposed = equivalence_key(chain[:nsteps] + [current])
+                    previous_key = equivalence_key(m[:nsteps+1])
+                    if (proposed is not None and previous_key is not None
+                            and proposed != previous_key):
+                        # An earlier selected site can make these atoms
+                        # diastereotopic. Keep their distinct joint motifs.
+                        continue
                 if any([True for i in eqv_list if i in chain[:nsteps]]):
                     mask_current = False
                     break
                 return 0
-        if visit[current] == 1:
-            return 0
-        if nsteps == len(motif):
-            return 0
-        if current in chain[:nsteps-1]:
-            return 0
-        if motif[nsteps] != 'X' and atom[current] != motif[nsteps]:
-            return 0
-        if bond[current][previous] == 0 and previous > -1:
-            return 0
 
         if nsteps == len(motif) - 1:
             chain[nsteps] = current
@@ -93,7 +97,7 @@ def find_motif(motif, visit, chain, nsteps, current,
         for i in range(natom):
             current = i
             find_motif(motif, visit, chain, nsteps, current, previous,
-                       motifset, allover, natom, bond, atom, eqv, mask, mask_current)
+                       motifset, allover, natom, bond, atom, eqv, mask, mask_current, equivalence_key)
             visit[current] = 0
 
         if nsteps > 0:

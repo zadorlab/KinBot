@@ -213,15 +213,18 @@ def selected_midpoint_diagnostic(species, rotors, *, target_geometry=None):
     """Use an already documented selected Hessian; never read jobs or launch QC."""
     unavailable = dict(method=METHOD, status='unavailable', cutoff_kcal_mol=None,
                        optical_weight_changed=False, additional_qc_calculations=0)
-    reference = (getattr(species, 'rotor_projection', None) or {}).get('reference')
+    references = [getattr(species, 'optical_hessian_reference', None),
+                  (getattr(species, 'rotor_projection', None) or {}).get('reference')]
     hessian = getattr(species, 'hess', [])
-    if not reference or not len(hessian):
+    if not any(references) or not len(hessian):
         return dict(unavailable, reason='No selected Hessian with documented geometry and units is available.')
-    if (reference.get('geometry_sha256') != array_fingerprint(species.geom)
-            or reference.get('hessian_sha256') != array_fingerprint(hessian)
-            or reference.get('atoms') != list(map(str, species.atom))
-            or any(getattr(species, key, None) is None
-                   or reference.get(key) != getattr(species, key) for key in ('source_job', 'source_row_id'))):
+    reference = next((ref for ref in references if ref
+        and ref.get('geometry_sha256') == array_fingerprint(species.geom)
+        and ref.get('hessian_sha256') == array_fingerprint(hessian)
+        and ref.get('atoms') == list(map(str, species.atom))
+        and all(getattr(species, key, None) is not None
+                and ref.get(key) == getattr(species, key) for key in ('source_job', 'source_row_id'))), None)
+    if reference is None:
         return dict(unavailable, reason='The documented Hessian does not match the selected calculation.')
     expected_unit = ('hartree / (bohr^2 * amu)' if reference.get('hessian_massweighted') is True
                      else 'hartree / bohr^2' if reference.get('hessian_massweighted') is False else None)
@@ -244,6 +247,7 @@ def conformer_midpoint_diagnostic(species, record, *, target_geometry=None):
     view.hess = record.hessian or ()
     view.source_job = record.source_job
     view.source_row_id = (record.hessian_reference or {}).get('source_row_id')
+    view.optical_hessian_reference = record.hessian_reference
     view.rotor_projection = dict(reference=record.hessian_reference)
     result = selected_midpoint_diagnostic(view, (), target_geometry=target_geometry)
     if record.hessian is None:

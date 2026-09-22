@@ -1,3 +1,5 @@
+from kinbot.species_routing import configured_selection
+from kinbot.species_routing import routing_key, routing_name, same_species, resolve_job, matches_name, connect
 from operator import ne
 from typing import Any
 import numpy as np
@@ -8,7 +10,6 @@ import os
 import stat
 import json
 
-from ase.db import connect
 from shutil import which
 from subprocess import Popen, PIPE
 from kinbot.utils import reorder_coord
@@ -19,6 +20,13 @@ from kinbot.utils import queue_command, create_matplotlib_graph, NpEncoder
 from kinbot import constants
 
 logger = logging.getLogger('KinBot')
+
+
+def fragment_routing_state(species):
+    return {'routing_key': routing_name(species), 'charge': int(species.charge),
+            'multiplicity': int(species.mult),
+            'optical_population': getattr(species, 'optical_population', 'specified'),
+            'stereo_reference': getattr(species, 'optical_reference', None)}
 
 
 class VTS:
@@ -44,7 +52,8 @@ class VTS:
         # {chemid1: ["reaction_name1","reaction_name2], chemid2: [...]}
         for chemid, reactions in self.par['vrc_tst_scan'].items():
             # select the part of the input relevant for this kb
-            if chemid == str(self.well.chemid):
+            if matches_name(routing_name(self.well), [chemid]):
+                reactions = self.configured_reactions(reactions)
                 self.opt_products(reactions)
                 self.save_products(reactions)
                 self.find_scan_coos(reactions)
@@ -53,7 +62,8 @@ class VTS:
                 self.energies(reactions)
         for chemid, reactions in self.par['vrc_tst_noscan'].items():
             # select the part of the input relevant for this kb
-            if chemid == str(self.well.chemid):
+            if matches_name(routing_name(self.well), [chemid]):
+                reactions = self.configured_reactions(reactions)
                 self.opt_products(reactions)
                 self.save_products(reactions)
                 self.find_scan_coos(reactions)
@@ -61,6 +71,10 @@ class VTS:
                 jobs = self.do_scan(reactions, noscan=True)
                 self.energies(reactions, noscan=True)
         return
+
+    def configured_reactions(self, reactions):
+        return [reaction.instance_name for reaction in self.well.reac_obj
+                if matches_name(reaction.instance_name, reactions)]
 
     def opt_products(self, reactions):
         """
@@ -85,10 +99,10 @@ class VTS:
                         self.scan_reac[reac] = ro
                         self.scan_reac[reac].usym = [[], []]
                         for prod in self.scan_reac[reac].products:
-                            if prod.chemid in prod_chemid:
+                            if routing_key(prod) in prod_chemid:
                                 continue
                             else:  # submit at vrc_tst level
-                                prod_chemid.append(prod.chemid)
+                                prod_chemid.append(routing_key(prod))
                                 self.qc.qc_vts_frag(prod)
             if not hit:
                 logger.warning(f'Reaction {reac} requested \
@@ -105,7 +119,7 @@ class VTS:
         for reac in reactions:
             for prod in self.scan_reac[reac].products:
                 # read geom
-                job = f'vrctst/{str(prod.chemid)}_vts'
+                job = resolve_job(self.qc.db, f'vrctst/{routing_name(prod)}_vts')
                 status, geom, atoms = self.qc.get_qc_geom(
                     job,
                     prod.natom,
@@ -231,7 +245,7 @@ class VTS:
         corresponds to in the scan object
         '''
         try:
-            for ai in self.par['vrc_tst_scan_reac_cent'][str(prod.chemid)]:
+            for ai in configured_selection(self.par['vrc_tst_scan_reac_cent'], prod, []):
                 if ai != atomid:
                     for ii, aii in enumerate(prod.atomid):
                         if aii == ai:
@@ -263,15 +277,12 @@ class VTS:
         but that is perhaps a very rare edge case?
         '''
         # match product ordering with scanned fragments' order
-        if self.scan_reac[reac].parts[0].chemid !=\
-           self.scan_reac[reac].products[0].chemid:
+        if not same_species(self.scan_reac[reac].parts[0], self.scan_reac[reac].products[0]):
             self.scan_reac[reac].products = \
                 list(reversed(self.scan_reac[reac].products))
-        if self.scan_reac[reac].parts[0].chemid !=\
-           self.scan_reac[reac].products[0].chemid:
+        if not same_species(self.scan_reac[reac].parts[0], self.scan_reac[reac].products[0]):
             logger.warning('IRC prod and prod are not the same!')
-        if self.scan_reac[reac].parts[1].chemid !=\
-           self.scan_reac[reac].products[1].chemid:
+        if not same_species(self.scan_reac[reac].parts[1], self.scan_reac[reac].products[1]):
             logger.warning('IRC prod and prod are not the same!')
         # match atom ordering of individual products
         # with scanned fragment's atom order
@@ -498,7 +509,9 @@ class VTS:
                     'frags_geom': [self.scan_reac[reac].products[0].geom,
                                    self.scan_reac[reac].products[1].geom],
                     'frags_mult': [self.scan_reac[reac].products[0].mult,
-                                   self.scan_reac[reac].products[1].mult]
+                                   self.scan_reac[reac].products[1].mult],
+                    'frags_routing': [fragment_routing_state(product)
+                                      for product in self.scan_reac[reac].products]
                     }
 
                 with open(f'vrctst/corr_{reac}.json',

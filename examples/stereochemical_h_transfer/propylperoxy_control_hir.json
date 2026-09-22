@@ -1,0 +1,56 @@
+{
+  "title": "propylperoxy_control_hir",
+  "structure": [
+    "C", -1.476266956, 0.215061605, -0.338120752,
+    "C", -0.116141468, -0.393614339, -0.595526336,
+    "C", 0.822035170, 0.107893147, 0.481797408,
+    "O", 2.068466243, -0.451291758, 0.244071148,
+    "O", 2.862228864, 0.016884819, 1.215013446,
+    "H", -1.528786857, 0.642692189, 0.694432451,
+    "H", -2.261401071, -0.555259481, -0.448196739,
+    "H", -1.670888592, 1.044235448, -1.033058644,
+    "H", -0.151322969, -1.494149514, -0.488617118,
+    "H", 0.210687560, -0.133897544, -1.621846588,
+    "H", 0.815056429, 1.215051487, 0.444573409,
+    "H", 0.426333647, -0.213606059, 1.445478315
+  ],
+  "charge": 0,
+  "mult": 2,
+  "reaction_search": 1,
+  "families": [
+    "intra_H_migration"
+  ],
+  "family_restrict": 1,
+  "ringrange": [
+    5,
+    6
+  ],
+  "conformer_search": 1,
+  "semi_emp_conformer_search": 0,
+  "high_level": 0,
+  "barrier_threshold": 100.0,
+  "optical_population": "specified",
+  "me": 2,
+  "run_me": 0,
+  "me_code": "mess",
+  "TemperatureList": [
+    500,
+    800,
+    1000,
+    1500
+  ],
+  "PressureList": [
+    760
+  ],
+  "epsilon": 300.0,
+  "epsilon_unit": "K",
+  "sigma": 4.5,
+  "qc": "",
+  "queuing": "",
+  "queue_name": "",
+  "queue_job_limit": ,
+  "username": "",
+  "ppn": ,
+  "rotor_scan": 1,
+  "multi_conf_tst": 0
+}

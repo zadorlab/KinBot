@@ -8,16 +8,19 @@ import unittest
 from unittest.mock import Mock, patch
 
 import numpy as np
+from ase import Atoms
 from ase.build import molecule
 
-from kinbot import constants
+from kinbot import constants, frequencies
 from kinbot.calculation import load_calculation_record
+from kinbot.conformer_records import hessian_record
 from kinbot.hindered_rotors import HIR
 from kinbot.mess import MESS
 from kinbot.optimize import Optimize
 from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.thermochemistry import thermochemistry_evidence
 
 
 class TestSelectedHessian(unittest.TestCase):
@@ -70,6 +73,57 @@ class TestSelectedHessian(unittest.TestCase):
         opt.shigh, opt.sconf = 1, 1
         return opt
 
+    def test_initial_l1_products_keep_properties_without_conformer_or_l2_search(self):
+        # hom_sci products arrive with geometry/energy but no raw frequencies.
+        # Neither a conformer search nor L2 will populate them in this path.
+        for rotor_scan in (0, 1):
+            with self.subTest(rotor_scan=rotor_scan):
+                self.par.update(rotor_scan=rotor_scan, conformer_search=0,
+                                high_level=0, multi_conf_tst=0)
+                products = []
+                for formula in ('CH3', 'H'):
+                    atoms = molecule(formula)
+                    point = StationaryPoint(formula, 0, 2,
+                        atom=atoms.get_chemical_symbols(), geom=atoms.positions)
+                    point.characterize()
+                    opt = Optimize(point, self.par, self.qc)
+                    job = opt.log_name(0)
+                    hess = np.eye(3 * point.natom) * .02
+                    raw, _ = frequencies.get_frequencies(point, hess, point.geom)
+                    row_id = self.qc.db.write(atoms, name=job, data={
+                        'energy': -40. / constants.EVtoHARTREE, 'zpe': .01,
+                        'frequencies': raw, 'hess': hess, 'status': 'normal'})
+                    self.assertEqual(point.freq, [])
+                    with patch.object(self.qc, 'read_qc_hess', return_value=hess), \
+                            patch.object(self.qc, 'hessian_is_massweighted', return_value=False), \
+                            patch('kinbot.optimize.load_calculation_record',
+                                  wraps=load_calculation_record) as load:
+                        opt.do_optimization()
+                        opt.do_optimization()  # polling must not reload raw properties
+                    load.assert_called_once_with(point, self.qc, job)
+                    self.assertEqual(point.source_job, job)
+                    self.assertEqual(point.source_row_id, row_id)
+                    self.assertAlmostEqual(point.energy, -40.)
+                    self.assertEqual(point.zpe, .01)
+                    np.testing.assert_allclose(point.freq, raw)
+                    np.testing.assert_allclose(point.reduced_freqs, raw, atol=1.e-7)
+                    self.assertEqual(len(raw), 6 if formula == 'CH3' else 0)
+                    products.append(point)
+                self.qc.submit_qc.assert_not_called()
+
+                # Check the actual fragment and phase-space templates, not only
+                # the in-memory frequencies. Atomic H contributes no modes.
+                parent_atoms = molecule('CH4')
+                parent = StationaryPoint('methane', 0, 1,
+                    atom=parent_atoms.get_chemical_symbols(), geom=parent_atoms.positions)
+                parent.characterize()
+                self.par['pes'] = 1  # names/energies are filled by PES later
+                writer = MESS(self.par, parent)
+                block = writer.write_bimol(products, 0., 1., 1., 0, bless=1)
+                counts = [int(line.split()[1]) for line in block.splitlines()
+                          if line.strip().startswith('Frequencies[1/cm]')]
+                self.assertEqual(counts, [6, 6])
+
     def test_conformers_drop_gaussian_checkpoints_but_keep_qchem_hessian_printing(self):
         for backend in ('gauss', 'qchem'):
             self.qc.qc = backend
@@ -92,6 +146,116 @@ class TestSelectedHessian(unittest.TestCase):
         self.assertEqual(self.species.freq, self.freq)
         self.assertEqual(self.species.hess, [])
 
+    def test_harmonic_optimizer_uses_its_stored_hessian_for_midpoint_counting(self):
+        from test_optical_evaluator import ethanol_near_planar
+        from kinbot.optical_harmonic import mirror_midpoint_diagnostic, selected_midpoint_diagnostic
+        from kinbot.counting_contract import optical_counting
+        from kinbot.thermochemistry import hir_evidence
+        self.par.update(rotor_scan=0, multi_conf_tst=0, conformer_search=0, high_level=0)
+        for energy, weight, sella in ((2., 1., True), (8., 2., True), (3.9, 1., False)):
+            with self.subTest(midpoint_energy=energy, sella=sella):
+                self.qc.qc, self.qc.use_sella = 'qchem', sella
+                point = ethanol_near_planar()
+                hessian = np.eye(3 * point.natom)
+                base = mirror_midpoint_diagnostic(point, hessian,
+                    hessian_unit='hartree / bohr^2')['stable_midpoint_energy_kcal_mol']
+                hessian *= energy / base  # analytic fixture, not an ethanol inversion barrier
+                opt = Optimize(point, self.par, self.qc)
+                job = opt.log_name(0)
+                row_id = self.qc.db.write(Atoms(point.atom, positions=point.geom), name=job,
+                    data=dict(energy=-100./constants.EVtoHARTREE, zpe=.01,
+                              frequencies=[500.] * (3 * point.natom - 6),
+                              hess=hessian, status='normal'))
+                with patch.object(self.qc, 'read_qc_hess', side_effect=AssertionError('stored row only')):
+                    opt.do_optimization()
+                    writer = MESS(self.par, point)
+                    writer.create_short_names()
+                    text = writer.write_well(point, 0., 1., 0)
+                self.assertFalse(getattr(point, 'rotor_projection', None))
+                self.assertEqual(point.optical_hessian_reference['source_row_id'], row_id)
+                self.assertIs(point.optical_hessian_reference['hessian_massweighted'], False)
+                count = optical_counting(point, hir_evidence(point))
+                self.assertEqual(count['remaining_multiplier'], weight)
+                self.assertAlmostEqual(count['harmonic_midpoint']['stable_midpoint_energy_kcal_mol'], energy)
+                self.assertIn('Harmonic midpoint approximation', text)
+                self.assertIn(f'optical factor {weight:g}', text)
+                # Stale HIR metadata must not hide the independently associated Hessian.
+                point.rotor_projection = {'reference': {'source_job': 'old'}}
+                self.assertEqual(selected_midpoint_diagnostic(point, ())['status'], 'complete')
+                point.geom = point.geom.copy()
+                point.geom[0, 0] += .01
+                self.assertEqual(selected_midpoint_diagnostic(point, ())['status'], 'unavailable')
+        self.qc.submit_qc.assert_not_called()
+
+    def test_new_harmonic_record_without_hessian_clears_old_optical_reference(self):
+        from test_optical_evaluator import ethanol_near_planar
+        from kinbot.optical_harmonic import selected_midpoint_diagnostic
+        point = ethanol_near_planar()
+        self.qc.use_sella = True
+        atoms = Atoms(point.atom, positions=point.geom)
+        data = dict(energy=-100./constants.EVtoHARTREE, zpe=.01,
+                    frequencies=[500.] * (3 * point.natom - 6), status='normal')
+        self.qc.db.write(atoms, name=self.job, data=dict(data, hess=np.eye(3 * point.natom)))
+        load_calculation_record(point, self.qc, self.job)
+        self.assertIsNotNone(point.optical_hessian_reference)
+        self.qc.db.write(atoms, name=self.job, data=data)
+        with patch.object(self.qc, 'read_qc_hess', side_effect=AssertionError('no extra Hessian request')):
+            load_calculation_record(point, self.qc, self.job)
+            point.reduced_freqs = list(point.freq)
+            writer = MESS(self.par, point)
+            writer.create_short_names()
+            text = writer.write_well(point, 0., 1., 0)
+        self.assertIsNone(point.optical_hessian_reference)
+        self.assertEqual(selected_midpoint_diagnostic(point, ())['status'], 'unavailable')
+        self.assertIn('WARNING: unresolved symmetry number', text)
+        self.assertIn('using optical factor 1', text)
+
+    def test_only_native_gaussian_mc_conformers_retain_checkpoints(self):
+        for mc, sella, preliminary in ((0, False, 0), (1, False, 0),
+                                      (1, True, 0), (1, False, 1)):
+            with self.subTest(mc=mc, sella=sella, preliminary=preliminary):
+                self.qc.par['multi_conf_tst'] = mc
+                self.qc.use_sella = sella
+                self.qc.qc_conf(self.species, self.species.geom, 2, semi_emp=preliminary)
+                prefix = 'semi_emp_' if preliminary else ''
+                job = f'conf/{self.species.chemid}_{prefix}0002'
+                tree = ast.parse(Path(job + '.py').read_text())
+                kwargs = next(ast.literal_eval(node.value) for node in tree.body
+                    if isinstance(node, ast.Assign) and any(
+                        isinstance(t, ast.Name) and t.id == 'kwargs' for t in node.targets))
+                self.assertEqual('chk' in kwargs, bool(mc and not sella and not preliminary))
+                if 'chk' in kwargs:
+                    self.assertEqual(kwargs['chk'], job)
+
+    def test_accepted_parent_replaces_l1_provenance_and_hessian_together(self):
+        for refinement in (False, True):
+            with self.subTest(refinement=refinement):
+                old_id = self.record(self.job, self.hess)
+                load_calculation_record(self.species, self.qc, self.job)
+                opt = self.optimization()
+                if refinement:
+                    opt._hir_refinement_job = 'accepted_hir_refinement'
+                selected = opt._hir_refinement_job if refinement else opt.log_name(1)
+                hessian = self.hess * 2.
+                freq = [200.] * len(self.freq)
+                new_id = self.qc.db.write(self.atoms, name=selected, data={
+                    'status': 'normal', 'energy': -101. / constants.EVtoHARTREE,
+                    'zpe': .02, 'frequencies': freq, 'hess': hessian})
+                with patch.object(self.qc, 'check_qc', return_value='normal'):
+                    opt.compare_structures(job=selected)
+                record = thermochemistry_evidence(self.species)
+                self.assertEqual(opt.shigh, 1)
+                self.assertEqual(record['source_job'], selected)
+                self.assertEqual(record['source_row_id'], new_id)
+                self.assertNotEqual(record['source_row_id'], old_id)
+                self.assertEqual(record['calculation_provenance']['source_job'], selected)
+                self.assertEqual(record['calculation_provenance']['source_row_id'], new_id)
+                self.assertEqual(record['raw_harmonic_frequencies_cm-1'], freq)
+                self.assertAlmostEqual(record['electronic_energy_hartree'], -101.)
+                self.assertEqual(record['zpe_hartree'], .02)
+                np.testing.assert_array_equal(self.species.hess, hessian)
+                self.assertEqual(self.species.hessian_source_job, selected)
+
     def test_native_parsers_return_the_selected_hessian(self):
         for backend in ('gauss', 'qchem'):
             with self.subTest(backend=backend):
@@ -100,6 +264,9 @@ class TestSelectedHessian(unittest.TestCase):
                 self.write_hessian(self.job)
                 np.testing.assert_allclose(self.qc.read_qc_hess(self.job, len(self.atoms)), self.hess)
                 self.assertEqual(self.qc.hessian_is_massweighted(), backend == 'qchem')
+                own = hessian_record(self.qc, self.job, self.species.geom, self.species.atom)
+                np.testing.assert_allclose(own['hessian'], self.hess)
+                self.assertEqual(own['hessian_reference']['hessian_massweighted'], backend == 'qchem')
                 target = 'conf/published_' + backend + '_low'
                 source = list(self.qc.db.select(name=self.job))[-1]
                 self.qc.publish_result(source, target)

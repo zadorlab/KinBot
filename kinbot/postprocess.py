@@ -1,3 +1,4 @@
+from kinbot.species_routing import routing_key, routing_name
 """
 This file contains the postprocessing of the KinBot run
 It includes
@@ -12,6 +13,7 @@ import numpy as np
 from kinbot import kb_path
 from kinbot import license_message
 from kinbot import constants
+from kinbot.reaction_path import summary_path_line, reject_invalid_pathway
 
 
 def creatMLInput(species, qc, par):
@@ -91,6 +93,7 @@ def create_summary_file(species, qc, par):
     l3status = hasattr(species, 'l3energy')
     max_len = 0
     for index in range(len(species.reac_inst)):
+        reject_invalid_pathway(species, index, par)
         if len(species.reac_name[index]) > max_len:
             max_len = len(species.reac_name[index])
         if not l3status or species.reac_ts_done[index] != -1:
@@ -101,6 +104,9 @@ def create_summary_file(species, qc, par):
 
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
+            path_line = summary_path_line(species.reac_obj[index])
+            if path_line:
+                s.append(path_line)
             ts = species.reac_obj[index].ts
             if l3status and species.reac_type[index] != 'hom_sci':
                 energy = (ts.l3energy + ts.zpe
@@ -109,9 +115,9 @@ def create_summary_file(species, qc, par):
             elif species.reac_type[index] in constants.mp2_list \
                     and not par['high_level'] \
                     and qc.qc != 'nn_pes' and qc.qc != 'fc':
-                mp2_energy = qc.get_qc_energy(str(species.chemid)
+                mp2_energy = qc.get_qc_energy(routing_name(species)
                                               + '_well_mp2')[1]
-                mp2_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
+                mp2_zpe = qc.get_qc_zpe(routing_name(species) + '_well_mp2')[1]
                 energy = (ts.energy + ts.zpe
                           - mp2_energy - mp2_zpe) * constants.AUtoKCAL
             elif species.reac_type[index] == 'hom_sci':
@@ -131,7 +137,7 @@ def create_summary_file(species, qc, par):
 
             name = []
             for prod in species.reac_obj[index].products:
-                name.append(str(prod.chemid))
+                name.append(routing_name(prod))
             prod_name = ' '.join(sorted(name))
             status = "SUCCESS"
             if species.reac_obj[index].do_vdW:   
@@ -140,7 +146,7 @@ def create_summary_file(species, qc, par):
                               (species.energy + species.zpe))*constants.AUtoKCAL
                 direction ="vdW{}".format(species.reac_obj[index]\
                                           .irc_prod.name.split(species.reac_obj[index]\
-                                                               .instance_name)[1])        
+                                                               .instance_name)[1])
                 s.append('{status:7s}{energy:> 9.2f}  {name:{max_len}s} {prod} {vdW_energy:> 7.2f}  {direction}'.format(status=status,
                                                                     energy=energy,
                                                                     max_len=max_len+1,
@@ -163,7 +169,7 @@ def create_summary_file(species, qc, par):
     # make a string out of all the lines
     s = '\n'.join(s)
     # write the string to a file
-    fname = 'summary_{chemid}.out'.format(chemid=species.chemid)
+    fname = 'summary_{chemid}.out'.format(chemid=routing_key(species))
     with open(fname, 'w') as f:
         f.write(s)
 
@@ -180,12 +186,12 @@ def createPESViewerInput(species, qc, par):
     # list of the lines for the pesviewer input file
     wells = []
     # list of the names of the wells
-    well_names = [str(species.chemid)]
+    well_names = [routing_name(species)]
     # make an xyz file for the initial well
-    make_xyz(species.atom, species.geom, str(species.chemid), dir_xyz)
+    make_xyz(species.atom, species.geom, routing_name(species), dir_xyz)
     # add the initial well to the wells list
     # use this well as point zero for the energy
-    wells.append('{} 0.0'.format(species.chemid))
+    wells.append('{} 0.0'.format(routing_key(species)))
     well_energy = species.energy + species.zpe
 
     # iterate the reactions and search for single products
@@ -195,12 +201,12 @@ def createPESViewerInput(species, qc, par):
                 or len(species.reac_obj[index].prod_opt) != 1:
             continue
         st_pt = species.reac_obj[index].prod_opt[0].species
-        name = str(st_pt.chemid)
+        name = routing_name(st_pt)
         if name in well_names:
             continue
-        make_xyz(species.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
+        make_xyz(species.atom, st_pt.geom, routing_name(st_pt), dir_xyz)
         energy = (st_pt.energy + st_pt.zpe - well_energy) * constants.AUtoKCAL
-        wells.append(f'{st_pt.chemid} {energy:.2f}')
+        wells.append(f'{routing_name(st_pt)} {energy:.2f}')
         well_names.append(name)
 
     # list of the lines for the pesviewer input file
@@ -217,13 +223,13 @@ def createPESViewerInput(species, qc, par):
         for prod_opt in species.reac_obj[index].prod_opt:
             st_pt = prod_opt.species
             energy += st_pt.energy + st_pt.zpe
-            names.append(str(st_pt.chemid))
+            names.append(routing_name(st_pt))
         name = '_'.join(sorted(names))
 
         for i, prod_opt in enumerate(species.reac_obj[index].prod_opt):
             st_pt = prod_opt.species
             with open('pesviewer_data.txt', 'a') as pesdata:
-                pesdata.write(f'Species: {st_pt.chemid}\n'
+                pesdata.write(f'Species: {routing_name(st_pt)}\n'
                               f'\tEnergy: {st_pt.energy}\n'
                               f'\tZPE: {st_pt.zpe}\n')
             # make twice the same file but with a different name
@@ -231,7 +237,7 @@ def createPESViewerInput(species, qc, par):
             # this is for the pes viewer
             make_xyz(st_pt.atom, st_pt.geom, name + str(i + 1), dir_xyz)
             # this is for the rmg postprocessing
-            make_xyz(st_pt.atom, st_pt.geom, str(st_pt.chemid), dir_xyz)
+            make_xyz(st_pt.atom, st_pt.geom, routing_name(st_pt), dir_xyz)
         energy = energy * constants.AUtoKCAL
         if name not in bimolec_names:
             bimolecs.append(f'{name} {energy:.2f}')
@@ -262,8 +268,8 @@ def createPESViewerInput(species, qc, par):
         if species.reac_type[index] in constants.mp2_list \
                 and not par['high_level'] \
                 and qc.qc != 'nn_pes' and qc.qc != 'fc':
-            we_energy = qc.get_qc_energy(str(species.chemid) + '_well_mp2')[1]
-            we_zpe = qc.get_qc_zpe(str(species.chemid) + '_well_mp2')[1]
+            we_energy = qc.get_qc_energy(routing_name(species) + '_well_mp2')[1]
+            we_zpe = qc.get_qc_zpe(routing_name(species) + '_well_mp2')[1]
             energy = (ts.energy + ts.zpe - we_energy - we_zpe) * constants.AUtoKCAL
         elif species.reac_type[index] == 'hom_sci':
             continue
@@ -275,12 +281,12 @@ def createPESViewerInput(species, qc, par):
             name.append(irc_prod.name)
             bimol_names = []
             for st_pt in species.reac_obj[index].products:
-                bimol_names.append(str(st_pt.chemid))
+                bimol_names.append(routing_name(st_pt))
             bimol_prod_name = '_'.join(sorted(bimol_names))
             bless.append(f'vdW_{index} {irc_prod.name} {bimol_prod_name}')
         else:
             for st_pt in species.reac_obj[index].products:
-                name.append(str(st_pt.chemid))
+                name.append(routing_name(st_pt))
         prod_name = '_'.join(sorted(name))
         add = 1
         for t in ts_list:
@@ -289,7 +295,7 @@ def createPESViewerInput(species, qc, par):
         if add:
             ts_list[species.reac_name[index]] = [energy, prod_name]
             tss.append(f'{species.reac_name[index]} {energy:.2f} '
-                       f'{species.chemid} {prod_name}')
+                       f'{routing_name(species)} {prod_name}')
     
     # Barrierless reactions
     for index in range(len(species.reac_inst)):
@@ -297,10 +303,10 @@ def createPESViewerInput(species, qc, par):
             continue
         name = []
         for st_pt in species.reac_obj[index].products:
-            name.append(str(st_pt.chemid))
+            name.append(routing_name(st_pt))
         prod_name = '_'.join(sorted(name))
         if prod_name not in [v[1] for v in ts_list.values()]:
-            bless.append(f'{species.reac_name[index]} {species.chemid} {prod_name}')
+            bless.append(f'{species.reac_name[index]} {routing_name(species)} {prod_name}')
 
     # make strings from the different lists
     wells = '\n'.join(wells)
@@ -313,7 +319,7 @@ def createPESViewerInput(species, qc, par):
     template_file_path = f'{kb_path}/tpl/{fname}.tpl'
     with open(template_file_path) as template_file:
         template = template_file.read()
-    template = template.format(id=species.chemid, wells=wells, ts=tss, 
+    template = template.format(id=routing_key(species), wells=wells, ts=tss,
                                bimolecs=bimolecs, barrierless=barrierless)
     with open(fname, 'w') as f:
         f.write(template)

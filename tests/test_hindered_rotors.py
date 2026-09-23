@@ -23,6 +23,7 @@ from kinbot.stationary_pt import StationaryPoint
 def completed_hir(status=None):
     species = SimpleNamespace(
         natom=4, atom=['C'] * 4, name='rotor_test', chemid=123,
+        optical_reference={'status': 'unavailable'},  # Synthetic fit/status fixture, no molecular geometry.
         wellorts=0, energy=-100., dihed=[[0, 1, 2, 3], [1, 2, 3, 0]],
     )
     hir = HIR(species, None, {
@@ -105,9 +106,52 @@ class TestHIRFits(unittest.TestCase):
 
 
 
+    def test_saved_partial_profiles_reproduce_master_interpolation(self):
+        # Accepted electronic energies from the propylperoxy HIR benchmark.
+        # Expected missing-point values are from master e8bec02's six-term fit.
+        # The reverted lower-order fits instead produced -2.27, 22.28 and
+        # 25.10 kcal/mol extrema in these three profiles.
+        cases = [
+            ([-268.175962444588, -268.1733060308933, -268.17095916881027,
+              -268.1754988794402, -1., -1., -1., -268.1729947619842,
+              -268.1755380092873, -268.1728735873794, -268.1709845077081,
+              -268.173634157354], [1.572239, 1.492011, 1.572239]),
+            ([-268.2270351923917, -268.21773034080593, -1., -1., -1.,
+              -268.2138883786092, -268.2193629298494, -268.21409717042656,
+              -1., -1., -1., -268.2176635589666],
+             [4.537128, 5.957075, 4.537128, 4.537128, 5.957075, 4.537128]),
+            ([-189.59943317639764, -189.59099199396033, -189.5705613422618,
+              -1., -189.57178216545356, -189.59136259724565,
+              -189.5994331588742, -189.59125013179172, -189.57085999429228,
+              -1., -189.57169255056863, -189.59116444215792],
+             [7.381157, 7.381157]),
+        ]
+        angles = np.arange(12) * np.pi / 6
+        for energies, expected in cases:
+            with self.subTest(reference=energies[0]):
+                hir = completed_hir()
+                status = [1 if energy == -1. else 0 for energy in energies]
+                hir.hir_status[0] = status.copy()
+                hir.hir_energies[0] = energies.copy()
+                self.assertEqual(hir.fourier_fit('test', angles, 0), 1)
+                self.assertTrue(hir.is_valid_rotor(0))
+                fitted = [(value - energies[0]) * constants.AUtoKCAL
+                          for i, value in enumerate(hir.hir_energies[0]) if status[i]]
+                np.testing.assert_allclose(fitted, expected, atol=1.e-6, rtol=0.)
+                self.assertEqual(hir.hir_raw_energies[0], energies)
+                self.assertEqual(hir.hir_status[0], status)
+                for i, state in enumerate(status):
+                    if state == 0:
+                        self.assertEqual(hir.hir_energies[0][i], energies[i])
 
-
-
+    def test_master_fit_does_not_add_scan_density_restrictions(self):
+        angles = np.arange(12) * np.pi / 6
+        for count in (1, 2, 5, 12):
+            with self.subTest(successful_points=count):
+                hir = completed_hir([[0] * count + [1] * (12 - count), [0] * 12])
+                self.assertEqual(hir.fourier_fit('test', angles, 0), 1)
+                self.assertTrue(hir.is_valid_rotor(0))
+                self.assertEqual(len(hir.hir_fourier[0]), 12)
 
     def test_free_rotor_output_keeps_internal_symmetry(self):
         from kinbot import symmetry
@@ -254,7 +298,7 @@ class TestHIRStatus(unittest.TestCase):
             'conformer_search': 0, 'rotation_restart': 1, 'high_level': 0,
             'rotor_scan': 1, 'multi_conf_tst': 0, 'L3_calc': 0,
         }
-        optimization.shir = 0
+        optimization.shigh, optimization.shir = 1, 0
         optimization.restart = 0
         optimization.just_high = False
         optimization.defer_hir = False
@@ -262,6 +306,7 @@ class TestHIRStatus(unittest.TestCase):
         optimization.log_name = lambda *args, **kwargs: 'test'
         hir.species.geom = np.zeros((4, 3))
         with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'), \
+                patch('kinbot.optimize.recover_hir_model', return_value=False), \
                 patch('kinbot.optimize.symmetry.calculate_symmetry'), \
                 patch('kinbot.optimize.frequencies.get_frequencies', return_value=([], [])):
             optimization.do_optimization()
@@ -293,13 +338,14 @@ class TestHIRStatus(unittest.TestCase):
             'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,
             'rotor_scan': 1, 'multi_conf_tst': 0, 'L3_calc': 0,
         }
-        optimization.shir = 0
+        optimization.shigh, optimization.shir = 1, 0
         optimization.restart = 0
         optimization.just_high = False
         optimization.defer_hir = False
         optimization.wait = 0
         optimization.log_name = lambda *args, **kwargs: 'test'
-        with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'):
+        with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'), \
+                patch('kinbot.optimize.recover_hir_model', return_value=False):
             optimization.do_optimization()
         self.assertEqual(optimization.restart, 0)
         self.assertEqual(optimization.shir, 1)
@@ -335,7 +381,7 @@ class TestHIRStatus(unittest.TestCase):
             'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,
             'rotor_scan': 1, 'multi_conf_tst': 0, 'L3_calc': 0,
         }
-        optimization.shir = 0
+        optimization.shigh, optimization.shir = 1, 0
         optimization.restart = 0
         optimization.just_high = False
         optimization.defer_hir = False
@@ -349,7 +395,7 @@ class TestHIRStatus(unittest.TestCase):
         optimization.qc.get_qc_geom.assert_called_once()
         self.assertEqual(optimization.qc.invalidate_qc.call_count, 24)
         self.assertIsNone(optimization._projection_source)
-        self.assertIn({'hir': 1, 'r': 0, 's': 5}, requested)
+        optimization.qc.get_qc_geom.assert_called_once_with(hir.point_job(0, 5), species.natom)
 
     def test_skipped_rotor_does_not_disable_successful_rotors(self):
         hir = completed_hir([[2] * 12, [0] * 12])

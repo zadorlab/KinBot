@@ -1,4 +1,5 @@
 """Final ordinary RRHO/HIR output keeps corrected modes separate from raw data."""
+from kinbot.species_routing import routing_key
 import json
 import os
 from pathlib import Path
@@ -53,10 +54,13 @@ class TestOrdinaryThermalFrequencies(unittest.TestCase):
                             self.assertIn(20., p.reduced_freqs)
                             self.assertNotIn(-20., p.reduced_freqs)
                             writer = MESS(par, p)
-                            writer.well_names = {p.chemid: 'w1'}
+                            writer.well_names = {routing_key(p): 'w1'}
                             writer.ts_names = {'saddle': 'ts1'}
-                            # Projection itself is tested elsewhere; no rotor potential in this fixture.
-                            with patch.object(writer, 'make_rotors', return_value=''):
+                            # This fixture isolates frequency serialization:
+                            # it has a mocked projection, no scan and no actual
+                            # TS endpoints. Optical coverage is tested separately.
+                            with patch.object(writer, 'make_rotors', return_value=''), \
+                                 patch.object(writer, '_parent_symmetry', return_value=p.sigma_ext):
                                 if saddle:
                                     p.reac_type = ['test']
                                     reaction = SimpleNamespace(ts=p, products=[p], instance_name='saddle')

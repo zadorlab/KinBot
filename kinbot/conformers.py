@@ -1,3 +1,4 @@
+from kinbot.species_routing import routing_key, routing_name
 import os
 import random
 import time
@@ -6,9 +7,9 @@ import logging
 from shutil import copyfile
 
 import numpy as np
-from ase.db import connect
+from kinbot.species_routing import connect
 from ase import Atoms
-from ase.units import invcm, Hartree, kcal, mol
+from ase.units import invcm, Hartree, kcal, mol, kB
 from ase.thermochemistry import IdealGasThermo
 import rmsd
 
@@ -17,6 +18,10 @@ from kinbot import zmatrix
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants
 from kinbot.frequencies import thermochemical_frequencies
+from kinbot import conformer_records
+from kinbot.conformer_counting import evaluate_members, CountingError, preserve_counting_error
+from kinbot.stereo_identity import optical_scope, configured_geometry_allowed
+from dataclasses import replace
 
 logger = logging.getLogger('KinBot')
 
@@ -32,6 +37,10 @@ class Conformers:
         semi_emp: is this search at low level (e.g. am1) or at the L1 level. The latter is the default.
         """
         self.species = species
+        self.optical_population = par.get('optical_population', 'specified')
+        self.strict_counting = bool(par.get('multi_conf_tst', 0))
+        if not getattr(species, 'wellorts', 0):
+            optical_scope(species, self.optical_population)
         self.qc = qc
         # status of the conformational analysis
         # -1: not yet started
@@ -97,6 +106,7 @@ class Conformers:
         # downstream properties can load a coherent geometry/property record.
         self.selected_job = None
         self.selected_conf = None
+        self.calculation_records = {}
 
     def generate_ring_conformers(self, cart):
         """
@@ -298,7 +308,7 @@ class Conformers:
                         nrandconf = int(round(self.nconfs / self.cyc_conf) + 2)
                     else:
                         nrandconf = self.nconfs
-                    if os.path.exists('{}.log'.format(self.get_job_name(nrandconf - 1))) and os.path.exists('conf/{}_low.log'.format(name)): 
+                    if os.path.exists('{}.log'.format(self.get_job_name(nrandconf - 1))) and os.path.exists('conf/{}_low.log'.format(name)):
                         rows = self.db.select(name=self.get_job_name(nrandconf - 1))
                         for row in rows:
                             self.conf = nrandconf
@@ -317,7 +327,7 @@ class Conformers:
             return 0
 
         # skipping generation if done
-        if os.path.exists('{}.log'.format(self.get_job_name(theoretical_confs - 1))) and os.path.exists('conf/{}_low.log'.format(name)): 
+        if os.path.exists('{}.log'.format(self.get_job_name(theoretical_confs - 1))) and os.path.exists('conf/{}_low.log'.format(name)):
             rows = self.db.select(name=self.get_job_name(theoretical_confs - 1))
             for row in rows:
                 self.conf = theoretical_confs
@@ -425,21 +435,29 @@ class Conformers:
                     status[i] = self.test_conformer(i)[1]
             # problem: if the first sample has 2 imaginary frequencies, what to do then?
             if all([si >= 0 for si in status]):
-                if isinstance(name, int):
+                if not self.species.wellorts:
                     lowest_job = f'{name}_well'
                 else:
                     lowest_job = name
                 *_, last_row = self.db.select(name=f'{lowest_job}')
+                lowest_e_geom = last_row.positions
+                parent_allowed = configured_geometry_allowed(
+                    self.species, lowest_e_geom, self.optical_population)
+                if not parent_allowed:
+                    logger.warning('Cached parent %s has a different configured stereoisomer; '
+                                   'selecting from valid conformer calculations instead.', lowest_job)
                 # The following refers to the conformer with lowest E + ZPE, 
                 # not the individual lowest.
                 lowest_energy = np.inf
                 lowest_zpe = np.inf
-                lowest_e_geom = last_row.positions
                 final_geoms = []  # list of all final conformer geometries
                 totenergies = []
                 frequencies = []
 
                 if all(status):  # if all conformers are invalid, 1 (different) or fail (-1)
+                    if not parent_allowed:
+                        from kinbot.stereo_routing import StereoRoutingError
+                        raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
                     if self.qc.qc == 'gauss':
                         ext = '.log'
                     elif self.qc.qc == 'qchem':
@@ -450,7 +468,8 @@ class Conformers:
                         ext = '_sella.log'
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
-                    copyfile(f'{lowest_job}{ext}', f'conf/{name}_low{ext}')
+                    from kinbot.species_routing import resolve_job
+                    copyfile(f'{resolve_job(self.db, lowest_job)}{ext}', f'conf/{name}_low{ext}')
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),
                             'frequencies': last_row.data.get('frequencies'),
@@ -475,12 +494,22 @@ class Conformers:
                         err, zpe = self.qc.get_qc_zpe(job)
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
                         err, freq = self.qc.get_qc_freq(job, self.species.natom)
+                        self.calculation_records[ci] = {
+                            'source_job': job, 'electronic_energy_hartree': float(energy),
+                            'zpe_hartree': float(zpe)}
+                        if not self.semi_emp and self.strict_counting:
+                            self.calculation_records[ci].update(conformer_records.hessian_record(
+                                self.qc, job, geom, self.species.atom))
                         final_geoms.append(geom)
                         totenergies.append(energy + zpe)
                         if freq != []:
                             frequencies.append(freq)
                         else:
                             frequencies.append(None)
+                        if not configured_geometry_allowed(self.species, geom, self.optical_population):
+                            # Keep the observation for find_unique's inventory,
+                            # but never make it the selected configured parent.
+                            continue
                         if not self.semi_emp and self.species.natom > 1:
                             values = np.asarray(freq)
                             invalid = (err != 0 or not len(values)
@@ -556,10 +585,15 @@ class Conformers:
                 if self.species.wellorts:
                     *_, l1_last_row = self.db.select(name=self.species.name)
                 else:
-                    *_, l1_last_row = self.db.select(name=f'{self.species.name}_well')
+                    *_, l1_last_row = self.db.select(name=f'{routing_name(self.species)}_well')
                 l1energy = l1_last_row.data.get('energy') * constants.EVtoHARTREE
                 l1energy += l1_last_row.data.get('zpe')
-                if not any([abs(en - l1energy) < self.diffthrs * constants.KCALtoHARTREE for en in totenergies]): # 0.1 kcal/mol
+                parent_allowed = configured_geometry_allowed(
+                    self.species, l1_last_row.positions, self.optical_population)
+                if not parent_allowed and not np.isfinite(lowest_energy):
+                    from kinbot.stereo_routing import StereoRoutingError
+                    raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
+                if parent_allowed and (not np.isfinite(lowest_energy) or not any([abs(en - l1energy) < self.diffthrs * constants.KCALtoHARTREE for en in totenergies])): # 0.1 kcal/mol
                     if self.print_warning:
                         logger.warning(f'\tNone of {self.species.name} '
                                        'conformers has the same energy as its '
@@ -577,6 +611,8 @@ class Conformers:
                 for lrow in low_rows:
                     low_row = lrow
                 try:
+                    from kinbot.species_routing import resolve_job
+                    lowest_job = resolve_job(self.db, lowest_job)
                     if self.qc.qc == 'gauss':
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
                     elif self.qc.qc == 'qchem':
@@ -651,6 +687,36 @@ class Conformers:
             err, zpe = self.qc.get_qc_zpe(job)
             err, geom = self.qc.get_qc_geom(job, self.species.natom)
                 
+        if not configured_geometry_allowed(self.species, geom, self.optical_population):
+            logger.warning('Cached conformer %s has a different configured stereoisomer; '
+                           'rechecking the individual conformer calculations.', job)
+            if not self.conf:
+                # A cached restart can skip sampling entirely. Reuse a valid
+                # parent directly rather than entering the all-failed search
+                # path, which also tries to copy native conformer output files.
+                parent = name if self.species.wellorts else name + '_well'
+                parent_status, parent_geom = self.qc.get_qc_geom(parent, self.species.natom)
+                rows = list(self.db.select(name=parent))
+                complete = bool(rows and all(rows[-1].data.get(field) is not None
+                                            for field in ('energy', 'zpe', 'frequencies')))
+                if parent_status == 0 and complete and configured_geometry_allowed(
+                        self.species, parent_geom, self.optical_population):
+                    energy_status, parent_energy = self.qc.get_qc_energy(parent)
+                    zpe_status, parent_zpe = self.qc.get_qc_zpe(parent)
+                    if (energy_status == zpe_status == 0
+                            and all(isinstance(value, (int, float, np.number)) and np.isfinite(value)
+                                    for value in (parent_energy, parent_zpe))):
+                        self.selected_job = parent
+                        return parent_geom, parent_energy, parent_zpe
+                from kinbot.stereo_routing import StereoRoutingError
+                raise StereoRoutingError(f'No compatible cached conformer or parent for {name}.')
+            result = self.check_conformers(wait=True)
+            if result[0] != 1:
+                from kinbot.stereo_routing import StereoRoutingError
+                raise StereoRoutingError(f'No completed compatible conformer for {self.get_name()}.')
+            job = self.selected_job
+            _, zpe = self.qc.get_qc_zpe(job)
+            return result[2], result[3], zpe
         self.selected_job = job
         return geom, energy, zpe
 
@@ -677,14 +743,29 @@ class Conformers:
         zeroenergies_unq = []
         frequencies_unq = []
         indices_unq = []
+        records = conformer_records.inventory(
+            self.species, conformers, energies, frequencies, valid,
+            getattr(self, 'calculation_records', {}))
+
+        conformer_records.retain(self.species, records, [])
+        try:
+            records, groups = evaluate_members(
+                self.species, records, getattr(self, 'optical_population', 'specified'),
+                strict=getattr(self, 'strict_counting', True))
+        except CountingError as error:
+            preserve_counting_error(self.species, error)
+            raise
+        candidates = {member for group in groups for member in group}
 
         if temp is not None:
+            if any(records[i].remaining_optical_weight is None for i in candidates):
+                raise CountingError('Population pruning requires resolved conformer optical weights.')
             # calculate the Gibbs free energy for all conformers
             # at T = temp, P = 101325 Pa
             gibbs = [np.inf for _ in valid]
-            geo_type = 'nonlinear'
             for vi, val in enumerate(valid):
-                if val != 0:
+                geo_type = 'nonlinear'
+                if vi not in candidates:
                     continue
                 if frequencies == [None]:
                     vib_energies = [0]
@@ -707,55 +788,42 @@ class Conformers:
                                         atoms=atoms,
                                         geometry=geo_type,
                                         ignore_imag_modes=bool(getattr(self.species, 'wellorts', 0)),
-                                        symmetrynumber=1, spin=(self.species.mult-1)/2)
+                                        symmetrynumber=records[vi].sigma_ext,
+                                        spin=(self.species.mult-1)/2)
                 # The input already contains the calculation's ZPE. Add only
                 # thermal corrections, removing ASE's additional harmonic ZPE.
                 gibbs[vi] = (thermo.get_gibbs_energy(
                     temperature=temp, pressure=101325., verbose=False)
-                    - thermo.get_ZPE_correction())
+                    - thermo.get_ZPE_correction()
+                    - kB * temp * np.log(records[vi].remaining_optical_weight))
 
-        for vi, val in enumerate(valid):
-            unique = True
-            if val == 0:
-                for ei, en in enumerate(energies_unq):
-                    if abs(energies[vi] - en) * constants.AUtoKCAL < 0.2:
-                        moi_test, _ = geometry.get_moments_of_inertia(conformers[vi], self.species.atom)
-                        moi_unq, _ = geometry.get_moments_of_inertia(conformers_unq[ei], self.species.atom)
-                        if all(moi_test / moi_unq) < 1.1 and all(moi_test / moi_unq) > 0.9:
-                            p_coord = copy.deepcopy(conformers[vi])
-                            q_coord = copy.deepcopy(conformers_unq[ei])
-                            p_atoms = copy.deepcopy(self.species.atom)
-                            q_atoms = copy.deepcopy(self.species.atom)
-                            p_cent = rmsd.centroid(p_coord)
-                            q_cent = rmsd.centroid(q_coord)
-                            p_coord -= p_cent
-                            q_coord -= q_cent
-                            rotation_method = rmsd.kabsch_rmsd
-                            reorder_method = rmsd.reorder_hungarian
-                            #q_review = reorder_method(p_atoms, q_atoms, p_coord, q_coord)
-                            #q_coord = q_coord[q_review]
-                            #q_atoms = q_atoms[q_review]
-                            result_rmsd = rotation_method(p_coord, q_coord)
-                            if result_rmsd < 0.05:
-                                unique = False
-                                break
-                if unique:
-                    if temp is None:
-                        conformers_unq.append(conformers[vi])
-                        energies_unq.append(energies[vi])
-                        frequencies_unq.append(frequencies[vi])
-                        indices_unq.append(vi)
-                    else:
-                        if np.exp(-1000. * (gibbs[vi] - min(gibbs)) / (kcal / mol) /\
-                                  (constants.R / constants.CALtoJ * temp)) > boltz:
-                            conformers_unq.append(conformers[vi])
-                            energies_unq.append(energies[vi])
-                            frequencies_unq.append(frequencies[vi])
-                            indices_unq.append(vi)
+        # Prune whole mirror-coverage groups. Explicit enumeration of two
+        # equal mirrors and one representative with weight two give the same
+        # group partition sum and therefore the same cutoff decision.
+        ratios = [1.] * len(groups)
+        if temp is not None and groups:
+            group_g = []
+            for group in groups:
+                minimum = min(gibbs[member] for member in group)
+                group_g.append(minimum - kB * temp * np.log(sum(
+                    np.exp(-(gibbs[member] - minimum) / (kB * temp)) for member in group)))
+            ratios = np.exp(-(np.asarray(group_g) - min(group_g)) / (kB * temp))
+        records = list(records)
+        for group, ratio in zip(groups, ratios):
+            for vi in group:
+                records[vi] = replace(records[vi], population_ratio=float(ratio))
+                if temp is not None and ratio <= boltz:
+                    records[vi] = replace(records[vi], exclusion_reason='population cutoff')
+                    continue
+                conformers_unq.append(conformers[vi])
+                energies_unq.append(energies[vi])
+                frequencies_unq.append(frequencies[vi])
+                indices_unq.append(vi)
 
         # check_conformers already supplies E + ZPE. Keep these L1 ground
         # energies unless a later L2 calculation replaces the conformer.
         zeroenergies_unq = list(energies_unq)
+        conformer_records.retain(self.species, records, indices_unq)
         return conformers_unq, energies_unq, zeroenergies_unq, frequencies_unq, indices_unq
 
     def write_profile(self, status, final_geoms, energies, ring=0):
@@ -768,7 +836,7 @@ class Conformers:
         if self.species.wellorts:
             ff = open('conf/' + self.species.name + r + '.xyz', 'w')
         else:
-            ff = open('conf/' + str(self.species.chemid) + r + '.xyz', 'w')
+            ff = open('conf/' + routing_name(self.species) + r + '.xyz', 'w')
         for i, st in enumerate(status):
             s = str(self.species.natom) + '\n'
             s += 'energy = ' + str(energies[i]) + '\n'
@@ -783,7 +851,7 @@ class Conformers:
         if self.species.wellorts:
             name = self.species.name
         else:
-            name = self.species.chemid
+            name = routing_key(self.species)
         return name
 
     def get_job_name(self, idx, cyc=0, add=''):

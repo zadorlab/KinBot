@@ -1,3 +1,5 @@
+from kinbot.species_routing import (routing_key, routing_name, same_species,
+                                   reusable_cached_product, matches_name)
 import os, sys
 import shutil
 import time
@@ -17,6 +19,10 @@ from kinbot.irc import IRC
 from kinbot.optimize import Optimize
 from kinbot.reac_General import GeneralReac
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.stereo_identity import canonical_identity
+from kinbot.reaction_path import (prepare_stereopath, endpoint_snapshot,
+                                 StereoAssignmentUnavailable)
+from kinbot.stereo_routing import require_same_configuration, StereoRoutingError
 from kinbot.molpro import Molpro
 from ase.db import connect
 from ase import Atoms
@@ -75,7 +81,7 @@ class ReactionGenerator:
         while alldone:
             for index, instance in enumerate(self.species.reac_inst):
                 obj = self.species.reac_obj[index]
-                if obj.instance_name in self.par['skip_reactions'] \
+                if matches_name(obj.instance_name, self.par['skip_reactions']) \
                         and self.species.reac_ts_done[index] != -999:
                     logger.info(f'\tRemoving reaction {obj.instance_name}.')
                     self.species.reac_ts_done[index] = -999
@@ -204,12 +210,12 @@ class ReactionGenerator:
                                 db.write(Atoms('H'), name=obj.instance_name, data={'status': 'error'})
                                 # this is copied here so that a non-AM1 file is in place
                                 if self.qc.qc == 'fc':
-                                    shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well_sella.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
+                                    shutil.copy(f'{os.getcwd()}/{routing_name(self.species)}_well_sella.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
                                 else:
                                     try:
-                                        shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
+                                        shutil.copy(f'{os.getcwd()}/{routing_name(self.species)}_well.log', f'{os.getcwd()}/{obj.instance_name}.log')
                                     except:  # if sella was used
-                                        shutil.copy(f'{os.getcwd()}/{self.species.chemid}_well_sella.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
+                                        shutil.copy(f'{os.getcwd()}/{routing_name(self.species)}_well_sella.log', f'{os.getcwd()}/{obj.instance_name}_sella.log')
                                 self.species.reac_ts_done[index] = -999
 
                 elif self.species.reac_ts_done[index] == 1:
@@ -238,12 +244,12 @@ class ReactionGenerator:
                         if self.par['bimol']:
                             fragments = (self.species.fragA, self.species.fragB)
                             sp_energy = sum(self.qc.get_qc_energy(
-                                f'{frag.chemid}_well')[1] for frag in fragments)
+                                f'{routing_name(frag)}_well')[1] for frag in fragments)
                             sp_zpe = sum(self.qc.get_qc_zpe(
-                                f'{frag.chemid}_well')[1] for frag in fragments)
+                                f'{routing_name(frag)}_well')[1] for frag in fragments)
                         else:
-                            sp_energy = self.qc.get_qc_energy('{}_{}'.format(str(self.species.chemid), ending))[1]
-                            sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(str(self.species.chemid), ending))[1]
+                            sp_energy = self.qc.get_qc_energy('{}_{}'.format(routing_name(self.species), ending))[1]
+                            sp_zpe = self.qc.get_qc_zpe('{}_{}'.format(routing_name(self.species), ending))[1]
                         try:
                             barrier = (ts_energy + ts_zpe - sp_energy - sp_zpe) * constants.AUtoKCAL
                         except TypeError:
@@ -283,6 +289,10 @@ class ReactionGenerator:
                     # frag_unique: list of unique fragments across all reactions for this well
                     # obj.products: list of products for given reaction, which includes changes and further dissociation 
                     if obj.prod_done == 0:  # not started optimization yet
+                        # A one-fragment endpoint is reused as the product
+                        # object; its later reset_order() must not reorder the
+                        # graph used to annotate the original TS coordinates.
+                        obj.irc_product_reference = endpoint_snapshot(obj.irc_prod)
                         # identify bimolecular products and wells from IRC - do it once
                         obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
                         self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
@@ -300,21 +310,36 @@ class ReactionGenerator:
 
                         # make the geom of products in frag_unique the one from the multi_molecular (not optimized)
                         self.equate_unique(obj.products, frag_unique)
+                        obj.products = self.initial_product_copies(obj.products)
+                        obj.products = [reusable_cached_product(self.qc, product)
+                                        for product in obj.products]
                         self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
                         obj.prod_done = 1
 
+                    product_cache_failed = False
                     for frag in obj.products:
-                        self.qc.qc_opt(frag, frag.geom)
-                        e, _ = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom) # check if finished without updating geom
+                        try:
+                            self.qc.qc_opt(frag, frag.geom)
+                        except StereoRoutingError as error:
+                            logger.warning('%s: product calculation cannot be reused: %s. '
+                                           'Omitting this channel; saved calculations retained.',
+                                           obj.instance_name, error)
+                            self.species.reac_ts_done[index] = -999
+                            product_cache_failed = True
+                            break
+                        e, _ = self.qc.get_qc_geom(routing_name(frag) + '_well', frag.natom) # check if finished without updating geom
                         if e == 1:  # it's running
                             continue
+
+                    if product_cache_failed:
+                        continue
 
                     # initial fragment calculations finished, reading results...
                     hom_sci_energy = 0
                     products_orig = [copy.copy(opr) for opr in obj.products] 
                     ndone = 0
                     for fragii, frag in enumerate(products_orig):
-                        if frag.chemid == self.species.chemid:
+                        if same_species(frag, self.species):
                             logger.info(f'Product in {obj.instance_name} is identical to the reactant. Reaction deleted.')
                             self.species.reac_ts_done[index] = -999 
                             break
@@ -323,8 +348,14 @@ class ReactionGenerator:
                             ndone += 1
                             continue
                         chemid_orig = frag.chemid
+                        requested_fragment = copy.copy(frag)
+                        # OpenBabel handles cannot be deep-copied; only freeze
+                        # the arrays that define the requested configuration.
+                        for field in ('atom', 'geom', 'bond', 'bond01', 'bonds', 'rads'):
+                            if hasattr(frag, field):
+                                setattr(requested_fragment, field, copy.deepcopy(getattr(frag, field)))
                         e, frag.geom, frag.atom = self.qc.get_qc_geom(
-                            str(frag.chemid) + '_well',
+                            routing_name(frag) + '_well',
                             frag.natom,
                             reorder=True)
                         if e < 0:
@@ -335,23 +366,27 @@ class ReactionGenerator:
                             break
                         else:
                             ndone += 1
-                            _, frag.energy = self.qc.get_qc_energy(str(frag.chemid) + '_well')
-                            _, frag.zpe = self.qc.get_qc_zpe(str(frag.chemid) + '_well')
+                            _, frag.energy = self.qc.get_qc_energy(routing_name(frag) + '_well')
+                            _, frag.zpe = self.qc.get_qc_zpe(routing_name(frag) + '_well')
                             if self.species.reac_type[index] == 'hom_sci': # TODO energy is the sum of all possible fragments  
                                 hom_sci_energy += frag.energy + frag.zpe
                             # Reinitialize rads and bonds
                             frag.reset_order()
                             self._debug_fragment_freqs(f"{obj.instance_name}:after_start_multi_molecular", frag)
                             # connectivity changed
-                            if chemid_orig != frag.chemid:
+                            if not same_species(frag, requested_fragment):
                                 for fri, fr in enumerate(obj.products):
-                                    if fr.chemid == chemid_orig:
+                                    if same_species(fr, requested_fragment):
                                         obj.valid_prod[fri] = False
+                                frag.__dict__.pop('optical_reference', None)
                                 newfrags, _ = frag.start_multi_molecular(vary_charge=True)  
                                 self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                 self.equate_identical(newfrags)
                                 self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                 self.equate_unique(newfrags, frag_unique)
+                                newfrags = self.initial_product_copies(newfrags)
+                                newfrags = [reusable_cached_product(self.qc, product)
+                                            for product in newfrags]
                                 self._debug_fraglist_freqs(f"{obj.instance_name}:newfrags_after_connectivity_change", newfrags)
                                 logger.warning(f'Product {chemid_orig} optimized to {[nf.chemid for nf in newfrags]} '
                                                f'in reaction {obj.instance_name}')
@@ -360,7 +395,7 @@ class ReactionGenerator:
                                     obj.valid_prod.append(True)
                             else:
                                 for fri, fr in enumerate(obj.products):
-                                    if fr.chemid == chemid_orig:
+                                    if same_species(fr, requested_fragment):
                                         obj.products[fri].energy = frag.energy
                                         obj.products[fri].zpe = frag.zpe
                                         # Reorder the coordinates of frag in case the atom order is different
@@ -442,7 +477,7 @@ class ReactionGenerator:
                         # Reordering in case different fragment
                         self._debug_fragment_freqs(f"{obj.instance_name}:state3_before_get_qc_geom", frag)
                         e, frag.geom, frag.atom = self.qc.get_qc_geom(
-                            str(frag.chemid) + '_well',
+                            routing_name(frag) + '_well',
                             frag.natom,
                             reorder=True)
                         self._debug_fragment_freqs(f"{obj.instance_name}:state3_after_get_qc_geom", frag)
@@ -450,19 +485,21 @@ class ReactionGenerator:
                         # because rads and bonds need to be changed
                         frag.reset_order()
                         self._debug_fragment_freqs(f"{obj.instance_name}:state3_after_reset_order", frag)
-                        # e, frag.geom = self.qc.get_qc_geom(str(frag.chemid) + '_well', frag.natom)
+                        # e, frag.geom = self.qc.get_qc_geom(routing_name(frag) + '_well', frag.natom)
 
                     # Do the TS and product optimization
                     # make a stationary point object of the ts
+                    endpoint = obj.irc_product_reference
                     bond_mx = np.zeros((self.species.natom, self.species.natom), dtype=int)
                     for i in range(self.species.natom):
                         for j in range(self.species.natom):
-                            bond_mx[i][j] = max(self.species.bond[i][j], obj.irc_prod.bonds[0][i][j])
+                            bond_mx[i][j] = max(self.species.bond[i][j], endpoint.bonds[0][i][j])
 
                     if self.species.reac_type[index] != 'hom_sci':
                         err, geom = self.qc.get_qc_geom(obj.instance_name, self.species.natom)
                         ts = StationaryPoint(obj.instance_name, self.species.charge, self.species.mult,
                                              atom=self.species.atom, geom=geom, wellorts=1)
+                        ts.optical_reference = canonical_identity(self.species)
                         err, ts.energy = self.qc.get_qc_energy(obj.instance_name)
                         err, ts.zpe = self.qc.get_qc_zpe(obj.instance_name)
                         err, ts.freq = self.qc.get_qc_freq(obj.instance_name, self.species.natom)
@@ -470,9 +507,18 @@ class ReactionGenerator:
                         ts.bond_mx()
                         ts.bond = np.maximum(ts.bond, bond_mx)
                         # -1: broken, 0: no change, +1: formed
-                        ts.reac_bond = np.array(obj.irc_prod.bond01) - np.array(self.species.bond01) 
+                        ts.reac_bond = (np.asarray(endpoint.bond) > 0).astype(int) - np.array(self.species.bond01)
                         ts.find_cycle()
                         ts.find_conf_dihedral()
+                        try:
+                            prepare_stereopath(ts, self.species, endpoint)
+                        except StereoAssignmentUnavailable as error:
+                            logger.warning('%s: omitted reaction from rates: %s. Calculation files '
+                                           'retained; the exported network is incomplete.',
+                                           obj.instance_name, error)
+                            obj.stereochemical_rejection = str(error)
+                            self.species.reac_ts_done[index] = -999
+                            continue
                         obj.ts = ts
                         # do the ts optimization
                         obj.ts_opt = Optimize(obj.ts, self.par, self.qc)
@@ -494,7 +540,7 @@ class ReactionGenerator:
                                                   
                     # do the products optimizations
                     temp_prod_opt = []  # holding the optimization objects temporarily
-                    for st_pt in obj.products:
+                    for product_index, st_pt in enumerate(obj.products):
                         new = 1
                         # do the products optimizations
                         # check for products of other reactions that are the same as this product
@@ -504,9 +550,11 @@ class ReactionGenerator:
                                 break
                             if i != index:
                                 obj_i = self.species.reac_obj[i]
-                                if self.species.reac_ts_done[i] > 2:
+                                if (self.species.reac_ts_done[i] > 2
+                                        or self.species.reac_ts_done[i] == -1):
                                     for j, st_pt_i in enumerate(obj_i.products):
-                                        if st_pt_i.chemid == st_pt.chemid:
+                                        if same_species(st_pt_i, st_pt):
+                                            require_same_configuration(st_pt_i, st_pt, 'product optimization reuse')
                                             if len(obj_i.prod_opt) > j:
                                                 prod_opt = obj_i.prod_opt[j]
                                                 new = 0
@@ -520,6 +568,9 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 #break  # breaks so that other species is not looked at
                         temp_prod_opt.append(prod_opt)
+                        # Reuse the complete selected calculation, including
+                        # its conformers and HIR, rather than just its optimizer.
+                        obj.products[product_index] = prod_opt.species
                     if self.species.reac_ts_done[index] != -999:
                         for tpo in temp_prod_opt:
                             obj.prod_opt.append(tpo)
@@ -529,7 +580,7 @@ class ReactionGenerator:
                             # section where comparing products in same reaction occurs
                             if len(obj.prod_opt) > 0:
                                 for j, st_pt_opt in enumerate(obj.prod_opt):
-                                    if st_pt.chemid == st_pt_opt.species.chemid:
+                                    if same_species(st_pt, st_pt_opt.species):
                                         if len(obj.prod_opt) > j:
                                             prod_opt = obj.prod_opt[j]
                                             break
@@ -587,7 +638,7 @@ class ReactionGenerator:
                         # verify if product is monomolecular, and if it is new
                         if len(obj.products) == 1:
                             st_pt = obj.prod_opt[0].species
-                            chemid = st_pt.chemid
+                            chemid = routing_key(st_pt)
                             # if high level was requested, it is L2, otherwise L1
                             rel_en = (st_pt.energy + st_pt.zpe - self.species.energy - self.species.zpe) * constants.AUtoKCAL 
                             logger.info(f'\tProduct {obj.instance_name} energy is {np.round(rel_en, 2)} kcal/mol.')
@@ -627,7 +678,9 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1
                     ts_freq = np.asarray(obj.ts.reduced_freqs)
-                    if len(ts_freq):
+                    # hom_sci uses the parent well as a bookkeeping placeholder,
+                    # not an optimized saddle with an unstable normal mode.
+                    if self.species.reac_type[index] != 'hom_sci' and len(ts_freq):
                         nneg = np.count_nonzero(ts_freq < 0.)
                         if (nneg >= 3 or np.count_nonzero(
                                 ts_freq < -self.par['imagfreq_threshold']) >= 2
@@ -643,6 +696,8 @@ class ReactionGenerator:
                             obj.ts.reduced_freqs[idx] *= -1.
                         
                     if not neg_freq:
+                        from kinbot.product_complex import reassess_product_complex
+                        reassess_product_complex(obj, self.par)
                         # the reaction search is finished
                         self.species.reac_ts_done[index] = -1  # this is the success code
 
@@ -655,7 +710,8 @@ class ReactionGenerator:
                         postprocess.createPESViewerInput(self.species, self.qc, self.par)
 
                 elif self.species.reac_ts_done[index] == -999:
-                    if self.par['delete_intermediate_files'] == 1:
+                    if (self.par['delete_intermediate_files'] == 1
+                            and not getattr(obj, 'stereochemical_rejection', None)):
                         if not self.species.reac_obj[index].instance_name in deleted:
                             self.delete_files(self.species.reac_obj[index].instance_name)
                             deleted.append(self.species.reac_obj[index].instance_name)
@@ -675,7 +731,7 @@ class ReactionGenerator:
                     if self.species.reac_ts_done[index] == -1:
                         prodstring = []
                         for pp in self.species.reac_obj[index].products:
-                            prodstring.append(str(pp.chemid))
+                            prodstring.append(routing_name(pp))
                         f_out.write('{}\t{}\t{}\t{}\n'.format(self.species.reac_ts_done[index], 
                                                               self.species.reac_step[index], 
                                                               self.species.reac_obj[index].instance_name,
@@ -799,12 +855,34 @@ class ReactionGenerator:
             stereochem = ''
         return stereochem
 
+    @staticmethod
+    def initial_product_copies(fragments):
+        """Keep initial well reads separate from products owned by Optimize.
+
+        The shared initial fragments are reused when another reaction reaches
+        the same product. Reloading their _well results must not overwrite an
+        earlier channel's selected conformer while leaving its HIR unchanged.
+        OpenBabel handles cannot be deep-copied; detach the molecular arrays
+        which initial optimization and atom reordering can change.
+        """
+        copies = []
+        seen = {}
+        for fragment in fragments:
+            if id(fragment) not in seen:
+                initial = copy.copy(fragment)
+                for field in ('atom', 'geom', 'bond', 'bond01', 'bonds', 'rads'):
+                    if hasattr(fragment, field):
+                        setattr(initial, field, copy.deepcopy(getattr(fragment, field)))
+                seen[id(fragment)] = initial
+            copies.append(seen[id(fragment)])
+        return copies
+
     def equate_identical(self, frag):
         ''' Make identical fragments for a given reaction be exactly the same
         '''
         for ii in range(len(frag)):
             for jj in range(ii + 1, len(frag)):
-                if frag[ii].chemid == frag[jj].chemid:
+                if same_species(frag[ii], frag[jj], 'identical products'):
                     frag[jj] = frag[ii]
         return
 
@@ -812,12 +890,15 @@ class ReactionGenerator:
         '''Make identical fragments across reactions be exatly the same
         '''
         for fi, frag in enumerate(fragments):
+            reactant = getattr(self, 'species', None)
+            if reactant is not None and same_species(frag, reactant):
+                require_same_configuration(frag, reactant, 'product/reactant identity')
             if len(frag_unique) == 0:
                 frag_unique.append(frag)
             elif len(frag_unique) > 0:
                 new = 1
                 for fragu in frag_unique:  
-                    if frag.chemid == fragu.chemid:
+                    if same_species(frag, fragu):
                         fragments[fi] = fragu
                         new = 0
                         break

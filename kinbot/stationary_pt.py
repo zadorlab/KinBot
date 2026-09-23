@@ -1,3 +1,4 @@
+from kinbot.species_routing import routing_name
 import logging
 import copy
 import math
@@ -496,7 +497,7 @@ class StationaryPoint:
                     except AttributeError:
                         pass
                     self.characterize(bond_mx=self.bond)
-                    self.name = str(self.chemid)
+                    self.name = routing_name(self)
                     st_pt_prodlist.append(self)
                     break
                 frag_geom = np.asarray(self.geom)[np.where(np.asarray(frag_assg) == 1)]
@@ -528,7 +529,7 @@ class StationaryPoint:
                                            natom=frag_num_atoms, geom=frag_geom)
                     moli.characterize()  
                     moli.calc_chemid()
-                    moli.name = str(moli.chemid)
+                    moli.name = routing_name(moli)
 
                     st_pt_prodlist.append(moli)
 
@@ -710,7 +711,6 @@ class StationaryPoint:
         No rotation around ring bonds and double and triple bonds.
         If findall is set to 1, then redundant dihedrals are also found.
         """
-        
         self.calc_chemid()
         if not hasattr(self, 'cycle_chain'):
             self.find_cycle()
@@ -794,7 +794,9 @@ class StationaryPoint:
         The result is stored in self.conf_dihed.
         """
         
+        from kinbot.molecular_symmetry import reaction_atom_labels
         self.find_dihedral()
+        atom_labels = reaction_atom_labels(self)
         self.find_linear()
         self.conf_dihed = []
         dihed_sideb = []
@@ -808,9 +810,9 @@ class StationaryPoint:
                     break
                 if i != self.dihed[rotbond][2] and self.bond[self.dihed[rotbond][1]][i] > 0:
                     if start == 0: 
-                        base = self.atomid[i]
+                        base = atom_labels[i]
                         start = 1
-                    elif self.atomid[i] != base: 
+                    elif atom_labels[i] != base:
                         dihed_sideb.append(self.dihed[rotbond][:])
                         break
                         
@@ -822,9 +824,9 @@ class StationaryPoint:
                     break
                 if i != self.dihed[rotbond][1] and self.bond[self.dihed[rotbond][2]][i] > 0:
                     if start == 0: 
-                        base = self.atomid[i]
+                        base = atom_labels[i]
                         start = 1
-                    elif self.atomid[i] != base: 
+                    elif atom_labels[i] != base:
                         dihed_sidec.append(self.dihed[rotbond][:])
                         break
         

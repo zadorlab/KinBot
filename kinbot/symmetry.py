@@ -1,9 +1,104 @@
 import os,sys
+import copy
 import numpy as np
 
 from kinbot import geometry
 
+
+# Relative to the mean central bond length; tolerate small departures from a
+# planar optimized geometry without giving a shallow numerical bend C3 symmetry.
+PYRAMIDAL_HEIGHT_TOLERANCE = .05
+
+
+def _threefold_atom_symmetry(coordinates, center, neighbors):
+    """Three equivalent arms give six planar, or three pyramidal rotations.
+
+    This is the local rigid-geometry convention, not an inversion partition
+    function. The optical count and internal-rotor rules remain independent.
+    """
+    xyz = np.asarray(coordinates, dtype=float)
+    arms = xyz[neighbors]
+    normal = np.cross(arms[1] - arms[0], arms[2] - arms[0])
+    scale = np.linalg.norm(normal) * np.mean(np.linalg.norm(arms - xyz[center], axis=1))
+    if scale == 0:
+        return 6  # retain the old rule for a degenerate, non-pyramidal frame
+    relative_height = abs(np.dot(xyz[center] - arms[0], normal)) / scale
+    return 3 if relative_height > PYRAMIDAL_HEIGHT_TOLERANCE else 6
+
+
+def conformer_symmetry_numbers(species, geom=None):
+    """Apply the legacy rules to a member without modifying its parent.
+
+    Keep the characterized graph, atom IDs and TS bond unions. Only the
+    geometry used by the linear-axis and pyramidal-centre checks belongs to the member.
+    Spatial alignment tolerances do not determine rotational symmetry.
+    """
+    member = copy.copy(species)
+    member.geom = np.asarray(species.geom if geom is None else geom, dtype=float)
+    calculate_symmetry(member)
+    return {'sigma_ext': member.sigma_ext, 'sigma_int': member.sigma_int,
+            'nopt': member.nopt}
+
+
+def configured_external_labels(species):
+    """Split only graph-equivalent atoms forbidden by fixed configuration.
+
+    TSs use their saved endpoint spectator graphs; a TS union is not passed
+    off as a stable molecule. No global atom identifier is modified.
+    """
+    from kinbot.stereo_identity import canonical_identity
+    endpoints = (getattr(species, 'configuration_endpoints', ())
+                 if getattr(species, 'wellorts', 0) else (species,))
+    if not endpoints:
+        return None
+    identities = [canonical_identity(endpoint, species.geom) for endpoint in endpoints]
+    if any(item['status'] != 'assigned' for item in identities):
+        return None
+    if not any(any(tag in graph for tag in ('@', '/', '\\'))
+               for item in identities for graph in item['canonical_graphs']):
+        return None
+    groups = {}
+    labels = list(species.atomid)
+    next_label = 0
+    for atom in range(species.natom):
+        groups.setdefault(species.atomid[atom], []).append(atom)
+    split = False
+    for group in groups.values():
+        classes = {}
+        for atom in group:
+            tagged = [canonical_identity(endpoint, species.geom, tagged_atom=atom)
+                      for endpoint in endpoints]
+            if any(item['status'] != 'assigned' for item in tagged):
+                return None
+            # Own IDs preserve homotopy. Mirror-family IDs would incorrectly
+            # license the exchange of R and S arms in meso molecules.
+            key = tuple(item['id'] for item in tagged)
+            if key not in classes:
+                classes[key] = next_label
+                next_label += 1
+            labels[atom] = classes[key]
+        split |= len(classes) > 1
+    return labels if split else None
+
+
 def calculate_symmetry(species):
+    """Retain graph rules, vetoing external exchanges forbidden by fixed stereo."""
+    from kinbot.molecular_symmetry import reaction_atom_labels
+    atom_labels = reaction_atom_labels(species)
+    _calculate_symmetry(species, external_atomid=atom_labels, internal_atomid=atom_labels)
+    labels = configured_external_labels(species)
+    if labels is not None:
+        view = copy.copy(species)
+        classes = {}
+        combined = [classes.setdefault((a, b), len(classes))
+                    for a, b in zip(atom_labels, labels)]
+        _calculate_symmetry(view, external_atomid=combined, internal_atomid=atom_labels)
+        species.sigma_ext = min(species.sigma_ext, view.sigma_ext)
+        # Keep the original internal-rotor convention and legacy nopt separate.
+        # Optical contributions are evaluated by the representation contract.
+
+
+def _calculate_symmetry(species, external_atomid=None, internal_atomid=None):
     """
     Calculate the symmetry numbers (external and internal) and
     the number of optical isomers of a molecule based on some
@@ -14,6 +109,8 @@ def calculate_symmetry(species):
     * Symmetry along consecutive double bonds is not well perceived
     """
     natom = species.natom
+    external_atomid = species.atomid if external_atomid is None else external_atomid
+    internal_atomid = species.atomid if internal_atomid is None else internal_atomid
 
     sigma_ext = 1
     nopt = 1
@@ -38,7 +135,7 @@ def calculate_symmetry(species):
             if len(nei) == 1:  # no symmetry contributions
                 continue
             elif len(nei) == 2:
-                if species.atomid[nei[0]] == species.atomid[nei[1]]:
+                if external_atomid[nei[0]] == external_atomid[nei[1]]:
                     linear = 0
                     for li in lin:
                         if at in li[1:-1]:
@@ -46,11 +143,11 @@ def calculate_symmetry(species):
                     if not linear:
                         sigma_ext_contrib[at] = 2
             elif len(nei) == 3:
-                if (species.atomid[nei[0]] == species.atomid[nei[1]] and 
-                species.atomid[nei[1]] == species.atomid[nei[2]]):
-                    sigma_ext_contrib[at] = 6
+                if (external_atomid[nei[0]] == external_atomid[nei[1]] and
+                external_atomid[nei[1]] == external_atomid[nei[2]]):
+                    sigma_ext_contrib[at] = _threefold_atom_symmetry(species.geom, at, nei)
             elif len(nei) == 4:
-                nei_atomid = sorted([species.atomid[ni] for ni in nei])
+                nei_atomid = sorted([external_atomid[ni] for ni in nei])
                 if all([ati == nei_atomid[0] for ati in nei_atomid]):
                     sigma_ext_contrib[at] = 12
                 elif any([nei_atomid.count(ati) == 3 for ati in nei_atomid]):
@@ -75,9 +172,9 @@ def calculate_symmetry(species):
         j = li[-1]
         if not j in cycle:
             nei1 = get_neighbors(species,i)
-            nei1 = [species.atomid[ni] for ni in nei1 if ni != li[1]]
+            nei1 = [internal_atomid[ni] for ni in nei1 if ni != li[1]]
             nei2 = get_neighbors(species,j)
-            nei2 = [species.atomid[ni] for ni in nei2 if ni != li[-2]]
+            nei2 = [internal_atomid[ni] for ni in nei2 if ni != li[-2]]
             if len(nei1) > 0 and len(nei2) > 0:
                 s1 = 1
                 if all([ati == nei1[0] for ati in nei1]):
@@ -105,25 +202,25 @@ def calculate_symmetry(species):
         for cyc in species.cycle_chain:
             if i in cyc:
                 cycle.extend(cyc)
-        if species.atomid[i] == species.atomid[j] and not j in cycle:
+        if external_atomid[i] == external_atomid[j] and not j in cycle:
             sigma_ext *= 2
 
         if species.cycle[i] == 0 and species.cycle[j] == 0 and sigma_ext_contrib[i] == 1 and sigma_ext_contrib[j] == 1:
             nei1 = get_neighbors(species,i)
-            nei1 = [species.atomid[ni] for ni in nei1 if ni != li[1]]
+            nei1 = [external_atomid[ni] for ni in nei1 if ni != li[1]]
             nei2 = get_neighbors(species,j)
-            nei2 = [species.atomid[ni] for ni in nei2 if ni != li[-2]]
+            nei2 = [external_atomid[ni] for ni in nei2 if ni != li[-2]]
 
             if len(nei1) == 0 and len(nei2) > 1 and all([ati == nei2[0] for ati in nei2]):
                 #if all the neighbors of j are the same, it should have been taken into account earlier
                 nei = get_neighbors(species,j)
-                nei = [species.atomid[ni] for ni in nei]
+                nei = [external_atomid[ni] for ni in nei]
                 if not all([ati == nei[0] for ati in nei]):
                     sigma_ext *= len(nei2)
             elif len(nei2) == 0 and len(nei1) > 1 and all([ati == nei1[0] for ati in nei1]):
                 #if all the neighbors of i are the same, it should have been taken into account earlier
                 nei = get_neighbors(species,i)
-                nei = [species.atomid[ni] for ni in nei]
+                nei = [external_atomid[ni] for ni in nei]
                 if not all([ati == nei[0] for ati in nei]):
                     sigma_ext *= len(nei1)
             elif all([ati == nei1[0] for ati in nei1]) and all([ati == nei2[0] for ati in nei2]):
@@ -136,7 +233,7 @@ def calculate_symmetry(species):
         #if any atom on the ring has a contribution to internal symmetry, do not take the current ring
         #into account for external symmetry
         if not sum([sigma_int_contrib[ci] > 1 for ci in cyc]) == 1:
-            cyc_atomid = [species.atomid[ci] for ci in cyc]
+            cyc_atomid = [external_atomid[ci] for ci in cyc]
             symm = 0
             for i in range(len(cyc)):
                 new_order = np.roll(np.array(cyc_atomid), -i)
@@ -155,8 +252,8 @@ def calculate_symmetry(species):
                     cyc_nei = [ni for ni in nei if ni in cyc]
                     other_nei = [ni for ni in nei if ni not in cyc]
                     if len(other_nei) > 1:
-                        if species.atomid[cyc_nei[0]] == species.atomid[cyc_nei[1]]:
-                            if not all([species.atomid[other_nei[0]] == species.atomid[oi] for oi in other_nei]):
+                        if external_atomid[cyc_nei[0]] == external_atomid[cyc_nei[1]]:
+                            if not all([external_atomid[other_nei[0]] == external_atomid[oi] for oi in other_nei]):
                                 divide = 2
                 symm /= divide
             if symm > 0:
@@ -279,4 +376,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -26,7 +26,7 @@ class TestSchedulerJobs(unittest.TestCase):
             'high_level_method': 'MP2', 'high_level_basis': '6-31g'}))
         qc = QuantumChemistry(Parameters('input.json', show_warnings=False).par)
         qc.submit_qc = Mock()
-        point = SimpleNamespace(name='ts', mult=1, charge=0, nel=2,
+        point = SimpleNamespace(name='ts', wellorts=1, mult=1, charge=0, nel=2,
                                 atom=['H', 'H'], geom=[[0., 0., 0.], [1., 0., 0.]])
         for level, suffix, method, basis in ((0, '_hir_restart_1', 'hf', 'sto-3g'),
                                              (1, '_high', 'mp2', '6-31g')):

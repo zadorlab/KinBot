@@ -1,4 +1,4 @@
-"""Keep preliminary well-conformer results separate from L1 artifacts."""
+"""Conformer selection, validation and accepted-calculation regressions."""
 
 import json
 import os
@@ -9,7 +9,6 @@ import unittest
 from unittest.mock import Mock, patch
 
 from ase.build import molecule
-from ase.io import read
 import numpy as np
 
 from kinbot import constants
@@ -50,11 +49,46 @@ class TestL0ConformerResults(unittest.TestCase):
                   'frequencies': freq, 'status': 'normal'})
 
 
+    def test_higher_energy_invalid_l1_member_cannot_enter_population_filtering(self):
+        self.qc.qc = 'fc'  # read completed database records without log copying
+        self.search = Conformers(self.species, self.par, self.qc, semi_emp=0)
+        parent = f'{self.species.name}_well'
+        self.record(parent, -100.)
+        self.record(self.search.get_job_name(0), -100.)
+        self.record(self.search.get_job_name(1), -99.999,
+                    freq=[-100.] + [100.] * (3 * self.species.natom - 7))
+        self.search.conf = 2
+        result = self.search.check_conformers()
+        self.assertEqual(result[7], [0, 1])
+        retained = self.search.find_unique(*result[4:8], temp=300., boltz=.001)
+        self.assertEqual(retained[-1], [0])
 
+    def test_l1_parent_fallback_returns_electronic_hartree_in_both_failure_paths(self):
+        parent = f'{self.species.name}_well'
+        self.record(parent, -100., .1)
+        Path(parent + '.log').write_text('completed parent calculation')
+        for failed in (True, False):
+            with self.subTest(all_failed=failed):
+                search = Conformers(self.species, self.par, self.qc)
+                search.conf, search.conf_status = 1, [int(failed)]
+                if not failed:
+                    # A valid sampled structure can miss the parent basin.
+                    self.record(search.get_job_name(0), -99., .1)
+                result = search.check_conformers()
+                self.assertEqual(search.selected_job, parent)
+                self.assertAlmostEqual(result[3], -100.)
 
-
-
-
+    def test_higher_l1_ts_member_requires_a_reaction_coordinate(self):
+        self.qc.qc = 'fc'
+        self.species.wellorts = 1
+        self.species.name = 'ethanol_ts'
+        self.species.freq = [-1000.] + [100.] * (3 * self.species.natom - 7)
+        self.search = Conformers(self.species, self.par, self.qc, semi_emp=0)
+        self.record(self.species.name, -100., freq=self.species.freq)
+        self.record(self.search.get_job_name(0), -100., freq=self.species.freq)
+        self.record(self.search.get_job_name(1), -99.999)  # all positive
+        self.search.conf = 2
+        self.assertEqual(self.search.check_conformers()[7], [0, 1])
 
 
     def test_l1_selection_loads_all_properties_without_an_irc_service(self):
@@ -88,7 +122,6 @@ class TestL0ConformerResults(unittest.TestCase):
         self.assertEqual(self.species.reduced_freqs, selected_freq)
         selection = list(self.qc.db.select(name='conf/ethanol_ts_low'))[-1]
         self.assertEqual(selection.data.copied_from_job, search.get_job_name(1))
-
 
 
 if __name__ == '__main__':

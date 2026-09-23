@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 from ase import Atoms
@@ -90,8 +91,23 @@ def write_example(directory):
 
 
 class TestRealConformerOutput(unittest.TestCase):
-    def test_saved_thf_member_grounds_reach_both_final_inputs(self):
+    def test_saved_thf_unresolved_mirror_writes_weight_one_with_warning(self):
+        # This real conformer's 0.105 A local mismatch remains unresolved.
         with TemporaryDirectory() as directory:
+            direct,combined,_=write_example(directory)
+        for output in (direct,combined):
+            self.assertEqual(output.count('End ! RRHO'),2)
+            self.assertIn('unresolved symmetry number',output)
+            self.assertIn('using optical factor 1',output)
+
+    def test_saved_thf_member_grounds_reach_both_final_inputs(self):
+        # Preserve the energy-serialization regression using an explicitly
+        # controlled optical decision. This does not claim these real THF
+        # calculations now have a resolved physical MC counting model.
+        optical = dict(status='resolved', total_optical_states=1,
+                       remaining_multiplier=1., reason='Controlled serialization fixture.')
+        with TemporaryDirectory() as directory, patch(
+                'kinbot.conformer_counting.evaluate_optical', return_value=optical):
             direct, combined, zero = write_example(directory)
         expected = [round((energy - zero[0]) * constants.AUtoKCAL, 2)
                     for energy in zero]

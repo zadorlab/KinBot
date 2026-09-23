@@ -70,6 +70,10 @@ class Parameters:
             'skip_families': ['none'],
             # Which chemids to skip kinbot runs for during PES calculations
             'skip_chemids': ['none'],
+            # Original saved inputs that authorize reuse of an unidentified legacy QC namespace.
+            'stereo_legacy_inputs': {},
+            # Saved declared configuration for generated PES inputs (including MC mirror selections).
+            'stereo_reference': None,
             # Which chemids to keep kinbot runs for during PES calculations
             'keep_chemids': ['none'],
             # Skip specific reactions, usually makes sense once the search is done
@@ -164,6 +168,10 @@ class Parameters:
             'semi_emp_confomer_threshold': 5,
             # multi conformer TST
             'multi_conf_tst': 0,
+            # Fixed stereoisomers are the default; racemic means the global mirror pair.
+            'optical_population': 'specified',
+            # Explicit model choice for unresolved harmonic/HIR coverage only.
+            'optical_factor_assumptions': {},
             # temperature in K
             'multi_conf_tst_temp': 300.0,
             # percent of Boltzmann to include
@@ -447,6 +455,7 @@ class Parameters:
                 err = 'If you want to run a ME, you need to provide sigma and epsilon for the complexes.'
             if self.par['rotor_scan'] == 0 and self.par['multi_conf_tst'] == 0:
                 err = 'If you want to run a ME, the rotor_scan needs to be turned on.'
+        if self.par['me'] in (1, 2):
             # convert to cm-1 units
             if self.par['epsilon_unit'] == 'cm-1':  # units in MESS
                 pass
@@ -510,6 +519,18 @@ class Parameters:
 
         if self.par['bimol'] and len(self.par['structure']) != 2:
             err = 'For bimolecular reactions two fragments need to be defined.'
+
+        if self.par['optical_population'] not in ('specified', 'racemic'):
+            raise ValueError('optical_population must be specified or racemic')
+        assumptions = self.par['optical_factor_assumptions']
+        if not isinstance(assumptions, dict) or any(
+                not isinstance(name, str) or not name or not isinstance(value, dict)
+                or set(value) != {'multiplier', 'reason'}
+                or isinstance(value.get('multiplier'), bool) or value.get('multiplier') not in (1, 2)
+                or not isinstance(value.get('reason'), str) or not value['reason'].strip()
+                or '\n' in value['reason'] or '\r' in value['reason']
+                for name, value in assumptions.items()):
+            raise ValueError('optical_factor_assumptions requires exact state names with multiplier 1 or 2 and a one-line reason')
 
         if self.par['multi_conf_tst'] and not self.par['conformer_search']:
             err = 'For multi conformer tst calculation conformer search needs to be activated.'

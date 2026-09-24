@@ -6,7 +6,9 @@ These tests run without Gaussian, Molpro, CFOUR, MRCC, or FairChem installed.
 import json
 import os
 from pathlib import Path
+import sys
 from tempfile import TemporaryDirectory
+from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -17,6 +19,7 @@ from kinbot.ase_modules.calculators.factory import (
 )
 from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
+from kinbot.fairchem_utils import load_predictor
 from kinbot.theory import TheoryProfile
 
 
@@ -157,6 +160,22 @@ class TestTheoryProfiles(unittest.TestCase):
 
 
 class TestCalculatorFactory(unittest.TestCase):
+    def test_gated_fairchem_model_has_actionable_error(self):
+        class GatedRepoError(Exception):
+            pass
+
+        fairchem = ModuleType('fairchem')
+        core = ModuleType('fairchem.core')
+        core.pretrained_mlip = SimpleNamespace(
+            get_predict_unit=lambda *args, **kwargs: (_ for _ in ()).throw(
+                GatedRepoError('403 Forbidden')))
+        fairchem.core = core
+        with patch.dict(sys.modules, {
+                'fairchem': fairchem, 'fairchem.core': core}):
+            with self.assertRaisesRegex(
+                    RuntimeError, 'request or accept access.*facebook/UMA'):
+                load_predictor('uma-s-1p2', 'cpu')
+
     def test_capabilities_are_explicit_and_fairchem_is_lazy(self):
         self.assertEqual(calculator_spec('gauss'), calculator_spec('gaussian'))
         self.assertTrue(capabilities('fairchem').forces)

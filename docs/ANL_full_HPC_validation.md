@@ -193,7 +193,8 @@ jobs also use `HF_HUB_OFFLINE=1`, which the supplied run script sets by
 default:
 
 ```bash
-HF_HUB_OFFLINE=1 .venv/bin/python - <<'PY'
+env -u ALL_PROXY -u all_proxy \
+  HF_HUB_OFFLINE=1 .venv/bin/python - <<'PY'
 from fairchem.core import FAIRChemCalculator, pretrained_mlip
 from ase import Atoms
 
@@ -204,6 +205,12 @@ atoms.calc = FAIRChemCalculator(predictor, task_name='omol')
 print('FairChem UMA H2 energy (eV):', atoms.get_potential_energy())
 PY
 ```
+
+The generic proxy is omitted for this direct FairChem test because HTTPX
+rejects the site's nonstandard `socks://` scheme while it constructs a client,
+even when the Hub is in offline mode. KinBot's FairChem loader removes that
+invalid generic proxy automatically during offline cache resolution and
+restores the environment immediately afterward.
 
 Official FairChem installation and model-access instructions are at
 <https://github.com/FAIR-Chem/fairchem/blob/main/docs/core/install.md>; its

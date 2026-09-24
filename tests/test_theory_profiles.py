@@ -160,6 +160,34 @@ class TestTheoryProfiles(unittest.TestCase):
 
 
 class TestCalculatorFactory(unittest.TestCase):
+    def test_offline_fairchem_cache_ignores_invalid_generic_proxy(self):
+        observed = {}
+        expected = object()
+
+        def load(*args, **kwargs):
+            observed['ALL_PROXY'] = os.environ.get('ALL_PROXY')
+            observed['all_proxy'] = os.environ.get('all_proxy')
+            return expected
+
+        fairchem = ModuleType('fairchem')
+        core = ModuleType('fairchem.core')
+        core.pretrained_mlip = SimpleNamespace(get_predict_unit=load)
+        fairchem.core = core
+        environment = {
+            'HF_HUB_OFFLINE': '1',
+            'ALL_PROXY': 'socks://proxy.example:80',
+            'all_proxy': 'socks://proxy.example:80',
+        }
+        with patch.dict(sys.modules, {
+                'fairchem': fairchem, 'fairchem.core': core}):
+            with patch.dict(os.environ, environment, clear=True):
+                self.assertIs(load_predictor('uma-s-1p2', 'cpu'), expected)
+                self.assertEqual(os.environ['ALL_PROXY'],
+                                 environment['ALL_PROXY'])
+                self.assertEqual(os.environ['all_proxy'],
+                                 environment['all_proxy'])
+        self.assertEqual(observed, {'ALL_PROXY': None, 'all_proxy': None})
+
     def test_gated_fairchem_model_has_actionable_error(self):
         class GatedRepoError(Exception):
             pass

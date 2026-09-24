@@ -21,7 +21,10 @@ not yet have a pinned ANL1-F12 equation or production providers for every
 core-valence, scalar-relativistic, spin-orbit, and higher-order component.
 Therefore this test must not publish an ANL1-F12 energy or heat of formation.
 
-Run `run.sh PARTITION MAX_CONCURRENT_L3_NODES` after installing FairChem,
-obtaining access to the UMA model, loading the licensed QC programs, and
-activating the KinBot environment. The script is restartable: KinBot reuses
-its database and the ANL dispatcher reuses its immutable workflow state.
+Run `run.sh PARTITION MAX_CONCURRENT_L3_NODES [FAIRCHEM_MODEL]` after
+installing FairChem, obtaining access to the UMA model, loading the licensed
+QC programs, and activating the KinBot environment. `FAIRCHEM_MODEL` may be a
+registered name or, preferably for offline compute nodes, the absolute path
+to a previously downloaded checkpoint. It can also be supplied through
+`KINBOT_FAIRCHEM_MODEL`. The script is restartable: KinBot reuses its database
+and the ANL dispatcher reuses its immutable workflow state.

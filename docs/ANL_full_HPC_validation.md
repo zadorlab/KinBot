@@ -180,7 +180,10 @@ export all_proxy="$ALL_PROXY"
 
 Download the model once on a networked login node. Omitting Blodgett's
 incompatible generic SOCKS proxy still leaves its `HTTP_PROXY` and
-`HTTPS_PROXY` settings in place:
+`HTTPS_PROXY` settings in place. Save the returned path; FairChem otherwise
+uses a separate `~/.cache/fairchem` Hub cache and will not find a checkpoint
+downloaded into the CLI's default `~/.cache/huggingface/hub` cache while
+offline:
 
 ```bash
 unset HF_HUB_OFFLINE
@@ -188,17 +191,22 @@ env -u ALL_PROXY -u all_proxy \
   .venv/bin/hf download facebook/UMA checkpoints/uma-s-1p2.pt
 ```
 
-Then verify the molecular task from the local cache. The production batch
-jobs also use `HF_HUB_OFFLINE=1`, which the supplied run script sets by
-default:
+Set the path printed by that command and verify the molecular task directly
+from the checkpoint. The production batch jobs use the same path with
+`HF_HUB_OFFLINE=1`, which the supplied run script sets by default:
 
 ```bash
-env -u ALL_PROXY -u all_proxy \
-  HF_HUB_OFFLINE=1 .venv/bin/python - <<'PY'
-from fairchem.core import FAIRChemCalculator, pretrained_mlip
-from ase import Atoms
+export KINBOT_FAIRCHEM_MODEL=/path/printed/by/hf/download
+test -r "$KINBOT_FAIRCHEM_MODEL"
 
-predictor = pretrained_mlip.get_predict_unit('uma-s-1p2', device='cpu')
+HF_HUB_OFFLINE=1 .venv/bin/python - "$KINBOT_FAIRCHEM_MODEL" <<'PY'
+import sys
+
+from fairchem.core import FAIRChemCalculator
+from ase import Atoms
+from kinbot.fairchem_utils import load_predictor
+
+predictor = load_predictor(sys.argv[1], 'cpu')
 atoms = Atoms('H2', positions=[[0., 0., 0.], [0., 0., 0.74]])
 atoms.info.update({'charge': 0, 'spin': 1})
 atoms.calc = FAIRChemCalculator(predictor, task_name='omol')
@@ -206,11 +214,10 @@ print('FairChem UMA H2 energy (eV):', atoms.get_potential_energy())
 PY
 ```
 
-The generic proxy is omitted for this direct FairChem test because HTTPX
-rejects the site's nonstandard `socks://` scheme while it constructs a client,
-even when the Hub is in offline mode. KinBot's FairChem loader removes that
-invalid generic proxy automatically during offline cache resolution and
-restores the environment immediately afterward.
+Using the local checkpoint path avoids Hub cache lookup and proxy handling on
+compute nodes. KinBot still removes a nonstandard `socks://` generic proxy
+automatically during an offline named-model cache lookup and restores the
+environment immediately afterward.
 
 Official FairChem installation and model-access instructions are at
 <https://github.com/FAIR-Chem/fairchem/blob/main/docs/core/install.md>; its
@@ -259,13 +266,16 @@ the driver watches and advances dependent jobs:
 ```bash
 cd ~/KinBot
 export KINBOT_PYTHON="$PWD/.venv/bin/python"
-bash examples/anl/ethane_profiled_hpc/run.sh day-long-cpu 3
+bash examples/anl/ethane_profiled_hpc/run.sh \
+  day-long-cpu 3 "$KINBOT_FAIRCHEM_MODEL"
 ```
 
 The first argument is the Slurm partition. The second is the maximum number of
 simultaneous exclusive dispatcher nodes after the L3 geometry succeeds. The
-test directory defaults to `~/KinBot/ethane_profiled_hpc_run`; override it
-with `KINBOT_PROFILED_TEST_DIR`.
+optional third argument is the FairChem registered model name or local
+checkpoint path; the local path is required for the documented offline HPC
+run. The test directory defaults to `~/KinBot/ethane_profiled_hpc_run`;
+override it with `KINBOT_PROFILED_TEST_DIR`.
 
 Monitor either layer with:
 

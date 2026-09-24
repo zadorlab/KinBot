@@ -146,6 +146,16 @@ unset HF_HUB_OFFLINE
 .venv/bin/hf auth whoami
 ```
 
+A successful `whoami` does not itself grant access to UMA. A
+`403 GatedRepoError` stating that the user is not in the authorized list means
+the network and token authentication succeeded, but that individual Hugging
+Face account has not been granted access. While logged into the same account
+shown by `hf auth whoami`, visit <https://huggingface.co/facebook/UMA>, submit
+or accept the repository access terms, and wait if the page reports a pending
+manual review. For a fine-grained token, enable **Read access to contents of
+all public gated repos you can access**, then run `hf auth login --force` with
+the updated token. Gated access can only be requested through the browser.
+
 Do not use Hugging Face's standalone installer on Blodgett: it discovers
 `/opt/anaconda3/bin/python` (Python 3.7) instead of KinBot's Python 3.11
 environment. If the CLI reports an unknown `socks://` proxy scheme, first
@@ -168,12 +178,22 @@ export all_proxy="$ALL_PROXY"
 .venv/bin/hf auth login
 ```
 
-Download the model once on a networked login node and verify the molecule
-task. The production batch jobs then use the cache with
-`HF_HUB_OFFLINE=1`, which the supplied run script sets by default:
+Download the model once on a networked login node. Omitting Blodgett's
+incompatible generic SOCKS proxy still leaves its `HTTP_PROXY` and
+`HTTPS_PROXY` settings in place:
 
 ```bash
-.venv/bin/python - <<'PY'
+unset HF_HUB_OFFLINE
+env -u ALL_PROXY -u all_proxy \
+  .venv/bin/hf download facebook/UMA checkpoints/uma-s-1p2.pt
+```
+
+Then verify the molecular task from the local cache. The production batch
+jobs also use `HF_HUB_OFFLINE=1`, which the supplied run script sets by
+default:
+
+```bash
+HF_HUB_OFFLINE=1 .venv/bin/python - <<'PY'
 from fairchem.core import FAIRChemCalculator, pretrained_mlip
 from ase import Atoms
 

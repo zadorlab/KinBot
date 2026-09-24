@@ -140,7 +140,32 @@ FAIR Chemistry's UMA checkpoint is gated on Hugging Face. Request access to
 then log in without placing the token in a shell history:
 
 ```bash
-.venv/bin/huggingface-cli login
+.venv/bin/python -m pip install --upgrade huggingface_hub
+unset HF_HUB_OFFLINE
+.venv/bin/hf auth login
+.venv/bin/hf auth whoami
+```
+
+Do not use Hugging Face's standalone installer on Blodgett: it discovers
+`/opt/anaconda3/bin/python` (Python 3.7) instead of KinBot's Python 3.11
+environment. If the CLI reports an unknown `socks://` proxy scheme, first
+retain the site's HTTP/HTTPS proxies while omitting the incompatible generic
+proxy for the login and model-download commands:
+
+```bash
+env | grep -i '_proxy'
+env -u ALL_PROXY -u all_proxy .venv/bin/hf auth login
+```
+
+If the site exposes only a SOCKS proxy, install HTTPX's SOCKS support and use
+the `socks5://` scheme required by HTTPX. For the Blodgett value observed in
+the traceback:
+
+```bash
+.venv/bin/python -m pip install 'httpx[socks]'
+export ALL_PROXY=socks5://proxy.ca.sandia.gov:80
+export all_proxy="$ALL_PROXY"
+.venv/bin/hf auth login
 ```
 
 Download the model once on a networked login node and verify the molecule

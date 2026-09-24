@@ -58,7 +58,7 @@ To use the FAIRChem/UMA machine-learning interatomic potential backend
     pip install kinbot[fc]
 
 Named UMA checkpoints are gated on Hugging Face. Request access to
-`facebook/UMA`, authenticate with `huggingface-cli login`, and use the
+`facebook/UMA`, authenticate with `hf auth login`, and use the
 `omol` task for molecules. The current profiled examples use the official
 `uma-s-1p2` model. See the
 [FairChem installation guide](https://github.com/FAIR-Chem/fairchem/blob/main/docs/core/install.md)

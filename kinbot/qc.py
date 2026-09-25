@@ -1462,6 +1462,40 @@ class QuantumChemistry:
         return None
 
     def check_qc(self, job):
+        """Read job status, allowing 60 s for a submitted job's final files."""
+        status = QuantumChemistry._check_qc(self, job)
+        if self.queuing not in ('slurm', 'pbs') or job not in self.job_ids:
+            return status
+
+        # Each submission gets one deadline. None marks a completed or expired
+        # wait, so later checks cannot start another minute for the same job.
+        if not hasattr(self, '_completion_deadlines'):
+            self._completion_deadlines = {}
+        key = (job, self.job_ids[job])
+        if status == 'running':
+            self._completion_deadlines.pop(key, None)
+            return status
+        if status in ('normal', 'error'):
+            self._completion_deadlines[key] = None
+            return status
+        if status != 0:
+            return status
+
+        now = time.monotonic()
+        if key not in self._completion_deadlines:
+            self._completion_deadlines[key] = now + 60.
+            logger.info(f'{job}: job {key[1]} has left the queue; waiting up to '
+                        '60 s for its complete result.')
+        deadline = self._completion_deadlines[key]
+        if deadline is not None:
+            if now < deadline:
+                return 'running'
+            self._completion_deadlines[key] = None
+            logger.warning(f'{job}: complete result is still unavailable '
+                           '60 s after the job left the queue.')
+        return status
+
+    def _check_qc(self, job):
         '''
         Checks the status of the qc job.
         Possible returns:

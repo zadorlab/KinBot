@@ -1,5 +1,11 @@
 # Unreleased
 
+**Wait for delayed calculation results.** After a submitted Slurm or PBS job
+leaves the queue, KinBot allows up to 60 seconds for its complete result to
+become available. This prevents an early failure or a duplicate submission
+when result files appear late. A completed calculation error is still returned
+without this extra wait.
+
 **Native Q-Chem constraints are written correctly (#67).** The six Q-Chem job
 templates imported ASE's stock `QChem` calculator, which knows nothing about
 KinBot's `addsec` keyword and wrote it into `$rem` as `ADDSEC $OPT ...`,

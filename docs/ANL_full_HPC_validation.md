@@ -256,7 +256,7 @@ MPLCONFIGDIR="$PWD/.mpl-cache" \
 
 `tests/test_kinbot.py` is a pre-existing collection/import harness rather than
 the runnable unit suite. The expected branch result at the time this runbook
-was written is 236 passed, 2 skipped, and 190 subtests passed.
+was written is 241 passed, 2 skipped, and 190 subtests passed.
 
 ## Load external programs and run
 
@@ -271,14 +271,24 @@ command -v g16 molpro xcfour sbatch squeue sinfo
 ```
 
 The example defaults FairChem to CPU because the reported partitions did not
-advertise GPUs. Run it from a persistent login session such as `tmux` because
-the driver watches and advances dependent jobs:
+advertise GPUs. The driver watches and advances dependent jobs. Run it from a
+persistent login session, or use `nohup` when `tmux` is unavailable:
 
 ```bash
 cd ~/KinBot
 export KINBOT_PYTHON="$PWD/.venv/bin/python"
 bash examples/anl/ethane_profiled_hpc/run.sh \
   day-long-cpu 3 "$KINBOT_FAIRCHEM_MODEL"
+```
+
+The equivalent detached launch is:
+
+```bash
+nohup bash examples/anl/ethane_profiled_hpc/run.sh \
+  day-long-cpu 3 "$KINBOT_FAIRCHEM_MODEL" \
+  > ethane_profiled_hpc_driver.log 2>&1 < /dev/null &
+echo $! > ethane_profiled_hpc_driver.pid
+disown
 ```
 
 The first argument is the Slurm partition. The second is the maximum number of

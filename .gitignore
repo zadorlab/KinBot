@@ -8,3 +8,4 @@ dist
 .venv/
 .pytest_cache/
 .mpl-cache/
+.conda-pkgs/

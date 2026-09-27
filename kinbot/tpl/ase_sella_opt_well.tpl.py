@@ -33,6 +33,7 @@ if '{Code}' == 'Gaussian':
     mol.calc = {Code}(**kwargs)
 
 basename = os.path.basename('{label}')
+frequency_mode = '{frequency_mode}'
 
 if os.path.isfile(f'{{basename}}_sella.log'):
     os.remove(f'{{basename}}_sella.log')
@@ -76,7 +77,27 @@ else:
         converged = False
     if converged:
         try:
-            freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
+            if frequency_mode == 'native_hessian' and '{Code}' == 'Gaussian':
+                # Sella owns the optimization. Run one fixed-geometry native
+                # Gaussian frequency calculation afterward; no Gaussian
+                # optimization keyword is present.
+                from kinbot import reader_gauss
+                from kinbot.utils import iowait
+
+                frequency_kwargs = dict(kwargs)
+                frequency_kwargs.pop('force', None)
+                frequency_kwargs.pop('opt', None)
+                frequency_kwargs['freq'] = ''
+                frequency_kwargs['label'] = '{label}'
+                frequency_kwargs['chk'] = '{label}'
+                mol.calc = Gaussian(**frequency_kwargs)
+                e = mol.get_potential_energy()
+                iowait('{label}.log', 'gauss')
+                freqs = reader_gauss.read_freq('{label}.log', {atom})
+                zpe = reader_gauss.read_zpe('{label}.log')
+                hessian = None
+            else:
+                freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
             if freqs is None:
                 converged = False
             elif order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
@@ -88,10 +109,15 @@ else:
                 converged = False
             else:
                 e = mol.get_potential_energy()
-                db.write(mol, name='{label}', 
-                         data={{'energy': e, 'frequencies': freqs, 'zpe': zpe, 
-                         'hess': hessian, 'status': 'normal'}})
-        except:
+                data = {{'energy': e, 'frequencies': freqs, 'zpe': zpe,
+                        'status': 'normal'}}
+                if hessian is not None:
+                    data['hess'] = hessian
+                db.write(mol, name='{label}', data=data)
+        except Exception as error:
+            with open(f'{{basename}}_sella.log', 'a') as f:
+                f.write(f'Frequency evaluation failed: '
+                        f'{{type(error).__name__}}: {{error}}\n')
             converged = False
 
     os.chdir(scratch_dir)

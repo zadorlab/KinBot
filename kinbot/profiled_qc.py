@@ -77,6 +77,7 @@ def _backend_parameters(par, profile):
     values['high_level_basis'] = profile.basis
     values['calc_kwargs'] = dict(profile.calculator_kwargs)
     values['use_sella'] = profile.optimizer == 'sella'
+    values['frequency_mode'] = profile.frequency_mode
     if calculator == 'fairchem':
         values['fc_model_path'] = profile.model_path
         values['fc_task_name'] = profile.task_name

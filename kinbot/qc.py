@@ -77,6 +77,7 @@ class QuantumChemistry:
         self.queue_job_limit = par['queue_job_limit']
         self.username = par['username']
         self.use_sella = par['use_sella']
+        self.frequency_mode = par.get('frequency_mode', 'auto')
         if not self.use_sella and self.qc.lower() == 'nn_pes':
             logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
             self.use_sella = True
@@ -554,7 +555,10 @@ class QuantumChemistry:
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
-            kwargs.pop('chk', None)
+            # Sella's later force calls and an optional native Hessian reuse
+            # the wavefunction written by the first Gaussian evaluation.
+            if not self.use_sella:
+                kwargs.pop('chk', None)
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
@@ -600,6 +604,7 @@ class QuantumChemistry:
                                    sella_kwargs=self.par['sella_kwargs'],  # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
+                                   frequency_mode=self.frequency_mode,
                                    fc_model_path=self.par['fc_model_path'],
                                    fc_task_name=self.par['fc_task_name'],
                                    fc_device=self.par['fc_device'],
@@ -619,7 +624,8 @@ class QuantumChemistry:
         QChem L1 jobs did not request the printed Hessian. Keep their records
         intact and use a separate, same-level frequency calculation.
         """
-        if self.use_sella or self.qc not in ('gauss', 'qchem'):
+        if ((self.use_sella and self.frequency_mode != 'native_hessian')
+                or self.qc not in ('gauss', 'qchem')):
             raise ValueError(f'Missing stored Hessian for {source_job} ({self.qc}).')
         rows = list(self.db.select(name=source_job))
         source_id = rows[-1].id
@@ -789,6 +795,7 @@ class QuantumChemistry:
                                    sella_kwargs=self.par['sella_kwargs'], # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
+                                   frequency_mode=self.frequency_mode,
                                    charge=species.charge,
                                    spin=species.mult,
                                    fc_model_path=self.par['fc_model_path'],
@@ -862,6 +869,7 @@ class QuantumChemistry:
                                    sella_kwargs=self.par['sella_kwargs'], # Sella
                                    fmax=self.par['sella_fmax'],
                                    steps=self.par['sella_steps'],
+                                   frequency_mode=self.frequency_mode,
                                    fc_model_path=self.par['fc_model_path'],
                                    fc_task_name=self.par['fc_task_name'],
                                    fc_device=self.par['fc_device'],
@@ -1343,7 +1351,10 @@ class QuantumChemistry:
 
     def hessian_is_massweighted(self):
         """Native QChem Hessians are weighted; ASE/Sella Hessians are not."""
-        return self.qc == 'qchem' and not self.use_sella
+        return (self.qc == 'qchem'
+                and (not self.use_sella
+                     or getattr(self, 'frequency_mode', 'auto')
+                     == 'native_hessian'))
 
     def read_qc_hess(self, job, natom):
         '''
@@ -1359,7 +1370,8 @@ class QuantumChemistry:
                 and rows and rows[-1].data.get('hess') is not None):
             return np.asarray(rows[-1].data['hess'])
 
-        if self.use_sella or self.qc == 'fc':
+        if (self.use_sella and self.frequency_mode != 'native_hessian') \
+                or self.qc == 'fc':
             #db = connect('kinbot.db')
             for row in self.db.select(name=job):
                 last_row = row
@@ -1531,7 +1543,10 @@ class QuantumChemistry:
         if self.is_in_database(job):
             logger.debug('{} is in db'.format(job))
             for i in range(1):
-                if self.qc == 'gauss':
+                if (self.use_sella and self.qc != 'nn_pes'
+                        and '_freq_recovery_' not in job):
+                    log_file = job + '_sella.log'
+                elif self.qc == 'gauss':
                     log_file = job + '.log'
                 elif self.qc == 'nwchem':
                     log_file = job + '.out'

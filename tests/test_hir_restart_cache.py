@@ -77,6 +77,28 @@ class TestHIRRestartCache(unittest.TestCase):
                 self.qc.invalidate_qc('still_running')
         self.assertEqual(self.qc.db.count(), 0)
 
+    def test_gaussian_sella_completion_uses_optimizer_log(self):
+        self.qc.qc = 'gauss'
+        self.qc.use_sella = True
+        job = 'gauss_well_high'
+        self.qc.db.write(self.atoms, name=job, data={
+            'energy': -1., 'zpe': .01, 'frequencies': [100.],
+            'status': 'normal'})
+        Path(job + '.log').write_text('Normal termination of Gaussian\n')
+        Path(job + '_sella.log').write_text('done\n')
+        with patch('kinbot.qc.subprocess.call', return_value=1):
+            self.assertEqual(self.qc.check_qc(job), 'normal')
+
+    def test_nn_pes_sella_completion_remains_database_only(self):
+        self.qc.qc = 'nn_pes'
+        self.qc.use_sella = True
+        job = 'nn_well'
+        self.qc.db.write(self.atoms, name=job, data={
+            'energy': -1., 'zpe': .01, 'frequencies': [100.],
+            'hess': np.eye(6), 'status': 'normal'})
+        with patch('kinbot.qc.subprocess.call', return_value=1):
+            self.assertEqual(self.qc.check_qc(job), 'normal')
+
 
 if __name__ == '__main__':
     unittest.main()

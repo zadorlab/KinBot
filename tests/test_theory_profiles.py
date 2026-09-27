@@ -12,6 +12,7 @@ from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 from ase import Atoms
 
 from kinbot.ase_modules.calculators.factory import (
@@ -134,7 +135,52 @@ class TestTheoryProfiles(unittest.TestCase):
             'job_high', 1, 0, 10, high_level=1)['method'], 'B2PLYP')
         self.assertEqual(qc.l2.par['calc_kwargs']['EmpiricalDispersion'],
                          'GD3BJ')
+        self.assertEqual(qc.l2.frequency_mode, 'native_hessian')
         self.assertFalse(Path('kinbot.db').exists())
+
+    def test_profiled_gaussian_sella_job_uses_one_native_frequency(self):
+        parameters = self.parameters(theory_preset='uma-b2plyp-anl',
+                                     fc_model_path='/site/uma.pt')
+        qc = QuantumChemistry(parameters.par)
+        species = SimpleNamespace(
+            chemid=200000000000000000002, name='h2', mult=1, charge=0,
+            nel=2, natom=2, wellorts=0, atom=['H', 'H'],
+            geom=np.array([[0., 0., 0.], [0., 0., .74]]))
+        with patch.object(qc.l2, 'submit_qc', return_value=1):
+            qc.qc_opt(species, species.geom, high_level=1)
+        generated = Path(f'{species.chemid}_well_high.py').read_text()
+        compile(generated, f'{species.chemid}_well_high.py', 'exec')
+        self.assertIn("frequency_mode = 'native_hessian'", generated)
+        self.assertIn("frequency_kwargs['freq'] = ''", generated)
+        self.assertIn("frequency_kwargs.pop('opt', None)", generated)
+
+        Path('conf').mkdir()
+        with patch.object(qc.l1, 'submit_qc', return_value=1):
+            qc.qc_conf(species, species.geom, 0)
+        generated_conf = Path(
+            f'conf/{species.chemid}_0000.py').read_text()
+        compile(generated_conf, 'profiled_conformer.py', 'exec')
+        self.assertIn('calc_vibrations', generated_conf)
+
+        with patch.object(qc.l2, 'submit_qc', return_value=1):
+            qc.l2.qc_conf(species, species.geom, 0)
+        generated_l2_conf = Path(
+            f'conf/{species.chemid}_0000.py').read_text()
+        compile(generated_l2_conf, 'profiled_l2_conformer.py', 'exec')
+        self.assertIn("frequency_mode = 'native_hessian'",
+                      generated_l2_conf)
+        self.assertIn("'chk': 'conf/200000000000000000002_0000'",
+                      generated_l2_conf)
+
+        species.wellorts = 1
+        species.name = 'h2_saddle'
+        with patch.object(qc.l2, 'submit_qc', return_value=1):
+            qc.qc_opt_ts(species, species.geom, high_level=1)
+        generated_ts = Path('h2_saddle_high.py').read_text()
+        compile(generated_ts, 'h2_saddle_high.py', 'exec')
+        self.assertIn("frequency_mode = 'native_hessian'", generated_ts)
+        self.assertIn("frequency_kwargs['freq'] = ''", generated_ts)
+        self.assertIn("frequency_kwargs.pop('opt', None)", generated_ts)
 
     def test_profiled_job_routes_and_scheduler_ids_survive_restart(self):
         parameters = self.parameters(theory_preset='uma-b2plyp-anl',

@@ -55,6 +55,17 @@ provenance-matched recipe. It must not rename a partial sum ANL1-F12.
 
 ## Bugs fixed for this validation
 
+- Profiled Gaussian L2 calculations now honor
+  `frequency_mode: native_hessian` for wells and transition states:
+  ASE/Sella performs the geometry optimization, then one Gaussian frequency
+  calculation runs at that fixed optimized geometry without a Gaussian
+  optimization keyword. The previous path incorrectly launched ASE
+  finite-difference force displacements.
+- Completion polling for ASE/Sella jobs now reads the optimizer completion
+  log, while native Gaussian frequency-recovery jobs continue to use their
+  Gaussian log. This prevents a completed Slurm job from leaving the KinBot
+  driver polling indefinitely.
+
 - Profiled inputs no longer stop in `QuantumChemistry` with an unimplemented
   router. A persistent router sends reaction/conformer work to L1 and L2
   refinements and hindered rotors to L2.

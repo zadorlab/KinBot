@@ -44,6 +44,27 @@ class ReactionGenerator:
         self.inp = input_file
         self.qc = qc
 
+    def _existing_product_optimizer(self, reaction_index, product,
+                                    current_optimizers):
+        """Reuse one complete optimizer for each configured product species."""
+        for optimizer in current_optimizers:
+            if same_species(optimizer.species, product):
+                require_same_configuration(
+                    optimizer.species, product, 'product optimization reuse')
+                return optimizer
+        for index, reaction in enumerate(self.species.reac_obj):
+            if (index == reaction_index
+                    or not (self.species.reac_ts_done[index] > 2
+                            or self.species.reac_ts_done[index] == -1)):
+                continue
+            for product_index, previous_product in enumerate(reaction.products):
+                if same_species(previous_product, product):
+                    require_same_configuration(
+                        previous_product, product, 'product optimization reuse')
+                    if len(reaction.prod_opt) > product_index:
+                        return reaction.prod_opt[product_index]
+        return None
+
     def generate(self):
         '''
         Creates the input for each reaction, runs them, and tests for success.
@@ -538,25 +559,9 @@ class ReactionGenerator:
                         # do the products optimizations
                         temp_prod_opt = []  # holding the optimization objects temporarily
                         for product_index, st_pt in enumerate(obj.products):
-                            new = 1
-                            # do the products optimizations
-                            # check for products of other reactions that are the same as this product
-                            # in the case such products are found, use the same Optimize object for both
-                            for i, inst_i in enumerate(self.species.reac_inst):
-                                if not new:
-                                    break
-                                if i != index:
-                                    obj_i = self.species.reac_obj[i]
-                                    if (self.species.reac_ts_done[i] > 2
-                                            or self.species.reac_ts_done[i] == -1):
-                                        for j, st_pt_i in enumerate(obj_i.products):
-                                            if same_species(st_pt_i, st_pt):
-                                                require_same_configuration(st_pt_i, st_pt, 'product optimization reuse')
-                                                if len(obj_i.prod_opt) > j:
-                                                    prod_opt = obj_i.prod_opt[j]
-                                                    new = 0
-                                                    break
-                            if new:
+                            prod_opt = self._existing_product_optimizer(
+                                index, st_pt, temp_prod_opt)
+                            if prod_opt is None:
                                 prod_opt = Optimize(st_pt, self.par, self.qc)
                                 prod_opt.do_optimization()
                                 if prod_opt.shigh == -999:
@@ -603,7 +608,11 @@ class ReactionGenerator:
                                 if not obj.irc_prod_opt.shigh == 1:
                                     opts_done = 0
                                     obj.irc_prod_opt.do_optimization()
+                        seen_optimizers = set()
                         for pr_opt in obj.prod_opt:
+                            if id(pr_opt) in seen_optimizers:
+                                continue
+                            seen_optimizers.add(id(pr_opt))
                             if not pr_opt.shir == 1:
                                 opts_done = 0
                                 pr_opt.do_optimization()

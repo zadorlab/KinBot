@@ -8,8 +8,11 @@ import time
 import logging
 import copy
 import os
-import stat
 import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 from shutil import which
 from subprocess import Popen, PIPE
@@ -17,7 +20,7 @@ from kinbot.utils import reorder_coord
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
 from kinbot.molpro import Molpro
-from kinbot.utils import queue_command, create_matplotlib_graph, NpEncoder
+from kinbot.utils import create_matplotlib_graph, NpEncoder
 from kinbot import constants
 
 logger = logging.getLogger('KinBot')
@@ -49,6 +52,9 @@ class VTS:
         """
         The main driver for scanning the potential.
         """
+        if self.par.get('rotdpy_run'):
+            from kinbot.rotdpy import ensure_available
+            ensure_available()
         # structure of par['vrc_tst_scan']:
         # {chemid1: ["reaction_name1","reaction_name2], chemid2: [...]}
         for option, noscan in (('vrc_tst_scan', False), ('vrc_tst_noscan', True)):
@@ -62,6 +68,20 @@ class VTS:
             self.find_equiv(reactions)
             self.do_scan(reactions, noscan=noscan)
             self.energies(reactions, noscan=noscan)
+        if self.scan_reac:
+            # A direct KinBot run has all information needed here.  Waiting
+            # for a later PES aggregation step left single-well runs without
+            # the rotdPy input that the user requested.
+            from kinbot.pes import create_rotdpy_inputs
+            barrierless = []
+            reactant = routing_name(self.well)
+            for name, reaction in self.scan_reac.items():
+                barrierless.append([
+                    reactant, name,
+                    [routing_name(product) for product in reaction.products],
+                    0.0])
+            create_rotdpy_inputs(self.par, barrierless, [],
+                                 correction_root='.')
         return
 
     def configured_reactions(self, reactions):
@@ -388,20 +408,19 @@ class VTS:
         return (jobs)
 
     def energies(self, reactions, noscan=False):
-        '''
-        Create and submit molpro calculations
-        '''
-        cmd, ext = queue_command(self.par['queuing'])
-        batch_submit = ''
+        """Run and read the VRC Molpro correction calculations.
+
+        These calculations used to be written into a batch file and left for
+        a manual submission that the direct KinBot workflow never resumed.
+        Stage them through the restartable exclusive-node dispatcher instead,
+        then create the correction records before returning.
+        """
         db = connect('kinbot.db')
+        records = {}
+        pending = {}
         for reac in reactions:
-            all_done = True
-            e_samp = []
-            e_high = []
-            if noscan:
-                ndist = 1
-            else:
-                ndist = len(self.par['vrc_tst_scan_points']) + 1
+            records[reac] = []
+            ndist = 1 if noscan else len(self.par['vrc_tst_scan_points']) + 1
             for step in range(ndist):
                 for sample in [True, False]:
                     if sample:
@@ -413,19 +432,23 @@ class VTS:
                         if step < ndist - 1:
                             job = f'{reac}_vts_pt{str(step).zfill(2)}'
                         else:
-                            # take the geometry from the _fr case as well here
-                            job = f'{reac}_vts_pt_asymptote_fr'
-                    *_, last_row = db.select(name=f'vrctst/{job}', sort='-1')
+                            # Both theories use the frozen asymptotic geometry,
+                            # but need distinct inputs and native outputs.
+                            job = f'{reac}_vts_pt_asymptote'
+                    geometry_job = (job if sample or not job.endswith(
+                        '_asymptote') else job + '_fr')
+                    rows = list(db.select(name=f'vrctst/{geometry_job}',
+                                          sort='-id', limit=1))
+                    if not rows:
+                        raise RuntimeError('Missing accepted VRC geometry for '
+                                           f'{geometry_job}.')
+                    last_row = rows[0]
                     scan_spec = StationaryPoint.from_ase_atoms(
                         last_row.toatoms())
                     scan_spec.characterize()
 
                     molp = Molpro(scan_spec, self.par)
-                    if not sample and step == len(
-                       self.par['vrc_tst_scan_points']):
-                        job = job[:-3]  # the actual job name to run
                     molp.create_molpro_input(name=job, VTS=True, sample=sample)
-                    molp.create_molpro_submit(name=job, VTS=True)
                     e_stat, e = \
                         molp.get_molpro_energy(
                             key=self.par['vrc_tst_scan_molpro_key'],
@@ -433,94 +456,148 @@ class VTS:
                             VTS=True)
                     logger.debug(f'{job}, {e_stat}, {e}')
                     if not e_stat:
-                        batch_submit += f'{cmd} {job}.{ext}\n'
-                        all_done = False
-                    elif sample:
-                        e_samp.append(e)
-                    else:
-                        e_high.append(e)
+                        pending[job] = scan_spec
+                    records[reac].append((sample, job, molp))
 
-            if all_done:
-                if noscan:
-                    dist = [30]
-                else:
-                    dist = self.par['vrc_tst_scan_points'] + [30]
-                ens = []  # energies for sample and high in kcal/mol
-                asyms = []  # asymptotic energies in hartree
-                for sample in [True, False]:
-                    if sample:
-                        eee = copy.copy(e_samp)
-                    else:
-                        eee = copy.copy(e_high)
-                    asyms.append(eee[-1])
-                    eee = list((np.array(eee) - eee[-1]) * constants.AUtoKCAL)
-                    ens.append(eee)
+        if pending:
+            self._dispatch_molpro_corrections(pending)
 
-                # Create scan references between all equivalent atoms:
-                scan_ref = []
+        for reac in reactions:
+            e_samp = []
+            e_high = []
+            for sample, job, molp in records[reac]:
+                e_stat, energy = molp.get_molpro_energy(
+                    key=self.par['vrc_tst_scan_molpro_key'], name=job,
+                    VTS=True)
+                if not e_stat:
+                    raise RuntimeError(f'VRC Molpro result {job} has no '
+                                       f'{self.par["vrc_tst_scan_molpro_key"]} energy.')
+                (e_samp if sample else e_high).append(energy)
 
-                for i in self.scan_reac[reac].usym[0][0]:
-                    for j in self.scan_reac[reac].usym[1][0]:
-                        scan_ref.append([i, j])
+            dist = ([30] if noscan
+                    else self.par['vrc_tst_scan_points'] + [30])
+            ens = []  # energies for sample and high in kcal/mol
+            asyms = []  # asymptotic energies in hartree
+            for energies in (e_samp, e_high):
+                if len(energies) != len(dist):
+                    raise RuntimeError(f'Incomplete VRC energy series for {reac}.')
+                asyms.append(energies[-1])
+                ens.append(list((np.array(energies) - energies[-1])
+                                * constants.AUtoKCAL))
 
-                # Create list of reactive atoms (fragment indexed)
-                ra: list[list[int]] = [[], []]
-                for i in range(2):
-                    for j in self.scan_reac[reac].equiv[i]:
-                        ra[i].append(
-                            np.where(self.scan_reac[reac].maps[i] == j)[0][0])
+            # Create scan references between all equivalent atoms:
+            scan_ref = []
 
-                # TODO instead of writing files, create and save png
-                # TODO simple text file with 3 columns: R, e_samp, e_high
-                if not noscan:
-                    create_matplotlib_graph(x=dist,
-                                            data=ens,
-                                            name=f'{reac}',
-                                            x_label=f"{reac}",
-                                            y_label="Energy (kcal/mol)",
-                                            data_legends=['sample', 'high'],
-                                            )
+            for i in self.scan_reac[reac].usym[0][0]:
+                for j in self.scan_reac[reac].usym[1][0]:
+                    scan_ref.append([i, j])
 
-                smallest = np.linalg.norm(
-                    self.well.geom[self.scan_reac[reac].equiv[0][0]] -
-                    self.well.geom[self.scan_reac[reac].equiv[1][0]])
+            # Create list of reactive atoms (fragment indexed)
+            ra: list[list[int]] = [[], []]
+            for i in range(2):
+                for j in self.scan_reac[reac].equiv[i]:
+                    ra[i].append(
+                        np.where(self.scan_reac[reac].maps[i] == j)[0][0])
 
-                # write small file with correction data
-                corr: dict[str, Any] = {
-                    'dist': dist,
-                    'e_samp': ens[0],
-                    'e_high': ens[1],
-                    'scan_ref': scan_ref,
-                    'ra': ra,
-                    'smallest': smallest,
-                    'unique': self.scan_reac[reac].usym,
-                    'e_inf_samp': asyms[0],
-                    'e_inf_high': asyms[1],
-                    'frags_atom': [list(self.scan_reac[reac].products[0].atom),
-                                   list(self.scan_reac[reac].products[1].atom)],
-                    'frags_geom': [self.scan_reac[reac].products[0].geom,
-                                   self.scan_reac[reac].products[1].geom],
-                    'frags_mult': [self.scan_reac[reac].products[0].mult,
-                                   self.scan_reac[reac].products[1].mult],
-                    'frags_routing': [fragment_routing_state(product)
-                                      for product in self.scan_reac[reac].products]
-                    }
+            if not noscan:
+                create_matplotlib_graph(x=dist,
+                                        data=ens,
+                                        name=f'{reac}',
+                                        x_label=f"{reac}",
+                                        y_label="Energy (kcal/mol)",
+                                        data_legends=['sample', 'high'])
 
-                with open(f'vrctst/corr_{reac}.json',
-                          'w',
-                          encoding='utf-8') as f:
-                    json.dump(corr,
-                              f,
-                              ensure_ascii=False,
-                              indent=4,
-                              cls=NpEncoder)
+            smallest = np.linalg.norm(
+                self.well.geom[self.scan_reac[reac].equiv[0][0]] -
+                self.well.geom[self.scan_reac[reac].equiv[1][0]])
 
-        batch = f'vrctst/molpro/batch_vts_{self.par["queuing"]}.sub'
-        if self.par['queuing'] != 'local' and batch_submit != '':
-            with open(batch, 'w') as f:
-                f.write(batch_submit)
-            os.chmod(batch, stat.S_IRWXU)  # read, write, execute by owner
+            corr: dict[str, Any] = {
+                'dist': dist,
+                'e_samp': ens[0],
+                'e_high': ens[1],
+                'scan_ref': scan_ref,
+                'ra': ra,
+                'smallest': smallest,
+                'unique': self.scan_reac[reac].usym,
+                'e_inf_samp': asyms[0],
+                'e_inf_high': asyms[1],
+                'frags_atom': [list(self.scan_reac[reac].products[0].atom),
+                               list(self.scan_reac[reac].products[1].atom)],
+                'frags_geom': [self.scan_reac[reac].products[0].geom,
+                               self.scan_reac[reac].products[1].geom],
+                'frags_mult': [self.scan_reac[reac].products[0].mult,
+                                self.scan_reac[reac].products[1].mult],
+                'frags_routing': [fragment_routing_state(product)
+                                  for product in self.scan_reac[reac].products]
+                }
+
+            with open(f'vrctst/corr_{reac}.json', 'w',
+                      encoding='utf-8') as f:
+                json.dump(corr, f, ensure_ascii=False, indent=4,
+                          cls=NpEncoder)
         return
+
+    def _dispatch_molpro_corrections(self, pending):
+        """Execute missing VRC correction points with the ANL dispatcher."""
+        from kinbot.anl.dispatch import _load, preflight, prepare
+
+        first = next(iter(pending.values()))
+        molecule = {
+            'symbols': list(first.atom),
+            'positions': np.asarray(first.geom).tolist(),
+            'charge': first.charge,
+            'multiplicity': first.mult,
+        }
+        tasks = []
+        for job in sorted(pending):
+            input_path = Path('vrctst/molpro') / f'{job}.inp'
+            tasks.append({
+                'id': job, 'kind': 'external', 'backend': 'molpro',
+                'geometry_from': 'initial',
+                'resources': {
+                    'cores': 'auto', 'memory_mb': 'node',
+                    'walltime': self.par['vrc_tst_walltime'],
+                    'max_cores': self.par['single_point_ppn'],
+                    'min_stack_mw': self.par['vrc_tst_min_stack_mw'],
+                    'partition': self.par['queue_name'],
+                },
+                'input_name': f'{job}.inp',
+                'input_template': input_path.read_text(),
+                'command': ['molpro', '-n', '{cores}', '-m',
+                            '{molpro_stack_mw}', '{input}'],
+                'stdout': 'launcher.stdout', 'stderr': 'launcher.stderr',
+                'required_outputs': [f'{job}.out'],
+                'success_marker': {
+                    'file': f'{job}.out',
+                    'contains': 'Molpro calculation terminated'},
+            })
+        spec = {
+            'schema': 1, 'name': 'kinbot-vrc-correction-potentials',
+            'molecule': molecule,
+            'limits': {'max_nodes': self.par['vrc_tst_max_nodes']},
+            'tasks': tasks,
+        }
+        run_dir = Path('vrctst/molpro/dispatch').resolve()
+        if not run_dir.exists():
+            prepare(spec, run_dir)
+        else:
+            _, stored, _ = _load(run_dir)
+            wanted = {task['id']: task['input_template'] for task in tasks}
+            present = {task['id']: task['input_template']
+                       for task in stored['tasks']}
+            if present != wanted:
+                raise RuntimeError('Existing VRC dispatch inputs differ from '
+                                   'this run; archive the VRC dispatch directory.')
+        preflight(run_dir)
+        result = subprocess.run(
+            [sys.executable, '-m', 'kinbot.anl.dispatch', 'drive',
+             str(run_dir), '--interval', '20'], check=False)
+        if result.returncode:
+            raise RuntimeError('One or more VRC Molpro correction jobs failed; '
+                               f'inspect {run_dir}.')
+        for job in pending:
+            source = run_dir / 'tasks' / job / f'{job}.out'
+            shutil.copyfile(source, Path('vrctst/molpro') / source.name)
 
     def find_equiv(self, reactions):
         for reac in reactions:

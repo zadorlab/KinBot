@@ -4634,3 +4634,57 @@ restart test is required after the ethane interface run.
 
 The exact install, pull, run, restart, and acceptance procedure is in
 `docs/ANL_full_HPC_validation.md`.
+
+---
+
+# 94. Ethane barrierless-channel corrections after the first live run (2026-09-29)
+
+The first ethane run exposed three independent control-flow defects. A
+`hom_sci` channel correctly skipped the saddle search, but finalization still
+tested the copied reactant placeholder as if it were a stationary transition
+state and rejected its zero imaginary frequencies. Direct KinBot runs also
+never invoked rotdPy input creation, and the old VRC Molpro layer only wrote an
+unsubmitted batch file. Because `kinbot.kb` returned success after failed
+channels, the example then launched the unrelated parent ANL interface graph.
+
+The reaction state machine now omits stationary-saddle frequency validation
+for `hom_sci` while retaining minimum Hessians for its products. Those product
+frequencies are needed for fragment partition functions. Profiled VRC jobs use
+the dedicated Gaussian VRC method/basis through the Gaussian L2 backend rather
+than UMA. No-scan VRC directory creation is enabled, and its sampling and
+high-level Molpro asymptotes now have distinct input/output names. Missing VRC
+Molpro points enter the restartable exclusive-node dispatcher with automatic
+site discovery, memory-safe core selection, native-output checks, and the
+user's node cap. KinBot reads both results, writes the correction JSON, and
+immediately creates the rotdPy input in a direct single-well run.
+
+The ethane driver now stops before ANL unless a gate verifies the accepted
+homolysis, two methyl product entries, all four requested parent rotor points,
+the VRC correction arrays, a completed rotdPy execution, and a result manifest
+containing sampled surfaces. rotdPy execution is restartable and records the
+generated-input hash, stdout, stderr, return code, and result manifest. The
+example uses a reduced configurable grid and sample count while the general
+defaults remain production sized. This makes a zero exit from the top-level
+KinBot process insufficient by itself. The old external run
+must remain archived because its database contains failed HIR/channel state;
+the next validation uses a fresh run directory. The L3 geometry failure seen
+after that invalid handoff is a separate native Molpro issue and must be
+diagnosed from its `execution.json` and first force-step outputs rather than
+inferred from the reaction failure.
+
+rotdPy remains a separately distributed dependency. It must be installed in
+the KinBot environment with import name `rotd_py`; there is no matching PyPI
+release. The driver imports the exact `Multi`, `MultiSample`, and `FluxBase`
+APIs before starting the run. The VRC sampling level comes from
+`vrc_tst_sample_method`/`vrc_tst_sample_basis`; the high asymptotic correction
+comes from `vrc_tst_high_method`/`vrc_tst_high_basis`. Sampling grids, flux
+limits, process count, and the rotdPy queue limit are now ordinary KinBot
+parameters instead of template constants.
+
+The remaining external prerequisite is the actual rotdPy source distribution
+and a revision identifier from its maintainer. The `rotd_py` implementation is
+not included in KinBot and no matching package is published on PyPI. Once that
+checkout is installed on the HPC, the fresh ethane run is the compatibility
+test for its current constructor signatures, Slurm submission layer, Molpro
+renderer, and result files. Preserve the rotdPy revision and the generated
+sampling inputs with the validation artifacts.

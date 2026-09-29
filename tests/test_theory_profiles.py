@@ -215,6 +215,18 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertNotIn('a_well_high', final.job_ids)
         self.assertNotIn('a_well_high', final.l2.job_ids)
 
+    def test_profiled_vrc_jobs_use_gaussian_context(self):
+        parameters = self.parameters(theory_preset='uma-b2plyp-anl',
+                                     fc_model_path='/site/uma.pt')
+        qc = QuantumChemistry(parameters.par)
+        fragment = SimpleNamespace(chemid=123)
+        with patch.object(qc.l2, 'qc_vts_frag',
+                          return_value='vrctst/123_vts') as submit:
+            job = qc.qc_vts_frag(fragment)
+        self.assertEqual(job, 'vrctst/123_vts')
+        submit.assert_called_once_with(fragment)
+        self.assertEqual(qc._routes[job]['level'], 'l2')
+
     def test_anl1_f12_ladder_request_selects_higher_l2_surface(self):
         parameters = self.parameters(composite_method='ANL1-F12',
                                      fc_model_path='uma-s-1p2')

@@ -313,17 +313,46 @@ class Parameters:
             # VRC-TST PARAMETERS
             # Amount (Mb) of memory to use in rotdPy for each job during the sampling.
             'rotdPy_mem': 300,
+            # Execute generated rotdPy inputs as part of the KinBot workflow.
+            # Input generation remains available when this is disabled.
+            'rotdpy_run': 0,
+            # rotdPy submits the electronic-structure samples itself.  These
+            # settings are passed to its calculator without imposing a
+            # site-specific launcher in KinBot.
+            'rotdpy_processors': 1,
+            'rotdpy_max_jobs': 2000,
+            # [start, initial interval, interval multiplier, point count]
+            'rotdpy_temperature_grid': [10., 10., 1.05, 70],
+            'rotdpy_energy_grid': [0., 10., 1.05, 190],
+            'rotdpy_angular_grid': [0., 1., 1.1, 80],
+            'rotdpy_flux_parameters': {
+                'pot_smp_max': 1000,
+                'pot_smp_min': 100,
+                'tot_smp_max': 15000,
+                'tot_smp_min': 100,
+                'flux_rel_err': 5,
+                'smp_len': 1,
+            },
+            'rotdpy_dynamical_correction': 1.0,
             # Define the species and the reactions for which scans are requested
             # {chemid1: ["reaction_name1", "reaction_name2"], chemid2: [...]}
             'vrc_tst_scan': {},
             # for these, write rotdpy input, but don't do scan
             'vrc_tst_noscan': {},
+            # Maximum concurrent exclusive nodes for Molpro correction jobs
+            'vrc_tst_max_nodes': 1,
+            # Wall time for each Molpro correction job
+            'vrc_tst_walltime': '24:00:00',
+            # Minimum Molpro memory stack (MW) available to every MPI rank
+            'vrc_tst_min_stack_mw': 3200,
             # using sella for scan
             'vrc_tst_scan_sella': 0,
             # Method to scan bonds in vrc_tst_scan
             'vrc_tst_scan_method': 'ub3lyp',
             # Basis set to scan bonds in vrc_tst_scan
             'vrc_tst_scan_basis': '6-31+G(d)',
+            # Calculator keywords scoped only to VRC Gaussian calculations
+            'vrc_tst_calc_kwargs': {},
             # Energy calculations
             'vrc_tst_sample_method': 'caspt2(2,2)',
             'vrc_tst_high_method': 'caspt2(2,2)',

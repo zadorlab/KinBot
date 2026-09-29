@@ -9,6 +9,7 @@ MRCC-only CCSDTQ(P)/DZ component is disabled.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -233,6 +234,95 @@ def audit_interface_run(run_dir):
     }
 
 
+def audit_kinbot_run(run_dir, reaction, *, parent=None, hir_points=0,
+                     require_rotdpy=False):
+    """Gate downstream ANL work on an accepted KinBot reaction result."""
+    run_dir = Path(run_dir).resolve()
+    monitor = run_dir / 'kinbot_monitor.out'
+    if not monitor.is_file():
+        raise RuntimeError('KinBot did not write kinbot_monitor.out.')
+    matches = []
+    for line in monitor.read_text().splitlines():
+        fields = line.split()
+        if len(fields) >= 3 and fields[2] == reaction:
+            matches.append(fields)
+    if len(matches) != 1 or matches[0][0] != '-1':
+        raise RuntimeError(f'{reaction}: expected one accepted channel in '
+                           f'kinbot_monitor.out, found {matches!r}.')
+    products = matches[0][3:]
+    if len(products) != 2:
+        raise RuntimeError(f'{reaction}: expected two product entries, found '
+                           f'{products!r}.')
+
+    normal_hir = []
+    if hir_points:
+        database = run_dir / 'kinbot.db'
+        if not database.is_file():
+            raise RuntimeError('KinBot database is missing.')
+        prefix = f'hir/{parent}_hir_' if parent else 'hir/'
+        for row in connect(str(database)).select():
+            if (getattr(row, 'name', '').startswith(prefix)
+                    and row.data.get('status') == 'normal'):
+                normal_hir.append(row.name)
+        if len(set(normal_hir)) < hir_points:
+            raise RuntimeError(f'Expected at least {hir_points} accepted '
+                               f'hindered-rotor points for {parent}, found '
+                               f'{len(set(normal_hir))}.')
+        log = run_dir / 'kinbot.log'
+        if (log.is_file()
+                and 'will be treated as harmonic oscillators' in log.read_text()):
+            raise RuntimeError('KinBot demoted a requested hindered rotor to '
+                               'a harmonic oscillator.')
+
+    rotdpy = None
+    correction = None
+    if require_rotdpy:
+        correction = run_dir / 'vrctst' / f'corr_{reaction}.json'
+        rotdpy = run_dir / 'rotdPy' / f'{reaction}.py'
+        if not correction.is_file() or not rotdpy.is_file():
+            raise RuntimeError(f'{reaction}: VRC correction or rotdPy input '
+                               'is missing.')
+        payload = json.loads(correction.read_text())
+        required = {'dist', 'e_samp', 'e_high', 'scan_ref', 'ra',
+                    'e_inf_samp', 'e_inf_high', 'frags_atom', 'frags_geom',
+                    'frags_mult'}
+        if required - payload.keys():
+            raise RuntimeError(f'{reaction}: incomplete VRC correction record.')
+        if (len(payload['dist']) != len(payload['e_samp'])
+                or len(payload['dist']) != len(payload['e_high'])):
+            raise RuntimeError(f'{reaction}: inconsistent VRC correction arrays.')
+        if not rotdpy.read_text().strip():
+            raise RuntimeError(f'{reaction}: rotdPy input is empty.')
+        execution_file = rotdpy.with_name(f'{reaction}.execution.json')
+        if not execution_file.is_file():
+            raise RuntimeError(f'{reaction}: rotdPy was not executed.')
+        execution = json.loads(execution_file.read_text())
+        input_hash = hashlib.sha256(rotdpy.read_bytes()).hexdigest()
+        if (execution.get('status') != 'complete'
+                or execution.get('returncode') != 0
+                or execution.get('input_sha256') != input_hash):
+            raise RuntimeError(f'{reaction}: rotdPy execution is incomplete '
+                               'or does not match its input.')
+        from kinbot.rotdpy import read_result
+        rotdpy_result = read_result(rotdpy)
+    else:
+        execution_file = None
+        rotdpy_result = None
+
+    return {
+        'status': 'kinbot_reaction_complete',
+        'reaction': reaction,
+        'products': products,
+        'normal_hir_points': len(set(normal_hir)),
+        'vrc_correction': str(correction) if correction else None,
+        'rotdpy_input': str(rotdpy) if rotdpy else None,
+        'rotdpy_execution': (str(execution_file)
+                             if execution_file else None),
+        'rotdpy_surfaces': (rotdpy_result['surface_count']
+                            if rotdpy_result else 0),
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description='Prepare or audit the non-MRCC ANL interface validation')
@@ -255,10 +345,22 @@ def main(argv=None):
     stage.add_argument('--partition')
     audit = commands.add_parser('audit')
     audit.add_argument('run_dir', type=Path)
+    gate = commands.add_parser('gate-kinbot')
+    gate.add_argument('run_dir', type=Path)
+    gate.add_argument('reaction')
+    gate.add_argument('--parent')
+    gate.add_argument('--hir-points', type=int, default=0)
+    gate.add_argument('--require-rotdpy', action='store_true')
     args = parser.parse_args(argv)
     if args.action == 'audit':
         print(json.dumps(audit_interface_run(args.run_dir), indent=2,
                          sort_keys=True))
+        return 0
+    if args.action == 'gate-kinbot':
+        print(json.dumps(audit_kinbot_run(
+            args.run_dir, args.reaction, parent=args.parent,
+            hir_points=args.hir_points,
+            require_rotdpy=args.require_rotdpy), indent=2, sort_keys=True))
         return 0
     molecule = molecule_from_database(
         args.database, args.job, charge=args.charge,

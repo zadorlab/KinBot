@@ -15,6 +15,27 @@
   "reaction_search": 1,
   "families": ["hom_sci"],
   "homolytic_bonds": {"301020900180000000001": [[0, 1]]},
+  "vrc_tst_noscan": {
+    "301020900180000000001": [
+      "301020900180000000001_hom_sci_1_2"
+    ]
+  },
+  "rotdpy_run": 1,
+  "rotdpy_dist": [3.0],
+  "pp_length": {"X": [0.25], "C": [0.25], "H": [0.125]},
+  "rotdpy_processors": 1,
+  "rotdpy_max_jobs": 1,
+  "rotdpy_temperature_grid": [100.0, 100.0, 1.0, 3],
+  "rotdpy_energy_grid": [0.0, 10.0, 1.0, 4],
+  "rotdpy_angular_grid": [0.0, 1.0, 1.0, 4],
+  "rotdpy_flux_parameters": {
+    "pot_smp_max": 8,
+    "pot_smp_min": 4,
+    "tot_smp_max": 8,
+    "tot_smp_min": 4,
+    "flux_rel_err": 5,
+    "smp_len": 1
+  },
   "barrier_threshold": 150.0,
   "conformer_search": 1,
   "conf_grid": 3,

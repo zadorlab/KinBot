@@ -7,6 +7,9 @@ from rotd_py.sample.multi_sample import MultiSample
 from rotd_py.flux.fluxbase import FluxBase
 from ase.atoms import Atoms
 
+import json
+import os
+from pathlib import Path
 import numpy as np
 
 def generate_grid(start, interval, factor, num_point):
@@ -28,9 +31,9 @@ def generate_grid(start, interval, factor, num_point):
 
 
 # temperature, energy grid and angular momentum grid
-temperature = generate_grid(10, 10, 1.05, 70)
-energy = generate_grid(0, 10, 1.05, 190)
-angular_mom = generate_grid(0, 1, 1.1, 80)
+temperature = generate_grid(*{temperature_grid})
+energy = generate_grid(*{energy_grid})
+angular_mom = generate_grid(*{angular_grid})
 
 # fragment info
 # Coordinates in Angstrom
@@ -67,9 +70,7 @@ kb_sample = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
 #tot_smp_min: minimum number of total sampling per surface
 #smp_len: Number of valid sample asked of each subprocess
 
-flux_parameter = {{'pot_smp_max': 1000, 'pot_smp_min': 100,
-                  'tot_smp_max': 15000, 'tot_smp_min': 100,
-                  'flux_rel_err': 5, 'smp_len': 1}}
+flux_parameter = {flux_parameters}
 
 flux_base = FluxBase(temp_grid=temperature,
                      energy_grid=energy,
@@ -86,5 +87,18 @@ multi = Multi(sample=kb_sample,
               calculator=calc)
 multi.run()
 multi.print_results(
-dynamical_correction=1.0,
+dynamical_correction={dynamical_correction},
 faces_weights=faces_weights)
+
+# This manifest is written only after sampling and result generation finish.
+# KinBot reads it before allowing the workflow to proceed.
+result_files = sorted(
+    path.name for path in Path('.').iterdir()
+    if path.is_file() and path.name != '{result_file}')
+Path('{result_file}').write_text(json.dumps({{
+    'schema': 1,
+    'status': 'complete',
+    'reaction': '{job_name}',
+    'surface_count': len(getattr(multi, 'total_flux', {{}})),
+    'result_files': result_files,
+}}, indent=2) + '\n')

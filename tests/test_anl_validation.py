@@ -1,6 +1,7 @@
 """The external-site validation graph is general and cannot overclaim ANL."""
 
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,6 +11,7 @@ from ase.db import connect
 
 from kinbot.anl.dispatch import validate_spec
 from kinbot.anl.validation import (interface_validation_spec,
+                                   audit_kinbot_run,
                                    main as validation_main,
                                    molecule_from_database)
 from kinbot.anl import site
@@ -108,3 +110,48 @@ def test_prepare_from_database_cli_stages_general_graph(monkeypatch):
                    for task in workflow['tasks'])
         state = json.loads((run_dir / 'state.json').read_text())
         assert set(state['tasks']) == {'l2_geometry'}
+
+
+def test_kinbot_gate_requires_accepted_reaction_hir_and_rotdpy():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        reaction = 'parent_hom_sci_1_2'
+        (root / 'kinbot_monitor.out').write_text(
+            f'-1\t0\t{reaction}\tch3 ch3\n')
+        (root / 'kinbot.log').write_text('Reaction generation done!\n')
+        database = connect(root / 'kinbot.db')
+        for point in range(4):
+            database.write(
+                Atoms('H', positions=[[0., 0., float(point)]]),
+                name=f'hir/parent_hir_0_0{point}',
+                data={'status': 'normal'})
+        (root / 'vrctst').mkdir()
+        correction = {
+            'dist': [30.], 'e_samp': [0.], 'e_high': [0.],
+            'scan_ref': [[0, 0]], 'ra': [[0], [0]],
+            'e_inf_samp': -1., 'e_inf_high': -1.,
+            'frags_atom': [['C'], ['C']],
+            'frags_geom': [[[0., 0., 0.]], [[1., 0., 0.]]],
+            'frags_mult': [2, 2],
+        }
+        (root / 'vrctst' / f'corr_{reaction}.json').write_text(
+            json.dumps(correction))
+        (root / 'rotdPy').mkdir()
+        rotdpy_input = root / 'rotdPy' / f'{reaction}.py'
+        rotdpy_input.write_text('# rotdPy input\n')
+        (root / 'rotdPy' / f'{reaction}.rotdpy.json').write_text(
+            json.dumps({'schema': 1, 'status': 'complete',
+                        'reaction': reaction, 'surface_count': 1,
+                        'result_files': ['mcflux.out']}))
+        (root / 'rotdPy' / f'{reaction}.execution.json').write_text(
+            json.dumps({'schema': 1, 'status': 'complete', 'returncode': 0,
+                        'input_sha256': hashlib.sha256(
+                            rotdpy_input.read_bytes()).hexdigest()}))
+
+        result = audit_kinbot_run(
+            root, reaction, parent='parent', hir_points=4,
+            require_rotdpy=True)
+        assert result['status'] == 'kinbot_reaction_complete'
+        assert result['products'] == ['ch3', 'ch3']
+        assert result['normal_hir_points'] == 4
+        assert result['rotdpy_surfaces'] == 1

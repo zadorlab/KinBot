@@ -6,7 +6,7 @@ max_nodes=${2:-3}
 fairchem_model=${3:-${KINBOT_FAIRCHEM_MODEL:-uma-s-1p2}}
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd "$script_dir/../../.." && pwd)
-run_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run}
+run_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v3}
 python_bin=${KINBOT_PYTHON:-$repo_dir/.venv/bin/python}
 export HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-1}
 
@@ -23,7 +23,7 @@ done
 
 mkdir -p "$run_dir"
 "$python_bin" - "$script_dir/ethane.json" "$run_dir/ethane.json" \
-    "$partition" "$fairchem_model" <<'PY'
+    "$partition" "$fairchem_model" "$max_nodes" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -34,6 +34,7 @@ fairchem_model = sys.argv[4]
 data = json.loads(source.read_text())
 data['queue_name'] = partition
 data['fc_model_path'] = fairchem_model
+data['vrc_tst_max_nodes'] = int(sys.argv[5])
 target.write_text(json.dumps(data, indent=2) + '\n')
 PY
 
@@ -44,16 +45,24 @@ import ase
 import sella
 from fairchem.core import FAIRChemCalculator
 from kinbot.fairchem_utils import load_predictor
+from rotd_py.flux.fluxbase import FluxBase
+from rotd_py.new_multi import Multi
+from rotd_py.sample.multi_sample import MultiSample
 
 model = sys.argv[1]
 FAIRChemCalculator(load_predictor(model, 'cpu'), task_name='omol')
-print(f'Python, ASE, Sella, and FairChem model {model!r} are ready')
+print(f'Python, ASE, Sella, FairChem model {model!r}, and rotdPy are ready')
 PY
 
 cd "$run_dir"
 "$python_bin" -m kinbot.kb ethane.json
 
 parent_job=301020900180000000001_well_high
+parent=301020900180000000001
+reaction=${parent}_hom_sci_1_2
+"$python_bin" -m kinbot.anl.validation gate-kinbot . "$reaction" \
+    --parent "$parent" --hir-points 4 --require-rotdpy \
+    | tee kinbot_gate.json
 if [ ! -f anl_interface/workflow.json ]; then
     "$python_bin" -m kinbot.anl.validation prepare-from-db \
         kinbot.db "$parent_job" anl_interface --max-nodes "$max_nodes" \

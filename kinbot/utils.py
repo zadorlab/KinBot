@@ -81,7 +81,7 @@ def make_dirs(par):
     if par['calc_aie'] == 1:
         make_dir('aie')
         make_dir('perm/aie')
-    if par['vrc_tst_scan'] != {}:
+    if par['vrc_tst_scan'] != {} or par['vrc_tst_noscan'] != {}:
         make_dir('vrctst')
         make_dir('vrctst/molpro')
         make_dir('perm/vrctst')

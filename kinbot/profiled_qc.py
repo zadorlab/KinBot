@@ -225,6 +225,24 @@ class ProfiledQuantumChemistry:
         # Hindered rotors are evaluated on the accepted L2 surface.
         return self.l2.qc_hir(*args, **kwargs)
 
+    def qc_vts_frag(self, frag):
+        """Run VRC fragment preparation on its Gaussian theory context."""
+        if self.l2.qc != 'gauss':
+            raise ValueError('The current VRC implementation requires a '
+                             'Gaussian L2 backend.')
+        job = self.l2.qc_vts_frag(frag)
+        self._record(job, 'l2', self.l2.job_ids.get(job))
+        return job
+
+    def qc_vts(self, *args, **kwargs):
+        """Run the constrained VRC geometry point with Gaussian, not UMA."""
+        if self.l2.qc != 'gauss':
+            raise ValueError('The current VRC implementation requires a '
+                             'Gaussian L2 backend.')
+        job = self.l2.qc_vts(*args, **kwargs)
+        self._record(job, 'l2', self.l2.job_ids.get(job))
+        return job
+
     def qc_freq(self, species, source_job, high_level=0):
         level = 'l2' if high_level else self._level_for(source_job)
         result = self.backends[level].qc_freq(

@@ -207,10 +207,11 @@ synthetic fixture does not establish that a program output parser is correct.
   profile routing. Its broad exception catches are not a success signal;
   the new path should require validated result data and provenance.
 * `kinbot/tpl/rotdPy_calc.tpl` configures rotdPy with `code='molpro'`, method,
-  basis, memory, and queue. This proves KinBot passes a Molpro request into
-  rotdPy, but the rotdPy package is external to this repository. Obtain one
-  rotdPy-generated Molpro input and output on the external site and compare
-  syntax and energies with KinBot's new renderer before using it as evidence.
+  basis, memory, process count, queue, and a portable `$SCRATCH`/`$HOME`
+  fallback. rotdPy is external to this repository. The profiled ethane test
+  now runs a reduced sample, retains stdout/stderr and an input-hashed
+  execution record, and requires rotdPy's result-generation call to report at
+  least one surface before the ANL stage may start.
 * `kinbot/molpro.py` and `kinbot/tpl/molpro.tpl` provide a working legacy
   single-point pattern and parse `SETTING <key>` from Molpro `.out` files.
   The legacy template's generic `CCSD(T)-F12` call stores `energy(1)` as

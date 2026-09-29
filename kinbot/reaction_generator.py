@@ -58,6 +58,37 @@ class ReactionGenerator:
                     return reaction.prod_opt[product_index]
         return None
 
+    def _transition_state_frequency_failed(self, reaction_index, reaction):
+        """Validate a stationary saddle's frequencies.
+
+        Homolytic scission is a barrierless channel.  Its ``ts`` placeholder
+        is a copy of the reactant used by older reporting code, rather than a
+        stationary saddle, so applying the one-imaginary-mode rule to it
+        would reject every valid ``hom_sci`` channel.
+        """
+        if self.species.reac_type[reaction_index] == 'hom_sci':
+            return False
+        ts_freq = np.asarray(reaction.ts.reduced_freqs)
+        if not len(ts_freq):
+            return False
+        nneg = np.count_nonzero(ts_freq < 0.)
+        if (nneg >= 3
+                or np.count_nonzero(
+                    ts_freq < -self.par['imagfreq_threshold']) >= 2
+                or nneg == 0):
+            logger.warning('Wrong number of imaginary frequencies for '
+                           + reaction.instance_name)
+            logger.warning(reaction.ts.reduced_freqs)
+            self.species.reac_ts_done[reaction_index] = -999
+            return True
+        if nneg == 2:
+            idx = int(np.argsort(ts_freq)[1])
+            logger.warning('Flipping small secondary imaginary frequency '
+                           f'{reaction.ts.reduced_freqs[idx]} cm-1 for '
+                           f'{reaction.instance_name}.')
+            reaction.ts.reduced_freqs[idx] *= -1.
+        return False
+
     def generate(self):
         '''
         Creates the input for each reaction, runs them, and tests for success.
@@ -643,21 +674,8 @@ class ReactionGenerator:
                                 logger.warning(f'Found negative frequency {st_pt.reduced_freqs[0]} cm-1 for a product of {obj.instance_name}.')
                                 self.species.reac_ts_done[index] = -999
                                 neg_freq = 1
-                    ts_freq = np.asarray(obj.ts.reduced_freqs)
-                    if len(ts_freq):
-                        nneg = np.count_nonzero(ts_freq < 0.)
-                        if (nneg >= 3 or np.count_nonzero(
-                                ts_freq < -self.par['imagfreq_threshold']) >= 2
-                                or nneg == 0):
-                            logger.warning('Wrong number of imaginary frequencies for ' + obj.instance_name)
-                            logger.warning(obj.ts.reduced_freqs)
-                            self.species.reac_ts_done[index] = -999
-                            neg_freq = 1
-                        elif nneg == 2:
-                            idx = int(np.argsort(ts_freq)[1])
-                            logger.warning(f'Flipping small secondary imaginary frequency '
-                                           f'{obj.ts.reduced_freqs[idx]} cm-1 for {obj.instance_name}.')
-                            obj.ts.reduced_freqs[idx] *= -1.
+                    if self._transition_state_frequency_failed(index, obj):
+                        neg_freq = 1
                         
                     if not neg_freq:
                         # the reaction search is finished

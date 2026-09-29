@@ -10,10 +10,10 @@ import datetime
 import time
 import subprocess
 import json
+import logging
 from typing import Any
 import networkx as nx
 import numpy as np
-import getpass
 
 from copy import deepcopy
 from ase.db import connect
@@ -31,6 +31,9 @@ from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
 from kinbot.utils import queue_command
 from kinbot.vrc_tst_surfaces import VRC_TST_Surface 
+
+
+logger = logging.getLogger('KinBot')
 
 
 def main():
@@ -1314,7 +1317,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
     return
 
 
-def create_rotdpy_inputs(par, bless, vdW) -> None:
+def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
     """
     Function that creates an input file for rotdPy.
     barrierless and vdW are lists of reactions.
@@ -1338,7 +1341,11 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         barrier = vdW_energy
         barrierless.append([reactant, reaction_name, products, barrier])
 
+    created = []
     for index, reac in enumerate(barrierless):
+        # A failed or interrupted earlier reaction must not leak fragment names
+        # into the next generated rotdPy input.
+        Fragment._instances = []
         reactant, reac_name, products, barrier = reac
         if (reactant not in par['vrc_tst_scan'] or reac_name not in par['vrc_tst_scan'][reactant]) and\
            (reactant not in par['vrc_tst_noscan'] or reac_name not in par['vrc_tst_noscan'][reactant]):
@@ -1353,7 +1360,12 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
             logger.warning(f"Skiping rotdPy input creation for reac {reac_name}.")
             raise KeyError(f'{reac_name} is not a bimolecular process.')
 
-        json_file = f"{reactant}/vrctst/corr_{reac_name}.json"
+        if correction_root is None:
+            json_file = f"{reactant}/vrctst/corr_{reac_name}.json"
+        else:
+            json_file = os.path.join(
+                os.fspath(correction_root), 'vrctst',
+                f'corr_{reac_name}.json')
         if not os.path.isfile(json_file):
             logger.warning(f"Results of scan for 1D correction not found for rotdPy job {reac_name}")
             raise KeyError(f"Results of scan for 1D correction not found for rotdPy job {reac_name}")
@@ -1430,9 +1442,9 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                                      method=par['vrc_tst_sample_method'],
                                      basis=par['vrc_tst_sample_basis'],
                                      mem=par['rotdPy_mem'],
-                                     whoami=getpass.getuser(),
+                                     processors=par['rotdpy_processors'],
                                      queue=par['queuing'],
-                                     max_jobs=2000)
+                                     max_jobs=par['rotdpy_max_jobs'])
 
         template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
         if noscan:
@@ -1452,13 +1464,28 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
             calc_block=rotdPy_calc,
             min_dist=min_dist,
             corrections_block=kb_1d_correction,
-            inf_energy=inf_energy)
+            inf_energy=inf_energy,
+            temperature_grid=repr(par['rotdpy_temperature_grid']),
+            energy_grid=repr(par['rotdpy_energy_grid']),
+            angular_grid=repr(par['rotdpy_angular_grid']),
+            flux_parameters=repr(par['rotdpy_flux_parameters']),
+            dynamical_correction=repr(par['rotdpy_dynamical_correction']),
+            result_file=f'{reac_name}.rotdpy.json')
 
-        with open(f"{folder}/{reac_name}.py", 'w') as f:
+        input_file = f"{folder}/{reac_name}.py"
+        with open(input_file, 'w') as f:
             f.write(new_input)
+        created.append(input_file)
+
+        if par.get('rotdpy_run'):
+            from kinbot.rotdpy import run
+            logger.info(f'Running rotdPy for reaction {reac_name}.')
+            run(input_file)
 
         # Erase the fragments for this reaction
         Fragment._instances = []
+
+    return created
 
 
 def is_unique_vdW(well, vdW):

@@ -900,8 +900,9 @@ class QuantumChemistry:
 
         if frag.natom < 3:
             kwargs.pop('Symm', None)
-        if self.par['calc_kwargs']:
-            kwargs = self.merge_kwargs(kwargs)
+        if self.par.get('vrc_tst_calc_kwargs'):
+            kwargs = self.merge_kwargs(
+                kwargs, self.par['vrc_tst_calc_kwargs'])
 
         template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
@@ -938,8 +939,9 @@ class QuantumChemistry:
         
         if reac.species.natom < 3:
             kwargs.pop('Symm', None)
-        if self.par['calc_kwargs']:
-            kwargs = self.merge_kwargs(kwargs)
+        if self.par.get('vrc_tst_calc_kwargs'):
+            kwargs = self.merge_kwargs(
+                kwargs, self.par['vrc_tst_calc_kwargs'])
         
         if self.par['vrc_tst_scan_sella']:  # TODO sella globally
             kwargs.pop('opt', None)
@@ -1649,8 +1651,9 @@ class QuantumChemistry:
         dummy = [d.tolist() for d in dummy]
         return atom, geom, dummy
 
-    def merge_kwargs(self, kwargs):
-        user_kwargs = self.par['calc_kwargs']
+    def merge_kwargs(self, kwargs, user_kwargs=None):
+        if user_kwargs is None:
+            user_kwargs = self.par['calc_kwargs']
         for key, uvalue in user_kwargs.items():
             if key in kwargs:
                 user_val_dict, val_dict = {}, {}

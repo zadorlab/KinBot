@@ -13,13 +13,31 @@ The supplied ethane run performs these real operations:
 2. KinBot refines accepted stationary points with
    B2PLYP-D3(BJ)/cc-pVTZ through ASE/Sella at L2 and evaluates hindered rotors
    on that same L2 surface.
-3. The accepted L2 parent geometry enters the exclusive-node dispatcher.
-4. Molpro performs the CCSD(T)/cc-pVTZ ASE/Sella L3 geometry calculation.
-5. After that geometry succeeds, Molpro harmonic, F12/TZ, F12/QZ, and
+3. The accepted homolytic scission bypasses stationary-saddle frequency
+   validation. KinBot prepares the VRC asymptote with Gaussian, dispatches the
+   sampling/high-level Molpro corrections on exclusive nodes, and writes a
+   runnable rotdPy input. rotdPy executes a reduced Molpro sampling problem
+   and writes a result manifest.
+4. A machine-readable gate requires the accepted channel, both methyl product
+   entries, four normal parent hindered-rotor points, a consistent VRC
+   correction record, a completed rotdPy execution record, and at least one
+   sampled surface in the rotdPy result manifest.
+5. The accepted L2 parent geometry enters the exclusive-node dispatcher.
+6. Molpro performs the CCSD(T)/cc-pVTZ ASE/Sella L3 geometry calculation.
+7. After that geometry succeeds, Molpro harmonic, F12/TZ, F12/QZ, and
    CCSD(T)/DZ jobs, CFOUR DBOC, and a frequency-only Gaussian VPT2 job are
    allowed to run concurrently up to the requested node limit.
-6. Every native output is hash checked and reparsed. The F12 pair is CBS
+8. Every native output is hash checked and reparsed. The F12 pair is CBS
    extrapolated as a verified component.
+
+The methyl product minimum still needs a frequency calculation for its MESS
+partition function. `hom_sci` itself has no stationary transition state and
+therefore has no transition-state Hessian or one-imaginary-frequency test.
+The rotdPy smoke settings are intentionally small: one dividing-surface
+distance, small temperature/energy/angular grids, at most eight samples, and
+one concurrent Molpro sampling job. This validates input generation,
+scheduler execution, restart, and result handoff. It does not establish
+production VRC convergence.
 
 The final audit must say:
 
@@ -153,6 +171,29 @@ PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install --upgrade pip
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e '.[fc]'
 ```
 
+rotdPy is a separate source distribution and does not have a `rotdpy` or
+`rotd-py` release on PyPI. Obtain the source checkout used by the KinBot VRC
+interface from the rotdPy maintainers, then install it into this same
+environment. Replace the example path with the checkout location:
+
+```bash
+PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e /path/to/rotdPy
+git -C /path/to/rotdPy rev-parse HEAD
+.venv/bin/python - <<'PY'
+from rotd_py.flux.fluxbase import FluxBase
+from rotd_py.new_multi import Multi
+from rotd_py.sample.multi_sample import MultiSample
+print('rotdPy imports OK')
+PY
+```
+
+The import name must be `rotd_py`. KinBot fails before starting licensed VRC
+jobs when `rotdpy_run` is enabled and that package is absent. Installing the
+unrelated PyPI package named `rtdpy` does not satisfy this prerequisite.
+Record the rotdPy source revision with the external run results; the package
+cannot be pinned by KinBot until its distribution URL and supported revision
+are supplied.
+
 FAIR Chemistry's UMA checkpoint is gated on Hugging Face. Request access to
 `facebook/UMA`, create a token with read access to public gated repositories,
 then log in without placing the token in a shell history:
@@ -262,8 +303,8 @@ MPLCONFIGDIR="$PWD/.mpl-cache" \
 ```
 
 `tests/test_kinbot.py` is a pre-existing collection/import harness rather than
-the runnable unit suite. The expected branch result at the time this runbook
-was written is 243 passed, 2 skipped, and 190 subtests passed.
+the runnable unit suite. Every collected test must pass before the HPC run;
+the exact count changes as this branch adds regressions.
 
 ## Load external programs and run
 
@@ -299,10 +340,11 @@ disown
 ```
 
 The first argument is the Slurm partition. The second is the maximum number of
-simultaneous exclusive dispatcher nodes after the L3 geometry succeeds. The
+simultaneous exclusive nodes for both the VRC Molpro correction stage and the
+ANL dispatcher after the L3 geometry succeeds. The
 optional third argument is the FairChem registered model name or local
 checkpoint path; the local path is required for the documented offline HPC
-run. The test directory defaults to `~/KinBot/ethane_profiled_hpc_run`;
+run. The test directory defaults to `~/KinBot/ethane_profiled_hpc_run_v3`;
 override it with `KINBOT_PROFILED_TEST_DIR`.
 
 Monitor either layer with:
@@ -312,7 +354,19 @@ cd ~/KinBot
 squeue -u "$USER"
 .venv/bin/python -m kinbot.anl.dispatch status \
   ethane_profiled_hpc_run/anl_interface
+.venv/bin/python -m kinbot.anl.dispatch status \
+  ethane_profiled_hpc_run/vrctst/molpro/dispatch
 tail -f ethane_profiled_hpc_run/kinbot.log
+```
+
+For the default fresh run, replace `ethane_profiled_hpc_run` in those monitor
+commands with `ethane_profiled_hpc_run_v3`. rotdPy's captured driver streams
+and completion records are under `rotdPy/`:
+
+```bash
+cat ethane_profiled_hpc_run_v3/rotdPy/*.execution.json
+cat ethane_profiled_hpc_run_v3/rotdPy/*.rotdpy.json
+tail -n 80 ethane_profiled_hpc_run_v3/rotdPy/*.rotdpy.stderr
 ```
 
 The command is restartable. Rerun the same `run.sh` command after an
@@ -331,11 +385,21 @@ Review the final machine-readable report:
 
 ```bash
 cat ethane_profiled_hpc_run/anl_interface_audit.json
+cat ethane_profiled_hpc_run/kinbot_gate.json
 ```
 
 The report is acceptable for this validation only when every task is
 `complete`, the native parsers are listed, a finite F12 CBS value is present,
 and the top-level status remains `interface_complete_recipe_incomplete`.
+The KinBot gate must separately report `kinbot_reaction_complete`.
+
+Do not resume an older run directory that already recorded failed HIR or
+`hom_sci` state. Preserve it for diagnosis and select a fresh directory after
+pulling this fix, for example:
+
+```bash
+export KINBOT_PROFILED_TEST_DIR="$PWD/ethane_profiled_hpc_run_v3"
+```
 
 ## Remaining decisions before the production end-to-end test
 

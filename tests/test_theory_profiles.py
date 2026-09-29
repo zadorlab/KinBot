@@ -182,6 +182,22 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertIn("frequency_kwargs['freq'] = ''", generated_ts)
         self.assertIn("frequency_kwargs.pop('opt', None)", generated_ts)
 
+        Path('hir').mkdir()
+        rotor = SimpleNamespace(
+            chemid=200000000000000000003, name='rotor', mult=1, charge=0,
+            nel=18, natom=4, wellorts=0,
+            atom=['C', 'C', 'H', 'H'],
+            geom=np.array([[0., 0., 0.], [1.5, 0., 0.],
+                           [-.5, 1., 0.], [2., 1., 1.]]))
+        with patch.object(qc.l2, 'submit_qc', return_value=1):
+            qc.qc_hir(rotor, rotor.geom, 0, 0, [[3, 1, 2, 4]], 0)
+        generated_hir = Path(
+            f'hir/{rotor.chemid}_hir_0_00.py').read_text()
+        compile(generated_hir, 'profiled_l2_hir.py', 'exec')
+        self.assertIn(
+            f"'chk': 'hir/{rotor.chemid}_hir_0_00'", generated_hir)
+        self.assertIn('Constrained optimization failed:', generated_hir)
+
     def test_profiled_job_routes_and_scheduler_ids_survive_restart(self):
         parameters = self.parameters(theory_preset='uma-b2plyp-anl',
                                      fc_model_path='uma-s-1p2')

@@ -38,6 +38,26 @@ class ReactionGenerator:
         self.inp = input_file
         self.qc = qc
 
+    def _existing_product_optimizer(self, reaction_index, product,
+                                    current_optimizers):
+        """Return one optimizer for each unique product species.
+
+        A reaction may contain the same fragment more than once, as in
+        ethane homolysis. Keep both product-list entries for stoichiometry,
+        while sharing the calculation and optimization state.
+        """
+        for optimizer in current_optimizers:
+            if optimizer.species.chemid == product.chemid:
+                return optimizer
+        for index, reaction in enumerate(self.species.reac_obj):
+            if index == reaction_index or self.species.reac_ts_done[index] <= 2:
+                continue
+            for product_index, previous_product in enumerate(reaction.products):
+                if (previous_product.chemid == product.chemid
+                        and len(reaction.prod_opt) > product_index):
+                    return reaction.prod_opt[product_index]
+        return None
+
     def generate(self):
         '''
         Creates the input for each reaction, runs them, and tests for success.
@@ -494,24 +514,13 @@ class ReactionGenerator:
                                                   
                     # do the products optimizations
                     temp_prod_opt = []  # holding the optimization objects temporarily
-                    for st_pt in obj.products:
-                        new = 1
+                    for product_index, st_pt in enumerate(obj.products):
                         # do the products optimizations
-                        # check for products of other reactions that are the same as this product
-                        # in the case such products are found, use the same Optimize object for both
-                        for i, inst_i in enumerate(self.species.reac_inst):
-                            if not new:
-                                break
-                            if i != index:
-                                obj_i = self.species.reac_obj[i]
-                                if self.species.reac_ts_done[i] > 2:
-                                    for j, st_pt_i in enumerate(obj_i.products):
-                                        if st_pt_i.chemid == st_pt.chemid:
-                                            if len(obj_i.prod_opt) > j:
-                                                prod_opt = obj_i.prod_opt[j]
-                                                new = 0
-                                                break
-                        if new:
+                        # Reuse identical products within this channel and
+                        # products already optimized for another reaction.
+                        prod_opt = self._existing_product_optimizer(
+                            index, st_pt, temp_prod_opt)
+                        if prod_opt is None:
                             prod_opt = Optimize(st_pt, self.par, self.qc)
                             prod_opt.do_optimization()
                             if prod_opt.shigh == -999:
@@ -519,6 +528,10 @@ class ReactionGenerator:
                                              .format(obj.instance_name, prod_opt.species.chemid))
                                 self.species.reac_ts_done[index] = -999
                                 #break  # breaks so that other species is not looked at
+                        else:
+                            # Keep channel multiplicity while making both
+                            # identical entries use the accepted species data.
+                            obj.products[product_index] = prod_opt.species
                         temp_prod_opt.append(prod_opt)
                     if self.species.reac_ts_done[index] != -999:
                         for tpo in temp_prod_opt:
@@ -555,7 +568,11 @@ class ReactionGenerator:
                             if not obj.irc_prod_opt.shigh == 1:
                                 opts_done = 0
                                 obj.irc_prod_opt.do_optimization()
+                    seen_optimizers = set()
                     for pr_opt in obj.prod_opt:
+                        if id(pr_opt) in seen_optimizers:
+                            continue
+                        seen_optimizers.add(id(pr_opt))
                         if not pr_opt.shir == 1:
                             opts_done = 0
                             pr_opt.do_optimization()

@@ -45,10 +45,14 @@ opt = Sella(mol,
 
 try:
     converged = opt.run(fmax={fmax}, steps={steps})
-except:
+except Exception as error:
+    with open(f'{{basename}}_sella.log', 'a') as f:
+        f.write(f'Constrained optimization failed: '
+                f'{{type(error).__name__}}: {{error}}\n')
     converged = False
-traj = read(f'{{basename}}.traj', index=':')
-write(f'{{basename}}.xyz', traj, format='xyz')
+if os.path.isfile(f'{{basename}}.traj'):
+    traj = read(f'{{basename}}.traj', index=':')
+    write(f'{{basename}}.xyz', traj, format='xyz')
 if converged:
     e = mol.get_potential_energy()
     db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})

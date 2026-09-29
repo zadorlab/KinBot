@@ -409,7 +409,9 @@ class QuantumChemistry:
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         if self.use_sella:
-            kwargs.pop('chk', None)
+            # Gaussian/Sella reuses the first force evaluation through
+            # Guess=Read. Keep the per-scan checkpoint so later force calls
+            # have a wavefunction to read.
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
             template_file = f'{kb_path}/tpl/ase_sella_hir.tpl.py'

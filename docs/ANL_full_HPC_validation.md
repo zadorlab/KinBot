@@ -65,6 +65,13 @@ provenance-matched recipe. It must not rename a partial sum ANL1-F12.
   log, while native Gaussian frequency-recovery jobs continue to use their
   Gaussian log. This prevents a completed Slurm job from leaving the KinBot
   driver polling indefinitely.
+- Gaussian/Sella hindered-rotor points retain their per-angle checkpoint when
+  later force evaluations use `Guess=Read`. Constraint failures are written
+  to the Sella log instead of being silently converted to a generic failed
+  scan.
+- Repeated identical products, such as the two methyl fragments from ethane
+  homolysis, share one optimization state while remaining two entries in the
+  product channel for correct stoichiometry.
 
 - Profiled inputs no longer stop in `QuantumChemistry` with an unimplemented
   router. A persistent router sends reaction/conformer work to L1 and L2
@@ -256,7 +263,7 @@ MPLCONFIGDIR="$PWD/.mpl-cache" \
 
 `tests/test_kinbot.py` is a pre-existing collection/import harness rather than
 the runnable unit suite. The expected branch result at the time this runbook
-was written is 241 passed, 2 skipped, and 190 subtests passed.
+was written is 243 passed, 2 skipped, and 190 subtests passed.
 
 ## Load external programs and run
 

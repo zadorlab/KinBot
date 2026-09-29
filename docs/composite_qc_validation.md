@@ -209,9 +209,10 @@ synthetic fixture does not establish that a program output parser is correct.
 * `kinbot/tpl/rotdPy_calc.tpl` configures rotdPy with `code='molpro'`, method,
   basis, memory, process count, queue, and a portable `$SCRATCH`/`$HOME`
   fallback. rotdPy is external to this repository. The profiled ethane test
-  now runs a reduced sample, retains stdout/stderr and an input-hashed
-  execution record, and requires rotdPy's result-generation call to report at
-  least one surface before the ANL stage may start.
+  currently generates and syntax-checks a reduced input without executing it.
+  The opt-in execution path retains stdout/stderr and an input-hashed record,
+  and can require rotdPy's result-generation call to report at least one
+  surface before the ANL stage starts.
 * `kinbot/molpro.py` and `kinbot/tpl/molpro.tpl` provide a working legacy
   single-point pattern and parse `SETTING <key>` from Molpro `.out` files.
   The legacy template's generic `CCSD(T)-F12` call stores `energy(1)` as

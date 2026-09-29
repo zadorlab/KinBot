@@ -139,6 +139,15 @@ def test_kinbot_gate_requires_accepted_reaction_hir_and_rotdpy():
         (root / 'rotdPy').mkdir()
         rotdpy_input = root / 'rotdPy' / f'{reaction}.py'
         rotdpy_input.write_text('# rotdPy input\n')
+
+        input_only = audit_kinbot_run(
+            root, reaction, parent='parent', hir_points=4,
+            require_rotdpy=True)
+        assert input_only['status'] == 'kinbot_reaction_complete'
+        assert input_only['rotdpy_input'] == str(rotdpy_input.resolve())
+        assert input_only['rotdpy_execution'] is None
+        assert input_only['rotdpy_surfaces'] == 0
+
         (root / 'rotdPy' / f'{reaction}.rotdpy.json').write_text(
             json.dumps({'schema': 1, 'status': 'complete',
                         'reaction': reaction, 'surface_count': 1,
@@ -150,7 +159,7 @@ def test_kinbot_gate_requires_accepted_reaction_hir_and_rotdpy():
 
         result = audit_kinbot_run(
             root, reaction, parent='parent', hir_points=4,
-            require_rotdpy=True)
+            require_rotdpy_execution=True)
         assert result['status'] == 'kinbot_reaction_complete'
         assert result['products'] == ['ch3', 'ch3']
         assert result['normal_hir_points'] == 4

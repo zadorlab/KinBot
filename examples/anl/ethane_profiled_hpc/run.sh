@@ -45,13 +45,10 @@ import ase
 import sella
 from fairchem.core import FAIRChemCalculator
 from kinbot.fairchem_utils import load_predictor
-from rotd_py.flux.fluxbase import FluxBase
-from rotd_py.new_multi import Multi
-from rotd_py.sample.multi_sample import MultiSample
 
 model = sys.argv[1]
 FAIRChemCalculator(load_predictor(model, 'cpu'), task_name='omol')
-print(f'Python, ASE, Sella, FairChem model {model!r}, and rotdPy are ready')
+print(f'Python, ASE, Sella, and FairChem model {model!r} are ready')
 PY
 
 cd "$run_dir"

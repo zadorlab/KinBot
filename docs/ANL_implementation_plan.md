@@ -4660,8 +4660,10 @@ immediately creates the rotdPy input in a direct single-well run.
 
 The ethane driver now stops before ANL unless a gate verifies the accepted
 homolysis, two methyl product entries, all four requested parent rotor points,
-the VRC correction arrays, a completed rotdPy execution, and a result manifest
-containing sampled surfaces. rotdPy execution is restartable and records the
+the VRC correction arrays, and a nonempty, syntactically valid rotdPy input.
+The example currently leaves `rotdpy_run` disabled so the rest of the external
+workflow can be validated before the separate rotdPy distribution is
+available. The general opt-in executor is restartable and records the
 generated-input hash, stdout, stderr, return code, and result manifest. The
 example uses a reduced configurable grid and sample count while the general
 defaults remain production sized. This makes a zero exit from the top-level
@@ -4681,7 +4683,7 @@ comes from `vrc_tst_high_method`/`vrc_tst_high_basis`. Sampling grids, flux
 limits, process count, and the rotdPy queue limit are now ordinary KinBot
 parameters instead of template constants.
 
-The remaining external prerequisite is the actual rotdPy source distribution
+The remaining external prerequisite for the deferred execution test is the actual rotdPy source distribution
 and a revision identifier from its maintainer. The `rotd_py` implementation is
 not included in KinBot and no matching package is published on PyPI. Once that
 checkout is installed on the HPC, the fresh ethane run is the compatibility

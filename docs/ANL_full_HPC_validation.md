@@ -16,12 +16,10 @@ The supplied ethane run performs these real operations:
 3. The accepted homolytic scission bypasses stationary-saddle frequency
    validation. KinBot prepares the VRC asymptote with Gaussian, dispatches the
    sampling/high-level Molpro corrections on exclusive nodes, and writes a
-   runnable rotdPy input. rotdPy executes a reduced Molpro sampling problem
-   and writes a result manifest.
+   runnable rotdPy input. This validation stops before rotdPy execution.
 4. A machine-readable gate requires the accepted channel, both methyl product
    entries, four normal parent hindered-rotor points, a consistent VRC
-   correction record, a completed rotdPy execution record, and at least one
-   sampled surface in the rotdPy result manifest.
+   correction record, and a nonempty rotdPy input.
 5. The accepted L2 parent geometry enters the exclusive-node dispatcher.
 6. Molpro performs the CCSD(T)/cc-pVTZ ASE/Sella L3 geometry calculation.
 7. After that geometry succeeds, Molpro harmonic, F12/TZ, F12/QZ, and
@@ -33,11 +31,10 @@ The supplied ethane run performs these real operations:
 The methyl product minimum still needs a frequency calculation for its MESS
 partition function. `hom_sci` itself has no stationary transition state and
 therefore has no transition-state Hessian or one-imaginary-frequency test.
-The rotdPy smoke settings are intentionally small: one dividing-surface
+The generated rotdPy smoke input is intentionally small: one dividing-surface
 distance, small temperature/energy/angular grids, at most eight samples, and
-one concurrent Molpro sampling job. This validates input generation,
-scheduler execution, restart, and result handoff. It does not establish
-production VRC convergence.
+one concurrent Molpro sampling job. The current run validates input creation
+only. It does not execute rotdPy or establish production VRC convergence.
 
 The final audit must say:
 
@@ -171,10 +168,11 @@ PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install --upgrade pip
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e '.[fc]'
 ```
 
-rotdPy is a separate source distribution and does not have a `rotdpy` or
-`rotd-py` release on PyPI. Obtain the source checkout used by the KinBot VRC
-interface from the rotdPy maintainers, then install it into this same
-environment. Replace the example path with the checkout location:
+rotdPy is not required for the current input-generation test. For the later
+execution test, note that it is a separate source distribution and does not
+have a `rotdpy` or `rotd-py` release on PyPI. Obtain the source checkout used
+by the KinBot VRC interface from the rotdPy maintainers, then install it into
+this same environment. Replace the example path with the checkout location:
 
 ```bash
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e /path/to/rotdPy
@@ -360,13 +358,12 @@ tail -f ethane_profiled_hpc_run/kinbot.log
 ```
 
 For the default fresh run, replace `ethane_profiled_hpc_run` in those monitor
-commands with `ethane_profiled_hpc_run_v3`. rotdPy's captured driver streams
-and completion records are under `rotdPy/`:
+commands with `ethane_profiled_hpc_run_v3`. Inspect and syntax-check the
+generated rotdPy input without installing rotdPy:
 
 ```bash
-cat ethane_profiled_hpc_run_v3/rotdPy/*.execution.json
-cat ethane_profiled_hpc_run_v3/rotdPy/*.rotdpy.json
-tail -n 80 ethane_profiled_hpc_run_v3/rotdPy/*.rotdpy.stderr
+ls -lh ethane_profiled_hpc_run_v3/rotdPy/*.py
+.venv/bin/python -m py_compile ethane_profiled_hpc_run_v3/rotdPy/*.py
 ```
 
 The command is restartable. Rerun the same `run.sh` command after an

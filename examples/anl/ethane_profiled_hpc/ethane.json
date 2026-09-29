@@ -20,7 +20,7 @@
       "301020900180000000001_hom_sci_1_2"
     ]
   },
-  "rotdpy_run": 1,
+  "rotdpy_run": 0,
   "rotdpy_dist": [3.0],
   "pp_length": {"X": [0.25], "C": [0.25], "H": [0.125]},
   "rotdpy_processors": 1,

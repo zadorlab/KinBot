@@ -235,7 +235,8 @@ def audit_interface_run(run_dir):
 
 
 def audit_kinbot_run(run_dir, reaction, *, parent=None, hir_points=0,
-                     require_rotdpy=False):
+                     require_rotdpy=False,
+                     require_rotdpy_execution=False):
     """Gate downstream ANL work on an accepted KinBot reaction result."""
     run_dir = Path(run_dir).resolve()
     monitor = run_dir / 'kinbot_monitor.out'
@@ -276,6 +277,8 @@ def audit_kinbot_run(run_dir, reaction, *, parent=None, hir_points=0,
 
     rotdpy = None
     correction = None
+    if require_rotdpy_execution:
+        require_rotdpy = True
     if require_rotdpy:
         correction = run_dir / 'vrctst' / f'corr_{reaction}.json'
         rotdpy = run_dir / 'rotdPy' / f'{reaction}.py'
@@ -293,18 +296,27 @@ def audit_kinbot_run(run_dir, reaction, *, parent=None, hir_points=0,
             raise RuntimeError(f'{reaction}: inconsistent VRC correction arrays.')
         if not rotdpy.read_text().strip():
             raise RuntimeError(f'{reaction}: rotdPy input is empty.')
-        execution_file = rotdpy.with_name(f'{reaction}.execution.json')
-        if not execution_file.is_file():
-            raise RuntimeError(f'{reaction}: rotdPy was not executed.')
-        execution = json.loads(execution_file.read_text())
-        input_hash = hashlib.sha256(rotdpy.read_bytes()).hexdigest()
-        if (execution.get('status') != 'complete'
-                or execution.get('returncode') != 0
-                or execution.get('input_sha256') != input_hash):
-            raise RuntimeError(f'{reaction}: rotdPy execution is incomplete '
-                               'or does not match its input.')
-        from kinbot.rotdpy import read_result
-        rotdpy_result = read_result(rotdpy)
+        try:
+            compile(rotdpy.read_text(), str(rotdpy), 'exec')
+        except SyntaxError as error:
+            raise RuntimeError(f'{reaction}: rotdPy input is invalid: '
+                               f'{error}') from error
+        if require_rotdpy_execution:
+            execution_file = rotdpy.with_name(f'{reaction}.execution.json')
+            if not execution_file.is_file():
+                raise RuntimeError(f'{reaction}: rotdPy was not executed.')
+            execution = json.loads(execution_file.read_text())
+            input_hash = hashlib.sha256(rotdpy.read_bytes()).hexdigest()
+            if (execution.get('status') != 'complete'
+                    or execution.get('returncode') != 0
+                    or execution.get('input_sha256') != input_hash):
+                raise RuntimeError(f'{reaction}: rotdPy execution is incomplete '
+                                   'or does not match its input.')
+            from kinbot.rotdpy import read_result
+            rotdpy_result = read_result(rotdpy)
+        else:
+            execution_file = None
+            rotdpy_result = None
     else:
         execution_file = None
         rotdpy_result = None
@@ -351,6 +363,7 @@ def main(argv=None):
     gate.add_argument('--parent')
     gate.add_argument('--hir-points', type=int, default=0)
     gate.add_argument('--require-rotdpy', action='store_true')
+    gate.add_argument('--require-rotdpy-execution', action='store_true')
     args = parser.parse_args(argv)
     if args.action == 'audit':
         print(json.dumps(audit_interface_run(args.run_dir), indent=2,
@@ -360,7 +373,9 @@ def main(argv=None):
         print(json.dumps(audit_kinbot_run(
             args.run_dir, args.reaction, parent=args.parent,
             hir_points=args.hir_points,
-            require_rotdpy=args.require_rotdpy), indent=2, sort_keys=True))
+            require_rotdpy=args.require_rotdpy,
+            require_rotdpy_execution=args.require_rotdpy_execution),
+            indent=2, sort_keys=True))
         return 0
     molecule = molecule_from_database(
         args.database, args.job, charge=args.charge,

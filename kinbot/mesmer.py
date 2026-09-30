@@ -7,7 +7,6 @@ import xml.dom.minidom as minidom
 
 from kinbot import kb_path
 from kinbot import constants
-from kinbot import frequencies
 
 
 class MESMER:

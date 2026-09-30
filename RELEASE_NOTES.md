@@ -179,11 +179,26 @@ writers use the existing PES approximation of one lowest-energy complex for
 each set of product stereoisomers. MC-TST retains its selected-structure
 tunneling reference. Omitting a complex removes its stabilization and explicit
 capture/redissociation competition, so rates can change.
+PES complex selection no longer depends on discovery order. Previously, the
+first complex could keep its own energy reference even when a later complex
+for the same products had a lower energy. All complex names for that product
+set now resolve to the lowest-energy complex.
 `correct_submerged` now uses connected bound-well ground energies only. A TS
 below separated fragments is not raised to their energy.
 
 **Complete MESS jobs before reporting their result.**
 Local, Slurm, and PBS execution waits for the requested calculations to finish.
+Earlier versions skipped MESS execution when `queuing: "local"` was selected.
+With `run_me: 1`, a local run now starts MESS and waits for the result.
+With `run_me: 0`, KinBot writes inputs and scripts without starting MESS.
+Local execution, queue scripts, and manual scripts now use `mess_command`;
+earlier versions ignored this option and used `mess`. The option specifies an
+executable and optional arguments. For example, use
+`"mess_command": "/opt/MESS/bin/mess"`. Quote a path or argument that contains
+spaces. Shell variables and command substitutions are not expanded. Relative
+paths are resolved from `me/`. Input-only writing needs no local MESS executable;
+queued jobs find the executable in the compute node's environment. A local run
+reports an error if it cannot start the configured command.
 KinBot checks the exit result and newly written output. Solver failure is
 reported separately from successful reaction generation. Inputs without an
 accepted reaction network remain available for inspection, but are not run.
@@ -195,6 +210,28 @@ consecutive failures before reporting an error; a query failure does not mean
 that the job has finished. Initial input-reference and saved-result conflicts
 reported by `StereoRoutingError` are logged and exit with failure, without an
 internal traceback. Other internal errors are not suppressed.
+
+**Output formats and reaction-discovery cost.**
+Summary files include a `# kinbot_stereopath {json}` comment before each
+successful calculated saddle, including ordinary pathways. Homolytic-scission
+placeholders can lack this comment. External summary readers must allow comment
+lines; the PES reader uses this metadata to keep different pathways separate.
+MESS microcanonical files use `<job-stem>.micro`, such as `me/mess_0000.micro`,
+instead of the shared `micro.out`. Uncertainty samples and disconnected networks
+have separate filenames. `me/mess_networks.json` lists the current MESS jobs.
+For ordinary QC calculations with `high_level: 0`, the MESS header now reports
+the L1 method and basis instead of unused L2 settings. This corrects the header
+description; it does not change the calculation level.
+The database includes one `stereochemistry/<job>` input-reference row per
+well optimization job checked for reuse. It records the input geometry, full
+stereoisomer identity, charge, and spin multiplicity. It is not another QC result,
+and job-status checks do not repeatedly add it. Database readers must distinguish these
+reference rows from calculation results.
+Reaction discovery performs additional stereochemical graph comparisons.
+A ten-molecule check with fixed coordinates measured about 2.2 times the
+enumeration time of master. This timing excludes imports, characterization,
+initial stereoisomer-reference assignment, and QC. It is not a measurement of
+the total calculation time.
 
 **Narrow bug fixes and reaction examples.**
 The initial species reconstruction keeps its checked frequencies. Input-only

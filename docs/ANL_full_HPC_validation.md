@@ -193,11 +193,11 @@ The import name is `rotd_py`. KinBot fails before licensed VRC jobs when the
 pinned package or one of its runtime dependencies is unavailable. The executor
 records the installed package location and Git revision.
 
-If the private submodule cannot authenticate over HTTPS, point only that
-submodule at SSH and repeat the update:
+The private submodule uses SSH authentication. Verify the HPC account's
+GitHub key before initializing it:
 
 ```bash
-git config submodule.external/ROTD_py.url git@github.com:zadorlab/ROTD_py.git
+ssh -T git@github.com
 git submodule update --init --recursive
 ```
 

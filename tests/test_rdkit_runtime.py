@@ -57,6 +57,7 @@ def test_fresh_input_and_current_restart_share_one_unchanged_marker(tmp_path):
     (tmp_path / 'input.json').write_text('{"smiles": "CCO"}')
     (tmp_path / 'input.xyz').write_text('1\nstarting geometry\nH 0 0 0\n')
     expected = ensure_current_run(tmp_path, create=True)
+    assert expected['schema'] == 'kinbot.calculation.v2'
     assert expected['rdkit_version'] == rdBase.rdkitVersion
     assert expected['use_legacy_stereo_perception'] is True
     assert expected['allow_nontetrahedral_chirality'] is True
@@ -70,6 +71,7 @@ def test_fresh_input_and_current_restart_share_one_unchanged_marker(tmp_path):
 @pytest.mark.parametrize('artifact', [
     'kinbot.db', 'kinbot.log', 'summary_123.out', 'me/mess_0000.inp',
     'molpro/123.out', 'orca/123.out',
+    '123-s' + 'a'*16 + '_well.out', '123-s' + 'a'*64 + '_well.out',
 ])
 def test_old_calculations_are_rejected_without_changing_files(tmp_path, artifact):
     path = tmp_path / artifact
@@ -83,7 +85,7 @@ def test_old_calculations_are_rejected_without_changing_files(tmp_path, artifact
 
 
 @pytest.mark.parametrize(('field', 'value'), [
-    ('schema', 'kinbot.calculation.old'), ('rdkit_version', '2026.03.4'),
+    ('schema', 'kinbot.calculation.v1'), ('rdkit_version', '2026.03.4'),
     ('use_legacy_stereo_perception', False), ('allow_nontetrahedral_chirality', False),
 ])
 def test_changed_runtime_or_format_cannot_reuse_results(tmp_path, field, value):

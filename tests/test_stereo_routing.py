@@ -11,7 +11,7 @@ import numpy as np
 from ase import Atoms
 from ase.db import connect
 from kinbot.reaction_generator import ReactionGenerator
-from kinbot.stereo_identity import canonical_identity, UnsupportedStereochemistry
+from kinbot.stereo_identity import canonical_identity, require_supported_identity, UnsupportedStereochemistry
 from kinbot.stereo_routing import (guard_well_job, guard_pes_input,
     require_same_configuration, StereoRoutingError, _row_species, preserve_observations)
 from kinbot.stationary_pt import StationaryPoint
@@ -61,6 +61,86 @@ class TestStereoRouting(unittest.TestCase):
         guard_well_job(SimpleNamespace(db=db), self.first, self.first.geom, job)
         with self.assertRaisesRegex(StereoRoutingError, 'cached input'):
             guard_well_job(SimpleNamespace(db=connect('kinbot.db')), self.second, self.second.geom, job)
+
+    def test_unchanged_job_checks_are_reused_but_changed_requests_and_results_are_checked(self):
+        db = connect('kinbot.db')
+        qc = SimpleNamespace(db=db)
+        point = self.first
+        job = routing_name(point) + '_well'
+        with patch('kinbot.stereo_routing.require_supported_identity',
+                   wraps=require_supported_identity) as assign:
+            guard_well_job(qc, point, point.geom, job)
+            count = assign.call_count
+            guard_well_job(qc, point, point.geom, job)
+            self.assertEqual(assign.call_count, count)
+            self.assertEqual(db.count(name='stereochemistry/' + job), 1)
+
+            result = db.write(Atoms(point.atom, positions=point.geom), name=job,
+                              data={'status': 'normal', 'multiplicity': 1})
+            guard_well_job(qc, point, point.geom, job)
+            self.assertGreater(assign.call_count, count)
+            count = assign.call_count
+            guard_well_job(qc, point, point.geom, job)
+            self.assertEqual(assign.call_count, count)
+
+            # An in-place update must not reuse the prior successful check.
+            db.update(result, data={'multiplicity': 3})
+            with self.assertRaisesRegex(StereoRoutingError, 'charge or multiplicity'):
+                guard_well_job(qc, point, point.geom, job)
+            db.update(result, data={'multiplicity': 1})
+            guard_well_job(qc, point, point.geom, job)
+
+            # A harmless translation and a population change require fresh
+            # validation; they do not require a new calculation reference.
+            for geom, population in ((point.geom + [1., 0., 0.], 'specified'),
+                                     (point.geom, 'racemic')):
+                count = assign.call_count
+                point.optical_population = population
+                guard_well_job(qc, point, geom, job)
+                self.assertGreater(assign.call_count, count)
+            point.optical_population = 'specified'
+            with self.assertRaises(StereoRoutingError):
+                guard_well_job(qc, self.second, self.second.geom, job)
+
+            # A new completed result and a changed saved input are separate
+            # causes to invalidate the same in-memory job check.
+            db.write(Atoms(self.second.atom, positions=self.second.geom), name=job,
+                     data={'status': 'normal'})
+            with self.assertRaises(StereoRoutingError):
+                guard_well_job(qc, point, point.geom, job)
+            db.write(Atoms(point.atom, positions=point.geom), name=job,
+                     data={'status': 'normal'})
+            guard_well_job(qc, point, point.geom, job)
+            reference = db.get(name='stereochemistry/' + job)
+            db.update(reference.id, data={'identity': canonical_identity(self.second)})
+            with self.assertRaises(StereoRoutingError):
+                guard_well_job(qc, point, point.geom, job)
+
+    def test_racemic_representative_can_change_but_full_name_reference_cannot(self):
+        qc = SimpleNamespace(db=connect('kinbot.db'))
+        point = self.first
+        point.optical_reference = canonical_identity(point)
+        point.optical_population = 'racemic'
+        job = routing_name(point) + '_well'
+        guard_well_job(qc, point, point.geom, job)
+        mirror = copy.copy(point)
+        mirror.geom = self.second.geom
+        guard_well_job(qc, mirror, mirror.geom, job)
+        path = Path('well.json')
+        path.write_text(json.dumps({
+            'charge': 0, 'mult': 1, 'optical_population': 'racemic',
+            'stereo_reference': point.optical_reference,
+            'structure': [value for atom, xyz in zip(mirror.atom, mirror.geom)
+                          for value in [str(atom), *map(float, xyz)]]}))
+        guard_pes_input(point, path)
+        guard_pes_input(mirror, path)
+        # Simulate another full identity using the same short job name. The
+        # permitted mirror geometry does not permit a different declaration.
+        mirror.optical_reference = canonical_identity(mirror)
+        with self.assertRaisesRegex(StereoRoutingError, 'full stereoisomer identity'):
+            guard_well_job(qc, mirror, mirror.geom, job)
+        with self.assertRaisesRegex(StereoRoutingError, 'full stereoisomer identity'):
+            guard_pes_input(mirror, path)
 
     def test_raw_labels_graph_and_optical_scope_survive_reference_and_refusal(self):
         point = self.first

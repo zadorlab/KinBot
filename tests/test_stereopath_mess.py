@@ -18,7 +18,7 @@ from kinbot import constants, pes, postprocess, symmetry
 from kinbot.mess import MESS, union_stereochemical_barriers
 from kinbot.parameters import Parameters
 from kinbot.species_routing import routing_name
-from kinbot.stereo_routing import StereoRoutingError
+from kinbot.stereo_routing import StereoRoutingError, guard_well_job
 from kinbot.run_format import ensure_current_run
 from tests.counting_fixtures import methanol_data, saved_point
 from test_reaction_paths import peroxy, transfer
@@ -85,10 +85,12 @@ class TestStereopathMESS(unittest.TestCase):
                    structure=[v for atom, xyz in zip(p.atom, p.geom)
                               for v in (str(atom), *map(float, xyz))])
         db = connect(f'{base}/kinbot.db')
-        # Last-row lookup needs one electronic-energy record per named calculation.
+        # Production well jobs save their full input identity before the result.
         points = [(p, base+'_well'), (routes[0].products[0], routing_name(routes[0].products[0])+'_well')]
         points += [(r.ts, r.instance_name) for r in routes]
         for point, name in points:
+            if not point.wellorts:
+                guard_well_job(SimpleNamespace(db=db), point, point.geom, name)
             db.write(Atoms(point.atom, positions=point.geom), name=name,
                      data={'status': 'normal', 'energy': point.energy/constants.EVtoHARTREE,
                            'zpe': point.zpe, 'frequencies': point.freq})
@@ -151,6 +153,8 @@ class TestStereopathMESS(unittest.TestCase):
         Path(q.name, 'me').mkdir()
         db = connect(f'{q.name}/kinbot.db')
         for point, name in [(q, q.name+'_well'), (reverse.ts, reverse.instance_name)]:
+            if not point.wellorts:
+                guard_well_job(SimpleNamespace(db=db), point, point.geom, name)
             db.write(Atoms(point.atom, positions=point.geom), name=name,
                      data={'status': 'normal', 'energy': point.energy/constants.EVtoHARTREE,
                            'zpe': point.zpe, 'frequencies': point.freq})

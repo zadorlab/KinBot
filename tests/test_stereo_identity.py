@@ -3,12 +3,13 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import numpy as np
 from types import SimpleNamespace
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import (canonical_identity, optical_scope,
-                                    UnsupportedStereochemistry, require_supported_identity)
+                                    UnsupportedStereochemistry, require_supported_identity,
+                                    log_input_stereochemistry)
 from kinbot.stereochemistry import refine_equivalence_group, stereotopic_hydrogen_equivalence
 from kinbot.parameters import Parameters
 from kinbot.reaction_finder import ReactionFinder
@@ -22,6 +23,46 @@ def point(smiles):
 
 
 class TestStereoIdentity(unittest.TestCase):
+    def test_generated_geometry_assignment_is_an_input_note(self):
+        examples = [
+            ('CC(O)CC', 'C[C@H](O)CC', True),
+            ('C[C@H](F)C(Cl)C', 'C[C@H](F)[C@@H](Cl)C', True),
+            ('FC=CF', 'F/C=C/F', True),
+            ('C[C@H](O)CCC=CC', 'C[C@H](O)CC/C=C/C', True),
+            ('C[C@H](O)CC', 'C[C@H](O)CC', False),
+            ('F/C=C/F', 'F/C=C/F', False),
+            ('CCO', 'CCO', False),
+        ]
+        for supplied, generated, expected in examples:
+            species = point(generated)
+            for population in ('specified', 'racemic'):
+                with self.subTest(smiles=supplied, population=population):
+                    logger = Mock()
+                    parameters = {'smiles': supplied, 'structure': [],
+                                  'optical_population': population}
+                    log_input_stereochemistry(species, parameters, logger)
+                    self.assertEqual(logger.info.call_count, int(expected))
+                    logger.warning.assert_not_called()
+                    if expected:
+                        message, *values = logger.info.call_args.args
+                        text = message % tuple(values)
+                        for graph in canonical_identity(species)['canonical_graphs']:
+                            self.assertIn(graph, text)
+                        self.assertEqual('whole-molecule mirror' in text, population == 'racemic')
+                    logger.reset_mock()
+                    parameters['structure'] = None
+                    log_input_stereochemistry(species, parameters, logger)
+                    self.assertEqual(logger.info.call_count, int(expected))
+                    # Supplied coordinates do not come from SMILES generation,
+                    # including the coordinate inputs written for PES workers.
+                    logger.reset_mock()
+                    parameters['structure'] = ['C', 0., 0., 0.]
+                    log_input_stereochemistry(species, parameters, logger)
+                    logger.info.assert_not_called()
+                    parameters['smiles'] = ''
+                    log_input_stereochemistry(species, parameters, logger)
+                    logger.info.assert_not_called()
+
     def test_axial_chirality_is_not_declared_achiral_by_missing_rdkit_tags(self):
         species = SimpleNamespace(atom=['C', 'C', 'C', 'H', 'F', 'H', 'Cl'],
             geom=np.array([[-1.3, 0, 0], [0, 0, 0], [1.3, 0, 0],

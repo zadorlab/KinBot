@@ -158,6 +158,35 @@ def _strings(species, geom, tagged_atom=None):
                          for mol in _molecules(species, geom, tagged_atom)}))
 
 
+def log_input_stereochemistry(species, parameters, logger):
+    """Show the geometry's assignment when the input SMILES leaves stereo open."""
+    from rdkit import Chem
+
+    smiles = parameters.get('smiles', '')
+    if not smiles or len(parameters.get('structure') or []):
+        return
+    molecule = Chem.MolFromSmiles(smiles)
+    if molecule is None:
+        return
+    supported = {Chem.StereoType.Atom_Tetrahedral, Chem.StereoType.Bond_Double}
+    if not any(item.type in supported and item.specified != Chem.StereoSpecified.Specified
+               for item in Chem.FindPotentialStereo(molecule)):
+        return
+    identity = require_supported_identity(species)
+    graphs = identity['canonical_graphs']
+    if not any(any(tag in graph for tag in ('@', '/', '\\')) for graph in graphs):
+        return
+    population = parameters.get('optical_population', 'specified')
+    included = ('this stereoisomer and its whole-molecule mirror' if population == 'racemic'
+                else 'this stereoisomer')
+    logger.info(
+        'Input SMILES %r leaves tetrahedral or double-bond stereochemistry unspecified. '
+        'The generated geometry has stereoisomer assignment %s. '
+        'optical_population=%r uses %s. '
+        'Use stereochemical SMILES or coordinates to choose the initial stereoisomer.',
+        smiles, '; '.join(graphs), population, included)
+
+
 def endpoint_configuration_allowed(endpoint, reference_geom, observed_geom):
     """Compare configurations present in an endpoint and the discovery TS.
 

@@ -1,7 +1,7 @@
 """Configured species names layered on top of the existing connectivity ID.
 
-Ordinary names are unchanged. A stereo suffix contains the existing canonical
-key, with no underscore so the PES fragment/reaction delimiters remain valid.
+Ordinary names are unchanged. A stereo suffix contains the first 16 hexadecimal
+characters of the full identity. Saved references retain the complete identity.
 """
 import json
 import hashlib
@@ -12,8 +12,8 @@ import re
 from kinbot.stereo_identity import require_supported_identity, UnsupportedStereochemistry
 
 
-_KEY = re.compile(r'^(\d+)(?:-s([0-9a-f]{64}))?$')
-_JOB = re.compile(r'(^|/)(\d+-s[0-9a-f]{64})(?=_|$)')
+_KEY = re.compile(r'^(\d+)(?:-s([0-9a-f]{16}))?$')
+_JOB = re.compile(r'(^|/)(\d+-s[0-9a-f]{16})(?=_|$)')
 _MOTIF = re.compile(r'_m\d+(?:-\d+)*(?=_|$)')
 
 
@@ -31,7 +31,11 @@ def routing_key(species):
     if any(
             any(tag in graph for tag in ('@', '/', '\\'))
             for graph in identity.get('canonical_graphs', ())):
-        return f"{species.chemid}-s{identity['id']}"
+        if (identity['id'] != identity['mirror_id']
+                and identity['id'][:16] == identity['mirror_id'][:16]):
+            raise ValueError(f'{species.name}: the stereoisomer and its mirror have '
+                             'different full identities but the same 16-character name suffix.')
+        return f"{species.chemid}-s{identity['id'][:16]}"
     return species.chemid
 
 
@@ -195,30 +199,42 @@ def expand_pes_names(root, choices):
     return names
 
 
-def configured_result_matches(db, name, row, population=None):
-    """Validate a configured PES energy record, including its trusted labels."""
+def configured_result_identity(db, name, row, population=None):
+    """Return the full declared identity for a verified configured PES result.
+
+    Ordinary connectivity names are returned unchanged. None rejects a result
+    whose geometry or saved full identity does not agree with its name.
+    """
     match = _KEY.fullmatch(str(name))
     if match is None or match.group(2) is None:
-        return True
+        return str(name)
     from kinbot.stationary_pt import StationaryPoint
     from kinbot.stereo_routing import _row_species
     source = f'{name}_well'
     references = list(db.select(name=f'stereochemistry/{source}'))
     reference = references[-1] if references else None
+    if reference is None:
+        # The shortened filename cannot supply the missing full identity.
+        return None
+    scope = reference.data.get('chemical_context', {})
+    requested = reference.data.get('identity', {})
+    declared = scope.get('optical_reference') or requested
+    if (declared.get('status') != 'assigned'
+            or declared.get('id', '')[:16] != match.group(2)):
+        return None
+    allowed = {declared['id']}
+    if (population or scope.get('optical_population')) == 'racemic':
+        allowed.add(declared['mirror_id'])
+    if requested.get('status') != 'assigned' or requested.get('id') not in allowed:
+        return None
     template = StationaryPoint('energy input',
-        reference.data['input_charge'] if reference else 0,
+        reference.data['input_charge'],
         int(match.group(1)[-1]), atom=row.symbols, geom=row.positions)
     observed = _row_species(template, row, str(name), reference)
     identity = require_supported_identity(observed)
-    allowed = {match.group(2)}
-    if reference is not None:
-        scope = reference.data.get('chemical_context', {})
-        requested = reference.data.get('identity', {})
-        declared = scope.get('optical_reference') or requested
-        if ((population or scope.get('optical_population')) == 'racemic'
-                and declared.get('id') == match.group(2)
-                and requested.get('id') in {declared.get('id'), declared.get('mirror_id')}):
-            allowed.add(declared.get('mirror_id'))
-    if population == 'racemic' and identity.get('mirror_id') == match.group(2):
-        allowed.add(identity['id'])
-    return identity.get('status') == 'assigned' and identity['id'] in allowed
+    return declared['id'] if identity['id'] in allowed else None
+
+
+def configured_result_matches(db, name, row, population=None):
+    """Compare a PES result with its complete saved identity, not its short name."""
+    return configured_result_identity(db, name, row, population) is not None

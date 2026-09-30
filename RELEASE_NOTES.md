@@ -12,6 +12,15 @@ different names for QC jobs, saved results, reused objects, and direct/PES outpu
 The same comparison checks IRC endpoints and fixed configurations during
 conformer searches.
 
+Configured calculation names use `-s` followed by 16 hexadecimal characters.
+The full stereoisomer identifier remains in saved records and is checked before
+reuse. Names do not depend on `optical_population`: a racemate must still remain
+separate from its diastereomers. The shorter names use a new calculation format;
+calculations with the earlier 64-character suffix require new directories.
+If an input SMILES leaves stereochemistry unspecified, the log reports the
+assignment in the generated geometry at INFO level. This note also covers
+partly specified SMILES. It is not emitted for supplied coordinates.
+
 RDKit >= 2026.3.5 is required. KinBot selects its stereo-perception settings
 explicitly and records these settings and the RDKit version in the log.
 An unsupported initial reactant stops before QC. An unsupported discovered

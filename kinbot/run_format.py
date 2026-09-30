@@ -9,9 +9,11 @@ from kinbot.rdkit_config import rdkit_runtime
 
 
 MARKER = '.kinbot_run.json'
-SCHEMA = 'kinbot.calculation.v1'
-_SPECIES = re.compile(r'^\d+(?:-s[0-9a-f]{64})?$')
-_JOB = re.compile(r'^\d+(?:-s[0-9a-f]{64})?_')
+SCHEMA = 'kinbot.calculation.v2'
+# Recognize both name lengths only when detecting existing calculation files.
+# Version-one directories cannot be reused under the shorter naming format.
+_SPECIES = re.compile(r'^\d+(?:-s(?:[0-9a-f]{16}|[0-9a-f]{64}))?$')
+_JOB = re.compile(r'^\d+(?:-s(?:[0-9a-f]{16}|[0-9a-f]{64}))?_')
 
 
 def _existing_results(directory):

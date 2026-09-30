@@ -1,5 +1,6 @@
 """Configured names agree across jobs, restarts, object reuse and MESS/PES."""
 import copy
+import hashlib
 import json
 import logging
 import io
@@ -25,7 +26,7 @@ from kinbot import pes, postprocess
 from kinbot.qc import QuantumChemistry
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.reaction_path import set_endpoint_populations
-from kinbot.species_routing import routing_key, routing_name, input_species, is_species_name, expand_pes_names, configured_result_matches, mess_filename
+from kinbot.species_routing import routing_key, routing_name, input_species, is_species_name, expand_pes_names, configured_result_matches, mess_filename, same_species
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import canonical_identity, optical_scope
 from kinbot.stereo_routing import StereoRoutingError, guard_well_job
@@ -114,6 +115,9 @@ class TestSpeciesRouting(unittest.TestCase):
         self.assertEqual(self.a.chemid, self.b.chemid)
         self.assertNotEqual(routing_key(self.a), routing_key(self.b))
         self.assertNotIn('_', routing_name(self.a))
+        identity = canonical_identity(self.a)
+        self.assertEqual(len(identity['id']), 64)
+        self.assertEqual(routing_name(self.a), f"{self.a.chemid}-s{identity['id'][:16]}")
 
     def test_atom_order_and_rigid_motion_keep_the_key_but_mirrors_do_not(self):
         p = self.a
@@ -302,14 +306,16 @@ class TestSpeciesRouting(unittest.TestCase):
     def test_termolecular_artifacts_do_not_exceed_filesystem_name_limits(self):
         products = [self.a, self.a, self.b]
         key = '_'.join(sorted(routing_name(p) for p in products))
-        self.assertGreater(len(key+'_0000.mess'), 255)
+        self.assertLess(len(key+'_0000.mess'), 255)
         writer = MESS(self.par, self.a)
         writer.termolec_names[key] = 't1'
         block = writer.write_termol(products, None, 0)
         filename = mess_filename(key, 0)
+        self.assertEqual(filename, key+'_0000.mess')
         self.assertLess(len(filename), 255)
         self.assertEqual(Path(filename).read_text(), block)
         self.assertIn(key, block)
+        self.assertTrue(mess_filename('very-long-network-' * 20, 0).startswith('network-'))
 
     def test_pes_inputs_and_energies_round_trip_two_diastereomers(self):
         for i, p in enumerate((self.a, self.b)):
@@ -318,6 +324,7 @@ class TestSpeciesRouting(unittest.TestCase):
             restored = input_species(f'{key}/{key}.json')
             self.assertEqual(routing_key(restored), routing_key(p))
             db = connect(f'{key}/kinbot.db')
+            guard_well_job(SimpleNamespace(db=db), p, p.geom, key+'_well')
             db.write(Atoms(p.atom, positions=p.geom), name=key+'_well',
                 data={'energy': (-100.+i) / constants.EVtoHARTREE, 'zpe': .01, 'status': 'normal'})
             self.assertAlmostEqual(get_energy([key], key, 0, 0)[0], -100.+i)
@@ -327,6 +334,63 @@ class TestSpeciesRouting(unittest.TestCase):
             data={'energy': -200. / constants.EVtoHARTREE, 'zpe': .01, 'status': 'normal'})
         with self.assertRaises(ValueError):
             get_energy([key], key, 0, 0)
+
+    def test_short_name_collision_cannot_reuse_a_different_full_identity(self):
+        # Force the prefix collision; the remaining hash and actual chemical
+        # graphs still distinguish the two real diastereomers.
+        sha256 = hashlib.sha256
+        selected_ids = {canonical_identity(p)['id'] for p in (self.a, self.b)}
+        def colliding_hash(value):
+            digest = sha256(value).hexdigest()
+            return SimpleNamespace(hexdigest=lambda: 'a'*16 + digest[16:]
+                                   if digest in selected_ids else digest)
+        with patch('kinbot.stereo_identity.hashlib.sha256', side_effect=colliding_hash):
+            first, second = copy.copy(self.a), copy.copy(self.b)
+            for p in (first, second):
+                p.__dict__.pop('optical_reference', None)
+                optical_scope(p, 'specified')
+            key = routing_name(first)
+            self.assertEqual(key, routing_name(second))
+            self.assertNotEqual(first.optical_reference['id'], second.optical_reference['id'])
+            self.assertFalse(same_species(first, second))
+            row_id = self.record(key+'_well', first, reference=True)
+            row = self.qc.db.get(id=row_id)
+            self.assertTrue(configured_result_matches(self.qc.db, key, row))
+            self.assertEqual(len(self.qc.db.get(name='stereochemistry/'+key+'_well').data.identity['id']), 64)
+            wrong_id = self.record(key+'_well', second)
+            self.assertFalse(configured_result_matches(self.qc.db, key, self.qc.db.get(id=wrong_id)))
+            with self.assertRaisesRegex(StereoRoutingError, 'different full stereoisomer identity'):
+                guard_well_job(self.qc, second, second.geom, key+'_well')
+            write_input('input.json', first, 100., None, '.', 2)
+            filename = Path(key, key+'.json')
+            original = filename.read_bytes()
+            with self.assertRaisesRegex(StereoRoutingError, 'different full stereoisomer identity'):
+                write_input('input.json', second, 100., None, '.', 2)
+            self.assertEqual(filename.read_bytes(), original)
+
+            for worker, p, energy in [('111', first, -100.), ('222', second, -90.)]:
+                ensure_current_run(worker, create=True)
+                db = connect(f'{worker}/kinbot.db')
+                guard_well_job(SimpleNamespace(db=db), p, p.geom, key+'_well')
+                db.write(Atoms(p.atom, positions=p.geom), name=key+'_well', data={
+                    'status': 'normal', 'energy': energy / constants.EVtoHARTREE,
+                    'zpe': .01, 'charge': p.charge, 'multiplicity': p.mult})
+            for workers in (['111', '222'], ['222', '111']):
+                with self.assertRaisesRegex(ValueError, 'different complete stereoisomer identities'):
+                    get_energy(workers, key, 0, 0)
+
+            # With no full input reference, a matching filename is insufficient.
+            self.qc.db.delete([self.qc.db.get(name='stereochemistry/'+key+'_well').id])
+            self.assertFalse(configured_result_matches(self.qc.db, key, row))
+
+        # Reflected models need separate names even without a second QC job.
+        identity = canonical_identity(self.a)
+        selected_ids = {identity['id'], identity['mirror_id']}
+        mirrored = copy.copy(self.a)
+        mirrored.__dict__.pop('optical_reference', None)
+        with patch('kinbot.stereo_identity.hashlib.sha256', side_effect=colliding_hash):
+            with self.assertRaisesRegex(ValueError, 'same 16-character name suffix'):
+                routing_name(mirrored)
 
     def test_racemic_selected_mirror_preserves_declared_name_across_pes_restart(self):
         p = self.a
@@ -380,6 +444,8 @@ class TestSpeciesRouting(unittest.TestCase):
         for p, job in [(well, base+'_well'),
                        (self.a, routing_name(self.a)+'_well'),
                        (self.b, routing_name(self.b)+'_well')]+[(r.ts, r.ts.name) for r in reactions]:
+            if not getattr(p, 'wellorts', 0):
+                guard_well_job(SimpleNamespace(db=db), p, p.geom, job)
             db.write(Atoms(p.atom, positions=p.geom), name=job,
                 data={'status': 'normal', 'energy': p.energy / constants.EVtoHARTREE,
                       'zpe': p.zpe, 'frequencies': p.freq})

@@ -1,6 +1,6 @@
 from kinbot.mess_mirrors import complete_mirror_channels
 from kinbot.species_routing import matches_name, expand_pes_names, apply_input_reference, mess_filename
-from kinbot.species_routing import routing_name, connectivity_name, is_species_name, prepare_pes_directory, configured_result_matches
+from kinbot.species_routing import routing_name, connectivity_name, is_species_name, prepare_pes_directory, configured_result_identity
 """
 This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
@@ -22,6 +22,7 @@ import getpass
 from copy import deepcopy
 from ase.db import connect
 from kinbot.run_format import ensure_current_run
+from kinbot.stereo_identity import log_input_stereochemistry
 from ase.atoms import Atoms
 
 from kinbot import kb_path
@@ -158,6 +159,7 @@ def main():
                             structure=par['structure'])
     well0.characterize()
     apply_input_reference(well0, par)
+    log_input_stereochemistry(well0, par, logger)
     if no_kinbot:
         ensure_current_run(routing_name(well0))
     write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
@@ -1682,6 +1684,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
         j += '_high'
     energy = np.inf
     zpe = np.inf
+    reference_identity = None
     for well in wells:
         if "IRC" in well:
             well = well.split("_")[0]
@@ -1700,16 +1703,21 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
                 break
             if new_zpe is None:
                 break
+            if not ts:
+                # Check every candidate before comparing energies. Separate
+                # workers cannot reuse one shortened name for different IDs.
+                atoms = row.toatoms()
+                st_pt = StationaryPoint.from_ase_atoms(atoms)
+                st_pt.characterize()
+                chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
+                identity = configured_result_identity(db, job, row, optical_population)
+                if chemid_wo_mult != connectivity_name(job)[:-1] or identity is None:
+                    break
+                if reference_identity is not None and identity != reference_identity:
+                    raise ValueError(f'{job}: different complete stereoisomer identities '
+                                     'share one calculation name across PES workers.')
+                reference_identity = identity
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
-                if not ts:
-                    # Avoid getting energies from calculations that converged to another structure
-                    atoms = row.toatoms()
-                    st_pt = StationaryPoint.from_ase_atoms(atoms)
-                    st_pt.characterize()
-                    chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
-                    if (chemid_wo_mult != connectivity_name(job)[:-1]
-                            or not configured_result_matches(db, job, row, optical_population)):
-                        break
                 energy = new_energy
                 zpe = new_zpe
             break

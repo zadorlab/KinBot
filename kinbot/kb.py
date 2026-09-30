@@ -19,7 +19,7 @@ from kinbot.qc import QuantumChemistry
 from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
 from kinbot.run_format import ensure_current_run
-from kinbot.stereo_identity import require_supported_identity
+from kinbot.stereo_identity import require_supported_identity, log_input_stereochemistry
 
 
 def main():
@@ -77,6 +77,7 @@ def main():
         well0.characterize()
         require_supported_identity(well0)
         apply_input_reference(well0, par)
+        log_input_stereochemistry(well0, par, logger)
         if par['cluster']:
             well0.make_hbonds()
             while 1:

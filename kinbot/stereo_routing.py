@@ -1,5 +1,6 @@
 """Validate current calculation inputs and results before reuse."""
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -50,7 +51,7 @@ def _raw_input(species):
 
 
 def _write_reference(qc, requested, name, identity):
-    qc.db.write(Atoms(requested.atom, positions=requested.geom), name=name,
+    return qc.db.write(Atoms(requested.atom, positions=requested.geom), name=name,
                 data={'status': 'input_reference', 'identity': identity,
                       'input_charge': requested.charge, 'input_multiplicity': requested.mult,
                       'chemical_context': _chemical_context(requested),
@@ -173,39 +174,65 @@ def guard_well_job(qc, species, geom, job):
     requested = copy.copy(species)
     requested.geom = np.asarray(geom).copy()
     requested.source_job = job
+    name = f'stereochemistry/{job}'
+    reference = next(qc.db.select(name=name, sort='-id', limit=1), None)
+    result = next(qc.db.select(name=job, sort='-id', limit=1), None)
+    request = hashlib.sha256(json.dumps(_json_value({
+        'input': _raw_input(requested), 'chemid': requested.chemid,
+        'wellorts': getattr(requested, 'wellorts', 0),
+        **{key: getattr(requested, key, None) for key in (
+            'optical_reference', 'optical_population',
+            'stereo_ignored_atoms', 'stereo_ignored_bonds')}
+    }), sort_keys=True).encode()).hexdigest()
+    cache = getattr(qc, '_verified_well_jobs', {})
+    state = (request, _row_revision(reference), _row_revision(result))
+    previous_check = cache.get(job)
+    if previous_check is not None and previous_check[0] is qc.db and previous_check[1] == state:
+        species.stereo_routing_status = 'verified configured request'
+        return
     identity = require_supported_identity(requested)
     declared = getattr(requested, 'optical_reference', {}) or {}
     if (declared.get('status') == identity.get('status') == 'assigned'
             and declared['id'] != identity['id']
             and not _in_declared_mirror_population(requested, identity)):
         refuse_routing(f'{job}: requested geometry is outside its declared configuration', [requested])
-    name = f'stereochemistry/{job}'
-    references = list(qc.db.select(name=name))
-    rows = list(qc.db.select(name=job))
     cached = None
-    if rows and rows[-1].data.get('status') == 'normal':
-        cached = _row_species(species, rows[-1], job, references[-1] if references else None)
+    if result is not None and result.data.get('status') == 'normal':
+        cached = _row_species(species, result, job, reference)
         if any(observation['value'] != getattr(requested, attribute)
                for attribute, evidence in cached.calculation_state_evidence.items()
                for observation in evidence['observations']):
             refuse_routing(f'{job}: completed cache reports a contradictory charge or multiplicity',
                            [requested, cached])
-    if references:
-        reference = references[-1]
+    if reference is not None:
         from kinbot.species_routing import require_cache_atom_order
-        require_cache_atom_order(requested, _row_species(species, reference, job), job)
+        previous = _row_species(species, reference, job)
+        require_cache_atom_order(requested, previous, job)
+        saved_identity = (reference.data.get('chemical_context', {}).get('optical_reference')
+                          or reference.data['identity'])
+        if saved_identity['id'] != (declared or identity)['id']:
+            refuse_routing(f'{job}: cached input has a different full stereoisomer identity',
+                           [requested, previous])
         if (reference.data['identity']['id'] != identity['id']
                 and not _in_declared_mirror_population(requested, reference.data['identity'])):
-            previous = _row_species(species, reference, job)
             refuse_routing(f'{job}: cached input belongs to a different configured species', [requested, previous])
     if cached is not None:
         from kinbot.species_routing import require_cache_atom_order
         require_cache_atom_order(requested, cached, job)
         if cached.chemid == species.chemid:
             require_same_configuration(requested, cached, f'{job}: completed cache')
-    if not references:
-        _write_reference(qc, requested, name, identity)
+    if reference is None:
+        reference = qc.db.get(_write_reference(qc, requested, name, identity))
+    # ASE writes and updates change the row revision. A newly completed result,
+    # changed request, or changed reference must pass the full checks again.
+    cache[job] = (qc.db, (request, _row_revision(reference), _row_revision(result)))
+    qc._verified_well_jobs = cache
     species.stereo_routing_status = 'verified configured request'
+
+
+def _row_revision(row):
+    """Track both appended results and in-place ASE database updates."""
+    return None if row is None else (row.id, row.unique_id, row.mtime, row.data.get('status'))
 
 
 def guard_pes_input(species, filename):
@@ -219,4 +246,11 @@ def guard_pes_input(species, filename):
                                structure=data.get('structure'), smiles=data.get('smiles') or None)
     previous.bond_mx()
     previous.calc_chemid()
+    from kinbot.species_routing import apply_input_reference
+    apply_input_reference(previous, data)
+    requested_identity = getattr(species, 'optical_reference', None) or require_supported_identity(species)
+    saved_identity = getattr(previous, 'optical_reference', None) or require_supported_identity(previous)
+    if requested_identity['id'] != saved_identity['id']:
+        refuse_routing(f'{filename}: PES input has a different full stereoisomer identity',
+                       [species, previous])
     require_same_configuration(species, previous, f'{filename}: PES input collision')

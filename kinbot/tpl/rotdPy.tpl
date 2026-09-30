@@ -8,6 +8,7 @@ from rotd_py.flux.fluxbase import FluxBase
 from ase.atoms import Atoms
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import numpy as np
@@ -91,14 +92,26 @@ dynamical_correction={dynamical_correction},
 faces_weights=faces_weights)
 
 # This manifest is written only after sampling and result generation finish.
-# KinBot reads it before allowing the workflow to proceed.
-result_files = sorted(
-    path.name for path in Path('.').iterdir()
-    if path.is_file() and path.name != '{result_file}')
+# KinBot reads and hash-checks the MESS-facing number-of-states file and the
+# native surface flux output before allowing the workflow to proceed.
+result_root = Path(kb_sample.name)
+result_paths = sorted(
+    list(result_root.glob('Ne_*.out')) +
+    list(result_root.glob('output/surface_*.dat')))
+if not any(path.name.startswith('Ne_') for path in result_paths):
+    raise RuntimeError('rotdPy did not write a number-of-states output.')
+if not any(path.parent.name == 'output' for path in result_paths):
+    raise RuntimeError('rotdPy did not write a surface flux output.')
+result_files = [str(path) for path in result_paths]
+result_sha256 = {{
+    str(path): hashlib.sha256(path.read_bytes()).hexdigest()
+    for path in result_paths
+}}
 Path('{result_file}').write_text(json.dumps({{
-    'schema': 1,
+    'schema': 2,
     'status': 'complete',
     'reaction': '{job_name}',
     'surface_count': len(getattr(multi, 'total_flux', {{}})),
     'result_files': result_files,
+    'result_sha256': result_sha256,
 }}, indent=2) + '\n')

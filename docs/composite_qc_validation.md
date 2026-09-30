@@ -388,3 +388,18 @@ defines the numerical frequency/ZPE output. Gaussian's
 describes harmonic and anharmonic frequency analysis; the warning assessment
 above is based on the native CH4 output and remains an inference pending the
 repeat calculation.
+
+## Pinned external data and VRC runtime
+
+New ATcT reads use the official v1 API and the public `atct` client. KinBot
+caches exact JSON responses, verifies the requested table version, and carries
+the response SHA-256 into every CBH formation result. The current live table
+identifies itself as `1.220`.
+
+ROTD_py is pinned as the private `external/ROTD_py` Git submodule and installed
+separately into the KinBot environment. The supported integration revision
+packages the source, supports current SciPy, avoids MPI and Gaussian imports
+for Molpro-only Slurm runs, prevents Molpro thread/rank oversubscription, and
+bounds failed-sample retries. KinBot generates its required Slurm `qu.tpl` and
+accepts completion only after hashing both native surface flux and MESS-facing
+number-of-states outputs.

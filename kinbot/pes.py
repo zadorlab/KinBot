@@ -18,7 +18,10 @@ import subprocess
 import json
 import itertools
 import logging
+import re
+import shlex
 from typing import Any
+from pathlib import Path
 import networkx as nx
 import numpy as np
 
@@ -99,6 +102,31 @@ def remove_unused_complexes(discarded, reactions, wells, do_vdW, parent):
 
 
 logger = logging.getLogger('KinBot')
+
+
+def _write_rotdpy_slurm_template(par, folder: str) -> str:
+    """Write the scheduler template consumed by rotd_py.new_multi.Multi."""
+    if str(par.get('queuing', '')).casefold() != 'slurm':
+        raise ValueError('rotdPy execution currently requires queuing="slurm".')
+    partition = str(par.get('queue_name', '')).strip()
+    walltime = str(par.get('rotdpy_walltime', '24:00:00')).strip()
+    if partition and not re.fullmatch(r'[A-Za-z0-9_.-]+', partition):
+        raise ValueError('rotdPy Slurm partition contains unsupported characters.')
+    if not re.fullmatch(r'(?:\d+-)?\d{1,2}:\d{2}:\d{2}', walltime):
+        raise ValueError('rotdpy_walltime must be D-HH:MM:SS or HH:MM:SS.')
+    template = Path(f'{kb_path}/tpl/rotdPy_slurm.tpl').read_text()
+    rendered = (template
+                .replace('@PYTHON@', shlex.quote(sys.executable))
+                .replace('@WALLTIME@', walltime)
+                .replace('@PARTITION_DIRECTIVE@',
+                         f'#SBATCH --partition={partition}' if partition else '')
+                .replace('@EXCLUSIVE_DIRECTIVE@',
+                         '#SBATCH --exclusive'
+                         if par.get('rotdpy_exclusive') else ''))
+    path = os.path.join(folder, 'qu.tpl')
+    with open(path, 'w') as stream:
+        stream.write(rendered)
+    return path
 
 
 def main():
@@ -1376,6 +1404,10 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
     if not os.path.exists(folder):
         # Create a new directory because it does not exist
         os.makedirs(folder)
+    if (bless or vdW) and str(par.get('queuing', '')).casefold() == 'slurm':
+        _write_rotdpy_slurm_template(par, folder)
+    elif (bless or vdW) and par.get('rotdpy_run'):
+        raise ValueError('rotdPy execution currently requires queuing="slurm".')
     # Avoids modifying barrierless outside of the function
     barrierless = list(bless)
 
@@ -1502,7 +1534,9 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
                                      mem=par['rotdPy_mem'],
                                      processors=par['rotdpy_processors'],
                                      queue=par['queuing'],
-                                     max_jobs=par['rotdpy_max_jobs'])
+                                     max_jobs=par['rotdpy_max_jobs'],
+                                     max_retries=par['rotdpy_max_retries'],
+                                     poll_interval=par['rotdpy_poll_interval'])
 
         template_file_path = f'{kb_path}/tpl/rotdPy.tpl'
         if noscan:

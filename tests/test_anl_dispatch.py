@@ -20,7 +20,7 @@ from tests.anl_fixture import dispatch_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
     _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, main, prepare,
-    preflight, retry_failed, run_task, validate_spec,
+    preflight, refresh_status, retry_failed, run_task, validate_spec,
 )
 
 
@@ -37,6 +37,11 @@ def test_prepare_accepts_an_in_memory_workflow():
         saved = json.loads((run_dir / 'workflow.json').read_text())
         assert saved['schema'] == 1
         assert saved['name'] == 'synthetic-qc-dispatch'
+
+
+def test_status_reports_workflow_not_prepared_before_handoff(tmp_path):
+    assert refresh_status(tmp_path / 'future-run') == {
+        'workflow': 'not_prepared'}
 
 
 def _mock_execution(run_dir, ident, *, geometry=None):

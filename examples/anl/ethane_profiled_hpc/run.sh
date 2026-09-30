@@ -6,7 +6,7 @@ max_nodes=${2:-3}
 fairchem_model=${3:-${KINBOT_FAIRCHEM_MODEL:-uma-s-1p2}}
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd "$script_dir/../../.." && pwd)
-run_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v3}
+run_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v4}
 python_bin=${KINBOT_PYTHON:-$repo_dir/.venv/bin/python}
 export HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-1}
 
@@ -45,10 +45,13 @@ import ase
 import sella
 from fairchem.core import FAIRChemCalculator
 from kinbot.fairchem_utils import load_predictor
+from kinbot.rotdpy import ensure_available
 
 model = sys.argv[1]
 FAIRChemCalculator(load_predictor(model, 'cpu'), task_name='omol')
-print(f'Python, ASE, Sella, and FairChem model {model!r} are ready')
+rotdpy = ensure_available()
+print(f'Python, ASE, Sella, FairChem model {model!r}, and rotdPy are ready')
+print(f"rotdPy revision: {rotdpy.get('git_revision')}")
 PY
 
 cd "$run_dir"
@@ -58,7 +61,7 @@ parent_job=301020900180000000001_well_high
 parent=301020900180000000001
 reaction=${parent}_hom_sci_1_2
 "$python_bin" -m kinbot.anl.validation gate-kinbot . "$reaction" \
-    --parent "$parent" --hir-points 4 --require-rotdpy \
+    --parent "$parent" --hir-points 4 --require-rotdpy-execution \
     | tee kinbot_gate.json
 if [ ! -f anl_interface/workflow.json ]; then
     "$python_bin" -m kinbot.anl.validation prepare-from-db \

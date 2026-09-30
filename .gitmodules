@@ -1,0 +1,3 @@
+[submodule "external/ROTD_py"]
+	path = external/ROTD_py
+	url = https://github.com/zadorlab/ROTD_py.git

@@ -13,8 +13,14 @@ PYRAMIDAL_HEIGHT_TOLERANCE = .05
 def _threefold_atom_symmetry(coordinates, center, neighbors):
     """Three equivalent arms give six planar, or three pyramidal rotations.
 
-    This is the local rigid-geometry convention, not an inversion partition
-    function. The optical count and internal-rotor rules remain independent.
+    The umbrella mode is treated as one harmonic well. In this counting
+    convention, the pyramidal value is 6 / 2 = 3 for the two inversion-related
+    versions of the minimum. If a future explicit double-well inversion mode
+    (for example, a MESS Umbrella block) covers both minima, use the planar
+    counting value 6 here, or keep 3 and give that mode symmetry number 2.
+    This avoids counting both minima twice; keep the mode's symmetry division
+    separate, as sigma_int is kept out of sigma_ext for scanned rotors.
+    No inversion partition function is calculated here.
     """
     xyz = np.asarray(coordinates, dtype=float)
     arms = xyz[neighbors]

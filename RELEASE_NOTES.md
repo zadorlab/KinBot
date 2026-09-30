@@ -113,6 +113,9 @@ whole calculation to stop. MC-TST continues to disable HIR scans.
 **Keep the graph-based rotational (external) symmetry rules with limited corrections.**
 Fixed stereochemistry prevents exchanges between incompatible configurations.
 Pyramidal XY3 has a threefold rotational contribution. Planar XY3 has sixfold.
+The pyramidal rule and optical factor assume a harmonic single-well inversion
+mode; a future explicit umbrella model that covers both minima must account
+for their symmetry and mirror contribution without counting them twice.
 
 A departing atom is distinguished from the spectator atoms when rotor (internal)
 symmetry is calculated.

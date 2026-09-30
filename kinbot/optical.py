@@ -236,7 +236,18 @@ def compare_rigid(species, left, right, tolerance=OPTICAL_RMSD_TOLERANCE, *, ref
 
 def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
                      tolerance=OPTICAL_RMSD_TOLERANCE, energy_tolerance=1.):
-    """One remaining optical decision for a rigid conformer or HIR model."""
+    """One remaining optical decision for a rigid conformer or HIR model.
+
+    Only torsions are currently supplied as explicit represented motions.
+    Inversion of a chiral pyramidal centre is treated as a harmonic single
+    well unless a relaxed rotor scan already includes its mirror. When the
+    rigid-mirror test establishes a distinct, allowed mirror absent from the
+    model, the optical factor is two. A future explicit umbrella scan must
+    be supplied as a represented motion and checked for mirror coverage like
+    a HIR scan; otherwise the additional optical factor counts the mirror
+    twice. This does not imply that the current rotor interface accepts an
+    umbrella coordinate.
+    """
     scope = optical_scope(species, population or getattr(species, 'optical_population', 'specified'))
     geom = np.asarray(species.geom if geometry is None else geometry, float)
     rigid = rigid_mirror(species, geom, tolerance)

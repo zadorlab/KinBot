@@ -1,5 +1,7 @@
 # Unreleased
 
+Each KinBot and PES run starts its log with the KinBot and RDKit versions.
+
 ## Stereochemistry and symmetry
 
 **Keep configured stereoisomers separate throughout a calculation.**

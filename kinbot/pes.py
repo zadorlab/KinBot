@@ -22,7 +22,6 @@ import getpass
 from copy import deepcopy
 from ase.db import connect
 from kinbot.run_format import ensure_current_run
-from kinbot.rdkit_config import log_rdkit
 from ase.atoms import Atoms
 
 from kinbot import kb_path
@@ -148,8 +147,6 @@ def main():
     # set up the logging environment
     if par['verbose']:
         logger = config_log('KinBot', mode='pes', level='debug')
-
-    log_rdkit(logger)
 
     msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
     logger.info(msg)

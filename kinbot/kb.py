@@ -18,7 +18,6 @@ from kinbot.vrc_tst_scan import VTS
 from kinbot.qc import QuantumChemistry
 from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
-from kinbot.rdkit_config import log_rdkit
 from kinbot.run_format import ensure_current_run
 from kinbot.stereo_identity import require_supported_identity
 
@@ -47,7 +46,6 @@ def main():
     # set up the logging environment
     if par['verbose']:
         logger = config_log('KinBot', level='debug')
-    log_rdkit(logger)
 
     # write the license message and the parameters to the log file
     logger.info('Input parameters')

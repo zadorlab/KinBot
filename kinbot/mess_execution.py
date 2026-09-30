@@ -9,14 +9,22 @@ import time
 from kinbot import constants
 
 logger = logging.getLogger('KinBot')
+_RESULT_GRACE_SECONDS = 60.
+_QUERY_TIMEOUT_SECONDS = 30.
+_MAX_QUERY_FAILURES = 3
 
 
 class MESSExecutionError(RuntimeError):
     """MESS did not produce a successful rate calculation."""
 
 
-def _run(command):
-    return subprocess.run(command, capture_output=True, text=True, check=False)
+class _ResultPending(MESSExecutionError):
+    """A completed queued job's result files are not yet visible."""
+
+
+def _run(command, *, timeout=None):
+    return subprocess.run(command, capture_output=True, text=True, check=False,
+                          timeout=timeout)
 
 
 def _submit(queue, script):
@@ -33,8 +41,15 @@ def _submit(queue, script):
 
 
 def _active(queue, pid):
+    command = (['squeue', '--noheader', '--jobs', pid, '--format=%T']
+               if queue == 'slurm' else ['qstat', '-f', pid])
+    try:
+        result = _run(command, timeout=_QUERY_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as error:
+        raise MESSExecutionError(f'Cannot query MESS job {pid}: scheduler query timed out.') from error
+    except OSError as error:
+        raise MESSExecutionError(f'Cannot query MESS job {pid}: {error}') from error
     if queue == 'slurm':
-        result = _run(['squeue', '--noheader', '--jobs', pid, '--format=%T'])
         if result.returncode:
             if re.search(r'invalid job id', result.stderr, re.IGNORECASE):
                 return False
@@ -43,7 +58,6 @@ def _active(queue, pid):
         terminal = {'COMPLETED', 'CANCELLED', 'FAILED', 'TIMEOUT', 'NODE_FAIL',
                     'OUT_OF_MEMORY', 'PREEMPTED', 'BOOT_FAIL', 'DEADLINE', 'REVOKED'}
         return any(state not in terminal for state in states)
-    result = _run(['qstat', '-f', pid])
     if result.returncode:
         if re.search(r'unknown job|unknown job id|job has finished|invalid job id',
                      result.stderr, re.IGNORECASE):
@@ -56,7 +70,11 @@ def _active(queue, pid):
 
 
 def _stamp(path):
-    return (path.stat().st_mtime_ns, path.stat().st_size) if path.exists() else None
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
 
 
 def _verify(index, previous_output, exit_code=None):
@@ -67,7 +85,7 @@ def _verify(index, previous_output, exit_code=None):
         try:
             exit_code = int(status.read_text().strip())
         except (OSError, ValueError) as error:
-            raise MESSExecutionError(
+            raise _ResultPending(
                 f'MESS calculation {index} left the queue without a solver exit result; '
                 'check the scheduler output for cancellation or failure.') from error
     if exit_code:
@@ -76,8 +94,12 @@ def _verify(index, previous_output, exit_code=None):
             'reaction generation may have completed, but rates were not obtained. '
             'Inspect the MESS log and scheduler output.')
     output = stem.with_suffix('.out')
-    if not output.exists() or not output.stat().st_size or _stamp(output) == previous_output:
-        raise MESSExecutionError(
+    try:
+        current_output = _stamp(output)
+    except OSError as error:
+        raise _ResultPending(f'MESS calculation {index}: cannot read rate output at {output}.') from error
+    if current_output is None or not current_output[1] or current_output == previous_output:
+        raise _ResultPending(
             f'MESS calculation {index} exited successfully but produced no new, '
             f'nonempty rate output at {output}.')
     logger.info('MESS calculation %s completed successfully: %s', index, output)
@@ -114,18 +136,42 @@ def run_mess(writer):
         return 0
 
     active = {}
+    ended = {}
+    query_failures = {}
     failures = []
     limit = max(1, int(writer.par['uq_max_runs']))
 
     def poll():
         time.sleep(5)
         for pid, (index, previous) in list(active.items()):
-            if not _active(queue, pid):
+            if pid not in ended:
                 try:
-                    _verify(index, previous)
+                    running = _active(queue, pid)
                 except MESSExecutionError as error:
-                    failures.append(str(error))
-                del active[pid]
+                    count = query_failures.get(pid, 0) + 1
+                    query_failures[pid] = count
+                    if count < _MAX_QUERY_FAILURES:
+                        logger.warning('%s Retrying scheduler query (%s/%s).',
+                                       error, count, _MAX_QUERY_FAILURES)
+                        continue
+                    raise MESSExecutionError(
+                        f'{error} Monitoring stopped after {count} consecutive query failures; '
+                        f'submitted jobs may still be active: {", ".join(active)}.') from error
+                query_failures.pop(pid, None)
+                if running:
+                    continue
+                ended[pid] = time.monotonic()
+            try:
+                _verify(index, previous)
+            except _ResultPending as error:
+                if time.monotonic() - ended[pid] < _RESULT_GRACE_SECONDS:
+                    continue
+                failures.append(f'{error} Result files did not become available within '
+                                f'{_RESULT_GRACE_SECONDS:g} seconds after queue completion.')
+            except MESSExecutionError as error:
+                failures.append(str(error))
+            del active[pid]
+            ended.pop(pid, None)
 
     for index, script in zip(indices, scripts):
         output = Path('me') / f'mess_{index}.out'

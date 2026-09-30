@@ -2,6 +2,7 @@ from kinbot.species_routing import routing_name, apply_input_reference, matches_
 import sys
 import datetime
 import copy
+import logging
 
 from os.path import isfile
 
@@ -20,9 +21,18 @@ from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
 from kinbot.run_format import ensure_current_run
 from kinbot.stereo_identity import require_supported_identity, log_input_stereochemistry
+from kinbot.stereo_routing import StereoRoutingError
 
 
 def main():
+    try:
+        return _main()
+    except StereoRoutingError as error:
+        logging.getLogger('KinBot').error('KinBot stopped: %s', error)
+        raise SystemExit(1) from None
+
+
+def _main():
     if sys.version_info.major < 3 or sys.version_info.minor < 8:
         print('KinBot only runs with python 3.8 or higher. You have python '
               f'{sys.version_info.major}.{sys.version_info.minor}. '
@@ -306,22 +316,15 @@ def main():
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
         mess = MESS(par, well0)
         mess.write_input(qc)
-        # vdW_wells = []
-        # for reac in well0.reac_obj:
-        #     if reac.do_vdW:
-        #         vdW_wells.append(MESS(par, reac.irc_prod, parent=well0))
-        #         vdW_wells[-1].write_input(qc)
 
-        if par['me'] == 1:
-            logger.info('Starting Master Equation calculations')
-            if par['me_code'] == 'mess':
-                mess.run()
-                # for vdw_mess in vdW_wells:
-                #     vdw_mess.run()
-
+    # Preserve the completed search even if the separate rate calculation fails.
     postprocess.create_summary_file(well0, qc, par)
     postprocess.createPESViewerInput(well0, qc, par)
     postprocess.creatMLInput(well0, qc, par)
+
+    if par['me'] == 1 and par['me_code'] == 'mess':
+        logger.info('Starting Master Equation calculations')
+        mess.run()
 
     clean_files(diagnostic=True, qc=par['qc'])
     logger.info('KinBot finished.')

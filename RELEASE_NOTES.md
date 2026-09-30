@@ -173,6 +173,14 @@ Local, Slurm, and PBS execution waits for the requested calculations to finish.
 KinBot checks the exit result and newly written output. Solver failure is
 reported separately from successful reaction generation. Inputs without an
 accepted reaction network remain available for inspection, but are not run.
+KinBot writes its reaction summary and PESViewer input before starting MESS.
+For queued MESS jobs, it allows up to 60 seconds after the job leaves the queue
+for the exit marker and new output to appear. A recorded solver failure still
+fails immediately. Scheduler queries have a 30-second timeout and allow three
+consecutive failures before reporting an error; a query failure does not mean
+that the job has finished. Initial input-reference and saved-result conflicts
+reported by `StereoRoutingError` are logged and exit with failure, without an
+internal traceback. Other internal errors are not suppressed.
 
 **Narrow bug fixes and reaction examples.**
 The initial species reconstruction keeps its checked frequencies. Input-only

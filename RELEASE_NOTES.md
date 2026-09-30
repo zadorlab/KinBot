@@ -235,7 +235,8 @@ the total calculation time.
 
 **Narrow bug fixes and reaction examples.**
 H2 elimination now rejects longer ring walks when an equivalent shorter search
-was removed as a duplicate.
+was removed as a duplicate. Distinct stereochemical paths remain separate in
+PESViewer output, also when their barriers differ by less than 1 kcal/mol.
 The initial species reconstruction keeps its checked frequencies. Input-only
 MESS writing converts collision-energy units in the same way as normal writing.
 Three-fragment product names agree with each other through PES assembly.

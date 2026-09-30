@@ -67,6 +67,18 @@ class TestStereopathMESS(unittest.TestCase):
     def test_actual_direct_summary_and_pes_selection_keep_two_routes(self):
         self.direct_summary_and_pes_selection()
 
+    def test_pesviewer_keeps_close_distinct_paths_and_filters_same_path(self):
+        p, routes = self.observations()
+        self.assertNotEqual(routes[0].ts.stereopath_id, routes[1].ts.stereopath_id)
+        self.assertEqual(routes[0].ts.stereopath_id, routes[2].ts.stereopath_id)
+        for route, barrier in zip(routes, (30., 30.2, 30.4)):
+            route.ts.energy = p.energy + barrier / constants.AUtoKCAL
+        postprocess.createPESViewerInput(p, SimpleNamespace(qc='fc'), self.par)
+        text = Path('pesviewer.inp').read_text()
+        self.assertIn(routes[0].instance_name, text)
+        self.assertIn(routes[1].instance_name, text)
+        self.assertNotIn(routes[2].instance_name, text)
+
     def test_ordinary_and_stereo_routes_survive_direct_summary_and_pes(self):
         self.direct_summary_and_pes_selection(ordinary=True)
 

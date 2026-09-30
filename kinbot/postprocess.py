@@ -13,7 +13,7 @@ import numpy as np
 from kinbot import kb_path
 from kinbot import license_message
 from kinbot import constants
-from kinbot.reaction_path import summary_path_line, reject_invalid_pathway
+from kinbot.reaction_path import summary_path_line, reject_invalid_pathway, same_path_class
 
 
 def creatMLInput(species, qc, par):
@@ -270,7 +270,7 @@ def createPESViewerInput(species, qc, par):
     bless = []
     # dict keeping track of the ts's
     # key: ts name
-    # value: [energy,prod_names]
+    # value: [energy, prod_names, stereochemical pathway]
     ts_list = {}
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] != -1:
@@ -299,12 +299,15 @@ def createPESViewerInput(species, qc, par):
             for st_pt in species.reac_obj[index].products:
                 name.append(routing_name(st_pt))
         prod_name = '_'.join(sorted(name))
+        path_id = getattr(ts, 'stereopath_id', None)
         add = 1
         for t in ts_list:
-            if ts_list[t][1] == prod_name and np.abs(ts_list[t][0] - energy) < 1.0:
+            if (ts_list[t][1] == prod_name
+                    and same_path_class(ts_list[t][2], path_id)
+                    and np.abs(ts_list[t][0] - energy) < 1.0):
                 add = 0
         if add:
-            ts_list[species.reac_name[index]] = [energy, prod_name]
+            ts_list[species.reac_name[index]] = [energy, prod_name, path_id]
             tss.append(f'{species.reac_name[index]} {energy:.2f} '
                        f'{routing_name(species)} {prod_name}')
     

@@ -272,7 +272,7 @@ class TestSelectedHessian(unittest.TestCase):
                 self.qc.publish_result(source, target)
                 np.testing.assert_allclose(self.qc.read_qc_hess(target, len(self.atoms)), self.hess)
 
-    def test_legacy_missing_hessian_recovers_without_optimizing_or_using_parent(self):
+    def test_missing_native_hessian_recovers_without_optimizing_or_using_parent(self):
         for backend in ('gauss', 'qchem'):
             with self.subTest(backend=backend):
                 self.qc.qc = backend

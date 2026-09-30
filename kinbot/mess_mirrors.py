@@ -8,7 +8,7 @@ import copy
 import hashlib
 import logging
 import re
-from kinbot.stereo_identity import canonical_identity
+from kinbot.stereo_identity import require_supported_identity, UnsupportedStereochemistry
 from kinbot.species_routing import routing_name
 from kinbot.mess_networks import _HEADER, split_model
 
@@ -22,9 +22,11 @@ logger = logging.getLogger('KinBot')
 def population_keys(species, population='specified'):
     own, mirror = [], []
     for point in species:
-        identity = getattr(point, 'optical_reference', None) or canonical_identity(point)
+        identity = getattr(point, 'optical_reference', None) or require_supported_identity(point)
         if identity['status'] != 'assigned':
-            return None
+            raise UnsupportedStereochemistry(
+                f'{point.name}: unsupported stereochemical reference: '
+                f'{identity.get("reason", "no assigned identity")}')
         key = routing_name(point)
         own.append(key)
         if population == 'racemic' or identity['id'] == identity['mirror_id']:
@@ -45,12 +47,10 @@ def _insert(block, comment):
 
 def annotate_population(block, species, population, *, energy_reference=None):
     keys = population_keys(species, population)
-    if keys:
-        block = _insert(block, '! kinbot_population ' + ' '.join(keys))
-        if population == 'racemic':
-            configured = population_keys(species)
-            if configured:
-                block = _insert(block, '! kinbot_racemic_keys ' + ' '.join(configured))
+    block = _insert(block, '! kinbot_population ' + ' '.join(keys))
+    if population == 'racemic':
+        configured = population_keys(species)
+        block = _insert(block, '! kinbot_racemic_keys ' + ' '.join(configured))
     if energy_reference is not None:
         block = _insert(block, f'! kinbot_eckart_reference[kcal/mol] {energy_reference}')
     return block
@@ -58,13 +58,11 @@ def annotate_population(block, species, population, *, energy_reference=None):
 
 def annotate_endpoints(block, reactants, products, population):
     left, right = population_keys(reactants, population), population_keys(products, population)
-    if left and right:
-        block = _insert(block, '! kinbot_mirror_endpoints ' + ' '.join(left + right))
-        if population == 'racemic':
-            configured_left, configured_right = population_keys(reactants), population_keys(products)
-            if configured_left and configured_right:
-                block = _insert(block, '! kinbot_racemic_route ' +
-                                ' '.join(configured_left + configured_right))
+    block = _insert(block, '! kinbot_mirror_endpoints ' + ' '.join(left + right))
+    if population == 'racemic':
+        configured_left, configured_right = population_keys(reactants), population_keys(products)
+        block = _insert(block, '! kinbot_racemic_route ' +
+                        ' '.join(configured_left + configured_right))
     return block
 
 
@@ -97,7 +95,7 @@ def _population_energies(block):
 
 
 def _endpoint_references(blocks):
-    """Read Eckart references, then saved parents, with legacy grounds as fallback."""
+    """Read Eckart references, selected parents, or single-structure ground energies."""
     from kinbot.mess import apply_conformer_shifts
     references = {}
     # Eckart depths use the selected parent, which need not be the lowest
@@ -175,7 +173,7 @@ def _reuse_mirror_populations(blocks):
             continue
         seen.update((own, mirror))
         target_name, target = populations[mirror]
-        # Minimal/legacy blocks without a statistical model have nothing to copy.
+        # Populations without a statistical model have nothing to reflect.
         if not _population_energies(source) or not _population_energies(target):
             continue
         marker = f'! reflected population model from {source_name}; complete calculation reused'

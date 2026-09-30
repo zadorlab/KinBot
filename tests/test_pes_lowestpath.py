@@ -6,6 +6,9 @@ from pathlib import Path
 import numpy as np
 from kinbot import pes
 from kinbot.parameters import Parameters
+from kinbot.run_format import ensure_current_run
+from kinbot.stationary_pt import StationaryPoint
+from kinbot.species_routing import routing_name
 
 
 def test_lowestpath_retains_classified_selected_edges_only():
@@ -17,18 +20,19 @@ def test_lowestpath_retains_classified_selected_edges_only():
     args=({},wells,[],reactions,conn,None,{},'lowestpath',['a','c'])
     _,_,selected,_=pes.filter_stat_points(*args,stereopaths=paths)
     assert [r[1] for r in selected]==['x','z','y']
-    # No path evidence: retain legacy single-route filtering.
-    _,_,ordinary,_=pes.filter_stat_points(*args)
-    assert [r[1] for r in ordinary]==['x','z']
     # A different configured product is not the same edge.
     assert all(r[1] not in ('off1','off2') for r in selected)
 
 
 def test_no_kinbot_cli_forwards_lowestpath_and_species_names(tmp_path,monkeypatch):
     monkeypatch.chdir(tmp_path)
+    ensure_current_run(create=True)
     Path("input.json").write_text('{"barrier_threshold":100}')
     par=Parameters("input.json",show_warnings=False).par
     par.update(smiles='[H][H]',charge=0,mult=1,verbose=0)
+    reactant = StationaryPoint('well0', 0, 1, smiles=par['smiles'])
+    reactant.characterize()
+    ensure_current_run(routing_name(reactant), create=True)
     monkeypatch.setattr(sys,'argv',['pes','input.json','no-kinbot','lowestpath','a','b'])
     monkeypatch.setattr(pes,'Parameters',lambda *a,**k:SimpleNamespace(par=par))
     monkeypatch.setattr(pes,'config_log',lambda *a,**k:logging.getLogger('test-pes'))

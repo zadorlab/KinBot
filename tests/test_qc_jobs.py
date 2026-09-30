@@ -8,9 +8,11 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
+import numpy as np
 
 from kinbot.qc import QuantumChemistry
 from kinbot.parameters import Parameters
+from kinbot.stationary_pt import StationaryPoint
 
 
 class TestSchedulerJobs(unittest.TestCase):
@@ -63,17 +65,15 @@ class TestVRCJobs(unittest.TestCase):
         self.addCleanup(os.chdir, Path.cwd())
         os.chdir(temporary.name)
         Path('vrctst').mkdir()
-        self.qc = SimpleNamespace(
-            qc='gauss', qc_command='g16', ppn=8,
-            par={'calc_kwargs': {}, 'vrc_tst_scan_sella': False,
-                 'vrc_tst_scan_deviation': 0.1, 'vts_ang_dev': 10,
-                 'sella_kwargs': {}},
-            get_qc_arguments=Mock(return_value={}), submit_qc=Mock(),
-        )
-        self.fragment = SimpleNamespace(
-            chemid=1, charge=0, mult=2, nel=1, natom=1,
-            atom=['H'], geom=[[0., 0., 0.]], bond01=[[0]],
-        )
+        self.qc = QuantumChemistry.__new__(QuantumChemistry)
+        self.qc.qc, self.qc.qc_command, self.qc.ppn = 'gauss', 'g16', 8
+        self.qc.par = {'calc_kwargs': {}, 'vrc_tst_scan_sella': False,
+                       'vrc_tst_scan_deviation': 0.1, 'vts_ang_dev': 10,
+                       'sella_kwargs': {}}
+        self.qc.get_qc_arguments = Mock(return_value={})
+        self.qc.submit_qc = Mock()
+        self.fragment = StationaryPoint('H', 0, 2, atom=['H'], geom=np.array([[0., 0., 0.]]))
+        self.fragment.characterize()
 
     def test_fragment_job_uses_fragment_electron_count(self):
         job = QuantumChemistry.qc_vts_frag(self.qc, self.fragment)
@@ -82,10 +82,9 @@ class TestVRCJobs(unittest.TestCase):
         ast.parse(Path(f'{job}.py').read_text())
 
     def test_scan_jobs_use_reacting_species_electron_count(self):
-        species = SimpleNamespace(
-            chemid=2, charge=0, mult=1, nel=2, natom=2,
-            atom=['H', 'H'], geom=[[0., 0., 0.], [1., 0., 0.]],
-        )
+        species = StationaryPoint('H2', 0, 1, atom=['H', 'H'],
+                                  geom=np.array([[0., 0., 0.], [.74, 0., 0.]]))
+        species.characterize()
         reaction = SimpleNamespace(
             species=species, instance_name='reaction', scan_coo=[0, 1],
             irc_prod=SimpleNamespace(bondlist=[]), maps=[[0], [1]],
@@ -97,7 +96,7 @@ class TestVRCJobs(unittest.TestCase):
                 self.qc.get_qc_arguments.reset_mock()
                 self.qc.submit_qc.reset_mock()
                 job = QuantumChemistry.qc_vts(
-                    self.qc, reaction, species.geom, 0, [], asymptote, species.geom)
+                    self.qc, reaction, species.geom, 0, [], asymptote, species.geom.tolist())
                 self.qc.get_qc_arguments.assert_called_once_with(job, 1, 0, 2, vts=1)
                 self.qc.submit_qc.assert_called_once_with(job, 2)
                 ast.parse(Path(f'{job}.py').read_text())

@@ -93,7 +93,7 @@ def selected_calculation_job(optimization):
 def publish_optimization_result(optimization):
     """Publish the complete accepted calculation under its conventional name.
 
-    Keep the original calculation as evidence. PES and legacy restart readers
+    Keep the original calculation as evidence. PES and current restart readers
     continue to use the latest result under the usual well/high/low job name.
     """
     logger = logging.getLogger('KinBot')

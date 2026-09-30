@@ -239,15 +239,6 @@ def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
     """One remaining optical decision for a rigid conformer or HIR model."""
     scope = optical_scope(species, population or getattr(species, 'optical_population', 'specified'))
     geom = np.asarray(species.geom if geometry is None else geometry, float)
-    if scope['identity'].get('status') != 'assigned':
-        from kinbot.stereo_identity import legacy_stereo_warning
-        from kinbot.symmetry import conformer_symmetry_numbers
-        legacy_stereo_warning(species, scope['identity'].get('reason', 'unknown reference'))
-        legacy = conformer_symmetry_numbers(species, geom)['nopt']
-        return dict(method=METHOD, status='legacy_unverified', population_scope=scope,
-                    total_optical_states=None, allowed_global_mirror_states=None,
-                    remaining_multiplier=float(legacy),
-                    reason='Stereochemical population not established; retained the legacy optical convention.')
     rigid = rigid_mirror(species, geom, tolerance)
     size = rigid['mirror_states']
     result = dict(method=METHOD, status='unresolved', population_scope=scope,

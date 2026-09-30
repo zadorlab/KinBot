@@ -18,6 +18,9 @@ from kinbot.vrc_tst_scan import VTS
 from kinbot.qc import QuantumChemistry
 from kinbot.utils import make_dirs, clean_files
 from kinbot.config_log import config_log
+from kinbot.rdkit_config import log_rdkit
+from kinbot.run_format import ensure_current_run
+from kinbot.stereo_identity import require_supported_identity
 
 
 def main():
@@ -33,6 +36,7 @@ def main():
         print('To use KinBot, supply one argument being the input file!')
         sys.exit(-1)
 
+    ensure_current_run(create=True)
     print(license_message.message)
     global logger
     logger = config_log('KinBot')
@@ -43,6 +47,7 @@ def main():
     # set up the logging environment
     if par['verbose']:
         logger = config_log('KinBot', level='debug')
+    log_rdkit(logger)
 
     # write the license message and the parameters to the log file
     logger.info('Input parameters')
@@ -72,6 +77,7 @@ def main():
 
         # characterize the initial reactant
         well0.characterize()
+        require_supported_identity(well0)
         apply_input_reference(well0, par)
         if par['cluster']:
             well0.make_hbonds()
@@ -118,8 +124,6 @@ def main():
         # characterize again and look for differences
         initial_frequencies = list(well0.freq)
         starting_reference = getattr(well0, 'optical_reference', None)
-        if starting_reference and starting_reference.get('status') != 'assigned':
-            starting_reference = None
         well0 = StationaryPoint('well0',
                                 par['charge'],
                                 par['mult'],
@@ -223,6 +227,7 @@ def main():
                                               par['mult'][ii],
                                               structure=par['structure'][ii])
             fragments[frag].characterize()
+            require_supported_identity(fragments[frag])
             fragments[frag].name = routing_name(fragments[frag])
             charge += par['charge'][ii]
          

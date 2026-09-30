@@ -13,6 +13,8 @@ import unittest
 from unittest.mock import Mock, patch
 import numpy as np
 from ase import Atoms
+from ase.db import connect
+from kinbot.run_format import ensure_current_run
 from kinbot import constants, symmetry
 from kinbot.conformers import Conformers
 from kinbot.calculation import load_calculation_record
@@ -22,13 +24,13 @@ from kinbot.pes import get_energy, write_input, create_mess_input
 from kinbot import pes, postprocess
 from kinbot.qc import QuantumChemistry
 from kinbot.reaction_generator import ReactionGenerator
-from kinbot.species_routing import routing_key, routing_name, connect, resolve_job, prepare_qc_routing, input_species, is_species_name, expand_pes_names, configured_result_matches, mess_filename
+from kinbot.reaction_path import set_endpoint_populations
+from kinbot.species_routing import routing_key, routing_name, input_species, is_species_name, expand_pes_names, configured_result_matches, mess_filename
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import canonical_identity, optical_scope
 from kinbot.stereo_routing import StereoRoutingError, guard_well_job
 from kinbot.vrc_tst_scan import VTS, fragment_routing_state
 from kinbot.fragments import Fragment
-
 
 def point(smiles):
     p = StationaryPoint('fixture', 0, 1, smiles=smiles)
@@ -39,11 +41,9 @@ def point(smiles):
     symmetry.calculate_symmetry(p)
     return p
 
-
 def input_data(p):
     return dict(charge=p.charge, mult=p.mult,
         structure=[v for a, xyz in zip(p.atom, p.geom) for v in [str(a), *map(float, xyz)]])
-
 
 class TestSpeciesRouting(unittest.TestCase):
     def setUp(self):
@@ -51,6 +51,7 @@ class TestSpeciesRouting(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.addCleanup(os.chdir, Path.cwd())
         os.chdir(temporary.name)
+        ensure_current_run(create=True)
         for directory in ('conf', 'hir', 'me'):
             Path(directory).mkdir()
         Path('input.json').write_text(json.dumps(dict(barrier_threshold=100.,
@@ -64,7 +65,7 @@ class TestSpeciesRouting(unittest.TestCase):
         self.addCleanup(patch.stopall)
         patch('kinbot.pes.logger', logging.getLogger('KinBot'), create=True).start()
 
-    def test_reaction_exclusions_match_legacy_and_exact_configured_names_before_qc(self):
+    def test_reaction_exclusions_match_connectivity_and_exact_configured_names_before_qc(self):
         from kinbot.reaction_finder import ReactionFinder
         from test_reaction_paths import peroxy
         seed = peroxy()
@@ -181,84 +182,6 @@ class TestSpeciesRouting(unittest.TestCase):
                 qc.qc_hir(p, p.geom, 0, 0, [[1, 2, 4, 5]], 0)
                 self.assertEqual(qc.submit_qc.call_args.args[0], f'hir/{base}_hir_0_00')
 
-    def test_completed_legacy_well_can_be_read_without_rewriting_its_files(self):
-        p = self.a
-        legacy, key = str(p.chemid), routing_name(p)
-        self.record(legacy+'_well', p)
-        Path(legacy+'_well.py').write_text('# original script\n')
-        Path(legacy+'_well.log').write_text('done\n')
-        self.qc.qc_opt(p, p.geom)
-        self.qc.submit_qc.assert_not_called()
-        self.assertEqual(Path(legacy+'_well.py').read_text(), '# original script\n')
-        self.assertEqual(resolve_job(self.qc.db, key+'_well'), legacy+'_well')
-        self.assertAlmostEqual(self.qc.get_qc_energy(key+'_well')[1], -100.)
-        np.testing.assert_array_equal(self.qc.get_qc_geom(key+'_well', p.natom)[1], p.geom)
-        self.assertEqual(self.qc.get_qc_freq(key+'_well', p.natom)[1], p.freq)
-        self.assertEqual(self.qc.get_qc_zpe(key+'_well')[1], .01)
-        load_calculation_record(p, self.qc, key+'_well')
-        self.assertEqual(p.source_job, legacy+'_well')
-        self.assertEqual(p.requested_source_job, key+'_well')
-        self.record(f'conf/{legacy}_0000', p)
-        self.assertEqual(resolve_job(self.qc.db, f'conf/{key}_0000'), f'conf/{key}_0000')
-        # A new process reads the same recorded alias.
-        self.assertEqual(resolve_job(connect('kinbot.db'), key+'_well'), legacy+'_well')
-
-    def test_original_input_licenses_children_and_new_results_supersede_aliases(self):
-        p = self.a
-        legacy, key = str(p.chemid), routing_name(p)
-        self.record(legacy+'_well', p, reference=True)
-        for suffix in ('_0000', '_low'):
-            self.record('conf/'+legacy+suffix, p)
-        prepare_qc_routing(self.qc, p)
-        self.assertEqual(resolve_job(self.qc.db, f'conf/{key}_0000'), f'conf/{legacy}_0000')
-        self.assertEqual(list(self.qc.db.select(name=f'conf/{key}_low'))[-1].name,
-                         f'conf/{legacy}_low')
-        self.record(key+'_well', p, -99.)
-        self.assertEqual(resolve_job(self.qc.db, key+'_well'), key+'_well')
-        self.assertEqual(len(list(self.qc.db.raw.select(name=legacy+'_well'))), 1)
-
-    def test_ambiguous_pending_restart_requires_explicit_saved_input(self):
-        p = self.a
-        legacy = str(p.chemid)
-        Path(legacy+'_well.py').write_text('# unidentified pending input\n')
-        prepare_qc_routing(self.qc, p)
-        configured = routing_name(p) + '_well'
-        self.assertEqual(resolve_job(self.qc.db, configured), configured)
-        self.assertEqual(Path(legacy+'_well.py').read_text(), '# unidentified pending input\n')
-        Path('original.json').write_text(json.dumps(input_data(p)))
-        self.qc.par['stereo_legacy_inputs'] = {legacy: 'original.json'}
-        prepare_qc_routing(self.qc, p)
-        self.assertEqual(resolve_job(self.qc.db, routing_name(p)+'_well'), legacy+'_well')
-
-    def test_other_legacy_isomer_does_not_block_a_new_namespace(self):
-        self.record(str(self.a.chemid)+'_well', self.a, reference=True)
-        prepare_qc_routing(self.qc, self.b)
-        key = routing_name(self.b)
-        self.assertEqual(resolve_job(self.qc.db, key+'_well'), key+'_well')
-        self.qc.qc_opt(self.b, self.b.geom)
-        self.assertEqual(self.qc.submit_qc.call_args.args[0], key+'_well')
-
-    def test_later_original_input_can_verify_child_jobs_and_auxiliary_writers(self):
-        p = self.a
-        legacy, key = str(p.chemid), routing_name(p)
-        self.record(legacy+'_well', p)
-        self.record(f'conf/{legacy}_0000', p)
-        prepare_qc_routing(self.qc, p)
-        self.assertEqual(resolve_job(self.qc.db, f'conf/{key}_0000'), f'conf/{key}_0000')
-        Path(f'{legacy}.json').write_text(json.dumps(input_data(p)))
-        for folder in ('aie', 'vrctst'):
-            Path(folder).mkdir()
-        for job in (f'aie/{legacy}_AIE0_0', f'aie/{legacy}_AIE1_0', f'vrctst/{legacy}_vts'):
-            Path(job+'.py').write_text('# pending legacy job\n')
-            self.record(job, p)
-            Path(job+'.log').write_text('done\n')
-        prepare_qc_routing(self.qc, p)
-        self.assertEqual(resolve_job(self.qc.db, f'conf/{key}_0000'), f'conf/{legacy}_0000')
-        self.qc.qc_aie(p, p.geom, '0')
-        self.qc.qc_vts_frag(p)
-        self.qc.submit_qc.assert_not_called()
-        self.assertFalse(Path(f'aie/{key}_AIE0_0.py').exists())
-
     def test_pes_connectivity_selectors_expand_and_keep_declared_scope(self):
         p = self.a
         optical_scope(p, 'racemic')
@@ -274,129 +197,6 @@ class TestSpeciesRouting(unittest.TestCase):
         restored = input_species(f'{routing_name(p)}/{routing_name(p)}.json')
         self.assertEqual(routing_name(restored), routing_name(p))
         self.assertEqual(restored.optical_population, 'racemic')
-
-    def test_changed_pes_directory_alias_preserves_input_and_refuses_reuse(self):
-        p = self.a
-        legacy = Path(str(p.chemid))
-        legacy.mkdir()
-        filename = legacy / f'{p.chemid}.json'
-        filename.write_text(json.dumps(input_data(p)))
-        write_input('input.json', p, 100., None, '.', 2)
-        filename.write_text(json.dumps(input_data(self.b)))
-        with self.assertRaises(StereoRoutingError):
-            write_input('input.json', p, 100., None, '.', 2)
-        self.assertEqual(json.loads(filename.read_text()), input_data(self.b))
-
-    def test_late_guard_reference_does_not_license_old_children(self):
-        p = self.a
-        legacy, key = str(p.chemid), routing_name(p)
-        self.record(legacy+'_well', p)
-        guard_well_job(self.qc, p, p.geom, legacy+'_well')
-        self.record(f'conf/{legacy}_0000', p)
-        prepare_qc_routing(self.qc, p)
-        self.assertEqual(resolve_job(self.qc.db, key+'_well'), legacy+'_well')
-        self.assertEqual(resolve_job(self.qc.db, f'conf/{key}_0000'), f'conf/{key}_0000')
-
-    def test_changed_legacy_result_cannot_hide_behind_a_recorded_alias(self):
-        p = self.a
-        legacy = str(p.chemid)
-        self.record(legacy+'_well', p, reference=True)
-        prepare_qc_routing(self.qc, p)
-        self.record(legacy+'_well', self.b)
-        with self.assertRaises(StereoRoutingError):
-            prepare_qc_routing(self.qc, p)
-
-    def test_invalidated_alias_starts_a_new_canonical_job(self):
-        p = self.a
-        legacy, key = str(p.chemid), routing_name(p)
-        self.record(legacy+'_well', p, reference=True)
-        self.record(legacy+'_well_high', p)
-        Path(legacy+'_well_high.log').write_text('done\n')
-        prepare_qc_routing(self.qc, p)
-        self.qc.invalidate_qc(key+'_well_high')
-        self.qc.qc_opt(p, p.geom, high_level=1)
-        self.assertEqual(self.qc.submit_qc.call_args.args[0], key+'_well_high')
-        self.assertTrue(Path(key+'_well_high.py').exists())
-        self.assertEqual(list(self.qc.db.select(name=legacy+'_well_high'))[-1].data.status, 0)
-        self.assertTrue(list(Path('.').glob(legacy+'_well_high.log.restart_*')))
-
-    def test_legacy_conformer_summary_copies_the_actual_completed_source(self):
-        p = self.a
-        legacy, key = str(p.chemid), routing_name(p)
-        self.record(legacy+'_well', p, reference=True)
-        self.record(f'conf/{legacy}_0000', p)
-        Path(legacy+'_well.log').write_text('parent done\n')
-        Path(f'conf/{legacy}_0000.log').write_text('conformer done\n')
-        prepare_qc_routing(self.qc, p)
-        for status, source in ((0, 'conformer'), (1, 'parent')):
-            conf = Conformers(p, self.par, self.qc)
-            conf.conf, conf.conf_status = 1, [status]
-            self.assertEqual(conf.check_conformers()[0], 1)
-            self.assertEqual(Path(f'conf/{key}_low.log').read_text(), source+' done\n')
-
-    def test_result_without_electronic_state_cannot_license_a_requested_charge(self):
-        p = self.a
-        old = str(p.chemid)+'_well'
-        self.qc.db.write(Atoms(p.atom, positions=p.geom), name=old,
-            data={'status': 'normal', 'energy': -100., 'zpe': .01})
-        requested = copy.copy(p)
-        requested.charge = 2
-        prepare_qc_routing(self.qc, requested)
-        configured = routing_name(requested) + '_well'
-        self.assertEqual(resolve_job(self.qc.db, configured), configured)
-        self.assertEqual(len(list(self.qc.db.select(name=old))), 1)
-
-    def test_late_reference_cannot_supply_unreported_original_electronic_state(self):
-        p = self.a
-        old = str(p.chemid)+'_well'
-        self.qc.db.write(Atoms(p.atom, positions=p.geom), name=old,
-            data={'status': 'normal', 'energy': -100., 'zpe': .01})
-        requested = copy.copy(p)
-        requested.charge = 2
-        guard_well_job(self.qc, requested, requested.geom, old)
-        prepare_qc_routing(self.qc, requested)
-        configured = routing_name(requested) + '_well'
-        self.assertEqual(resolve_job(self.qc.db, configured), configured)
-
-    def test_ordinary_legacy_smiles_keeps_working_without_optional_rdkit(self):
-        p = point('CO')
-        old = str(p.chemid)
-        Path(old).mkdir()
-        Path(old, old+'.json').write_text(json.dumps({'smiles': 'CO', 'charge': 0, 'mult': 1}))
-        with patch.dict(sys.modules, {'rdkit': None}):
-            self.assertEqual(expand_pes_names('.', [old]), [old])
-
-    def test_charged_exact_alias_keeps_its_trusted_reference_for_pes(self):
-        p = self.a
-        p.charge, p.mult = 1, 2
-        p.calc_chemid()
-        old = str(p.chemid)+'_well'
-        self.record(old, p)
-        prepare_qc_routing(self.qc, p)
-        row = list(self.qc.db.select(name=old))[-1]
-        self.assertTrue(configured_result_matches(self.qc.db, routing_name(p), row))
-
-    def test_unspecified_saved_smiles_cannot_license_a_legacy_prefix(self):
-        p = self.a
-        old = str(p.chemid)
-        Path(old+'_well.py').write_text('# old pending job\n')
-        Path(old+'.json').write_text(json.dumps({'smiles': 'CC(O)C(F)C', 'mult': 1, 'charge': 0}))
-        prepare_qc_routing(self.qc, p)
-        configured = routing_name(p) + '_well'
-        self.assertEqual(resolve_job(self.qc.db, configured), configured)
-        self.assertEqual(Path(old+'_well.py').read_text(), '# old pending job\n')
-        self.assertFalse(list(self.qc.db.select(name='stereo_route/'+routing_name(p))))
-
-    def test_mirror_selected_racemic_legacy_input_licenses_its_declared_namespace(self):
-        p = self.a
-        optical_scope(p, 'racemic')
-        p.geom = p.geom * [-1, 1, 1]
-        data = dict(input_data(p), optical_population='racemic', stereo_reference=p.optical_reference)
-        Path(str(p.chemid)+'.json').write_text(json.dumps(data))
-        self.qc.par['optical_population'] = 'racemic'
-        self.record(str(p.chemid)+'_well', p)
-        prepare_qc_routing(self.qc, p)
-        self.assertEqual(resolve_job(self.qc.db, routing_name(p)+'_well'), str(p.chemid)+'_well')
 
     def test_actual_pes_entrypoint_restores_reference_before_writing(self):
         p = self.a
@@ -417,43 +217,24 @@ class TestSpeciesRouting(unittest.TestCase):
 
     def test_configured_cache_requires_compatible_atom_indexing(self):
         p = self.a
-        self.record(str(p.chemid)+'_well', p, reference=True)
+        self.record(routing_name(p)+'_well', p, reference=True)
         order = np.arange(p.natom)[::-1]
         q = StationaryPoint('reordered', p.charge, p.mult, atom=p.atom[order], geom=p.geom[order])
         q.characterize()
         self.assertEqual(routing_name(p), routing_name(q))
-        self.qc.qc_opt(q, q.geom)
-        configured = routing_name(q) + '_well'
-        self.assertEqual(resolve_job(self.qc.db, configured), configured)
-        self.assertEqual(self.qc.submit_qc.call_args.args[0], configured)
+        with self.assertRaisesRegex(StereoRoutingError, 'atom indexing'):
+            self.qc.qc_opt(q, q.geom)
+        self.qc.submit_qc.assert_not_called()
 
-    def test_legacy_no_kinbot_requires_summary_regeneration_without_deletion(self):
-        p = self.a
-        old, key = str(p.chemid), routing_name(p)
-        Path(old).mkdir()
-        Path(old, old+'.json').write_text(json.dumps(input_data(p)))
-        original = Path(old, f'summary_{old}.out')
-        original.write_text('legacy results\n')
-        write_input('input.json', p, 100., None, '.', 2)
-        with self.assertRaisesRegex(ValueError, 'legacy PES summary needs'):
-            pes.get_wells(key)
-        with self.assertRaisesRegex(ValueError, 'legacy PES summary needs'):
-            pes.postprocess(self.par, [key], 'all', [], p.mass)
-        with patch('kinbot.pes.subprocess.Popen', return_value=SimpleNamespace(pid=1)), \
-                patch('kinbot.pes.time.sleep'):
-            pes.submit_job(key, self.par)
-        self.assertEqual(original.read_text(), 'legacy results\n')
-
-    def test_vrc_verified_sources_and_selectors_follow_the_same_namespace(self):
+    def test_vrc_current_sources_and_name_options_follow_the_same_namespace(self):
         p = self.a
         old, key = str(p.chemid), routing_name(p)
         Path('vrctst').mkdir()
-        self.record(old+'_well', p, reference=True)
-        legacy = f'vrctst/{old}_vts'
-        self.record(legacy, p)
-        Path(legacy+'.log').write_text('done\n')
-        Path(legacy+'.chk').write_text('checkpoint\n')
-        prepare_qc_routing(self.qc, p)
+        self.record(key+'_well', p, reference=True)
+        source = f'vrctst/{key}_vts'
+        self.record(source, p)
+        Path(source+'.log').write_text('done\n')
+        Path(source+'.chk').write_text('checkpoint\n')
         reaction = SimpleNamespace(instance_name=key+'_hom_sci_1_2', products=[p], species=p)
         p.reac_obj = [reaction]
         vts = VTS(p, self.par, self.qc)
@@ -463,28 +244,16 @@ class TestSpeciesRouting(unittest.TestCase):
                 patch('kinbot.vrc_tst_scan.Popen') as process:
             process.return_value.communicate.return_value = (b'', b'')
             vts.save_products([reaction.instance_name])
-            self.assertEqual(process.call_args.kwargs['args'], ['formchk', legacy+'.chk', legacy+'.fchk'])
-        Path(legacy+'.cube').write_text('cube evidence\n')
+            self.assertEqual(process.call_args.kwargs['args'], ['formchk', source+'.chk', source+'.fchk'])
+        Path(source+'.cube').write_text('cube evidence\n')
         p.parent = '.'
         with patch('builtins.open', side_effect=RuntimeError('read cube')) as handle, \
                 self.assertRaisesRegex(RuntimeError, 'read cube'):
             Fragment.pp_from_homo(p, 0)
-        self.assertEqual(handle.call_args.args[0], './'+legacy+'.cube')
-        scan = f'vrctst/{old}_hom_sci_1_2_vts_pt00'
-        self.record(scan, p)
-        Path(scan+'.log').write_text('done\n')
-        job = self.qc.qc_vts(reaction, p.geom, 0, [], False, p.geom)
-        self.assertEqual(job, f'vrctst/{key}_hom_sci_1_2_vts_pt00')
-        self.assertEqual(self.qc.get_qc_geom(job, p.natom)[0], 0)
-        asymptote = f'vrctst/{old}_hom_sci_1_2_vts_pt_asymptote'
-        self.record(asymptote, p)
-        Path(asymptote+'.log').write_text('done\n')
-        reaction.do_vdW, reaction.scan_coo, reaction.maps, reaction.equiv = False, [0, 1], [[], [1]], []
-        with patch('kinbot.vrc_tst_scan.time.sleep'):
-            vts.do_scan([reaction.instance_name], noscan=True)
+        self.assertEqual(handle.call_args.args[0], './'+source+'.cube')
         self.qc.submit_qc.assert_not_called()
 
-    def test_vrc_correction_json_restores_fragment_scope_and_legacy_selectors(self):
+    def test_vrc_correction_json_restores_fragment_scope_and_connectivity_names(self):
         parent = self.b
         root = routing_name(parent)
         Path(root, 'vrctst').mkdir(parents=True)
@@ -527,7 +296,7 @@ class TestSpeciesRouting(unittest.TestCase):
             pes.create_rotdpy_inputs(par, [[root, name, products, 0.]], [])
         data.pop('frags_routing')
         filename.write_text(json.dumps(data))
-        with self.assertRaisesRegex(ValueError, 'lacks original state and population'):
+        with self.assertRaisesRegex(ValueError, 'require the current fragment identities'):
             pes.create_rotdpy_inputs(par, [[root, name, products, 0.]], [])
 
     def test_termolecular_artifacts_do_not_exceed_filesystem_name_limits(self):
@@ -583,31 +352,21 @@ class TestSpeciesRouting(unittest.TestCase):
         with self.assertRaises(StereoRoutingError):
             input_species('invalid.json')
 
-    def test_verified_legacy_pes_directory_keeps_original_input_and_results(self):
-        p = self.a
-        old, key = str(p.chemid), routing_name(p)
-        Path(old).mkdir()
-        original = json.dumps(input_data(p))
-        Path(f'{old}/{old}.json').write_text(original)
-        Path(f'{old}/result.log').write_text('old result\n')
-        write_input('input.json', p, 100., None, '.', 2)
-        self.assertTrue(Path(key).is_symlink())
-        self.assertEqual(Path(f'{old}/{old}.json').read_text(), original)
-        self.assertEqual(Path(f'{key}/result.log').read_text(), 'old result\n')
-        self.assertEqual(routing_key(input_species(f'{key}/{key}.json')), routing_key(p))
-
     def test_final_direct_and_pes_keep_diastereomers_and_select_lowest_per_endpoint(self):
         # Synthetic channel observations isolate namespace and selection behavior;
         # these are not a physical reaction-rate benchmark.
         well = point('CC')
         base = routing_name(well)
-        Path(base).mkdir()
+        ensure_current_run(base, create=True)
         Path(base, 'me').mkdir()
         reactions = []
         for label, product, barrier in (('low', self.a, 30.), ('other', self.b, 40.),
                                          ('high', self.a, 50.)):
             ts = copy.copy(well)
             ts.name, ts.wellorts = base + '_test_' + label, 1
+            ts.stereopath_id = 'ordinary'
+            ts.stereopath_metadata = {'schema': 'kinbot.stereopath.v1', 'id': 'ordinary'}
+            set_endpoint_populations(ts, [well], [product])
             ts.energy = well.energy + barrier / constants.AUtoKCAL
             ts.freq = ts.reduced_freqs = [-1000.] + well.freq[1:]
             reactions.append(SimpleNamespace(instance_name=ts.name, ts=ts,
@@ -649,7 +408,6 @@ class TestSpeciesRouting(unittest.TestCase):
             self.assertEqual(output.count('derived by global reflection from'), 4)
             self.assertNotIn(base+'_test_high', output)
             self.assertIn(base+'_test_low', output)
-
 
 if __name__ == '__main__':
     unittest.main()

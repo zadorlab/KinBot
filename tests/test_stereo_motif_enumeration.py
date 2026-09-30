@@ -117,7 +117,8 @@ def test_ring_discovery_names_keep_motifs_results_and_exclusions_separate(tmp_pa
     from rdkit.Chem import AllChem
     from kinbot.stationary_pt import StationaryPoint
     from kinbot.reaction_generator import ReactionGenerator
-    from kinbot.species_routing import connect, matches_name, resolve_job
+    from ase.db import connect
+    from kinbot.species_routing import matches_name
 
     monkeypatch.chdir(tmp_path)
     filename = tmp_path / 'input.json'
@@ -152,7 +153,6 @@ def test_ring_discovery_names_keep_motifs_results_and_exclusions_separate(tmp_pa
         atoms = Atoms(point.atom, positions=point.geom)
         db.write(atoms, name=base, data={'energy': -3.})
         for job, energy in [(first, -1.), (second, -2.)]:
-            assert resolve_job(db, job) == job
             assert not list(db.select(name=job))
             db.write(atoms, name=job, data={'energy': energy})
             assert db.get(name=job).data.energy == energy

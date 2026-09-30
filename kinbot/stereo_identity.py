@@ -9,24 +9,11 @@ No coordinates or graph arrays are modified.
 """
 import hashlib
 import copy
-import logging
 import numpy as np
 
 
-def legacy_stereo_warning(species, reason=None):
-    """Report unsupported stereo once while retaining the legacy treatment.
-
-    The identity remains unsupported: a warning must not manufacture an R/S
-    assignment or claim that a requested racemate was completely represented.
-    """
-    reason = reason or canonical_identity(species).get('reason', 'unknown configuration scope')
-    if getattr(species, 'stereo_fallback_reason', None) != reason:
-        logging.getLogger('KinBot').warning(
-            '%s: advanced stereochemistry is unavailable (%s); using the legacy '
-            'symmetry treatment. Complete racemic counting is not established.',
-            getattr(species, 'name', 'species'), reason)
-    species.stereo_fallback_reason = reason
-    species.stereo_routing_status = 'legacy; unsupported stereochemistry; unverified'
+class UnsupportedStereochemistry(ValueError):
+    """The calculation requires an identity outside the supported scope."""
 
 
 def _three_ring_benzenoid(mol):
@@ -203,8 +190,6 @@ def canonical_identity(species, geom=None, *, tagged_atom=None):
     try:
         own = _strings(species, coordinates, tagged_atom)
         mirror = _strings(species, coordinates * [-1., 1., 1.], tagged_atom)
-    except ImportError:
-        return {'status': 'unavailable', 'reason': 'install kinbot[stereo] (RDKit)'}
     except (ValueError, KeyError, RuntimeError) as error:
         return {'status': 'unsupported', 'reason': str(error)}
     charge = int(getattr(species, 'charge', 0))
@@ -222,6 +207,16 @@ def canonical_identity(species, geom=None, *, tagged_atom=None):
                                            else 'not supplied')}
 
 
+def require_supported_identity(species, geom=None, *, tagged_atom=None):
+    """Return an assigned identity, or stop this unsupported calculation."""
+    identity = canonical_identity(species, geom, tagged_atom=tagged_atom)
+    if identity['status'] != 'assigned':
+        raise UnsupportedStereochemistry(
+            f'{getattr(species, "name", "species")}: unsupported stereochemistry: '
+            f'{identity.get("reason", "no assigned identity")}')
+    return identity
+
+
 def optical_scope(species, population='specified'):
     """Whether a global mirror is in this species' declared population.
 
@@ -234,30 +229,28 @@ def optical_scope(species, population='specified'):
     if reference is None:
         # Freeze the declared input configuration before a selected geometry
         # changes. TS callers supply the reactant reference explicitly.
-        reference = canonical_identity(species)
+        reference = require_supported_identity(species)
         species.optical_reference = copy.deepcopy(reference)
     identity = reference
-    known = identity.get('status') == 'assigned'
-    mirror_allowed = bool(known and (population == 'racemic'
-                                    or not identity['is_chiral_configuration']))
+    if identity.get('status') != 'assigned':
+        raise UnsupportedStereochemistry(
+            f'{getattr(species, "name", "species")}: unsupported stereochemical reference: '
+            f'{identity.get("reason", "no assigned identity")}')
+    mirror_allowed = population == 'racemic' or not identity['is_chiral_configuration']
     endpoints = getattr(species, 'ts_endpoint_identities', ())
+    for side in endpoints:
+        for item in side:
+            if item.get('status') != 'assigned':
+                raise UnsupportedStereochemistry(
+                    'Unsupported reactant or product stereochemistry: '
+                    + item.get('reason', 'no assigned identity'))
     if endpoints and population == 'specified':
         from collections import Counter
-        known_endpoints = all(item.get('status') == 'assigned' for side in endpoints for item in side)
-        if known_endpoints:
-            own = [tuple(sorted(Counter(item['id'] for item in side).items())) for side in endpoints]
-            mirrored = [tuple(sorted(Counter(item['mirror_id'] for item in side).items())) for side in endpoints]
-            # An elementary channel is undirected. Reflection may preserve
-            # each side or exchange R -> S with S -> R within the same channel.
-            mirror_allowed = known and sorted(own) == sorted(mirrored)
-        else:
-            mirror_allowed = False
-    product = getattr(species, 'stereopath_product_identity', None)
-    if product is not None and not endpoints and population == 'specified':
-        # For an explicitly classified route, a global mirror reaching a
-        # different configured product belongs to that product's channel.
-        mirror_allowed &= (product.get('status') == 'assigned'
-                           and not product['is_chiral_configuration'])
+        own = [tuple(sorted(Counter(item['id'] for item in side).items())) for side in endpoints]
+        mirrored = [tuple(sorted(Counter(item['mirror_id'] for item in side).items())) for side in endpoints]
+        # An elementary channel is undirected. Reflection may preserve
+        # each side or exchange R -> S with S -> R within the same channel.
+        mirror_allowed = sorted(own) == sorted(mirrored)
     return {'population': population, 'identity': identity,
             'mirror_allowed': mirror_allowed}
 
@@ -269,23 +262,17 @@ def configured_geometry_allowed(species, geom, population=None):
         return path_geometry_allowed(species, geom, population)
     population = population or getattr(species, 'optical_population', 'specified')
     reference = optical_scope(species, population)['identity']
-    observed = canonical_identity(species, geom)
-    matches = identity_matches(reference, observed, population)
-    if matches is None:
-        # Unknown scope is rejected by strict MC counting, not by ordinary
-        # connectivity validation in legacy non-MC runs.
-        return True
-    return matches
+    observed = require_supported_identity(species, geom)
+    return identity_matches(reference, observed, population)
 
 
 def identity_matches(reference, observed, population='specified'):
-    """Compare configured identities; None means the assignment is unknown.
+    """Compare supported identities in the requested enantiomer population.
 
     A racemic population contains the global mirror, not other diastereomers.
-    Callers retain their existing fallback when either assignment is unknown.
     """
     if reference.get('status') != 'assigned' or observed.get('status') != 'assigned':
-        return None
+        raise UnsupportedStereochemistry('Cannot compare unsupported stereoisomer identities.')
     allowed = {reference['id']}
     if population == 'racemic':
         allowed.add(reference['mirror_id'])

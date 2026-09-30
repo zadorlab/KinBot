@@ -1,5 +1,4 @@
-"""Pickle ingestion preserves verified stereochemical job routing."""
-import json
+"""Pickle ingestion keeps literal R and S calculation names separate."""
 import os
 import pickle
 from pathlib import Path
@@ -7,8 +6,10 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from ase.db import connect
 from kinbot.qc import QuantumChemistry
-from kinbot.species_routing import connect, prepare_qc_routing, resolve_job, routing_name
+from kinbot.run_format import ensure_current_run
+from kinbot.species_routing import routing_name
 from kinbot.stationary_pt import StationaryPoint
 
 
@@ -18,6 +19,7 @@ class TestPklStereoIntegration(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.addCleanup(os.chdir, Path.cwd())
         os.chdir(temporary.name)
+        ensure_current_run(create=True)
         self.p = StationaryPoint('butanol', 0, 1, smiles='CC[C@H](O)C')
         self.p.characterize()
         self.mirror = StationaryPoint('mirror', 0, 1, atom=self.p.atom.copy(),
@@ -26,63 +28,45 @@ class TestPklStereoIntegration(unittest.TestCase):
         self.key = routing_name(self.p)
         self.other_key = routing_name(self.mirror)
         self.assertNotEqual(self.key, self.other_key)
-        self.legacy = str(self.p.chemid)
-        Path(self.legacy + '.json').write_text(json.dumps({
-            'charge': 0, 'mult': 1,
-            'structure': [v for atom, xyz in zip(self.p.atom, self.p.geom)
-                          for v in [str(atom), *map(float, xyz)]]}))
         self.qc = QuantumChemistry.__new__(QuantumChemistry)
         self.qc.db = connect('kinbot.db')
         self.qc.qc, self.qc.queuing, self.qc.job_ids = 'fc', 'local', {}
         self.qc.par = {'error_missing_local': False, 'optical_population': 'specified'}
-        prepare_qc_routing(self.qc, self.p)
-        prepare_qc_routing(self.qc, self.mirror)
 
-    def write_result(self, job, energy):
+    def write_result(self, point, energy):
+        job = routing_name(point) + '_well'
         Path(job + '.pkl').write_bytes(pickle.dumps({
-            'name': job, 'sym': list(self.p.atom), 'pos': self.p.geom.tolist(),
+            'name': job, 'sym': list(point.atom), 'pos': point.geom.tolist(),
             'data': {'energy': energy, 'status': 'normal', 'charge': 0, 'multiplicity': 1}}))
         Path(job + '_sella.log').write_text('done\n')
+        return job
 
-    def test_verified_legacy_pickle_and_log_are_used_under_configured_request(self):
-        old, configured = self.legacy + '_well', self.key + '_well'
-        self.write_result(old, -1.)
-        self.assertEqual(resolve_job(self.qc.db, configured), old)
-        self.assertEqual(self.qc.check_qc(configured), 'normal')
-        self.assertFalse(Path(old + '.pkl').exists())
-        self.assertEqual(self.qc.db.raw.get(name=old).data.energy, -1.)
-        self.assertEqual(len(list(self.qc.db.raw.select(name=configured))), 0)
-        self.assertEqual(self.qc.check_qc(configured), 'normal')
-        self.assertEqual(len(list(self.qc.db.raw.select(name=old))), 1)
+    def test_configured_result_is_ingested_once(self):
+        job = self.write_result(self.p, -1.)
+        self.assertEqual(self.qc.check_qc(job), 'normal')
+        self.assertFalse(Path(job + '.pkl').exists())
+        self.assertEqual(self.qc.db.get(name=job).data.energy, -1.)
+        self.assertEqual(self.qc.check_qc(job), 'normal')
+        self.assertEqual(len(list(self.qc.db.select(name=job))), 1)
 
-    def test_configured_pickle_supersedes_verified_legacy_pickle(self):
-        old, configured = self.legacy + '_well', self.key + '_well'
-        self.write_result(old, -1.)
-        self.write_result(configured, -2.)
-        self.assertEqual(self.qc.check_qc(configured), 'normal')
-        self.assertEqual(self.qc.db.raw.get(name=configured).data.energy, -2.)
-        self.assertEqual(len(list(self.qc.db.raw.select(name=old))), 0)
-        self.assertTrue(Path(old + '.pkl').exists())
-        self.assertFalse(Path(configured + '.pkl').exists())
+    def test_configured_request_does_not_consume_the_other_enantiomers_pickle(self):
+        first = self.write_result(self.p, -1.)
+        second = self.write_result(self.mirror, -2.)
+        self.assertEqual(self.qc.check_qc(first), 'normal')
+        self.assertTrue(Path(second + '.pkl').exists())
+        self.assertEqual(len(list(self.qc.db.select(name=second))), 0)
+        self.assertEqual(self.qc.check_qc(second), 'normal')
+        self.assertEqual(self.qc.db.get(name=first).data.energy, -1.)
+        self.assertEqual(self.qc.db.get(name=second).data.energy, -2.)
 
-    def test_other_enantiomer_does_not_consume_legacy_pickle(self):
-        old, other = self.legacy + '_well', self.other_key + '_well'
-        self.write_result(old, -1.)
-        self.assertEqual(resolve_job(self.qc.db, other), other)
-        self.assertEqual(self.qc.check_qc(other), 'error')
-        self.assertTrue(Path(old + '.pkl').exists())
-        self.assertEqual(len(list(self.qc.db.raw.select(name=old))), 0)
-        self.assertEqual(len(list(self.qc.db.raw.select(name=other))), 0)
-
-    def test_aliased_pickle_disappearing_during_database_write_is_tolerated(self):
-        old, configured = self.legacy + '_well', self.key + '_well'
-        self.write_result(old, -1.)
-        raw_write = self.qc.db.raw.write
+    def test_pickle_disappearing_during_database_write_is_tolerated(self):
+        job = self.write_result(self.p, -1.)
+        write = self.qc.db.write
 
         def write_and_remove(*args, **kwargs):
-            Path(old + '.pkl').unlink()
-            return raw_write(*args, **kwargs)
+            Path(job + '.pkl').unlink()
+            return write(*args, **kwargs)
 
-        with patch.object(self.qc.db.raw, 'write', side_effect=write_and_remove):
-            self.assertEqual(self.qc.check_qc(configured), 'normal')
-        self.assertEqual(self.qc.db.raw.get(name=old).data.energy, -1.)
+        with patch.object(self.qc.db, 'write', side_effect=write_and_remove):
+            self.assertEqual(self.qc.check_qc(job), 'normal')
+        self.assertEqual(self.qc.db.get(name=job).data.energy, -1.)

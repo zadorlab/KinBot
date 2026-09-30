@@ -19,3 +19,7 @@
 ###################################################
 
 kb_path = __path__[0]
+
+from kinbot.rdkit_config import configure_rdkit
+
+configure_rdkit()

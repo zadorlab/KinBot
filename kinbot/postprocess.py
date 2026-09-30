@@ -102,6 +102,17 @@ def create_summary_file(species, qc, par):
                          for p in species.reac_obj[index].products])
         l3status *= hasattr(species.reac_obj[index].ts, 'l3energy')
 
+    for rejection in getattr(species, 'stereochemical_discovery_rejections', ()):
+        reason = ' '.join(str(rejection['reason']).split())
+        s.append(f"# WARNING: incomplete {rejection['family']} discovery: {reason}. "
+                 'Reaction network is incomplete.')
+    for reaction in species.reac_obj:
+        reason = getattr(reaction, 'stereochemical_rejection', None)
+        if reason:
+            reason = ' '.join(str(reason).split())
+            s.append(f'# WARNING: omitted channel {reaction.instance_name}: {reason}. '
+                     'Reaction network is incomplete.')
+
     for index in range(len(species.reac_inst)):
         if species.reac_ts_done[index] == -1:
             path_line = summary_path_line(species.reac_obj[index])

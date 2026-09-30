@@ -3,6 +3,7 @@
 The peroxide coordinates are saved calculations; the thermochemical numbers in
 the writer test are synthetic and exercise serialization only.
 """
+from tests.conformer_fixtures import record_conformers
 import copy
 import json
 import os
@@ -99,6 +100,7 @@ class TestElectronicGraphIdentity(unittest.TestCase):
                     product.conformer_geom = [product.geom.copy()]
                     product.conformer_freq = [product.freq[:]]
                     product.conformer_zeroenergy = [product.energy + product.zpe]
+                    record_conformers(product)
                     calculate_symmetry(product)
                     counted = representative_record(product)
                     # Sec-butyl retains a specified stereocentre. Propyl has

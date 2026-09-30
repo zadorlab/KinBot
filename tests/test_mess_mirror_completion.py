@@ -1,3 +1,4 @@
+from tests.conformer_fixtures import record_conformers
 import copy
 from pathlib import Path
 from types import SimpleNamespace
@@ -65,6 +66,7 @@ class TestMirrorOutput(unittest.TestCase):
         ts.conformer_geom = [ts.geom.copy(), ts.geom * [-1., 1., 1.]]
         ts.conformer_zeroenergy = [ts.energy + ts.zpe]*2
         ts.conformer_freq = [ts.freq]*2
+        record_conformers(ts)
         from kinbot.conformer_counting import writer_members
         records = writer_members(ts)
         assert len(records) == 1
@@ -273,6 +275,7 @@ def test_global_reflection_may_reverse_the_same_enantiomerization_channel():
     ts.conformer_geom = [ts.geom.copy(), ts.geom * [-1., 1., 1.]]
     ts.conformer_zeroenergy = [ts.energy + ts.zpe]*2
     ts.conformer_freq = [ts.freq]*2
+    record_conformers(ts)
     records = writer_members(ts)
     assert len(records) == 2
     assert all(record.remaining_optical_weight == 1. for record in records.values())

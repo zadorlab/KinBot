@@ -117,15 +117,12 @@ def test_mc_inconclusive_pair_is_not_doubled_twice():
     assert all(r.optical_evidence['status']=='unresolved' for r in records)
 
 
-def test_unknown_stereo_scope_uses_explicit_legacy_outcome():
+def test_unsupported_stereo_scope_cannot_receive_an_optical_weight():
+    from kinbot.stereo_identity import UnsupportedStereochemistry
     p=pyramidal_product();p.hir=None;p.reduced_freqs=p.freq;p.rotor_projection=None
-    p.optical_reference={'status':'unavailable'}
-    result=optical_counting(p,hir_evidence(p))
-    assert result['status']=='legacy_unverified'
     p.optical_reference={'status':'unsupported','reason':'unrepresented configuration'}
-    result=optical_counting(p,hir_evidence(p))
-    assert result['status']=='legacy_unverified'
-    assert result['remaining_multiplier'] > 0
+    with pytest.raises(UnsupportedStereochemistry, match='unrepresented configuration'):
+        optical_counting(p,hir_evidence(p))
 
 
 @pytest.mark.parametrize('value',[{'x':1},{'x':{'multiplier':3,'reason':'x'}},

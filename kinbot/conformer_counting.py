@@ -47,10 +47,6 @@ def evaluate_members(species, records, population='specified', tolerance=.05, *,
     scope = optical_scope(species, population)
     species.optical_population = population
     species.optical_counting_scope = scope
-    legacy_scope = scope['identity'].get('status') != 'assigned'
-    if legacy_scope:
-        from kinbot.stereo_identity import legacy_stereo_warning
-        legacy_stereo_warning(species, scope['identity'].get('reason', 'unknown reference'))
     result = list(records)
     for record in result:
         if record.status == 'valid' and (record.zero_energy_hartree is None
@@ -69,7 +65,7 @@ def evaluate_members(species, records, population='specified', tolerance=.05, *,
             result[offset] = replace(record, exclusion_reason='different stereochemical pathway')
             continue
         identity = canonical_identity(species, record.geometry)
-        if (not legacy_scope and not getattr(species, 'wellorts', 0)
+        if (not getattr(species, 'wellorts', 0)
                 and identity.get('status') != 'assigned'):
             logger.warning('Excluding conformer %s: its configuration cannot be checked against '
                            'the specified stereoisomer (%s).', record.member_id,
@@ -214,12 +210,12 @@ def evaluate_members(species, records, population='specified', tolerance=.05, *,
 def writer_members(species, population='specified', *, preserve_errors=True):
     """Refresh accepted final arrays and return records keyed by array offset.
 
-    This also supports old restarts with no inventory. Electronic energy is
-    not reconstructed from an ambiguous legacy conformer_energy array.
+    The calculation inventory supplies each member's source and Hessian.
+    Electronic energy is not reconstructed from the combined energy array.
     """
     records = []
     offsets = {}
-    # A previous writer can exclude a duplicate without removing its legacy
+    # A previous writer can exclude a duplicate without removing its current
     # array entry. Its source still belongs to the complete inventory.
     existing = {record.index: record for record in getattr(species, 'conformer_inventory', ())}
     existing.update(getattr(species, 'conformer_records', {}))
@@ -227,18 +223,21 @@ def writer_members(species, population='specified', *, preserve_errors=True):
         if index < 0:
             continue
         previous = existing.get(index)
-        record = ConformerRecord(previous.member_id if previous else f'{species.name}:conformer:{index}', index,
-                                 previous.source_job if previous else None, 'valid',
+        if previous is None:
+            error = CountingError(f'Conformer {index} has no current calculation record.')
+            if preserve_errors:
+                preserve_counting_error(species, error)
+            raise error
+        record = ConformerRecord(previous.member_id, index, previous.source_job, 'valid',
                                  geometry=tuple(tuple(map(float, atom)) for atom in species.conformer_geom[offset]),
                                  zero_energy_hartree=float(species.conformer_zeroenergy[offset]),
                                  frequencies_cm1=tuple(map(float, species.conformer_freq[offset])))
-        if previous is not None:
-            record = replace(record, electronic_energy_hartree=previous.electronic_energy_hartree,
-                             zpe_hartree=previous.zpe_hartree,
-                             hessian=previous.hessian, hessian_reference=previous.hessian_reference,
-                             optical_evidence=({'warnings': previous.optical_evidence['warnings']}
-                                               if (previous.optical_evidence or {}).get('warnings') else None),
-                             attempted_source_job=previous.attempted_source_job)
+        record = replace(record, electronic_energy_hartree=previous.electronic_energy_hartree,
+                         zpe_hartree=previous.zpe_hartree,
+                         hessian=previous.hessian, hessian_reference=previous.hessian_reference,
+                         optical_evidence=({'warnings': previous.optical_evidence['warnings']}
+                                           if (previous.optical_evidence or {}).get('warnings') else None),
+                         attempted_source_job=previous.attempted_source_job)
         offsets[len(records)] = offset
         records.append(record)
     # Keep failed/filtered observations from the original calculation inventory.

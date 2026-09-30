@@ -7,7 +7,7 @@ import logging
 from shutil import copyfile
 
 import numpy as np
-from kinbot.species_routing import connect
+from ase.db import connect
 from ase import Atoms
 from ase.units import invcm, Hartree, kcal, mol, kB
 from ase.thermochemistry import IdealGasThermo
@@ -468,8 +468,7 @@ class Conformers:
                         ext = '_sella.log'
                     else:
                         raise NotImplementedError(f'Code {self.qc.qc} not available.')
-                    from kinbot.species_routing import resolve_job
-                    copyfile(f'{resolve_job(self.db, lowest_job)}{ext}', f'conf/{name}_low{ext}')
+                    copyfile(f'{lowest_job}{ext}', f'conf/{name}_low{ext}')
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),
                             'frequencies': last_row.data.get('frequencies'),
@@ -611,8 +610,6 @@ class Conformers:
                 for lrow in low_rows:
                     low_row = lrow
                 try:
-                    from kinbot.species_routing import resolve_job
-                    lowest_job = resolve_job(self.db, lowest_job)
                     if self.qc.qc == 'gauss':
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
                     elif self.qc.qc == 'qchem':

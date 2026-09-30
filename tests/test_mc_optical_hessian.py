@@ -121,8 +121,7 @@ def test_backend_hessian_units_and_geometry_are_saved_with_the_record(tmp_path, 
     assert data['hessian_reference']['hessian_massweighted'] is weighted
     assert ('amu' in data['hessian_reference']['hessian_unit']) is weighted
     assert hessian_record(qc, 'conf/test', p.geom + .01, p.atom) == {}
-    with patch('kinbot.species_routing.resolve_job', return_value='conf/test'):
-        assert hessian_record(qc, 'legacy_alias', p.geom, p.atom)['hessian_reference']['source_job'] == 'legacy_alias'
+    assert hessian_record(qc, 'missing_job', p.geom, p.atom) == {}
 
 
 def test_l1_inventory_l2_replacement_and_writer_preserve_own_hessian():

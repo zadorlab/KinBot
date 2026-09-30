@@ -2,7 +2,6 @@
 
 Ordinary names are unchanged. A stereo suffix contains the existing canonical
 key, with no underscore so the PES fragment/reaction delimiters remain valid.
-Verified legacy QC names are read aliases, not new chemical identities.
 """
 import json
 import hashlib
@@ -10,8 +9,7 @@ import copy
 import logging
 from pathlib import Path
 import re
-from ase.db import connect as ase_connect
-from kinbot.stereo_identity import canonical_identity
+from kinbot.stereo_identity import require_supported_identity, UnsupportedStereochemistry
 
 
 _KEY = re.compile(r'^(\d+)(?:-s([0-9a-f]{64}))?$')
@@ -20,13 +18,17 @@ _MOTIF = re.compile(r'_m\d+(?:-\d+)*(?=_|$)')
 
 
 def routing_key(species):
-    """Return the legacy key or a configured key; never change ``chemid``."""
+    """Return the connectivity key or a configured key; never change ``chemid``."""
     if getattr(species, 'wellorts', 0):
         return species.name
     identity = getattr(species, 'optical_reference', None)
     if identity is None:
-        identity = canonical_identity(species)
-    if identity.get('status') == 'assigned' and any(
+        identity = require_supported_identity(species)
+    if identity.get('status') != 'assigned':
+        raise UnsupportedStereochemistry(
+            f'{species.name}: unsupported stereochemical reference: '
+            f'{identity.get("reason", "no assigned identity")}')
+    if any(
             any(tag in graph for tag in ('@', '/', '\\'))
             for graph in identity.get('canonical_graphs', ())):
         return f"{species.chemid}-s{identity['id']}"
@@ -45,17 +47,6 @@ def mess_filename(key, iteration):
     return f'{stem}_{int(iteration):04d}.mess'
 
 
-def require_canonical_summary(job):
-    """An old PES serialization must be regenerated, never silently dropped."""
-    root = Path(job)
-    old = connectivity_name(root.name)
-    if (old != root.name and not (root / f'summary_{root.name}.out').exists()
-            and (root / f'summary_{old}.out').exists()):
-        raise ValueError(f'{job}: legacy PES summary needs configured output regeneration. '
-                         'Run a normal cached KinBot restart before no-kinbot postprocessing; '
-                         'the original summary and calculation files are retained.')
-
-
 def connectivity_name(name):
     match = _KEY.fullmatch(str(name))
     return match.group(1) if match else str(name)
@@ -70,8 +61,8 @@ def matches_name(name, choices):
 
     Removing a motif suffix is for selection only, never for QC result reuse.
     """
-    legacy = _JOB.sub(lambda match: match.group(1) + match.group(2).split('-s')[0], str(name))
-    return any(candidate in choices for value in (str(name), legacy)
+    connectivity = _JOB.sub(lambda match: match.group(1) + match.group(2).split('-s')[0], str(name))
+    return any(candidate in choices for value in (str(name), connectivity)
                for candidate in (value, _MOTIF.sub('', value)))
 
 
@@ -85,34 +76,13 @@ def same_species(first, second, context='species reuse'):
     """Distinct supported configurations are independent objects, not errors."""
     if first.chemid != second.chemid:
         return False
-    left, right = canonical_identity(first), canonical_identity(second)
-    if left['status'] == right['status'] == 'assigned':
-        if routing_key(first) != routing_key(second):
-            return False
-        return (left['id'] == right['id'] or
-                getattr(first, 'optical_population', 'specified') ==
-                getattr(second, 'optical_population', 'specified') == 'racemic'
-                and left['mirror_id'] == right['id'])
-    # Unknown stereo does not erase a known configured distinction. Ordinary
-    # unsupported graphs can still use the legacy treatment, but chemid alone
-    # is insufficient because different molecular graphs can share that ID.
-    if (left['status'] == 'assigned') != (right['status'] == 'assigned'):
+    left, right = require_supported_identity(first), require_supported_identity(second)
+    if routing_key(first) != routing_key(second):
         return False
-    from kinbot.stereo_identity import legacy_stereo_warning
-    legacy_stereo_warning(first, left.get('reason'))
-    legacy_stereo_warning(second, right.get('reason'))
-    return same_chemical_graph(first, second)
-
-
-def same_chemical_graph(first, second):
-    """Compare labelled connectivity without assuming unsupported stereo."""
-    if (first.charge, first.mult) != (second.charge, second.mult):
-        return False
-    import networkx as nx
-    from kinbot.molecular_symmetry import chemical_graph
-    return nx.is_isomorphic(chemical_graph(first), chemical_graph(second),
-                            node_match=lambda a, b: a['label'] == b['label'],
-                            edge_match=lambda a, b: a['label'] == b['label'])
+    return (left['id'] == right['id'] or
+            getattr(first, 'optical_population', 'specified') ==
+            getattr(second, 'optical_population', 'specified') == 'racemic'
+            and left['mirror_id'] == right['id'])
 
 
 def reusable_cached_product(qc, species):
@@ -126,10 +96,9 @@ def reusable_cached_product(qc, species):
     if not hasattr(qc, 'db') or getattr(species, 'wellorts', 0):
         return species
     from kinbot.stereo_routing import _row_species
-    raw = _raw(qc.db)
-    job = resolve_job(qc.db, routing_name(species) + '_well')
-    references = list(raw.select(name='stereochemistry/' + job))
-    rows = list(raw.select(name=job))
+    job = routing_name(species) + '_well'
+    references = list(qc.db.select(name='stereochemistry/' + job))
+    rows = list(qc.db.select(name=job))
     reference = references[-1] if references else None
     row = reference or (rows[-1] if rows and rows[-1].data.get('status') == 'normal' else None)
     if row is None:
@@ -169,75 +138,13 @@ def require_cache_atom_order(requested, observed, context):
                        [requested, observed])
 
 
-def _raw(db):
-    return db.raw if isinstance(db, RoutingDatabase) else db
-
-
-def _has_job(db, name):
-    db = _raw(db)
-    if next(db.select(name=name), None) is not None:
-        return True
-    root = Path(db.filename).parent
-    return any((root / (name + suffix)).exists() for suffix in
-               ('.py', '.pkl', '.log', '.out', '_sella.log'))
-
-
-def resolve_job(db, job):
-    """Prefer a current job; otherwise read its explicitly verified old name."""
-    db = _raw(db)
-    job = str(job)
-    match = _JOB.search(job)
-    if match is None or _has_job(db, job):
-        return job
-    rows = list(db.select(name='stereo_route/' + match.group(2)))
-    if not rows:
-        return job
-    route = rows[-1].data
-    legacy = job[:match.start(2)] + route['legacy'] + job[match.end(2):]
-    if not route['prefix_alias'] and job not in route['jobs']:
-        return job
-    return legacy if _has_job(db, legacy) else job
-
-
-class RoutingDatabase:
-    """ASE database facade: reads honor verified aliases; writes stay literal."""
-    def __init__(self, raw):
-        self.raw = raw
-
-    def __getattr__(self, name):
-        return getattr(object.__getattribute__(self, 'raw'), name)
-
-    def select(self, *args, **kwargs):
-        if 'name' in kwargs:
-            kwargs['name'] = resolve_job(self.raw, kwargs['name'])
-        return self.raw.select(*args, **kwargs)
-
-    def get(self, *args, **kwargs):
-        if 'name' in kwargs:
-            kwargs['name'] = resolve_job(self.raw, kwargs['name'])
-        return self.raw.get(*args, **kwargs)
-
-
-def connect(*args, **kwargs):
-    return RoutingDatabase(ase_connect(*args, **kwargs))
-
-
-def input_species(filename, *, legacy_evidence=False):
+def input_species(filename):
     from kinbot.stationary_pt import StationaryPoint
     data = json.loads(Path(filename).read_text())
     species = StationaryPoint('saved input', data.get('charge', 0), data.get('mult', 1),
         structure=data.get('structure'), smiles=data.get('smiles') or None)
     species.characterize()
     apply_input_reference(species, data)
-    if (legacy_evidence and routing_name(species) != str(species.chemid)
-            and not data.get('structure') and data.get('smiles')):
-        from rdkit import Chem
-        mol = Chem.MolFromSmiles(data['smiles'])
-        if mol is None or any(str(info.specified) == 'Unspecified'
-                              for info in Chem.FindPotentialStereo(mol)):
-            from kinbot.stereo_routing import refuse_routing
-            refuse_routing(f'{filename}: saved SMILES leaves configuration unspecified; '
-                           'supply the original coordinate input', [species])
     return species
 
 
@@ -246,161 +153,27 @@ def apply_input_reference(species, parameters):
     population = parameters.get('optical_population', 'specified')
     reference = parameters.get('stereo_reference')
     if reference is not None:
-        observed = canonical_identity(species)
+        observed = require_supported_identity(species)
         allowed = {observed.get('id')}
         if population == 'racemic':
             allowed.add(observed.get('mirror_id'))
-        if (reference.get('status') != 'assigned' or observed.get('status') != 'assigned'
-                or reference.get('id') not in allowed):
+        if reference.get('status') != 'assigned' or reference.get('id') not in allowed:
             from kinbot.stereo_routing import refuse_routing
             refuse_routing('Serialized stereo reference disagrees with the input geometry/population', [species])
         # Recompute all reference fields instead of trusting serialized hashes
         # or a supplied mirror_id independently of the actual input geometry.
         if reference['id'] != observed['id']:
             import numpy as np
-            observed = canonical_identity(species, np.asarray(species.geom) * [-1., 1., 1.])
+            observed = require_supported_identity(species, np.asarray(species.geom) * [-1., 1., 1.])
         species.optical_reference = observed
     species.optical_population = population
 
 
-def prepare_qc_routing(qc, species):
-    """Reuse verified legacy results, otherwise start the configured job."""
-    from kinbot.stereo_routing import StereoRoutingError
-    try:
-        _prepare_qc_routing(qc, species)
-    except StereoRoutingError as error:
-        key = routing_name(species)
-        # With no prior alias the configured namespace is already an isolated
-        # place for fresh work. An ambiguous old result need not block it.
-        if (key != str(species.chemid) and hasattr(qc, 'db')
-                and not list(_raw(qc.db).select(name='stereo_route/' + key))):
-            logging.getLogger('KinBot').warning(
-                '%s: leaving unverified legacy calculations untouched and using '
-                'the configured job name. %s', key, error)
-            return
-        raise
-
-
-def _prepare_qc_routing(qc, species):
-    """Bind a stereo namespace only when the old input/result establishes it.
-
-    A completed result alone licenses that well job, not all old conformer/TS
-    children. An original saved input licenses the prefix. Conflicting old
-    identities are left separate; unidentified old jobs require user resolution.
-    """
-    if getattr(species, 'wellorts', 0):
-        return
-    from kinbot.stereo_identity import optical_scope
-    species.optical_population = getattr(qc, 'par', {}).get('optical_population', 'specified')
-    optical_scope(species, species.optical_population)
-    key = routing_name(species)
-    legacy = str(species.chemid)
-    if key == legacy or not hasattr(qc, 'db'):
-        return
-    db = _raw(qc.db)
-    from kinbot.stereo_routing import _row_species, guard_well_job, refuse_routing
-    routes = list(db.select(name='stereo_route/' + key))
-    route = routes[-1] if routes else None
-    reference = list(db.select(name=f'stereochemistry/{legacy}_well'))
-    rows = list(db.select(name=legacy + '_well'))
-    original = None
-    prefix_alias = False
-    if reference:
-        original = _row_species(species, reference[-1], legacy + '_well')
-        # A guard added after the result is evidence for that result only;
-        # it must not masquerade as an original input for all earlier children.
-        prefix_alias = not rows or reference[-1].id < rows[0].id
-    supplied = getattr(qc, 'par', {}).get('stereo_legacy_inputs', {}).get(legacy)
-    filename = Path(supplied) if supplied else Path(db.filename).parent / f'{legacy}.json'
-    if filename.exists():
-        saved = input_species(filename, legacy_evidence=True)
-        if original is not None and not same_species(original, saved):
-            refuse_routing(f'{legacy}: saved input and database reference disagree', [original, saved])
-        original, prefix_alias = saved, True
-    if rows and rows[-1].data.get('status') == 'normal' and not prefix_alias:
-        observed = _row_species(species, rows[-1], legacy + '_well')
-        if any(not state['observations']
-               for state in observed.calculation_state_evidence.values()):
-            refuse_routing(f'{legacy}: completed result does not record charge and multiplicity; '
-                           'set stereo_legacy_inputs to the original KinBot JSON input',
-                           [species, observed])
-    evidence = original
-    if evidence is None and rows and rows[-1].data.get('status') == 'normal':
-        evidence = _row_species(species, rows[-1], legacy + '_well')
-    if evidence is None:
-        if _has_job(db, legacy + '_well') or getattr(qc, 'job_ids', {}).get(legacy + '_well'):
-            refuse_routing(f'{legacy}: old job has no identifiable original input. '
-                'Set stereo_legacy_inputs to the original KinBot JSON input and retry', [species])
-        return
-    identity = canonical_identity(evidence)
-    declared = getattr(evidence, 'optical_reference', None) or identity
-    expected = key.split('-s', 1)[1]
-    if identity.get('status') != 'assigned':
-        refuse_routing(f'{legacy}: legacy configuration cannot be assigned', [species, evidence])
-    if declared.get('id') != expected:
-        if route is not None:
-            refuse_routing(f'{legacy}: previously verified legacy input has changed configuration',
-                           [species, evidence])
-        if not any(any(tag in graph for tag in ('@', '/', '\\'))
-                   for graph in identity['canonical_graphs']):
-            refuse_routing(f'{legacy}: original input does not resolve the requested configuration',
-                           [species, evidence])
-        return  # It belongs to another configured species; use the new name.
-    # Verify explicit result state and input/output agreement before aliasing.
-    require_cache_atom_order(species, evidence, legacy)
-    guard_well_job(qc, evidence, evidence.geom, legacy + '_well')
-    if route is not None and (route.data['prefix_alias'] or not prefix_alias):
-        return
-    from ase import Atoms
-    db.write(Atoms(species.atom, positions=species.geom), name='stereo_route/' + key,
-        data={'schema': 'kinbot.routing.v1', 'canonical_key': key, 'identity': identity,
-              'legacy': legacy, 'prefix_alias': prefix_alias,
-              'jobs': [key + '_well', 'stereochemistry/' + key + '_well']})
-
-
-def routed_qc_job(qc, species, job):
-    prepare_qc_routing(qc, species)
-    source = resolve_job(qc.db, job) if hasattr(qc, 'db') else job
-    if source != job and qc.check_qc(source) == 0:
-        return job  # Missing/invalidated old calculation needs a fresh job.
-    return source
-
-
 def prepare_pes_directory(root, species):
-    """Reuse a verified old PES directory through an explicit directory alias.
-
-    Original inputs/results are retained. New output uses configured names.
-    An existing directory without its original input is never guessed to match.
-    """
-    root = Path(root)
-    key = routing_name(species)
-    target = root / key
-    legacy = root / str(species.chemid)
-    if key != legacy.name and target.is_symlink():
-        from kinbot.stereo_routing import refuse_routing
-        filename = target / f'{species.chemid}.json'
-        if (not filename.exists() or
-                not same_species(species, input_species(filename, legacy_evidence=True), 'PES directory alias')):
-            refuse_routing(f'{target}: directory alias does not identify the requested configuration',
-                           [species])
-    if key != legacy.name and not target.exists() and legacy.exists():
-        filename = legacy / f'{species.chemid}.json'
-        from kinbot.stereo_routing import refuse_routing
-        if not filename.exists():
-            logging.getLogger('KinBot').warning(
-                '%s: original input is unavailable; leaving the old PES directory '
-                'untouched and starting the configured directory %s.', legacy, target)
-        else:
-            from kinbot.stereo_routing import StereoRoutingError
-            try:
-                previous = input_species(filename, legacy_evidence=True)
-            except StereoRoutingError as error:
-                logging.getLogger('KinBot').warning(
-                    '%s: using fresh configured directory %s because %s', legacy, target, error)
-            else:
-                if same_species(species, previous, 'legacy PES directory'):
-                    target.symlink_to(legacy.name, target_is_directory=True)
-    target.mkdir(exist_ok=True, parents=True)
+    """Use only the current stereoisomer directory and calculation format."""
+    from kinbot.run_format import ensure_current_run
+    target = Path(root) / routing_name(species)
+    ensure_current_run(target, create=True)
     return target
 
 
@@ -415,10 +188,8 @@ def expand_pes_names(root, choices):
         if not candidates:
             names.append(str(choice))  # Preserve the existing missing-well error.
         for path in candidates:
-            filename = path / f'{path.name}.json'
-            if '-s' not in path.name and filename.exists():
-                species = input_species(filename, legacy_evidence=True)
-                path = prepare_pes_directory(root, species)
+            from kinbot.run_format import ensure_current_run
+            ensure_current_run(path)
             if path.name not in names:
                 names.append(path.name)
     return names
@@ -431,14 +202,14 @@ def configured_result_matches(db, name, row, population=None):
         return True
     from kinbot.stationary_pt import StationaryPoint
     from kinbot.stereo_routing import _row_species
-    source = resolve_job(db, f'{name}_well')
+    source = f'{name}_well'
     references = list(db.select(name=f'stereochemistry/{source}'))
     reference = references[-1] if references else None
     template = StationaryPoint('energy input',
         reference.data['input_charge'] if reference else 0,
         int(match.group(1)[-1]), atom=row.symbols, geom=row.positions)
     observed = _row_species(template, row, str(name), reference)
-    identity = canonical_identity(observed)
+    identity = require_supported_identity(observed)
     allowed = {match.group(2)}
     if reference is not None:
         scope = reference.data.get('chemical_context', {})

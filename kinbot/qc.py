@@ -11,7 +11,9 @@ import pickle
 from shutil import copyfile
 
 import numpy as np
-from kinbot.species_routing import connect, resolve_job, routed_qc_job
+from ase.db import connect
+from kinbot.run_format import ensure_current_run
+from kinbot.stereo_identity import optical_scope
 from ase import Atoms
 
 from kinbot.utils import plain_symbols, plain_geometry
@@ -31,6 +33,7 @@ class QuantumChemistry:
     '''
 
     def __init__(self, par):
+        ensure_current_run(create=True)
         self.par = par
         self.qc = par['qc'].lower()
         self.method = par['method']
@@ -77,6 +80,12 @@ class QuantumChemistry:
             self.use_sella = True
         if self.use_sella and self.qc.lower() == 'fc':
             self.use_sella = False  # Sella template files are separate from fairchem
+
+    def _prepare_stereochemistry(self, species):
+        """Keep the requested well identity before an optimization changes it."""
+        if not getattr(species, 'wellorts', 0):
+            species.optical_population = getattr(self, 'par', {}).get('optical_population', 'specified')
+            optical_scope(species, species.optical_population)
 
     def get_qc_arguments(self, job, mult, charge, nel, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
@@ -365,9 +374,9 @@ class QuantumChemistry:
         else:
             job = 'hir/' + routing_name(species) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
 
-        routed = routed_qc_job(self, species, job)
+        self._prepare_stereochemistry(species)
         try:
-            self._check_hir_definition(routed, fix[0], bool(self.db.count(name=routed)),
+            self._check_hir_definition(job, fix[0], bool(self.db.count(name=job)),
                                        geometry=geom, atoms=species.atom)
         except ValueError as error:
             # The previous scan is evidence, not a result for this new input.
@@ -381,8 +390,6 @@ class QuantumChemistry:
             logger.warning('%s; using fresh HIR calculation %s.', error, job)
             self._check_hir_definition(job, fix[0], bool(self.db.count(name=job)),
                                        geometry=geom, atoms=species.atom)
-        else:
-            job = routed
         if self.check_qc(job) in ('normal', 'error', 'running'):
             return job
 
@@ -523,8 +530,7 @@ class QuantumChemistry:
                   + str(conf_idx).zfill(self.zf) + '_' \
                   + str(dih_idx).zfill(self.zf)
 
-        if routed_qc_job(self, species, job) != job:
-            return 0  # Reuse the verified legacy job without rewriting its files.
+        self._prepare_stereochemistry(species)
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
                                        ts=species.wellorts, step=1, max_step=1, 
@@ -606,8 +612,7 @@ class QuantumChemistry:
             job = 'conf/' + routing_name(species) + '_' + add \
                   + str(index).zfill(self.zf)
 
-        if routed_qc_job(self, species, job) != job:
-            return 0  # Reuse the verified legacy job without rewriting its files.
+        self._prepare_stereochemistry(species)
 
         if species.wellorts:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
@@ -687,11 +692,9 @@ class QuantumChemistry:
     def qc_freq(self, species, source_job, high_level=0):
         """Recover native frequencies/Hessian at the selected, fixed geometry.
 
-        Older Gaussian conformer jobs did not retain a checkpoint, and native
-        QChem L1 jobs did not request the printed Hessian. Keep their records
-        intact and use a separate, same-level frequency calculation.
+        Native jobs can lack a checkpoint or printed Hessian. Keep their
+        records intact and use a separate, same-level frequency calculation.
         """
-        source_job = resolve_job(self.db, source_job)
         if self.use_sella or self.qc not in ('gauss', 'qchem'):
             raise ValueError(f'Missing stored Hessian for {source_job} ({self.qc}).')
         rows = list(self.db.select(name=source_job))
@@ -739,6 +742,7 @@ class QuantumChemistry:
         qc: 'gauss' or 'nwchem' or 'qchem'
         index: the index of the conformer as in conf search
         '''
+        self._prepare_stereochemistry(species)
         job0 = f'aie/{routing_name(species)}_AIE0_{ext}'  # neutral
         job1 = f'aie/{routing_name(species)}_AIE1_{ext}'  # cation
         kwargs0 = self.get_qc_arguments(job0, species.mult, species.charge, species.nel, aie=1)
@@ -765,8 +769,6 @@ class QuantumChemistry:
         
         for job, template, electrons in ((job0, t0, species.nel),
                                          (job1, t1, species.nel - 1)):
-            if routed_qc_job(self, species, job) != job:
-                continue
             with open(f'{job}.py', 'w') as f:
                 f.write(template)
             self.submit_qc(job, min(electrons, self.ppn))
@@ -798,8 +800,8 @@ class QuantumChemistry:
         if fdir is not None:
             job = f'{fdir}/{job}'
 
-        if not do_vdW and routed_qc_job(self, species, job) != job:
-            return 0  # Reuse the verified legacy job without rewriting its files.
+        if not do_vdW:
+            self._prepare_stereochemistry(species)
 
         if not do_vdW and not getattr(species, 'wellorts', 0):
             from kinbot.stereo_routing import guard_well_job
@@ -897,9 +899,6 @@ class QuantumChemistry:
         if fdir is not None:
             job = f'{fdir}/{job}'
 
-        if routed_qc_job(self, species, job) != job:
-            return 0  # Preserve a verified legacy final-TS calculation.
-
         kwargs = self.get_qc_arguments(
             job, species.mult, species.charge, species.nel, ts=1,
             step=1, max_step=1, high_level=high_level)
@@ -964,8 +963,7 @@ class QuantumChemistry:
         '''
 
         job = f'vrctst/{routing_name(frag)}_vts'
-        if routed_qc_job(self, frag, job) != job:
-            return job
+        self._prepare_stereochemistry(frag)
         mult = exceptions.get_multiplicity(frag.chemid, frag.mult)
         kwargs = self.get_qc_arguments(job, mult, frag.charge, frag.nel, vts=1)
         # Add chk to fragments only
@@ -1006,8 +1004,7 @@ class QuantumChemistry:
             job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
         else:
             job = f'vrctst/{reac.instance_name}_vts_pt_asymptote'
-        if routed_qc_job(self, reac.species, job) != job:
-            return job
+        self._prepare_stereochemistry(reac.species)
         mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
         kwargs = self.get_qc_arguments(job, mult, reac.species.charge, reac.species.nel, vts=1)
 
@@ -1085,7 +1082,6 @@ class QuantumChemistry:
         A database marker also invalidates backends without a completion log.
         Queued/running jobs must never be invalidated.
         """
-        job = resolve_job(self.db, job)
         if self.check_qc(job) == 'running':
             raise ValueError(f'Cannot invalidate a running calculation: {job}')
         rows = list(self.db.select(name=job))
@@ -1111,7 +1107,6 @@ class QuantumChemistry:
         incomplete result, rather than pairing new properties with old files.
         Original calculations and earlier conventional outputs are preserved.
         """
-        target = resolve_job(self.db, target)
         if source.name == target:
             return source.id
         rows = list(self.db.select(name=target))
@@ -1259,7 +1254,6 @@ class QuantumChemistry:
         if previous = 1, read the geometry before the last one, this is needed in scan types so
             that the max energy point is taken, not the one after that
         '''
-        job = resolve_job(self.db, job)
         geom = np.zeros((natom, 3))
         atoms = np.full(natom, 'H')
         check = self.check_qc(job)
@@ -1324,7 +1318,6 @@ class QuantumChemistry:
         If wait is set to 1, it will wait for the job to finish.
         '''
 
-        job = resolve_job(self.db, job)
         check = self.check_qc(job)
         if check == 'error':
             return -1, [0]
@@ -1371,7 +1364,6 @@ class QuantumChemistry:
          1: running
         '''
 
-        job = resolve_job(self.db, job)
         check = self.check_qc(job)
         if check == 'error':
             return -1, 0.
@@ -1404,7 +1396,6 @@ class QuantumChemistry:
         If wait is set to 1 (default), it will wait for the job to finish.
         '''
 
-        job = resolve_job(self.db, job)
         check = self.check_qc(job)
         if check == 'error':
             return -1, 0.
@@ -1442,7 +1433,6 @@ class QuantumChemistry:
         Read the hessian of a gaussian chk file
         '''
 
-        job = resolve_job(self.db, job)
         check = self.check_qc(job)
         if check != 'normal':
             return []
@@ -1530,7 +1520,6 @@ class QuantumChemistry:
         Checks if the current job is in the database:
         '''
         # open the database
-        job = resolve_job(self.db, job)
         logger.debug(f'Looking for {job} in the db.')
         rows = self.db.select(name=job)
 
@@ -1577,7 +1566,6 @@ class QuantumChemistry:
             ==> this one resets the step number to 0
         '''
 
-        job = resolve_job(self.db, job)
         loaded_data = self.ingest_pkl(job)
         if loaded_data is not None:
             mol = Atoms(symbols=loaded_data['sym'], positions=loaded_data['pos'])

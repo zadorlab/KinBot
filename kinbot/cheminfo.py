@@ -6,6 +6,8 @@ from contextlib import ExitStack
 import numpy as np
 from PIL import Image
 from ase.data import chemical_symbols, atomic_numbers
+from rdkit import Chem, RDLogger
+from rdkit.Chem import AllChem, rdMolDescriptors
 
 from kinbot import kb_path
 
@@ -33,13 +35,7 @@ def get_molecular_formula(smi):
     """
     Return the molecular formula of the molecule corresponding to the smiles
     """
-    try:
-        from rdkit import Chem
-        from rdkit.Chem import rdMolDescriptors
-        mol = Chem.AddHs(Chem.MolFromSmiles(smi))
-    except ImportError:
-        logger.error('RDKit is not installed or loaded correctly.')
-        sys.exit()
+    mol = Chem.AddHs(Chem.MolFromSmiles(smi))
     return rdMolDescriptors.CalcMolFormula(mol)
 
 
@@ -120,13 +116,7 @@ def generate_3d_structure(smi, obabel=1):
             structure += [sym, pos[0], pos[1], pos[2]]
         return obmol, structure, bond
     else:  # use RDKit
-        try:
-            from rdkit import Chem
-            from rdkit.Chem import AllChem
-            rdmol = Chem.AddHs(Chem.MolFromSmiles(smi))
-        except ImportError:
-            logger.error('RDKit is not installed or loaded correctly.')
-            sys.exit()
+        rdmol = Chem.AddHs(Chem.MolFromSmiles(smi))
         AllChem.EmbedMolecule(rdmol, AllChem.ETKDG())
         AllChem.MMFFOptimizeMolecule(rdmol)
         atoms = rdmol.GetAtoms()
@@ -161,21 +151,8 @@ def create_rdkit_mol(bond, atom):
     """
     Method to create a RDKit Molecule object from a KinBot stationary_pt object
     """
-    try:
-        from rdkit import Chem
-        from rdkit.Chem import AllChem
-        from rdkit.Chem import rdMolDescriptors
-        from rdkit import RDLogger
-        RDLogger.DisableLog('rdApp.*')
-    except ImportError:
-        logger.warning('RDKit could not be imported.')
-        pass
-
-    try:
-        m = Chem.MolFromSmiles('[' + atom[0] + ']')
-    except NameError:
-        logger.error('RDKit is not installed or loaded correctly.')
-        sys.exit()
+    RDLogger.DisableLog('rdApp.*')
+    m = Chem.MolFromSmiles('[' + atom[0] + ']')
 
     mw = Chem.RWMol(m)
     for i in range(1, len(atom)):

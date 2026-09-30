@@ -1,4 +1,4 @@
-"""Stereo conflicts cannot be hidden by legacy chemid aliases or disk caches."""
+"""Current saved inputs and results must retain their requested stereoisomer."""
 import copy
 import json
 import os
@@ -11,11 +11,11 @@ import numpy as np
 from ase import Atoms
 from ase.db import connect
 from kinbot.reaction_generator import ReactionGenerator
-from kinbot.stereo_identity import canonical_identity
+from kinbot.stereo_identity import canonical_identity, UnsupportedStereochemistry
 from kinbot.stereo_routing import (guard_well_job, guard_pes_input,
     require_same_configuration, StereoRoutingError, _row_species, preserve_observations)
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.species_routing import routing_name, prepare_qc_routing, resolve_job
+from kinbot.species_routing import routing_name
 from kinbot.qc import QuantumChemistry
 from kinbot.conformer_counting import representative_record, CountingError
 
@@ -43,19 +43,15 @@ class TestStereoRouting(unittest.TestCase):
         self.assertEqual(len(unique), 2)
         self.assertIs(unique[1], second)
 
-    def test_preexisting_opposite_stereo_cache_is_checked_without_memory_alias(self):
+    def test_opposite_stereo_cache_is_rejected(self):
         db = connect('kinbot.db')
-        job = f'{self.first.chemid}_well'
+        job = routing_name(self.first) + '_well'
         db.write(Atoms(self.second.atom, positions=self.second.geom), name=job,
                  data={'status': 'normal', 'energy': -100., 'zpe': .01,
                        'charge': self.second.charge, 'multiplicity': self.second.mult})
-        qc = QuantumChemistry.__new__(QuantumChemistry)
-        qc.db, qc.submit_qc = db, Mock()
-        prepare_qc_routing(qc, self.first)
-        configured = routing_name(self.first) + '_well'
-        self.assertNotEqual(configured, job)
-        self.assertEqual(resolve_job(db, configured), configured)
-        qc.submit_qc.assert_not_called()
+        qc = SimpleNamespace(db=db)
+        with self.assertRaisesRegex(StereoRoutingError, 'different stereoisomer'):
+            guard_well_job(qc, self.first, self.first.geom, job)
         self.assertEqual(len(list(db.select(name=job))), 1)
         self.assertEqual(len(list(db.select(name=f'stereochemistry/{job}'))), 0)
 
@@ -147,50 +143,17 @@ class TestStereoRouting(unittest.TestCase):
         self.assertEqual(path.read_text(), text)
         guard_pes_input(self.first, path)
 
-    def test_no_rdkit_preserves_explicitly_unverified_legacy_alias_behavior(self):
-        with patch('kinbot.stereo_routing.canonical_identity', return_value={'status': 'unavailable'}):
-            require_same_configuration(self.first, self.second, 'legacy')
-        self.assertIn('unverified', self.first.stereo_routing_status)
-
-    def test_fresh_unsupported_ordinary_jobs_and_identical_polls_remain_available(self):
+    def test_unsupported_well_is_rejected_before_writing_a_reference(self):
         db = connect('kinbot.db')
-        qc = SimpleNamespace(db=db, par={'multi_conf_tst': 0})
-        # Substituted PAHs remain outside the narrow anthracene/phenanthrene class.
+        qc = SimpleNamespace(db=db)
         for smiles in ('FC=C=CF', 'Cc1ccc2cc3ccccc3cc2c1'):
             point = StationaryPoint('unsupported', 0, 1, smiles=smiles)
             point.characterize()
             self.assertEqual(canonical_identity(point)['status'], 'unsupported')
             job = f'{point.chemid}_well'
-            guard_well_job(qc, point, point.geom, job)
-            # Normal late optical bookkeeping does not change a QC request.
+            with self.assertRaises(UnsupportedStereochemistry):
+                guard_well_job(qc, point, point.geom, job)
+            self.assertEqual(len(list(db.select(name=f'stereochemistry/{job}'))), 0)
             point.optical_reference = canonical_identity(point)
-            point.optical_population = 'specified'
-            db.write(Atoms(point.atom, positions=point.geom), name=job, data={'status': 'normal'})
-            guard_well_job(qc, point, point.geom, job)
-            self.assertIn('unverified', point.stereo_routing_status)
-            self.assertEqual(len(list(db.select(name=f'stereochemistry/{job}'))), 1)
-            guard_well_job(SimpleNamespace(db=db, par={'multi_conf_tst': 1}), point, point.geom, job)
-            for change in ('coordinates', 'isotopes', 'charge'):
-                other = copy.copy(point)
-                other.geom = point.geom.copy()
-                if change == 'coordinates':
-                    other.geom[0, 0] += .01
-                elif change == 'isotopes':
-                    other.isotopes = [13] + [0] * (other.natom-1)
-                else:
-                    other.charge = 1
-                with self.subTest(smiles=smiles, change=change):
-                    if change == 'coordinates':
-                        guard_well_job(qc, other, other.geom, job)
-                    else:
-                        with self.assertRaises(StereoRoutingError):
-                            guard_well_job(qc, other, other.geom, job)
-            db.write(Atoms(point.atom, positions=point.geom), name=job+'_old', data={'status': 'normal'})
-            guard_well_job(qc, point, point.geom, job+'_old')
-            self.assertEqual(len(list(db.select(name=f'stereochemistry/{job}_old'))), 1)
-            Path(job+'_pending.py').write_text('# existing job without an input reference\n')
-            guard_well_job(qc, point, point.geom, job+'_pending')
-
-
-if __name__ == '__main__':
-    unittest.main()
+            with self.assertRaises(UnsupportedStereochemistry):
+                routing_name(point)

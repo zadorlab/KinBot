@@ -182,6 +182,8 @@ def puckered_ts():
         endpoint.rads = [np.array(r) for r in observation['rads']]
         endpoint.characterize(bond_mx=endpoint.bond)
         endpoints.append(endpoint)
+    from kinbot.reaction_path import prepare_stereopath
+    prepare_stereopath(p, *endpoints)
     return p, endpoints
 
 

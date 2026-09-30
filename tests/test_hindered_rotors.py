@@ -1,6 +1,7 @@
 """Regression tests for hindered-rotor results, without QC calculations."""
 
 import os
+import copy
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18,12 +19,14 @@ from kinbot import constants, frequencies
 from kinbot.mess import MESS
 from kinbot.optimize import Optimize
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.stereo_identity import canonical_identity
 
 
 def completed_hir(status=None):
     species = SimpleNamespace(
         natom=4, atom=['C'] * 4, name='rotor_test', chemid=123,
-        optical_reference={'status': 'unavailable'},  # Synthetic fit/status fixture, no molecular geometry.
+        # This fixture tests fitted energies and statuses, not assignment.
+        optical_reference={'status': 'assigned', 'canonical_graphs': ('CCCC',)},
         wellorts=0, energy=-100., dihed=[[0, 1, 2, 3], [1, 2, 3, 0]],
     )
     hir = HIR(species, None, {
@@ -238,6 +241,9 @@ class TestHIRStatus(unittest.TestCase):
                                       atom=atoms.get_chemical_symbols(), geom=atoms.positions,
                                       wellorts=saddle)
             species.characterize()
+            reference = copy.copy(species)
+            reference.wellorts = 0
+            species.optical_reference = canonical_identity(reference)
             optimization = Optimize.__new__(Optimize)
             optimization.species, optimization.name = species, species.name
             optimization.par = {'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,

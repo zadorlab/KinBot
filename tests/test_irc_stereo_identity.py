@@ -9,7 +9,7 @@ from rdkit.Chem import AllChem
 
 from kinbot.irc import IRC
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.stereo_identity import canonical_identity
+from kinbot.stereo_identity import canonical_identity, UnsupportedStereochemistry
 
 
 def point(smiles):
@@ -45,13 +45,13 @@ class TestIRCStereoIdentity(unittest.TestCase):
         self.assertEqual(self.interpret(first, mirror, 'racemic'), 0)
         self.assertIsInstance(self.interpret(first, other, 'racemic'), StationaryPoint)
 
-    def test_ordinary_identical_endpoints_and_unknown_identity_keep_old_behavior(self):
+    def test_identical_endpoints_are_rejected_and_unsupported_identity_is_explicit(self):
         ethanol = point('CCO')
         self.assertEqual(self.interpret(ethanol, ethanol), 0)
-        first, second = point('C[C@H](F)Cl'), point('C[C@@H](F)Cl')
-        with patch('kinbot.irc.canonical_identity', return_value={'status': 'unavailable'}):
-            self.assertEqual(self.interpret(ethanol, ethanol), 0)
-            self.assertIsInstance(self.interpret(first, second), StationaryPoint)
+        with patch('kinbot.stereo_identity.canonical_identity',
+                   return_value={'status': 'unsupported', 'reason': 'unsupported fixture'}):
+            with self.assertRaises(UnsupportedStereochemistry):
+                self.interpret(ethanol, ethanol)
 
 
 if __name__ == '__main__':

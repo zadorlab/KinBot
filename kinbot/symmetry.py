@@ -46,14 +46,13 @@ def configured_external_labels(species):
     TSs use their saved endpoint spectator graphs; a TS union is not passed
     off as a stable molecule. No global atom identifier is modified.
     """
-    from kinbot.stereo_identity import canonical_identity
+    from kinbot.stereo_identity import require_supported_identity
     endpoints = (getattr(species, 'configuration_endpoints', ())
                  if getattr(species, 'wellorts', 0) else (species,))
     if not endpoints:
         return None
-    identities = [canonical_identity(endpoint, species.geom) for endpoint in endpoints]
-    if any(item['status'] != 'assigned' for item in identities):
-        return None
+    identities = [require_supported_identity(endpoint, species.geom)
+                  for endpoint in endpoints]
     if not any(any(tag in graph for tag in ('@', '/', '\\'))
                for item in identities for graph in item['canonical_graphs']):
         return None
@@ -66,10 +65,8 @@ def configured_external_labels(species):
     for group in groups.values():
         classes = {}
         for atom in group:
-            tagged = [canonical_identity(endpoint, species.geom, tagged_atom=atom)
+            tagged = [require_supported_identity(endpoint, species.geom, tagged_atom=atom)
                       for endpoint in endpoints]
-            if any(item['status'] != 'assigned' for item in tagged):
-                return None
             # Own IDs preserve homotopy. Mirror-family IDs would incorrectly
             # license the exchange of R and S arms in meso molecules.
             key = tuple(item['id'] for item in tagged)

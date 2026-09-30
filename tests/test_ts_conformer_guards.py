@@ -20,10 +20,10 @@ from kinbot.reaction_path import endpoint_snapshot
 from kinbot.stationary_pt import StationaryPoint
 
 
-@pytest.mark.parametrize('failure', [ImportError('no RDKit'), ValueError('unsupported assignment')])
-def test_unassigned_diastereotopic_channel_does_not_stop_other_reactions(tmp_path, monkeypatch, caplog, failure):
+def test_unsupported_product_does_not_stop_other_reactions(tmp_path, monkeypatch, caplog):
     from test_reaction_paths import peroxy, transfer
     from kinbot.species_routing import routing_name
+    from kinbot.stereo_identity import _strings
     monkeypatch.chdir(tmp_path)
     Path('input.json').write_text(json.dumps({'barrier_threshold': 100.}))
     par = Parameters('input.json', show_warnings=False).par
@@ -52,23 +52,29 @@ def test_unassigned_diastereotopic_channel_does_not_stop_other_reactions(tmp_pat
         point.reduced_freqs = list(point.freq)
         return SimpleNamespace(species=point, shir=1, shigh=1, do_optimization=Mock())
 
-    with patch('kinbot.stereo_identity._strings', side_effect=failure), \
+    products = {routing_name(r.products[0]) + '_well': r.products[0] for r in reactions}
+    unsupported_bonds = reactions[0].products[0].bond.copy()
+
+    def assign(point, *args, **kwargs):
+        if np.array_equal(point.bond, unsupported_bonds):
+            raise ValueError('unsupported product fixture')
+        return _strings(point, *args, **kwargs)
+
+    with patch('kinbot.stereo_identity._strings', side_effect=assign), \
             patch('kinbot.reaction_generator.Optimize', side_effect=optimize) as opt, \
             patch('kinbot.reaction_generator.time.sleep'), \
             patch('kinbot.reaction_generator.postprocess.createPESViewerInput'), \
             patch.object(ReactionGenerator, 'delete_files', side_effect=AssertionError('evidence deleted')):
-        products = {routing_name(r.products[0]) + '_well': r.products[0] for r in reactions}
         qc.get_qc_geom.side_effect = lambda job, *args, **kwargs: (
             (0, products[job].geom.copy(), products[job].atom.copy())
             if kwargs.get('reorder') else (0, parent.geom.copy()))
         ReactionGenerator(parent, par, qc, 'input.json').generate()
     assert parent.reac_ts_done == [-999, -1]
-    assert 'Cannot assign a demonstrated' in reactions[0].stereochemical_rejection
+    assert 'unsupported product fixture' in reactions[0].stereochemical_rejection
     assert not hasattr(reactions[0], 'ts_opt')
     assert reactions[1].ts.stereopath_id == 'ordinary'
     assert opt.call_count == 2  # only the ordinary TS and its product
     assert 'exported network is incomplete' in caplog.text
-    assert 'using the legacy symmetry treatment' in caplog.text
     assert evidence.read_text() == 'saved TS calculation\n'
     qc.submit_qc.assert_not_called()
 

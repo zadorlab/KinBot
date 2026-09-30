@@ -1,4 +1,4 @@
-from kinbot.species_routing import routing_name, resolve_job, connect
+from kinbot.species_routing import routing_name
 import os
 from typing import Any
 from kinbot import kb_path
@@ -551,8 +551,6 @@ class Fragment(StationaryPoint):
                      index: int
                      ) -> NDArray[float32]:
         cube_job = f'vrctst/{routing_name(self)}_vts'
-        if os.path.isfile(f'{self.parent}/kinbot.db'):
-            cube_job = resolve_job(connect(f'{self.parent}/kinbot.db'), cube_job)
         if os.path.isfile(f'{self.parent}/{cube_job}.cube'):
             with open(f'{self.parent}/{cube_job}.cube', 'r') as f:
                 cubefile: list[str] = f.readlines()

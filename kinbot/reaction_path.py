@@ -12,13 +12,10 @@ import logging
 
 import numpy as np
 
-from kinbot.stereo_identity import canonical_identity, optical_scope
+from kinbot.stereo_identity import (optical_scope,
+                                   require_supported_identity)
 from kinbot.stereochemistry import (refine_equivalence_group, virtually_labelled,
                                     configuration_erased_graph)
-
-
-class StereoAssignmentUnavailable(ValueError):
-    """A demonstrated pathway split lacks a supported stereo assignment."""
 
 
 def endpoint_snapshot(species):
@@ -26,8 +23,7 @@ def endpoint_snapshot(species):
     from kinbot.stationary_pt import StationaryPoint
     snapshot = StationaryPoint('irc_endpoint', species.charge, species.mult,
         atom=copy.deepcopy(species.atom), geom=copy.deepcopy(species.geom))
-    # Keep the legacy chirality methods available when optional RDKit is
-    # absent, without copying QC handles or the live reaction-object graph.
+    # Copy the IRC atom order and graphs without live QC/reaction handles.
     names = ('bond', 'bond01', 'bonds', 'rads', 'atom_eqv', 'atomid',
              'isotopes', 'formal_charges')
     for name in names:
@@ -38,16 +34,14 @@ def endpoint_snapshot(species):
 
 def set_endpoint_populations(ts, reactants, products):
     """A global TS mirror must belong to both connected populations."""
-    ts.ts_endpoint_identities = tuple(tuple(canonical_identity(p) for p in side)
+    ts.ts_endpoint_identities = tuple(tuple(require_supported_identity(p) for p in side)
                                       for side in (reactants, products))
     if not hasattr(ts, 'optical_reference') and len(reactants) == 1:
-        ts.optical_reference = canonical_identity(reactants[0])
+        ts.optical_reference = require_supported_identity(reactants[0])
 
 
 def _configured_pair(endpoints, geom):
-    identities = [canonical_identity(endpoint, geom) for endpoint in endpoints]
-    if any(item['status'] != 'assigned' for item in identities):
-        return None, None
+    identities = [require_supported_identity(endpoint, geom) for endpoint in endpoints]
     return tuple(item['id'] for item in identities), tuple(item['mirror_id'] for item in identities)
 
 
@@ -73,23 +67,16 @@ def _tagged_pair(species, geom):
         endpoint.stereo_ignored_bonds = getattr(species, 'stereopath_ignored_bonds', ())
     roles = getattr(species, 'stereopath_joint_roles', None)
     if roles is not None:
-        identities = [canonical_identity(virtually_labelled(endpoint, roles), geom)
+        identities = [require_supported_identity(virtually_labelled(endpoint, roles), geom)
                       for endpoint in endpoints]
-        if any(item['status'] != 'assigned' for item in identities):
-            raise StereoAssignmentUnavailable('Cannot assign a demonstrated joint stereochemical pathway.')
         return (tuple(sorted(item['id'] for item in identities)),
                 tuple(sorted(item['mirror_id'] for item in identities)))
-    atoms = getattr(species, 'stereopath_atoms', None)
-    if atoms is None:
-        atoms = [species.stereopath_hydrogen]  # existing saved objects
+    atoms = species.stereopath_atoms
     pairs = []
     mirrors = []
     for atom in atoms:
-        identities = [canonical_identity(endpoint, geom, tagged_atom=atom)
+        identities = [require_supported_identity(endpoint, geom, tagged_atom=atom)
                       for endpoint in endpoints]
-        if any(identity['status'] != 'assigned' for identity in identities):
-            raise StereoAssignmentUnavailable('Cannot assign a demonstrated stereochemical pathway. '
-                                              'A supported canonical stereo assignment is required.')
         pairs.append(tuple(sorted(identity['id'] for identity in identities)))
         mirrors.append(tuple(sorted(identity['mirror_id'] for identity in identities)))
     # Preserve the original single-transfer class convention.
@@ -129,9 +116,7 @@ def _has_joint_stereo_split(endpoints, roles):
             if len(available) < 2:
                 continue
             view = virtually_labelled(endpoint, previous)
-            identities = [canonical_identity(view, tagged_atom=candidate) for candidate in available]
-            if any(item['status'] != 'assigned' for item in identities):
-                continue
+            identities = [require_supported_identity(view, tagged_atom=candidate) for candidate in available]
             families = {}
             for identity in identities:
                 graph = configuration_erased_graph(identity)
@@ -149,7 +134,7 @@ def prepare_stereopath(ts, reactant, product):
     """
     prepare_ts_context(ts, reactant, product)
     for key in ('stereopath_atoms', 'stereopath_hydrogen', 'stereopath_endpoints',
-                'stereopath_product_identity', 'stereopath_reference',
+                'stereopath_reference',
                 'stereopath_mirror', 'stereopath_id', 'stereopath_metadata',
                 'stereopath_joint_roles', 'stereopath_ignored_bonds'):
         ts.__dict__.pop(key, None)
@@ -164,12 +149,7 @@ def prepare_stereopath(ts, reactant, product):
     roles = _reaction_roles(reactant, product, changed)
     joint = len(split_atoms) > 1 or _has_joint_stereo_split((reactant, product), roles)
     if not split_atoms and not joint:
-        from kinbot.stereo_identity import legacy_stereo_warning
-        for side in ts.ts_endpoint_identities:
-            for identity in side:
-                if identity['status'] != 'assigned':
-                    legacy_stereo_warning(ts, identity.get('reason'))
-        # An examined ordinary path is not missing legacy classification.
+        # An examined ordinary path has an explicit classification.
         # All ordinary routes retain one lowest-barrier class per endpoint pair.
         ts.stereopath_id = 'ordinary'
         ts.stereopath_metadata = {
@@ -189,7 +169,6 @@ def prepare_stereopath(ts, reactant, product):
     ts.stereopath_endpoints = tuple(endpoint_snapshot(p) for p in (reactant, product))
     ts.stereopath_ignored_bonds = [list(map(int, pair)) for pair in np.argwhere(np.triu(delta != 0, 1))
                                    if max(reactant.bond[tuple(pair)], product.bond[tuple(pair)]) > 1]
-    ts.stereopath_product_identity = canonical_identity(product)
     own, mirror = _tagged_pair(ts, ts.geom)
     ts.stereopath_reference, ts.stereopath_mirror = own, mirror
     prefix = 'htransfer:' if hasattr(ts, 'stereopath_hydrogen') else 'stereopath:'
@@ -225,14 +204,9 @@ def path_geometry_allowed(species, geom, population=None):
         references = [species.ts_reference_geometry]
         if mirror_allowed:
             references.append(species.ts_reference_geometry * [-1., 1., 1.])
-        try:
-            if not any(all(endpoint_configuration_allowed(endpoint, reference, geom)
-                           for endpoint in species.ts_endpoint_graphs) for reference in references):
-                return False
-        except (ImportError, ValueError, RuntimeError):
-            # Ordinary unsupported configurations retain their existing guard.
-            if getattr(species, 'configuration_reference', None) is not None:
-                raise
+        if not any(all(endpoint_configuration_allowed(endpoint, reference, geom)
+                       for endpoint in species.ts_endpoint_graphs) for reference in references):
+            return False
     if hasattr(species, 'stereopath_reference'):
         own, _ = _tagged_pair(species, geom)
         allowed = [species.stereopath_reference]
@@ -245,7 +219,9 @@ def path_geometry_allowed(species, geom, population=None):
 def reaction_path_id(reaction):
     ts = reaction.ts
     if not hasattr(ts, 'stereopath_metadata'):
-        return None
+        if 'hom_sci' in reaction.instance_name:
+            return None
+        raise ValueError(f'Missing reaction-path metadata for {reaction.instance_name}.')
     if not path_geometry_allowed(ts, ts.geom):
         raise ValueError(f'Selected TS {reaction.instance_name} changed stereochemical pathway.')
     return getattr(ts, 'stereopath_id', None)
@@ -265,10 +241,10 @@ def reject_invalid_pathway(species, index, par=None):
     reaction = species.reac_obj[index]
     try:
         population = (par or {}).get('optical_population', getattr(species, 'optical_population', 'specified'))
+        products = ([opt.species for opt in getattr(reaction, 'prod_opt', ())]
+                    or reaction.products)
+        identities = [require_supported_identity(point) for point in products]
         if population == 'racemic':
-            products = ([opt.species for opt in getattr(reaction, 'prod_opt', ())]
-                        or reaction.products)
-            identities = [canonical_identity(point) for point in products]
             if sum(item.get('is_chiral_configuration', False) for item in identities) > 1:
                 raise ValueError('Independent racemic fragments are not the two correlated '
                                  'product configurations of a global mirror pair; this product '
@@ -298,15 +274,8 @@ def compare_pathways(existing_name, existing_path, existing_energy,
     candidate_hom = 'hom_sci' in candidate_name
     if existing_hom or candidate_hom:
         return 'replace' if existing_hom and not candidate_hom else 'keep'
-    if (existing_path is None) != (candidate_path is None):
-        logging.getLogger('KinBot').warning(
-            'Pathway classification missing for %s; retaining the classified route %s '
-            'for these endpoints. The unclassified observation is retained in the '
-            'calculation files, not counted as an additional pathway.',
-            existing_name if existing_path is None else candidate_name,
-            candidate_name if existing_path is None else existing_name)
-        # Never let an unclassified route merge two known distinct classes.
-        return 'replace' if existing_path is None else 'keep'
+    if existing_path is None or candidate_path is None:
+        raise ValueError('Missing reaction-path metadata for a calculated saddle.')
     if not same_path_class(existing_path, candidate_path):
         return 'distinct'
     if candidate_energy < existing_energy:
@@ -324,6 +293,7 @@ def summary_path_line(reaction):
 
 
 def read_summary_paths(lines):
+    lines = list(lines)
     paths = {}
     for line in lines:
         if line.startswith('# kinbot_stereopath '):
@@ -336,4 +306,10 @@ def read_summary_paths(lines):
             if name in paths and paths[name] != key:
                 raise ValueError(f'Contradictory stereochemical pathway records for {name}.')
             paths[name] = key
+    for line in lines:
+        fields = line.split()
+        if fields and fields[0] == 'SUCCESS' and len(fields) >= 3:
+            name = fields[2]
+            if 'hom_sci' not in name and name not in paths:
+                raise ValueError(f'Missing reaction-path metadata for {name}.')
     return paths

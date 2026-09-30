@@ -14,14 +14,16 @@ def test_saddle_preference_precedes_stereo_comparison():
     assert compare_pathways('hom_sci_2_10', None, 30., 'saddle_H10', 'H10', 35.) == 'replace'
     assert compare_pathways('saddle_H10', 'H10', 35., 'hom_sci_2_10', None, 30.) == 'keep'
     assert compare_pathways('saddle_H10', 'H10', 35., 'saddle_H11', 'H11', 32.) == 'distinct'
-    assert compare_pathways('saddle_H10', 'H10', 35., 'ordinary_unknown', None, 30.) == 'keep'
-    assert compare_pathways('ordinary_unknown', None, 30., 'saddle_H10', 'H10', 35.) == 'replace'
+    for old, new in [('H10', None), (None, 'H10')]:
+        with pytest.raises(ValueError):
+            compare_pathways('saddle_old', old, 35., 'saddle_new', new, 30.)
 
 
 def test_invalid_selected_path_is_rejected_locally(caplog):
     from types import SimpleNamespace
     from kinbot.reaction_path import reject_invalid_pathway
-    reactions = [SimpleNamespace(instance_name='bad'), SimpleNamespace(instance_name='good')]
+    reactions = [SimpleNamespace(instance_name='bad', products=[]),
+                 SimpleNamespace(instance_name='good', products=[])]
     species = SimpleNamespace(reac_obj=reactions, reac_ts_done=[-1, -1], reac_type=['test', 'test'])
     with patch('kinbot.reaction_path.reaction_path_id', side_effect=ValueError('changed configuration')):
         assert reject_invalid_pathway(species, 0)
@@ -29,13 +31,10 @@ def test_invalid_selected_path_is_rejected_locally(caplog):
     assert 'network is incomplete' in caplog.text
 
 
-def test_unclassified_route_cannot_merge_two_known_classes():
-    rows = [['R', 'a', ['P'], 32.], ['R', 'b', ['P'], 30.], ['R', 'unknown', ['P'], 1.]]
-    for order in itertools.permutations(rows):
-        retained = []
-        for row in order:
-            select_summary_reaction(retained, row, {'a': 'stereo-a', 'b': 'stereo-b'})
-        assert sorted(row[1] for row in retained) == ['a', 'b']
+def test_unclassified_saddle_is_rejected_even_without_a_competing_route():
+    for retained in ([], [['R', 'a', ['P'], 32.]]):
+        with pytest.raises(ValueError):
+            select_summary_reaction(retained, ['R', 'unknown', ['P'], 1.], {'a': 'stereo-a'})
 
 
 def test_pes_retains_both_stereochemical_classes_in_every_order():
@@ -55,12 +54,13 @@ def test_pes_retains_both_stereochemical_classes_in_every_order():
 def test_ordinary_minimum_reverse_direction_and_complex_tie():
     reactions = [['R', 'higher', ['P'], 35.]]
     candidate = ['P', 'lower', ['R'], 30.]
-    select_summary_reaction(reactions, candidate, {})
+    paths = dict.fromkeys(('higher', 'lower', 'equal_with_complex', 'equal_without_complex'), 'ordinary')
+    select_summary_reaction(reactions, candidate, paths)
     assert reactions == [candidate]
     complex_route = ['P', 'equal_with_complex', ['R'], 30., '12', 'vdW_IRC_F_prod']
-    select_summary_reaction(reactions, complex_route, {})
+    select_summary_reaction(reactions, complex_route, paths)
     assert reactions == [complex_route]
-    select_summary_reaction(reactions, ['R', 'equal_without_complex', ['P'], 30.], {})
+    select_summary_reaction(reactions, ['R', 'equal_without_complex', ['P'], 30.], paths)
     assert reactions == [complex_route]
 
 
@@ -68,7 +68,7 @@ def test_rejected_complex_cleanup_removes_exact_name_not_last_well():
     old = ['R', 'high', ['P', 'H'], 35., '10', 'vdW_IRC_F_prod']
     new = ['R', 'low', ['P', 'H'], 30.]
     reactions = [old]
-    discarded = select_summary_reaction(reactions, new, {})
+    discarded = select_summary_reaction(reactions, new, {'high': 'ordinary', 'low': 'ordinary'})
     wells = ['R', 'high_IRC_F_prod', 'unrelated']
     flags = [False, True, False]
     parents = {'R': 'R', 'high_IRC_F_prod': 'R', 'H_P': 'high_IRC_F_prod', 'unrelated': 'R'}
@@ -100,6 +100,8 @@ def test_direct_mess_keeps_both_saddle_classes_and_no_placeholder(tmp_path, monk
     parent, saddles = fixture.reactions()
     for reaction in saddles:
         reaction.do_vdW = False
+        reaction.ts.stereopath_id = reaction.instance_name
+        reaction.ts.stereopath_metadata['id'] = reaction.instance_name
     placeholder = copy.copy(saddles[0])
     placeholder.instance_name = 'hom_sci_2_10'
     placeholder.ts = copy.copy(parent)
@@ -133,7 +135,8 @@ def test_examined_ordinary_and_stereo_keep_classes_in_every_order(ordinary_energ
         for row in order:
             select_summary_reaction(selected, row, paths)
         assert sorted(row[1] for row in selected) == ['ordinary', 'relay']
-    assert compare_pathways('ordinary', 'ordinary', ordinary_energy, 'legacy', None, 0.) == 'keep'
+    with pytest.raises(ValueError):
+        compare_pathways('ordinary', 'ordinary', ordinary_energy, 'unclassified', None, 0.)
 
 
 def test_saved_butanol_elimination_and_relay_are_examined_classes():

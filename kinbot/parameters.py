@@ -70,8 +70,6 @@ class Parameters:
             'skip_families': ['none'],
             # Which chemids to skip kinbot runs for during PES calculations
             'skip_chemids': ['none'],
-            # Original saved inputs that authorize reuse of an unidentified legacy QC namespace.
-            'stereo_legacy_inputs': {},
             # Saved declared configuration for generated PES inputs (including MC mirror selections).
             'stereo_reference': None,
             # Which chemids to keep kinbot runs for during PES calculations

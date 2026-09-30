@@ -1,7 +1,4 @@
-"""Validate configuration evidence for reuse and preserve unsupported observations.
-
-Configured names and verified read aliases live in species_routing.
-"""
+"""Validate current calculation inputs and results before reuse."""
 import copy
 import json
 import os
@@ -9,7 +6,7 @@ from pathlib import Path
 import tempfile
 import numpy as np
 from ase import Atoms
-from kinbot.stereo_identity import canonical_identity
+from kinbot.stereo_identity import canonical_identity, require_supported_identity
 from kinbot import constants
 
 
@@ -96,25 +93,11 @@ def refuse_routing(reason, species_list):
 
 
 def require_same_configuration(first, second, context):
-    """Guard a proposed legacy alias, preserving no-RDKit non-MC compatibility."""
-    if first is second:
+    """Check current input/result identity, including a declared mirror pair."""
+    left, right = require_supported_identity(first), require_supported_identity(second)
+    if left['id'] == right['id'] or _in_declared_mirror_population(first, right):
         return
-    left, right = canonical_identity(first), canonical_identity(second)
-    if 'unavailable' in (left['status'], right['status']):
-        first.stereo_routing_status = second.stereo_routing_status = 'legacy; RDKit unavailable; unverified'
-        return
-    if left['status'] == right['status'] == 'assigned' and left['id'] == right['id']:
-        return
-    if _in_declared_mirror_population(first, right):
-        return
-    if left['status'] != 'assigned' and right['status'] != 'assigned':
-        from kinbot.species_routing import same_chemical_graph
-        from kinbot.stereo_identity import legacy_stereo_warning
-        if same_chemical_graph(first, second):
-            legacy_stereo_warning(first, left.get('reason'))
-            legacy_stereo_warning(second, right.get('reason'))
-            return
-    refuse_routing(f'{context}: legacy identity cannot establish the same configured species', [first, second])
+    refuse_routing(f'{context}: result belongs to a different stereoisomer', [first, second])
 
 
 def _in_declared_mirror_population(species, identity):
@@ -190,10 +173,7 @@ def guard_well_job(qc, species, geom, job):
     requested = copy.copy(species)
     requested.geom = np.asarray(geom).copy()
     requested.source_job = job
-    identity = canonical_identity(requested)
-    if identity['status'] == 'unavailable':
-        species.stereo_routing_status = 'legacy; RDKit unavailable; unverified'
-        return
+    identity = require_supported_identity(requested)
     declared = getattr(requested, 'optical_reference', {}) or {}
     if (declared.get('status') == identity.get('status') == 'assigned'
             and declared['id'] != identity['id']
@@ -210,29 +190,6 @@ def guard_well_job(qc, species, geom, job):
                for observation in evidence['observations']):
             refuse_routing(f'{job}: completed cache reports a contradictory charge or multiplicity',
                            [requested, cached])
-    if (identity['status'] != 'assigned'
-            or references and references[-1].data['identity']['status'] != 'assigned'):
-        from kinbot.stereo_identity import legacy_stereo_warning
-        from kinbot.species_routing import same_chemical_graph
-        legacy_stereo_warning(species, identity.get('reason'))
-        if references:
-            previous = _row_species(species, references[-1], job)
-            previous_identity = references[-1].data['identity']
-            if ((identity['status'] == 'assigned') !=
-                    (previous_identity['status'] == 'assigned')):
-                refuse_routing(f'{job}: unsupported identity cannot replace a known configured input',
-                               [requested, previous])
-            if not same_chemical_graph(requested, previous):
-                refuse_routing(f'{job}: saved input has different chemical labels or connectivity',
-                               [requested, previous])
-        elif cached is not None:
-            if not same_chemical_graph(requested, cached):
-                refuse_routing(f'{job}: saved result has different chemical labels or connectivity',
-                               [requested, cached])
-            _write_reference(qc, requested, name, identity)
-        else:
-            _write_reference(qc, requested, name, identity)
-        return
     if references:
         reference = references[-1]
         from kinbot.species_routing import require_cache_atom_order

@@ -20,6 +20,7 @@ from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.species_routing import routing_name
 from kinbot.product_complex import reassess_product_complex
+from kinbot.stereo_identity import canonical_identity
 
 
 def species(formula, mult=1):
@@ -55,6 +56,9 @@ class TestComplexMESS(unittest.TestCase):
             ts.name = name
             ts.energy += barrier/constants.AUtoKCAL
             ts.wellorts = 1
+            ts.optical_reference = canonical_identity(parent)
+            ts.stereopath_id = 'ordinary'
+            ts.stereopath_metadata = {'schema': 'kinbot.stereopath.v1', 'id': 'ordinary'}
             ts.freq = ts.reduced_freqs = [-1000.] + [1000.] * 8
             complex_species = copy.deepcopy(parent)
             complex_species.name = name + '_IRC_F_prod'

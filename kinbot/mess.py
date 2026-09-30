@@ -57,9 +57,8 @@ def union_stereochemical_barriers(blocks):
 def apply_conformer_shifts(contents, ground_min=None):
     """Resolve deferred conformer offsets after PES energy placeholders.
 
-    Older intermediate files also defer imaginary frequencies in comments.
-    Consume those comments once. If requested, apply the existing submerged
-    barrier correction to each resolved member, before adjusting its depths.
+    If requested, apply the existing submerged barrier correction to each
+    resolved member, before adjusting its depths.
     """
     output = []
     correction = None
@@ -90,8 +89,8 @@ def apply_conformer_shifts(contents, ground_min=None):
                 changed = True
         elif words and words[0].startswith('ImaginaryFrequency['):
             if len(words) == 4 and words[2] == '!':
-                words = [words[0], str(abs(float(words[3])))]
-                changed = True
+                raise ValueError('An imaginary frequency must be written directly; '
+                                 'older deferred-frequency MESS files are incompatible.')
         if changed:
             line = line[:len(line) - len(line.lstrip())] + ' '.join(words)
         output.append(line)
@@ -169,7 +168,7 @@ def finalize_mc_mess(contents, correct_submerged=False):
         blocks[i] = ''.join(output)
     return (contents[:starts[0].start()] + ''.join(blocks)) if starts else contents
 from kinbot.conformer_counting import writer_members, representative_record
-from kinbot.stereo_identity import canonical_identity, optical_scope
+from kinbot.stereo_identity import optical_scope, require_supported_identity
 from kinbot.stereo_routing import refuse_routing
 
 
@@ -315,6 +314,7 @@ class MESS:
         write the input for all the wells, bimolecular products and barriers
         both in a separate file, as well as in one large ME file
         """
+        require_supported_identity(self.species)
         uq = UQ(self.par)
         self.mess_jobs = []
 
@@ -325,6 +325,10 @@ class MESS:
         # create short names for all the species, bimolecular products and barriers
         self.create_short_names()
         header = self.write_header(self.calculation_label())
+        for rejection in getattr(self.species, 'stereochemical_discovery_rejections', ()):
+            reason = ' '.join(str(rejection['reason']).split())
+            header += (f"! WARNING: incomplete {rejection['family']} discovery: {reason}. "
+                       'Reaction network is incomplete.\n')
         for reaction in self.species.reac_obj:
             reason = getattr(reaction, 'stereochemical_rejection', None)
             if reason:
@@ -606,8 +610,6 @@ class MESS:
         from kinbot.reaction_path import set_endpoint_populations
         products = [opt.species for opt in getattr(reaction, 'prod_opt', [])] or reaction.products
         set_endpoint_populations(reaction.ts, [self.species], products)
-        if not hasattr(reaction.ts, 'optical_reference'):
-            reaction.ts.optical_reference = canonical_identity(self.species)
         return products
 
     def _parent_symmetry(self, species, *, preserve_errors=True, single_structure=False):
@@ -635,7 +637,7 @@ class MESS:
             view.conformer_representation = 'single structure'
             counting = optical_counting(view, hir_evidence(view))
         species.mess_optical_counting = counting
-        if (counting['status'] not in ('resolved', 'assumed', 'legacy_unverified')
+        if (counting['status'] not in ('resolved', 'assumed')
                 and counting.get('fallback') != 'unresolved_symmetry'):
             reason = 'Unresolved optical coverage: ' + counting['reason']
             if preserve_errors:
@@ -696,8 +698,6 @@ class MESS:
         if count.get('status') == 'assumed':
             return notes + (f"! optical factor {count['remaining_multiplier']}: explicit assumption; "
                     f"mirror coverage undetermined. {count['reason']}\n")
-        if count.get('status') == 'legacy_unverified':
-            return notes + '! ' + count['reason'] + '\n'
         return notes
 
     @staticmethod
@@ -718,32 +718,11 @@ class MESS:
         return '! ' + message + '\n'
 
     def _mc_product_identities(self, products):
-        identities = [canonical_identity(product) for product in products]
-        if any(identity['status'] != 'assigned' for identity in identities):
-            from kinbot.stereo_identity import legacy_stereo_warning
-            for product, identity in zip(products, identities):
-                if identity['status'] != 'assigned':
-                    legacy_stereo_warning(product, identity.get('reason'))
-            return identities
+        identities = [require_supported_identity(product) for product in products]
         if (self.par.get('optical_population', 'specified') == 'racemic'
                 and sum(identity['is_chiral_configuration'] for identity in identities) > 1):
             refuse_routing('A global racemic pair is not independent racemates of multiple fragments', products)
         return identities
-
-    def _validate_mc_endpoints(self, reaction, members):
-        products = ([opt.species for opt in getattr(reaction, 'prod_opt', [])]
-                    or reaction.products)
-        identities = self._mc_product_identities(products)
-        if any(identity['status'] != 'assigned' for identity in identities):
-            return  # The products explicitly use the warned legacy treatment.
-        scope = optical_scope(reaction.ts, self.par.get('optical_population', 'specified'))
-        if (not getattr(reaction.ts, 'ts_endpoint_identities', ())
-                and scope['population'] == 'specified' and scope['mirror_allowed']
-                and any(record.mirror_states == 2 for record in members)
-                and Counter(identity['id'] for identity in identities)
-                    != Counter(identity['mirror_id'] for identity in identities)):
-            refuse_routing('The full TS mirror orbit is incompatible with the specified product population',
-                           [self.species, reaction.ts, *products])
 
     def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor, uq_iter, bless, vdW=False):
         """
@@ -1009,9 +988,7 @@ class MESS:
         nunq_confs = len(valid_conformers)
 
         if use_ensemble:
-            counted = list(member_records.values()) or [representative_record(
-                reaction.ts, self.par.get('optical_population', 'specified'))]
-            self._validate_mc_endpoints(reaction, counted)
+            self._mc_product_identities(products)
             tunneling_products = ([reaction.irc_prod_opt.species] if getattr(reaction, 'do_vdW', False)
                         else [opt.species for opt in getattr(reaction, 'prod_opt', [])]
                         or reaction.products)

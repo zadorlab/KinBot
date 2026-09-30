@@ -16,8 +16,7 @@ def hessian_record(qc, job, geometry, atoms, *, row=None):
     try:
         stored_only = row is not None
         if row is None:
-            from kinbot.species_routing import resolve_job
-            rows = list(qc.db.select(name=resolve_job(qc.db, job)))
+            rows = list(qc.db.select(name=job))
             if not rows:
                 return {}
             row = rows[-1]

@@ -1,5 +1,6 @@
 from kinbot.species_routing import configured_selection
-from kinbot.species_routing import routing_key, routing_name, same_species, resolve_job, matches_name, connect
+from kinbot.species_routing import routing_key, routing_name, same_species, matches_name
+from ase.db import connect
 from operator import ne
 from typing import Any
 import numpy as np
@@ -119,7 +120,7 @@ class VTS:
         for reac in reactions:
             for prod in self.scan_reac[reac].products:
                 # read geom
-                job = resolve_job(self.qc.db, f'vrctst/{routing_name(prod)}_vts')
+                job = f'vrctst/{routing_name(prod)}_vts'
                 status, geom, atoms = self.qc.get_qc_geom(
                     job,
                     prod.natom,

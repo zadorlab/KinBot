@@ -1,4 +1,5 @@
 """Final racemic networks: complete populations, distinct paths, no extra x2."""
+from tests.conformer_fixtures import record_conformers
 import copy
 import re
 import unittest
@@ -296,6 +297,7 @@ class TestRacemicWriter(unittest.TestCase):
                             molecule.conformer_geom = [molecule.geom.copy()]
                             molecule.conformer_zeroenergy = [molecule.energy + molecule.zpe]
                             molecule.conformer_freq = [molecule.freq]
+                            record_conformers(molecule)
                         products = [atom, molecule] if atom_first else [molecule, atom]
                         writer = MESS(dict(self.par, optical_population='racemic',
                                            multi_conf_tst=multi_conf, pes=pes), molecule)
@@ -355,6 +357,7 @@ class TestRacemicWriter(unittest.TestCase):
                 point.conformer_geom=[point.geom.copy()]
                 point.conformer_zeroenergy=[point.energy+point.zpe]
                 point.conformer_freq=[point.freq]
+                record_conformers(point)
         MESS(par,p).write_input(None)
         direct=Path('me/mess_0000.inp').read_text()
         assert len(headers(direct,'Well')) == 2

@@ -14,7 +14,8 @@ from kinbot.conformer_counting import evaluate_members, writer_members, Counting
 from kinbot.conformers import Conformers
 from kinbot.symmetry import conformer_symmetry_numbers
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.stereo_identity import optical_scope
+from kinbot.stereo_identity import optical_scope, UnsupportedStereochemistry
+from tests.conformer_fixtures import record_conformers
 
 
 def peroxide():
@@ -50,6 +51,7 @@ class TestConformerCounting(unittest.TestCase):
         species.conformer_geom = [species.geom.copy()]
         species.conformer_zeroenergy = [-1.]
         species.conformer_freq = [[100.] * 6]
+        record_conformers(species)
         with TemporaryDirectory() as directory:
             previous = Path.cwd()
             try:
@@ -195,6 +197,7 @@ class TestConformerCounting(unittest.TestCase):
         species.conformer_freq = [[100.] * 6, None]
         species.conformer_zeroenergy = [-1., -999.]
         species.conformer_representation = 'MC-RRHO'
+        record_conformers(species)
         evidence = thermochemistry_evidence(species)
         record = evidence['conformer_inventory'][0]
         self.assertEqual(record['index'], 7)
@@ -202,7 +205,7 @@ class TestConformerCounting(unittest.TestCase):
         self.assertFalse(evidence['rate_model_ready'])
         json.dumps(evidence, allow_nan=False)
 
-    def test_unknown_scope_preserves_observations_with_warned_legacy_weights(self):
+    def test_unsupported_scope_cannot_receive_conformer_weights(self):
         from kinbot.thermochemistry import thermochemistry_evidence
         species = peroxide()
         species.optical_reference = {'status': 'unsupported', 'reason': 'axial configuration'}
@@ -213,18 +216,24 @@ class TestConformerCounting(unittest.TestCase):
         species.conformer_zeroenergy = [-1.]
         species.conformer_freq = [[100.] * 6]
         species.conformer_representation = 'MC-RRHO'
-        with self.assertLogs('KinBot', level='WARNING'):
-            members = writer_members(species)
-        self.assertEqual(members[0].optical_evidence['status'], 'legacy_unverified')
-        self.assertEqual(members[0].remaining_optical_weight, 1.)
+        record_conformers(species)
+        with self.assertRaises(UnsupportedStereochemistry):
+            writer_members(species)
         self.assertEqual(species.conformer_inventory[0].index, 7)
         self.assertIsNotNone(species.conformer_inventory[0].geometry)
-        result = thermochemistry_evidence(species)
-        self.assertFalse(result['rate_model_ready'])
-        json.dumps(result, allow_nan=False)
-        records, groups = evaluate_members(species, self.records(species, [species.geom]), strict=False)
-        self.assertEqual(groups, [[0]])
-        self.assertEqual(records[0].remaining_optical_weight, 1.)
+        with self.assertRaises(UnsupportedStereochemistry):
+            thermochemistry_evidence(species)
+        with self.assertRaises(UnsupportedStereochemistry):
+            evaluate_members(species, self.records(species, [species.geom]), strict=False)
+
+    def test_member_arrays_without_current_records_cannot_supply_a_model(self):
+        species = peroxide()
+        species.conformer_index = [7]
+        species.conformer_geom = [species.geom.copy()]
+        species.conformer_zeroenergy = [-1.]
+        species.conformer_freq = [[100.] * 6]
+        with self.assertRaisesRegex(CountingError, 'no current calculation record'):
+            writer_members(species, preserve_errors=False)
 
     def test_methane_symmetry_ratio_already_contains_four_equivalent_sites(self):
         methane = molecule('CH4')
@@ -280,6 +289,12 @@ class TestConformerCounting(unittest.TestCase):
                 species.optical_reference = {'status': 'unsupported', 'reason': 'fixture'}
             for iteration in range(3):
                 with self.subTest(unsupported=unsupported, iteration=iteration):
+                    if unsupported:
+                        with self.assertRaises(UnsupportedStereochemistry):
+                            writer_members(species)
+                        self.assertEqual([r.source_job for r in species.conformer_inventory],
+                                         ['conf_0_high', 'conf_1_high'])
+                        continue
                     self.assertEqual(list(writer_members(species)), [0])
                     exported = thermochemistry_evidence(species)['conformer_inventory']
                     self.assertEqual([r['source_job'] for r in exported], ['conf_0_high', 'conf_1_high'])

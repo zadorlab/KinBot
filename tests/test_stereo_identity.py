@@ -7,7 +7,8 @@ from unittest.mock import patch
 import numpy as np
 from types import SimpleNamespace
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.stereo_identity import canonical_identity, optical_scope
+from kinbot.stereo_identity import (canonical_identity, optical_scope,
+                                    UnsupportedStereochemistry, require_supported_identity)
 from kinbot.stereochemistry import refine_equivalence_group, stereotopic_hydrogen_equivalence
 from kinbot.parameters import Parameters
 from kinbot.reaction_finder import ReactionFinder
@@ -30,7 +31,8 @@ class TestStereoIdentity(unittest.TestCase):
             species.bond[i, j] = species.bond[j, i] = order
         self.assertEqual(canonical_identity(species)['status'], 'unsupported')
         self.assertIn('axial', canonical_identity(species)['reason'])
-        self.assertFalse(optical_scope(species)['mirror_allowed'])
+        with self.assertRaises(UnsupportedStereochemistry):
+            optical_scope(species)
 
     def test_canonical_atom_permutation_and_mirror(self):
         species = point('C[C@H](O)CC')
@@ -66,20 +68,20 @@ class TestStereoIdentity(unittest.TestCase):
     def test_stereotopic_refinement_substitutes_each_hydrogen_only_once(self):
         species = point('CC')
         group = next(group for group in species.atom_eqv if len(group) == 6)
-        with patch.object(stereochemistry, 'canonical_identity', wraps=canonical_identity) as assigned:
+        with patch.object(stereochemistry, 'require_supported_identity', wraps=require_supported_identity) as assigned:
             classes = refine_equivalence_group(species, group)
         self.assertEqual(assigned.call_count, len(group))
         self.assertEqual(classes, [{'members': group, 'representative': group[0],
                                     'relation': 'homotopic'}])
 
     def test_single_site_needs_no_stereochemical_assignment(self):
-        with patch.object(stereochemistry, 'canonical_identity') as assigned:
+        with patch.object(stereochemistry, 'require_supported_identity') as assigned:
             self.assertEqual(refine_equivalence_group(None, []), [])
             self.assertEqual(refine_equivalence_group(None, [3]),
                              [{'members': [3], 'representative': 3, 'relation': 'homotopic'}])
         assigned.assert_not_called()
 
-    def test_stereotopic_metadata_and_representatives_survive_shuffling_and_fallback(self):
+    def test_stereotopic_metadata_and_representatives_survive_shuffling(self):
         for smiles, size, relation in [('CC', 6, 'homotopic'),
                                       ('CCO', 2, 'enantiotopic'),
                                       ('C[C@H](O)CC', 2, 'diastereotopic')]:
@@ -90,12 +92,8 @@ class TestStereoIdentity(unittest.TestCase):
                 members = [[atom] for atom in order] if relation == 'diastereotopic' else [order]
                 expected = [{'members': atoms, 'representative': atoms[0], 'relation': relation}
                             for atoms in members]
-                for status in ('assigned', 'unavailable', 'unsupported'):
-                    with self.subTest(smiles=smiles, order=order, status=status):
-                        assignment = ({'wraps': canonical_identity} if status == 'assigned'
-                                      else {'return_value': {'status': status}})
-                        with patch.object(stereochemistry, 'canonical_identity', **assignment):
-                            self.assertEqual(refine_equivalence_group(species, order), expected)
+                with self.subTest(smiles=smiles, order=order):
+                    self.assertEqual(refine_equivalence_group(species, order), expected)
 
     def test_diastereotopic_hydrogens_survive_actual_transfer_family_objects(self):
         with TemporaryDirectory() as temporary:

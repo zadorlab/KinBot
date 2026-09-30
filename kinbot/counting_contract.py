@@ -5,6 +5,7 @@ import numpy as np
 from kinbot.calculation import array_fingerprint
 from kinbot.conformer_counting import writer_members, representative_record, CountingError
 from kinbot.molecular_symmetry import OPTICAL_RMSD_TOLERANCE
+from kinbot.stereo_identity import UnsupportedStereochemistry
 
 
 def counting_view(species):
@@ -27,6 +28,8 @@ def counting_view(species):
             if not members:
                 representative_record(view, getattr(view, 'optical_population', 'specified'),
                                       preserve_errors=False)
+        except UnsupportedStereochemistry:
+            raise
         except (CountingError, ValueError, TypeError, IndexError, AttributeError) as error:
             view.conformer_counting_error = str(error)
             if not isinstance(error, CountingError):
@@ -145,15 +148,12 @@ def optical_counting(species, hir, tolerance=OPTICAL_RMSD_TOLERANCE, energy_tole
     try:
         result = evaluate_optical(species, rotors=active, tolerance=tolerance,
                                   energy_tolerance=energy_tolerance)
+    except UnsupportedStereochemistry:
+        raise
     except (ValueError, TypeError, IndexError) as error:
         data['reason'] = str(error)
         return data
     data.update(result)
-    if (data.get('population_scope', {}).get('identity', {}).get('status') == 'unavailable'
-            and isinstance(getattr(species, 'nopt', None), (int, float, np.number))
-            and np.isfinite(species.nopt) and species.nopt > 0):
-        data.update(status='legacy_unverified', remaining_multiplier=float(species.nopt),
-                    reason='RDKit unavailable; retained legacy optical convention.')
     data['reported_optical_states'] = getattr(species, 'optical_isomers', None)
     data['reported_count_disagrees'] = (data['total_optical_states'] is not None
         and data['reported_optical_states'] not in (None, -1, data['total_optical_states']))

@@ -10,9 +10,17 @@ different names for QC jobs, saved results, reused objects, and direct/PES outpu
 The same comparison checks IRC endpoints and fixed configurations during
 conformer searches.
 
-Install `kinbot[stereo]` to get RDKit and use the full set of features.
-Unsupported assignments use the available legacy treatment with a warning.
-This fallback does not establish the missing stereochemistry.
+RDKit >= 2026.3.5 is required. KinBot selects its stereo-perception settings
+explicitly and records these settings and the RDKit version in the log.
+An unsupported initial reactant stops before QC. An unsupported discovered
+reaction is omitted with a warning that the network is incomplete. Its
+calculation files remain available; unrelated reactions can continue.
+
+**Start older calculations in new directories.**
+This release cannot resume calculations from older KinBot versions. It does
+not convert old job names, directories, or result formats. Each new calculation
+has a `.kinbot_run.json` format record. A restart requires that record and the
+same RDKit version and settings. KinBot checks this before it changes old files.
 
 **Select the optical population.**
 `optical_population` accepts `specified` (the default) or `racemic`.
@@ -20,8 +28,6 @@ The first option keeps the specified configuration. The second includes its
 whole-molecule mirror. It does not request all possible diastereomers.
 Both reaction endpoints constrain the allowed TS optical population.
 `stereo_reference` keeps the requested configuration in generated PES inputs.
-`stereo_legacy_inputs` identifies saved inputs that permit reuse of old job names.
-KinBot checks the saved structure before it reuses those names.
 
 **Keep different stereochemical reaction pathways.**
 Virtual substitution distinguishes homotopic, enantiotopic, and diastereotopic

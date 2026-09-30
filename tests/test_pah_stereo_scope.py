@@ -7,15 +7,17 @@ import unittest
 
 import numpy as np
 from ase import Atoms
+from ase.db import connect
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import canonical_identity, _three_ring_benzenoid
-from kinbot.species_routing import routing_key, same_species, connect
+from kinbot.species_routing import routing_key, same_species
 from kinbot.stereo_routing import guard_well_job
 from kinbot.conformer_counting import writer_members
 from kinbot.calculation import load_calculation_record
 from kinbot import constants
+from tests.conformer_fixtures import record_conformers
 
 
 ANTHRACENE = 'c1ccc2cc3ccccc3cc2c1'
@@ -67,6 +69,7 @@ class TestPAHStereoScope(unittest.TestCase):
             p.conformer_geom = [p.geom.copy()]
             p.conformer_zeroenergy = [-1.]
             p.conformer_freq = [[100.] * (3*p.natom-6)]
+            record_conformers(p)
             members = writer_members(p)
             self.assertEqual(members[0].index, 7)
             self.assertIsNotNone(members[0].stereo_identity)
@@ -90,7 +93,7 @@ class TestPAHStereoScope(unittest.TestCase):
             self.assertEqual(canonical_identity(p)['id'], expected)
             self.assertEqual(routing_key(p), original.chemid)
 
-    def test_legacy_well_results_remain_reusable(self):
+    def test_current_well_results_remain_reusable(self):
         with TemporaryDirectory() as directory:
             qc = SimpleNamespace(db=connect(str(Path(directory)/'kinbot.db')), par={}, job_ids={})
             for original in self.points:

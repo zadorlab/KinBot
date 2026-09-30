@@ -20,11 +20,12 @@ from kinbot.parameters import Parameters
 from kinbot import constants
 from kinbot.pes import create_mess_input
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.stereo_identity import canonical_identity
+from kinbot.stereo_identity import canonical_identity, optical_scope
 from kinbot.stereo_routing import StereoRoutingError
 from kinbot.conformer_counting import representative_record
 from kinbot.symmetry import calculate_symmetry
 from test_molecular_symmetry import methoxy
+from tests.conformer_fixtures import record_conformers
 
 
 def point(name, chemid, saddle=False):
@@ -41,6 +42,10 @@ def point(name, chemid, saddle=False):
         conformer_freq=[freq, None, [freq[0] * 1.1, 2100., 3100.]],
         conformer_zeroenergy=[-75.99, -1000., -75.98],
         reac_type=['test'])
+    if saddle:
+        species.stereopath_id = 'ordinary'
+        species.stereopath_metadata = {'schema': 'kinbot.stereopath.v1', 'id': 'ordinary'}
+    record_conformers(species)
     return species
 
 
@@ -115,6 +120,7 @@ class TestConformerSerialization(unittest.TestCase):
                     with self.subTest(mc=mc, pes=pes, indices=indices):
                         self.writer.par.update(multi_conf_tst=mc, pes=pes)
                         p.conformer_index = indices
+                        record_conformers(p)
                         self.assertEqual(values(self.writer.write_well(p, 0., 1., 0),
                                                 'SymmetryFactor'), [3.])
                         fragment = self.writer.write_bimol([p, self.well], 0., 1., 1., 0, 0)
@@ -175,6 +181,8 @@ class TestConformerSerialization(unittest.TestCase):
         ts.name, ts.wellorts = 'fixed_ts', 1
         ts.freq = ts.reduced_freqs = [-1000.] + p.freq[1:]
         ts.optical_reference = canonical_identity(p)
+        ts.stereopath_id = 'ordinary'
+        ts.stereopath_metadata = {'schema': 'kinbot.stereopath.v1', 'id': 'ordinary'}
         self.writer.ts_names[ts.name] = 'ts2'
         reaction = SimpleNamespace(ts=ts, products=[self.well], instance_name=ts.name)
         p.reac_type = self.well.reac_type
@@ -233,30 +241,27 @@ class TestConformerSerialization(unittest.TestCase):
         ts.optical_reference = canonical_identity(reactant)
         self.writer.species = reactant
         reaction = SimpleNamespace(ts=ts, products=[product], instance_name=ts.name)
-        for explicit in (False, True):
-            for fragmented in (False, True):
-                reaction.products = [product, self.well] if fragmented else [product]
-                if explicit:
-                    ts.conformer_index = [0, 1]
-                    ts.conformer_geom = [ts.geom, ts.geom * [-1, 1, 1]]
-                    ts.conformer_freq = [ts.freq, ts.freq]
-                    ts.conformer_zeroenergy = [-19.99, -19.99]
-                with self.assertRaisesRegex(StereoRoutingError, 'TS mirror orbit'):
-                    self.writer._validate_mc_endpoints(reaction, [representative_record(ts)])
-        # The global mirror of an unordered R+S endpoint is the same pair.
+        # The writer supplies both sides before it evaluates any TS weight.
+        for fragmented in (False, True):
+            reaction.products = [product, self.well] if fragmented else [product]
+            self.writer._set_barrier_population(reaction)
+            self.assertFalse(optical_scope(ts)['mirror_allowed'])
+            self.assertEqual(representative_record(ts).remaining_optical_weight, 1.)
+        # Reflection exchanges the two configured products in an R+S pair.
         mirror_product = copy.copy(product)
         mirror_product.geom = product.geom * [-1, 1, 1]
-        reaction.products = [product, mirror_product]
-        self.writer._validate_mc_endpoints(reaction, [representative_record(ts)])
-        # A fixed-chiral reactant excludes its mirrored TS under specified scope.
+        for products in ([product, mirror_product], [mirror_product, product]):
+            reaction.products = products
+            self.writer._set_barrier_population(reaction)
+            self.assertTrue(optical_scope(ts)['mirror_allowed'])
+            self.assertEqual(representative_record(ts).remaining_optical_weight, 2.)
+        # A specified chiral reactant excludes the reflected complete reaction.
+        self.writer.species = product
         ts.optical_reference = canonical_identity(product)
         reaction.products = [product]
-        self.writer._validate_mc_endpoints(reaction, [representative_record(ts)])
-        # A self-mirror saddle does not introduce an omitted optical partner.
-        self.ts.wellorts = 1
-        self.ts.optical_reference = canonical_identity(reactant)
-        reaction.ts = self.ts
-        self.writer._validate_mc_endpoints(reaction, [representative_record(self.ts)])
+        self.writer._set_barrier_population(reaction)
+        self.assertFalse(optical_scope(ts)['mirror_allowed'])
+        self.assertEqual(representative_record(ts).remaining_optical_weight, 1.)
         self.writer.par['optical_population'] = 'racemic'
         with self.assertRaisesRegex(StereoRoutingError, 'independent racemates'):
             self.writer._mc_product_identities([product, mirror_product])
@@ -413,10 +418,10 @@ class TestConformerSerialization(unittest.TestCase):
             self.assertIn('20.0', output)
             self.assertEqual(species.conformer_freq[0], raw)
 
-    def test_legacy_pes_comments_and_unshifted_blocks_remain_supported(self):
+    def test_current_pes_offsets_and_unshifted_blocks_are_resolved(self):
         text = ('ZeroEnergy[kcal/mol] 0\nCutoffEnergy[kcal/mol] 4\nEnd ! RRHO\n'
                 'ZeroEnergy[kcal/mol] 10 ! 2\n'
-                'ImaginaryFrequency[1/cm] 1000 ! -1200\n'
+                'ImaginaryFrequency[1/cm] 1200\n'
                 'CutoffEnergy[kcal/mol] 5\nEnd ! RRHO\n'
                 'ZeroEnergy[kcal/mol] 30\nCutoffEnergy[kcal/mol] 7\n')
         result = apply_conformer_shifts(text)

@@ -4,14 +4,16 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import numpy as np
+import pytest
 from ase import Atoms
+from ase.db import connect
 
 from kinbot import constants
 from kinbot.calculation import load_calculation_record
-from kinbot.species_routing import (connect, routing_name, reusable_cached_product,
+from kinbot.species_routing import (routing_name, reusable_cached_product,
                                     same_species, prepare_pes_directory)
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.stereo_identity import canonical_identity
+from kinbot.stereo_identity import canonical_identity, UnsupportedStereochemistry
 from kinbot.stereo_routing import guard_well_job
 
 
@@ -53,20 +55,21 @@ def test_product_adopts_complete_cache_order_and_keeps_endpoint(tmp_path, monkey
     assert np.isclose(adopted.energy, -100.)
 
 
-def test_unsupported_graph_can_be_reused_without_inventing_stereo():
+def test_unsupported_graph_cannot_authorize_product_reuse():
     point = StationaryPoint('substituted PAH', 0, 1, smiles='Cc1ccc2cc3ccccc3cc2c1')
     point.characterize()
     assert canonical_identity(point)['status'] == 'unsupported'
     other = copy.copy(point)
     other.geom = point.geom.copy()
-    assert same_species(point, other)
+    with pytest.raises(UnsupportedStereochemistry):
+        same_species(point, other)
     assert canonical_identity(point)['status'] == 'unsupported'
-    assert 'unverified' in point.stereo_routing_status
     # A chemid collision must not license a different chemical graph.
     unrelated = StationaryPoint('other', 0, 1, smiles='CO')
     unrelated.characterize()
     unrelated.chemid = point.chemid
-    assert not same_species(point, unrelated)
+    with pytest.raises(UnsupportedStereochemistry):
+        same_species(point, unrelated)
 
 
 def test_wrong_parent_does_not_discard_a_valid_configured_conformer(tmp_path, monkeypatch):

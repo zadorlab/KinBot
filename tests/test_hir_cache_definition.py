@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import pytest
 from kinbot.qc import QuantumChemistry
+from kinbot.run_format import ensure_current_run
 
 
 @pytest.mark.parametrize('backend', ['sella','gauss','qchem'])
@@ -28,8 +29,8 @@ def test_qc_hir_checks_definition_before_rewriting_or_reusing(tmp_path, monkeypa
     from ase.build import molecule
     from kinbot.parameters import Parameters
     from kinbot.stationary_pt import StationaryPoint
-    import kinbot.qc as module
     monkeypatch.chdir(tmp_path)
+    ensure_current_run(create=True)
     Path('hir').mkdir()
     job = 'hir/ts_hir_0_00'
     text = 'base_0_fix = [idx-1 for idx in [1,2,3,4]]\n'
@@ -40,7 +41,6 @@ def test_qc_hir_checks_definition_before_rewriting_or_reusing(tmp_path, monkeypa
     qc = QuantumChemistry(Parameters('input.json', show_warnings=False).par)
     qc.check_qc = Mock(return_value='not found')
     qc.submit_qc = Mock()
-    monkeypatch.setattr(module, 'routed_qc_job', lambda *args: job)
     atoms = molecule('CH3OH')
     point = StationaryPoint('ts', 0, 1, atom=atoms.get_chemical_symbols(), geom=atoms.positions)
     point.characterize()

@@ -1,4 +1,3 @@
-from kinbot.species_routing import routed_qc_job
 import os
 import numpy as np
 import logging
@@ -20,10 +19,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         length coordinate
     """
     ts = True
-    previous_job = routed_qc_job(rxn.qc, rxn.species, rxn.instance_name)
-    if previous_job != rxn.instance_name and rxn.qc.check_qc(rxn.instance_name) == 'running':
-        return step  # Do not replace an in-flight legacy search with a new input.
-
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error':

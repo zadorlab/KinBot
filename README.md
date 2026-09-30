@@ -51,13 +51,18 @@ KinBot can be installed in three different ways: from the PyPI index (`pip insta
 > **Note**
 >  KinBot only works with Python >= 3.11.
 
+RDKit >= 2026.3.5 is a required dependency. KinBot records its version and
+stereochemistry settings in the log and `.kinbot_run.json`. Restart a calculation
+with the same RDKit version and settings. Calculations from older KinBot versions
+are incompatible with this release; start them in new directories.
+
 To use the FAIRChem/UMA machine-learning interatomic potential backend
 (`qc = 'fc'`), install the optional `fc` dependencies (this also pulls in
 `fairchem-core`, `torch`, and a compatible `numpy`/`scipy`):
 
     pip install kinbot[fc]
 
-The optional `plot` extra (`matplotlib`, `rdkit`) enables the plotting
+The optional `plot` extra (`matplotlib`) enables the plotting
 utilities:
 
     pip install kinbot[plot]

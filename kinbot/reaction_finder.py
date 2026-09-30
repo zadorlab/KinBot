@@ -1,5 +1,5 @@
 from kinbot.species_routing import configured_selection
-from kinbot.species_routing import routing_name, resolve_job, _has_job
+from kinbot.species_routing import routing_name
 import numpy as np
 import sys
 import copy
@@ -54,6 +54,7 @@ from kinbot.reactions.reac_homolytic_scission import HS
 from kinbot.reactions.reac_combinatorial import Combinatorial
 from kinbot.stereochemistry import (reaction_atom_equivalence, motif_identity,
                                     configuration_erased_graph)
+from kinbot.stereo_identity import UnsupportedStereochemistry
 
 logger = logging.getLogger('KinBot')
 
@@ -111,16 +112,29 @@ class ReactionFinder:
         if motif not in self._motif_keys:
             identity = motif_identity(self.species, motif)
             self._motif_identities[motif] = identity
-            self._motif_keys[motif] = identity.get('mirror_family_id')
+            self._motif_keys[motif] = identity['mirror_family_id']
         return self._motif_keys[motif]
 
     def _motif_graph(self, motif):
         motif = tuple(map(int, motif))
-        if self._motif_key(motif) is None:
-            return None
+        self._motif_key(motif)
         if motif not in self._motif_graphs:
             self._motif_graphs[motif] = configuration_erased_graph(self._motif_identities[motif])
         return self._motif_graphs[motif]
+
+    def _unsupported_search(self, family, error, atoms=None):
+        """Report the part of discovery that has no supported assignment."""
+        record = {'family': family, 'reason': str(error)}
+        if atoms is not None:
+            record['atoms'] = list(map(int, atoms))
+        rejected = getattr(self.species, 'stereochemical_discovery_rejections', [])
+        if record not in rejected:
+            rejected.append(record)
+            self.species.stereochemical_discovery_rejections = rejected
+            logger.warning('%s: omitted %s: %s. The exported network is incomplete.',
+                           self.species.name,
+                           f'remaining {family} family search' if atoms is None
+                           else f'{family} search for atoms {record["atoms"]}', error)
 
     def _start_motif(self, motif, natom, bond, atom, allover, eqv):
         return find_motif.start_motif(motif, natom, bond, atom, allover, eqv,
@@ -206,7 +220,10 @@ class ReactionFinder:
                 for rn in reaction_names:
                     if 'all' in self.families or rn in self.families:
                         if not rn in self.skip_families:
-                            reaction_names[rn](natom, atom, bond, rad)
+                            try:
+                                reaction_names[rn](natom, atom, bond, rad)
+                            except UnsupportedStereochemistry as error:
+                                self._unsupported_search(rn, error)
 
         for name in self.reactions:
             self.reaction_matrix(self.reactions[name], name) 
@@ -243,12 +260,6 @@ class ReactionFinder:
                 job = name + '_m' + '-'.join(str(atom + 1) for atom in motif)
                 self.species.reac_name[index] = job
                 self.species.reac_obj[index].instance_name = job
-            if self.qc is not None:
-                source = resolve_job(self.qc.db, name)
-                if _has_job(self.qc.db, source):
-                    logger.warning('%s: several reaction motifs share this old name. '
-                                   'Keeping its calculation files without reusing them '
-                                   'for the separately named searches.', source)
 
 
     def search_combinatorial(self, natom, atom, bond, rad):
@@ -2429,6 +2440,13 @@ class ReactionFinder:
                     inst[pos] in self.par['solute']
                     for pos in (a, b, c, d, e) if pos is not None):
                 continue
+            if all(isinstance(atom, (int, np.integer)) and 0 <= atom < self.species.natom
+                   for atom in inst):
+                try:
+                    self._motif_key(inst)
+                except UnsupportedStereochemistry as error:
+                    self._unsupported_search(name, error, inst)
+                    continue
             new = True
             # Do not use discarded searches to reject equal-length paths:
             # those can have distinct relative stereochemistry.
@@ -2440,26 +2458,23 @@ class ReactionFinder:
                 comparable = (len(inst) == len(instance)
                               and all(isinstance(atom, (int, np.integer)) and 0 <= atom < self.species.natom
                                       for atom in list(inst) + list(instance)))
-                joint_equal = None
                 if comparable:
                     key = self._motif_key(inst)
                     other_keys = [self._motif_key(instance)]
                     if cross:
                         other_keys.append(self._motif_key(instance[::-1]))
-                    if key is not None and all(value is not None for value in other_keys):
-                        joint_equal = key in other_keys
-                        if joint_equal:
-                            if name == 'intra_H_migration':
-                                self._h_migration_duplicates.add(tuple(inst))
-                            new = False
-                            break
-                        other_graphs = [self._motif_graph(instance)]
-                        if cross:
-                            other_graphs.append(self._motif_graph(instance[::-1]))
-                        if self._motif_graph(inst) in other_graphs:
-                            # Same selected graph, different relative stereo:
-                            # positional equality must not discard this path.
-                            continue
+                    if key in other_keys:
+                        if name == 'intra_H_migration':
+                            self._h_migration_duplicates.add(tuple(inst))
+                        new = False
+                        break
+                    other_graphs = [self._motif_graph(instance)]
+                    if cross:
+                        other_graphs.append(self._motif_graph(instance[::-1]))
+                    if self._motif_graph(inst) in other_graphs:
+                        # Same selected graph, different relative stereo:
+                        # positional equality must not discard this path.
+                        continue
                 if aid == True:
                     if (self._reaction_atom_labels()[inst[a]] == self._reaction_atom_labels()[instance[a]] and
                             self._reaction_atom_labels()[inst[b]] == self._reaction_atom_labels()[instance[b]]):

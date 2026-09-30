@@ -18,6 +18,7 @@ from kinbot.parameters import Parameters
 from kinbot.pes import get_energy
 from kinbot.qc import QuantumChemistry
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.run_format import ensure_current_run
 
 
 class TestPESOptimizationSelection(unittest.TestCase):
@@ -29,11 +30,12 @@ class TestPESOptimizationSelection(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.addCleanup(os.chdir, Path.cwd())
         os.chdir(temp.name)
+        ensure_current_run(create=True)
         self.atoms = molecule('CH3OH')
         self.point = StationaryPoint.from_ase_atoms(self.atoms)
         self.point.characterize()
         self.well = str(self.point.chemid)
-        Path(self.well).mkdir()
+        ensure_current_run(self.well, create=True)
         Path('conf').mkdir()
         self.db = connect(f'{self.well}/kinbot.db')
         Path('input.json').write_text('{"barrier_threshold": 100, "rotor_scan": 0}')

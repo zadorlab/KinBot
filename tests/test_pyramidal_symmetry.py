@@ -1,4 +1,5 @@
 """Localized pyramidal XY3 has three rotations, without optical doubling."""
+from tests.conformer_fixtures import record_conformers
 from pathlib import Path
 import numpy as np
 import pytest
@@ -58,6 +59,7 @@ def test_harmonic_and_mc_mess_use_three_without_optical_workaround(tmp_path,monk
     assert p.mess_optical_counting['remaining_multiplier']==1
     p.conformer_index=[0];p.conformer_geom=[p.geom.copy()]
     p.conformer_zeroenergy=[p.energy+p.zpe];p.conformer_freq=[p.freq]
+    record_conformers(p)
     par['multi_conf_tst']=1
     writer=MESS(par,p);writer.create_short_names()
     text=writer.write_well(p,0.,1.,0)

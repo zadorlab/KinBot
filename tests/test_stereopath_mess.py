@@ -19,9 +19,11 @@ from kinbot.mess import MESS, union_stereochemical_barriers
 from kinbot.parameters import Parameters
 from kinbot.species_routing import routing_name
 from kinbot.stereo_routing import StereoRoutingError
+from kinbot.run_format import ensure_current_run
 from tests.counting_fixtures import methanol_data, saved_point
 from test_reaction_paths import peroxy, transfer
 from test_mess_conformers import values
+from tests.conformer_fixtures import record_conformers
 
 
 class TestStereopathMESS(unittest.TestCase):
@@ -30,6 +32,7 @@ class TestStereopathMESS(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.addCleanup(os.chdir, Path.cwd())
         os.chdir(temporary.name)
+        ensure_current_run(create=True)
         Path('input.json').write_text(json.dumps(dict(barrier_threshold=100.,
             high_level=0, rotor_scan=0, multi_conf_tst=0, conformer_search=0,
             me=0, uq=0, epsilon=100., sigma=3., queuing='local')))
@@ -75,7 +78,9 @@ class TestStereopathMESS(unittest.TestCase):
                 route.ts.stereopath_metadata = dict(route.ts.stereopath_metadata,
                                                     id='ordinary', site_relation='ordinary')
         base = routing_name(p)
-        Path(base, 'me').mkdir(parents=True)
+        Path(base).mkdir()
+        ensure_current_run(base, create=True)
+        Path(base, 'me').mkdir()
         par = dict(self.par, smiles='', charge=0, mult=2, me=2,
                    structure=[v for atom, xyz in zip(p.atom, p.geom)
                               for v in (str(atom), *map(float, xyz))])
@@ -87,6 +92,15 @@ class TestStereopathMESS(unittest.TestCase):
             db.write(Atoms(point.atom, positions=point.geom), name=name,
                      data={'status': 'normal', 'energy': point.energy/constants.EVtoHARTREE,
                            'zpe': point.zpe, 'frequencies': point.freq})
+        p.stereochemical_discovery_rejections = [dict(
+            family='test_family', reason='unsupported discovery fixture')]
+        omitted = SimpleNamespace(instance_name='omitted_channel',
+                                  stereochemical_rejection='unsupported product fixture')
+        p.reac_obj = [*routes, omitted]
+        p.reac_ts_done.append(-999)
+        p.reac_type.append('test_family')
+        p.reac_inst.append(None)
+        p.reac_name.append(omitted.instance_name)
         root = Path.cwd()
         try:
             os.chdir(base)
@@ -105,6 +119,9 @@ class TestStereopathMESS(unittest.TestCase):
         deferred = assemble([base])
         lowest = assemble([base], 'lowestpath', [base, routes[0].products[0].name])
         for output in (direct, deferred, lowest):
+            self.assertIn('incomplete test_family discovery: unsupported discovery fixture', output)
+            self.assertIn('omitted channel omitted_channel: unsupported product fixture', output)
+            self.assertIn('Reaction network is incomplete.', output)
             barrier = output[output.index('  Barrier'):]
             self.assertEqual(sum(line.strip().startswith('Barrier ') for line in output.splitlines()), 1)
             self.assertIn('Union ! 2 stereochemical pathways', barrier)
@@ -129,7 +146,9 @@ class TestStereopathMESS(unittest.TestCase):
         reverse.products, reverse.prod_opt = [p], [SimpleNamespace(species=p)]
         q.reac_obj, q.reac_ts_done, q.reac_type = [reverse], [-1], ['intra_H_migration']
         q.reac_inst, q.reac_name = [None], [reverse.instance_name]
-        Path(q.name, 'me').mkdir(parents=True)
+        Path(q.name).mkdir()
+        ensure_current_run(q.name, create=True)
+        Path(q.name, 'me').mkdir()
         db = connect(f'{q.name}/kinbot.db')
         for point, name in [(q, q.name+'_well'), (reverse.ts, reverse.instance_name)]:
             db.write(Atoms(point.atom, positions=point.geom), name=name,
@@ -149,10 +168,8 @@ class TestStereopathMESS(unittest.TestCase):
         filename = Path(q.name, f'summary_{q.name}.out')
         filename.write_text('\n'.join(line for line in filename.read_text().splitlines()
                                      if not line.startswith('# kinbot_stereopath')))
-        output = assemble([base, q.name])
-        barrier = output[output.index('  Barrier'):]
-        self.assertEqual(values(barrier, 'ZeroEnergy'), [30., 32.])
-        self.assertNotIn(reverse.instance_name, barrier)
+        with self.assertRaisesRegex(ValueError, '[Pp]ath|metadata'):
+            assemble([base, q.name])
         self.assertIn('SUCCESS', filename.read_text())
 
     def test_mc_ensembles_are_nested_once_and_preserve_each_routes_reference(self):
@@ -175,6 +192,7 @@ class TestStereopathMESS(unittest.TestCase):
             ts.conformer_geom = [ts.geom.copy()]
             ts.conformer_zeroenergy = [ts.energy+ts.zpe]
             ts.conformer_freq = [ts.freq]
+            record_conformers(ts)
         MESS(self.par, p).write_input(None)
         output = Path('me/mess_0000.inp').read_text()
         barrier = output[output.index('  Barrier'):]
@@ -205,6 +223,7 @@ class TestStereopathMESS(unittest.TestCase):
             ts.conformer_geom = [ts.geom.copy(), ts.geom * [-1., 1., 1.]]
             ts.conformer_zeroenergy = [ts.energy+ts.zpe]*2
             ts.conformer_freq = [ts.freq, ts.freq]
+            record_conformers(ts)
         MESS(self.par, p).write_input(None)
         output = Path('me/mess_0000.inp').read_text()
         barrier = output[output.index('  Barrier'):]

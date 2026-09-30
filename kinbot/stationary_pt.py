@@ -359,15 +359,7 @@ class StationaryPoint:
                         self.rads.append(perm_rad[i])
                         self.bonds.append(perm_bond[i])
         if self.smiles == '':
-            try:
-                from rdkit import Chem  # to quit the try loop if rdkit is not available
-                from kinbot.cheminfo import create_rdkit_mol
-                mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
-            except ImportError:
-                try:
-                    self.smiles = cheminfo.create_smi_from_geom(self.atom, self.geom)
-                except:
-                    pass
+            mw, self.smiles = cheminfo.create_rdkit_mol(self.bonds[0], self.atom)
         self.bond01 = np.zeros((self.natom, self.natom), dtype=int)
         for ri, row in enumerate(self.bond):
             for bii, bi in enumerate(row):

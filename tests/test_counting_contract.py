@@ -10,11 +10,12 @@ import numpy as np
 from kinbot import constants, frequencies, symmetry
 from kinbot.conformer_records import inventory, retain
 from kinbot.counting_contract import site_counting
-from kinbot.stereo_identity import optical_scope
+from kinbot.stereo_identity import optical_scope, UnsupportedStereochemistry
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.thermochemistry import thermochemistry_evidence
 from tests.counting_fixtures import methanol_data, saved_point
 from tests.test_conformer_counting import peroxide
+from tests.conformer_fixtures import record_conformers
 
 
 class TestCountingContract(unittest.TestCase):
@@ -174,10 +175,9 @@ class TestCountingContract(unittest.TestCase):
         self.assertIn('outside the specified', result['optical_counting']['reason'])
         self.assertIsNone(result['optical_counting']['remaining_multiplier'])
         self.assertTrue(result['hir']['rotors'][0]['usable'])
-        p.optical_reference = {'status': 'unavailable'}
-        result = thermochemistry_evidence(p)['optical_counting']
-        self.assertEqual(result['status'], 'legacy_unverified')
-        self.assertEqual(result['remaining_multiplier'], p.nopt)
+        p.optical_reference = {'status': 'unsupported', 'reason': 'unsupported fixture'}
+        with self.assertRaises(UnsupportedStereochemistry):
+            thermochemistry_evidence(p)
 
     def mc(self, geoms):
         p = peroxide()
@@ -188,6 +188,7 @@ class TestCountingContract(unittest.TestCase):
         p.conformer_index = list(range(len(geoms)))
         p.conformer_zeroenergy = [-1.] * len(geoms)
         p.conformer_freq = [[100.] * 6 for _ in geoms]
+        record_conformers(p)
         return p
 
     def test_explicit_mc_mirrors_and_archives_are_counted_without_export_side_effects(self):
@@ -220,13 +221,9 @@ class TestCountingContract(unittest.TestCase):
         p.optical_reference = {'status': 'unsupported', 'reason': 'unassigned configuration'}
         before = pickle.dumps(vars(p))
         with patch('kinbot.conformer_counting.preserve_counting_error', side_effect=AssertionError('no writes')):
-            result = thermochemistry_evidence(p)
+            with self.assertRaises(UnsupportedStereochemistry):
+                thermochemistry_evidence(p)
         self.assertEqual(pickle.dumps(vars(p)), before)
-        self.assertEqual(len(result['conformer_inventory']), 3)
-        self.assertIsNone(result['optical_counting']['remaining_multiplier'])
-        self.assertIsNone(result['conformer_counting_error'])
-        self.assertTrue(all(member['optical_evidence']['status'] == 'legacy_unverified'
-                            for member in result['optical_counting']['members']))
 
     def test_missing_member_arrays_are_preserved_with_an_error(self):
         p = self.mc([peroxide().geom])

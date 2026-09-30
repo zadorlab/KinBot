@@ -1,6 +1,7 @@
 """Final ordinary RRHO/HIR output keeps corrected modes separate from raw data."""
 from kinbot.species_routing import routing_key
 import json
+import copy
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -17,6 +18,7 @@ from kinbot.optimize import Optimize
 from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.stereo_identity import canonical_identity
 
 
 class TestOrdinaryThermalFrequencies(unittest.TestCase):
@@ -37,6 +39,12 @@ class TestOrdinaryThermalFrequencies(unittest.TestCase):
                             p = StationaryPoint('thermal', 0, 1, wellorts=saddle,
                                 atom=atoms.get_chemical_symbols(), geom=atoms.positions)
                             p.characterize()
+                            reference = copy.copy(p)
+                            reference.wellorts = 0
+                            p.optical_reference = canonical_identity(reference)
+                            if saddle:
+                                p.stereopath_id = 'ordinary'
+                                p.stereopath_metadata = {'schema': 'kinbot.stereopath.v1', 'id': 'ordinary'}
                             raw = ([-1000., -20.] if saddle else [-20., 100.]) + [200.] * 10
                             job = f'selected_{saddle}_{projected}'
                             qc.db.write(atoms, name=job, data={'energy': -100., 'zpe': .01,
@@ -62,8 +70,12 @@ class TestOrdinaryThermalFrequencies(unittest.TestCase):
                             with patch.object(writer, 'make_rotors', return_value=''), \
                                  patch.object(writer, '_parent_symmetry', return_value=p.sigma_ext):
                                 if saddle:
-                                    p.reac_type = ['test']
-                                    reaction = SimpleNamespace(ts=p, products=[p], instance_name='saddle')
+                                    reference = copy.copy(p)
+                                    reference.wellorts = 0
+                                    reference.reac_type = ['test']
+                                    writer.species = reference
+                                    writer.well_names[routing_key(reference)] = 'w1'
+                                    reaction = SimpleNamespace(ts=p, products=[reference], instance_name='saddle')
                                     output = writer.write_barrier(reaction, 0, 30., 20., 0., 1., 1., 0)[0]
                                     self.assertEqual(p.reduced_freqs[0], -1000.)
                                 else:

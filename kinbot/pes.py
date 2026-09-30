@@ -1,5 +1,5 @@
 from kinbot.mess_mirrors import complete_mirror_channels
-from kinbot.species_routing import matches_name, expand_pes_names, apply_input_reference, mess_filename, require_canonical_summary
+from kinbot.species_routing import matches_name, expand_pes_names, apply_input_reference, mess_filename
 from kinbot.species_routing import routing_name, connectivity_name, is_species_name, prepare_pes_directory, configured_result_matches
 """
 This is the main class to run KinBot to explore
@@ -20,7 +20,9 @@ import numpy as np
 import getpass
 
 from copy import deepcopy
-from kinbot.species_routing import connect
+from ase.db import connect
+from kinbot.run_format import ensure_current_run
+from kinbot.rdkit_config import log_rdkit
 from ase.atoms import Atoms
 
 from kinbot import kb_path
@@ -43,6 +45,8 @@ def select_summary_reaction(reactions, candidate, stereopaths):
     replace = []
     keep_candidate = True
     reactant, name, products, energy = candidate[:4]
+    if 'hom_sci' not in name and not stereopaths.get(name):
+        raise ValueError(f'Missing reaction-path metadata for calculated saddle {name}.')
     for index, previous in enumerate(reactions):
         same_endpoints = ((reactant == previous[0] and sorted(products) == sorted(previous[2]))
                           or (products == [previous[0]] and previous[2] == [reactant]))
@@ -131,6 +135,8 @@ def main():
             sys.exit(-1)
         names = sys.argv[4:]
 
+    ensure_current_run(create=not no_kinbot)
+
     # print the license message to the console
     print(license_message.message)
     global logger
@@ -143,6 +149,8 @@ def main():
     if par['verbose']:
         logger = config_log('KinBot', mode='pes', level='debug')
 
+    log_rdkit(logger)
+
     msg = 'Starting the PES search at {}'.format(datetime.datetime.now())
     logger.info(msg)
 
@@ -153,6 +161,8 @@ def main():
                             structure=par['structure'])
     well0.characterize()
     apply_input_reference(well0, par)
+    if no_kinbot:
+        ensure_current_run(routing_name(well0))
     write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
@@ -318,7 +328,7 @@ def get_wells(job):
     """
     Read the summary file and add the wells to the chemid list
     """
-    require_canonical_summary(job)
+    ensure_current_run(job)
     try:
         summary = open(job + '/summary_' + job + '.out', 'r').readlines()
     except:
@@ -353,7 +363,7 @@ def postprocess(par, jobs, task, names, mass):
     temp: this is a temporary output file writing
     """
     for job in jobs:
-        require_canonical_summary(job)
+        ensure_current_run(job)
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
@@ -370,6 +380,7 @@ def postprocess(par, jobs, task, names, mass):
     # 3. reaction barrier height
     reactions = []
     stereopaths = {}
+    network_warnings = []
 
     # list of the parents for each calculation
     # the key is the name of the calculation
@@ -394,6 +405,8 @@ def postprocess(par, jobs, task, names, mass):
             failedwells.append(ji)
             continue
         stereopaths.update(read_summary_paths(summary))
+        network_warnings.extend(f'! WARNING: {ji}: {line.removeprefix("# WARNING: ").strip()}'
+                                for line in summary if line.startswith('# WARNING: '))
         # read the summary file from after corporate message
         for line in summary[5:]:
             if line.startswith("SUCCESS"):
@@ -642,7 +655,7 @@ def postprocess(par, jobs, task, names, mass):
                           prod_energies,
                           parent,
                           mass,
-                          l3done)
+                          l3done, warnings=network_warnings)
 
     if par['single_point_qc'].lower() == 'molpro':
         if l3done:
@@ -1059,7 +1072,7 @@ def create_short_names(wells, products, reactions, barrierless, vdW):
 
 
 def create_mess_input(par, wells, products, reactions, barrierless, vdW,
-                      well_energies, prod_energies, parent, mass, l3done):
+                      well_energies, prod_energies, parent, mass, l3done, warnings=()):
     """When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
     Two things per file need to be updated
@@ -1304,7 +1317,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
         if not os.path.exists('me'):
             os.mkdir('me')
 
-        contents = complete_mirror_channels(header + '\n'.join(s))
+        contents = complete_mirror_channels(''.join(line + '\n' for line in warnings) + header + '\n'.join(s))
         validate_mess_populations(contents)
         with open(f'me/mess_{mess_iter}.inp', 'w') as f:
             f.write(contents)
@@ -1413,11 +1426,10 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
 
         fragments = []
         states = pp_info.get('frags_routing')
-        if states is None and any('-s' in product for product in products):
-            raise ValueError(f'{json_file}: configured VRC fragment input lacks original '
-                             'state and population; regenerate correction data from the verified scans')
+        if not isinstance(states, list) or len(states) != 2:
+            raise ValueError(f'{json_file}: VRC correction data require the current fragment identities and electronic states')
         for frag_num in range(2):
-            state = states[frag_num] if states else {}
+            state = states[frag_num]
             fragments.append(Fragment(frag_num=frag_num,
                                       max_frag=2,
                                       symbols=pp_info['frags_atom'][frag_num],
@@ -1426,15 +1438,14 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                                       equiv=pp_info['unique'][frag_num],
                                       par=par,
                                       parent=str(reactant),
-                                      charge=state.get('charge'),
+                                      charge=state['charge'],
                                       mult=pp_info['frags_mult'][frag_num]))
-            if states:
-                fragment = fragments[-1]
-                apply_input_reference(fragment, state)
-                if (routing_name(fragment) != state['routing_key']
-                        or fragment.mult != state['multiplicity']):
-                    raise ValueError(f'{json_file}: VRC fragment geometry disagrees with its saved state')
-        if states and sorted(routing_name(fragment) for fragment in fragments) != sorted(products):
+            fragment = fragments[-1]
+            apply_input_reference(fragment, state)
+            if (routing_name(fragment) != state['routing_key']
+                    or fragment.mult != state['multiplicity']):
+                raise ValueError(f'{json_file}: VRC fragment geometry disagrees with its saved state')
+        if sorted(routing_name(fragment) for fragment in fragments) != sorted(products):
             raise ValueError(f'{json_file}: VRC fragments disagree with the requested configured endpoints')
 
         fragnames: list[str] = Fragment.get_fragnames()
@@ -1680,6 +1691,7 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
         if not os.path.isfile(well + '/kinbot.db'):
             logger.warning(f'Database file missing for {well}')
             continue
+        ensure_current_run(well)
         logger.debug(f'Looking at {well}')
         db = connect(well + '/kinbot.db')
         rows = list(db.select(name=j))
@@ -1771,6 +1783,7 @@ def get_l3energy(job, par, bls=0):
 def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
     if "IRC" in job:
         jobdir = job.split("_")[0]
+    ensure_current_run(jobdir)
     db = connect(jobdir + '/kinbot.db')
     if ts:
         j = job
@@ -1814,17 +1827,13 @@ def submit_job(chemid, par):
     """
     Submit a kinbot run using subprocess and return the pid
     """
+    ensure_current_run(chemid)
     command = ["kinbot", chemid + ".json", "&"]
     # purge previous summary and monitor files, so that pes doesn't think
     # everything is done
     # relevant if jobs are killed
     try:
-        if os.path.islink(chemid):
-            filename = f'{chemid}/summary_{chemid}.out'
-            if os.path.exists(filename):
-                os.replace(filename, filename + f'.restart_{time.time_ns()}')
-        else:
-            os.system(f'rm -f {chemid}/summary_*.out')
+        os.system(f'rm -f {chemid}/summary_*.out')
     except OSError:
         pass
     try:
@@ -1907,8 +1916,7 @@ def write_input_keep(input_file, keepchemid, root):
         sys.exit(-1)
 
     saved_input = f'{directory}{keepchemid}.json'
-    if not os.path.exists(saved_input) and '-s' in str(keepchemid):
-        saved_input = f'{directory}{connectivity_name(keepchemid)}.json'
+    ensure_current_run(directory)
     par_keep = Parameters(saved_input).par
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
@@ -1982,6 +1990,7 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
         if not os.path.isfile(db_path):
             logger.warning(f"Unable to find L2 energy for {st_pt}.")
             continue
+        ensure_current_run(os.path.dirname(db_path))
         db = connect(db_path)
         if is_species_name(st_pt):
             # Wells

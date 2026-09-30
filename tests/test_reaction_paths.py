@@ -20,7 +20,8 @@ from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import canonical_identity, configured_geometry_allowed, optical_scope
 from kinbot.reaction_path import (prepare_stereopath, path_geometry_allowed,
     reaction_path_id, same_path_class, summary_path_line, read_summary_paths,
-    endpoint_snapshot, StereoAssignmentUnavailable)
+    endpoint_snapshot)
+from kinbot.stereo_identity import UnsupportedStereochemistry
 from kinbot.conformer_counting import evaluate_members
 from kinbot.conformer_records import ConformerRecord
 from kinbot.hindered_rotors import HIR
@@ -163,7 +164,7 @@ class TestReactionPaths(unittest.TestCase):
         ts, q = transfer(self.p, self.hydrogens[0])
         reaction = SimpleNamespace(ts=ts, instance_name=ts.name)
         line = summary_path_line(reaction)
-        paths = read_summary_paths(['SUCCESS 30.0 test product', line])
+        paths = read_summary_paths([f'SUCCESS 30.0 {ts.name} product', line])
         self.assertEqual(paths[ts.name], reaction_path_id(reaction))
         self.assertTrue(same_path_class(None, None))
         self.assertTrue(same_path_class(ts.stereopath_id, ts.stereopath_id))
@@ -182,19 +183,18 @@ class TestReactionPaths(unittest.TestCase):
             line = summary_path_line(SimpleNamespace(ts=ts, instance_name=ts.name))
             self.assertEqual(read_summary_paths([line])[ts.name], 'ordinary')
 
-    def test_ordinary_transfer_still_works_without_optional_rdkit(self):
+    def test_ordinary_transfer_requires_supported_assignment(self):
         p = peroxy('CCCO[O]')
         hydrogen = next(i for i in range(p.natom) if p.atom[i] == 'H' and p.bond[1, i])
         ts, q = transfer(p, hydrogen, acceptor=4)
-        with patch('kinbot.stereo_identity._strings', side_effect=ImportError('no RDKit')):
-            prepare_stereopath(ts, p, endpoint_snapshot(q))
-            line = summary_path_line(SimpleNamespace(ts=ts, instance_name=ts.name))
-            self.assertEqual(read_summary_paths([line])[ts.name], 'ordinary')
+        with patch('kinbot.stereo_identity._strings', side_effect=ValueError('unsupported fixture')):
+            with self.assertRaises(UnsupportedStereochemistry):
+                prepare_stereopath(ts, p, endpoint_snapshot(q))
 
     def test_demonstrated_split_requires_canonical_assignment(self):
         ts, q = transfer(self.p, self.hydrogens[0])
-        with patch('kinbot.stereo_identity._strings', side_effect=ImportError('no RDKit')):
-            with self.assertRaisesRegex(StereoAssignmentUnavailable, 'canonical stereo assignment'):
+        with patch('kinbot.stereo_identity._strings', side_effect=ValueError('unsupported fixture')):
+            with self.assertRaises(UnsupportedStereochemistry):
                 prepare_stereopath(ts, self.p, endpoint_snapshot(q))
 
     def test_runnable_inputs_enumerate_two_diastereotopic_routes_and_one_control(self):

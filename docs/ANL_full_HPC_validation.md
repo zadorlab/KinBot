@@ -174,8 +174,8 @@ preceding command. ROTD_py remains private and is pinned as a KinBot
 submodule. Initialize and install that exact revision into the same environment:
 
 ```bash
-git submodule sync --recursive
-git submodule update --init --recursive
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git submodule sync --recursive
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git submodule update --init --recursive
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e external/ROTD_py
 git -C external/ROTD_py rev-parse HEAD
 .venv/bin/python - <<'PY'
@@ -310,8 +310,8 @@ env -u LD_LIBRARY_PATH -u LD_PRELOAD git pull --ff-only origin composite
 export KINBOT_CA_FILE=/etc/ssl/certs/ca-certificates.crt
 export PIP_CERT="$KINBOT_CA_FILE"
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e '.[fc]'
-git submodule sync --recursive
-git submodule update --init --recursive
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git submodule sync --recursive
+env -u LD_LIBRARY_PATH -u LD_PRELOAD git submodule update --init --recursive
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e external/ROTD_py
 ```
 
@@ -398,16 +398,16 @@ the dispatcher's immutable state. For a failed dispatcher task, inspect its
 
 ```bash
 .venv/bin/python -m kinbot.anl.dispatch retry \
-  ethane_profiled_hpc_run/anl_interface TASK_ID
+  ethane_profiled_hpc_run_v4/anl_interface TASK_ID
 .venv/bin/python -m kinbot.anl.dispatch drive \
-  ethane_profiled_hpc_run/anl_interface --interval 20
+  ethane_profiled_hpc_run_v4/anl_interface --interval 20
 ```
 
 Review the final machine-readable report:
 
 ```bash
-cat ethane_profiled_hpc_run/anl_interface_audit.json
-cat ethane_profiled_hpc_run/kinbot_gate.json
+cat ethane_profiled_hpc_run_v4/anl_interface_audit.json
+cat ethane_profiled_hpc_run_v4/kinbot_gate.json
 ```
 
 The report is acceptable for this validation only when every task is

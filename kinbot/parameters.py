@@ -396,6 +396,7 @@ class Parameters:
             # Raise submerged barriers to connected bound-well ground energies.
             'correct_submerged': 0,
             # MESS specific keywords
+            # Executable and optional arguments; quote paths that contain spaces.
             'mess_command': 'mess',
             'TemperatureList': [300. + 100. * i for i in range(18)],
             'PressureList': [7.6, 76., 760., 7600., 76000.],

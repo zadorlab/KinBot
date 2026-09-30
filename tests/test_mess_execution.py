@@ -1,11 +1,11 @@
 from pathlib import Path
 from types import SimpleNamespace
+import shlex
 import subprocess
 
 import pytest
 
 from kinbot import mess_execution as execution
-from kinbot import kb_path
 
 
 @pytest.fixture(autouse=True)
@@ -243,26 +243,46 @@ def test_submission_failure_still_drains_existing_jobs(tmp_path, monkeypatch):
 @pytest.mark.parametrize('queue', ['pbs', 'slurm', 'local'])
 @pytest.mark.parametrize('status', [0, 7])
 def test_actual_shell_exit_and_output(tmp_path, monkeypatch, queue, status):
+    from kinbot.mess import MESS
+
     obj = writer(tmp_path, monkeypatch, queue=queue)
-    binary = tmp_path / 'mess'
-    binary.write_text('#!/bin/sh\nout="${1%.inp}.out"\n'
+    binary = tmp_path / 'custom mess'
+    argument = 'literal $HOME $(touch expanded); "quoted" argument'
+    binary.write_text('#!/bin/sh\nprintf "%s" "$1" > received_argument\n'
+                      'shift\nout="${1%.inp}.out"\n'
                       'printf "calculated rates\\n" > "$out"\n'
                       f'exit {status}\n')
     binary.chmod(0o700)
-    monkeypatch.setenv('PATH', f'{tmp_path}:/usr/bin:/bin')
-    if queue == 'local':
-        if status:
-            with pytest.raises(execution.MESSExecutionError, match=f'exit code {status}'):
-                execution.run_mess(obj)
-        else:
-            assert execution.run_mess(obj) == 0
-    else:
-        template = Path(kb_path, 'tpl', f'{queue}_mess_uq.tpl').read_text().format(n='0000')
-        monkeypatch.setenv('PBS_O_WORKDIR', str(tmp_path))
-        result = subprocess.run(['sh', '-c', template], check=False)
+    obj.par.update(mess_command=shlex.join([str(binary), argument]), queue_template='',
+                   ppn=1, queue_name='test', slurm_feature='')
+    obj.write_submitscript = lambda path, index: MESS.write_submitscript(obj, path, index)
+    monkeypatch.setenv('PBS_O_WORKDIR', str(tmp_path))
+    monkeypatch.setenv('SLURM_SUBMIT_DIR', str(tmp_path))
+    def submit(queue, script):
+        result = subprocess.run(['sh', str(script)], check=False)
         assert result.returncode == status
+        return '123'
+    monkeypatch.setattr(execution, '_submit', submit)
+    monkeypatch.setattr(execution, '_active', lambda *args: False)
+    if status:
+        with pytest.raises(execution.MESSExecutionError, match=f'exit code {status}'):
+            execution.run_mess(obj)
+    else:
+        assert execution.run_mess(obj) == 0
+    assert Path('me/received_argument').read_text() == argument
+    assert not Path('me/expanded').exists()
+    assert Path('me/mess_0000.out').stat().st_size
+    if queue == 'local':
+        # The generated manual script must run the same command as the API.
+        assert subprocess.run(['sh', 'me/run_mess_0000.sh'], check=False).returncode == status
+    else:
         assert Path('me/mess_0000.exitcode').read_text().strip() == str(status)
-        assert Path('me/mess_0000.out').stat().st_size
+    obj.par.update(mess_command='/unavailable/compute-node-only/mess', run_me=False)
+    assert execution.run_mess(obj) == 0  # Input writing needs no local MESS binary.
+    if queue == 'local':
+        obj.par['run_me'] = True
+        with pytest.raises(execution.MESSExecutionError, match='Cannot start MESS.*mess_command'):
+            execution.run_mess(obj)
 
 
 @pytest.mark.parametrize('queue', ['local', 'slurm', 'pbs'])

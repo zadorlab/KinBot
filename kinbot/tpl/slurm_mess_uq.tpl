@@ -1,5 +1,5 @@
 cd "${{SLURM_SUBMIT_DIR:-$PWD}}/me" || exit 1
-if mess mess_{n}.inp; then
+if {command} mess_{n}.inp; then
     mess_exit_code=0
 else
     mess_exit_code=$?

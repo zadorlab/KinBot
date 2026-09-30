@@ -1,6 +1,7 @@
 from kinbot.species_routing import routing_key, routing_name, mess_filename
 import os
 import re
+import shlex
 import logging
 import numpy as np
 import logging
@@ -1225,6 +1226,7 @@ class MESS:
         """
         write a pbs or slurm file for the me/all.inp mess input file
         """
+        from kinbot.mess_execution import mess_command
 
         if self.par['queue_template'] == '':
             q_file = f'{kb_path}/tpl/{self.par["queuing"]}.tpl'
@@ -1237,18 +1239,19 @@ class MESS:
         with open(q_file) as f:
             tpl = f.read()
 
+        mess_iter = f"{uq_iter:04d}" if isinstance(uq_iter, int) else uq_iter
+        tpl = tpl.format(n=mess_iter, command=shlex.join(mess_command(self.par)))
         with open(submitscript, 'w') as f:
-            mess_iter = f"{uq_iter:04d}" if isinstance(uq_iter, int) else uq_iter
             if self.par['queue_template'] == '':
                 if self.par['queuing'] == 'pbs':
                     f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me'))
-                    f.write((tpl).format(n=mess_iter))
+                    f.write(tpl)
                 elif self.par['queuing'] == 'slurm':
                     f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
-                    f.write((tpl).format(n=mess_iter))
+                    f.write(tpl)
             else:
                 f.write((tpl_head).format(name='mess_' + mess_iter, ppn=self.par['ppn'], queue_name=self.par['queue_name'], errdir='me', slurm_feature=self.par['slurm_feature']))
-                f.write((tpl).format(n=mess_iter))
+                f.write(tpl)
         return 0
 
 

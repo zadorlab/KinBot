@@ -22,6 +22,20 @@ class _ResultPending(MESSExecutionError):
     """A completed queued job's result files are not yet visible."""
 
 
+def mess_command(parameters):
+    """Read an executable and optional arguments, without shell expansion."""
+    value = parameters.get('mess_command', 'mess')
+    if not isinstance(value, str) or not value.strip():
+        raise MESSExecutionError('mess_command must specify an executable and optional arguments.')
+    try:
+        command = shlex.split(value)
+    except ValueError as error:
+        raise MESSExecutionError(f'Invalid mess_command: {error}') from error
+    if not command or not command[0]:
+        raise MESSExecutionError('mess_command must specify a nonempty executable.')
+    return command
+
+
 def _run(command, *, timeout=None):
     return subprocess.run(command, capture_output=True, text=True, check=False,
                           timeout=timeout)
@@ -120,11 +134,13 @@ def run_mess(writer):
                    if job['status'] == 'ready']
     else:
         indices = [f'{index:04d}' for index in range(writer.par['uq_n'])]
+    solver = mess_command(writer.par)
     for index in indices:
         extension = '.sh' if queue == 'local' else constants.qext[queue]
         script = Path('me') / f'run_mess_{index}{extension}'
         if queue == 'local':
-            script.write_text(f'#!/bin/sh\ncd me || exit 1\nexec mess mess_{index}.inp\n')
+            command = shlex.join(solver + [f'mess_{index}.inp'])
+            script.write_text(f'#!/bin/sh\ncd me || exit 1\nexec {command}\n')
         else:
             writer.write_submitscript(str(script), index)
         scripts.append(script)
@@ -179,8 +195,13 @@ def run_mess(writer):
         if queue == 'local':
             with open(f'me/mess_{index}.stdout', 'w') as stdout, \
                     open(f'me/mess_{index}.err', 'w') as stderr:
-                result = subprocess.run(['sh', str(script)], stdout=stdout, stderr=stderr,
-                                        check=False)
+                try:
+                    result = subprocess.run(solver + [f'mess_{index}.inp'], cwd='me',
+                                            stdout=stdout, stderr=stderr, check=False)
+                except OSError as error:
+                    raise MESSExecutionError(
+                        f'Cannot start MESS calculation {index} with {solver[0]!r}: {error}. '
+                        'Check mess_command and the executable in the local environment.') from error
             _verify(index, previous, result.returncode)
         else:
             while len(active) >= limit:

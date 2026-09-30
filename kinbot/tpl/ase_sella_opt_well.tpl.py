@@ -35,8 +35,8 @@ if '{Code}' == 'Gaussian':
 basename = os.path.basename('{label}')
 frequency_mode = '{frequency_mode}'
 
-if os.path.isfile(f'{{basename}}_sella.log'):
-    os.remove(f'{{basename}}_sella.log')
+if os.path.isfile('{label}_sella.log'):
+    os.remove('{label}_sella.log')
 
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
@@ -48,7 +48,7 @@ if len(mol) == 1:
     if os.path.isdir(f'{{basename}}'):
         shutil.rmtree(f'{{basename}}')
 
-    with open(f'{{basename}}_sella.log', 'a') as f:
+    with open('{label}_sella.log', 'a') as f:
         f.write('Sella optimization is not needed for atoms.\ndone\n')
 else:
     order = {order}
@@ -59,20 +59,20 @@ else:
     if len(mol.symbols) > 2:
         opt = Sella(mol, 
                     order=order, 
-                    trajectory=f'{{basename}}.traj', 
-                    logfile=f'{{basename}}_sella.log',
+                    trajectory='{label}.traj',
+                    logfile='{label}_sella.log',
                     **sella_kwargs)
     else:
         opt = BFGS(mol,
-                   trajectory=f'{{basename}}.traj',
-                   logfile=f'{{basename}}_sella.log')
+                   trajectory='{label}.traj',
+                   logfile='{label}_sella.log')
     freqs = []
     mol.calc.label = '{label}'
     converged = False
     try:
         converged = opt.run(fmax={fmax}, steps={steps})
-        traj = read(f'{{basename}}.traj', index=':')
-        write(f'{{basename}}.xyz', traj, format='xyz')
+        traj = read('{label}.traj', index=':')
+        write('{label}.xyz', traj, format='xyz')
     except:
         converged = False
     if converged:
@@ -89,7 +89,7 @@ else:
                 frequency_kwargs.pop('opt', None)
                 frequency_kwargs['freq'] = ''
                 frequency_kwargs['label'] = '{label}'
-                frequency_kwargs['chk'] = '{label}'
+                frequency_kwargs['chk'] = os.path.basename('{label}')
                 mol.calc = Gaussian(**frequency_kwargs)
                 e = mol.get_potential_energy()
                 iowait('{label}.log', 'gauss')
@@ -115,7 +115,7 @@ else:
                     data['hess'] = hessian
                 db.write(mol, name='{label}', data=data)
         except Exception as error:
-            with open(f'{{basename}}_sella.log', 'a') as f:
+            with open('{label}_sella.log', 'a') as f:
                 f.write(f'Frequency evaluation failed: '
                         f'{{type(error).__name__}}: {{error}}\n')
             converged = False
@@ -132,5 +132,5 @@ else:
     if os.path.isdir(f'{{basename}}_vib'):
         shutil.rmtree(f'{{basename}}_vib')
 
-    with open(f'{{basename}}_sella.log', 'a') as f:
+    with open('{label}_sella.log', 'a') as f:
         f.write('done\n')

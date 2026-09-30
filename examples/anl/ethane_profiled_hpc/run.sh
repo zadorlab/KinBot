@@ -6,7 +6,7 @@ max_nodes=${2:-3}
 fairchem_model=${3:-${KINBOT_FAIRCHEM_MODEL:-uma-s-1p2}}
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd "$script_dir/../../.." && pwd)
-run_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v4}
+run_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v5}
 python_bin=${KINBOT_PYTHON:-$repo_dir/.venv/bin/python}
 export HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-1}
 

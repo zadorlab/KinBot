@@ -169,8 +169,15 @@ class TestTheoryProfiles(unittest.TestCase):
         compile(generated_l2_conf, 'profiled_l2_conformer.py', 'exec')
         self.assertIn("frequency_mode = 'native_hessian'",
                       generated_l2_conf)
-        self.assertIn("'chk': 'conf/200000000000000000002_0000'",
+        self.assertIn("'chk': '200000000000000000002_0000'",
                       generated_l2_conf)
+        self.assertIn(
+            "logfile='conf/200000000000000000002_0000_sella.log'",
+            generated_l2_conf)
+        self.assertIn(
+            "frequency_kwargs['chk'] = "
+            "os.path.basename('conf/200000000000000000002_0000')",
+            generated_l2_conf)
 
         species.wellorts = 1
         species.name = 'h2_saddle'
@@ -195,7 +202,10 @@ class TestTheoryProfiles(unittest.TestCase):
             f'hir/{rotor.chemid}_hir_0_00.py').read_text()
         compile(generated_hir, 'profiled_l2_hir.py', 'exec')
         self.assertIn(
-            f"'chk': 'hir/{rotor.chemid}_hir_0_00'", generated_hir)
+            f"'chk': '{rotor.chemid}_hir_0_00'", generated_hir)
+        self.assertIn(
+            f"logfile='hir/{rotor.chemid}_hir_0_00_sella.log'",
+            generated_hir)
         self.assertIn('Constrained optimization failed:', generated_hir)
 
     def test_profiled_job_routes_and_scheduler_ids_survive_restart(self):
@@ -217,7 +227,8 @@ class TestTheoryProfiles(unittest.TestCase):
 
     def test_profiled_vrc_jobs_use_gaussian_context(self):
         parameters = self.parameters(theory_preset='uma-b2plyp-anl',
-                                     fc_model_path='/site/uma.pt')
+                                     fc_model_path='/site/uma.pt',
+                                     queuing='local')
         qc = QuantumChemistry(parameters.par)
         fragment = SimpleNamespace(chemid=123)
         with patch.object(qc.l2, 'qc_vts_frag',
@@ -226,6 +237,17 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertEqual(job, 'vrctst/123_vts')
         submit.assert_called_once_with(fragment)
         self.assertEqual(qc._routes[job]['level'], 'l2')
+
+        # VRC templates always finish their native Gaussian ``.log`` file,
+        # including when the L2 profile otherwise uses Sella.  Polling for a
+        # ``_sella.log`` leaves a successfully completed VRC job waiting
+        # forever.
+        Path('vrctst').mkdir()
+        qc.l2.db.write(Atoms('H'), name=job,
+                       data={'energy': -1., 'status': 'normal'})
+        Path(job + '.log').write_text('done\n')
+        self.assertFalse(Path(job + '_sella.log').exists())
+        self.assertEqual(qc.check_qc(job), 'normal')
 
     def test_anl1_f12_ladder_request_selects_higher_l2_surface(self):
         parameters = self.parameters(composite_method='ANL1-F12',

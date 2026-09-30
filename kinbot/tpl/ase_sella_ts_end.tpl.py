@@ -31,15 +31,15 @@ if '{Code}' == 'Gaussian':
 basename = os.path.basename('{label}')
 frequency_mode = '{frequency_mode}'
 
-if os.path.isfile(f'{{basename}}_sella.log'):
-    os.remove(f'{{basename}}_sella.log')
+if os.path.isfile('{label}_sella.log'):
+    os.remove('{label}_sella.log')
 
 sella_kwargs = {sella_kwargs}
 if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
     sella_kwargs['internal'] = False
 opt = Sella(mol, order=1, 
-            trajectory=f'{{basename}}.traj',
-            logfile=f'{{basename}}_sella.log',
+            trajectory='{label}.traj',
+            logfile='{label}_sella.log',
             **sella_kwargs)
 freqs = []
 
@@ -50,8 +50,8 @@ mol.calc.label = '{label}'
 converged = False
 try:
     converged = opt.run(fmax=fmax, steps=steps)
-    traj = read(f'{{basename}}.traj', index=':')
-    write(f'{{basename}}.xyz', traj, format='xyz')
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
 except:
     pass
 if converged:
@@ -67,7 +67,7 @@ if converged:
             frequency_kwargs.pop('opt', None)
             frequency_kwargs['freq'] = ''
             frequency_kwargs['label'] = '{label}'
-            frequency_kwargs['chk'] = '{label}'
+            frequency_kwargs['chk'] = os.path.basename('{label}')
             mol.calc = Gaussian(**frequency_kwargs)
             e = mol.get_potential_energy()
             iowait('{label}.log', 'gauss')
@@ -90,7 +90,7 @@ if converged:
                 data['hess'] = hessian
             db.write(mol, name='{label}', data=data)
     except Exception as error:
-        with open(f'{{basename}}_sella.log', 'a') as f:
+        with open('{label}_sella.log', 'a') as f:
             f.write(f'Frequency evaluation failed: '
                     f'{{type(error).__name__}}: {{error}}\n')
         converged = False
@@ -112,5 +112,5 @@ if os.path.isdir(f'{{basename}}_vib'):
                      os.path.join(os.getcwd(), f'{{basename}}_vib.xyz'))
     shutil.rmtree(f'{{basename}}_vib')
 
-with open(f'{{basename}}_sella.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

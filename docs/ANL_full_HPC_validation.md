@@ -380,7 +380,7 @@ simultaneous exclusive nodes for both the VRC Molpro correction stage and the
 ANL dispatcher after the L3 geometry succeeds. The
 optional third argument is the FairChem registered model name or local
 checkpoint path; the local path is required for the documented offline HPC
-run. The test directory defaults to `~/KinBot/ethane_profiled_hpc_run_v4`;
+run. The test directory defaults to `~/KinBot/ethane_profiled_hpc_run_v5`;
 override it with `KINBOT_PROFILED_TEST_DIR`.
 
 Monitor either layer with:
@@ -389,10 +389,10 @@ Monitor either layer with:
 cd ~/KinBot
 squeue -u "$USER"
 .venv/bin/python -m kinbot.anl.dispatch status \
-  ethane_profiled_hpc_run_v4/anl_interface
+  ethane_profiled_hpc_run_v5/anl_interface
 .venv/bin/python -m kinbot.anl.dispatch status \
-  ethane_profiled_hpc_run_v4/vrctst/molpro/dispatch
-tail -f ethane_profiled_hpc_run_v4/kinbot.log
+  ethane_profiled_hpc_run_v5/vrctst/molpro/dispatch
+tail -f ethane_profiled_hpc_run_v5/kinbot.log
 ```
 
 Before a downstream dispatcher is created, its status is
@@ -400,9 +400,9 @@ Before a downstream dispatcher is created, its status is
 ROTD_py execution record with:
 
 ```bash
-ls -lh ethane_profiled_hpc_run_v4/rotdPy/*.py
-cat ethane_profiled_hpc_run_v4/rotdPy/*.execution.json
-cat ethane_profiled_hpc_run_v4/rotdPy/*.rotdpy.json
+ls -lh ethane_profiled_hpc_run_v5/rotdPy/*.py
+cat ethane_profiled_hpc_run_v5/rotdPy/*.execution.json
+cat ethane_profiled_hpc_run_v5/rotdPy/*.rotdpy.json
 ```
 
 The command is restartable. Rerun the same `run.sh` command after an
@@ -412,16 +412,16 @@ the dispatcher's immutable state. For a failed dispatcher task, inspect its
 
 ```bash
 .venv/bin/python -m kinbot.anl.dispatch retry \
-  ethane_profiled_hpc_run_v4/anl_interface TASK_ID
+  ethane_profiled_hpc_run_v5/anl_interface TASK_ID
 .venv/bin/python -m kinbot.anl.dispatch drive \
-  ethane_profiled_hpc_run_v4/anl_interface --interval 20
+  ethane_profiled_hpc_run_v5/anl_interface --interval 20
 ```
 
 Review the final machine-readable report:
 
 ```bash
-cat ethane_profiled_hpc_run_v4/anl_interface_audit.json
-cat ethane_profiled_hpc_run_v4/kinbot_gate.json
+cat ethane_profiled_hpc_run_v5/anl_interface_audit.json
+cat ethane_profiled_hpc_run_v5/kinbot_gate.json
 ```
 
 The report is acceptable for this validation only when every task is
@@ -434,7 +434,7 @@ Do not resume an older run directory that already recorded failed HIR or
 pulling this fix, for example:
 
 ```bash
-export KINBOT_PROFILED_TEST_DIR="$PWD/ethane_profiled_hpc_run_v4"
+export KINBOT_PROFILED_TEST_DIR="$PWD/ethane_profiled_hpc_run_v5"
 ```
 
 ## Remaining decisions before the production end-to-end test

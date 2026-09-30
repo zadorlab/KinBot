@@ -30,8 +30,8 @@ if '{Code}' == 'Gaussian':
 
 basename = os.path.basename('{label}')
 
-if os.path.isfile(f'{{basename}}_sella.log'):
-    os.remove(f'{{basename}}_sella.log')
+if os.path.isfile('{label}_sella.log'):
+    os.remove('{label}_sella.log')
 
 sella_kwargs = {sella_kwargs}
 if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
@@ -39,20 +39,20 @@ if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
 opt = Sella(mol, 
             order={order}, 
             constraints=const,
-            trajectory=f'{{basename}}.traj', 
-            logfile=f'{{basename}}_sella.log',
+            trajectory='{label}.traj',
+            logfile='{label}_sella.log',
             **sella_kwargs)
 
 try:
     converged = opt.run(fmax={fmax}, steps={steps})
 except Exception as error:
-    with open(f'{{basename}}_sella.log', 'a') as f:
+    with open('{label}_sella.log', 'a') as f:
         f.write(f'Constrained optimization failed: '
                 f'{{type(error).__name__}}: {{error}}\n')
     converged = False
-if os.path.isfile(f'{{basename}}.traj'):
-    traj = read(f'{{basename}}.traj', index=':')
-    write(f'{{basename}}.xyz', traj, format='xyz')
+if os.path.isfile('{label}.traj'):
+    traj = read('{label}.traj', index=':')
+    write('{label}.xyz', traj, format='xyz')
 if converged:
     e = mol.get_potential_energy()
     db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
@@ -63,5 +63,5 @@ else:
 if os.path.isdir(f'{{basename}}'):
     shutil.rmtree(f'{{basename}}')
 
-with open(f'{{basename}}_sella.log', 'a') as f:
+with open('{label}_sella.log', 'a') as f:
     f.write('done\n')

@@ -3,6 +3,8 @@
 from contextlib import contextmanager
 import os
 
+from kinbot.network import without_invalid_generic_proxy
+
 
 def _gated_model_error(model):
     return RuntimeError(
@@ -24,16 +26,11 @@ def _enabled(name):
 @contextmanager
 def _offline_hub_environment():
     """Hide invalid generic SOCKS proxies during an offline cache lookup."""
-    removed = {}
     if _enabled('HF_HUB_OFFLINE'):
-        for name in ('ALL_PROXY', 'all_proxy'):
-            value = os.environ.get(name, '')
-            if value.lower().startswith('socks://'):
-                removed[name] = os.environ.pop(name)
-    try:
+        with without_invalid_generic_proxy():
+            yield
+    else:
         yield
-    finally:
-        os.environ.update(removed)
 
 
 def load_predictor(model, device):

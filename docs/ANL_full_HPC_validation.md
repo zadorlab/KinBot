@@ -217,6 +217,10 @@ mkdir -p "$HOME/.cache/kinbot/atct"
   1.220 "$HOME/.cache/kinbot/atct" C '[H][H]' --refresh
 ```
 
+KinBot temporarily ignores a nonstandard `socks://` value in `ALL_PROXY`
+during ATcT requests while preserving the site's `HTTP_PROXY` and
+`HTTPS_PROXY` settings, then restores the original environment.
+
 The command must report version `1.220` and a SHA-256 digest. If the live API
 has advanced, KinBot fails the version check so the new table can be reviewed
 and deliberately pinned rather than silently changing CBH reference data.

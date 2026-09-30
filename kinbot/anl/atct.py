@@ -21,6 +21,8 @@ import re
 from typing import Iterable, Mapping
 from urllib.request import urlopen
 
+from kinbot.network import without_invalid_generic_proxy
+
 
 ATCT_API_URL = 'https://atct.anl.gov/api/v1/'
 ATCT_API_ALL_URL = ATCT_API_URL + 'all/'
@@ -289,8 +291,9 @@ def load_atct(version: str, cache_dir: str | Path, *,
     cache = Path(cache_dir)
     path = cache / f'atct_{version}.json'
     if refresh or not path.is_file():
-        with urlopen(ATCT_API_ALL_URL, timeout=30) as response:
-            raw = response.read()
+        with without_invalid_generic_proxy():
+            with urlopen(ATCT_API_ALL_URL, timeout=30) as response:
+                raw = response.read()
         table = parse_atct_api(raw, version)
         _write_cache(path, raw)
         return table
@@ -305,26 +308,29 @@ def _fetch_reference_records(smiles: Iterable[str],
     except ImportError as exc:  # pragma: no cover - dependency is declared
         raise ImportError("Install KinBot's 'atct' dependency.") from exc
     records = {}
-    for value in sorted(set(smiles)):
-        if value in reference_ids:
-            species = get_species_by_atctid(reference_ids[value], block=True)
-            candidates = [species]
-        else:
-            page = get_species_by_smiles(value, limit=100, offset=0, block=True)
-            if page.total > len(page.items):
-                raise RuntimeError(
-                    f'ATcT returned more than 100 states for {value!r}; '
-                    'select explicit ATcT IDs.')
-            candidates = page.items
-        for species in candidates:
-            record = species.to_dict()
-            # atct 1.0.1 models the numeric values but omits the API's
-            # ``units`` field when converting Species back to a dictionary.
-            # API v1 thermochemical values are returned in kJ/mol.
-            record['units'] = (None if
-                               record.get('∆fH_298K_uncertainty') == 'exact'
-                               else 'kJ/mol')
-            records[record['ATcT_ID']] = record
+    with without_invalid_generic_proxy():
+        for value in sorted(set(smiles)):
+            if value in reference_ids:
+                species = get_species_by_atctid(reference_ids[value],
+                                                block=True)
+                candidates = [species]
+            else:
+                page = get_species_by_smiles(value, limit=100, offset=0,
+                                             block=True)
+                if page.total > len(page.items):
+                    raise RuntimeError(
+                        f'ATcT returned more than 100 states for {value!r}; '
+                        'select explicit ATcT IDs.')
+                candidates = page.items
+            for species in candidates:
+                record = species.to_dict()
+                # atct 1.0.1 models the numeric values but omits the API's
+                # ``units`` field when converting Species back to a dictionary.
+                # API v1 thermochemical values are returned in kJ/mol.
+                record['units'] = (None if
+                                   record.get('∆fH_298K_uncertainty') == 'exact'
+                                   else 'kJ/mol')
+                records[record['ATcT_ID']] = record
     return [records[key] for key in sorted(records)]
 
 

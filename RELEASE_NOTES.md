@@ -237,6 +237,9 @@ the total calculation time.
 H2 elimination now rejects longer ring walks when an equivalent shorter search
 was removed as a duplicate. Distinct stereochemical paths remain separate in
 PESViewer output, also when their barriers differ by less than 1 kcal/mol.
+An exact stereoisomer entry takes priority over a connectivity entry in
+`vrc_tst_scan` and `vrc_tst_noscan`, including an empty list. The same rule
+applies before VRC calculations and when PES writes rotdPy input.
 The initial species reconstruction keeps its checked frequencies. Input-only
 MESS writing converts collision-energy units in the same way as normal writing.
 Three-fragment product names agree with each other through PES assembly.

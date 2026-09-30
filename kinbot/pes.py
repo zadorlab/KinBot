@@ -1375,9 +1375,8 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
 
     for index, reac in enumerate(barrierless):
         reactant, reac_name, products, barrier = reac
-        selected = lambda settings: any(matches_name(reactant, [key])
-                                        and matches_name(reac_name, reactions)
-                                        for key, reactions in settings.items())
+        selected = lambda settings: matches_name(
+            reac_name, settings.get(reactant, settings.get(connectivity_name(reactant), [])))
         if not selected(par['vrc_tst_scan']) and not selected(par['vrc_tst_noscan']):
             continue
         if selected(par['vrc_tst_noscan']):

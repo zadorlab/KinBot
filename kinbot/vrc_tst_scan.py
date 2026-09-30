@@ -51,26 +51,17 @@ class VTS:
         """
         # structure of par['vrc_tst_scan']:
         # {chemid1: ["reaction_name1","reaction_name2], chemid2: [...]}
-        for chemid, reactions in self.par['vrc_tst_scan'].items():
-            # select the part of the input relevant for this kb
-            if matches_name(routing_name(self.well), [chemid]):
-                reactions = self.configured_reactions(reactions)
-                self.opt_products(reactions)
-                self.save_products(reactions)
-                self.find_scan_coos(reactions)
-                self.find_equiv(reactions)
-                jobs = self.do_scan(reactions)
-                self.energies(reactions)
-        for chemid, reactions in self.par['vrc_tst_noscan'].items():
-            # select the part of the input relevant for this kb
-            if matches_name(routing_name(self.well), [chemid]):
-                reactions = self.configured_reactions(reactions)
-                self.opt_products(reactions)
-                self.save_products(reactions)
-                self.find_scan_coos(reactions)
-                self.find_equiv(reactions)
-                jobs = self.do_scan(reactions, noscan=True)
-                self.energies(reactions, noscan=True)
+        for option, noscan in (('vrc_tst_scan', False), ('vrc_tst_noscan', True)):
+            reactions = self.configured_reactions(
+                configured_selection(self.par[option], self.well, []))
+            if not reactions:
+                continue
+            self.opt_products(reactions)
+            self.save_products(reactions)
+            self.find_scan_coos(reactions)
+            self.find_equiv(reactions)
+            self.do_scan(reactions, noscan=noscan)
+            self.energies(reactions, noscan=noscan)
         return
 
     def configured_reactions(self, reactions):

@@ -3,10 +3,12 @@
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
+import json
 
 import pytest
 
-from kinbot.anl.atct import load_atct, parse_atct_html
+from kinbot.anl.atct import (load_atct, load_atct_references,
+                             parse_atct_api, parse_atct_html)
 from kinbot.anl.cbh import (HARTREE_TO_KJ_MOL, ZeroKEnergy,
                             generate_cbh_reaction, generate_for_stationary_point,
                             select_cbh_ladder, solve_formation_enthalpy)
@@ -40,6 +42,21 @@ def _table():
     return raw, parse_atct_html(raw, '1.222')
 
 
+def _api_payload():
+    return json.dumps([
+        {'ATcT_TN_Version': '1.220', 'ATcT_ID': '1333-74-0*0',
+         'Name': 'Dihydrogen', 'Formula': 'H2  (g)',
+         'Delta_Hf_0K': '0', 'Delta_Hf_298K': '0',
+         'Delta_Hf298K_uncertainty': 'exact', 'unit': None,
+         'SMILES': '[H][H]'},
+        {'ATcT_TN_Version': '1.220', 'ATcT_ID': '74-82-8*0',
+         'Name': 'Methane', 'Formula': 'CH4  (g)',
+         '∆fH_0K': '-66.543', '∆fH_298K': '-74.513',
+         '∆fH_298K_uncertainty': '0.043', 'units': 'kJ/mol',
+         'SMILES': 'C'},
+    ], ensure_ascii=False).encode()
+
+
 def test_atct_pinned_reader_and_state_matching(tmp_path, monkeypatch):
     raw, table = _table()
     assert table.by_id('74-82-8*0').formation_0k_kj_mol == -66.544
@@ -49,18 +66,44 @@ def test_atct_pinned_reader_and_state_matching(tmp_path, monkeypatch):
         table.gas_by_smiles('N', formula={'N': 1, 'H': 3})
     with pytest.raises(ValueError, match='header'):
         parse_atct_html(raw, '1.220')
+    api_raw = _api_payload()
+    api_table = parse_atct_api(api_raw, '1.220')
+    assert api_table.by_id('74-82-8*0').formation_0k_kj_mol == -66.543
+    assert api_table.by_id('1333-74-0*0').exact
+    with pytest.raises(ValueError, match='expected 1.222'):
+        parse_atct_api(api_raw, '1.222')
+
     calls = []
 
     def fetch(url, timeout):
         calls.append(url)
-        return BytesIO(raw)
+        return BytesIO(api_raw)
 
     monkeypatch.setattr('kinbot.anl.atct.urlopen', fetch)
-    first = load_atct('1.222', tmp_path)
-    second = load_atct('1.222', tmp_path)
+    first = load_atct('1.220', tmp_path)
+    second = load_atct('1.220', tmp_path)
     assert first.source_sha256 == second.source_sha256
     assert len(calls) == 1
-    assert (Path(tmp_path) / 'atct_1.222.html').read_bytes() == raw
+    assert (Path(tmp_path) / 'atct_1.220.json').read_bytes() == api_raw
+
+
+def test_atct_client_reference_query_is_cached(tmp_path, monkeypatch):
+    calls = []
+
+    def fetch(smiles, reference_ids):
+        calls.append((tuple(smiles), dict(reference_ids)))
+        return json.loads(_api_payload())
+
+    monkeypatch.setattr('kinbot.anl.atct._fetch_reference_records', fetch)
+    first = load_atct_references(
+        ['C', '[H][H]'], '1.220', tmp_path,
+        reference_ids={'[H][H]': '1333-74-0*0'})
+    second = load_atct_references(
+        ['[H][H]', 'C'], '1.220', tmp_path,
+        reference_ids={'[H][H]': '1333-74-0*0'})
+    assert first.source_sha256 == second.source_sha256
+    assert first.gas_by_smiles('C', formula={'C': 1, 'H': 4}).atct_id == '74-82-8*0'
+    assert len(calls) == 1
 
 
 def test_original_cbh_rungs_from_smiles_connectivity():

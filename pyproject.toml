@@ -39,6 +39,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry"
 ]
 dependencies = [
+        "atct>=1.0.1,<2",
         "numpy>=1.17.0",
         "ase>=3.26",
         "networkx",

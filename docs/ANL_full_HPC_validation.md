@@ -16,10 +16,10 @@ The supplied ethane run performs these real operations:
 3. The accepted homolytic scission bypasses stationary-saddle frequency
    validation. KinBot prepares the VRC asymptote with Gaussian, dispatches the
    sampling/high-level Molpro corrections on exclusive nodes, and writes a
-   runnable rotdPy input. This validation stops before rotdPy execution.
+   runnable rotdPy input and executes its reduced Slurm/Molpro sampling.
 4. A machine-readable gate requires the accepted channel, both methyl product
    entries, four normal parent hindered-rotor points, a consistent VRC
-   correction record, and a nonempty rotdPy input.
+   correction record, and a completed, hash-verified rotdPy result.
 5. The accepted L2 parent geometry enters the exclusive-node dispatcher.
 6. Molpro performs the CCSD(T)/cc-pVTZ ASE/Sella L3 geometry calculation.
 7. After that geometry succeeds, Molpro harmonic, F12/TZ, F12/QZ, and
@@ -33,8 +33,9 @@ partition function. `hom_sci` itself has no stationary transition state and
 therefore has no transition-state Hessian or one-imaginary-frequency test.
 The generated rotdPy smoke input is intentionally small: one dividing-surface
 distance, small temperature/energy/angular grids, at most eight samples, and
-one concurrent Molpro sampling job. The current run validates input creation
-only. It does not execute rotdPy or establish production VRC convergence.
+one concurrent Molpro sampling job. It validates execution, parsing, and
+restart records; it does not
+establish production VRC convergence.
 
 The final audit must say:
 
@@ -168,29 +169,49 @@ PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install --upgrade pip
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e '.[fc]'
 ```
 
-rotdPy is not required for the current input-generation test. For the later
-execution test, note that it is a separate source distribution and does not
-have a `rotdpy` or `rotd-py` release on PyPI. Obtain the source checkout used
-by the KinBot VRC interface from the rotdPy maintainers, then install it into
-this same environment. Replace the example path with the checkout location:
+ATcT's public `atct` client is now a KinBot dependency and is installed by the
+preceding command. ROTD_py remains private and is pinned as a KinBot
+submodule. Initialize and install that exact revision into the same environment:
 
 ```bash
-PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e /path/to/rotdPy
-git -C /path/to/rotdPy rev-parse HEAD
+git submodule sync --recursive
+git submodule update --init --recursive
+PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e external/ROTD_py
+git -C external/ROTD_py rev-parse HEAD
 .venv/bin/python - <<'PY'
+import atct
 from rotd_py.flux.fluxbase import FluxBase
 from rotd_py.new_multi import Multi
 from rotd_py.sample.multi_sample import MultiSample
-print('rotdPy imports OK')
+from kinbot.rotdpy import ensure_available
+print('ATcT and rotdPy imports OK')
+print(ensure_available())
 PY
 ```
 
-The import name must be `rotd_py`. KinBot fails before starting licensed VRC
-jobs when `rotdpy_run` is enabled and that package is absent. Installing the
-unrelated PyPI package named `rtdpy` does not satisfy this prerequisite.
-Record the rotdPy source revision with the external run results; the package
-cannot be pinned by KinBot until its distribution URL and supported revision
-are supplied.
+The import name is `rotd_py`. KinBot fails before licensed VRC jobs when the
+pinned package or one of its runtime dependencies is unavailable. The executor
+records the installed package location and Git revision.
+
+If the private submodule cannot authenticate over HTTPS, point only that
+submodule at SSH and repeat the update:
+
+```bash
+git config submodule.external/ROTD_py.url git@github.com:zadorlab/ROTD_py.git
+git submodule update --init --recursive
+```
+
+Prime and verify a small pinned ATcT API cache on the networked login node:
+
+```bash
+mkdir -p "$HOME/.cache/kinbot/atct"
+.venv/bin/python -m kinbot.anl.atct \
+  1.220 "$HOME/.cache/kinbot/atct" C '[H][H]' --refresh
+```
+
+The command must report version `1.220` and a SHA-256 digest. If the live API
+has advanced, KinBot fails the version check so the new table can be reviewed
+and deliberately pinned rather than silently changing CBH reference data.
 
 FAIR Chemistry's UMA checkpoint is gated on Hugging Face. Request access to
 `facebook/UMA`, create a token with read access to public gated repositories,
@@ -289,6 +310,9 @@ env -u LD_LIBRARY_PATH -u LD_PRELOAD git pull --ff-only origin composite
 export KINBOT_CA_FILE=/etc/ssl/certs/ca-certificates.crt
 export PIP_CERT="$KINBOT_CA_FILE"
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e '.[fc]'
+git submodule sync --recursive
+git submodule update --init --recursive
+PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e external/ROTD_py
 ```
 
 Run the local suite before spending licensed-code allocation:
@@ -342,7 +366,7 @@ simultaneous exclusive nodes for both the VRC Molpro correction stage and the
 ANL dispatcher after the L3 geometry succeeds. The
 optional third argument is the FairChem registered model name or local
 checkpoint path; the local path is required for the documented offline HPC
-run. The test directory defaults to `~/KinBot/ethane_profiled_hpc_run_v3`;
+run. The test directory defaults to `~/KinBot/ethane_profiled_hpc_run_v4`;
 override it with `KINBOT_PROFILED_TEST_DIR`.
 
 Monitor either layer with:
@@ -351,19 +375,20 @@ Monitor either layer with:
 cd ~/KinBot
 squeue -u "$USER"
 .venv/bin/python -m kinbot.anl.dispatch status \
-  ethane_profiled_hpc_run/anl_interface
+  ethane_profiled_hpc_run_v4/anl_interface
 .venv/bin/python -m kinbot.anl.dispatch status \
-  ethane_profiled_hpc_run/vrctst/molpro/dispatch
-tail -f ethane_profiled_hpc_run/kinbot.log
+  ethane_profiled_hpc_run_v4/vrctst/molpro/dispatch
+tail -f ethane_profiled_hpc_run_v4/kinbot.log
 ```
 
-For the default fresh run, replace `ethane_profiled_hpc_run` in those monitor
-commands with `ethane_profiled_hpc_run_v3`. Inspect and syntax-check the
-generated rotdPy input without installing rotdPy:
+Before a downstream dispatcher is created, its status is
+`{"workflow": "not_prepared"}`. Inspect the generated input and completed
+ROTD_py execution record with:
 
 ```bash
-ls -lh ethane_profiled_hpc_run_v3/rotdPy/*.py
-.venv/bin/python -m py_compile ethane_profiled_hpc_run_v3/rotdPy/*.py
+ls -lh ethane_profiled_hpc_run_v4/rotdPy/*.py
+cat ethane_profiled_hpc_run_v4/rotdPy/*.execution.json
+cat ethane_profiled_hpc_run_v4/rotdPy/*.rotdpy.json
 ```
 
 The command is restartable. Rerun the same `run.sh` command after an
@@ -395,7 +420,7 @@ Do not resume an older run directory that already recorded failed HIR or
 pulling this fix, for example:
 
 ```bash
-export KINBOT_PROFILED_TEST_DIR="$PWD/ethane_profiled_hpc_run_v3"
+export KINBOT_PROFILED_TEST_DIR="$PWD/ethane_profiled_hpc_run_v4"
 ```
 
 ## Remaining decisions before the production end-to-end test
@@ -408,7 +433,7 @@ export KINBOT_PROFILED_TEST_DIR="$PWD/ethane_profiled_hpc_run_v3"
    before kinetics can be considered validated.
 3. Enable MRCC for the CCSDTQ(P) increment, or explicitly define the highest
    allowed fallback when MRCC is unavailable.
-4. Select the ATcT release/update policy and freeze a reviewed local snapshot
-   with hashes for reproducible CBH results.
+4. Review and approve the cached ATcT `1.220` reference set for the first CBH
+   network calculation; retain its JSON and SHA-256 with the run.
 5. Provide the site MESS/MESSPF commands and compare the internal NASA7 fit
    against PAC99 before production thermochemistry is released.

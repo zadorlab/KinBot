@@ -11,5 +11,7 @@ calc = {{
 'mem': {mem},
 'processors': {processors},
 'queue': '{queue}',
-'max_jobs': {max_jobs}
+'max_jobs': {max_jobs},
+'max_retries': {max_retries},
+'poll_interval': {poll_interval}
 }}

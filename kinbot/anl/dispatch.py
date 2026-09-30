@@ -985,6 +985,8 @@ def _summary(spec, state):
 def refresh_status(run_dir):
     """Reconcile finished jobs before reporting, without submitting QC work."""
     run_dir = Path(run_dir).resolve()
+    if not (run_dir / 'workflow.json').is_file():
+        return {'workflow': 'not_prepared'}
     with (run_dir / 'drive.lock').open('w') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -1026,7 +1028,9 @@ def main(argv=None):
     elif args.action == 'run-task':
         run_task(args.task_file)
     elif args.action == 'status':
-        if args.cached:
+        if args.cached and not (Path(args.run_dir) / 'workflow.json').is_file():
+            summary = {'workflow': 'not_prepared'}
+        elif args.cached:
             _, spec, state = _load(args.run_dir)
             summary = _summary(spec, state)
         else:

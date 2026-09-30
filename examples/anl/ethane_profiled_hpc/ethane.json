@@ -20,11 +20,15 @@
       "301020900180000000001_hom_sci_1_2"
     ]
   },
-  "rotdpy_run": 0,
+  "rotdpy_run": 1,
   "rotdpy_dist": [3.0],
   "pp_length": {"X": [0.25], "C": [0.25], "H": [0.125]},
+  "rotdPy_mem": 300,
   "rotdpy_processors": 1,
   "rotdpy_max_jobs": 1,
+  "rotdpy_max_retries": 2,
+  "rotdpy_poll_interval": 10,
+  "rotdpy_walltime": "04:00:00",
   "rotdpy_temperature_grid": [100.0, 100.0, 1.0, 3],
   "rotdpy_energy_grid": [0.0, 10.0, 1.0, 4],
   "rotdpy_angular_grid": [0.0, 1.0, 1.0, 4],

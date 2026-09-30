@@ -2,24 +2,32 @@
 
 ATcT identifies chemical *states*, not just formulas. A reference is selected
 by its ATcT ID or by an unambiguous gas-phase structure match. The source
-HTML and its digest remain part of every derived formation enthalpy.
+API response and its digest remain part of every derived formation enthalpy.
+The legacy HTML parser remains available for archived calculations.
 """
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from hashlib import sha256
 from html import unescape
 from functools import lru_cache
 from pathlib import Path
+import json
 import math
 import os
 import re
-from typing import Mapping
+from typing import Iterable, Mapping
 from urllib.request import urlopen
 
 
-ATCT_URL = 'https://atct.anl.gov/Thermochemical%20Data/version%20{version}/'
+ATCT_API_URL = 'https://atct.anl.gov/api/v1/'
+ATCT_API_ALL_URL = ATCT_API_URL + 'all/'
+ATCT_LEGACY_URL = ('https://atct.anl.gov/Thermochemical%20Data/'
+                   'version%20{version}/')
+# Kept as an import-compatible alias for historical callers.
+ATCT_URL = ATCT_LEGACY_URL
 _VERSION = re.compile(r'1\.\d+[a-z]?\Z')
 _ROW = re.compile(r'<tr\b[^>]*\bid="[^"]*\bi\d+[^" ]*[^>]*>.*?</tr>',
                   re.IGNORECASE | re.DOTALL)
@@ -179,26 +187,194 @@ def parse_atct_html(raw: bytes, version: str) -> ATcTTable:
             version=version, source_sha256=digest))
     if not records:
         raise ValueError('ATcT release contains no species rows.')
-    return ATcTTable(version, ATCT_URL.format(version=version), digest,
+    return ATcTTable(version, ATCT_LEGACY_URL.format(version=version), digest,
                      tuple(records))
 
 
-def load_atct(version: str, cache_dir: str | Path, *, refresh: bool = False) -> ATcTTable:
-    """Fetch once, then use the same pinned release until refresh is requested."""
+def _api_field(record: Mapping, *names: str):
+    for name in names:
+        if name in record:
+            return record[name]
+    return None
+
+
+def parse_atct_api(raw: bytes, version: str | None = None, *,
+                   source_url: str = ATCT_API_ALL_URL) -> ATcTTable:
+    """Parse either official v1 species schema into a reproducible table."""
+    digest = sha256(raw).hexdigest()
+    try:
+        payload = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError('ATcT API response is not valid JSON.') from exc
+    if isinstance(payload, dict) and isinstance(payload.get('items'), list):
+        payload = payload['items']
+    if not isinstance(payload, list) or not payload:
+        raise ValueError('ATcT API response contains no species records.')
+
+    versions = {str(_api_field(item, 'ATcT_TN_Version') or '')
+                for item in payload if isinstance(item, Mapping)}
+    if len(versions) != 1 or '' in versions:
+        raise ValueError('ATcT API response does not identify one table version.')
+    found_version = versions.pop()
+    if not _VERSION.fullmatch(found_version):
+        raise ValueError(f'Invalid ATcT API table version {found_version!r}.')
+    if version is not None and version != found_version:
+        raise ValueError(f'ATcT API returned {found_version}, expected {version}.')
+    version = found_version
+
+    records = []
+    ids = set()
+    for item in payload:
+        if not isinstance(item, Mapping):
+            raise ValueError('ATcT API species record is not an object.')
+        atct_id = str(_api_field(item, 'ATcT_ID') or '').strip()
+        if not atct_id:
+            raise ValueError('ATcT API species record has no ID.')
+        if atct_id in ids:
+            raise ValueError(f'Duplicate ATcT ID {atct_id}.')
+        ids.add(atct_id)
+        formula = ' '.join(str(_api_field(item, 'Formula') or '').split())
+        phase_match = re.search(r'\((g|l|cr|aq)(?:[,\s)]|$)', formula)
+        phase = phase_match.group(1) if phase_match else ''
+        uncertainty_raw = _api_field(
+            item, 'Delta_Hf298K_uncertainty', '∆fH_298K_uncertainty')
+        exact = (str(uncertainty_raw).strip().casefold() == 'exact')
+        uncertainty = (None if exact else
+                       _number(str(uncertainty_raw).strip()
+                               if uncertainty_raw is not None else '',
+                               '298 K uncertainty'))
+        h0_raw = _api_field(item, 'Delta_Hf_0K', '∆fH_0K')
+        h298_raw = _api_field(item, 'Delta_Hf_298K', '∆fH_298K')
+        h0 = _number(str(h0_raw).strip() if h0_raw is not None else '',
+                     '0 K enthalpy')
+        h298 = _number(str(h298_raw).strip() if h298_raw is not None else '',
+                       '298.15 K enthalpy')
+        units = str(_api_field(item, 'unit', 'units') or '').strip()
+        if (h0 is not None or h298 is not None) and not exact and units != 'kJ/mol':
+            raise ValueError(f'{atct_id}: unsupported ATcT unit {units!r}.')
+        if exact and (h0 not in (0.0, None) or h298 not in (0.0, None)):
+            raise ValueError(f'{atct_id}: nonzero value marked exact.')
+        records.append(ATcTRecord(
+            atct_id=atct_id,
+            name=str(_api_field(item, 'Name') or '').strip(),
+            preferred_formula=formula,
+            phase=phase,
+            smiles=str(_api_field(item, 'SMILES') or '').strip(),
+            formation_0k_kj_mol=h0,
+            formation_298k_kj_mol=h298,
+            # API v1 publishes the conventional 298 K uncertainty.  It is
+            # retained as metadata and is never substituted for a 0 K value.
+            uncertainty_kj_mol=uncertainty,
+            exact=exact,
+            version=version,
+            source_sha256=digest))
+    return ATcTTable(version, source_url, digest, tuple(records))
+
+
+def _write_cache(path: Path, raw: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + f'.{os.getpid()}.tmp')
+    try:
+        temporary.write_bytes(raw)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def load_atct(version: str, cache_dir: str | Path, *,
+              refresh: bool = False) -> ATcTTable:
+    """Cache the official bulk API response for one explicitly pinned version."""
     if not _VERSION.fullmatch(version):
         raise ValueError('ATcT version must be pinned.')
     cache = Path(cache_dir)
-    path = cache / f'atct_{version}.html'
+    path = cache / f'atct_{version}.json'
     if refresh or not path.is_file():
-        with urlopen(ATCT_URL.format(version=version), timeout=30) as response:
+        with urlopen(ATCT_API_ALL_URL, timeout=30) as response:
             raw = response.read()
-        table = parse_atct_html(raw, version)
-        cache.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(path.name + f'.{os.getpid()}.tmp')
-        try:
-            temporary.write_bytes(raw)
-            os.replace(temporary, path)
-        finally:
-            temporary.unlink(missing_ok=True)
+        table = parse_atct_api(raw, version)
+        _write_cache(path, raw)
         return table
-    return parse_atct_html(path.read_bytes(), version)
+    return parse_atct_api(path.read_bytes(), version)
+
+
+def _fetch_reference_records(smiles: Iterable[str],
+                             reference_ids: Mapping[str, str]) -> list[dict]:
+    """Use the public ``atct`` client for exact, rate-limited API queries."""
+    try:
+        from atct.api import get_species_by_atctid, get_species_by_smiles
+    except ImportError as exc:  # pragma: no cover - dependency is declared
+        raise ImportError("Install KinBot's 'atct' dependency.") from exc
+    records = {}
+    for value in sorted(set(smiles)):
+        if value in reference_ids:
+            species = get_species_by_atctid(reference_ids[value], block=True)
+            candidates = [species]
+        else:
+            page = get_species_by_smiles(value, limit=100, offset=0, block=True)
+            if page.total > len(page.items):
+                raise RuntimeError(
+                    f'ATcT returned more than 100 states for {value!r}; '
+                    'select explicit ATcT IDs.')
+            candidates = page.items
+        for species in candidates:
+            record = species.to_dict()
+            # atct 1.0.1 models the numeric values but omits the API's
+            # ``units`` field when converting Species back to a dictionary.
+            # API v1 thermochemical values are returned in kJ/mol.
+            record['units'] = (None if
+                               record.get('∆fH_298K_uncertainty') == 'exact'
+                               else 'kJ/mol')
+            records[record['ATcT_ID']] = record
+    return [records[key] for key in sorted(records)]
+
+
+def load_atct_references(smiles: Iterable[str], version: str,
+                         cache_dir: str | Path, *,
+                         reference_ids: Mapping[str, str] | None = None,
+                         refresh: bool = False) -> ATcTTable:
+    """Resolve and cache only the ATcT states needed by one CBH problem."""
+    if not _VERSION.fullmatch(version):
+        raise ValueError('ATcT version must be pinned.')
+    values = tuple(sorted(set(smiles)))
+    if not values:
+        raise ValueError('At least one ATcT reference SMILES is required.')
+    reference_ids = dict(reference_ids or {})
+    query = json.dumps({'smiles': values, 'ids': reference_ids},
+                       sort_keys=True, separators=(',', ':')).encode()
+    query_hash = sha256(query).hexdigest()[:16]
+    path = Path(cache_dir) / f'atct_{version}_refs_{query_hash}.json'
+    source_url = ATCT_API_URL
+    if refresh or not path.is_file():
+        payload = _fetch_reference_records(values, reference_ids)
+        raw = json.dumps(payload, ensure_ascii=False, sort_keys=True,
+                         separators=(',', ':')).encode()
+        table = parse_atct_api(raw, version, source_url=source_url)
+        _write_cache(path, raw)
+        return table
+    return parse_atct_api(path.read_bytes(), version, source_url=source_url)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description='Cache and verify a pinned ATcT v1 API snapshot.')
+    parser.add_argument('version', help='expected ATcT table version')
+    parser.add_argument('cache_dir', help='snapshot cache directory')
+    parser.add_argument('smiles', nargs='*',
+                        help='optional reference SMILES; omit for /all/')
+    parser.add_argument('--refresh', action='store_true')
+    args = parser.parse_args(argv)
+    table = (load_atct_references(
+        args.smiles, args.version, args.cache_dir, refresh=args.refresh)
+             if args.smiles else
+             load_atct(args.version, args.cache_dir, refresh=args.refresh))
+    print(json.dumps({
+        'version': table.version,
+        'records': len(table.records),
+        'source_url': table.source_url,
+        'source_sha256': table.source_sha256,
+    }, indent=2))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

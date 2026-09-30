@@ -305,7 +305,8 @@ class Parameters:
             'fc_device': 'cpu',
 
             # VRC-TST PARAMETERS
-            # Amount (Mb) of memory to use in rotdPy for each job during the sampling.
+            # Molpro memory stack in MW per MPI rank for each rotdPy sample.
+            # rotdPy converts this to a total Slurm allocation for all ranks.
             'rotdPy_mem': 300,
             # Execute generated rotdPy inputs as part of the KinBot workflow.
             # Input generation remains available when this is disabled.
@@ -315,6 +316,12 @@ class Parameters:
             # site-specific launcher in KinBot.
             'rotdpy_processors': 1,
             'rotdpy_max_jobs': 2000,
+            'rotdpy_max_retries': 2,
+            'rotdpy_poll_interval': 10,
+            'rotdpy_walltime': '24:00:00',
+            # Optional for sites that require a whole node for VRC samples.
+            # ANL L3 jobs remain exclusive independently of this setting.
+            'rotdpy_exclusive': 0,
             # [start, initial interval, interval multiplier, point count]
             'rotdpy_temperature_grid': [10., 10., 1.05, 70],
             'rotdpy_energy_grid': [0., 10., 1.05, 190],

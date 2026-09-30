@@ -148,10 +148,22 @@ def test_kinbot_gate_requires_accepted_reaction_hir_and_rotdpy():
         assert input_only['rotdpy_execution'] is None
         assert input_only['rotdpy_surfaces'] == 0
 
+        result_root = root / 'rotdPy' / f'kb_{reaction}'
+        surface = result_root / 'output' / 'surface_0.dat'
+        states = result_root / 'Ne_0.out'
+        surface.parent.mkdir(parents=True)
+        surface.write_text('surface flux\n')
+        states.write_text('0.0 1.0\n')
+        result_files = [str(states.relative_to(root / 'rotdPy')),
+                        str(surface.relative_to(root / 'rotdPy'))]
         (root / 'rotdPy' / f'{reaction}.rotdpy.json').write_text(
-            json.dumps({'schema': 1, 'status': 'complete',
+            json.dumps({'schema': 2, 'status': 'complete',
                         'reaction': reaction, 'surface_count': 1,
-                        'result_files': ['mcflux.out']}))
+                        'result_files': result_files,
+                        'result_sha256': {
+                            name: hashlib.sha256(
+                                (root / 'rotdPy' / name).read_bytes()).hexdigest()
+                            for name in result_files}}))
         (root / 'rotdPy' / f'{reaction}.execution.json').write_text(
             json.dumps({'schema': 1, 'status': 'complete', 'returncode': 0,
                         'input_sha256': hashlib.sha256(

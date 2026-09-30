@@ -4683,10 +4683,53 @@ comes from `vrc_tst_high_method`/`vrc_tst_high_basis`. Sampling grids, flux
 limits, process count, and the rotdPy queue limit are now ordinary KinBot
 parameters instead of template constants.
 
-The remaining external prerequisite for the deferred execution test is the actual rotdPy source distribution
-and a revision identifier from its maintainer. The `rotd_py` implementation is
-not included in KinBot and no matching package is published on PyPI. Once that
-checkout is installed on the HPC, the fresh ethane run is the compatibility
-test for its current constructor signatures, Slurm submission layer, Molpro
-renderer, and result files. Preserve the rotdPy revision and the generated
-sampling inputs with the validation artifacts.
+At this point the remaining external prerequisite was the actual rotdPy source
+distribution and a revision identifier from its maintainer. Section 95 records
+the later resolution through the pinned private submodule. Preserve the
+rotdPy revision and generated sampling inputs with the validation artifacts.
+
+---
+
+# 95. Official ATcT API and pinned ROTD_py execution (2026-09-30)
+
+The legacy ATcT HTML download is replaced for new calculations by the
+official v1 API at `https://atct.anl.gov/api/v1/`. The public `atct` Python
+client is a KinBot dependency and targeted CBH reference queries use its
+supported species methods. Bulk snapshots use the official `/all/` endpoint.
+Both endpoint schemas are normalized, their table version is checked against
+an explicit requested version, and the exact JSON plus SHA-256 digest is
+cached. The API currently reports table version `1.220`; a later live version
+fails the pin instead of silently changing reference enthalpies. The API only
+publishes a conventional 298 K uncertainty, so KinBot retains that field as
+metadata and does not represent it as a separate 0 K uncertainty.
+
+`atct` 1.0.1 drops the response `units` field in `Species.to_dict()`. KinBot
+restores the API-defined kJ/mol unit on those client objects before applying
+its normal unit checks. Raw bulk records still require an explicit supported
+unit. Historical HTML parsing remains available for archived fixtures and
+published provenance.
+
+The private `zadorlab/ROTD_py` repository is now a pinned Git submodule at
+`external/ROTD_py`. Its KinBot integration revision adds Python packaging,
+current-SciPy integration support, lazy Gaussian loading, and bounded Slurm
+retry behavior. Molpro sampling now uses the requested MPI rank count with one
+thread per rank, requests total Slurm memory equal to the configured per-rank
+MW stack times the rank count plus margin, retains launcher streams, and
+returns cleanly when no energy label is present. This prevents the previous
+rank/thread oversubscription and infinite read/retry loops.
+
+KinBot writes the `qu.tpl` required by `rotd_py.new_multi` using the active
+interpreter, configured partition, wall time, rank count, and total memory.
+The reduced ethane validation enables `rotdpy_run`, allows one concurrent
+sample, and requires the final surface flux and `Ne_0.out` files to exist and
+match hashes in the result manifest before the ANL interface smoke graph is
+started. This verifies the integration path but remains too small to establish
+production VRC convergence.
+
+The next development step remains the network-wide thermochemistry handoff:
+construct complete tier-matched 0 K energies for every well and product,
+resolve each generated CBH reference set from a reviewed cached ATcT snapshot,
+compute Hf(0), form the Hf(298) thermochemical fit, and emit MESS wells,
+products, stationary barriers, and VRC number-of-states data with the ANL
+formation-energy anchors. A stationary transition-state and IRC restart test
+is still required in addition to the barrierless ethane validation.

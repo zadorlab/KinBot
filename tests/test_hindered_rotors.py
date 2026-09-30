@@ -23,12 +23,13 @@ from kinbot.stereo_identity import canonical_identity
 
 
 def completed_hir(status=None):
-    species = SimpleNamespace(
-        natom=4, atom=['C'] * 4, name='rotor_test', chemid=123,
-        # This fixture tests fitted energies and statuses, not assignment.
-        optical_reference={'status': 'assigned', 'canonical_graphs': ('CCCC',)},
-        wellorts=0, energy=-100., dihed=[[0, 1, 2, 3], [1, 2, 3, 0]],
-    )
+    atoms = molecule('CH3CH2OH')
+    species = StationaryPoint('rotor_test', 0, 1,
+        atom=atoms.get_chemical_symbols(), geom=atoms.positions)
+    species.characterize()
+    species.optical_reference = canonical_identity(species)
+    species.chemid, species.energy = 123, -100.
+    species.dihed = [[0, 1, 2, 8], [3, 0, 1, 2]]
     hir = HIR(species, None, {
         'nrotation': 12, 'plot_hir_profiles': False, 'rotor_0_test': True,
     })
@@ -37,7 +38,7 @@ def completed_hir(status=None):
     hir.hir_energies = [
         (-100. + factor * (1 - np.cos(angles)) / constants.AUtoKCAL).tolist()
         for factor in (1., 3.)]
-    hir.hir_geoms = [[np.zeros((4, 3)) for _ in angles] for _ in range(2)]
+    hir.hir_geoms = [[species.geom.copy() for _ in angles] for _ in range(2)]
     species.hir = hir
     return hir
 
@@ -217,7 +218,7 @@ class TestHIRStatus(unittest.TestCase):
     def test_l1_hir_restart_refines_the_new_geometry_before_rescanning(self):
         hir = completed_hir()
         hir.species.wellorts = 1
-        hir.species.geom = np.zeros((4, 3))
+        hir.species.geom = np.zeros((hir.species.natom, 3))
         optimization = Optimize.__new__(Optimize)
         optimization.species, optimization.name = hir.species, hir.species.name
         optimization.par = {'conformer_search': 0, 'rotation_restart': 3, 'high_level': 0,
@@ -296,7 +297,7 @@ class TestHIRStatus(unittest.TestCase):
         optimization.species = hir.species
         optimization.name = hir.species.name
         optimization.qc = SimpleNamespace(
-            read_qc_hess=lambda *args: np.eye(12),
+            read_qc_hess=lambda *args: np.eye(3 * hir.species.natom),
             hessian_is_massweighted=lambda: False,
             qc='gauss',
         )
@@ -310,7 +311,6 @@ class TestHIRStatus(unittest.TestCase):
         optimization.defer_hir = False
         optimization.wait = 0
         optimization.log_name = lambda *args, **kwargs: 'test'
-        hir.species.geom = np.zeros((4, 3))
         with patch.object(hir, 'test_hir'), patch.object(hir, 'write_profile'), \
                 patch('kinbot.optimize.recover_hir_model', return_value=False), \
                 patch('kinbot.optimize.symmetry.calculate_symmetry'), \

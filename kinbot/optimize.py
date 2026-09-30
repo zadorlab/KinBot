@@ -15,7 +15,8 @@ from kinbot.conformer_records import update_member, hessian_record
 from kinbot.stereo_identity import optical_scope, configured_geometry_allowed
 from kinbot.conformers import Conformers
 from kinbot.calculation import (load_calculation_record, selected_calculation_job,
-                               publish_optimization_result)
+                               publish_optimization_result, geometry_reference,
+                               array_fingerprint)
 from kinbot.hindered_rotors import HIR, recover_hir_model
 from kinbot.molpro import Molpro
 from kinbot.orca import Orca
@@ -143,6 +144,12 @@ class Optimize:
             self.selected_job = job = recovery
         self.species.hess = hess.tolist()
         self.species.hessian_source_job = job
+        reference = geometry_reference(self.species)
+        weighted = self.qc.hessian_is_massweighted()
+        reference.update(hessian_source_job=job, hessian_sha256=array_fingerprint(hess),
+                         hessian_massweighted=weighted,
+                         hessian_unit=('hartree / (bohr^2 * amu)' if weighted else 'hartree / bohr^2'))
+        self.species.optical_hessian_reference = reference
         self._projection_source = job
         return True
 
@@ -490,7 +497,12 @@ class Optimize:
                         and self.par['rotor_scan']
                         and not self.just_high
                         and not getattr(self, '_projection_failure', None)):
-                    if not recover_hir_model(self.species, self.qc, self.par):
+                    recovered = recover_hir_model(self.species, self.qc, self.par,
+                                                  allow_qc=True, wait=self.wait)
+                    if recovered is None:
+                        self.shir = 0
+                        return 0
+                    if not recovered:
                         fr_file = selected_calculation_job(self)
                         hess = (self.species.hess
                                 if getattr(self, '_projection_source', None) == fr_file

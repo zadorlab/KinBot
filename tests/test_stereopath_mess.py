@@ -250,7 +250,7 @@ class TestStereopathMESS(unittest.TestCase):
                 union_stereochemical_barriers([first, second])
 
     def test_existing_mirror_coverage_contract_is_used_for_classified_routes(self):
-        writer = MESS(self.par, peroxy())
+        writer = MESS(dict(self.par, rotor_scan=1), peroxy())
         # Reuse measured methanol TS/scan evidence as a coverage fixture. This
         # does not classify methanol's homotopic methyl sites as diastereotopic.
         for run, divisor in [('MeOH_H', .5), ('MeOH_H_rotor', 1.)]:
@@ -262,7 +262,6 @@ class TestStereopathMESS(unittest.TestCase):
         self.assertEqual(writer._parent_symmetry(ts), .5)
         self.assertEqual(ts.reduced_freqs, ts.freq)
         self.assertEqual(ts.rotor_projection['internal_rank'], 0)
-        writer.par['rotor_scan'] = 1
         self.assertIn('kept as a harmonic oscillator', writer.make_rotors(ts, 1.))
 
     def test_pes_path_queries_preserve_parallel_routes(self):

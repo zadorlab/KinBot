@@ -12,7 +12,7 @@ import networkx as nx
 from kinbot import constants
 from kinbot.molecular_symmetry import (chemical_graph, _physical_role_graphs,
                                       _preserves_resonance, OPTICAL_RMSD_TOLERANCE)
-from kinbot.stereo_identity import optical_scope, canonical_identity
+from kinbot.stereo_identity import optical_scope, canonical_identity, configured_geometry_allowed
 
 METHOD = 'anchored-parts-v1'
 # Measured scan witnesses must still identify the same calculated structure.
@@ -28,6 +28,8 @@ def unresolved_optical_default(result):
             'Rigid mirror comparison is numerically undetermined.',
             'The represented motions do not establish mirror coverage or retained handedness.',
             'Uncertain explicit mirror coverage.',
+            'A successful HIR point lacks stored geometry for mirror comparison.',
+            'Allowed scan configurations do not establish coverage of the selected mirror.',
             'Multiple relaxed rotor coordinates independently contain the same mirror; overlapping coverage is unresolved.',
             'The mirror witness coincides with the reference under the assigned rotor periods; coverage is not established.')):
         return dict(result, remaining_multiplier=1., fallback='unresolved_symmetry')
@@ -265,7 +267,15 @@ def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
         if size == 2:
             result.update(status='resolved', remaining_multiplier=2., reason='One rigid geometry omits its allowed mirror.')
         return result
-    observations, omitted = [], []
+    # Validate rotor definitions before any optical fallback. Missing scan
+    # coordinates cannot make an invalid torsional domain usable.
+    try:
+        parts = _Parts(species, rotors)
+    except ValueError as error:
+        if str(error) != 'Disconnected assemblies require an explicit relative-motion model.':
+            raise
+        parts = None
+    observations, omitted, missing_geometries = [], [], []
     measured = None
     for rotor in rotors:
         points = [p for p in rotor['points'] if p['status'] == 'successful']
@@ -275,13 +285,22 @@ def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
         if not points:
             result['reason'] = 'A represented rotor has no successful observations.'
             return result
+        measured_points = []
         for p in points:
             g, e = p.get('geometry_angstrom'), p.get('electronic_energy_hartree')
-            if (g is None or np.shape(g) != geom.shape or not np.all(np.isfinite(g))
-                    or e is None or not np.isfinite(e)):
-                result['reason'] = 'A successful HIR point lacks finite geometry or energy.'
+            if e is None or not np.isfinite(e):
+                result['reason'] = 'A successful HIR point lacks finite energy.'
+                return result
+            if g is None or np.shape(g) != geom.shape or not np.all(np.isfinite(g)):
+                missing_geometries.append(dict(rotor_index=rotor['index'], point_index=p['index']))
+                continue
+            if not configured_geometry_allowed(species, g, scope['population']):
+                result.update(reason='HIR scan contains a stereoisomer or pathway outside the requested calculation.',
+                              invalid_rotor_index=rotor['index'])
                 return result
             observations.append(g)
+            measured_points.append(p)
+        points = measured_points
         measured_tolerance = min(tolerance, SCAN_MIRROR_RMSD_TOLERANCE)
         anchors = [p for p in points if compare_rigid(species, geom, p['geometry_angstrom'], measured_tolerance,
                                                      reflected=False)['status'] == 'match']
@@ -319,6 +338,12 @@ def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
                     coverage['witnesses'].append(dict(witness, within_serialized_potential_period=
                         all(0 <= p['angle_offset_degrees'] < period for p in (a, b))))
                     coverage.update(status='observed_pair', covered=2)
+    if missing_geometries:
+        # The energies and projection are checked by the counting contract.
+        # Missing coordinates weaken the optical check, not the rotor potential.
+        result.update(reason='A successful HIR point lacks stored geometry for mirror comparison.',
+                      missing_scan_geometries=missing_geometries)
+        return unresolved_optical_default(result)
     if size == 1 or not scope['mirror_allowed']:
         result.update(status='resolved', remaining_multiplier=1., states_covered_by_hir=1,
                       reason='No additional allowed mirror.')
@@ -338,15 +363,12 @@ def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
             result.update(status='resolved', remaining_multiplier=2., states_covered_by_hir=1,
                           reason='The represented torsions retain the assigned fixed configuration.')
         else:
-            result['reason'] = 'Scan configuration changes do not establish coverage of the selected mirror.'
+            result['reason'] = 'Allowed scan configurations do not establish coverage of the selected mirror.'
         return result
-    try:
-        parts = _Parts(species, rotors)
-    except ValueError as error:
-        if str(error) != 'Disconnected assemblies require an explicit relative-motion model.':
-            raise
+    if parts is None:
         result.update(reason='The represented motions do not establish mirror coverage or retained handedness.',
-                      coordinate_coverage={'status': 'unsupported', 'reason': str(error)})
+                      coordinate_coverage={'status': 'unsupported',
+                          'reason': 'Disconnected assemblies require an explicit relative-motion model.'})
         return result
     comparison = parts.compare(geom, geom, tolerance, observations=observations)
     result['coordinate_coverage'] = dict(comparison, additional_qc_calculations=0,

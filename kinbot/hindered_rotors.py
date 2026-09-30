@@ -10,7 +10,7 @@ from kinbot import zmatrix
 from kinbot.frequencies import skip_rotor
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.calculation import geometry_reference
-from kinbot.reaction_path import path_geometry_allowed
+from kinbot.stereo_identity import configured_geometry_allowed, UnsupportedStereochemistry
 
 logger = logging.getLogger('KinBot')
 
@@ -36,73 +36,81 @@ def use_harmonic_model(species, par, reason):
                              for i in range(len(species.dihed))])
 
 
-def recover_hir_model(species, qc, par):
-    """Attempt existing scan recovery, then verify the complete thermal model."""
-    hir = getattr(species, 'hir', None)
-    if hir is None or par.get('multi_conf_tst') or not par.get('rotor_scan'):
-        return False
-    reference = (geometry_reference(species), species.dihed)
-    if getattr(hir, '_harmonic_fallback_reference', None) == reference:
-        return True  # Do not resubmit a failed recovery for the same input.
-    try:
-        changed = _recover_hir_model(species, qc, par)
-        if changed and species.dihed and not any(hir.is_valid_rotor(i)
-                                                for i in range(len(species.dihed))):
-            use_harmonic_model(species, par, 'No usable HIR scans remain after recovery')
-            return True
-        from kinbot.counting_contract import optical_counting
-        from kinbot.thermochemistry import hir_evidence
-        counting = optical_counting(species, hir_evidence(species))
-        if (counting['status'] == 'unresolved'
-                and counting.get('remaining_multiplier') is None):
-            use_harmonic_model(species, par, 'HIR recovery: ' + counting['reason'])
-            return True
-        return changed
-    except (ValueError, OSError, RuntimeError, AttributeError, IndexError) as error:
-        use_harmonic_model(species, par, f'HIR recovery failed: {error}')
-        return True
+def recover_hir_model(species, qc, par, *, allow_qc=False, wait=0):
+    """Validate scans and reproject their modes; only optimization may submit QC.
 
-
-def _recover_hir_model(species, qc, par):
-    """Repair stale scan bookkeeping or replace scans, then restore projection.
-
-    Existing calculation files are never discarded. A replacement uses the
-    requested input's stable job name, so a failed replacement is a terminal
-    failed scan rather than another reason to submit the same work again.
+    Return None while replacement scans are running, True after a repair or
+    harmonic fallback, and False when the existing thermal model is unchanged.
     """
     from kinbot import frequencies
     from kinbot.calculation import array_fingerprint
+    from kinbot.qc import QuantumChemistry
 
     hir = getattr(species, 'hir', None)
     if hir is None or par.get('multi_conf_tst') or not par.get('rotor_scan'):
         return False
-    if not getattr(species, 'source_job', None) or getattr(species, 'source_row_id', None) is None:
-        source = getattr(species, 'source_job', None) or getattr(species, 'hessian_source_job', None)
-        rows = list(qc.db.select(name=source)) if source and getattr(qc, 'db', None) is not None else []
-        if rows:
-            row = rows[-1]
-            energy = row.data.get('energy')
-            if (isinstance(energy, (int, float, np.number)) and np.isfinite(energy)
-                    and np.allclose(row.positions, species.geom, atol=1.e-6, rtol=0.)
-                    and np.isclose(energy * constants.EVtoHARTREE,
-                                   species.energy, atol=1.e-10, rtol=0.)
-                    and np.array_equal(row.data.get('frequencies'), species.freq)):
-                species.source_job, species.source_row_id = row.name, row.id
     reference = geometry_reference(species)
+    fallback_reference = (reference, species.dihed)
+    if (getattr(hir, '_harmonic_fallback_reference', None) == fallback_reference
+            and not (allow_qc and getattr(hir, 'scan_input_errors', None))):
+        return True
     reference.update(backend=getattr(qc, 'qc', None),
                      dihedrals=[list(map(int, rotor)) for rotor in species.dihed])
     previous = getattr(hir, 'scan_reference', None) or {}
     keys = ('geometry_sha256', 'atoms', 'dihedrals', 'source_job', 'source_row_id')
     scan_changed = any(previous.get(key) != reference.get(key) for key in keys)
-    from kinbot.thermochemistry import hir_evidence
-    observations_changed = any(
-        point['status'] == 'successful' and (point['geometry_angstrom'] is None
-                                            or point['electronic_energy_hartree'] is None)
-        for rotor in hir_evidence(species)['rotors'] if rotor['usable']
-        for point in rotor['points'])
-    scan_changed |= observations_changed
+    incompatible = []
+    if scan_changed:
+        previous_rotors = previous.get('dihedrals', [])
+        for rotor, definition in enumerate(species.dihed):
+            trusted = (all(previous.get(key) == reference.get(key)
+                           for key in ('geometry_sha256', 'atoms'))
+                       and rotor < len(previous_rotors)
+                       and previous_rotors[rotor] == list(definition))
+            if not trusted:
+                try:
+                    QuantumChemistry._check_hir_definition(hir.point_job(rotor, 0),
+                        [int(atom) + 1 for atom in definition], True,
+                        geometry=species.geom, atoms=species.atom)
+                    trusted = True
+                except (ValueError, OSError):
+                    pass
+            if not trusted:
+                incompatible.append(rotor)
+        if incompatible:
+            history = getattr(hir, 'recovery_observations', [])
+            history.append({key: copy.deepcopy(getattr(hir, key, None)) for key in
+                ('scan_reference', 'scan_jobs', 'hir_status', 'hir_raw_energies',
+                 'hir_energies', 'hir_geoms', 'point_observations')})
+            hir.recovery_observations = history
+        else:
+            logger.info('%s: recovered HIR reference from matching saved input.', species.name)
+        hir.scan_reference = reference
+    if not hasattr(hir, 'scan_input_errors'):
+        hir.scan_input_errors = {}
+    if allow_qc:
+        incompatible = sorted(set(incompatible) | set(hir.scan_input_errors))
+    scan_changed |= bool(incompatible)
+    hir.species = species
+    if allow_qc:
+        hir.qc = qc
+    if incompatible:
+        if allow_qc:
+            logger.warning('%s: replacing incompatible HIR scans %s; other scans are retained.',
+                           species.name, incompatible)
+            hir.generate_hir_geoms(np.asarray(species.geom).copy(),
+                                   par.get('rigid_hir', False), rotors=incompatible)
+        else:
+            for rotor in incompatible:
+                hir.scan_input_errors[rotor] = 'scan input differs from the selected geometry or rotor definition'
+            logger.warning('%s: incompatible HIR scans %s remain harmonic; no QC is submitted during export.',
+                           species.name, incompatible)
+    if allow_qc and any(value < 0 for status in hir.hir_status for value in status):
+        if not hir.check_hir(wait=wait):
+            return None
+
     projection = getattr(species, 'rotor_projection', None) or {}
-    projected_reference = projection.get('reference', {})
+    projected_reference = projection.get('reference') or {}
     projection_changed = any(projected_reference.get(key) != reference.get(key) for key in keys)
     entries = projection.get('rotors', [])
     flags = [entry.get('projected') for entry in entries]
@@ -110,7 +118,11 @@ def _recover_hir_model(species, qc, par):
     valid_indices = (all(isinstance(i, (int, np.integer)) and not isinstance(i, (bool, np.bool_))
                          for i in indices)
                      and sorted(indices) == list(range(len(species.dihed))))
-    hessian = np.asarray(getattr(species, 'hess', []))
+    try:
+        hessian = np.asarray(getattr(species, 'hess', []), dtype=float)
+    except (TypeError, ValueError) as error:
+        use_harmonic_model(species, par, f'The selected Hessian is not a numerical matrix: {error}')
+        return True
     projection_changed |= (not valid_indices
         or any(not isinstance(flag, (bool, np.bool_)) for flag in flags)
         or projection.get('internal_rank') != sum(bool(flag) for flag in flags)
@@ -121,75 +133,42 @@ def _recover_hir_model(species, qc, par):
         or not reference['source_job'] or reference['source_row_id'] is None)
     if not scan_changed and not projection_changed:
         return False
-    hir.species, hir.qc = species, qc
-    if scan_changed:
-        # A saved complete reference with identical Cartesian input proves a
-        # mere source-name/row change. Missing or different geometry evidence
-        # must instead be checked against the literal initial scan inputs.
-        trusted = not observations_changed and all(previous.get(key) == reference.get(key)
-                      for key in ('geometry_sha256', 'atoms', 'dihedrals'))
-        if not trusted and not observations_changed:
-            try:
-                for rotor, definition in enumerate(species.dihed):
-                    qc._check_hir_definition(hir.point_job(rotor, 0),
-                        [int(atom) + 1 for atom in definition], True,
-                        geometry=species.geom, atoms=species.atom)
-                trusted = True
-            except (ValueError, OSError, AttributeError):
-                trusted = False
-        if trusted:
-            logger.warning('%s: recovered HIR reference from matching saved input.', species.name)
-            hir.scan_reference = reference
-        else:
-            attempt = (reference['geometry_sha256'], repr(reference['dihedrals']))
-            if getattr(hir, '_recovery_attempt', None) == attempt:
-                logger.warning('%s: replacement HIR input remains inconsistent; retaining harmonic modes.', species.name)
-                hir.hir_status = [[1] * hir.nrotation for _ in species.dihed]
-                hir.scan_reference = reference
-            else:
-                hir._recovery_attempt = attempt
-                history = getattr(hir, 'recovery_observations', [])
-                history.append({key: copy.deepcopy(getattr(hir, key, None)) for key in
-                    ('scan_reference', 'scan_jobs', 'hir_status', 'hir_raw_energies',
-                     'hir_energies', 'hir_geoms', 'point_observations')})
-                hir.recovery_observations = history
-                logger.warning('%s: HIR inputs changed or lack supporting records; '
-                               'recomputing affected scans and preserving previous results.', species.name)
-                try:
-                    hir.generate_hir_geoms(np.asarray(species.geom).copy(), par.get('rigid_hir', False))
-                    hir.check_hir(wait=1)
-                except (ValueError, OSError, RuntimeError) as error:
-                    logger.warning('%s: replacement HIR failed (%s); retaining harmonic modes.',
-                                   species.name, error)
-                    hir.hir_status = [[1] * hir.nrotation for _ in species.dihed]
-                    hir.scan_reference = reference
-    # Always start with the selected Cartesian Hessian, never the previously
-    # reduced frequencies. Failed replacement rotors therefore keep their mode.
+
     hir.projection_status = []
+    if species.dihed and not any(hir.is_valid_rotor(i) for i in range(len(species.dihed))):
+        use_harmonic_model(species, par, 'No usable HIR scans remain')
+        return True
+
+    # The original Hessian must belong to this geometry, atom order and selected
+    # database row. Export does not read QC output or request a new Hessian.
+    references = [getattr(species, 'optical_hessian_reference', None), projected_reference]
+    hessian_reference = next((ref for ref in references if ref
+        and all(ref.get(key) == reference.get(key) for key in
+                ('geometry_sha256', 'atoms', 'source_job', 'source_row_id'))
+        and reference['source_job'] and reference['source_row_id'] is not None
+        and ref.get('hessian_sha256') == array_fingerprint(hessian)
+        and isinstance(ref.get('hessian_massweighted'), (bool, np.bool_))
+        and ref.get('hessian_unit') == ('hartree / (bohr^2 * amu)'
+            if ref['hessian_massweighted'] else 'hartree / bohr^2')), None)
+    if (hessian.shape != (3 * species.natom, 3 * species.natom)
+            or not np.all(np.isfinite(hessian)) or hessian_reference is None):
+        use_harmonic_model(species, par, 'HIR has no full Hessian associated with the selected calculation')
+        return True
+    hir.projection_status = []
+    hir.__dict__.pop('projection_failure', None)
     try:
-        hessian = np.asarray(getattr(species, 'hess', []), dtype=float)
-        shape = (3 * species.natom, 3 * species.natom)
-        source = getattr(species, 'source_job', None)
-        if not source or getattr(species, 'source_row_id', None) is None:
-            raise ValueError('selected calculation source is not established')
-        if (hessian.shape != shape or not np.all(np.isfinite(hessian))
-                or getattr(species, 'hessian_source_job', None) != source):
-            if not source:
-                raise ValueError('selected Hessian source is unknown')
-            hessian = np.asarray(qc.read_qc_hess(source, species.natom), dtype=float)
-        if hessian.shape != shape or not np.all(np.isfinite(hessian)):
-            raise ValueError('selected Hessian is unavailable')
-        species.hess = hessian.tolist()
-        species.hessian_source_job = source
-        hir.__dict__.pop('projection_failure', None)
         species.kinbot_freqs, species.reduced_freqs = frequencies.get_frequencies(
-            species, hessian, np.asarray(species.geom), massweighted=qc.hessian_is_massweighted())
-    except (ValueError, OSError, RuntimeError, AttributeError) as error:
-        reason = f'HIR recovery has no usable selected Hessian: {error}'
-        use_harmonic_model(species, par, reason)
+            species, hessian, np.asarray(species.geom),
+            massweighted=hessian_reference['hessian_massweighted'])
+    except np.linalg.LinAlgError as error:
+        use_harmonic_model(species, par, f'HIR frequency projection failed: {error}')
+        return True
     for attr in ('kinbot_freqs', 'reduced_freqs'):
         setattr(species, attr, frequencies.thermochemical_frequencies(
             getattr(species, attr), species.wellorts, par.get('imagfreq_threshold', 50.)))
+    summary = hir.demoted_rotor_summary()
+    if summary:
+        logger.warning('%s', summary)
     return True
 
 
@@ -234,36 +213,43 @@ class HIR:
         self.point_observations = []
         self.demotion_reason = None
         self.statuses_before_demotion = None
+        self.scan_input_errors = {}
 
-    def generate_hir_geoms(self, cart, rigid):
+    def generate_hir_geoms(self, cart, rigid, rotors=None):
         """
         Generate the initial geometries of the points along the scans
         """
-        # re-initialize the lists in case of a restart of the HIR scans
-        self.hir_status = []
-        self.hir_energies = []
-        self.hir_raw_energies = []
-        self.hir_fourier = []
-        self.hir_fit_diagnostics = []
+        # A changed rotor does not discard compatible scans of other rotors.
+        selected = set(range(len(self.species.dihed)) if rotors is None else rotors)
+        fields = {
+            'hir_status': lambda: [-1] * self.nrotation,
+            'hir_energies': lambda: [-1] * self.nrotation,
+            'hir_raw_energies': lambda: None,
+            'hir_fourier': lambda: None,
+            'hir_fit_diagnostics': lambda: None,
+            'scan_jobs': lambda: [None] * self.nrotation,
+            'hir_geoms': lambda: [[] for _ in range(self.nrotation)],
+            'point_observations': lambda: [None] * self.nrotation,
+        }
+        for field, empty in fields.items():
+            old = getattr(self, field)
+            setattr(self, field, [empty() if i in selected or i >= len(old) else old[i]
+                                 for i in range(len(self.species.dihed))])
+        for rotor in selected:
+            self.scan_input_errors.pop(rotor, None)
+        self.__dict__.pop('projection_failure', None)
+        self.__dict__.pop('_harmonic_fallback_reference', None)
         self.projection_status = []
-        self.scan_jobs = []
         self.rigid_scan = bool(rigid)
-        self.hir_geoms = []
         self.scan_reference = geometry_reference(self.species, cart)
         self.scan_reference['backend'] = getattr(self.qc, 'qc', None)
         self.scan_reference['dihedrals'] = [list(map(int, rotor)) for rotor in self.species.dihed]
-        self.point_observations = []
         self.demotion_reason = None
         self.statuses_before_demotion = None
 
-        while len(self.hir_status) < len(self.species.dihed):
-            self.hir_status.append([-1 for i in range(self.nrotation)])
-            self.scan_jobs.append([None for i in range(self.nrotation)])
-            self.hir_energies.append([-1 for i in range(self.nrotation)])
-            self.hir_geoms.append([[] for i in range(self.nrotation)])
-            self.point_observations.append([None for i in range(self.nrotation)])
-
         for rotor in range(len(self.species.dihed)):
+            if rotor not in selected:
+                continue
             if skip_rotor(self.species.name, self.species.dihed[rotor]) == 1:
                 self.hir_status[rotor] = [2 for i in range(self.nrotation)]
                 logger.info('\tFor {} rotor {} was skipped in HIR.'.format(self.species.name, rotor))
@@ -347,9 +333,10 @@ class HIR:
                                                atom=self.species.atom,
                                                geom=geom)
                         temp.characterize()
-                        if not path_geometry_allowed(self.species, geom):
+                        stereo_error = self._configuration_error(geom)
+                        if stereo_error:
                             success = -1
-                            reason = 'scan crosses into a different stereochemical pathway'
+                            reason = stereo_error
                         elif geometry.equal_geom(self.species,
                                                temp,
                                                0.15):
@@ -398,6 +385,16 @@ class HIR:
 
         return 0
 
+    def _configuration_error(self, geom):
+        try:
+            allowed = configured_geometry_allowed(self.species, geom)
+        except UnsupportedStereochemistry:
+            return 'scan stereochemistry cannot be assigned'
+        if not allowed:
+            return ('scan crosses into a different stereochemical pathway' if self.species.wellorts
+                    else 'scan enters an excluded stereoisomer')
+        return None
+
     def invalid_rotor_reason(self, rotor):
         """Why a rotor is excluded from the hindered-rotor treatment.
 
@@ -406,14 +403,18 @@ class HIR:
         """
         if getattr(self, 'projection_failure', None):
             return self.projection_failure
+        if rotor in self.scan_input_errors:
+            return self.scan_input_errors[rotor]
         observations = getattr(self, 'point_observations', [])
-        if rotor < len(observations) and any(
-                point and point.get('rejection_reason') ==
-                'scan crosses into a different stereochemical pathway'
-                for point in observations[rotor]):
-            # Interpolating across another explicitly counted route would
-            # overlap its contribution. Retain this rotor's harmonic mode.
-            return 'scan crosses into a different stereochemical pathway'
+        if rotor < len(observations):
+            for point in observations[rotor]:
+                reason = point.get('rejection_reason') if point else None
+                if reason in ('scan crosses into a different stereochemical pathway',
+                              'scan enters an excluded stereoisomer',
+                              'scan stereochemistry cannot be assigned'):
+                    # Do not interpolate across an excluded stereoisomer or
+                    # another separately counted reaction pathway.
+                    return reason
         if rotor >= len(self.hir_status) or len(self.hir_status[rotor]) != self.nrotation:
             return 'no scan recorded'
         status = self.hir_status[rotor]
@@ -427,12 +428,30 @@ class HIR:
             return 'scan contains skipped points'
         if rotor >= len(self.hir_energies) or len(self.hir_energies[rotor]) != self.nrotation:
             return 'no scan energies recorded'
-        if any(not np.isfinite(self.hir_energies[rotor][i])
+        if any(self.hir_energies[rotor][i] is None or not np.isfinite(self.hir_energies[rotor][i])
                for i, value in enumerate(status) if value == 0):
             return 'nonfinite successful scan energy'
+        # Use the same measured energies and geometry source as hir_evidence.
+        # Fourier-filled values must not conceal a missing successful result.
+        raw = self.hir_raw_energies[rotor] if rotor < len(self.hir_raw_energies) else None
+        raw = self.hir_energies[rotor] if raw is None else raw
+        if any(i >= len(raw) or raw[i] is None or not np.isfinite(raw[i])
+               for i, value in enumerate(status) if value == 0):
+            return 'nonfinite successful measured scan energy'
         if 1 in status and (rotor >= len(self.hir_fourier)
                             or self.hir_fourier[rotor] is None):
             return 'partial scan has no usable Fourier interpolation'
+        geoms = self.hir_geoms[rotor] if rotor < len(self.hir_geoms) else []
+        points = observations[rotor] if rotor < len(observations) else []
+        for i, state in enumerate(status):
+            point = points[i] if i < len(points) else None
+            geom = (point.get('geometry_angstrom') if point is not None
+                    else geoms[i] if i < len(geoms) else None)
+            if (state == 0 and np.shape(geom) == (self.species.natom, 3)
+                    and np.all(np.isfinite(geom))):
+                reason = self._configuration_error(geom)
+                if reason:
+                    return reason
         if rotor < len(self.projection_status):
             if not self.projection_status[rotor]['projected']:
                 return self.projection_status[rotor]['reason']

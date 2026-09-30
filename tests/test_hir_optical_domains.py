@@ -115,7 +115,8 @@ def test_saved_pyramidal_product_writes_hir_with_one_missing_mirror(tmp_path, mo
     np.testing.assert_array_equal(p.sigma_int, original_sigma)
 
 
-@pytest.mark.parametrize('alteration', ['opposite_branch', 'planar', 'failed', 'missing_geometry', 'unknown_domain'])
+@pytest.mark.parametrize('alteration', ['opposite_branch', 'planar', 'failed', 'missing_geometry',
+                                      'unknown_domain', 'invalid_domain_missing_geometry'])
 def test_pyramidal_branch_evidence_must_be_complete_and_consistent(alteration):
     p = pyramidal_product()
     evidence = hir_evidence(p)
@@ -133,13 +134,16 @@ def test_pyramidal_branch_evidence_must_be_complete_and_consistent(alteration):
         point['geometry_angstrom'] = geom.tolist()
     elif alteration == 'unknown_domain':
         evidence['rotors'][0]['represented_domain_degrees'] = None
+    elif alteration == 'invalid_domain_missing_geometry':
+        evidence['rotors'][0]['represented_domain_degrees'] = [0., 720.]
+        point['geometry_angstrom'] = None
     else:
         point['geometry_angstrom'] = None
     result = optical_counting(p, evidence)
     # A planar point or a different inverted scan geometry removes the
     # handedness proof. Neither is a measured mirror of the reference.
-    # Missing data remain invalid; exact mirror energy conflicts have their
-    # own regression in test_counting_contract.
+    # Missing geometries weaken only the optical check; missing rotor domains
+    # cannot define a partition function.
     if alteration in ('planar','opposite_branch'):
         from kinbot.optical import evaluate_optical
         assert evaluate_optical(p,rotors=evidence['rotors'])['status']=='unresolved'
@@ -147,6 +151,10 @@ def test_pyramidal_branch_evidence_must_be_complete_and_consistent(alteration):
         assert result['status']=='assumed' and result['remaining_multiplier']==2.
         assert result['heuristic']=='harmonic_midpoint'
         assert result['states_covered_by_hir'] is None
+    elif alteration in ('failed', 'missing_geometry'):
+        assert result['status'] == 'unresolved' and result['remaining_multiplier'] == 1.
+        assert result['fallback'] == 'unresolved_symmetry'
+        assert not result.get('heuristic')
     else:
         assert result['status']=='unresolved' and result['remaining_multiplier'] is None
 

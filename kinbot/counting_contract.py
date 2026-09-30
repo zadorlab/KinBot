@@ -98,6 +98,7 @@ def optical_counting(species, hir, tolerance=OPTICAL_RMSD_TOLERANCE, energy_tole
     """Validate the calculation model, then use the shared optical evaluator."""
     from kinbot.optical import (evaluate_optical, unresolved_optical_default, METHOD,
                                SCAN_MIRROR_RMSD_TOLERANCE)
+    from kinbot.stereo_identity import optical_scope
     data = dict(method=METHOD, status='unresolved', remaining_multiplier=None,
                 population=getattr(species, 'optical_population', 'specified'),
                 scope='selected configuration and its global mirror; not independent fragment racemates',
@@ -107,6 +108,8 @@ def optical_counting(species, hir, tolerance=OPTICAL_RMSD_TOLERANCE, energy_tole
                 members=[], local_rmsd_tolerance_angstrom=tolerance,
                 measured_mirror_rmsd_tolerance_angstrom=min(tolerance, SCAN_MIRROR_RMSD_TOLERANCE),
                 mirror_energy_tolerance_kcal_mol=energy_tolerance)
+    # A broken rotor cannot make an unsupported requested stereoisomer valid.
+    data['population_scope'] = optical_scope(species, data['population'])
     projection = getattr(species, 'rotor_projection', None) or {}
     decisions, issue = _projection_decisions(species, hir, projection)
     active = [r for r in hir['rotors'] if r['usable'] and decisions.get(r['index']) is not False]
@@ -114,9 +117,7 @@ def optical_counting(species, hir, tolerance=OPTICAL_RMSD_TOLERANCE, energy_tole
         data['reason'] = 'multiple rotor records describe the same axis.'
         return data
     if getattr(species, 'conformer_representation', None) == 'MC-RRHO':
-        from kinbot.stereo_identity import optical_scope
         data['representation'] = 'MC-RRHO'
-        data['population_scope'] = optical_scope(species, data['population'])
         if active or issue or getattr(species, 'conformer_counting_error', None):
             data['reason'] = ('MC-RRHO and active HIR cannot describe the same modes'
                               if active else issue or species.conformer_counting_error)

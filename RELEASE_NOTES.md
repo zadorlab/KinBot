@@ -138,13 +138,23 @@ If the necessary data remain unavailable, KinBot uses factor one with a warning.
 `optical_factor_assumptions` permits an explicit factor of one or two for a
 named structure, with a necessary written reason.
 
-**Record HIR evidence and recover incompatible scans.**
+**Keep usable rotor scans when another rotor fails.**
 Shared records contain units, calculation sources, raw and projected
 frequencies, rotor axes, symmetry numbers, scan angles, energies, and point
 statuses.
-If saved scan definitions no longer match the selected structure, KinBot first
-tries scan recovery. If recovery fails, it removes HIR and restores the full
-harmonic frequencies with a warning. It keeps the old calculation files.
+Optimization replaces scans whose geometry or rotor definition no longer
+matches the selected structure. It retains compatible scans, including usable
+partial scans, and keeps the old calculation files. A failed rotor retains its
+harmonic motion; the other rotors remain in the model. Projection starts from
+the full Hessian of the selected calculation. If that Hessian cannot be used
+safely, KinBot restores all harmonic frequencies and omits HIR with a warning.
+MESS writing can check saved data and repeat this projection, but cannot submit
+QC or wait for scans. Missing scan coordinates alone keep the usable rotor
+potential and give a warned optical factor of one. A scan that changes to an
+excluded stereoisomer or reaction pathway is unusable; an optical factor of one
+cannot correct such a potential.
+The existing rotor-zero energy check still disables all rotors if their common
+optimized reference is inconsistent.
 The initial L1 result is loaded completely when no later optimization replaces
 it. Reused product calculations keep the accepted structure and its properties.
 

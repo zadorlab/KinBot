@@ -91,6 +91,21 @@ class TestCountingContract(unittest.TestCase):
             else: p.hess[0][0] += .1
             self.assertIsNone(thermochemistry_evidence(p)['optical_counting']['remaining_multiplier'])
 
+    def test_missing_scan_geometry_keeps_potential_but_missing_energy_does_not(self):
+        p = self.methyl()
+        p.hir.point_observations[0][4]['geometry_angstrom'] = None
+        original_frequencies = list(p.reduced_freqs)
+        original_energies = copy.deepcopy(p.hir.hir_energies)
+        result = thermochemistry_evidence(p)
+        self.assertTrue(result['hir']['rotors'][0]['usable'])
+        self.assertEqual(result['optical_counting']['remaining_multiplier'], 1.)
+        self.assertEqual(result['optical_counting']['fallback'], 'unresolved_symmetry')
+        self.assertNotIn('heuristic', result['optical_counting'])
+        self.assertEqual(p.reduced_freqs, original_frequencies)
+        self.assertEqual(p.hir.hir_energies, original_energies)
+        p.hir.hir_raw_energies[0][4] = np.nan
+        self.assertIsNone(thermochemistry_evidence(p)['optical_counting']['remaining_multiplier'])
+
     def test_scan_energy_comparison_does_not_mix_selected_and_hir_levels(self):
         p = self.methyl()
         p.energy -= 1.  # A different selected-level zero is not a scan contradiction.

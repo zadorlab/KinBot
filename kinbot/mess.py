@@ -402,7 +402,7 @@ class MESS:
             for state in states:
                 if id(state) not in checked and getattr(state, 'hir', None) is not None:
                     checked.add(id(state))
-                    recover_hir_model(state, qc, self.par)
+                    recover_hir_model(state, qc, self.par, allow_qc=False)
         self._check_optical_models(ts_all, ts_unique)
         # write the mess input for the different blocks
         for uq_iter in range(self.par['uq_n']):
@@ -665,19 +665,14 @@ class MESS:
         from kinbot.thermochemistry import hir_evidence
         from kinbot.optical import bind_assumption
         bind_assumption(species, self.par)
+        if getattr(species, 'hir', None) is not None:
+            # Standalone well/barrier writing has the same no-submission rule
+            # as write_input. Reproject only with an associated saved Hessian.
+            from kinbot.hindered_rotors import recover_hir_model
+            recover_hir_model(species, None, self.par, allow_qc=False)
         view = copy(species)
         view.conformer_representation = 'single structure'
         counting = optical_counting(view, hir_evidence(view))
-        if (counting['status'] == 'unresolved'
-                and counting.get('remaining_multiplier') is None
-                and getattr(species, 'hir', None) is not None):
-            # write_input already attempted recovery with QC access. Standalone
-            # block writers must also omit an unusable HIR model consistently.
-            from kinbot.hindered_rotors import use_harmonic_model
-            use_harmonic_model(species, self.par, 'Unusable HIR model: ' + counting['reason'])
-            view = copy(species)
-            view.conformer_representation = 'single structure'
-            counting = optical_counting(view, hir_evidence(view))
         species.mess_optical_counting = counting
         if (counting['status'] not in ('resolved', 'assumed')
                 and counting.get('fallback') != 'unresolved_symmetry'):

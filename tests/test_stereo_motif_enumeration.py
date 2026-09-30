@@ -114,7 +114,7 @@ def test_final_positional_filter_preserves_demonstrated_joint_stereo(tmp_path):
     assert finder.reactions['h2_elim'] == [first, second]
 
 
-def test_ring_h_migration_keeps_only_shorter_arm_representatives(tmp_path, monkeypatch):
+def test_ring_h_searches_keep_only_shorter_arm_representatives(tmp_path, monkeypatch):
     from rdkit import Chem
     from rdkit.Chem import AllChem
     from kinbot.stationary_pt import StationaryPoint
@@ -130,16 +130,20 @@ def test_ring_h_migration_keeps_only_shorter_arm_representatives(tmp_path, monke
     filename.write_text(json.dumps({'barrier_threshold': 100.}))
     finder = ReactionFinder(point, Parameters(filename, show_warnings=False).par, None)
     finder.find_reactions()
-    paths = [tuple(map(int, reaction.instance))
-             for family, reaction in zip(point.reac_type, point.reac_obj)
-             if family == 'intra_H_migration']
-
     # Equivalent short searches must still exclude detours around the ring,
     # even after only one representative of each short search is retained.
-    assert len(paths) == 3
-    assert {len(path) - 2 for path in paths} == {1, 2, 3}
-    for path in paths:
-        assert len(path) - 2 == len(Chem.GetShortestPath(mol, path[0], path[-2])) - 1
+    for family, count, first, offset in (('intra_H_migration', 3, 0, 2),
+                                        ('h2_elim', 7, 1, 3)):
+        paths = [tuple(map(int, reaction.instance))
+                 for kind, reaction in zip(point.reac_type, point.reac_obj)
+                 if kind == family]
+        assert len(paths) == count
+        if family == 'intra_H_migration':
+            assert {len(path) - 2 for path in paths} == {1, 2, 3}
+        for path in paths:
+            left, right = path[first], path[-2]
+            distance = 0 if left == right else len(Chem.GetShortestPath(mol, left, right)) - 1
+            assert len(path) - offset == distance
 
 
 def test_ring_discovery_names_keep_motifs_results_and_exclusions_separate(tmp_path, monkeypatch):

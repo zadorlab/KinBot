@@ -93,9 +93,9 @@ class ReactionFinder:
         # this dict is used to keep track of the unique reactions found,
         # and to verify whether a new reaction is indeed unique 
         self.reactions = {}
-        # Equivalent H migrations still supply atom positions for the legacy
-        # comparison between different sequence lengths.
-        self._h_migration_duplicates = set()
+        # Discarded H-transfer and H2 searches still exclude longer ring walks
+        # with the same endpoints. Keep the two families independent.
+        self._short_path_duplicates = {'intra_H_migration': set(), 'h2_elim': set()}
 
     def _reaction_atom_eqv(self):
         if not hasattr(self, '_reaction_eqv'):
@@ -2447,9 +2447,9 @@ class ReactionFinder:
         now also filters non-solute reactions in cluster mode
         '''
 
-        # A transferred H identifies its bonded donor. Heavy-atom migration
-        # can instead break different bonds for the same first and last atoms.
-        duplicates = self._h_migration_duplicates if name == 'intra_H_migration' else ()
+        # H endpoints identify their donors in these two families. Heavy-atom
+        # migration can break different bonds for the same endpoint pair.
+        duplicates = self._short_path_duplicates.get(name, ())
         for inst in rxns:
             if self.par['cluster'] and not any(
                     inst[pos] in self.par['solute']
@@ -2479,8 +2479,8 @@ class ReactionFinder:
                     if cross:
                         other_keys.append(self._motif_key(instance[::-1]))
                     if key in other_keys:
-                        if name == 'intra_H_migration':
-                            self._h_migration_duplicates.add(tuple(inst))
+                        if name in self._short_path_duplicates:
+                            duplicates.add(tuple(inst))
                         new = False
                         break
                     other_graphs = [self._motif_graph(instance)]

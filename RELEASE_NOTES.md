@@ -234,6 +234,8 @@ initial stereoisomer-reference assignment, and QC. It is not a measurement of
 the total calculation time.
 
 **Narrow bug fixes and reaction examples.**
+H2 elimination now rejects longer ring walks when an equivalent shorter search
+was removed as a duplicate.
 The initial species reconstruction keeps its checked frequencies. Input-only
 MESS writing converts collision-energy units in the same way as normal writing.
 Three-fragment product names agree with each other through PES assembly.

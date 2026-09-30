@@ -95,6 +95,10 @@ sites in the related reaction motifs. It does not change the atoms sent to QC.
 The checks include heavy atoms and reactions with several reacting sites.
 Forming and breaking bonds distinguish reacting atoms from spectator atoms.
 Global atom-equivalence groups remain unchanged.
+When equivalent searches merge, KinBot prefers the earlier graph search's atom
+selection if it passes the reaction-family checks. For example, propane keeps
+`r12_insertion_R_7_2_3` instead of renaming it to `r12_insertion_R_7_2_1`.
+Distinct stereochemical selections still receive separate searches.
 Direct MESS and PES output keep different stereochemical pathways, also
 when `lowestpath` is selected. Repeated observations within one pathway still
 use the existing lowest-barrier selection. A MESS Union adds the different

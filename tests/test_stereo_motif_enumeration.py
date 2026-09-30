@@ -46,6 +46,39 @@ def test_achiral_control_keeps_existing_atom_equivalence():
     assert {frozenset(g) for g in reaction_atom_equivalence(p)} == {frozenset(g) for g in p.atom_eqv}
 
 
+def test_equivalent_searches_keep_master_atom_selection_and_names(tmp_path):
+    from kinbot.stationary_pt import StationaryPoint
+
+    filename = tmp_path / 'input.json'
+    filename.write_text(json.dumps({'barrier_threshold': 100.}))
+    cases = [
+        # Master selects H7-C2-C3, not its equivalent H7-C2-C1. It also keeps
+        # two equivalent methyl H-C-H selections; keep only its first one.
+        ('CCC', 17, 'r12_insertion_R',
+         [(7, 2, 3), (4, 1, 5)], [(7, 2, 1), (4, 1, 6)]),
+        # Optional virtual labels can create unsupported axial stereochemistry.
+        # A name preference must not suppress the ordinary allene searches.
+        ('C=C=C', 11, 'intra_H_migration', [(2, 1, 4)], []),
+    ]
+    for smiles, count, family, retained, excluded in cases:
+        geometry = peroxy(smiles)
+        point = StationaryPoint('reactant', 0, 1, atom=geometry.atom, geom=geometry.geom)
+        point.characterize()
+        finder = ReactionFinder(point, Parameters(filename, show_warnings=False).par, None)
+        finder.find_reactions()
+        reactions = {tuple(int(i) + 1 for i in reaction.instance): reaction.instance_name
+                     for kind, reaction in zip(point.reac_type, point.reac_obj)
+                     if kind == family}
+        assert len(point.reac_name) == count
+        assert all(inst in reactions for inst in retained)
+        assert all(inst not in reactions for inst in excluded)
+        assert point.reac_name == [r.instance_name for r in point.reac_obj]
+        if smiles == 'CCC':
+            assert finder._motif_key((6, 1, 2)) == finder._motif_key((6, 1, 0))
+            assert reactions[(7, 2, 3)].endswith('_r12_insertion_R_7_2_3')
+            assert len(reactions) == 7
+
+
 def test_joint_h2_elimination_sites_survive_without_duplicate_reverse_searches(tmp_path):
     point = peroxy('CCCCC')
     point.mult = 1

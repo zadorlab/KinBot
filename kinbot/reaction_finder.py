@@ -137,8 +137,23 @@ class ReactionFinder:
                            else f'{family} search for atoms {record["atoms"]}', error)
 
     def _start_motif(self, motif, natom, bond, atom, allover, eqv):
-        return find_motif.start_motif(motif, natom, bond, atom, allover, eqv,
-                                     equivalence_key=self._motif_key)
+        instances = find_motif.start_motif(
+            motif, natom, bond, atom, allover, eqv,
+            equivalence_key=self._motif_key)
+        # Prefer master's atom selection only for a complete stereochemical
+        # class present in the expanded search. Both choices still pass the
+        # family's bond and geometry filters before new_reaction merges them.
+        try:
+            keys = {self._motif_key(inst) for inst in instances}
+            preferred = find_motif.start_motif(
+                motif, natom, bond, atom, allover, self.species.atom_eqv)
+            preferred = [inst for inst in preferred if self._motif_key(inst) in keys]
+        except UnsupportedStereochemistry:
+            # A name preference must not stop the family. new_reaction
+            # reports unsupported selections that pass its filters.
+            return instances
+        seen = {tuple(inst) for inst in preferred}
+        return preferred + [inst for inst in instances if tuple(inst) not in seen]
 
     def _reaction_atom_labels(self):
         if not hasattr(self, '_reaction_labels'):

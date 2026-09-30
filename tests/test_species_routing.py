@@ -26,7 +26,9 @@ from kinbot import pes, postprocess
 from kinbot.qc import QuantumChemistry
 from kinbot.reaction_generator import ReactionGenerator
 from kinbot.reaction_path import set_endpoint_populations
-from kinbot.species_routing import routing_key, routing_name, input_species, is_species_name, expand_pes_names, configured_result_matches, mess_filename, same_species
+from kinbot.species_routing import (routing_key, routing_name, is_species_name,
+    expand_pes_names, configured_result_identity, mess_filename, same_species,
+    apply_input_reference)
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import canonical_identity, optical_scope
 from kinbot.stereo_routing import StereoRoutingError, guard_well_job
@@ -45,6 +47,15 @@ def point(smiles):
 def input_data(p):
     return dict(charge=p.charge, mult=p.mult,
         structure=[v for a, xyz in zip(p.atom, p.geom) for v in [str(a), *map(float, xyz)]])
+
+
+def read_pes_input(filename):
+    data = json.loads(Path(filename).read_text())
+    species = StationaryPoint('saved input', data.get('charge', 0), data.get('mult', 1),
+        structure=data.get('structure'), smiles=data.get('smiles') or None)
+    species.characterize()
+    apply_input_reference(species, data)
+    return species
 
 class TestSpeciesRouting(unittest.TestCase):
     def setUp(self):
@@ -198,7 +209,7 @@ class TestSpeciesRouting(unittest.TestCase):
         self.assertCountEqual(names, [routing_name(p), routing_name(self.b)])
         self.assertEqual(expand_pes_names('.', [routing_name(p)]), [routing_name(p)])
         pes.write_input_keep('input.json', routing_name(p), '.')
-        restored = input_species(f'{routing_name(p)}/{routing_name(p)}.json')
+        restored = read_pes_input(f'{routing_name(p)}/{routing_name(p)}.json')
         self.assertEqual(routing_name(restored), routing_name(p))
         self.assertEqual(restored.optical_population, 'racemic')
 
@@ -321,7 +332,7 @@ class TestSpeciesRouting(unittest.TestCase):
         for i, p in enumerate((self.a, self.b)):
             key = routing_name(p)
             write_input('input.json', p, 100., None, '.', 2)
-            restored = input_species(f'{key}/{key}.json')
+            restored = read_pes_input(f'{key}/{key}.json')
             self.assertEqual(routing_key(restored), routing_key(p))
             db = connect(f'{key}/kinbot.db')
             guard_well_job(SimpleNamespace(db=db), p, p.geom, key+'_well')
@@ -355,10 +366,11 @@ class TestSpeciesRouting(unittest.TestCase):
             self.assertFalse(same_species(first, second))
             row_id = self.record(key+'_well', first, reference=True)
             row = self.qc.db.get(id=row_id)
-            self.assertTrue(configured_result_matches(self.qc.db, key, row))
+            self.assertEqual(configured_result_identity(self.qc.db, key, row),
+                             first.optical_reference['id'])
             self.assertEqual(len(self.qc.db.get(name='stereochemistry/'+key+'_well').data.identity['id']), 64)
             wrong_id = self.record(key+'_well', second)
-            self.assertFalse(configured_result_matches(self.qc.db, key, self.qc.db.get(id=wrong_id)))
+            self.assertIsNone(configured_result_identity(self.qc.db, key, self.qc.db.get(id=wrong_id)))
             with self.assertRaisesRegex(StereoRoutingError, 'different full stereoisomer identity'):
                 guard_well_job(self.qc, second, second.geom, key+'_well')
             write_input('input.json', first, 100., None, '.', 2)
@@ -381,7 +393,7 @@ class TestSpeciesRouting(unittest.TestCase):
 
             # With no full input reference, a matching filename is insufficient.
             self.qc.db.delete([self.qc.db.get(name='stereochemistry/'+key+'_well').id])
-            self.assertFalse(configured_result_matches(self.qc.db, key, row))
+            self.assertIsNone(configured_result_identity(self.qc.db, key, row))
 
         # Reflected models need separate names even without a second QC job.
         identity = canonical_identity(self.a)
@@ -401,7 +413,7 @@ class TestSpeciesRouting(unittest.TestCase):
         self.par['optical_population'] = 'racemic'
         Path('input.json').write_text(json.dumps(self.par))
         write_input('input.json', p, 100., None, '.', 2)
-        restored = input_species(f'{key}/{key}.json')
+        restored = read_pes_input(f'{key}/{key}.json')
         self.assertEqual(routing_name(restored), key)
         self.assertEqual(canonical_identity(restored)['id'], p.optical_reference['mirror_id'])
         db = connect(f'{key}/kinbot.db')
@@ -414,7 +426,7 @@ class TestSpeciesRouting(unittest.TestCase):
         data['optical_population'] = 'specified'
         Path('invalid.json').write_text(json.dumps(data))
         with self.assertRaises(StereoRoutingError):
-            input_species('invalid.json')
+            read_pes_input('invalid.json')
 
     def test_final_direct_and_pes_keep_diastereomers_and_select_lowest_per_endpoint(self):
         # Synthetic channel observations isolate namespace and selection behavior;

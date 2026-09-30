@@ -28,7 +28,7 @@ from kinbot.hindered_rotors import HIR
 from kinbot.optimize import Optimize
 from kinbot.parameters import Parameters
 from kinbot.reaction_finder import ReactionFinder
-from kinbot.species_routing import input_species
+from kinbot.species_routing import apply_input_reference
 
 
 def peroxy(smiles='CC[C@H](C)O[O]'):
@@ -204,7 +204,10 @@ class TestReactionPaths(unittest.TestCase):
             for treatment, mc in [('hir', 0), ('mc_rrho', 1)]:
                 filename = directory / f'{parent}_{treatment}.json'
                 par = Parameters(str(filename), show_warnings=False).par
-                p = input_species(filename)
+                p = StationaryPoint('input', par['charge'], par['mult'],
+                                    structure=par['structure'], smiles=par['smiles'] or None)
+                p.characterize()
+                apply_input_reference(p, par)
                 ReactionFinder(p, par, None).find_reactions()
                 self.assertEqual({int(r.instance[-1]) for r in p.reac_obj
                                   if list(r.instance[:-1]) == path}, expected)

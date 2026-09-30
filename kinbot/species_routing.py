@@ -3,7 +3,6 @@
 Ordinary names are unchanged. A stereo suffix contains the first 16 hexadecimal
 characters of the full identity. Saved references retain the complete identity.
 """
-import json
 import hashlib
 import copy
 import logging
@@ -142,16 +141,6 @@ def require_cache_atom_order(requested, observed, context):
                        [requested, observed])
 
 
-def input_species(filename):
-    from kinbot.stationary_pt import StationaryPoint
-    data = json.loads(Path(filename).read_text())
-    species = StationaryPoint('saved input', data.get('charge', 0), data.get('mult', 1),
-        structure=data.get('structure'), smiles=data.get('smiles') or None)
-    species.characterize()
-    apply_input_reference(species, data)
-    return species
-
-
 def apply_input_reference(species, parameters):
     """Restore the declared population even if its selected member is a mirror."""
     population = parameters.get('optical_population', 'specified')
@@ -233,8 +222,3 @@ def configured_result_identity(db, name, row, population=None):
     observed = _row_species(template, row, str(name), reference)
     identity = require_supported_identity(observed)
     return declared['id'] if identity['id'] in allowed else None
-
-
-def configured_result_matches(db, name, row, population=None):
-    """Compare a PES result with its complete saved identity, not its short name."""
-    return configured_result_identity(db, name, row, population) is not None

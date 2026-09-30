@@ -92,6 +92,9 @@ class ReactionFinder:
         # this dict is used to keep track of the unique reactions found,
         # and to verify whether a new reaction is indeed unique 
         self.reactions = {}
+        # Equivalent H migrations still supply atom positions for the legacy
+        # comparison between different sequence lengths.
+        self._h_migration_duplicates = set()
 
     def _reaction_atom_eqv(self):
         if not hasattr(self, '_reaction_eqv'):
@@ -2418,9 +2421,20 @@ class ReactionFinder:
         now also filters non-solute reactions in cluster mode
         '''
 
+        # A transferred H identifies its bonded donor. Heavy-atom migration
+        # can instead break different bonds for the same first and last atoms.
+        duplicates = self._h_migration_duplicates if name == 'intra_H_migration' else ()
         for inst in rxns:
+            if self.par['cluster'] and not any(
+                    inst[pos] in self.par['solute']
+                    for pos in (a, b, c, d, e) if pos is not None):
+                continue
             new = True
-            for instance in self.reactions[name]:
+            # Do not use discarded searches to reject equal-length paths:
+            # those can have distinct relative stereochemistry.
+            comparisons = self.reactions[name] + [
+                previous for previous in duplicates if len(previous) != len(inst)]
+            for instance in comparisons:
                 # Keep only one representative of a chemically equivalent
                 # complete motif, including a permitted reversed direction.
                 comparable = (len(inst) == len(instance)
@@ -2435,6 +2449,8 @@ class ReactionFinder:
                     if key is not None and all(value is not None for value in other_keys):
                         joint_equal = key in other_keys
                         if joint_equal:
+                            if name == 'intra_H_migration':
+                                self._h_migration_duplicates.add(tuple(inst))
                             new = False
                             break
                         other_graphs = [self._motif_graph(instance)]
@@ -2486,16 +2502,7 @@ class ReactionFinder:
                 new = False
                 continue
             if new:
-                if self.par['cluster']:  # only append is solute is part of it
-                    labels = [a, b, c, d, e]
-                    testing = []
-                    for ll in labels:
-                        if ll != None:
-                            testing.append(inst[ll]) 
-                    if len([tt for tt in testing if tt in self.par['solute']]) > 0:
-                        self.reactions[name].append(inst)
-                else:
-                    self.reactions[name].append(inst)
+                self.reactions[name].append(inst)
         return 0
 
 def main():

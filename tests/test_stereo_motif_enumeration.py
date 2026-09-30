@@ -81,6 +81,34 @@ def test_final_positional_filter_preserves_demonstrated_joint_stereo(tmp_path):
     assert finder.reactions['h2_elim'] == [first, second]
 
 
+def test_ring_h_migration_keeps_only_shorter_arm_representatives(tmp_path, monkeypatch):
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+    from kinbot.stationary_pt import StationaryPoint
+
+    monkeypatch.chdir(tmp_path)
+    mol = Chem.AddHs(Chem.MolFromSmiles('C1CCCCC1'))
+    assert AllChem.EmbedMolecule(mol, randomSeed=312) == 0
+    point = StationaryPoint('cyclohexane', 0, 1,
+                            atom=[a.GetSymbol() for a in mol.GetAtoms()],
+                            geom=mol.GetConformer().GetPositions())
+    point.characterize()
+    filename = tmp_path / 'input.json'
+    filename.write_text(json.dumps({'barrier_threshold': 100.}))
+    finder = ReactionFinder(point, Parameters(filename, show_warnings=False).par, None)
+    finder.find_reactions()
+    paths = [tuple(map(int, reaction.instance))
+             for family, reaction in zip(point.reac_type, point.reac_obj)
+             if family == 'intra_H_migration']
+
+    # Equivalent short searches must still exclude detours around the ring,
+    # even after only one representative of each short search is retained.
+    assert len(paths) == 3
+    assert {len(path) - 2 for path in paths} == {1, 2, 3}
+    for path in paths:
+        assert len(path) - 2 == len(Chem.GetShortestPath(mol, path[0], path[-2])) - 1
+
+
 def test_ring_discovery_names_keep_motifs_results_and_exclusions_separate(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from unittest.mock import Mock, patch

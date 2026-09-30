@@ -4733,3 +4733,42 @@ compute Hf(0), form the Hf(298) thermochemical fit, and emit MESS wells,
 products, stationary barriers, and VRC number-of-states data with the ANL
 formation-energy anchors. A stationary transition-state and IRC restart test
 is still required in addition to the barrierless ethane validation.
+
+---
+
+# 96. Second live ethane run: subdirectory artifacts and VRC polling (2026-09-30)
+
+The second external-site run reached the intended ethane homolysis and VRC
+asymptote but exposed two path/state bugs before rotdPy. ASE decomposes a label
+such as `hir/<job>` into calculation directory `hir` and prefix `<job>`.
+Gaussian was also given `chk=hir/<job>`, so from that calculation directory it
+attempted to create `hir/hir/<job>.chk` and all four requested L2 rotor points
+failed before Sella started. Gaussian subdirectory jobs now use the basename
+for `%chk` while retaining the full label for their input, output, trajectory,
+and Sella completion artifacts. The same correction covers conformer,
+frequency-recovery, AIE, and other Gaussian jobs whose labels contain a
+directory.
+
+The native Gaussian VRC asymptote and frozen-fragment calculations both
+terminated normally and wrote accepted database rows. The profiled L2 backend
+nevertheless waited forever because its general Sella status rule searched for
+`<job>_sella.log`; the VRC templates deliberately finish `<job>.log`. VRC jobs
+now poll their native Gaussian completion log even when the surrounding L2
+profile uses Sella for ordinary stationary points. Regression tests require
+both the correct checkpoint/artifact paths and recognition of a completed VRC
+database record without a `_sella.log` file.
+
+The same site exposed a nonstandard `ALL_PROXY=socks://...` variable. KinBot
+now hides only that unsupported generic proxy while ATcT or an offline
+FairChem cache lookup constructs its HTTP client, preserves the working
+protocol-specific HTTP/HTTPS proxies, and restores the environment afterward.
+The pinned ATcT 1.220 reference query then completed and cached its exact
+response digest.
+
+Run `ethane_profiled_hpc_run_v4` is diagnostic evidence only: its failed HIR
+rows guarantee rejection by the KinBot gate, and its already-running Python
+process cannot load these source fixes. Stop and archive it. The next clean
+external validation directory is `ethane_profiled_hpc_run_v5`; it must pass
+four normal parent rotor points, advance from the completed Gaussian VRC rows
+to the exclusive Molpro correction dispatcher, execute the pinned rotdPy
+input, and only then prepare the ANL interface graph.

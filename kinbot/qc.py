@@ -120,7 +120,12 @@ class QuantumChemistry:
                 'basis': self.basis,
                 'nprocshared': min(nel, self.ppn),
                 'mem': '700MW',
-                'chk': job,
+                # ASE splits labels containing a directory into
+                # ``directory`` and ``prefix`` and executes Gaussian from
+                # that directory.  A checkpoint containing the original
+                # path would therefore become ``hir/hir/...`` (or the
+                # equivalent for any other job subdirectory).
+                'chk': os.path.basename(job),
                 'label': job,
                 'Symm': 'None',
                 'mult': mult,
@@ -737,7 +742,7 @@ class QuantumChemistry:
                     kwargs['guess'] = ','.join(options)
                 else:
                     kwargs.pop('guess', None)
-            kwargs.update(freq='', chk=job, label=job)
+            kwargs.update(freq='', chk=os.path.basename(job), label=job)
             template_file = f'{kb_path}/tpl/ase_gauss_opt_well.tpl.py'
         else:
             kwargs.update(jobtype='freq', vibman_print='4', xc_grid='3',
@@ -1689,7 +1694,8 @@ class QuantumChemistry:
             logger.debug('{} is in db'.format(job))
             for i in range(1):
                 if (self.use_sella and self.qc != 'nn_pes'
-                        and '_freq_recovery_' not in job):
+                        and '_freq_recovery_' not in job
+                        and not job.startswith('vrctst/')):
                     log_file = job + '_sella.log'
                 elif self.qc == 'gauss':
                     log_file = job + '.log'

@@ -24,12 +24,61 @@ not convert old job names, directories, or result formats. Each new calculation
 has a `.kinbot_run.json` format record. A restart requires that record and the
 same RDKit version and settings. KinBot checks this before it changes old files.
 
-**Select the optical population.**
-`optical_population` accepts `specified` (the default) or `racemic`.
-The first option keeps the specified configuration. The second includes its
-whole-molecule mirror. It does not request all possible diastereomers.
-Both reaction endpoints constrain the allowed TS optical population.
-`stereo_reference` keeps the requested configuration in generated PES inputs.
+### New feature: select one stereoisomer or a racemate
+
+Treating a chiral well as one specified stereoisomer is new. In earlier KinBot
+versions, a chiral well identified by the graph-based chirality rule was treated
+as a racemate: the code assigned `nopt = 2` and wrote
+`SymmetryFactor = sigma_ext / 2` in MESS. There was no option to restrict that
+well to one enantiomer. The old rule detected atoms with four different bonded
+groups; it did not detect all forms of geometric chirality.
+
+The new input option has two values:
+
+- `"optical_population": "specified"` is the **default**. It includes the
+  stereoisomer assigned from the input geometry and excludes its opposite
+  enantiomer.
+- `"optical_population": "racemic"` includes that stereoisomer and its
+  whole-molecule mirror. This restores the earlier counting of both enantiomers
+  for those chiral wells. It does not include other diastereomers. For example,
+  an RR input includes RR and SS, not RS and SR.
+
+**Existing inputs change behavior when this option is omitted.** KinBot reads
+the stereochemistry from the geometry; the input does not need an R/S label or
+an explicit stereo option. Every run with the option omitted uses `specified`.
+For a chiral well with external rotational symmetry number `sigma_ext = 1`,
+represented by one structure, the previous `SymmetryFactor 0.5` becomes
+`SymmetryFactor 1.0`. To retain the previous factor for this well, add
+`"optical_population": "racemic"`. `SymmetryFactor` is a divisor: 0.5 includes
+twice the statistical contribution of 1.0 for the same structure.
+
+**Example: sec-butylperoxy, CH3CH2CH(OO•)CH3.** Its tetrahedral stereocentre
+has H, methyl, ethyl, and peroxy groups. Use `charge: 0`, `mult: 2`,
+`rotor_scan: 0`, and `multi_conf_tst: 0` to compare one harmonic structure.
+For the supplied enantiomer, `sigma_ext = 1`, and MESS receives these factors:
+
+| Treatment | Enantiomers included | `SymmetryFactor` |
+| --- | --- | --- |
+| Earlier KinBot versions | Both | 0.5 |
+| New default, or explicit `specified` | The input enantiomer | 1.0 |
+| Explicit `racemic` | Both | 0.5 |
+
+This change does not imply a factor-of-two change in every rate coefficient:
+the TS contribution also depends on which reflected reaction its reactants and
+products permit. `stereo_reference` preserves the requested stereoisomer in
+generated PES inputs.
+
+**Conformational mirrors of achiral molecules are also counted.** For example,
+a single gauche ethanol conformer has a distinct mirror although ethanol has
+no fixed stereocentre. With `rotor_scan: 0` and `multi_conf_tst: 0`, earlier
+versions wrote `SymmetryFactor 1.0`; the new treatment writes `0.5` when the
+missing mirror is established. Both conformers belong to the same stereoisomer,
+so this also applies in `specified` mode. A HIR model that already includes both
+mirrors, or an MC model with both mirrors explicitly present, receives no extra
+factor of two. Thus `racemic` restores the earlier choice of enantiomers, but it
+does not undo other corrections to optical or rotational counting.
+
+### Reaction pathways and statistical counting
 
 **Keep different stereochemical reaction pathways.**
 Virtual substitution distinguishes homotopic, enantiotopic, and diastereotopic

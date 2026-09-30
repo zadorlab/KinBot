@@ -1,3 +1,5 @@
+from kinbot.species_routing import configured_selection
+from kinbot.species_routing import routing_name
 import numpy as np
 import sys
 import copy
@@ -50,6 +52,9 @@ from kinbot.reactions.reac_h2_elim import H2Elim
 from kinbot.reactions.reac_bimol_disproportionation_R import BimolDisproportionationR
 from kinbot.reactions.reac_homolytic_scission import HS
 from kinbot.reactions.reac_combinatorial import Combinatorial
+from kinbot.stereochemistry import (reaction_atom_equivalence, motif_identity,
+                                    configuration_erased_graph)
+from kinbot.stereo_identity import UnsupportedStereochemistry
 
 logger = logging.getLogger('KinBot')
 
@@ -79,7 +84,7 @@ class ReactionFinder:
         for i, bond in enumerate(par['form_bonds']):
             self.prod_bonds.add(frozenset(par['form_bonds'][i]))
         try:
-            self.barrierless_saddle = par['barrierless_saddle'][str(self.species.chemid)]
+            self.barrierless_saddle = configured_selection(par['barrierless_saddle'], self.species)
         except KeyError:
             self.barrierless_saddle = None
             
@@ -88,6 +93,73 @@ class ReactionFinder:
         # this dict is used to keep track of the unique reactions found,
         # and to verify whether a new reaction is indeed unique 
         self.reactions = {}
+        # Discarded H-transfer and H2 searches still exclude longer ring walks
+        # with the same endpoints. Keep the two families independent.
+        self._short_path_duplicates = {'intra_H_migration': set(), 'h2_elim': set()}
+
+    def _reaction_atom_eqv(self):
+        if not hasattr(self, '_reaction_eqv'):
+            self._reaction_eqv = reaction_atom_equivalence(
+                self.species)
+        return self._reaction_eqv
+
+    def _motif_key(self, motif):
+        motif = tuple(map(int, motif))
+        if not hasattr(self, '_motif_keys'):
+            self._motif_keys = {}
+            self._motif_identities = {}
+            self._motif_graphs = {}
+        if motif not in self._motif_keys:
+            identity = motif_identity(self.species, motif)
+            self._motif_identities[motif] = identity
+            self._motif_keys[motif] = identity['mirror_family_id']
+        return self._motif_keys[motif]
+
+    def _motif_graph(self, motif):
+        motif = tuple(map(int, motif))
+        self._motif_key(motif)
+        if motif not in self._motif_graphs:
+            self._motif_graphs[motif] = configuration_erased_graph(self._motif_identities[motif])
+        return self._motif_graphs[motif]
+
+    def _unsupported_search(self, family, error, atoms=None):
+        """Report the part of discovery that has no supported assignment."""
+        record = {'family': family, 'reason': str(error)}
+        if atoms is not None:
+            record['atoms'] = list(map(int, atoms))
+        rejected = getattr(self.species, 'stereochemical_discovery_rejections', [])
+        if record not in rejected:
+            rejected.append(record)
+            self.species.stereochemical_discovery_rejections = rejected
+            logger.warning('%s: omitted %s: %s. The exported network is incomplete.',
+                           self.species.name,
+                           f'remaining {family} family search' if atoms is None
+                           else f'{family} search for atoms {record["atoms"]}', error)
+
+    def _start_motif(self, motif, natom, bond, atom, allover, eqv):
+        instances = find_motif.start_motif(
+            motif, natom, bond, atom, allover, eqv,
+            equivalence_key=self._motif_key)
+        # Prefer master's atom selection only for a complete stereochemical
+        # class present in the expanded search. Both choices still pass the
+        # family's bond and geometry filters before new_reaction merges them.
+        try:
+            keys = {self._motif_key(inst) for inst in instances}
+            preferred = find_motif.start_motif(
+                motif, natom, bond, atom, allover, self.species.atom_eqv)
+            preferred = [inst for inst in preferred if self._motif_key(inst) in keys]
+        except UnsupportedStereochemistry:
+            # A name preference must not stop the family. new_reaction
+            # reports unsupported selections that pass its filters.
+            return instances
+        seen = {tuple(inst) for inst in preferred}
+        return preferred + [inst for inst in instances if tuple(inst) not in seen]
+
+    def _reaction_atom_labels(self):
+        if not hasattr(self, '_reaction_labels'):
+            self._reaction_labels = {atom: i for i, group in enumerate(self._reaction_atom_eqv())
+                                     for atom in group}
+        return self._reaction_labels
 
     def find_reactions(self):
         '''
@@ -163,23 +235,47 @@ class ReactionFinder:
                 for rn in reaction_names:
                     if 'all' in self.families or rn in self.families:
                         if not rn in self.skip_families:
-                            reaction_names[rn](natom, atom, bond, rad)
+                            try:
+                                reaction_names[rn](natom, atom, bond, rad)
+                            except UnsupportedStereochemistry as error:
+                                self._unsupported_search(rn, error)
 
         for name in self.reactions:
             self.reaction_matrix(self.reactions[name], name) 
-        
+
+        self._name_distinct_motifs()
         for index in range(len(self.species.reac_name)-1):
             if self.species.reac_name[index] in self.species.reac_name[index + 1:]:
                 logger.error(f'Found reaction name {self.species.reac_name[index]} more than once')
                 logger.error('Exiting')
-                sys.exit()
+                sys.exit(1)
 
         logger.info('\tFound the following reactions:')
         for rxn in self.species.reac_name:
             logger.info('\t\t{}'.format(rxn))
         
         return 0  
-   
+
+    def _name_distinct_motifs(self):
+        """Separate retained motifs whose old names omit reacting atoms or ring arms.
+
+        The suffix identifies a search in the existing atom order. It does not
+        define a statistical pathway class; TS/IRC classification still does that.
+        """
+        groups = {}
+        for index, name in enumerate(self.species.reac_name):
+            groups.setdefault(name, []).append(index)
+        for name, indices in groups.items():
+            if len(indices) < 2:
+                continue
+            motifs = [tuple(map(int, self.species.reac_inst[i])) for i in indices]
+            if len(set(motifs)) != len(motifs):
+                continue  # Leave unexpected exact duplicates to the existing guard.
+            for index, motif in zip(indices, motifs):
+                job = name + '_m' + '-'.join(str(atom + 1) for atom in motif)
+                self.species.reac_name[index] = job
+                self.species.reac_obj[index].instance_name = job
+
 
     def search_combinatorial(self, natom, atom, bond, rad):
         ''' 
@@ -223,6 +319,7 @@ class ReactionFinder:
             self.reactions[name] = []
 
         rxns = [] #reactions found with the current resonance isomer
+        h_atom_eqv = self._reaction_atom_eqv()
 
         # if np.sum(rad) == 0:
         # find H-migrations over double bonds and to lone pairs
@@ -230,7 +327,8 @@ class ReactionFinder:
         for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize)]
             motif[-1] = 'H'
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(
+                motif, natom, bond, atom, -1, h_atom_eqv)
 
             # double bonds
             for instance in instances:
@@ -261,7 +359,8 @@ class ReactionFinder:
                 motif = ['X' for i in range(ringsize)]
                 motif[-1] = 'H'
                 for rad_site in np.nonzero(rad)[0]:
-                    instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+                    instances += self._start_motif(
+                        motif, natom, bond, atom, rad_site, h_atom_eqv)
             for instance in instances:
                 rxns.append(instance)
         rxns = self.clean_rigid(name, rxns, 0, -1)
@@ -287,10 +386,12 @@ class ReactionFinder:
             self.reactions[name] = []
 
         rxns = [] #reactions found with the current resonance isomer
+        h_atom_eqv = self._reaction_atom_eqv()
         
         # search for keto-enol type reactions
         motif = ['X', 'X', 'X', 'H']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(
+            motif, natom, bond, atom, -1, h_atom_eqv)
         
         # filter for the double bond
         for instance in instances:
@@ -333,7 +434,7 @@ class ReactionFinder:
         for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize)]
             for rad_site in np.nonzero(rad)[0]:
-                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+                instances += self._start_motif(motif, natom, bond, atom, rad_site, self._reaction_atom_eqv())
 
         for instance in instances: 
             if not atom[instance[-1]] == 'H':
@@ -365,6 +466,7 @@ class ReactionFinder:
             self.reactions[name] = []
 
         rxns = [] #reactions found with the current resonance isomer
+        h_atom_eqv = self._reaction_atom_eqv()
 
         bondsum = 0
         
@@ -389,15 +491,18 @@ class ReactionFinder:
                 ring_rev = np.ndarray.tolist(np.roll(ring_rev, 1))
                 rings = [ring_forw,ring_rev]
                 
-                Hatomi = -1
-                for atomi in range(natom):
-                    if atom[atomi] == 'H':
-                        if bond[atomi][start] == 1:
-                            Hatomi = atomi
-                if Hatomi > -1:
+                donor_hydrogens = {atomi for atomi in range(natom)
+                                   if atom[atomi] == 'H'
+                                   and bond[atomi][start] == 1}
+                hydrogens = []
+                for group in h_atom_eqv:
+                    members = sorted(donor_hydrogens.intersection(group))
+                    if members:
+                        hydrogens.append(members[0])
+                for hydrogen in hydrogens:
                     for ring in rings:
                         instance = ring[:]
-                        instance.append(Hatomi)
+                        instance.append(hydrogen)
                         rxns += [instance]
 
         self.new_reaction(rxns, name, a=0, b=-1)
@@ -436,7 +541,7 @@ class ReactionFinder:
                 motif[-1] = 'H'
                 motif[-2] = 'O'
                 motif[-3] = 'O'
-                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+                instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
            
                 for instance in instances:
                     if any([bi > 1 for bi in bond[instance[0]]]):
@@ -451,16 +556,16 @@ class ReactionFinder:
                 motif[-2] = 'O'
                 motif[-3] = 'O'
                 for rad_site in np.nonzero(rad)[0]:
-                    instances += find_motif.start_motif(motif, natom, bond, atom, 
-                                                        rad_site, self.species.atom_eqv)
+                    instances += self._start_motif(motif, natom, bond, atom,
+                                                        rad_site, self._reaction_atom_eqv())
                 # reverse direction
                 motif = ['X' for i in range(ringsize+1)]
                 motif[-1] = 'H'
                 motif[-2] = 'O'
                 motif[0] = 'O'
                 for rad_site in np.nonzero(rad)[0]:
-                    instances += find_motif.start_motif(motif, natom, bond, atom, 
-                                                        rad_site, self.species.atom_eqv)
+                    instances += self._start_motif(motif, natom, bond, atom,
+                                                        rad_site, self._reaction_atom_eqv())
                 for ins in instances:
                     rxns.append(ins)
 
@@ -510,7 +615,7 @@ class ReactionFinder:
                 motif[-1] = 'H'
                 motif[-2] = 'O'
                 motif[-3] = 'O'
-                instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+                instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
            
                 for instance in instances:
                     if bond[instance[0]][instance[1]] == 2:
@@ -553,7 +658,7 @@ class ReactionFinder:
         for ringsize in range(5, 9):
             motif = ['X' for i in range(ringsize + 1)]
             motif[-1] = 'H'
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
 
             bondpattern = ['X' for i in range(ringsize)]
             bondpattern[0] = 2
@@ -596,7 +701,7 @@ class ReactionFinder:
             motif = ['X' for i in range(len(ci) + 1)]
             motif[-1] = 'H'
             
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             
             # check if there is a bond between the first and second to last atom
             for instance in instances:
@@ -641,7 +746,7 @@ class ReactionFinder:
             motif[-3] = 'O'
             motif[0] = 'C'
             for rad_site in np.nonzero(rad)[0]:
-                rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+                rxns += self._start_motif(motif, natom, bond, atom, rad_site, self._reaction_atom_eqv())
 
         for instance in range(len(rxns)):
             rxns[instance] = rxns[instance][:-2] #cut off OR
@@ -677,7 +782,7 @@ class ReactionFinder:
             motif = ['X' for i in range(ringsize)]
             instances = []
             for rad_site in np.nonzero(rad)[0]:
-                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+                instances += self._start_motif(motif, natom, bond, atom, rad_site, self._reaction_atom_eqv())
             bondpattern = ['X' for i in range(ringsize-1)]
             bondpattern[-1] = 2
             for instance in instances:
@@ -719,7 +824,7 @@ class ReactionFinder:
         for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize + 1)]
             for rad_site in np.nonzero(rad)[0]:
-                rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+                rxns += self._start_motif(motif, natom, bond, atom, rad_site, self._reaction_atom_eqv())
 
         self.new_reaction(rxns, name, a=0, b=-1)
 #            # filter for specific reaction after this
@@ -752,7 +857,7 @@ class ReactionFinder:
             motif = ['X' for i in range(ringsize + 1)]
             instances = []
             for rad_site in np.nonzero(rad)[0]:
-                instances += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+                instances += self._start_motif(motif, natom, bond, atom, rad_site, self._reaction_atom_eqv())
             bondpattern = ['X' for i in range(ringsize)]
             bondpattern[-1] = 2
             for instance in instances:
@@ -819,7 +924,7 @@ class ReactionFinder:
             motif = ['X' for i in range(ringsize+2)]
             motif[-1] = 'H'
 
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             bondpattern = ['X' for i in range(ringsize+1)]
             bondpattern[0] = 2
             for instance in instances:
@@ -861,7 +966,7 @@ class ReactionFinder:
         for ci in self.species.cycle_chain:
             motif = ['X' for i in range(len(ci) + 2)]
             motif[-1] = 'H'
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
 
             # check if there is a bond between the first and second to last atom
             for instance in instances:
@@ -897,7 +1002,7 @@ class ReactionFinder:
         
         motif = ['X' for i in range(6)]
         motif[-1] = 'H'
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
 
         bondpattern = ['X' for i in range(5)]
         bondpattern[0] = 2
@@ -944,7 +1049,7 @@ class ReactionFinder:
             motif = ['X' for i in range(ringsize)]
             motif[-1] = 'O'
             motif[0] = 'O'
-            korcek_chain = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            korcek_chain = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             # filter clockwise and anti clockwise hits
             korcek_chain_filt = []
             for kch in korcek_chain:
@@ -1009,7 +1114,7 @@ class ReactionFinder:
             motif = ['X' for i in range(ringsize)]
             motif[-1] = 'O'
             motif[0] = 'O'
-            korcek_chain =  find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            korcek_chain =  self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             # filter clockwise and anti clockwise hits
             korcek_chain_filt = []
             for kch in korcek_chain:
@@ -1077,7 +1182,7 @@ class ReactionFinder:
         for ringsize in range(5, 6):
             motif = ['X' for i in range(ringsize + 1)]
             #motif[-1] = 'H'  #  deleted because atom types are no longer checked
-            korcek_chain =  find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            korcek_chain =  self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             for ins in korcek_chain:
                 if bond[ins[0]][ins[-2]] == 1:
                     rxns += [ins]
@@ -1206,7 +1311,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
 
         motif = ['X','X','X']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
         
         for instance in instances:
             #if all([atom[atomi] != 'H' for atomi in instance]):
@@ -1242,7 +1347,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
 
         motif = ['X','C','O','X']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
         for instance in instances:
             for atomi in range(natom):
                 if not atomi in instance:
@@ -1277,7 +1382,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         motif = ['X','X','X','O']
-        rxns = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        rxns = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
         
         self.new_reaction(rxns, name, a=0, b=-1)
 #            # filter for specific reaction after this
@@ -1372,7 +1477,7 @@ class ReactionFinder:
         
         for ringsize in self.ringrange:  # TODO what is the meaning of these larger rings?
             motif = ['X' for i in range(ringsize)]
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
 
             bondpattern = ['X' for i in range(ringsize - 1)]
             bondpattern[0] = 2
@@ -1407,14 +1512,15 @@ class ReactionFinder:
             self.reactions[name] = []
 
         rxns = [] #reactions found with the current resonance isomer
+        h_atom_eqv = self._reaction_atom_eqv()
 
         # enol to keto
         motif = ['C', 'C', 'O', 'X']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(motif, natom, bond, atom, -1, h_atom_eqv)
 
         # keto to enol
         motif = ['O', 'C', 'C', 'X']
-        instances += find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances += self._start_motif(motif, natom, bond, atom, -1, h_atom_eqv)
         bondpattern = [2, 'X', 'X', 'X']
         for instance in instances:
             if find_motif.bondfilter(instance, bond, bondpattern) == 0:
@@ -1450,7 +1556,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         motif = ['H', 'X', 'X', 'O', 'O']
-        rxns += find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        rxns += self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             
         self.new_reaction(rxns, name, a=0, b=-1)
 #            # filter for specific reaction after this
@@ -1482,7 +1588,7 @@ class ReactionFinder:
         
         motif = ['X', 'C', 'O']
 
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
 
         for instance in instances:
             bondpattern = [1, 2]
@@ -1524,11 +1630,11 @@ class ReactionFinder:
         # simple beta scission for radicals
         motif = ['X', 'X', 'X']
         for rad_site in np.nonzero(rad)[0]:
-            rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+            rxns += self._start_motif(motif, natom, bond, atom, rad_site, self._reaction_atom_eqv())
 
         # anticipated resonance stabilized radical
         motif = ['X', 'X', 'X', 'X']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
         bondpattern = [2, 'X', 'X', 'X']
         for instance in instances:
             if find_motif.bondfilter(instance, bond, bondpattern) == 0:
@@ -1562,7 +1668,7 @@ class ReactionFinder:
         motif = ['X','S','X']
         rxns = []
         for rad_site in np.nonzero(rad)[0]:
-            rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+            rxns += self._start_motif(motif, natom, bond, atom, rad_site, self._reaction_atom_eqv())
 
         #filter for identical reactions
         for inst in rxns:
@@ -1599,7 +1705,7 @@ class ReactionFinder:
         motif = ['S','X','X']
         rxns = []
         for rad_site in np.nonzero(rad)[0]:
-            rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+            rxns += self._start_motif(motif, natom, bond, atom, rad_site, self._reaction_atom_eqv())
         
         for inst in rxns:
             new = 1
@@ -1634,7 +1740,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         motif = ['X','X','X','S']
-        rxns = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        rxns = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
         
 
         self.new_reaction(rxns, name, a=0, b=-1)
@@ -1667,7 +1773,7 @@ class ReactionFinder:
         
         motif = ['X', 'C', 'S']
 
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
 
         for instance in instances:
             bondpattern = [1, 2]
@@ -1708,7 +1814,7 @@ class ReactionFinder:
 
         
         motif = ['X','X','X','X']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
         for instance in instances: 
             if rad[instance[0]] == 1 and rad[instance[-1]] == 1:
                 rxns += [instance]
@@ -1745,7 +1851,7 @@ class ReactionFinder:
 
         for ringsize in range(5, 9):
             motif = ['X' for i in range(ringsize)]
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             
             bondpattern = ['X' for i in range(ringsize - 1)]
             bondpattern[0] = 2
@@ -1784,7 +1890,7 @@ class ReactionFinder:
 
         for ringsize in self.ringrange:
             motif = ['X' for i in range(ringsize)]
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
            
             for instance in instances: 
                 if rad[instance[0]] == 1 and rad[instance[-1]] == 1:
@@ -1819,7 +1925,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
         
         motif = ['X','X']
-        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+        instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
         for instance in instances: 
             if instance[0] in self.cycle and instance[1] in self.cycle :
                 rxns += [instance]
@@ -1853,7 +1959,7 @@ class ReactionFinder:
         for ringsize in range(5, 9):
             motif = ['X' for i in range(ringsize)]
             motif[-1] = 'H'
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
            
             for instance in instances: 
                 if rad[instance[0]] == 1 and rad[instance[-3]] == 1:
@@ -1889,7 +1995,7 @@ class ReactionFinder:
             motif = ['X' for i in range(ringsize)]
             motif[-1] = 'H'
             
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             
             bondpattern = ['X' for i in range(ringsize - 1)]
             bondpattern[0] = 2
@@ -1930,7 +2036,7 @@ class ReactionFinder:
             motif = ['X' for i in range(ringsize)]
             motif[-1] = 'H'
             
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             
             bondpattern = ['X' for i in range(ringsize - 1)]
             bondpattern[0] = 2
@@ -1969,7 +2075,7 @@ class ReactionFinder:
 
         motif = ['X', 'X', 'X', 'X', 'X']
         for rad_site in np.nonzero(rad)[0]:
-            rxns += find_motif.start_motif(motif, natom, bond, atom, rad_site, self.species.atom_eqv)
+            rxns += self._start_motif(motif, natom, bond, atom, rad_site, self._reaction_atom_eqv())
 
         self.new_reaction(rxns, name, a=0, b=1, c=2, d=3, e=4)
 #            # filter for specific reaction after this
@@ -1999,7 +2105,7 @@ class ReactionFinder:
         rxns = [] #reactions found with the current resonance isomer
 
 #        motif = ['H','X','X','H']
-#        instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+#        instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
 #        for instance in instances: 
 #            rxns += [instance]
 
@@ -2009,7 +2115,7 @@ class ReactionFinder:
             motif = ['X' for i in range(ringsize)]
             motif[0] = 'H'
             motif[-1] = 'H'
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             for instance in instances: 
                 rxns += [instance]
 
@@ -2042,13 +2148,13 @@ class ReactionFinder:
 
         if self.par['homolytic_bonds'] == {}:
             motif = ['X','X']
-            instances = find_motif.start_motif(motif, natom, bond, atom, -1, self.species.atom_eqv)
+            instances = self._start_motif(motif, natom, bond, atom, -1, self._reaction_atom_eqv())
             for instance in instances: 
                 if not self.species.cycle[instance[0]] or not self.species.cycle[instance[1]]:
                     rxns += [instance]
         else: 
             try:
-                rxns = self.par['homolytic_bonds'][str(self.species.chemid)]
+                rxns = configured_selection(self.par['homolytic_bonds'], self.species, [])
             except KeyError:
                 pass
                 
@@ -2114,189 +2220,189 @@ class ReactionFinder:
         
         for i in range(len(reac_list)):
             if reac_id == 'intra_H_migration':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraHMigration(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'intra_H_migration_suprafacial':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraHMigrationSuprafacial(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'intra_R_migration':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRMigration(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'intra_OH_migration':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraOHMigration(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'intra_OH_migration_Exocyclic_F':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][-2] + 1) + '_' + str(reac_list[i][-1])  # last element is cis/trans (-1, -2)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][-2] + 1) + '_' + str(reac_list[i][-1])  # last element is cis/trans (-1, -2)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraOHMigrationExocyclicF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'cpd_H_migration':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1) + '_' + str(reac_list[i][-2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1) + '_' + str(reac_list[i][-2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(CpdHMigration(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Endocyclic_F':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(len(reac_list[i])) + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(len(reac_list[i])) + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddEndoF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Endocyclic_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddEndoR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Cyclic_Ether_Formation':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(CyclicEtherFormation(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Exocyclic_F':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_RH_Add_Exocyclic_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRHAddExoR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Retro_Ene':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(RetroEne(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_R_Add_Endocyclic_F':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRAddEndocyclicF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_R_Add_ExoTetCyclic_F':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRAddExoTetCyclicF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_R_Add_Exocyclic_F':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraRAddExocyclicF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Korcek_step2_odd':
-                name = str(self.species.chemid) + '_' + reac_id
+                name = routing_name(self.species) + '_' + reac_id
                 for j in range(len(reac_list[i])):
                     name += '_' + str(reac_list[i][j] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(KorcekStep2Odd(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Korcek_step2_even':
-                name = str(self.species.chemid) + '_' + reac_id
+                name = routing_name(self.species) + '_' + reac_id
                 for j in range(len(reac_list[i])):
                     name += '_' + str(reac_list[i][j] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(KorcekStep2Even(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Korcek_step2':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(KorcekStep2(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r22_cycloaddition':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R22Cycloaddition(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r12_cycloaddition':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R12Cycloaddition(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r12_insertion_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R12Insertion(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r13_insertion_CO2':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R13InsertionCO2(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r13_insertion_ROR':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R13InsertionROR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r14_birad_scission':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R14BiradScission(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r14_cyclic_birad_scission_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R14CyclicBiradScission(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'birad_recombination_F':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BiradRecombinationF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'birad_recombination_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BiradRecombinationR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_disproportionation_F':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraDisproportionationF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_disproportionation_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraDisproportionationR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Diels_alder_addition':
                 indx = ''.join('_' + str(reac_list[i][jj] + 1) for jj in range(6))
-#                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
-                name = str(self.species.chemid) + '_' + reac_id + indx
+#                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + indx
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(DielsAlder(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'Intra_Diels_alder_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(IntraDielsAlder(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'ketoenol':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)  + '_' + str(reac_list[i][2] + 1)  + '_' + str(reac_list[i][3] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)  + '_' + str(reac_list[i][2] + 1)  + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(KetoEnol(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'HO2_Elimination_from_PeroxyRadical':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(HO2Elimination(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'R_Addition_COm3_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(RAdditionCO(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'R_Addition_MultipleBond':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(RAdditionMultipleBond(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == '12_shift_S_F':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(S12ShiftF(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == '12_shift_S_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(S12ShiftR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'R_Addition_CSm_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(RAdditionCS(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'r13_insertion_RSR':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(R13InsertionRSR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'beta_delta':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1) + '_' + str(reac_list[i][4] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1) + '_' + str(reac_list[i][2] + 1) + '_' + str(reac_list[i][3] + 1) + '_' + str(reac_list[i][4] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BetaDelta(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'h2_elim':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(H2Elim(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'hom_sci':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(HS(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'bimol_disproportionation_R':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][-1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BimolDisproportionationR(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'barrierless_saddle':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(reac_list[i][0] + 1) + '_' + str(reac_list[i][1] + 1)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(BarrierlessSaddle(self.species, self.qc, self.par, reac_list[i], name))
             elif reac_id == 'combinatorial':
-                name = str(self.species.chemid) + '_' + reac_id + '_' + str(i)
+                name = routing_name(self.species) + '_' + reac_id + '_' + str(i)
                 self.species.reac_name.append(name)
                 self.species.reac_obj.append(Combinatorial(self.species, self.qc, self.par, reac_list[i], name))
             else:
@@ -2341,16 +2447,56 @@ class ReactionFinder:
         now also filters non-solute reactions in cluster mode
         '''
 
+        # H endpoints identify their donors in these two families. Heavy-atom
+        # migration can break different bonds for the same endpoint pair.
+        duplicates = self._short_path_duplicates.get(name, ())
         for inst in rxns:
+            if self.par['cluster'] and not any(
+                    inst[pos] in self.par['solute']
+                    for pos in (a, b, c, d, e) if pos is not None):
+                continue
+            if all(isinstance(atom, (int, np.integer)) and 0 <= atom < self.species.natom
+                   for atom in inst):
+                try:
+                    self._motif_key(inst)
+                except UnsupportedStereochemistry as error:
+                    self._unsupported_search(name, error, inst)
+                    continue
             new = True
-            for instance in self.reactions[name]:
-                if aid == True:
-                    if (self.species.atomid[inst[a]] == self.species.atomid[instance[a]] and
-                            self.species.atomid[inst[b]] == self.species.atomid[instance[b]]):
+            # Do not use discarded searches to reject equal-length paths:
+            # those can have distinct relative stereochemistry.
+            comparisons = self.reactions[name] + [
+                previous for previous in duplicates if len(previous) != len(inst)]
+            for instance in comparisons:
+                # Keep only one representative of a chemically equivalent
+                # complete motif, including a permitted reversed direction.
+                comparable = (len(inst) == len(instance)
+                              and all(isinstance(atom, (int, np.integer)) and 0 <= atom < self.species.natom
+                                      for atom in list(inst) + list(instance)))
+                if comparable:
+                    key = self._motif_key(inst)
+                    other_keys = [self._motif_key(instance)]
+                    if cross:
+                        other_keys.append(self._motif_key(instance[::-1]))
+                    if key in other_keys:
+                        if name in self._short_path_duplicates:
+                            duplicates.add(tuple(inst))
                         new = False
                         break
-                    if (self.species.atomid[inst[b]] == self.species.atomid[instance[a]] and
-                            self.species.atomid[inst[a]] == self.species.atomid[instance[b]]):
+                    other_graphs = [self._motif_graph(instance)]
+                    if cross:
+                        other_graphs.append(self._motif_graph(instance[::-1]))
+                    if self._motif_graph(inst) in other_graphs:
+                        # Same selected graph, different relative stereo:
+                        # positional equality must not discard this path.
+                        continue
+                if aid == True:
+                    if (self._reaction_atom_labels()[inst[a]] == self._reaction_atom_labels()[instance[a]] and
+                            self._reaction_atom_labels()[inst[b]] == self._reaction_atom_labels()[instance[b]]):
+                        new = False
+                        break
+                    if (self._reaction_atom_labels()[inst[b]] == self._reaction_atom_labels()[instance[a]] and
+                            self._reaction_atom_labels()[inst[a]] == self._reaction_atom_labels()[instance[b]]):
                         new = False
                         break
                 if cross == True:
@@ -2386,16 +2532,7 @@ class ReactionFinder:
                 new = False
                 continue
             if new:
-                if self.par['cluster']:  # only append is solute is part of it
-                    labels = [a, b, c, d, e]
-                    testing = []
-                    for ll in labels:
-                        if ll != None:
-                            testing.append(inst[ll]) 
-                    if len([tt for tt in testing if tt in self.par['solute']]) > 0:
-                        self.reactions[name].append(inst)
-                else:
-                    self.reactions[name].append(inst)
+                self.reactions[name].append(inst)
         return 0
 
 def main():

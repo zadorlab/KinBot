@@ -1,3 +1,4 @@
+from kinbot.species_routing import routing_name
 import os
 import sys
 import subprocess
@@ -11,6 +12,8 @@ from shutil import copyfile
 
 import numpy as np
 from ase.db import connect
+from kinbot.run_format import ensure_current_run
+from kinbot.stereo_identity import optical_scope
 from ase import Atoms
 
 from kinbot.utils import plain_symbols, plain_geometry
@@ -30,6 +33,7 @@ class QuantumChemistry:
     '''
 
     def __init__(self, par):
+        ensure_current_run(create=True)
         self.par = par
         self.qc = par['qc'].lower()
         self.method = par['method']
@@ -76,6 +80,12 @@ class QuantumChemistry:
             self.use_sella = True
         if self.use_sella and self.qc.lower() == 'fc':
             self.use_sella = False  # Sella template files are separate from fairchem
+
+    def _prepare_stereochemistry(self, species):
+        """Keep the requested well identity before an optimization changes it."""
+        if not getattr(species, 'wellorts', 0):
+            species.optical_population = getattr(self, 'par', {}).get('optical_population', 'specified')
+            optical_scope(species, species.optical_population)
 
     def get_qc_arguments(self, job, mult, charge, nel, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
@@ -362,7 +372,26 @@ class QuantumChemistry:
         if species.wellorts:
             job = 'hir/' + species.name + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
         else:
-            job = 'hir/' + str(species.chemid) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
+            job = 'hir/' + routing_name(species) + '_hir_' + str(rot_index) + '_' + str(ang_index).zfill(2)
+
+        self._prepare_stereochemistry(species)
+        try:
+            self._check_hir_definition(job, fix[0], bool(self.db.count(name=job)),
+                                       geometry=geom, atoms=species.atom)
+        except ValueError as error:
+            # The previous scan is evidence, not a result for this new input.
+            # A stable suffix permits resuming the replacement without either
+            # overwriting the old calculation or repeatedly submitting it.
+            import hashlib
+            import json
+            signature = json.dumps([plain_symbols(species.atom), plain_geometry(geom),
+                                    list(map(int, fix[0])), bool(rigid)], sort_keys=True)
+            job += '_recovery_' + hashlib.sha256(signature.encode()).hexdigest()[:16]
+            logger.warning('%s; using fresh HIR calculation %s.', error, job)
+            self._check_hir_definition(job, fix[0], bool(self.db.count(name=job)),
+                                       geometry=geom, atoms=species.atom)
+        if self.check_qc(job) in ('normal', 'error', 'running'):
+            return job
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
                                        ts=species.wellorts, step=1, max_step=1,
@@ -430,7 +459,57 @@ class QuantumChemistry:
 
         self.submit_qc(job, min(species.nel, self.ppn))
 
-        return 0
+        return job
+
+    @staticmethod
+    def _check_hir_definition(job, dihedral, has_result=False, geometry=None, atoms=None):
+        """Do not relabel a saved scan after changing its torsion definition.
+
+        Read literal input only, never execute a worker. This deliberately
+        checks the defining atoms and, when requested, the literal initial
+        geometry. Rigid rotations/translations of that input are equivalent.
+        """
+        import ast
+        import re
+        from pathlib import Path
+        path = Path(job + '.py')
+        if not path.exists():
+            if not has_result:
+                return
+            raise ValueError(f'{job}: a cached HIR result has no saved scan input. '
+                             'Run fresh scans in a new directory; existing results were preserved.')
+        saved = None
+        saved_geometry, saved_atoms = None, None
+        try:
+            for node in ast.parse(path.read_text()).body:
+                if not isinstance(node, ast.Assign):
+                    continue
+                names = [n.id for n in node.targets if isinstance(n, ast.Name)]
+                if 'base_0_fix' in names and isinstance(node.value, ast.ListComp):
+                    saved = ast.literal_eval(node.value.generators[0].iter)
+                elif isinstance(node.value, ast.Call) and getattr(node.value.func, 'id', None) == 'Atoms':
+                    values = {key.arg: ast.literal_eval(key.value) for key in node.value.keywords
+                              if key.arg in ('symbols', 'positions')}
+                    saved_geometry, saved_atoms = values.get('positions'), values.get('symbols')
+                elif 'kwargs' in names:
+                    section = ast.literal_eval(node.value).get('addsec', '')
+                    match = re.search(r'(?:^|tors\s+)(\d+)\s+(\d+)\s+(\d+)\s+(\d+)', section)
+                    if match:
+                        saved = list(map(int, match.groups()))
+        except (ValueError, SyntaxError, TypeError, AttributeError):
+            pass
+        if saved is None or list(saved) not in (list(dihedral), list(dihedral)[::-1]):
+            raise ValueError(f'{job}: saved HIR dihedral {saved} differs from requested {dihedral}. '
+                             'Run fresh scans in a new directory; existing files were preserved.')
+        if geometry is not None:
+            from kinbot.molecular_symmetry import proper_rmsd
+            source = np.asarray(saved_geometry, dtype=float)
+            target = np.asarray(geometry, dtype=float)
+            if (saved_atoms != list(map(str, atoms)) or source.shape != target.shape
+                    or not np.all(np.isfinite(source))
+                    or proper_rmsd(source, target) > 1.e-6):
+                raise ValueError(f'{job}: saved HIR input geometry or atom order differs '
+                                 'from the requested scan; existing files were preserved.')
 
     def qc_ring_conf(self, species, geom, fix, change, conf_idx, dih_idx):
         '''
@@ -447,9 +526,11 @@ class QuantumChemistry:
             job = 'conf/' + species.name + '_r' + str(conf_idx).zfill(self.zf) \
                   + '_' + str(dih_idx).zfill(self.zf)
         else:
-            job = 'conf/' + str(species.chemid) + '_r' \
+            job = 'conf/' + routing_name(species) + '_r' \
                   + str(conf_idx).zfill(self.zf) + '_' \
                   + str(dih_idx).zfill(self.zf)
+
+        self._prepare_stereochemistry(species)
 
         kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
                                        ts=species.wellorts, step=1, max_step=1, 
@@ -528,8 +609,10 @@ class QuantumChemistry:
         if species.wellorts:
             job = 'conf/' + species.name + '_' + add + str(index).zfill(self.zf)
         else:
-            job = 'conf/' + str(species.chemid) + '_' + add \
+            job = 'conf/' + routing_name(species) + '_' + add \
                   + str(index).zfill(self.zf)
+
+        self._prepare_stereochemistry(species)
 
         if species.wellorts:
             kwargs = self.get_qc_arguments(job, species.mult, species.charge, species.nel,
@@ -545,7 +628,10 @@ class QuantumChemistry:
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
-            kwargs.pop('chk', None)
+            # Native MC conformers need their own existing Hessian for the
+            # optical check. Sella already stores it in the database.
+            if not (self.par.get('multi_conf_tst') and not self.use_sella and not semi_emp):
+                kwargs.pop('chk', None)
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
@@ -606,9 +692,8 @@ class QuantumChemistry:
     def qc_freq(self, species, source_job, high_level=0):
         """Recover native frequencies/Hessian at the selected, fixed geometry.
 
-        Older Gaussian conformer jobs did not retain a checkpoint, and native
-        QChem L1 jobs did not request the printed Hessian. Keep their records
-        intact and use a separate, same-level frequency calculation.
+        Native jobs can lack a checkpoint or printed Hessian. Keep their
+        records intact and use a separate, same-level frequency calculation.
         """
         if self.use_sella or self.qc not in ('gauss', 'qchem'):
             raise ValueError(f'Missing stored Hessian for {source_job} ({self.qc}).')
@@ -657,8 +742,9 @@ class QuantumChemistry:
         qc: 'gauss' or 'nwchem' or 'qchem'
         index: the index of the conformer as in conf search
         '''
-        job0 = f'aie/{str(species.chemid)}_AIE0_{ext}'  # neutral
-        job1 = f'aie/{str(species.chemid)}_AIE1_{ext}'  # cation
+        self._prepare_stereochemistry(species)
+        job0 = f'aie/{routing_name(species)}_AIE0_{ext}'  # neutral
+        job1 = f'aie/{routing_name(species)}_AIE1_{ext}'  # cation
         kwargs0 = self.get_qc_arguments(job0, species.mult, species.charge, species.nel, aie=1)
         if species.mult == 1: m1 = 2
         elif species.mult == 2: m1 = 1
@@ -681,12 +767,11 @@ class QuantumChemistry:
                              qc_command=self.qc_command,
                              working_dir=os.getcwd())
         
-        with open(f'{job0}.py', 'w') as f:
-            f.write(t0)
-        with open(f'{job1}.py', 'w') as f:
-            f.write(t1)
-        self.submit_qc(job0, min(species.nel, self.ppn))
-        self.submit_qc(job1, min(species.nel-1, self.ppn))
+        for job, template, electrons in ((job0, t0, species.nel),
+                                         (job1, t1, species.nel - 1)):
+            with open(f'{job}.py', 'w') as f:
+                f.write(template)
+            self.submit_qc(job, min(electrons, self.ppn))
 
         return 0
 
@@ -701,19 +786,26 @@ class QuantumChemistry:
             if high_level:
                 job = f'{species.name}_high'
         elif ext is None:
-            job = str(species.chemid) + '_well'
+            job = routing_name(species) + '_well'
             if high_level:
-                job = str(species.chemid) + '_well_high'
+                job = routing_name(species) + '_well_high'
             if mp2:
-                job = str(species.chemid) + '_well_mp2'
+                job = routing_name(species) + '_well_mp2'
             if bls:
-                job = str(species.chemid) + '_well_bls'
+                job = routing_name(species) + '_well_bls'
 
         else:
-            job = str(species.chemid) + ext
+            job = routing_name(species) + ext
 
         if fdir is not None:
             job = f'{fdir}/{job}'
+
+        if not do_vdW:
+            self._prepare_stereochemistry(species)
+
+        if not do_vdW and not getattr(species, 'wellorts', 0):
+            from kinbot.stereo_routing import guard_well_job
+            guard_well_job(self, species, geom, job)
 
         # TODO: Code exceptions into their own function/py script that opt can call.
         # TODO: Fix symmetry numbers for calcs as well if needed
@@ -870,11 +962,12 @@ class QuantumChemistry:
         Runs VTS fragment optimization
         '''
 
-        job = f'vrctst/{str(frag.chemid)}_vts'
+        job = f'vrctst/{routing_name(frag)}_vts'
+        self._prepare_stereochemistry(frag)
         mult = exceptions.get_multiplicity(frag.chemid, frag.mult)
         kwargs = self.get_qc_arguments(job, mult, frag.charge, frag.nel, vts=1)
         # Add chk to fragments only
-        kwargs['chk'] = f'{str(frag.chemid)}_vts'
+        kwargs['chk'] = f'{routing_name(frag)}_vts'
 
         if self.qc != 'gauss':
             raise ValueError(f'Only implemeted for Gaussian. Instead I got: {self.qc}')
@@ -911,6 +1004,7 @@ class QuantumChemistry:
             job = f'vrctst/{reac.instance_name}_vts_pt{str(step).zfill(2)}'
         else:
             job = f'vrctst/{reac.instance_name}_vts_pt_asymptote'
+        self._prepare_stereochemistry(reac.species)
         mult = exceptions.get_multiplicity(reac.species.chemid, reac.species.mult)
         kwargs = self.get_qc_arguments(job, mult, reac.species.charge, reac.species.nel, vts=1)
 

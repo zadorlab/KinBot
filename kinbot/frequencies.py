@@ -10,6 +10,7 @@ from kinbot import constants
 from kinbot import geometry
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.constants import EVtoHARTREE
+from kinbot.calculation import geometry_reference, array_fingerprint
 
 logger = logging.getLogger('KinBot')
 
@@ -168,6 +169,13 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
     massweighted: whether the hessian is already mass-weighted or not.
     """
 
+    reference = geometry_reference(species, geom)
+    reference['dihedrals'] = [list(map(int, rotor)) for rotor in species.dihed]
+    reference['hessian_sha256'] = array_fingerprint(hess)
+    reference['hessian_source_job'] = getattr(species, 'hessian_source_job', None)
+    reference['hessian_massweighted'] = bool(massweighted)
+    reference['hessian_unit'] = ('hartree / (bohr^2 * amu)' if massweighted
+                                 else 'hartree / bohr^2')
     atom = species.atom
     natom = species.natom
 
@@ -253,13 +261,20 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
 
     # Build set of internal rotation vectors to project out
     R = []
+    evidence = []
+    hir = getattr(species, 'hir', None)
+    if hir is not None:
+        hir.projection_status = []
     for rotor, rot in enumerate(species.dihed):
-        hir = getattr(species, 'hir', None)
         if hir is not None and not hir.is_valid_rotor(rotor):
+            evidence.append({'rotor_index': rotor, 'projected': False,
+                             'reason': hir.invalid_rotor_reason(rotor)})
             continue
         if skip_rotor(species.name, rot) == 1:
+            evidence.append({'rotor_index': rotor, 'projected': False,
+                             'reason': 'rotor excluded for this stationary point'})
             continue
-            
+
         # partition the molecule in two parts divided by the rotor bond
         Ri = np.zeros(3 * natom)
         l1, l2 = partition(species, rot, natom, checkdist=checkdist)
@@ -296,6 +311,7 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
         Ri = Ri / np.linalg.norm(Ri)
 
         R.append(Ri / np.linalg.norm(Ri))
+        evidence.append({'rotor_index': rotor, 'projected': True, 'reason': None})
 
     nvecs = 3 * natom - 3 - len(rvecs) - len(R)
     vecs = np.zeros((nvecs, 3 * natom))
@@ -332,6 +348,13 @@ def get_frequencies(species, hess, geom, checkdist=0, massweighted=False):
 
     reduced_freqs = [convert_to_wavenumbers(ei) for ei in sorted(eigvals)]
 
+    species.rotor_projection = {
+        'method': 'mass_weighted_cartesian_tangent_gram_schmidt',
+        'reference': reference, 'external_rank': 3 + len(rvecs),
+        'internal_rank': len(R), 'rotors': evidence,
+    }
+    if hir is not None:
+        hir.projection_status = evidence
     return freqs, reduced_freqs
 
 
@@ -376,7 +399,7 @@ def get_neighbors(ati, visited, forbidden, division, species, natom, checkdist):
                     try:
                         cutoff = constants.st_bond[''.join(sorted(species.atom[atj] + species.atom[ati]))]
                     except KeyError:
-                        cutoff = 1.2 * (covalent_radii[atomic_numbers[species.atom[ati]]] 
+                        cutoff = 1.2 * (covalent_radii[atomic_numbers[species.atom[ati]]]
                                         + covalent_radii[atomic_numbers[species.atom[atj]]])
                     if species.dist[atj, ati] < cutoff:
                         division.append(atj)
@@ -388,7 +411,7 @@ def skip_rotor(name, rot):
     if 'barrierless_saddle' in name:
         return 0
         l0 = name.split('_')
-        l = [int(l0[3]) - 1, int(l0[4]) - 1] 
+        l = [int(l0[3]) - 1, int(l0[4]) - 1]
         if any(rot[i:i+2] == l for i in range(3)):
             return 1
         if any(rot[i:i+2] == l[::-1] for i in range(3)):
@@ -403,7 +426,7 @@ def calc_vibrations(mol, label):
     mol.calc.label = f'{label}_vib'
     if 'chk' in mol.calc.parameters:
         del mol.calc.parameters['chk']
-    # Compute frequencies in a separate temporary directory to avoid 
+    # Compute frequencies in a separate temporary directory to avoid
     # conflicts accessing the cache in parallel calculations.
     if not os.path.isdir(f'{label}_vib'):
         os.mkdir(f'{label}_vib')
@@ -415,7 +438,7 @@ def calc_vibrations(mol, label):
         vib = Vibrations(mol)
         vib.run()
         vib.write_jmol()
-        # Use kinbot frequencies to avoid mixing low vib frequencies with 
+        # Use kinbot frequencies to avoid mixing low vib frequencies with
         # the values associated with external rotations.
         _ = vib.get_frequencies()
         zpe = vib.get_zero_point_energy() * EVtoHARTREE

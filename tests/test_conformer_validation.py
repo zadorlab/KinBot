@@ -12,6 +12,7 @@ from kinbot.conformers import Conformers
 from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.stereo_identity import canonical_identity
 
 
 class TestConformerValidation(unittest.TestCase):
@@ -27,6 +28,7 @@ class TestConformerValidation(unittest.TestCase):
         self.species = StationaryPoint('ethanol', 0, 1,
             atom=atoms.get_chemical_symbols(), geom=atoms.positions)
         self.species.characterize()
+        self.species.optical_reference = canonical_identity(self.species)
         self.species.name = str(self.species.chemid)
         self.qc = QuantumChemistry(self.par)
         self.qc.qc = 'fc'  # Read database results without native log copying.

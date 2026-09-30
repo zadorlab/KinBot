@@ -30,6 +30,7 @@ requirements:
         - networkx
         - rmsd >=1.5.1
         - sella >=2.6.0
+        - rdkit >=2026.3.5
 
 test:
   imports:

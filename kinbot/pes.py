@@ -1,3 +1,8 @@
+from kinbot.mess_mirrors import complete_mirror_channels, _POP, _EDGE
+from kinbot.mess_networks import _HEADER, split_model
+from kinbot.mess_racemates import _KEYS, _ROUTE
+from kinbot.species_routing import matches_name, expand_pes_names, apply_input_reference, mess_filename
+from kinbot.species_routing import routing_name, connectivity_name, is_species_name, prepare_pes_directory, configured_result_identity
 """
 This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
@@ -10,6 +15,7 @@ import datetime
 import time
 import subprocess
 import json
+import itertools
 from typing import Any
 import networkx as nx
 import numpy as np
@@ -17,6 +23,8 @@ import getpass
 
 from copy import deepcopy
 from ase.db import connect
+from kinbot.run_format import ensure_current_run
+from kinbot.stereo_identity import log_input_stereochemistry
 from ase.atoms import Atoms
 
 from kinbot import kb_path
@@ -27,10 +35,65 @@ from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
 from kinbot.mess import MESS, finalize_mc_mess
+from kinbot.reaction_path import read_summary_paths, compare_pathways
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
 from kinbot.utils import queue_command
 from kinbot.vrc_tst_surfaces import VRC_TST_Surface 
+
+
+def select_summary_reaction(reactions, candidate, stereopaths):
+    """Keep the preferred route in each endpoint/path class; return discarded rows."""
+    replace = []
+    keep_candidate = True
+    reactant, name, products, energy = candidate[:4]
+    if 'hom_sci' not in name and not stereopaths.get(name):
+        raise ValueError(f'Missing reaction-path metadata for calculated saddle {name}.')
+    for index, previous in enumerate(reactions):
+        same_endpoints = ((reactant == previous[0] and sorted(products) == sorted(previous[2]))
+                          or (products == [previous[0]] and previous[2] == [reactant]))
+        if not same_endpoints:
+            continue
+        decision = compare_pathways(previous[1], stereopaths.get(previous[1]), previous[3],
+                                    name, stereopaths.get(name), energy,
+                                    candidate_complex=len(candidate) == 6)
+        if decision == 'replace':
+            replace.append(index)
+        elif decision == 'keep':
+            keep_candidate = False
+    discarded = [reactions[index] for index in replace]
+    reactions[:] = [row for index, row in enumerate(reactions) if index not in replace]
+    if keep_candidate:
+        reactions.append(candidate)
+    else:
+        discarded.append(candidate)
+    return discarded
+
+
+def remove_unused_complexes(discarded, reactions, wells, do_vdW, parent):
+    """Remove only rejected complex names, preserving still-connected wells."""
+    def complex_name(reaction):
+        return reaction[1] + reaction[5].split('vdW')[1]
+
+    used = {complex_name(row) for row in reactions if len(row) == 6}
+    used.update(row[0] for row in reactions)
+    used.update(p for row in reactions for p in row[2])
+    for row in discarded:
+        if len(row) != 6:
+            continue
+        name = complex_name(row)
+        if name in used:
+            continue
+        if name in wells:
+            index = wells.index(name)
+            wells.pop(index)
+            do_vdW.pop(index)
+        parent.pop(name, None)
+        for product, source in list(parent.items()):
+            if source == name:
+                remaining = [r for r in reactions if sorted(r[2]) == sorted(row[2])]
+                parent[product] = (complex_name(remaining[0]) if remaining and len(remaining[0]) == 6
+                                   else remaining[0][0] if remaining else row[0])
 
 
 def main():
@@ -59,7 +122,7 @@ def main():
         else:
             print('Only the no-kinbot argument is accepted in this case')
             sys.exit(-1)
-    elif len(sys.argv) > 3:
+    if len(sys.argv) > 3:
         # possible tasks are:
         # 1. all: This is the default showing all pathways
         # 2. lowestpath: show the lowest path between the species
@@ -73,6 +136,8 @@ def main():
             print('The format is pes [input] [task] [names] and task should be one of "all", "lowestpath", "allpaths", or "wells".')
             sys.exit(-1)
         names = sys.argv[4:]
+
+    ensure_current_run(create=not no_kinbot)
 
     # print the license message to the console
     print(license_message.message)
@@ -95,11 +160,15 @@ def main():
                             smiles=par['smiles'],
                             structure=par['structure'])
     well0.characterize()
+    apply_input_reference(well0, par)
+    log_input_stereochemistry(well0, par, logger)
+    if no_kinbot:
+        ensure_current_run(routing_name(well0))
     write_input(input_file, well0, par['barrier_threshold'], par['barrier_threshold_L2'], os.getcwd(), par['me'])
 
     # add the initial well to the chemids
     with open('chemids', 'w') as f:
-        f.write(str(well0.chemid) + '\n')
+        f.write(routing_name(well0) + '\n')
 
     # create a directory for the L3 single point calculations
     # directory has the name of the code, e.g., molpro
@@ -123,6 +192,7 @@ def main():
     c = 0
 
     if 'none' not in par['keep_chemids']:
+        par['keep_chemids'] = expand_pes_names(os.getcwd(), par['keep_chemids'])
         with open('chemids', 'w') as f:
             for keep in par['keep_chemids']:
                 f.write(keep + '\n')
@@ -164,9 +234,9 @@ def main():
             job = jobs[len(running) + len(finished)]
             kb = 1
             logger.info('Job: {}'.format(job))
-            if job in par['skip_chemids'] and 'none' not in par['skip_chemids']:
+            if matches_name(job, par['skip_chemids']) and 'none' not in par['skip_chemids']:
                 kb = 0
-            if job not in par['keep_chemids'] and 'none' not in par['keep_chemids']:
+            if not matches_name(job, par['keep_chemids']) and 'none' not in par['keep_chemids']:
                 kb = 0 
             logger.info(f'kb: {kb} for {job}')
             if kb == 1:
@@ -230,11 +300,7 @@ def main():
             time.sleep(1)
 
     # delete skipped jobs from the jobs before sending to postprocess
-    for skip in par['skip_chemids']:
-        try:
-            jobs.pop(jobs.index(skip))
-        except ValueError:
-            pass
+    jobs = [job for job in jobs if not matches_name(job, par['skip_chemids'])]
 
     # only keep the jobs we wanted
     # this was commented - we want to also see the outgoing wells
@@ -263,6 +329,7 @@ def get_wells(job):
     """
     Read the summary file and add the wells to the chemid list
     """
+    ensure_current_run(job)
     try:
         summary = open(job + '/summary_' + job + '.out', 'r').readlines()
     except:
@@ -296,11 +363,13 @@ def postprocess(par, jobs, task, names, mass):
     jobs: all of the kinbot jobs that were run
     temp: this is a temporary output file writing
     """
+    for job in jobs:
+        ensure_current_run(job)
     l3done = 1  # flag for L3 calculations to be complete
 
     # base of the energy is the first well, these are L2 energies
     base_energy, base_zpe = get_energy(jobs, jobs[0], 0, par['high_level'],
-                                       conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
+                                       conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
     # L3 energies
     status, base_l3energy = get_l3energy(jobs[0], par)
     if not status:
@@ -311,6 +380,8 @@ def postprocess(par, jobs, task, names, mass):
     # 2. products chemid list
     # 3. reaction barrier height
     reactions = []
+    stereopaths = {}
+    network_warnings = []
 
     # list of the parents for each calculation
     # the key is the name of the calculation
@@ -334,6 +405,9 @@ def postprocess(par, jobs, task, names, mass):
         except:
             failedwells.append(ji)
             continue
+        stereopaths.update(read_summary_paths(summary))
+        network_warnings.extend(f'! WARNING: {ji}: {line.removeprefix("# WARNING: ").strip()}'
+                                for line in summary if line.startswith('# WARNING: '))
         # read the summary file from after corporate message
         for line in summary[5:]:
             if line.startswith("SUCCESS"):
@@ -343,7 +417,7 @@ def postprocess(par, jobs, task, names, mass):
                 elif 'vdW' in line : #Unpack differently when a vdW well is in line
                     ts_energy, reaction_name, *products, vdW_energy, vdW_direction = line.split()[1:]
                     vdW_well = f"{reaction_name}{vdW_direction.split('vdW')[1]}"
-                if reaction_name in par['skip_reactions']:
+                if matches_name(reaction_name, par['skip_reactions']):
                     continue
 
                 reactant = ji
@@ -359,14 +433,14 @@ def postprocess(par, jobs, task, names, mass):
                        and not par['high_level'] \
                        and par['qc'] != 'nn_pes' and par['qc'] != 'fc':
                     mp2_energies = get_energy(jobs, jobs[0], 0, par['high_level'], 
-                                              mp2=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
+                                              mp2=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
                     base_energy_mp2, base_zpe_mp2 = mp2_energies
                     barrier = 0. - base_energy_mp2 - base_zpe_mp2
 
                 # overwrite energies with bls energy if needed
                 if 'barrierless_saddle' in reaction_name and not par['high_level']:
                     bls_energies = get_energy(jobs, jobs[0], 0, par['high_level'],
-                                              bls=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
+                                              bls=1, conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
                     base_energy_bls, base_zpe_bls = bls_energies
                     barrier = 0. - base_energy_bls - base_zpe_bls
 
@@ -376,7 +450,7 @@ def postprocess(par, jobs, task, names, mass):
                 else:
                     #Save ts energy if there is a ts (eg. not barrierless reaction)
                     ts_energy, ts_zpe = get_energy(jobs, reaction_name, 1, par['high_level'], 
-                                               conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
+                                               conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
                     barrier += ts_energy + ts_zpe
                 barrier *= constants.AUtoKCAL
                 if reactant not in wells:
@@ -404,51 +478,13 @@ def postprocess(par, jobs, task, names, mass):
                         if prod_name not in parent:
                             parent[prod_name] = reactant
                         bimol_products.append('_'.join(sorted(products)))
-                new = 1
-                temp = None
-
-                for i, rxn in enumerate(reactions):
-                    rxn_prod_name = '_'.join(sorted(rxn[2]))
-                    if (reactant == rxn[0] and
-                            '_'.join(sorted(products)) == rxn_prod_name):
-                        new = 0
-                        temp = i
-                    if reactant == ''.join(rxn[2]) and ''.join(products) == rxn[0]:
-                        new = 0
-                        temp = i
-
-                if new :
-                    if "vdW" not in line:
-                        reactions.append([reactant, reaction_name, products, barrier])
-                    else:
-                        reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
-                elif not new:
-                    if "hom_sci" not in reaction_name:
-                        # check if the previous reaction has a lower energy or not
-                        if reactions[temp][3] > barrier:
-                            reactions.pop(temp)
-                            if "vdW" not in line:
-                                reactions.append([reactant, reaction_name, products, barrier])
-                                if len(reactions[temp]) == 6: #True when reactions[temp] has a vdW well
-                                    parent[prod_name] = reactant
-                            else:
-                                #replace the prod parent by the vdW well
-                                parent[prod_name] = vdW_well 
-                                reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
-                        elif reactions[temp][3] < barrier and "vdW" in line:
-                            wells.pop(-1)
-                            do_vdW.pop(-1)
-                            parent.pop(vdW_well)
-                        elif reactions[temp][3] == barrier:
-                            if "vdW" in line:
-                                reactions.pop(temp)
-                                parent[prod_name] = vdW_well 
-                                reactions.append([reactant, reaction_name, products, barrier, vdW_energy, vdW_direction])
-                            else:
-                                #If reaction exitst with same barrier/products, but with a vdW well, keep it and discard new one.
-                                continue
-                        elif "hom_sci" in reactions[temp][1]:
-                            reactions.pop(temp)
+                candidate = [reactant, reaction_name, products, barrier]
+                if 'vdW' in line:
+                    candidate.extend([vdW_energy, vdW_direction])
+                discarded = select_summary_reaction(reactions, candidate, stereopaths)
+                remove_unused_complexes(discarded, reactions, wells, do_vdW, parent)
+                if candidate in reactions and len(candidate) == 6:
+                    parent[prod_name] = vdW_well
 
 
         # copy the xyz files
@@ -469,7 +505,7 @@ def postprocess(par, jobs, task, names, mass):
     well_l3energies = {}
     for index, well in enumerate(wells):
         energy, zpe = get_energy(wells, well, do_vdW[index], par['high_level'], 
-                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'])  # from the db
+                            conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))  # from the db
         well_energies[well] = ((energy + zpe) - (base_energy + base_zpe)) * constants.AUtoKCAL
         status, l3energy = get_l3energy(well, par)
         if not status:
@@ -486,7 +522,7 @@ def postprocess(par, jobs, task, names, mass):
         l3energy = 0. - (base_l3energy + base_zpe)
         for pr in prods.split('_'):
             pr_energy, pr_zpe = get_energy(jobs, pr, 0, par['high_level'], 
-                                           conf=par['conformer_search'], rotor_scan=par['rotor_scan'])
+                                           conf=par['conformer_search'], rotor_scan=par['rotor_scan'], optical_population=par.get('optical_population', 'specified'))
             energy += pr_energy + pr_zpe
             status, l3e = get_l3energy(pr, par)
             if not status:
@@ -573,7 +609,7 @@ def postprocess(par, jobs, task, names, mass):
     # if L3 was done and requested, everything below is done with that
     # filter according to tasks
     filtered_stpts = filter_stat_points(par, wells, bimol_products, reactions, conn,
-                                        bars, well_energies, task, names)
+                                        bars, well_energies, task, names, stereopaths)
     wells, products, reactions, highlight = filtered_stpts
 
     barrierless = []
@@ -620,7 +656,7 @@ def postprocess(par, jobs, task, names, mass):
                           prod_energies,
                           parent,
                           mass,
-                          l3done)
+                          l3done, warnings=network_warnings)
 
     if par['single_point_qc'].lower() == 'molpro':
         if l3done:
@@ -629,7 +665,7 @@ def postprocess(par, jobs, task, names, mass):
 
 
 def filter_stat_points(par, wells, products, reactions, conn, bars, well_energies, task,
-           names):
+           names, stereopaths=None):
     """Filter the wells, products and reactions according to their task and name."""
     # list of reactions to highlight
     highlight = []
@@ -661,7 +697,21 @@ def filter_stat_points(par, wells, products, reactions, conn, bars, well_energie
                 if max(barriers) < min_energy:
                     min_energy = max(barriers)
                     min_rxn = rxn_list
-        filtered_reactions = min_rxn
+        filtered_reactions = list(min_rxn)
+        # Select the network route as before, then retain its independently
+        # classified parallel channels. Their different TS energies belong in
+        # the final MESS Union, even though only one won the minimax search.
+        paths = stereopaths or {}
+        def endpoints(rxn):
+            return frozenset((rxn[0], '_'.join(sorted(rxn[2]))))
+        selected_edges = {endpoints(rxn) for rxn in filtered_reactions
+                          if paths.get(rxn[1]) is not None}
+        selected_names = {rxn[1] for rxn in filtered_reactions}
+        for rxn in reactions:
+            if (rxn[1] not in selected_names and paths.get(rxn[1]) is not None
+                    and endpoints(rxn) in selected_edges):
+                filtered_reactions.append(rxn)
+                selected_names.add(rxn[1])
     elif task == 'allpaths':
         all_rxns = get_all_pathways(wells, products, reactions, names, conn)
         filtered_reactions = []
@@ -819,9 +869,9 @@ def get_connectivity(wells, products, reactions):
         prod_name = '_'.join(sorted(rxn[2]))
         i = get_index(wells, products, reac_name)
         j = get_index(wells, products, prod_name)
+        barrier = min(bars[i][j], rxn[3]) if conn[i][j] else rxn[3]
         conn[i][j] = 1
         conn[j][i] = 1
-        barrier = rxn[3]
         bars[i][j] = barrier
         bars[j][i] = barrier
     return conn, bars
@@ -854,7 +904,12 @@ def get_all_pathways(wells, products, reactions, names, conn):
         rxns = []
         for path in paths:
             if is_pathway(wells, products, path, names):
-                rxns.append(get_pathway(wells, products, reactions, path, names))
+                # Preserve parallel stereochemical routes along each graph edge.
+                choices = [[rxn for rxn in reactions if
+                            {rxn[0], '_'.join(sorted(rxn[2]))} ==
+                            {get_name(wells, products, i), get_name(wells, products, j)}]
+                           for i, j in zip(path[:-1], path[1:])]
+                rxns.extend(list(route) for route in itertools.product(*choices))
         return rxns
     else:
         logger.error('Cannot find a lowest path if the number of species is not 2')
@@ -1018,7 +1073,7 @@ def create_short_names(wells, products, reactions, barrierless, vdW):
 
 
 def create_mess_input(par, wells, products, reactions, barrierless, vdW,
-                      well_energies, prod_energies, parent, mass, l3done):
+                      well_energies, prod_energies, parent, mass, l3done, warnings=()):
     """When calculating a full pes, the files from the separate wells
     are read and concatenated into one file
     Two things per file need to be updated
@@ -1031,19 +1086,23 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
     """
 
     min_vdW = find_min_vdW(vdW, well_energies)
-
-    for well in wells:
-        if well in min_vdW and\
-        min_vdW[well] != well:
-            wells.pop(wells.index(well))
+    selected_wells = [well for well in wells if min_vdW.get(well, well) == well]
+    skip_complexes = bool(par.get('me_skip_vdW', 0))
+    wells = [well for well in selected_wells if not (skip_complexes and well in min_vdW)]
+    exported_vdW = [] if skip_complexes else vdW
+    # Keep the same selected complex as the tunneling reference in both models.
+    complex_references = {}
+    reactions = deepcopy(reactions)
 
     logger.info(f"uq value: {par['uq']}")
     for vdw in vdW:
         vdw_name = f"{vdw[1]}{vdw[5].split('vdW')[1]}"
-        vdW_well_reac = [vdw[0], vdw[1], [min_vdW[vdw_name]], vdw[3]]
+        complex_references[vdw[1]] = min_vdW[vdw_name]
+        targets = list(vdw[2]) if skip_complexes else [min_vdW[vdw_name]]
+        vdW_well_reac = [vdw[0], vdw[1], targets, vdw[3]]
         if vdW_well_reac not in reactions:
             reactions.append(vdW_well_reac)
-    short_names = create_short_names(wells, products, reactions, barrierless, vdW)
+    short_names = create_short_names(wells, products, reactions, barrierless, exported_vdW)
     well_short, pr_short, fr_short, ts_short, nobar_short = short_names
 
     # list of the strings to write to mess input file
@@ -1065,7 +1124,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
     if l3done:
         lot = 'L3'
     else:
-        lot = f'{par["high_level_method"]}/{par["high_level_basis"]}'
+        lot = mess.calculation_label()
 
     header_file = f'{kb_path}/tpl/mess_header.tpl'
     with open(header_file) as f:
@@ -1106,10 +1165,13 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             
         # write the wells
         s.append(frame + '# WELLS\n' + frame)
-        for well in wells:
-            name = well_short[well] + ' ! ' + well
+        for well in selected_wells:
             energy = well_energies[well] + uq.calc_factor('energy', uq_iter)
             well_energies_current[well] = energy
+            # Retain UQ shifts and random-draw order for omitted complexes.
+            if well not in wells:
+                continue
+            name = well_short[well] + ' ! ' + well
             # if 'IRC' not in well:
             with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
                 s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
@@ -1139,7 +1201,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                     if bl[0] in linked_bless_wells:
                         continue
                     linked_bless_wells.append(bl[0])
-                    with open(bl[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                    with open(bl[0] + '/' + mess_filename(prod, uq_iter)) as f:
                         if bless == 0:
                             s.append(f.read().format(name=name,
                                                      blessname=nobar_short[f'{bl[0]}_{bl_prod}'],
@@ -1157,14 +1219,14 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                                                      **fr_names))
                             s.append(stemp[stemp.find('Barrier '):])
             # check if is obtained by vdW dissociation
-            for vdw in vdW:
+            for vdw in exported_vdW:
                 bl_prod = f'{vdw[2][0]}_{vdw[2][1]}'
                 if prod == bl_prod:
                     #Skip this vdW well is bless already added with similar well
                     if min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"] in linked_bless_wells:
                         continue
                     linked_bless_wells.append(min_vdW[f"{vdw[1]}{vdw[5].split('vdW')[1]}"])
-                    with open(vdw[0] + '/' + prod + '_' + mess_iter + '.mess') as f:
+                    with open(vdw[0] + '/' + mess_filename(prod, uq_iter)) as f:
                         if bless == 0:
                             s.append(f.read().format(name=name,
                                                      blessname=nobar_short[f"{vdw[1]}{vdw[5].split('vdW')[1]}_{bl_prod}"],
@@ -1183,35 +1245,27 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                             s.append(stemp[stemp.find('Barrier '):])
             #The product is directly obtained after a reaction with a barrier
             if not bless:
-                if 'IRC' not in parent[prod]:
-                    try:
-                        with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                            s.append(f.read().format(name=name,
-                                                    ground_energy=round(energy, 2),
-                                                    **fr_names))
-                    except:#When bimolecular template is used both for barrierless and with barrier
-                        with open(parent[prod] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                            file = f.readlines()
-                        f = ''
-                        for line in file:
-                            if "Barrier" in line:
-                                break
-                            else:
-                                f += line
-                        s.append(f.format(name=name,
-                                          ground_energy=round(energy, 2),
-                                          **fr_names))
-
-                else:
-                    with open(parent[parent[prod]] + '/' + prod + '_' + mess_iter + '.mess') as f:
-                        s.append(f.read().format(name=name,
-                                                ground_energy=round(energy, 2),
-                                                **fr_names))
+                source = parent[parent[prod]] if 'IRC' in parent[prod] else parent[prod]
+                with open(source + '/' + mess_filename(prod, uq_iter)) as f:
+                    _, blocks, _ = split_model(f.read() + '\nEnd ! end kinetics\n')
+                # A worker artifact can contain a phase-space exit as well as
+                # the fragments. Only explicitly retained exits are written.
+                product_blocks = [block for block in blocks
+                                  if _HEADER.search(block)[1] == 'Bimolecular']
+                if len(product_blocks) != 1:
+                    raise ValueError(f'{prod}: expected one separated-product MESS model')
+                s.append(product_blocks[0].format(name=name,
+                         ground_energy=round(energy, 2), **fr_names))
                 
             s.append(divider)
 
         # write the barrier
         s.append(frame + '# BARRIERS\n' + frame)
+        _, population_blocks, _ = split_model('\n'.join(s) + '\nEnd ! end kinetics\n')
+        population_models = {_HEADER.search(block)[2].split()[0]: block
+                             for block in population_blocks
+                             if _HEADER.search(block)[1] != 'Barrier'}
+        barrier_blocks = []
         for rxn in reactions:
             if rxn[0] == rxn[2][0]:  # Avoid writing identity reactions.
                 continue
@@ -1236,14 +1290,11 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                 if welldepth2 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
                     energy = well_energies_current[rxn[2][0]]
                     logger.warning(f'Submerged barrier corrected for {name}')
+            if rxn[1] in complex_references:
+                right_energy = well_energies_current[complex_references[rxn[1]]]
             else:
-                prodname = '_'.join(sorted(rxn[2]))
-                welldepth2 = energy - prod_energies_current[prodname] 
-                if welldepth2 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
-                    energy = prod_energies_current[prodname]
-                    logger.warning(f'Submerged barrier corrected for {name}')
-            right_energy = (well_energies_current[rxn[2][0]] if len(rxn[2]) == 1
-                            else prod_energies_current['_'.join(sorted(rxn[2]))])
+                right_energy = (well_energies_current[rxn[2][0]] if len(rxn[2]) == 1
+                                else prod_energies_current['_'.join(sorted(rxn[2]))])
             # Recompute both depths after any representative correction.
             welldepth1 = energy - well_energies_current[rxn[0]]
             welldepth2 = energy - right_energy
@@ -1255,6 +1306,25 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                          welldepth1=round(welldepth1, 2),
                          welldepth2=round(welldepth2, 2),
                          )
+            if rxn[1] in complex_references:
+                target = population_models[name[2]]
+                # Workers describe their IRC complex. Final assembly can use
+                # another selected complex or the separated fragments instead.
+                for route, population, label in (
+                        (_EDGE, _POP, 'kinbot_mirror_endpoints'),
+                        (_ROUTE, _KEYS, 'kinbot_racemic_route')):
+                    if route.search(barrier):
+                        pair = population.search(target)
+                        if pair is None:
+                            raise ValueError(f'{rxn[1]}: missing product stereoisomer metadata')
+                        barrier = route.sub(lambda match: '! ' + label + ' ' +
+                                            ' '.join(match.groups()[:2] + pair.groups()), barrier)
+                if skip_complexes:
+                    barrier = ('! me_skip_vdW=1: complex and its exit omitted; '
+                               'inner-TS tunneling depths retain the selected complex reference.\n'
+                               + barrier)
+            barrier_blocks.append(barrier)
+        for barrier in barrier_blocks:
             s.append(barrier)
             s.append('!****************************************')
         s.append(divider)
@@ -1263,54 +1333,19 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
         if not os.path.exists('me'):
             os.mkdir('me')
 
+        contents = complete_mirror_channels(''.join(line + '\n' for line in warnings) + header + '\n'.join(s))
+        # Resolve MC offsets and check the final bound-well energies after
+        # mirror-model replacement. Separated fragments are not a well floor.
+        contents = finalize_mc_mess(contents, par['correct_submerged'])
         with open(f'me/mess_{mess_iter}.inp', 'w') as f:
-            f.write(header)
-            f.write('\n'.join(s))
+            f.write(contents)
 
-        if par['multi_conf_tst']:
-            logger.debug('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
-            with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
-                with open(f'me/mess_{mess_iter}.inp', 'r') as f:
-                    fcorr.write(finalize_mc_mess(f.read(), par['correct_submerged']))
-
-            shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
-            os.remove(f'me/mess_{mess_iter}_corr.inp')
-
-        # cleaning file from submerged barrier tunneling
-        #Tunneling   Eckart
-        #  ImaginaryFrequency[1/cm]  2277.51
-        #  CutoffEnergy[kcal/mol]    20.56
-        #  WellDepth[kcal/mol]       34.0
-        #  WellDepth[kcal/mol]       20.56
-        #End
-        with open(f'me/mess_{mess_iter}_temp.inp', 'w') as ftemp:
-            with open(f'me/mess_{mess_iter}.inp', 'r') as f:
-                lines = f.read().split('\n')
-                submerged = -1
-                for ll, line in enumerate(lines):
-                    words = line.split()
-                    if 'Tunneling' in line:
-                        submerged = -1
-                        words = lines[ll + 2].split()
-                        if float(words[1]) <= 0:
-                            submerged = 0
-                            ftemp.write('! submerged barrier\n')
-                        else:
-                            ftemp.write(line)
-                            ftemp.write('\n')
-                    elif submerged <= 5 and submerged >= 0:
-                        submerged += 1
-                    else: 
-                        ftemp.write(line)
-                        ftemp.write('\n')
-
-        shutil.copyfile(f'me/mess_{mess_iter}_temp.inp', f'me/mess_{mess_iter}.inp')
-        os.remove(f'me/mess_{mess_iter}_temp.inp')
-
-        if par['me']:
-            mess.run()
+        from kinbot.mess_networks import write_network_inputs
+        write_network_inputs(mess, contents, uq_iter)
 
         #uq.format_uqtk_data() 
+    if par['me']:
+        mess.run()
     return
 
 
@@ -1340,10 +1375,11 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
 
     for index, reac in enumerate(barrierless):
         reactant, reac_name, products, barrier = reac
-        if (reactant not in par['vrc_tst_scan'] or reac_name not in par['vrc_tst_scan'][reactant]) and\
-           (reactant not in par['vrc_tst_noscan'] or reac_name not in par['vrc_tst_noscan'][reactant]):
+        selected = lambda settings: matches_name(
+            reac_name, settings.get(reactant, settings.get(connectivity_name(reactant), [])))
+        if not selected(par['vrc_tst_scan']) and not selected(par['vrc_tst_noscan']):
             continue
-        if reactant in par['vrc_tst_noscan'] and reac_name in par['vrc_tst_noscan'][reactant]:
+        if selected(par['vrc_tst_noscan']):
             noscan = True
         else:
             noscan = False
@@ -1365,7 +1401,11 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
         inf_energy: float = pp_info['e_inf_samp']
 
         fragments = []
+        states = pp_info.get('frags_routing')
+        if not isinstance(states, list) or len(states) != 2:
+            raise ValueError(f'{json_file}: VRC correction data require the current fragment identities and electronic states')
         for frag_num in range(2):
+            state = states[frag_num]
             fragments.append(Fragment(frag_num=frag_num,
                                       max_frag=2,
                                       symbols=pp_info['frags_atom'][frag_num],
@@ -1374,7 +1414,15 @@ def create_rotdpy_inputs(par, bless, vdW) -> None:
                                       equiv=pp_info['unique'][frag_num],
                                       par=par,
                                       parent=str(reactant),
+                                      charge=state['charge'],
                                       mult=pp_info['frags_mult'][frag_num]))
+            fragment = fragments[-1]
+            apply_input_reference(fragment, state)
+            if (routing_name(fragment) != state['routing_key']
+                    or fragment.mult != state['multiplicity']):
+                raise ValueError(f'{json_file}: VRC fragment geometry disagrees with its saved state')
+        if sorted(routing_name(fragment) for fragment in fragments) != sorted(products):
+            raise ValueError(f'{json_file}: VRC fragments disagree with the requested configured endpoints')
 
         fragnames: list[str] = Fragment.get_fragnames()
 
@@ -1486,31 +1534,21 @@ def is_unique_vdW(well, vdW):
 
 
 def find_min_vdW(vdW: list, well_energies: dict) -> dict:
-    # Dict linking each vdW well to the lowest equivalent
-    min_vdW = {}
-    for idx, vdw in enumerate(vdW):
-        vdw_name = vdw[1] + vdw[-1].split('vdW')[1]
-        products = '_'.join(sorted(vdw[2]))
-        vdw_energy = well_energies[vdw_name]
+    """Use one lowest-energy complex for each configured fragment set.
 
-        # Minimum set to itself
-        if vdw_name not in min_vdW:
-            min_vdW[vdw_name] = vdw_name
-
-        other_vdW = vdW[:idx]
-        if idx+1 < len(vdW):
-            other_vdW.extend(vdW[idx+1:])
-
-        for other_vdw in other_vdW[:idx]:
-            other_name = other_vdw[1] + other_vdw[-1].split('vdW')[1]
-            other_prod = '_'.join(sorted(other_vdw[2]))
-            other_energy = well_energies[other_name]
-
-            # Minimum set to a different well if found
-            if other_prod == products:
-                if other_energy < well_energies[min_vdW[vdw_name]]:
-                    min_vdW[vdw_name] = other_name
-    return min_vdW
+    This retains the existing single-complex approximation, independently of
+    discovery order. Pathway selection remains a separate operation.
+    """
+    groups = {}
+    for vdw in vdW:
+        name = vdw[1] + vdw[-1].split('vdW')[1]
+        products = tuple(sorted(vdw[2]))
+        groups.setdefault(products, set()).add(name)
+    result = {}
+    for names in groups.values():
+        selected = min(names, key=lambda name: (well_energies[name], name))
+        result.update(dict.fromkeys(names, selected))
+    return result
 
 
 def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
@@ -1539,7 +1577,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
             well_lines.append('{} {:.2f}'.format(well, energy))
         else:
             energy = well_energies[min_vdW[well]]
-            line = '{} {:.2f}'.format(well, energy)
+            line = '{} {:.2f}'.format(min_vdW[well], energy)
             if line not in well_lines:
                 well_lines.append(line)
 
@@ -1606,7 +1644,7 @@ def create_pesviewer_input(par, wells, products, reactions, barrierless, vdW,
 
 
 def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
-               rotor_scan=None):
+               rotor_scan=None, optical_population=None):
     
     if ts:
         j = job
@@ -1623,12 +1661,14 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
         j += '_high'
     energy = np.inf
     zpe = np.inf
+    reference_identity = None
     for well in wells:
         if "IRC" in well:
             well = well.split("_")[0]
         if not os.path.isfile(well + '/kinbot.db'):
             logger.warning(f'Database file missing for {well}')
             continue
+        ensure_current_run(well)
         logger.debug(f'Looking at {well}')
         db = connect(well + '/kinbot.db')
         rows = list(db.select(name=j))
@@ -1640,15 +1680,21 @@ def get_energy(wells, job, ts, high_level, mp2=0, bls=0, conf=0,
                 break
             if new_zpe is None:
                 break
+            if not ts:
+                # Check every candidate before comparing energies. Separate
+                # workers cannot reuse one shortened name for different IDs.
+                atoms = row.toatoms()
+                st_pt = StationaryPoint.from_ase_atoms(atoms)
+                st_pt.characterize()
+                chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
+                identity = configured_result_identity(db, job, row, optical_population)
+                if chemid_wo_mult != connectivity_name(job)[:-1] or identity is None:
+                    break
+                if reference_identity is not None and identity != reference_identity:
+                    raise ValueError(f'{job}: different complete stereoisomer identities '
+                                     'share one calculation name across PES workers.')
+                reference_identity = identity
             if hasattr(row, 'data') and new_energy + new_zpe < energy + zpe:
-                if not ts:
-                    # Avoid getting energies from calculations that converged to another structure
-                    atoms = row.toatoms()
-                    st_pt = StationaryPoint.from_ase_atoms(atoms)
-                    st_pt.characterize()
-                    chemid_wo_mult = str(st_pt.chemid)[:-1]  # For charged species
-                    if chemid_wo_mult != job[:-1]:
-                        break
                 energy = new_energy
                 zpe = new_zpe
             break
@@ -1719,6 +1765,7 @@ def get_l3energy(job, par, bls=0):
 def get_zpe(jobdir, job, ts, high_level, mp2=0, bls=0):
     if "IRC" in job:
         jobdir = job.split("_")[0]
+    ensure_current_run(jobdir)
     db = connect(jobdir + '/kinbot.db')
     if ts:
         j = job
@@ -1762,6 +1809,7 @@ def submit_job(chemid, par):
     """
     Submit a kinbot run using subprocess and return the pid
     """
+    ensure_current_run(chemid)
     command = ["kinbot", chemid + ".json", "&"]
     # purge previous summary and monitor files, so that pes doesn't think
     # everything is done
@@ -1805,7 +1853,7 @@ def submit_job(chemid, par):
 
 def write_input(input_file, species, threshold, threshold_L2, root, me):
     # directory for this particular species
-    directory = root + '/' + str(species.chemid) + '/'
+    directory = str(prepare_pes_directory(root, species)) + '/'
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -1813,7 +1861,9 @@ def write_input(input_file, species, threshold, threshold_L2, root, me):
     input_file = '{}'.format(input_file)
     par2 = Parameters(input_file).par
     # overwrite the title
-    par2['title'] = str(species.chemid)
+    par2['title'] = routing_name(species)
+    par2['charge'], par2['mult'] = int(species.charge), int(species.mult)
+    par2['stereo_reference'] = getattr(species, 'optical_reference', None)
     # make a structure vector and overwrite the par structure
     structure = []
     for at in range(species.natom):
@@ -1833,7 +1883,9 @@ def write_input(input_file, species, threshold, threshold_L2, root, me):
     if me:
         par2['me'] = 2
 
-    file_name = directory + str(species.chemid) + '.json'
+    file_name = directory + routing_name(species) + '.json'
+    from kinbot.stereo_routing import guard_pes_input
+    guard_pes_input(species, file_name)
     with open(file_name, 'w') as outfile:
         json.dump(par2, outfile, indent=4, sort_keys=True)
     return
@@ -1845,13 +1897,16 @@ def write_input_keep(input_file, keepchemid, root):
         print(f'Cannot keep a well that is not already explored. Please correct the keep_chemids parameter. Bye!')
         sys.exit(-1)
 
-    par_keep = Parameters(f'{directory}{keepchemid}.json').par
+    saved_input = f'{directory}{keepchemid}.json'
+    ensure_current_run(directory)
+    par_keep = Parameters(saved_input).par
     # make a new parameters instance and overwrite some keys
     input_file = '{}'.format(input_file)
     par_new = Parameters(input_file).par
     # overwrite the title
-    par_new['title'] = par_keep['title']
-    par_new['structure'] = par_keep['structure']
+    par_new['title'] = str(keepchemid)
+    for key in ('structure', 'smiles', 'charge', 'mult', 'stereo_reference', 'optical_population'):
+        par_new[key] = par_keep[key]
     par_new['barrier_threshold'] = par_keep['barrier_threshold']
     par_new['barrier_threshold_L2'] = par_keep['barrier_threshold_L2']
     par_new['pes'] = 1
@@ -1884,7 +1939,7 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
 
     # Get L3 energies
     for st_pt in list(parent_specs.keys()) + [r[1] for r in reactions]:
-        if "_" in st_pt and all([frag.isdigit() for frag in st_pt.split('_')]):
+        if "_" in st_pt and all([is_species_name(frag) for frag in st_pt.split('_')]):
             # Bimolecular species
             l3_energies[st_pt] = 0
             for frag in st_pt.split('_'):
@@ -1910,18 +1965,19 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
     # Get L2 Energies and its difference to L3.
     e_diffs = {}
     for st_pt in l3_energies:
-        if any([c.isalpha() for c in st_pt]):  # TSs (have letters in the name)
+        if not all(is_species_name(part) for part in st_pt.split('_')):  # TSs
             db_path = f'{st_pt.split("_")[0]}/kinbot.db'
         else:  # Wells and Bimolecular products
             db_path = f'{parent_specs[st_pt]}/kinbot.db'
         if not os.path.isfile(db_path):
             logger.warning(f"Unable to find L2 energy for {st_pt}.")
             continue
+        ensure_current_run(os.path.dirname(db_path))
         db = connect(db_path)
-        if st_pt.isdigit():
+        if is_species_name(st_pt):
             # Wells
             rows = db.select(name=f'{st_pt}_well_high')
-        elif all([fr.isdigit() for fr in st_pt.split('_')]):
+        elif all([is_species_name(fr) for fr in st_pt.split('_')]):
             # Bimolecular species.
             l2_energy = 0
             for frag in st_pt.split('_'):
@@ -1938,7 +1994,7 @@ def check_l3_l2(l3_key: str, parent_specs: dict, reactions: list) -> None:
         else:
             rows = db.select(name=f'{st_pt}_high')
 
-        if "_" not in st_pt or any([c.isalpha() for c in st_pt]):
+        if "_" not in st_pt or not all(is_species_name(part) for part in st_pt.split("_")):
             # Wells and TSs
             try:
                 final_row = next(rows)

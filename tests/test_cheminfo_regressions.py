@@ -1,6 +1,5 @@
-"""Regression tests for optional chemistry helpers and reaction images."""
+"""Regression tests for chemistry helpers and reaction images."""
 
-import importlib.util
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -13,9 +12,8 @@ from PIL import Image
 from kinbot import cheminfo
 
 
-@unittest.skipUnless(importlib.util.find_spec('rdkit'), 'RDKit is optional')
 class TestRDKitHelpers(unittest.TestCase):
-    def test_molecular_formula_loads_rdkit_locally(self):
+    def test_molecular_formula_uses_rdkit(self):
         self.assertEqual(cheminfo.get_molecular_formula('C=O'), 'CH2O')
 
     def test_rdkit_structure_contains_coordinates_and_bonds(self):

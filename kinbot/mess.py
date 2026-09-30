@@ -141,11 +141,10 @@ def finalize_mc_mess(contents, correct_submerged=False):
         if match.group(1) != 'Barrier':
             continue
         endpoints = match.group().split()[2:4]
-        floor = max((grounds[name] for name in endpoints if name in grounds), default=None)
         well_floor = max((grounds[name] for name in endpoints if name in wells and name in grounds),
                          default=float('-inf'))
-        if correct_submerged and floor is not None:
-            block = apply_conformer_shifts(block, ground_min=floor)
+        if correct_submerged and np.isfinite(well_floor):
+            block = apply_conformer_shifts(block, ground_min=well_floor)
         lines = block.splitlines(keepends=True)
         output, energy, j = [], None, 0
         while j < len(lines):
@@ -187,6 +186,7 @@ class MESS:
         self.fragment_names = {}
         self.ts_names = {}
         self.termolec_names = {}
+        self.product_complexes = {}
         self. barrierless_names = {}
         # read all templates to create mess input
         with open(f'{kb_path}/tpl/mess_header.tpl') as f:
@@ -281,8 +281,8 @@ class MESS:
                     if routing_key(st_pt) not in self.well_names:
                         self.well_names[routing_key(st_pt)] = 'w_{}'.format(len(self.well_names) + 1)
                 elif len(reaction.products) == 2:
-                    if self.par['pes'] and reaction.do_vdW:
-                        vdW_well = reaction.irc_prod
+                    if self._include_complex(reaction):
+                        vdW_well = self._product_complex(reaction)
                         if vdW_well.name not in self.well_names:
                             self.well_names[vdW_well.name] = 'w_{}'.format(len(self.well_names) + 1)
                     for st_pt in reaction.products:
@@ -309,6 +309,19 @@ class MESS:
         prefix = 'high_level_' if self.par['high_level'] else ''
         return f"{self.par[prefix + 'method']}/{self.par[prefix + 'basis']}"
 
+    def _product_complex(self, reaction):
+        """Use one selected complex per product set in direct output, as in PES."""
+        if not getattr(reaction, 'do_vdW', False):
+            return None
+        products = tuple(sorted(routing_name(p) for p in reaction.products))
+        return self.product_complexes.get(products, reaction.irc_prod_opt.species)
+
+    def _include_complex(self, reaction):
+        # Workers keep all intermediate models so final PES assembly can change
+        # this option without another QC calculation.
+        return (getattr(reaction, 'do_vdW', False)
+                and (self.par['pes'] or not self.par.get('me_skip_vdW', 0)))
+
     def write_input(self, qc):
         """
         write the input for all the wells, bimolecular products and barriers
@@ -317,10 +330,11 @@ class MESS:
         require_supported_identity(self.species)
         uq = UQ(self.par)
         self.mess_jobs = []
+        self.product_complexes = {}
 
         for index, reaction in enumerate(self.species.reac_obj):
             reject_invalid_pathway(self.species, index, self.par)
-            if self.par['pes'] and self.species.reac_ts_done[index] == -1:
+            if self.species.reac_ts_done[index] == -1:
                 reassess_product_complex(reaction, self.par)
         # create short names for all the species, bimolecular products and barriers
         self.create_short_names()
@@ -363,6 +377,17 @@ class MESS:
                 if new:
                     ts_unique[reaction.instance_name] = [prod_name, reaction.ts.energy + reaction.ts.zpe, path_id]
 
+        if not self.par['pes']:
+            for reaction in self.species.reac_obj:
+                if reaction.instance_name not in ts_unique or not reaction.do_vdW:
+                    continue
+                products = tuple(sorted(routing_name(p) for p in reaction.products))
+                point = reaction.irc_prod_opt.species
+                previous = self.product_complexes.get(products)
+                if previous is None or (point.energy + point.zpe, point.name) < (
+                        previous.energy + previous.zpe, previous.name):
+                    self.product_complexes[products] = point
+
         if not self.par['multi_conf_tst']:
             from kinbot.hindered_rotors import recover_hir_model
             states = [self.species]
@@ -371,8 +396,8 @@ class MESS:
                     states.extend(opt.species for opt in getattr(reaction, 'prod_opt', ()))
                     if 'hom_sci' not in reaction.instance_name:
                         states.append(reaction.ts)
-                    if self.par['pes'] and getattr(reaction, 'do_vdW', False):
-                        states.append(reaction.irc_prod_opt.species)
+                    if self._include_complex(reaction):
+                        states.append(self._product_complex(reaction))
             checked = set()
             for state in states:
                 if id(state) not in checked and getattr(state, 'hir', None) is not None:
@@ -390,6 +415,7 @@ class MESS:
             allTS = {}
             # arrays reset at the start of each iteration to hold new values
             written_bimol_names = []
+            written_complex_names = set()
             written_termolec_names = []
 
             well_energy_add = uq.calc_factor('energy', uq_iter)
@@ -398,6 +424,14 @@ class MESS:
                                                                well_energy_add,
                                                                well_freq_factor,
                                                                uq_iter)
+
+            # Draw the same complex perturbations with either topology. The
+            # omitted complex still defines the inner barrier's Eckart depth.
+            complex_factors = {}
+            if not self.par['pes']:
+                for point in self.product_complexes.values():
+                    complex_factors[point.name] = (uq.calc_factor('energy', uq_iter),
+                                                 uq.calc_factor('freq', uq_iter))
             
             for index, reaction in enumerate(self.species.reac_obj):
                 # A homolytic scission has no optimized saddle. Its barrier is
@@ -431,8 +465,10 @@ class MESS:
                         # Retain master's inner-barrier tunneling reference,
                         # even when direct kinetics omits the fast complex exit.
                         if reaction.do_vdW:
-                            complex_species = reaction.irc_prod_opt.species
+                            complex_species = self._product_complex(reaction)
                             prod_zeroenergy += (complex_species.energy + complex_species.zpe) * constants.AUtoKCAL
+                            if not self.par['pes']:
+                                prod_zeroenergy += complex_factors[complex_species.name][0]
                         else:
                             for opt in reaction.prod_opt:
                                 prod_zeroenergy += (opt.species.energy + opt.species.zpe) * constants.AUtoKCAL
@@ -452,18 +488,24 @@ class MESS:
                 if reaction.instance_name in ts_unique:
                     if self.species.reac_type[index] != 'hom_sci':
                         ts_blocks[reaction.instance_name] = allTS[reaction.instance_name]
-                    if self.par['pes'] and reaction.do_vdW:
-                        st_pt = reaction.irc_prod_opt.species
-                        energy_add = uq.calc_factor('energy', uq_iter)
-                        freq_factor = uq.calc_factor('freq', uq_iter)
-                        well_blocks[st_pt.name] = self.write_well(st_pt,
+                    if reaction.do_vdW:
+                        st_pt = self._product_complex(reaction)
+                        bimol_name = '_'.join(sorted(routing_name(p) for p in reaction.products))
+                        if not self.par['pes'] and st_pt.name in written_complex_names:
+                            continue
+                        if self.par['pes']:
+                            energy_add = uq.calc_factor('energy', uq_iter)
+                            freq_factor = uq.calc_factor('freq', uq_iter)
+                        else:
+                            energy_add, freq_factor = complex_factors[st_pt.name]
+                        if self._include_complex(reaction):
+                            well_blocks[st_pt.name] = self.write_well(st_pt,
                                                                     energy_add,
                                                                     freq_factor,
                                                                     uq_iter)
-                        bimol_name = '_'.join(sorted([routing_name(st_pt) for st_pt in reaction.products]))
                         energy_add = uq.calc_factor('energy', uq_iter)
                         freq_factor = uq.calc_factor('freq', uq_iter)
-                        bless = 1
+                        bless = int(self._include_complex(reaction))
                         pstsymm_factor = uq.calc_factor('pstsymm', uq_iter)
                         bimolec_blocks[bimol_name] = self.write_bimol([opt.species for opt in reaction.prod_opt],
                                                                       energy_add,
@@ -471,8 +513,9 @@ class MESS:
                                                                       pstsymm_factor,
                                                                       uq_iter,
                                                                       bless=bless,
-                                                                      vdW=True)
+                                                                      complex_species=st_pt)
                         written_bimol_names.append(bimol_name)
+                        written_complex_names.add(st_pt.name)
                     elif len(reaction.products) == 1:
                         st_pt = reaction.prod_opt[0].species
                         energy_add = uq.calc_factor('energy', uq_iter)
@@ -538,8 +581,7 @@ class MESS:
             if not self.par['pes']:
                 contents = complete_mirror_channels(contents)
                 validate_mess_populations(contents)
-                if self.par['multi_conf_tst']:
-                    contents = finalize_mc_mess(contents, self.par.get('correct_submerged', 0))
+                contents = finalize_mc_mess(contents, self.par.get('correct_submerged', 0))
             # PES worker files still contain deferred energy/name placeholders.
             # Fold and validate their populations in final PES assembly instead.
             if self.par['pes']:
@@ -582,8 +624,8 @@ class MESS:
                     representative_only.add(id(reaction.ts))
             if reaction.instance_name in ts_unique:
                 states.extend(opt.species for opt in reaction.prod_opt)
-                if self.par['pes'] and reaction.do_vdW:
-                    states.append(reaction.irc_prod_opt.species)
+                if self._include_complex(reaction):
+                    states.append(self._product_complex(reaction))
         unresolved, checked = [], set()
         for species in states:
             if id(species) in checked or species.natom == 1:
@@ -724,7 +766,8 @@ class MESS:
             refuse_routing('A global racemic pair is not independent racemates of multiple fragments', products)
         return identities
 
-    def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor, uq_iter, bless, vdW=False):
+    def write_bimol(self, prod_list, well_add, freq_factor, pstsymm_factor, uq_iter, bless,
+                    complex_species=None):
         """
         Create the block for MESS for a bimolecular product.
         In case of a barrierless reaction (bless=1) also add a phase-space theory barrier.
@@ -820,7 +863,8 @@ class MESS:
             for el in constants.elements:
                 if el_counter[el]:
                     stoich += '{}{}'.format(el, el_counter[el])
-            well_name = self.well_names[routing_key(self.species)] if not self.par['pes'] else None
+            well_key = complex_species.name if complex_species is not None else routing_key(self.species)
+            well_name = self.well_names[well_key] if not self.par['pes'] else None
             bimol = self.blbimoltpl.format(barrier=('{blessname}' if self.par['pes'] else
                                                    f'bl_{well_name}_{self.bimolec_names[pr_name]}'),
                                            reactant=('{wellname}' if self.par['pes'] else well_name),
@@ -989,7 +1033,7 @@ class MESS:
 
         if use_ensemble:
             self._mc_product_identities(products)
-            tunneling_products = ([reaction.irc_prod_opt.species] if getattr(reaction, 'do_vdW', False)
+            tunneling_products = ([self._product_complex(reaction)] if getattr(reaction, 'do_vdW', False)
                         else [opt.species for opt in getattr(reaction, 'prod_opt', [])]
                         or reaction.products)
             def parent_observation(point):
@@ -1026,8 +1070,8 @@ class MESS:
                                         welldepth2='{welldepth2}')
 
         # name the product
-        if self.par['pes'] and getattr(reaction, 'do_vdW', False):
-            prod_name = self.well_names[reaction.irc_prod_opt.species.name]
+        if self._include_complex(reaction):
+            prod_name = self.well_names[self._product_complex(reaction).name]
         elif len(reaction.products) == 1:
             prod_name = self.well_names[routing_key(reaction.products[0])]
         elif len(reaction.products) == 2:
@@ -1157,13 +1201,14 @@ class MESS:
             mess_barrier = ('! MC Eckart convention: selected-parent endpoint approximation.\n'
                             '! MC ensemble minima do not redefine these WellDepth values.\n'
                             + mess_barrier)
-        if not self.par['pes'] and getattr(reaction, 'do_vdW', False):
+        if (not self.par['pes'] and getattr(reaction, 'do_vdW', False)
+                and self.par.get('me_skip_vdW', 0)):
             mess_barrier = ('! Direct model: separated products; optional IRC complex and its fast exit omitted.\n'
-                            '! Inner-TS tunneling depths retain the original IRC complex reference.\n'
+                            '! Inner-TS tunneling depths retain the selected product-complex reference.\n'
                             + mess_barrier)
         mess_barrier = variational_warning + self._optical_comment(reaction.ts) + mess_barrier
-        connected_products = ([reaction.irc_prod_opt.species]
-                              if self.par['pes'] and getattr(reaction, 'do_vdW', False)
+        connected_products = ([self._product_complex(reaction)]
+                              if self._include_complex(reaction)
                               else products)
         mess_barrier = annotate_endpoints(mess_barrier, [self.species], connected_products,
                                           self.par.get('optical_population', 'specified'))

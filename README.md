@@ -98,6 +98,29 @@ To run a full PES search, make an input file (e.g. input.json) and run:
 
 You can find additional command line arguments in the manual. 
 
+### Product complexes in MESS
+
+`me_skip_vdW` controls the final MESS network in both a single-well search and
+a PES calculation. The default, `0`, includes accepted product complexes as
+wells, with barrierless exits to the separated products. Set `me_skip_vdW: 1`
+to omit these wells and exits and connect each inner transition state directly
+to the separated products.
+
+This option does not change the search or optimization of complexes;
+`vdW_detection` still determines whether a complex is bound. The inner
+transition state's Eckart tunneling depths keep the complex energy reference
+with either setting. Both writers use one lowest-energy complex per set of
+product stereoisomers, as in the existing PES model. For MC-TST, the selected
+complex structure defines the tunneling reference, while its lowest retained
+conformer defines the MESS well ground energy.
+
+Omitting a complex removes its collisional stabilization and its explicit
+capture/redissociation competition. The two settings need not give the same
+rates. `correct_submerged` only raises barriers to connected bound-well ground
+energies; it does not raise an inner TS merely because it lies below the
+separated fragments. This option does not add support for a MESS barrier
+between two sets of separated reactants and products.
+
 ## Documentation
 See the [wiki](https://github.com/zadorlab/KinBot/wiki) for keywords, and our [tutorial](https://hackmd.io/@jzador/ry1DSsEyyx#/) for a more hands-on introduction to the code.
 

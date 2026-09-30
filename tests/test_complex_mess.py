@@ -3,6 +3,7 @@ import copy
 from dataclasses import replace
 import itertools
 import json
+import logging
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -62,6 +63,10 @@ class TestComplexMESS(unittest.TestCase):
             ts.freq = ts.reduced_freqs = [-1000.] + [1000.] * 8
             complex_species = copy.deepcopy(parent)
             complex_species.name = name + '_IRC_F_prod'
+            # A loose CH3/H arrangement, with a graph distinct from methane.
+            complex_species.geom[1] = [3., 0., 0.]
+            complex_species.characterize()
+            symmetry.calculate_symmetry(complex_species)
             complex_species.energy += depth/constants.AUtoKCAL
             reactions.append(SimpleNamespace(instance_name=name, ts=ts,
                 products=products, prod_opt=[SimpleNamespace(species=p) for p in products],
@@ -80,7 +85,7 @@ class TestComplexMESS(unittest.TestCase):
         parent, reactions = self.reactions()
         for order in (reactions, reactions[::-1]):
             parent.reac_obj = order
-            writer = MESS(self.par, parent)
+            writer = MESS(dict(self.par, me_skip_vdW=1), parent)
             writer.write_input(None)
             output = Path('me/mess_0000.inp').read_text()
             self.assertNotIn(' high\n', output)
@@ -194,31 +199,47 @@ class TestComplexMESS(unittest.TestCase):
                 self.assertEqual(reaction.do_vdW, retained)
                 self.assertEqual(point.freq, raw)
 
-    def test_distinct_stereopaths_reach_products_and_keep_own_tunneling_reference(self):
-        parent, reactions = self.reactions()
-        original = reactions[0].irc_prod_opt.species
-        par = dict(self.par, multi_conf_tst=1)
-        with patch('kinbot.mess.reaction_path_id', side_effect=lambda r: r.instance_name):
-            writer = MESS(par, parent)
-            writer.write_input(None)
-        text = Path('me/mess_0000.inp').read_text()
-        self.assertIn('Union ! 2 stereochemical pathways', text)
-        self.assertEqual(sum(line.strip().startswith('Well ') for line in text.splitlines()), 1)
-        self.assertNotIn('Core PhaseSpaceTheory', text)
-        # Master's inner-TS reference is retained; it is not a kinetic well.
-        high = reactions[0].ts.mess_tunneling_reference
-        self.assertAlmostEqual(high['right_parent_observations'][0]['electronic_energy_hartree'], original.energy)
-        self.assertAlmostEqual(high['input_depths_kcal_mol'][1], 36.)
+    def test_distinct_stereopaths_keep_ts_properties_and_share_selected_complex(self):
         from kinbot.mess_mirrors import population_keys
-        keys = population_keys(reactions[0].products)
-        self.assertIn(' '.join(keys), text)
-        self.assertNotIn('IRC_F_prod', text)
+        for skip, mixed, reverse in itertools.product((0, 1), repeat=3):
+            with self.subTest(skip=skip, mixed=mixed, reverse=reverse):
+                parent, reactions = self.reactions()
+                selected_complex = reactions[1].irc_prod_opt.species
+                if mixed:
+                    reactions[0].do_vdW = False
+                parent.reac_obj = reactions[::-1] if reverse else reactions
+                par = dict(self.par, multi_conf_tst=1, me_skip_vdW=skip)
+                with patch('kinbot.mess.reaction_path_id', side_effect=lambda r: r.instance_name):
+                    writer = MESS(par, parent)
+                    writer.write_input(None)
+                text = Path('me/mess_0000.inp').read_text()
+                summed = skip or not mixed
+                self.assertEqual('Union ! 2 stereochemical pathways' in text, bool(summed))
+                self.assertEqual(sum(line.strip().startswith('Well ') for line in text.splitlines()),
+                                 1 if skip else 2)
+                self.assertEqual(sum(line.strip().startswith('Barrier ') for line in text.splitlines()),
+                                 1 if skip else 2 if summed else 3)
+                self.assertEqual(text.count('Core PhaseSpaceTheory'), 0 if skip else 1)
+                self.assertEqual(values(text, 'ImaginaryFrequency'), [1000., 1000.])
+                high_depth = (35. - (sum(p.energy+p.zpe for p in reactions[0].products)
+                              - parent.energy-parent.zpe)*constants.AUtoKCAL) if mixed else 36.01
+                depths = values(text, 'WellDepth')
+                self.assertEqual(sorted(zip(depths[::2], depths[1::2])),
+                                 [(25., 26.01), (35., round(high_depth, 2))])
+                high = reactions[0].ts.mess_tunneling_reference
+                self.assertAlmostEqual(high['input_depths_kcal_mol'][1], high_depth)
+                if not mixed:
+                    self.assertAlmostEqual(high['right_parent_observations'][0]['electronic_energy_hartree'],
+                                           selected_complex.energy)
+                keys = population_keys(reactions[0].products if skip else [selected_complex])
+                self.assertIn(' '.join(keys), text)
+                self.assertEqual([reaction.do_vdW for reaction in reactions], [not mixed, True])
 
     def test_unmodeled_complex_optics_cannot_block_direct_output(self):
         for mc in (0, 1):
             parent, reactions = self.reactions()
             complexes = [r.irc_prod_opt.species for r in reactions]
-            writer = MESS(dict(self.par, multi_conf_tst=mc), parent)
+            writer = MESS(dict(self.par, multi_conf_tst=mc, me_skip_vdW=1), parent)
             original = writer._parent_symmetry
             def checked(point, **kwargs):
                 self.assertTrue(all(point is not p for p in complexes))
@@ -243,7 +264,7 @@ class TestComplexMESS(unittest.TestCase):
                 reaction.ts.energy = reference + barrier/constants.AUtoKCAL - reaction.ts.zpe
                 point = reaction.irc_prod_opt.species
                 point.energy = reference + 59.577/constants.AUtoKCAL - point.zpe
-            writer = MESS(dict(self.par, multi_conf_tst=mc), parent)
+            writer = MESS(dict(self.par, multi_conf_tst=mc, me_skip_vdW=1), parent)
             writer.write_input(None)
             text = Path('me/mess_0000.inp').read_text()
             # MC fragment RRHO blocks also carry a relative zero energy.
@@ -275,6 +296,104 @@ class TestComplexMESS(unittest.TestCase):
             self.assertIn('Core PhaseSpaceTheory', text)
             self.assertIn('{wellname}', text)
             self.assertIn('{prodname}', text)
+
+    def test_vdw_option_changes_network_not_inner_tunneling_in_direct_and_pes(self):
+        from kinbot.mess_mirrors import population_keys
+        from kinbot.mess_networks import _HEADER, split_model
+
+        self.assertEqual(self.par['me_skip_vdW'], 0)
+        root = Path.cwd()
+        for mc in (0, 1):
+            parent, reactions = self.reactions()
+            reaction = reactions[1]
+            parent.reac_obj = [reaction]
+            parent.reac_ts_done = [-1]
+            parent.reac_type = ['test']
+            reference = parent.energy + parent.zpe
+            complex_species = reaction.irc_prod_opt.species
+            # These assigned energies test serialization, not methane chemistry.
+            complex_species.energy = reference + 20./constants.AUtoKCAL - complex_species.zpe
+            reaction.ts.energy = reference + 25./constants.AUtoKCAL - reaction.ts.zpe
+            reaction.products[0].energy += (
+                reference + 30./constants.AUtoKCAL
+                - sum(p.energy + p.zpe for p in reaction.products))
+            if mc:
+                selected = representative_record(complex_species)
+                lower = replace(selected, index=2,
+                    zero_energy_hartree=selected.zero_energy_hartree-1./constants.AUtoKCAL)
+                complex_species.conformer_index = [2]
+                complex_species.conformer_geom = [lower.geometry]
+                complex_species.conformer_zeroenergy = [lower.zero_energy_hartree]
+                complex_species.conformer_freq = [lower.frequencies_cm1]
+                complex_species.conformer_inventory = (lower,)
+                complex_species.conformer_records = {2: lower}
+            saved_ts = (reaction.ts.geom.copy(), reaction.ts.energy,
+                        reaction.ts.zpe, list(reaction.ts.freq))
+            folder = root / f'mc_{mc}'
+            folder.mkdir()
+            worker = folder / routing_name(parent)
+            worker.mkdir()
+            (worker / 'me').mkdir()
+            par = dict(self.par, multi_conf_tst=mc, smiles='C', pes=1)
+            os.chdir(worker)
+            try:
+                MESS(par, parent).write_input(None)
+            finally:
+                os.chdir(root)
+            # The option can be changed at final PES assembly without new QC
+            # or rewriting the worker's saved statistical models.
+            artifacts = {path.name: path.read_bytes() for path in worker.glob('*.mess')}
+            prod_names = sorted(routing_name(p) for p in reaction.products)
+            prod_key = '_'.join(prod_names)
+            parent_name, complex_name = routing_name(parent), complex_species.name
+            for skip, corrected in itertools.product((0, 1), repeat=2):
+                for mode in ('direct', 'pes'):
+                    with self.subTest(mc=mc, skip=skip, corrected=corrected, mode=mode):
+                        settings = dict(par, me_skip_vdW=skip, correct_submerged=corrected)
+                        os.chdir(folder)
+                        try:
+                            if mode == 'direct':
+                                (folder / 'me').mkdir(exist_ok=True)
+                                MESS(dict(settings, pes=0), parent).write_input(None)
+                            else:
+                                with patch('kinbot.pes.logger', logging.getLogger('KinBot'), create=True):
+                                    pes.create_mess_input(settings,
+                                        [parent_name, complex_name], [prod_key], [], [],
+                                        [[parent_name, reaction.instance_name, prod_names,
+                                          25., 20., 'vdW_IRC_F_prod']],
+                                        {parent_name: 0., complex_name: 20.}, {prod_key: 30.},
+                                        {parent_name: parent_name, complex_name: parent_name,
+                                         prod_key: complex_name}, parent.mass, False)
+                            output = Path('me/mess_0000.inp').read_text()
+                        finally:
+                            os.chdir(root)
+                        _, blocks, _ = split_model(output)
+                        wells = [block for block in blocks if _HEADER.search(block)[1] == 'Well']
+                        barriers = [block for block in blocks if _HEADER.search(block)[1] == 'Barrier']
+                        inner = next(block for block in barriers if 'ImaginaryFrequency' in block)
+                        self.assertEqual(len(wells), 1 if skip else 2)
+                        self.assertEqual(len(barriers), 1 if skip else 2)
+                        self.assertEqual(output.count('Core PhaseSpaceTheory'), 0 if skip else 1)
+                        self.assertEqual(values(inner, 'ZeroEnergy'), [25.])
+                        self.assertEqual(values(inner, 'ImaginaryFrequency'), [1000.])
+                        self.assertEqual(values(inner, 'Frequencies'), [8.])
+                        self.assertEqual(values(inner, 'WellDepth'), [25., 5.])
+                        self.assertEqual(values(inner, 'CutoffEnergy'), [5.])
+                        self.assertEqual(values(output, 'GroundEnergy'), [30.])
+                        right = reaction.products if skip else [complex_species]
+                        self.assertIn('! kinbot_mirror_endpoints ' + ' '.join(
+                            population_keys([parent]) + population_keys(right)), inner)
+                        if not skip:
+                            complex_block = next(block for block in wells if complex_name in block)
+                            self.assertEqual(values(complex_block, 'ZeroEnergy'), [19. if mc else 20.])
+                            exit_block = next(block for block in barriers if 'Core PhaseSpaceTheory' in block)
+                            complex_short = _HEADER.search(complex_block)[2].split()[0]
+                            self.assertIn(complex_short, _HEADER.search(exit_block)[2].split()[1:3])
+                        self.assertTrue(reaction.do_vdW)
+                        np.testing.assert_array_equal(reaction.ts.geom, saved_ts[0])
+                        self.assertEqual((reaction.ts.energy, reaction.ts.zpe, reaction.ts.freq), saved_ts[1:])
+                        self.assertEqual({path.name: path.read_bytes() for path in worker.glob('*.mess')},
+                                         artifacts)
 
     def test_homolysis_never_counts_or_renders_placeholder_saddle(self):
         parent, reactions = self.reactions(True)

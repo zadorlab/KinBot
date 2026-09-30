@@ -152,6 +152,19 @@ otherwise disconnected well networks. Each requested disconnected network gets
 its own MESS input and output. For example, this prevents specified R-butanol from acquiring
 an unrelated S-butanol network through a common product.
 
+**New feature: choose whether MESS includes product complexes.**
+`me_skip_vdW: 0` is the default. It includes accepted product complexes and
+their barrierless exits in both single-well and PES MESS output.
+`me_skip_vdW: 1` omits these wells and exits and connects each inner TS to the
+separated products. Complex searches and optimizations still run. Inner-TS
+Eckart depths use the selected complex energy with either setting. Both
+writers use the existing PES approximation of one lowest-energy complex for
+each set of product stereoisomers. MC-TST retains its selected-structure
+tunneling reference. Omitting a complex removes its stabilization and explicit
+capture/redissociation competition, so rates can change.
+`correct_submerged` now uses connected bound-well ground energies only. A TS
+below separated fragments is not raised to their energy.
+
 **Complete MESS jobs before reporting their result.**
 Local, Slurm, and PBS execution waits for the requested calculations to finish.
 KinBot checks the exit result and newly written output. Solver failure is

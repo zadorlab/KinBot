@@ -391,7 +391,9 @@ class Parameters:
             'epsilon': 0.0,
             'epsilon_unit': 'K',  # can be K or J/mol or cm-1
             'sigma': 0.0,
-            # correct submerged barrier
+            # Omit optional product complexes from final MESS networks only.
+            'me_skip_vdW': 0,
+            # Raise submerged barriers to connected bound-well ground energies.
             'correct_submerged': 0,
             # MESS specific keywords
             'mess_command': 'mess',
@@ -520,6 +522,8 @@ class Parameters:
 
         if self.par['optical_population'] not in ('specified', 'racemic'):
             raise ValueError('optical_population must be specified or racemic')
+        if self.par['me_skip_vdW'] not in (0, 1):
+            raise ValueError('me_skip_vdW must be 0 or 1')
         assumptions = self.par['optical_factor_assumptions']
         if not isinstance(assumptions, dict) or any(
                 not isinstance(name, str) or not name or not isinstance(value, dict)

@@ -1,4 +1,6 @@
-from kinbot.mess_mirrors import complete_mirror_channels
+from kinbot.mess_mirrors import complete_mirror_channels, _POP, _EDGE
+from kinbot.mess_networks import _HEADER, split_model
+from kinbot.mess_racemates import _KEYS, _ROUTE
 from kinbot.species_routing import matches_name, expand_pes_names, apply_input_reference, mess_filename
 from kinbot.species_routing import routing_name, connectivity_name, is_species_name, prepare_pes_directory, configured_result_identity
 """
@@ -32,7 +34,7 @@ from kinbot import pp_settings
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.fragments import Fragment
-from kinbot.mess import MESS, finalize_mc_mess, union_stereochemical_barriers, validate_mess_populations
+from kinbot.mess import MESS, finalize_mc_mess
 from kinbot.reaction_path import read_summary_paths, compare_pathways
 from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
@@ -1084,16 +1086,23 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
     """
 
     min_vdW = find_min_vdW(vdW, well_energies)
-
-    wells = [well for well in wells if min_vdW.get(well, well) == well]
+    selected_wells = [well for well in wells if min_vdW.get(well, well) == well]
+    skip_complexes = bool(par.get('me_skip_vdW', 0))
+    wells = [well for well in selected_wells if not (skip_complexes and well in min_vdW)]
+    exported_vdW = [] if skip_complexes else vdW
+    # Keep the same selected complex as the tunneling reference in both models.
+    complex_references = {}
+    reactions = deepcopy(reactions)
 
     logger.info(f"uq value: {par['uq']}")
     for vdw in vdW:
         vdw_name = f"{vdw[1]}{vdw[5].split('vdW')[1]}"
-        vdW_well_reac = [vdw[0], vdw[1], [min_vdW[vdw_name]], vdw[3]]
+        complex_references[vdw[1]] = min_vdW[vdw_name]
+        targets = list(vdw[2]) if skip_complexes else [min_vdW[vdw_name]]
+        vdW_well_reac = [vdw[0], vdw[1], targets, vdw[3]]
         if vdW_well_reac not in reactions:
             reactions.append(vdW_well_reac)
-    short_names = create_short_names(wells, products, reactions, barrierless, vdW)
+    short_names = create_short_names(wells, products, reactions, barrierless, exported_vdW)
     well_short, pr_short, fr_short, ts_short, nobar_short = short_names
 
     # list of the strings to write to mess input file
@@ -1156,10 +1165,13 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             
         # write the wells
         s.append(frame + '# WELLS\n' + frame)
-        for well in wells:
-            name = well_short[well] + ' ! ' + well
+        for well in selected_wells:
             energy = well_energies[well] + uq.calc_factor('energy', uq_iter)
             well_energies_current[well] = energy
+            # Retain UQ shifts and random-draw order for omitted complexes.
+            if well not in wells:
+                continue
+            name = well_short[well] + ' ! ' + well
             # if 'IRC' not in well:
             with open(parent[well] + '/' + well + '_' + mess_iter + '.mess', 'r') as f:
                 s.append(f.read().format(name=name, zeroenergy=round(energy, 2)))
@@ -1207,7 +1219,7 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                                                      **fr_names))
                             s.append(stemp[stemp.find('Barrier '):])
             # check if is obtained by vdW dissociation
-            for vdw in vdW:
+            for vdw in exported_vdW:
                 bl_prod = f'{vdw[2][0]}_{vdw[2][1]}'
                 if prod == bl_prod:
                     #Skip this vdW well is bless already added with similar well
@@ -1233,35 +1245,26 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                             s.append(stemp[stemp.find('Barrier '):])
             #The product is directly obtained after a reaction with a barrier
             if not bless:
-                if 'IRC' not in parent[prod]:
-                    try:
-                        with open(parent[prod] + '/' + mess_filename(prod, uq_iter)) as f:
-                            s.append(f.read().format(name=name,
-                                                    ground_energy=round(energy, 2),
-                                                    **fr_names))
-                    except:#When bimolecular template is used both for barrierless and with barrier
-                        with open(parent[prod] + '/' + mess_filename(prod, uq_iter)) as f:
-                            file = f.readlines()
-                        f = ''
-                        for line in file:
-                            if "Barrier" in line:
-                                break
-                            else:
-                                f += line
-                        s.append(f.format(name=name,
-                                          ground_energy=round(energy, 2),
-                                          **fr_names))
-
-                else:
-                    with open(parent[parent[prod]] + '/' + mess_filename(prod, uq_iter)) as f:
-                        s.append(f.read().format(name=name,
-                                                ground_energy=round(energy, 2),
-                                                **fr_names))
+                source = parent[parent[prod]] if 'IRC' in parent[prod] else parent[prod]
+                with open(source + '/' + mess_filename(prod, uq_iter)) as f:
+                    _, blocks, _ = split_model(f.read() + '\nEnd ! end kinetics\n')
+                # A worker artifact can contain a phase-space exit as well as
+                # the fragments. Only explicitly retained exits are written.
+                product_blocks = [block for block in blocks
+                                  if _HEADER.search(block)[1] == 'Bimolecular']
+                if len(product_blocks) != 1:
+                    raise ValueError(f'{prod}: expected one separated-product MESS model')
+                s.append(product_blocks[0].format(name=name,
+                         ground_energy=round(energy, 2), **fr_names))
                 
             s.append(divider)
 
         # write the barrier
         s.append(frame + '# BARRIERS\n' + frame)
+        _, population_blocks, _ = split_model('\n'.join(s) + '\nEnd ! end kinetics\n')
+        population_models = {_HEADER.search(block)[2].split()[0]: block
+                             for block in population_blocks
+                             if _HEADER.search(block)[1] != 'Barrier'}
         barrier_blocks = []
         for rxn in reactions:
             if rxn[0] == rxn[2][0]:  # Avoid writing identity reactions.
@@ -1287,14 +1290,11 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                 if welldepth2 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
                     energy = well_energies_current[rxn[2][0]]
                     logger.warning(f'Submerged barrier corrected for {name}')
+            if rxn[1] in complex_references:
+                right_energy = well_energies_current[complex_references[rxn[1]]]
             else:
-                prodname = '_'.join(sorted(rxn[2]))
-                welldepth2 = energy - prod_energies_current[prodname] 
-                if welldepth2 < 0 and par['correct_submerged'] == 1 and not par['multi_conf_tst']:  # submerged, not allowed in MESS
-                    energy = prod_energies_current[prodname]
-                    logger.warning(f'Submerged barrier corrected for {name}')
-            right_energy = (well_energies_current[rxn[2][0]] if len(rxn[2]) == 1
-                            else prod_energies_current['_'.join(sorted(rxn[2]))])
+                right_energy = (well_energies_current[rxn[2][0]] if len(rxn[2]) == 1
+                                else prod_energies_current['_'.join(sorted(rxn[2]))])
             # Recompute both depths after any representative correction.
             welldepth1 = energy - well_energies_current[rxn[0]]
             welldepth2 = energy - right_energy
@@ -1306,6 +1306,23 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
                          welldepth1=round(welldepth1, 2),
                          welldepth2=round(welldepth2, 2),
                          )
+            if rxn[1] in complex_references:
+                target = population_models[name[2]]
+                # Workers describe their IRC complex. Final assembly can use
+                # another selected complex or the separated fragments instead.
+                for route, population, label in (
+                        (_EDGE, _POP, 'kinbot_mirror_endpoints'),
+                        (_ROUTE, _KEYS, 'kinbot_racemic_route')):
+                    if route.search(barrier):
+                        pair = population.search(target)
+                        if pair is None:
+                            raise ValueError(f'{rxn[1]}: missing product stereoisomer metadata')
+                        barrier = route.sub(lambda match: '! ' + label + ' ' +
+                                            ' '.join(match.groups()[:2] + pair.groups()), barrier)
+                if skip_complexes:
+                    barrier = ('! me_skip_vdW=1: complex and its exit omitted; '
+                               'inner-TS tunneling depths retain the selected complex reference.\n'
+                               + barrier)
             barrier_blocks.append(barrier)
         for barrier in barrier_blocks:
             s.append(barrier)
@@ -1317,53 +1334,14 @@ def create_mess_input(par, wells, products, reactions, barrierless, vdW,
             os.mkdir('me')
 
         contents = complete_mirror_channels(''.join(line + '\n' for line in warnings) + header + '\n'.join(s))
-        validate_mess_populations(contents)
+        # Resolve MC offsets and check the final bound-well energies after
+        # mirror-model replacement. Separated fragments are not a well floor.
+        contents = finalize_mc_mess(contents, par['correct_submerged'])
         with open(f'me/mess_{mess_iter}.inp', 'w') as f:
             f.write(contents)
 
-        if par['multi_conf_tst']:
-            logger.debug('\tUpdating ZPE and tunneling parameters for multi_conf_tst...')
-            with open(f'me/mess_{mess_iter}_corr.inp', 'w') as fcorr:
-                with open(f'me/mess_{mess_iter}.inp', 'r') as f:
-                    fcorr.write(finalize_mc_mess(f.read(), par['correct_submerged']))
-
-            shutil.copyfile(f'me/mess_{mess_iter}_corr.inp', f'me/mess_{mess_iter}.inp')
-            os.remove(f'me/mess_{mess_iter}_corr.inp')
-
-        # cleaning file from submerged barrier tunneling
-        #Tunneling   Eckart
-        #  ImaginaryFrequency[1/cm]  2277.51
-        #  CutoffEnergy[kcal/mol]    20.56
-        #  WellDepth[kcal/mol]       34.0
-        #  WellDepth[kcal/mol]       20.56
-        #End
-        with open(f'me/mess_{mess_iter}_temp.inp', 'w') as ftemp:
-            with open(f'me/mess_{mess_iter}.inp', 'r') as f:
-                lines = f.read().split('\n')
-                submerged = -1
-                for ll, line in enumerate(lines):
-                    words = line.split()
-                    if 'Tunneling' in line:
-                        submerged = -1
-                        words = lines[ll + 2].split()
-                        if float(words[1]) <= 0:
-                            submerged = 0
-                            ftemp.write('! submerged barrier\n')
-                        else:
-                            ftemp.write(line)
-                            ftemp.write('\n')
-                    elif submerged <= 5 and submerged >= 0:
-                        submerged += 1
-                    else: 
-                        ftemp.write(line)
-                        ftemp.write('\n')
-
-        shutil.copyfile(f'me/mess_{mess_iter}_temp.inp', f'me/mess_{mess_iter}.inp')
-        os.remove(f'me/mess_{mess_iter}_temp.inp')
-
         from kinbot.mess_networks import write_network_inputs
-        with open(f'me/mess_{mess_iter}.inp') as f:
-            write_network_inputs(mess, f.read(), uq_iter)
+        write_network_inputs(mess, contents, uq_iter)
 
         #uq.format_uqtk_data() 
     if par['me']:

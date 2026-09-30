@@ -171,7 +171,23 @@ PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e '.[fc]'
 
 ATcT's public `atct` client is now a KinBot dependency and is installed by the
 preceding command. ROTD_py remains private and is pinned as a KinBot
-submodule. Initialize and install that exact revision into the same environment:
+submodule. Verify that the HPC account's SSH key is registered with a GitHub
+account that can read `zadorlab/ROTD_py`:
+
+```bash
+ssh -T git@github.com
+```
+
+The expected message names the GitHub user and says authentication succeeded.
+GitHub deliberately returns status 1 because it provides no shell. If an older
+HTTPS attempt was interrupted, remove only its incomplete submodule checkout:
+
+```bash
+git submodule deinit -f -- external/ROTD_py 2>/dev/null || true
+rm -rf external/ROTD_py .git/modules/external/ROTD_py
+```
+
+Initialize and install the pinned revision into the KinBot environment:
 
 ```bash
 env -u LD_LIBRARY_PATH -u LD_PRELOAD git submodule sync --recursive
@@ -192,14 +208,6 @@ PY
 The import name is `rotd_py`. KinBot fails before licensed VRC jobs when the
 pinned package or one of its runtime dependencies is unavailable. The executor
 records the installed package location and Git revision.
-
-The private submodule uses SSH authentication. Verify the HPC account's
-GitHub key before initializing it:
-
-```bash
-ssh -T git@github.com
-git submodule update --init --recursive
-```
 
 Prime and verify a small pinned ATcT API cache on the networked login node:
 
@@ -306,10 +314,12 @@ current quick start identifies `uma-s-1p2` and `omol` at
 
 ```bash
 cd ~/KinBot
-env -u LD_LIBRARY_PATH -u LD_PRELOAD git pull --ff-only origin composite
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+  git -c submodule.recurse=false pull --ff-only origin composite
 export KINBOT_CA_FILE=/etc/ssl/certs/ca-certificates.crt
 export PIP_CERT="$KINBOT_CA_FILE"
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e '.[fc]'
+ssh -T git@github.com
 env -u LD_LIBRARY_PATH -u LD_PRELOAD git submodule sync --recursive
 env -u LD_LIBRARY_PATH -u LD_PRELOAD git submodule update --init --recursive
 PIP_CERT="$KINBOT_CA_FILE" .venv/bin/python -m pip install -e external/ROTD_py

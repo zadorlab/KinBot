@@ -2,12 +2,15 @@
 
 from io import BytesIO
 from pathlib import Path
-from types import SimpleNamespace
 import json
+import os
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from kinbot.anl.atct import (load_atct, load_atct_references,
+from kinbot.anl.atct import (_fetch_reference_records, load_atct,
+                             load_atct_references,
                              parse_atct_api, parse_atct_html)
 from kinbot.anl.cbh import (HARTREE_TO_KJ_MOL, ZeroKEnergy,
                             generate_cbh_reaction, generate_for_stationary_point,
@@ -104,6 +107,41 @@ def test_atct_client_reference_query_is_cached(tmp_path, monkeypatch):
     assert first.source_sha256 == second.source_sha256
     assert first.gas_by_smiles('C', formula={'C': 1, 'H': 4}).atct_id == '74-82-8*0'
     assert len(calls) == 1
+
+
+def test_atct_client_ignores_invalid_generic_proxy(monkeypatch):
+    observed = {}
+
+    class Species:
+        @staticmethod
+        def to_dict():
+            return {'ATcT_ID': '74-82-8*0',
+                    '∆fH_298K_uncertainty': '0.043'}
+
+    def by_smiles(*args, **kwargs):
+        observed['ALL_PROXY'] = os.environ.get('ALL_PROXY')
+        observed['all_proxy'] = os.environ.get('all_proxy')
+        observed['HTTPS_PROXY'] = os.environ.get('HTTPS_PROXY')
+        return SimpleNamespace(total=1, items=[Species()])
+
+    api = ModuleType('atct.api')
+    api.get_species_by_atctid = lambda *args, **kwargs: Species()
+    api.get_species_by_smiles = by_smiles
+    package = ModuleType('atct')
+    package.api = api
+    monkeypatch.setitem(sys.modules, 'atct', package)
+    monkeypatch.setitem(sys.modules, 'atct.api', api)
+    monkeypatch.setenv('ALL_PROXY', 'socks://proxy.example:80')
+    monkeypatch.setenv('all_proxy', 'socks://proxy.example:80')
+    monkeypatch.setenv('HTTPS_PROXY', 'http://proxy.example:80')
+
+    records = _fetch_reference_records(['C'], {})
+
+    assert records[0]['ATcT_ID'] == '74-82-8*0'
+    assert observed == {'ALL_PROXY': None, 'all_proxy': None,
+                        'HTTPS_PROXY': 'http://proxy.example:80'}
+    assert os.environ['ALL_PROXY'] == 'socks://proxy.example:80'
+    assert os.environ['all_proxy'] == 'socks://proxy.example:80'
 
 
 def test_original_cbh_rungs_from_smiles_connectivity():

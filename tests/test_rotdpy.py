@@ -65,7 +65,11 @@ def test_generated_input_uses_configured_sampling_and_portable_scratch():
             assert '#SBATCH --partition=short-cpu' in scheduler
             assert '#SBATCH --ntasks={procs}' in scheduler
             assert '#SBATCH --time=01:30:00' in scheduler
-            assert 'export I_MPI_FABRICS="${I_MPI_FABRICS:-shm}"' in scheduler
+            assert 'export I_MPI_FABRICS="${{I_MPI_FABRICS:-shm}}"' in scheduler
+            sample_job = scheduler.format(
+                surf_id=0, face_id=1, samp_id=2, procs=2, mem=4096)
+            assert 'export I_MPI_FABRICS="${I_MPI_FABRICS:-shm}"' in sample_job
+            assert '#SBATCH --ntasks=2' in sample_job
             assert str(Path(sys.executable)) in scheduler
         finally:
             os.chdir(previous)
@@ -115,6 +119,28 @@ def test_executor_fails_early_when_rotdpy_is_not_installed():
                    return_value=None):
             with pytest.raises(RuntimeError, match='same environment'):
                 run(input_file, python=sys.executable)
+
+
+def test_executor_reports_captured_rotdpy_stderr():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        input_file = root / 'channel.py'
+        input_file.write_text(
+            'import sys\n'
+            'sys.stderr.write("scheduler template field failure\\n")\n'
+            'raise SystemExit(3)\n')
+        (root / 'qu.tpl').write_text('# scheduler fixture\n')
+        with patch('kinbot.rotdpy.ensure_available', return_value={
+                'version': 'test', 'location': '/test',
+                'git_revision': 'abc'}):
+            with pytest.raises(RuntimeError,
+                               match='status 3.*scheduler template field'):
+                run(input_file, python=sys.executable)
+        record = json.loads((root / 'channel.execution.json').read_text())
+        assert record['returncode'] == 3
+        assert 'scheduler template field failure' in record['error']
+        assert (root / record['stderr']).read_text() == \
+            'scheduler template field failure\n'
 
 
 def test_rotdpy_revision_must_match_pinned_submodule():

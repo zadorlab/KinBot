@@ -14,7 +14,8 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 # Every generated rotdPy sample is a single-node Molpro job.  Preserve a site
 # override; otherwise keep Intel MPI off unavailable PSM3/OFI network devices.
-export I_MPI_FABRICS="${I_MPI_FABRICS:-shm}"
+# Double braces survive until rotdPy formats surf/face/sample placeholders.
+export I_MPI_FABRICS="${{I_MPI_FABRICS:-shm}}"
 export MPLCONFIGDIR="$PWD/.matplotlib"
 mkdir -p "$MPLCONFIGDIR"
 @PYTHON@ surf{surf_id}_face{face_id}_samp{samp_id}.py

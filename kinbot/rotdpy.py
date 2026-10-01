@@ -165,7 +165,9 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
     }
     error = None
     if completed.returncode:
-        error = f'rotdPy exited with status {completed.returncode}.'
+        detail = (completed.stderr.strip() or completed.stdout.strip())[-2000:]
+        suffix = f' Last output: {detail}' if detail else ''
+        error = f'rotdPy exited with status {completed.returncode}.{suffix}'
     else:
         try:
             result = read_result(input_file)

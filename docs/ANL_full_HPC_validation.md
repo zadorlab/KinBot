@@ -416,6 +416,14 @@ v5 directory with `run.sh`; retain the completed conformer, rotor, product,
 and Gaussian VRC records. No dispatcher retry or run-directory cleanup is
 needed for this specific failure.
 
+The following v5 attempt created both VRC tasks but exposed a single-node
+Intel MPI transport failure (`PSM3`, `PMPI_Init`, and OFI endpoint errors).
+After updating KinBot, retry both failed tasks explicitly and then restart the
+top-level driver. The child runtime now selects shared-memory MPI for a
+single-node Molpro allocation unless the site or user already selected a
+fabric. The same default is present in new dispatcher setup and rotdPy sample
+scripts.
+
 For a failed dispatcher task, inspect its `execution.json`, `slurm.stderr`,
 and native output before retrying:
 

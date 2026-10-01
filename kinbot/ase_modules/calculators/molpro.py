@@ -14,6 +14,8 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.units import Bohr, Hartree
 import numpy as np
 
+from kinbot.anl.runtime import qc_runtime_environment
+
 
 _ENERGY = re.compile(
     r'^\s*SETTING\s+KB_GEOM_ENERGY\s*=\s*'
@@ -199,10 +201,11 @@ class Molpro(Calculator):
         self.generated_files.append(input_name)
         command = [*self.command, '-g', '-n', str(self.nproc), '-m',
                    str(self.stack_mw), input_name]
+        child_env, _ = qc_runtime_environment(command[0], 'molpro')
         with (self.work_directory / stdout_name).open('w') as stdout, \
                 (self.work_directory / stderr_name).open('w') as stderr:
             result = subprocess.run(command, cwd=self.work_directory, stdout=stdout,
-                                    stderr=stderr, check=False)
+                                    stderr=stderr, check=False, env=child_env)
         self.generated_files.extend([stdout_name, stderr_name])
         if result.returncode:
             raise RuntimeError(f'Molpro force evaluation {stem} exited with '

@@ -247,6 +247,13 @@ def render_site_setup(programs_by_backend):
                 dirs.append(str(path.parent))
         for directory in reversed(dirs):
             lines.append(f'    export PATH={shlex.quote(directory)}:"$PATH"')
+        if backend == 'molpro':
+            lines += [
+                '    if [ "${SLURM_NNODES:-1}" = 1 ] && '
+                '[ -z "${I_MPI_FABRICS:-}" ]; then',
+                '      export I_MPI_FABRICS=shm',
+                '    fi',
+            ]
         if backend in ('gaussian', 'gauss'):
             profiles = (candidate.parent / 'bsd' / 'g16.profile'
                         for path in found if path and path.name == 'g16'

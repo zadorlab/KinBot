@@ -46,3 +46,24 @@ def test_cfour_rejects_unresolved_runtime_before_launch():
                 patch('kinbot.anl.runtime._runtime_candidates', return_value=[library]):
             with pytest.raises(RuntimeError, match='CFOUR needs libgfortran.so.4'):
                 qc_runtime_environment('xcfour', 'cfour', {'PATH': '/site/bin'})
+
+
+def test_single_node_molpro_defaults_to_shared_memory_mpi():
+    original = {'PATH': '/site/bin', 'SLURM_NNODES': '1'}
+    child, provenance = qc_runtime_environment('molpro', 'molpro', original)
+    assert original == {'PATH': '/site/bin', 'SLURM_NNODES': '1'}
+    assert child['I_MPI_FABRICS'] == 'shm'
+    assert provenance == {'mpi_fabrics': 'shm'}
+
+
+def test_molpro_preserves_explicit_fabric_and_multinode_environment():
+    child, provenance = qc_runtime_environment(
+        'molpro', 'molpro',
+        {'SLURM_NNODES': '1', 'I_MPI_FABRICS': 'ofi'})
+    assert child['I_MPI_FABRICS'] == 'ofi'
+    assert provenance == {'mpi_fabrics': 'ofi'}
+
+    child, provenance = qc_runtime_environment(
+        'molpro', 'molpro', {'SLURM_NNODES': '2'})
+    assert 'I_MPI_FABRICS' not in child
+    assert provenance == {}

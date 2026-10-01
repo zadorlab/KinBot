@@ -603,8 +603,22 @@ class VTS:
             [sys.executable, '-m', 'kinbot.anl.dispatch', 'drive',
              str(run_dir), '--interval', '20'], check=False)
         if result.returncode:
+            _, _, state = _load(run_dir)
+            failures = []
+            for job in sorted(pending):
+                entry = state['tasks'].get(job, {})
+                if entry.get('status') != 'failed':
+                    continue
+                outcome = run_dir / 'tasks' / job / 'execution.json'
+                try:
+                    error = json.loads(outcome.read_text()).get('error')
+                except (OSError, json.JSONDecodeError):
+                    error = entry.get('error')
+                failures.append(f'{job}: {error or "unknown task failure"}')
+            detail = ' | '.join(failures)
             raise RuntimeError('One or more VRC Molpro correction jobs failed; '
-                               f'inspect {run_dir}.')
+                               f'inspect {run_dir}.'
+                               + (f' {detail}' if detail else ''))
         for job in pending:
             source = run_dir / 'tasks' / job / f'{job}.out'
             shutil.copyfile(source, Path('vrctst/molpro') / source.name)

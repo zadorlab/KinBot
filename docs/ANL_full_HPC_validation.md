@@ -425,11 +425,13 @@ fabric. The same default is present in new dispatcher setup and rotdPy sample
 scripts.
 
 Both VRC retries then completed. The first rotdPy handoff exited before sample
-submission because its deferred `qu.tpl` treated the braces in the shell
-`I_MPI_FABRICS` default as a Python formatting field. The source template now
-escapes those braces through rotdPy's formatting pass. Pull the correction and
-rerun the same v5 driver; do not retry or remove the already complete VRC
-dispatcher. The regenerated `qu.tpl` is corrected automatically.
+submission because `vrc_tst_noscan` passed its single asymptotic point to a
+cubic correction spline. An asymptote-only input now omits the radial
+correction while retaining its sampling-level asymptotic energy. A real scan
+must provide at least three scan points plus the asymptote. The deferred
+`qu.tpl` also now escapes the braces in its shell `I_MPI_FABRICS` default
+through rotdPy's formatting pass. Pull the correction and rerun the same v5
+driver; do not retry or remove the already complete VRC dispatcher.
 
 For a failed dispatcher task, inspect its `execution.json`, `slurm.stderr`,
 and native output before retrying:

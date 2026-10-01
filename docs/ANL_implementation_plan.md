@@ -4836,26 +4836,33 @@ successful correction outputs and continue to rotdPy.
 
 ---
 
-# 99. Third live ethane run: deferred rotdPy scheduler formatting (2026-09-30)
+# 99. Third live ethane run: no-scan corrections and scheduler formatting (2026-09-30)
 
 Both retried VRC Molpro tasks completed with the single-node shared-memory MPI
 policy, confirming the transport correction. KinBot copied their results and
 entered rotdPy, whose controlling Python process then exited with status one
 before any sample appeared in Slurm.
 
-The generated `qu.tpl` is a deferred Python format string: rotdPy fills its
-surface, face, sample, process, and memory fields when each sample is
-submitted. The newly added shell default `${I_MPI_FABRICS:-shm}` used single
-braces, so `str.format()` interpreted `I_MPI_FABRICS` as another template
-field and raised before submission. The source template now uses doubled
-braces. KinBot's generated `qu.tpl` retains those doubled braces, and rotdPy's
-format pass emits the intended single-braced shell expansion in each final
-sample script. A regression performs that exact second formatting pass and
-checks both the Slurm fields and final MPI environment line.
+The captured traceback shows that `vrc_tst_noscan` supplied its one
+asymptotic distance and zero relative energies to rotdPy's cubic one-dimensional
+correction interpolator. One asymptotic point is not a radial potential curve,
+and SciPy correctly rejected the underdetermined spline. KinBot now passes
+`corrections=None` for an asymptote-only run while retaining the sampling-level
+asymptotic energy as `inf_energy`. A real VRC scan still receives the difference
+between its high-level and sampling-level curves; KinBot validates that its
+distances and energies are
+finite, equal length, strictly increasing, and contain the three scan points
+plus asymptote required by rotdPy's cubic interpolator.
+
+Code review also found a second pre-submission defect in the newly generated
+`qu.tpl`: it is a deferred Python format string, so the shell default
+`${I_MPI_FABRICS:-shm}` must use doubled braces until rotdPy fills its surface,
+face, sample, process, and memory fields. The source template now survives that
+second format pass and emits the intended single-braced shell expansion in the
+final sample script. Regression tests cover both format stages.
 
 The rotdPy executor now includes the tail of captured stderr (or stdout when
 stderr is empty) in both its execution record and the exception returned to
 KinBot. This removes the generic `status 1` diagnostic that obscured the
-template error. The completed VRC dispatcher is reusable; restarting v5 after
-updating KinBot rewrites `qu.tpl` from the corrected source and lets rotdPy
-reuse its own partial restart state.
+native traceback. The completed VRC dispatcher is reusable; restarting v5
+after updating KinBot regenerates the no-scan input and corrected `qu.tpl`.

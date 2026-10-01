@@ -129,6 +129,38 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
     return path
 
 
+def _rotdpy_correction_block(pp_info: dict[str, Any], noscan: bool) -> str:
+    """Render a real VRC scan correction or omit it for asymptote-only runs."""
+    if noscan:
+        return 'corrections = None'
+
+    distances = pp_info.get('dist')
+    sample = pp_info.get('e_samp')
+    trusted = pp_info.get('e_high')
+    if not all(isinstance(values, list)
+               for values in (distances, sample, trusted)):
+        raise ValueError('VRC correction distances and energies must be lists.')
+    if len(distances) != len(sample) or len(distances) != len(trusted):
+        raise ValueError('VRC correction distances and energies must have '
+                         'matching lengths.')
+    # rotdPy currently constructs a cubic make_interp_spline for each curve.
+    # Three scanned distances plus the asymptote are therefore the minimum.
+    if len(distances) < 4:
+        raise ValueError('A VRC 1D correction requires at least three scan '
+                         'points plus the asymptotic point.')
+    arrays = [np.asarray(values, dtype=float)
+              for values in (distances, sample, trusted)]
+    if not all(np.isfinite(values).all() for values in arrays):
+        raise ValueError('VRC correction data must be finite.')
+    if np.any(np.diff(arrays[0]) <= 0.):
+        raise ValueError('VRC correction distances must be strictly increasing.')
+
+    template = Path(f'{kb_path}/tpl/rotdPy_1d_corr.tpl').read_text()
+    return template.format(scan_ref=pp_info['scan_ref'],
+                           e_trust=trusted, r_trust=distances,
+                           e_sample=sample, r_sample=distances)
+
+
 def main():
     try:
         return _main()
@@ -1514,15 +1546,10 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
             if surf == surfaces[-1]:
                 Surfaces_block = Surfaces_block[:-3]
 
-        # Corrections block
-        tpl_1d_corr = f'{kb_path}/tpl/rotdPy_1d_corr.tpl'
-        with open(tpl_1d_corr, 'r') as f:
-            fr = f.read()
-        kb_1d_correction: str = fr.format(scan_ref=pp_info['scan_ref'],
-                                          e_trust=pp_info['e_high'],
-                                          r_trust=pp_info['dist'],
-                                          e_sample=pp_info['e_samp'],
-                                          r_sample=pp_info['dist'])
+        # An asymptote-only ``vrc_tst_noscan`` run contains no radial curve
+        # to interpolate. Its sampling asymptote is still passed below as
+        # ``inf_energy``; a 1D correction is meaningful only for a real scan.
+        kb_1d_correction = _rotdpy_correction_block(pp_info, noscan)
 
         # Calc_block:
         tpl_rotdPy_calc = f'{kb_path}/tpl/rotdPy_calc.tpl'

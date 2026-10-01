@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from kinbot.parameters import Parameters
-from kinbot.pes import create_rotdpy_inputs
+from kinbot.pes import _rotdpy_correction_block, create_rotdpy_inputs
 from kinbot.rotdpy import ensure_available, run
 
 
@@ -59,6 +59,8 @@ def test_generated_input_uses_configured_sampling_and_portable_scratch():
             assert "'processors': 2" in generated
             assert "'max_jobs': 3" in generated
             assert "os.environ.get('SCRATCH')" in generated
+            assert 'corrections = None' in generated
+            assert "'KinBot 1D scan'" not in generated
             assert 'temperature = generate_grid(*[100.0, 50.0, 1.0, 2])' in generated
             assert "'pot_smp_min': 4" in generated
             scheduler = Path('rotdPy/qu.tpl').read_text()
@@ -73,6 +75,26 @@ def test_generated_input_uses_configured_sampling_and_portable_scratch():
             assert str(Path(sys.executable)) in scheduler
         finally:
             os.chdir(previous)
+
+
+def test_multipoint_vrc_scan_retains_cubic_correction_contract():
+    correction = {
+        'dist': [3., 4., 5., 30.],
+        'e_samp': [4., 2., 1., 0.],
+        'e_high': [5., 2.5, 1.2, 0.],
+        'scan_ref': [[0, 1]],
+    }
+    rendered = _rotdpy_correction_block(correction, noscan=False)
+    assert "'KinBot 1D scan'" in rendered
+    assert "'r_sample' : [3.0, 4.0, 5.0, 30.0]" in rendered
+
+    with pytest.raises(ValueError, match='three scan points plus'):
+        _rotdpy_correction_block({
+            **correction,
+            'dist': [3., 4., 30.],
+            'e_samp': [2., 1., 0.],
+            'e_high': [2.5, 1.2, 0.],
+        }, noscan=False)
 
 
 def test_executor_records_success_and_reuses_matching_result():

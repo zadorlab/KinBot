@@ -80,3 +80,49 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
             assert correction['e_inf_high'] == -11.
         finally:
             os.chdir(previous)
+
+
+def test_molpro_dispatch_normalizes_numpy_charge_and_multiplicity():
+    with TemporaryDirectory() as temporary:
+        previous = Path.cwd()
+        os.chdir(temporary)
+        try:
+            Path('vrctst/molpro').mkdir(parents=True)
+            Path('vrctst/molpro/r.inp').write_text(
+                '***,VRC correction\nMolpro calculation terminated\n')
+            species = SimpleNamespace(
+                atom=['H', 'H'],
+                geom=np.asarray([[0., 0., 0.], [0., 0., .74]]),
+                charge=np.float64(0.), mult=np.int64(1))
+            parameters = {
+                'vrc_tst_walltime': '00:10:00',
+                'single_point_ppn': 4,
+                'vrc_tst_min_stack_mw': 50,
+                'queue_name': 'short',
+                'vrc_tst_max_nodes': 1,
+            }
+            vts = VTS(SimpleNamespace(), parameters, None)
+            captured = {}
+
+            def prepare_dispatch(spec, run_dir):
+                from kinbot.anl.dispatch import _atoms
+                _atoms(spec['molecule'])
+                json.dumps(spec)
+                captured['spec'] = spec
+                output = run_dir / 'tasks' / 'r' / 'r.out'
+                output.parent.mkdir(parents=True)
+                output.write_text('Molpro calculation terminated\n')
+
+            with patch('kinbot.anl.dispatch.prepare', prepare_dispatch), \
+                    patch('kinbot.anl.dispatch.preflight'), \
+                    patch('kinbot.vrc_tst_scan.subprocess.run',
+                          return_value=SimpleNamespace(returncode=0)):
+                vts._dispatch_molpro_corrections({'r': species})
+
+            molecule = captured['spec']['molecule']
+            assert type(molecule['charge']) is int
+            assert type(molecule['multiplicity']) is int
+            assert Path('vrctst/molpro/r.out').read_text() == \
+                'Molpro calculation terminated\n'
+        finally:
+            os.chdir(previous)

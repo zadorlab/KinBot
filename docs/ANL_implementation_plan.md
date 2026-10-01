@@ -4772,3 +4772,29 @@ external validation directory is `ethane_profiled_hpc_run_v5`; it must pass
 four normal parent rotor points, advance from the completed Gaussian VRC rows
 to the exclusive Molpro correction dispatcher, execute the pinned rotdPy
 input, and only then prepare the ANL interface graph.
+
+---
+
+# 97. Third live ethane run: VRC molecular-state serialization (2026-09-30)
+
+The third external-site run passed the corrected parent hindered-rotor stage,
+reused the unique methyl product, and advanced through both Gaussian VRC
+asymptote calculations. This supplies live evidence that the subdirectory
+checkpoint/artifact correction and native VRC completion polling work.
+
+The subsequent Molpro dispatcher boundary exposed a data-type mismatch.
+`StationaryPoint.from_ase_atoms` obtains the molecular charge by summing ASE's
+floating-point initial-charge array, so a chemically integral charge such as
+zero can be represented by `numpy.float64(0.0)`. Dispatcher specifications
+are strict JSON records and require a native integer. VRC dispatch now checks
+that charge and multiplicity are finite, exactly integral numeric values and
+then converts them to native Python integers. Fractional values and booleans
+remain errors. A regression passes the same NumPy scalar types through VRC
+specification construction, dispatcher molecule validation, and JSON
+serialization.
+
+The failure occurred during validation before the VRC dispatch directory was
+created or any Molpro correction job was submitted. The v5 directory has
+valid completed KinBot state and should be resumed in place after pulling the
+fix. Acceptance still requires all VRC correction tasks, the pinned rotdPy
+execution, the KinBot gate, and the downstream ANL interface audit to finish.

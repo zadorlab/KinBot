@@ -407,8 +407,17 @@ cat ethane_profiled_hpc_run_v5/rotdPy/*.rotdpy.json
 
 The command is restartable. Rerun the same `run.sh` command after an
 interruption. It reuses `kinbot.db`, the persistent L1/L2 route manifest, and
-the dispatcher's immutable state. For a failed dispatcher task, inspect its
-`execution.json`, `slurm.stderr`, and native output before retrying:
+the dispatcher's immutable state.
+
+The v5 failure that ended with `Molecular charge must be an integer` happened
+while validating the first VRC dispatcher specification, before the dispatch
+directory or a Molpro job was created. After pulling the fix, resume that same
+v5 directory with `run.sh`; retain the completed conformer, rotor, product,
+and Gaussian VRC records. No dispatcher retry or run-directory cleanup is
+needed for this specific failure.
+
+For a failed dispatcher task, inspect its `execution.json`, `slurm.stderr`,
+and native output before retrying:
 
 ```bash
 .venv/bin/python -m kinbot.anl.dispatch retry \

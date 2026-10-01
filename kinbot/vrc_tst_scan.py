@@ -23,6 +23,17 @@ from kinbot import constants
 logger = logging.getLogger('KinBot')
 
 
+def _native_state_integer(value, label):
+    """Return a JSON-native integer without truncating malformed state data."""
+    if (isinstance(value, (bool, np.bool_))
+            or not isinstance(value, (int, float, np.integer, np.floating))):
+        raise ValueError(f'{label} must be an integer.')
+    numeric = float(value)
+    if not np.isfinite(numeric) or not numeric.is_integer():
+        raise ValueError(f'{label} must be an integer.')
+    return int(numeric)
+
+
 class VTS:
     """
     Class to run the scans for VRC-TST to
@@ -539,8 +550,13 @@ class VTS:
         molecule = {
             'symbols': list(first.atom),
             'positions': np.asarray(first.geom).tolist(),
-            'charge': first.charge,
-            'multiplicity': first.mult,
+            # StationaryPoint.from_ase_atoms obtains charge by summing ASE's
+            # floating-point initial charges.  Dispatcher specifications are
+            # JSON data and require native integers for molecular state.
+            'charge': _native_state_integer(first.charge,
+                                            'Molecular charge'),
+            'multiplicity': _native_state_integer(
+                first.mult, 'Molecular multiplicity'),
         }
         tasks = []
         for job in sorted(pending):

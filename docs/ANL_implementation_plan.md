@@ -4798,3 +4798,38 @@ created or any Molpro correction job was submitted. The v5 directory has
 valid completed KinBot state and should be resumed in place after pulling the
 fix. Acceptance still requires all VRC correction tasks, the pinned rotdPy
 execution, the KinBot gate, and the downstream ANL interface audit to finish.
+
+---
+
+# 98. Third live ethane run: single-node Molpro MPI transport (2026-09-30)
+
+After molecular-state normalization, v5 prepared and submitted both exclusive
+VRC Molpro tasks. Both failed before producing a native `.out`: nodes 35 and
+36 reported `PSM3 can't open nic unit`, `PMPI_Init`, and an OFI endpoint-open
+failure, followed by status 143. Their Slurm layouts were otherwise correct:
+one exclusive node, two MPI ranks, one CPU per rank, all node memory, and the
+requested day partition. No chemistry input was read in either attempt.
+
+This is the same single-node Intel MPI transport failure seen during the first
+CH4 Molpro geometry attempt. That run succeeded after its generated setup was
+edited to use `I_MPI_FABRICS=shm`, but the correction had not been encoded in
+the general setup generator. KinBot now applies shared-memory transport to a
+Molpro child only when Slurm reports one node and no site or user fabric was
+specified. The setting is applied at child-process launch as well as in newly
+generated site setup, so a reviewed failed task in an already prepared run can
+be retried after updating KinBot. Explicit fabric selections and multi-node
+environments remain unchanged. ASE/Sella Molpro evaluations use the same
+child-only runtime policy.
+
+Generated rotdPy sample scripts always request one node and now carry the same
+default while preserving an explicit override. This is required because the
+rotdPy subprocess launches Molpro independently of the ANL dispatcher. VRC
+dispatcher exceptions also include each failed task's recorded native error,
+so subsequent launcher failures no longer collapse into only a generic parent
+message.
+
+The two failed v5 task directories are retained as attempt-one evidence. Use
+the dispatcher's explicit `retry` operation for each task after pulling this
+fix, then rerun the same top-level driver. The retry archives both attempts,
+stages immutable replacements, and lets the restarted KinBot process copy the
+successful correction outputs and continue to rotdPy.

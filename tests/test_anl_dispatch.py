@@ -688,6 +688,7 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
             setup = (run_dir / 'site_setup.sh').read_text()
             assert 'module load molpro/molpro24' in setup
             assert 'module load cfour/2.1' in setup
+            assert 'export I_MPI_FABRICS=shm' in setup
             for backend in ('gaussian', 'molpro', 'cfour'):
                 program = {'gaussian': 'g16', 'molpro': 'molpro',
                            'cfour': 'xcfour'}[backend]

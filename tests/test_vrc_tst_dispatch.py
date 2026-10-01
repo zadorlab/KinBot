@@ -10,6 +10,7 @@ from unittest.mock import patch
 from ase import Atoms
 from ase.db import connect
 import numpy as np
+import pytest
 
 from kinbot.vrc_tst_scan import VTS
 
@@ -124,5 +125,43 @@ def test_molpro_dispatch_normalizes_numpy_charge_and_multiplicity():
             assert type(molecule['multiplicity']) is int
             assert Path('vrctst/molpro/r.out').read_text() == \
                 'Molpro calculation terminated\n'
+        finally:
+            os.chdir(previous)
+
+
+def test_molpro_dispatch_surfaces_native_task_failure():
+    with TemporaryDirectory() as temporary:
+        previous = Path.cwd()
+        os.chdir(temporary)
+        try:
+            Path('vrctst/molpro').mkdir(parents=True)
+            Path('vrctst/molpro/r.inp').write_text('***,failed VRC point\n')
+            species = SimpleNamespace(
+                atom=['H', 'H'], geom=[[0., 0., 0.], [0., 0., .74]],
+                charge=0., mult=1)
+            parameters = {
+                'vrc_tst_walltime': '00:10:00', 'single_point_ppn': 2,
+                'vrc_tst_min_stack_mw': 50, 'queue_name': 'short',
+                'vrc_tst_max_nodes': 1,
+            }
+            vts = VTS(SimpleNamespace(), parameters, None)
+            state = {'tasks': {'r': {'status': 'failed'}}}
+
+            def prepare_dispatch(_, run_dir):
+                task_dir = run_dir / 'tasks' / 'r'
+                task_dir.mkdir(parents=True)
+                (task_dir / 'execution.json').write_text(json.dumps({
+                    'status': 'failed',
+                    'error': 'PMPI_Init: OFI endpoint open failed',
+                }))
+
+            with patch('kinbot.anl.dispatch.prepare', prepare_dispatch), \
+                    patch('kinbot.anl.dispatch.preflight'), \
+                    patch('kinbot.anl.dispatch._load',
+                          side_effect=lambda run_dir: (Path(run_dir), {}, state)), \
+                    patch('kinbot.vrc_tst_scan.subprocess.run',
+                          return_value=SimpleNamespace(returncode=1)):
+                with pytest.raises(RuntimeError, match='PMPI_Init.*OFI endpoint'):
+                    vts._dispatch_molpro_corrections({'r': species})
         finally:
             os.chdir(previous)

@@ -65,6 +65,7 @@ def test_generated_input_uses_configured_sampling_and_portable_scratch():
             assert '#SBATCH --partition=short-cpu' in scheduler
             assert '#SBATCH --ntasks={procs}' in scheduler
             assert '#SBATCH --time=01:30:00' in scheduler
+            assert 'export I_MPI_FABRICS="${I_MPI_FABRICS:-shm}"' in scheduler
             assert str(Path(sys.executable)) in scheduler
         finally:
             os.chdir(previous)

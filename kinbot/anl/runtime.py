@@ -1,8 +1,13 @@
-"""Resolve native QC program dependencies without changing the Python process.
+"""Resolve native QC runtime settings without changing the Python process.
 
 Some site installations omit a compiler runtime from their module.  Only the
 QC child receives a selected runtime library; adding an entire Conda lib
 directory to LD_LIBRARY_PATH can replace unrelated system libraries.
+
+Single-node Molpro jobs do not need a network fabric.  Intel MPI can otherwise
+select a broken PSM3/OFI device and abort during MPI initialization before
+Molpro reads its input.  Default those jobs to shared-memory transport while
+preserving an explicit site or user selection.
 """
 
 from __future__ import annotations
@@ -73,7 +78,14 @@ def qc_runtime_environment(program, backend, env=None):
     missing libgfortran, test one matching SONAME with ldd before launching.
     """
     child = dict(os.environ if env is None else env)
-    if backend.lower() != 'cfour':
+    backend = backend.lower()
+    if backend == 'molpro':
+        nodes = child.get('SLURM_NNODES', child.get('SLURM_JOB_NUM_NODES'))
+        if nodes == '1' and not child.get('I_MPI_FABRICS'):
+            child['I_MPI_FABRICS'] = 'shm'
+        return child, ({'mpi_fabrics': child['I_MPI_FABRICS']}
+                       if child.get('I_MPI_FABRICS') else {})
+    if backend != 'cfour':
         return child, {}
     executable = shutil.which(program, path=child.get('PATH'))
     if not executable:

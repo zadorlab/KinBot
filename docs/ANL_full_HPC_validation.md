@@ -109,6 +109,14 @@ provenance-matched recipe. It must not rename a partial sum ANL1-F12.
 - All dispatcher jobs request exclusive nodes. Molpro rank counts are capped
   by the method-specific scaling limit and reduced when the node cannot meet
   the configured minimum memory per rank.
+- Every Molpro invocation gets an isolated temporary repository. KinBot checks
+  `KINBOT_MOLPRO_SCRATCH`, `SLURM_TMPDIR`, `SCRATCH`, `TMPDIR`, the user's
+  KinBot cache, the task filesystem, and `/tmp` in that order, skipping a
+  candidate that lacks the task's minimum free space. The default minimum is
+  half the requested node memory or 4096 MB, whichever is larger. Set
+  `KINBOT_MOLPRO_SCRATCH` when a site has a preferred high-capacity filesystem;
+  the selected root and capacity are recorded in `execution.json` and the
+  per-invocation directory is removed after Molpro exits.
 - A completed scheduler job is reconciled from its immutable execution
   record, including the Slurm `Invalid job id` case after a job leaves the
   queue.
@@ -432,6 +440,15 @@ must provide at least three scan points plus the asymptote. The deferred
 `qu.tpl` also now escapes the braces in its shell `I_MPI_FABRICS` default
 through rotdPy's formatting pass. Pull the correction and rerun the same v5
 driver; do not retry or remove the already complete VRC dispatcher.
+
+The first ANL fanout then completed L3 geometry, harmonic frequencies,
+F12/TZ, and conventional CCSD(T)/DZ. F12/QZ failed while Molpro was writing
+distributed integral files below `/tmp`: the compute node exposed only 40 GB
+there, and rank three reported `I/O error. Perhaps full disk?`. Updated KinBot
+capacity-checks its Molpro repository before launch. On Blodgett, where the
+batch environment defines neither `SCRATCH` nor `SLURM_TMPDIR`, it selects
+`$HOME/.cache/kinbot/molpro` instead of the undersized node `/tmp`. Retry only
+`f12_qz`; the completed sibling calculations remain reusable.
 
 For a failed dispatcher task, inspect its `execution.json`, `slurm.stderr`,
 and native output before retrying:

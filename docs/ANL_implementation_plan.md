@@ -4866,3 +4866,37 @@ stderr is empty) in both its execution record and the exception returned to
 KinBot. This removes the generic `status 1` diagnostic that obscured the
 native traceback. The completed VRC dispatcher is reusable; restarting v5
 after updating KinBot regenerates the no-scan input and corrected `qu.tpl`.
+
+---
+
+# 100. Third live ethane run: F12/QZ scratch-capacity correction (2026-10-01)
+
+The v5 ANL interface completed the B2PLYP/Sella geometry, CCSD(T)/cc-pVTZ
+Sella geometry, CCSD(T)/cc-pVTZ numerical harmonic calculation, F12/TZ, and
+conventional CCSD(T)/DZ. The harmonic parser returned 18 positive modes and
+`0.07473053` Hartree ZPE; the terminal CCSD(T)/cc-pVTZ energy was
+`-79.674444665443` Hartree. These agree with the original published ANL ethane
+checkpoints (`0.07472969` and `-79.67444500` Hartree, respectively) within
+normal numerical precision.
+
+F12/QZ failed during integral I/O rather than electronic-structure setup.
+Molpro 2024.1 used `/tmp/molpro.*` because the batch environment defined no
+`SCRATCH`, `SLURM_TMPDIR`, or `TMPDIR`. The node's `/tmp` filesystem had only
+40 GB total. After the distributed sort wrote about 12 GB, rank three failed
+an EAF write at offset 494108672 words and printed `I/O error. Perhaps full
+disk?`; its MPI abort was only the propagated consequence.
+
+All Molpro children now receive a unique scratch repository selected at
+runtime. The portable priority is an explicit `KINBOT_MOLPRO_SCRATCH`, then
+`SLURM_TMPDIR`, `SCRATCH`, `TMPDIR`, `$HOME/.cache/kinbot/molpro`, the task
+filesystem, and `/tmp`. KinBot measures free space before launch and skips an
+undersized candidate. The default floor is the larger of 4096 MB and half the
+task's requested node memory; `resources.min_scratch_mb` provides a measured
+method-specific override. The chosen source, root, available capacity, and
+floor enter the external task's execution provenance. The temporary directory
+is removed after success or failure. The same policy applies to Molpro force
+evaluations inside ASE/Sella.
+
+The dispatcher stopped at the failed F12/QZ task and preserved every completed
+sibling. After updating the branch, archive and restage only `f12_qz` with the
+dispatcher retry command, then resume the same v5 ANL interface.

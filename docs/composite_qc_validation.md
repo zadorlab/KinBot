@@ -319,6 +319,18 @@ Persist reservations and job IDs so a restart recovers in-flight work without
 duplicate submissions. Test this with a fake scheduler before using a cluster
 queue, and assert the `--exclusive` directive in generated Slurm scripts.
 
+Molpro disk capacity is checked independently of memory and rank selection.
+Each child receives a unique `TMPDIR`, chosen from
+`KINBOT_MOLPRO_SCRATCH`, `SLURM_TMPDIR`, `SCRATCH`, `TMPDIR`, the KinBot cache
+under `$HOME`, the task filesystem, and `/tmp`. Candidates below the task's
+minimum free-space requirement are skipped. The default scratch floor is half
+the requested node memory, with a 4096 MB minimum; `resources.min_scratch_mb`
+can raise or lower it for a method with measured disk requirements. An
+explicit `KINBOT_MOLPRO_SCRATCH` is authoritative and fails clearly if it is
+unusable. Execution records retain the selected root, capacity, and required
+minimum, while temporary repository contents are cleaned after the child
+exits.
+
 ## L2, hindered rotor, and VPT2 surface policy
 
 For the lower ANL tier, use B3LYP/cc-pVTZ for all three. For the higher tier,

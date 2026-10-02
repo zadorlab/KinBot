@@ -5016,3 +5016,54 @@ MRCC RHF/ROHF CCSDT(Q), direct MRCC RHF/ROHF CCSDTQ(P), and the explicit UHF
 historical reference. Each probe must preserve the complete input, output,
 normal-termination marker, parsed total energy, executable version, and
 artifact hash.
+
+---
+
+# 103. Compatibility and first complete-assembly gate (2026-10-01)
+
+The composite branch is additive. Existing KinBot inputs, default values,
+backend routing, generic Molpro template, and scheduler-template meanings must
+remain compatible with `master`. Profiled L1/L2 routing activates only when a
+new profile, preset, composite method, or L3 override is explicitly requested.
+The shared Slurm template therefore retains its historical `-q` directive; a
+separate `slurm_partition.tpl` is selected by the Blodgett example. ANL L3
+jobs continue to use the dispatcher's independent exclusive-node generator.
+
+The current higher-order routing supersedes historical notes above that say
+MRCC is deferred or that every CCSDT(Q) task uses direct MRCC:
+
+- closed-shell CCSDT(Q): CFOUR `REFERENCE=RHF`, `CC_PROGRAM=VCC`, unrestricted
+  spin-orbital coupled cluster, recorded as RHF-UCCSDT(Q);
+- open-shell CCSDT(Q): direct MRCC with a semicanonical ROHF determinant;
+- every CCSDTQ(P): direct MRCC, using RHF for a singlet or semicanonical ROHF
+  for an open shell;
+- conventional and F12 base energies: Molpro RHF/ROHF determinant with the
+  explicitly verified unrestricted coupled-cluster path.
+
+Direct MRCC discovery is portable: normal `PATH` or module setup, an explicit
+`KINBOT_MRCC_COMMAND`, or a root advertised through `KINBOT_MRCC_ROOT`,
+`MRCC_ROOT`, `MRCC_HOME`, or `EBROOTMRCC`. Repository code contains no site
+installation path.
+
+The first full arithmetic gate is the explicitly labeled
+`profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ` expression. It combines the
+verified F12 CBS component, CCSDT(Q)-CCSD(T)/DZ, core-valence CBS, DKH2
+difference, CFOUR DBOC, an explicit state-specific spin-orbit term, harmonic
+ZPE, and the B2PLYP-D3(BJ) VPT2 correction. Derived higher-order and correction
+graphs must identify the exact hash-verified L3 geometry of the interface run.
+The CCSDTQ(P) calculation is retained in the higher-order validation graph for
+the later ANL1 expression but is not silently added to ANL0-F12.
+
+A native result marked `review_required`, including a warned Gaussian VPT2
+job, cannot enter the expression automatically. Acceptance requires a JSON
+review record naming the task, exact native-output SHA-256, decision, reviewer,
+and scientific rationale. The resulting component provenance hashes both the
+native output and canonical review record.
+
+The completed ethane v5 run can now continue through the licensed CFOUR/MRCC
+higher-order and Molpro common-correction graphs. It still cannot establish a
+CBH heat of formation until the same accepted method tier exists for every
+species in the generated reaction. The next implementation item is a general
+monatomic/diatomic reference-species graph, including zero-mode handling and
+the appropriate atomic component policy, followed by the methyl CBH-0 solve,
+ATcT comparison, and production-grid ROTD_py/MESS validation.

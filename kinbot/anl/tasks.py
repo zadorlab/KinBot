@@ -52,9 +52,68 @@ def molpro_task(ident, body, *, geometry_from='l3_geometry',
     return task
 
 
+def cfour_energy_task(ident, method, basis, *, multiplicity,
+                      geometry_from='l3_geometry', walltime='24:00:00',
+                      max_cores=8, partition=None):
+    """Build the native CFOUR spin-orbital closed-shell CCSDT(Q) task.
+
+    CFOUR's faster NCC implementation is restricted closed-shell CC.  The ANL
+    convention requested here is unrestricted CC, so this task deliberately
+    selects an RHF determinant and the general VCC spin-orbital implementation.
+    Open-shell higher-order jobs use :func:`mrcc_task` instead.
+    """
+    if method != 'CCSDT(Q)':
+        raise ValueError(f'Unsupported CFOUR higher-order method {method!r}.')
+    if multiplicity != 1:
+        raise ValueError('Native CFOUR higher-order routing is closed-shell only.')
+    output = f'{ident}.out'
+    template = f"""KinBot ANL {method} calculation
+{{{{CARTESIAN}}}}
+
+*CFOUR(CALC={method}
+BASIS={basis}
+REFERENCE=RHF
+CC_PROGRAM=VCC
+FROZEN_CORE=ON
+COORDINATES=CARTESIAN
+UNITS=ANGSTROM
+SYMMETRY=OFF
+CHARGE={{{{CHARGE}}}}
+MULTIPLICITY={{{{MULT}}}}
+SCF_CONV=10
+LINEQ_CONV=10
+CC_MAXCYC=300
+MEM_UNIT=MB
+MEMORY_SIZE={{{{WORK_MEMORY_MB}}}})
+"""
+    return {
+        'id': ident, 'kind': 'external', 'backend': 'cfour',
+        'geometry_from': geometry_from,
+        'resources': resources(
+            walltime, max_cores=max_cores,
+            min_memory_mb_per_core=4096, partition=partition),
+        'input_name': 'ZMAT', 'input_template': template,
+        'command': ['xcfour'], 'stdout': output, 'stderr': f'{ident}.err',
+        'required_outputs': [output],
+        'files_from_env': {'GENBAS': 'CFOUR_GENBAS'},
+        'success_marker': {'file': output,
+                           'contains': 'The final electronic energy is'},
+        'failure_markers': [
+            {'file': output, 'contains': 'ERROR ERROR ERROR'},
+            {'file': output, 'contains': 'Job has terminated with error flag'},
+        ],
+        'result_parser': {
+            'kind': 'cfour_energy', 'file': output,
+            'method': method, 'basis': basis, 'reference': 'RHF',
+            'correlation': 'unrestricted', 'core': 'frozen',
+            'program': 'cfour', 'driver': 'VCC',
+        },
+    }
+
+
 def mrcc_task(ident, method, basis, *, multiplicity, reference=None,
               geometry_from='l3_geometry', walltime='24:00:00',
-              max_cores=8, partition=None):
+              max_cores=8, partition=None, command='dmrcc'):
     """Build a direct MRCC higher-order task.
 
     Direct ``dmrcc`` uses RHF for a closed shell and semicanonical ROHF for an
@@ -75,6 +134,9 @@ def mrcc_task(ident, method, basis, *, multiplicity, reference=None,
     if ((reference == 'RHF' and multiplicity != 1)
             or (reference == 'ROHF' and multiplicity == 1)):
         raise ValueError('MRCC reference conflicts with multiplicity.')
+    if (not isinstance(command, str) or not command.strip()
+            or any(character.isspace() for character in command)):
+        raise ValueError('MRCC command must name one executable without arguments.')
     rohf = ('rohftype=semicanonical\nrohfcore=semicanonical\n'
             if reference == 'ROHF' else '')
     output = f'{ident}.out'
@@ -100,7 +162,7 @@ geom=xyz
             walltime, max_cores=max_cores,
             min_memory_mb_per_core=4096, partition=partition),
         'input_name': 'MINP', 'input_template': template,
-        'command': ['dmrcc'],
+        'command': [command],
         'required_executables': ['scf', 'mrcc'],
         'stdout': output, 'stderr': f'{ident}.err',
         'required_outputs': [output],
@@ -121,17 +183,22 @@ geom=xyz
 
 def higher_order_task(ident, method, basis, *, multiplicity, reference=None,
                       geometry_from='l3_geometry', walltime='24:00:00',
-                      max_cores=8, partition=None):
+                      max_cores=8, partition=None, command='dmrcc'):
     """Select the pinned ANL higher-order backend for one electronic state.
 
-    Every higher-order calculation uses direct MRCC's general spin-orbital CC
-    implementation. RHF is the default determinant for a closed shell and
-    semicanonical ROHF for an open shell; an older-paper reproduction can pin
-    UHF. No partially spin-adapted or restricted CC ansatz is generated.
+    Closed-shell CCSDT(Q) uses CFOUR's general VCC spin-orbital code with an RHF
+    determinant. Open-shell CCSDT(Q) and all CCSDTQ(P) calculations use direct
+    MRCC; semicanonical ROHF is its default open-shell determinant. No
+    partially spin-adapted or restricted CC ansatz is generated.
     """
     options = dict(
         geometry_from=geometry_from, walltime=walltime,
-        max_cores=max_cores, partition=partition)
+        max_cores=max_cores, partition=partition, command=command)
+    if method == 'CCSDT(Q)' and multiplicity == 1 and reference in (None, 'RHF'):
+        return cfour_energy_task(
+            ident, method, basis, multiplicity=multiplicity,
+            geometry_from=geometry_from, walltime=walltime,
+            max_cores=max_cores, partition=partition)
     if method in ('CCSDT(Q)', 'CCSDTQ(P)'):
         return mrcc_task(
             ident, method, basis, multiplicity=multiplicity,

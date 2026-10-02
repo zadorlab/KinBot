@@ -8,7 +8,7 @@ import pytest
 
 from kinbot.anl.dispatch import _run_external
 from kinbot.anl.results import (
-    parse_cfour_dboc, parse_gaussian_vpt2,
+    parse_cfour_dboc, parse_cfour_energy, parse_gaussian_vpt2,
     parse_molpro_energy, parse_molpro_harmonic, parse_mrcc_energy,
     validate_result_parser,
 )
@@ -40,6 +40,15 @@ rohfcore=semicanonical
 core=frozen
 Total CCSDTQ(P) energy [au]: -39.123456789012
 Normal termination of mrcc.
+"""
+
+_CFOUR_CCSDTQ = """CALC_LEVEL=CCSDT(Q)
+BASIS=cc-pVTZ
+REFERENCE=RHF
+CC_PROGRAM=VCC
+FROZEN_CORE=ON
+The final electronic energy is -79.123456789012 a.u.
+This computation required 31.93 seconds (walltime).
 """
 
 
@@ -90,6 +99,27 @@ def test_direct_mrcc_higher_order_energy_uses_rohf_ucc_convention():
                                   'Error at the termination of mrcc.'),
             method='CCSDTQ(P)', basis='cc-pVDZ', reference='ROHF',
             correlation='unrestricted', core='frozen', program='mrcc')
+
+
+def test_cfour_higher_order_energy_requires_rhf_spin_orbital_execution():
+    result = parse_cfour_energy(
+        _CFOUR_CCSDTQ, method='CCSDT(Q)', basis='cc-pVTZ',
+        reference='RHF', correlation='unrestricted', core='frozen',
+        program='cfour', driver='VCC')
+    assert result['energy_hartree'] == pytest.approx(-79.123456789012)
+    assert result['program_variant'] == 'RHF-UCCSDT(Q)'
+    with pytest.raises(ValueError, match='REFERENCE=RHF'):
+        parse_cfour_energy(
+            _CFOUR_CCSDTQ.replace('REFERENCE=RHF', 'REFERENCE=UHF'),
+            method='CCSDT(Q)', basis='cc-pVTZ', reference='RHF',
+            correlation='unrestricted', core='frozen', program='cfour',
+            driver='VCC')
+    with pytest.raises(ValueError, match='completion'):
+        parse_cfour_energy(
+            _CFOUR_CCSDTQ.replace('This computation required', 'Incomplete'),
+            method='CCSDT(Q)', basis='cc-pVTZ', reference='RHF',
+            correlation='unrestricted', core='frozen', program='cfour',
+            driver='VCC')
 
 
 def test_external_cfour_task_stores_selected_native_result():
@@ -165,6 +195,15 @@ uccsd(t),uhf_uccsd=1
 """
 
 _MOLPRO_OPEN_HARMONIC = _MOLPRO_HARMONIC
+
+_MOLPRO_ALL_ELECTRON_DKH = """basis=aug-cc-pCVTZ-DK
+set,dkho=2
+rhf
+{uccsd(t),uhf_uccsd=1;core}
+ PROGRAM * RHF-SCF
+ !RHF-UCCSD(T) energy -40.012345678901
+ Molpro calculation terminated
+"""
 
 _GAUSSIAN_VPT2 = """#p B3LYP/cc-pVTZ Opt=(Tight,CalcFC) Freq=Anharmonic NoSymm
  WARNING: Unreliable CUBIC force constant i= 2,j= 1,k= 4
@@ -244,6 +283,30 @@ def test_molpro_open_shell_uses_rhf_uccsd_t_label():
         parse_molpro_energy(
             _MOLPRO_OPEN_CCSD_T.replace(',uhf_uccsd=1', ''),
             method='CCSD(T)', basis='cc-pVDZ', reference='ROHF')
+
+
+def test_molpro_energy_pins_all_electron_and_dkh2_settings():
+    result = parse_molpro_energy(
+        _MOLPRO_ALL_ELECTRON_DKH, method='CCSD(T)',
+        basis='aug-cc-pCVTZ-DK', reference='RHF',
+        core='all-electron', relativistic='DKH2')
+    assert result['core'] == 'all-electron'
+    assert result['relativistic'] == 'DKH2'
+    with pytest.raises(ValueError, match='all-electron'):
+        parse_molpro_energy(
+            _MOLPRO_ALL_ELECTRON_DKH.replace(';core}', '}'),
+            method='CCSD(T)', basis='aug-cc-pCVTZ-DK', reference='RHF',
+            core='all-electron', relativistic='DKH2')
+    with pytest.raises(ValueError, match='DKHO'):
+        parse_molpro_energy(
+            _MOLPRO_ALL_ELECTRON_DKH.replace('set,dkho=2\n', ''),
+            method='CCSD(T)', basis='aug-cc-pCVTZ-DK', reference='RHF',
+            core='all-electron', relativistic='DKH2')
+    with pytest.raises(ValueError, match='nonrelativistic'):
+        parse_molpro_energy(
+            _MOLPRO_ALL_ELECTRON_DKH, method='CCSD(T)',
+            basis='aug-cc-pCVTZ-DK', reference='RHF',
+            core='all-electron', relativistic='none')
 
 
 def test_molpro_harmonic_ignores_zero_modes_and_crosschecks_zpe():

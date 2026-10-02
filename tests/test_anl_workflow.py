@@ -11,11 +11,15 @@ from ase.io import read, write
 from ase.units import Hartree, invcm, kJ, mol
 
 from kinbot.anl.dispatch import _geometry_hash, advance, prepare
-from kinbot.anl.model import IncompleteRecipeError
+from kinbot.anl.extrapolation import core_valence_correction
+from kinbot.anl.model import ComponentResult, IncompleteRecipeError
 from kinbot.anl.recipes import recipe
 from kinbot.anl.results import parse_result
 from kinbot.anl.workflow import (attach_task_vpt2_frequencies,
-                                 cbs_task_component, task_component)
+                                 cbs_task_component,
+                                 core_valence_task_component,
+                                 scalar_relativistic_task_component,
+                                 task_component)
 from tests.anl_fixture import dispatch_spec, molpro_task
 
 
@@ -36,6 +40,61 @@ uccsd(t)-f12b,scale_trip=1
  PROGRAMS * TOTAL UCCSD(T) RHF-SCF INT
  Molpro calculation terminated
 """
+
+
+def _electronic_component(key, energy, basis, *, core, relativistic='none'):
+    return ComponentResult(
+        key=key, value_hartree=energy, quantity='electronic',
+        method='CCSD(T)', basis=basis, backend='molpro', state_id='state-A',
+        charge=0, multiplicity=1, geometry_sha256='1' * 64,
+        source_sha256=hashlib.sha256(key.encode()).hexdigest(),
+        source=f'{key}.out', settings={
+            'reference': 'RHF', 'correlation': 'unrestricted',
+            'program_variant': 'RHF-UCCSD(T)', 'core': core,
+            'relativistic': relativistic})
+
+
+def test_common_correction_providers_apply_verified_differences(monkeypatch):
+    components = {
+        'ae_tz': _electronic_component(
+            'ae_tz', -40.10, 'cc-pCVTZ', core='all-electron'),
+        'ae_qz': _electronic_component(
+            'ae_qz', -40.20, 'cc-pCVQZ', core='all-electron'),
+        'fc_tz': _electronic_component(
+            'fc_tz', -40.08, 'cc-pCVTZ', core='frozen'),
+        'fc_qz': _electronic_component(
+            'fc_qz', -40.17, 'cc-pCVQZ', core='frozen'),
+        'dkh': _electronic_component(
+            'dkh', -40.205, 'aug-cc-pCVTZ-DK', core='all-electron',
+            relativistic='DKH2'),
+        'nonrel': _electronic_component(
+            'nonrel', -40.200, 'aug-cc-pCVTZ-DK', core='all-electron'),
+    }
+    monkeypatch.setattr(
+        'kinbot.anl.workflow.task_component',
+        lambda run_dir, task_id, **kwargs: components[task_id])
+    requirements = {item.key: item for item in recipe('ANL0-F12').requirements}
+    cv = core_valence_task_component(
+        'run', all_electron_lower='ae_tz', all_electron_upper='ae_qz',
+        frozen_core_lower='fc_tz', frozen_core_upper='fc_qz',
+        requirement=requirements['core_valence_cbs'], state_id='state-A')
+    assert cv.value_hartree == pytest.approx(core_valence_correction(
+        all_electron_lower=-40.10, all_electron_upper=-40.20,
+        frozen_core_lower=-40.08, frozen_core_upper=-40.17))
+    assert cv.backend == 'composite'
+    assert len(cv.source_sha256) == 64
+    rel = scalar_relativistic_task_component(
+        'run', 'dkh', 'nonrel',
+        requirement=requirements['scalar_relativistic'], state_id='state-A')
+    assert rel.value_hartree == pytest.approx(-0.005)
+    assert rel.backend == 'composite'
+    components['nonrel'] = ComponentResult(
+        **{**components['nonrel'].__dict__, 'geometry_sha256': '2' * 64})
+    with pytest.raises(ValueError, match='different geometry'):
+        scalar_relativistic_task_component(
+            'run', 'dkh', 'nonrel',
+            requirement=requirements['scalar_relativistic'],
+            state_id='state-A')
 
 
 def _complete_task(run_dir, task, output):

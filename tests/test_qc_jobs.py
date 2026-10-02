@@ -61,7 +61,7 @@ class TestSchedulerJobs(unittest.TestCase):
                 self.assertEqual(result, 1)
                 self.assertEqual(submit.call_args.args[0], ['qsub', 'test_job.pbs'])
 
-    def test_slurm_uses_partition_and_submitting_python(self):
+    def test_legacy_slurm_keeps_qos_directive_and_submitting_python(self):
         qc = SimpleNamespace(
             check_qc=lambda job: 0, queue_job_limit=0,
             par={'queue_template': ''}, queuing='slurm', qc='fc',
@@ -72,9 +72,26 @@ class TestSchedulerJobs(unittest.TestCase):
         with patch('kinbot.qc.subprocess.Popen', return_value=process):
             QuantumChemistry.submit_qc(qc, 'test_job', 8)
         script = Path('test_job.sbatch').read_text()
+        self.assertIn('#SBATCH -q day-long-cpu', script)
+        self.assertIn(f'{shlex.quote(sys.executable)} test_job.py', script)
+
+    def test_site_can_select_bundled_slurm_partition_template(self):
+        import kinbot
+
+        template = str(Path(kinbot.__file__).parent / 'tpl' /
+                       'slurm_partition.tpl')
+        qc = SimpleNamespace(
+            check_qc=lambda job: 0, queue_job_limit=0,
+            par={'queue_template': template}, queuing='slurm', qc='fc',
+            queue_name='day-long-cpu', slurm_feature='', job_ids={},
+        )
+        process = Mock()
+        process.communicate.return_value = (b'Submitted batch job 123\n', b'')
+        with patch('kinbot.qc.subprocess.Popen', return_value=process):
+            QuantumChemistry.submit_qc(qc, 'partition_job', 8)
+        script = Path('partition_job.sbatch').read_text()
         self.assertIn('#SBATCH --partition=day-long-cpu', script)
         self.assertNotIn('#SBATCH -q ', script)
-        self.assertIn(f'{shlex.quote(sys.executable)} test_job.py', script)
 
 
 class TestVRCJobs(unittest.TestCase):
@@ -99,6 +116,28 @@ class TestVRCJobs(unittest.TestCase):
         self.qc.get_qc_arguments.assert_called_once_with(job, 2, 0, 1, vts=1)
         self.qc.submit_qc.assert_called_once_with(job, 1)
         ast.parse(Path(f'{job}.py').read_text())
+
+    def test_fragment_job_keeps_legacy_calc_kwargs_fallback(self):
+        self.qc.par['calc_kwargs'] = {'scf': 'xqc'}
+        self.qc.merge_kwargs = Mock(return_value={'scf': 'xqc'})
+        QuantumChemistry.qc_vts_frag(self.qc, self.fragment)
+        self.qc.merge_kwargs.assert_called_once()
+        self.assertEqual(self.qc.merge_kwargs.call_args.args[1], {'scf': 'xqc'})
+
+    def test_fragment_job_prefers_explicit_vrc_kwargs(self):
+        self.qc.par['calc_kwargs'] = {'scf': 'legacy'}
+        self.qc.par['vrc_tst_calc_kwargs'] = {'scf': 'vrc'}
+        self.qc.merge_kwargs = Mock(return_value={'scf': 'vrc'})
+        QuantumChemistry.qc_vts_frag(self.qc, self.fragment)
+        self.qc.merge_kwargs.assert_called_once()
+        self.assertEqual(self.qc.merge_kwargs.call_args.args[1], {'scf': 'vrc'})
+
+    def test_explicit_empty_vrc_kwargs_disable_legacy_fallback(self):
+        self.qc.par['calc_kwargs'] = {'scf': 'legacy'}
+        self.qc.par['vrc_tst_calc_kwargs'] = {}
+        self.qc.merge_kwargs = Mock()
+        QuantumChemistry.qc_vts_frag(self.qc, self.fragment)
+        self.qc.merge_kwargs.assert_not_called()
 
     def test_scan_jobs_use_reacting_species_electron_count(self):
         species = StationaryPoint('H2', 0, 1, atom=['H', 'H'],

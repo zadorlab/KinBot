@@ -8,7 +8,7 @@ import math
 import re
 
 from kinbot.anl.dispatch import _load, _verify_execution, _verify_stage_files
-from kinbot.anl.extrapolation import two_point_cbs
+from kinbot.anl.extrapolation import (core_valence_correction, two_point_cbs)
 from kinbot.anl.model import (ComponentRequirement, ComponentResult,
                               IncompleteRecipeError)
 from kinbot.anl.results import parse_result
@@ -53,7 +53,7 @@ def task_component(run_dir, task_id, *, key, state_id):
     kind = parsed['kind']
     settings = {}
     review_required = parsed.get('review_required', False)
-    if kind in ('molpro_energy', 'mrcc_energy'):
+    if kind in ('molpro_energy', 'mrcc_energy', 'cfour_energy'):
         quantity = 'electronic'
         value = parsed['energy_hartree']
         method = parsed['method']
@@ -64,7 +64,12 @@ def task_component(run_dir, task_id, *, key, state_id):
             settings['program_variant'] = parsed['program_variant']
         if 'correlation' in parsed:
             settings['correlation'] = parsed['correlation']
-        if kind == 'mrcc_energy':
+        if kind == 'molpro_energy':
+            if 'core' in parsed:
+                settings['core'] = parsed['core']
+            if 'relativistic' in parsed:
+                settings['relativistic'] = parsed['relativistic']
+        if kind in ('mrcc_energy', 'cfour_energy'):
             settings.update(reference=parsed['reference'], core=parsed['core'],
                             driver=parsed['driver'], program=parsed['program'])
         if method == 'CCSD(T)-F12b':
@@ -125,6 +130,141 @@ def attach_task_vpt2_frequencies(species, run_dir, task_id, **match_options):
         'source_sha256': execution['artifacts'][task['result_parser']['file']],
     })
     return frequencies
+
+
+def core_valence_task_component(
+        run_dir, *, all_electron_lower, all_electron_upper,
+        frozen_core_lower, frozen_core_upper,
+        requirement: ComponentRequirement, state_id: str) -> ComponentResult:
+    """Build the all-electron minus frozen-core CCSD(T)/CBS correction."""
+    task_ids = (all_electron_lower, all_electron_upper,
+                frozen_core_lower, frozen_core_upper)
+    parts = [task_component(run_dir, task_id, key=task_id, state_id=state_id)
+             for task_id in task_ids]
+    ae_lower, ae_upper, fc_lower, fc_upper = parts
+    if (requirement.key != 'core_valence_cbs'
+            or requirement.quantity != 'correction'
+            or 'composite' not in requirement.backends):
+        raise ValueError('Invalid core-valence recipe requirement.')
+    if len({part.geometry_sha256 for part in parts}) != 1:
+        raise ValueError('Core-valence tasks use different geometries.')
+    if len({(part.state_id, part.charge, part.multiplicity)
+            for part in parts}) != 1:
+        raise ValueError('Core-valence tasks use different electronic states.')
+    if any(part.method != 'CCSD(T)' or part.quantity != 'electronic'
+           or part.backend != 'molpro' for part in parts):
+        raise ValueError('Core-valence inputs must be Molpro CCSD(T) energies.')
+    if ((ae_lower.basis, ae_upper.basis, fc_lower.basis, fc_upper.basis)
+            != ('cc-pCVTZ', 'cc-pCVQZ', 'cc-pCVTZ', 'cc-pCVQZ')):
+        raise ValueError('Core-valence inputs need cc-pCVTZ/cc-pCVQZ pairs.')
+    if [part.settings.get('core') for part in parts] != [
+            'all-electron', 'all-electron', 'frozen', 'frozen']:
+        raise ValueError('Core-valence inputs have incorrect core treatments.')
+    comparable = [{key: value for key, value in part.settings.items()
+                   if key != 'core'} for part in parts]
+    if any(item != comparable[0] for item in comparable[1:]):
+        raise ValueError('Core-valence input settings differ.')
+    cardinal = requirement.settings.get('upper_cardinal')
+    power = requirement.settings.get('extrapolation_power')
+    value = core_valence_correction(
+        all_electron_lower=ae_lower.value_hartree,
+        all_electron_upper=ae_upper.value_hartree,
+        frozen_core_lower=fc_lower.value_hartree,
+        frozen_core_upper=fc_upper.value_hartree,
+        upper_cardinal=cardinal, power=power)
+    provenance = {
+        'formula': 'CBS(all-electron)-CBS(frozen-core)',
+        'task_ids': task_ids,
+        'source_sha256': [part.source_sha256 for part in parts],
+        'upper_cardinal': cardinal, 'power': power,
+    }
+    digest = hashlib.sha256(json.dumps(
+        provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    first = parts[0]
+    return ComponentResult(
+        key=requirement.key, value_hartree=value,
+        quantity=requirement.quantity, method=requirement.method,
+        basis=requirement.basis, backend='composite', state_id=state_id,
+        charge=first.charge, multiplicity=first.multiplicity,
+        geometry_sha256=first.geometry_sha256, source_sha256=digest,
+        source='core-valence(' + ','.join(part.source for part in parts) + ')',
+        settings=dict(requirement.settings))
+
+
+def scalar_relativistic_task_component(
+        run_dir, relativistic_task, nonrelativistic_task, *,
+        requirement: ComponentRequirement, state_id: str) -> ComponentResult:
+    """Build the all-electron DKH2 minus nonrelativistic CCSD(T) correction."""
+    relativistic = task_component(
+        run_dir, relativistic_task, key=relativistic_task, state_id=state_id)
+    nonrelativistic = task_component(
+        run_dir, nonrelativistic_task, key=nonrelativistic_task,
+        state_id=state_id)
+    if (requirement.key != 'scalar_relativistic'
+            or requirement.quantity != 'correction'
+            or 'composite' not in requirement.backends):
+        raise ValueError('Invalid scalar-relativistic recipe requirement.')
+    pair = (relativistic, nonrelativistic)
+    if (relativistic.geometry_sha256 != nonrelativistic.geometry_sha256
+            or (relativistic.state_id, relativistic.charge,
+                relativistic.multiplicity) !=
+               (nonrelativistic.state_id, nonrelativistic.charge,
+                nonrelativistic.multiplicity)):
+        raise ValueError('Relativistic tasks use different geometry or state.')
+    if any(part.method != 'CCSD(T)' or part.quantity != 'electronic'
+           or part.backend != 'molpro' or part.basis != requirement.basis
+           or part.settings.get('core') != 'all-electron' for part in pair):
+        raise ValueError('Relativistic inputs need all-electron Molpro CCSD(T).')
+    if (relativistic.settings.get('relativistic'),
+            nonrelativistic.settings.get('relativistic')) != ('DKH2', 'none'):
+        raise ValueError('Relativistic inputs do not form DKH2/nonrel pair.')
+    comparable = [{key: value for key, value in part.settings.items()
+                   if key != 'relativistic'} for part in pair]
+    if comparable[0] != comparable[1]:
+        raise ValueError('Relativistic input settings differ.')
+    value = math.fsum((relativistic.value_hartree,
+                       -nonrelativistic.value_hartree))
+    provenance = {
+        'formula': 'E(DKH2)-E(nonrelativistic)',
+        'relativistic_sha256': relativistic.source_sha256,
+        'nonrelativistic_sha256': nonrelativistic.source_sha256,
+    }
+    digest = hashlib.sha256(json.dumps(
+        provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return ComponentResult(
+        key=requirement.key, value_hartree=value,
+        quantity=requirement.quantity, method=requirement.method,
+        basis=requirement.basis, backend='composite', state_id=state_id,
+        charge=relativistic.charge, multiplicity=relativistic.multiplicity,
+        geometry_sha256=relativistic.geometry_sha256, source_sha256=digest,
+        source=f'DKH2({relativistic.source})-nonrel({nonrelativistic.source})',
+        settings=dict(requirement.settings))
+
+
+def state_correction_component(*, requirement: ComponentRequirement,
+                               value_hartree: float, state_id: str,
+                               charge: int, multiplicity: int, source: str,
+                               backend='manual') -> ComponentResult:
+    """Create an explicit, provenance-bearing state-only correction."""
+    if (requirement.geometry_role != 'state'
+            or backend not in requirement.backends
+            or isinstance(value_hartree, bool)
+            or not isinstance(value_hartree, (int, float))
+            or not math.isfinite(value_hartree) or not source.strip()):
+        raise ValueError('Invalid state-only correction.')
+    provenance = {'key': requirement.key, 'value_hartree': value_hartree,
+                  'state_id': state_id, 'charge': charge,
+                  'multiplicity': multiplicity, 'source': source,
+                  'backend': backend}
+    digest = hashlib.sha256(json.dumps(
+        provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return ComponentResult(
+        key=requirement.key, value_hartree=float(value_hartree),
+        quantity=requirement.quantity, method=requirement.method,
+        basis=requirement.basis, backend=backend, state_id=state_id,
+        charge=charge, multiplicity=multiplicity, geometry_sha256=None,
+        source_sha256=digest, source=source,
+        settings=dict(requirement.settings))
 
 
 def cbs_task_component(run_dir, lower_task_id, upper_task_id, *,

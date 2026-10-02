@@ -30,6 +30,7 @@ _MOLPRO_CCSD_T = (r'^\s*\{?\s*uccsd\(t\)\s*,[^\n]*'
 _MOLPRO_F12B = (r'^\s*\{?\s*uccsd\(t\)-f12b\b[^\n]*'
                   r'\bscale_trip\s*=\s*1\b[^\n]*$')
 _MOLPRO_RHF = r'^\s*\{?\s*rhf(?:\s*,[^\n]*)?\s*$'
+_MOLPRO_ALL_ELECTRON = r'(?:^|;)\s*core\s*}'
 _MRCC_METHODS = ('CCSDT(Q)', 'CCSDTQ(P)')
 
 
@@ -109,6 +110,41 @@ def parse_cfour_dboc(output, *, level='HF', basis=None):
     }
 
 
+def parse_cfour_energy(output, *, method, basis, reference, correlation, core,
+                       program, driver):
+    """Read a native CFOUR unrestricted higher-order single-point energy."""
+    if (method != 'CCSDT(Q)' or reference != 'RHF'
+            or correlation != 'unrestricted' or core != 'frozen'
+            or program != 'cfour' or driver != 'VCC'):
+        raise ValueError('CFOUR higher-order method settings are unsupported.')
+    if ('ERROR ERROR ERROR' in output
+            or 'Job has terminated with error flag' in output):
+        raise ValueError('CFOUR reported an error flag.')
+    if 'This computation required' not in output:
+        raise ValueError('CFOUR output has no final completion line.')
+    expected = {
+        'CALC_LEVEL': method, 'BASIS': basis, 'REFERENCE': reference,
+        'CC_PROGRAM': driver, 'FROZEN_CORE': 'ON',
+    }
+    for keyword, value in expected.items():
+        matches = re.findall(
+            rf'^\s*{keyword}\s*=\s*{re.escape(value)}\s*$', output,
+            re.IGNORECASE | re.MULTILINE)
+        if len(matches) != 1:
+            raise ValueError(f'CFOUR output does not uniquely echo '
+                             f'{keyword}={value}.')
+    finals = _FINAL_ENERGY.findall(output)
+    if len(finals) != 1:
+        raise ValueError('CFOUR needs exactly one final electronic energy.')
+    return {
+        'kind': 'cfour_energy', 'method': method, 'basis': basis,
+        'reference': reference, 'correlation': correlation, 'core': core,
+        'program': program, 'driver': driver,
+        'program_variant': 'RHF-UCCSDT(Q)',
+        'energy_hartree': _number(finals[0]),
+    }
+
+
 def _molpro_output(output, basis):
     if not re.search(r'^\s*Molpro calculation terminated\s*$', output,
                      re.IGNORECASE | re.MULTILINE):
@@ -125,7 +161,8 @@ def _one_number(output, pattern, label):
     return _number(matches[0])
 
 
-def parse_molpro_energy(output, *, method, basis, reference=None):
+def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
+                        relativistic=None):
     """Read the exact named total energy, rather than a rounded variable or F12a."""
     _molpro_output(output, basis)
     if method not in ('CCSD(T)', 'CCSD(T)-F12b'):
@@ -147,6 +184,26 @@ def parse_molpro_energy(output, *, method, basis, reference=None):
                                  output, re.IGNORECASE | re.MULTILINE)):
             raise ValueError('Molpro output does not contain the requested '
                              'restricted HF reference calculation.')
+    if core not in (None, 'frozen', 'all-electron'):
+        raise ValueError(f'Unsupported Molpro core treatment {core!r}.')
+    # Molpro's documented all-electron form is ``{ccsd(t);core}``.  Echoed
+    # input can retain that one-line spelling or wrap the local directive onto
+    # its own line, so accept either representation while still requiring the
+    # directive to close the coupled-cluster command block.
+    all_electron = re.search(_MOLPRO_ALL_ELECTRON, output,
+                             re.IGNORECASE | re.MULTILINE) is not None
+    if core == 'all-electron' and not all_electron:
+        raise ValueError('Molpro output does not echo the all-electron core directive.')
+    if core == 'frozen' and all_electron:
+        raise ValueError('Molpro frozen-core output contains an all-electron directive.')
+    if relativistic not in (None, 'none', 'DKH2'):
+        raise ValueError(f'Unsupported Molpro relativistic setting {relativistic!r}.')
+    dkh2 = re.search(r'^\s*set\s*,\s*dkho\s*=\s*2\s*$', output,
+                     re.IGNORECASE | re.MULTILINE) is not None
+    if relativistic == 'DKH2' and not dkh2:
+        raise ValueError('Molpro output does not echo SET,DKHO=2.')
+    if relativistic == 'none' and dkh2:
+        raise ValueError('Molpro nonrelativistic output contains SET,DKHO=2.')
     method_pattern = (_MOLPRO_F12B if method == 'CCSD(T)-F12b'
                       else _MOLPRO_CCSD_T)
     if not re.search(method_pattern, output, re.IGNORECASE | re.MULTILINE):
@@ -192,6 +249,10 @@ def parse_molpro_energy(output, *, method, basis, reference=None):
                                  if method == 'CCSD(T)-F12b'
                                  else 'RHF-UCCSD(T)')
     result['correlation'] = 'unrestricted'
+    if core is not None:
+        result['core'] = core
+    if relativistic is not None:
+        result['relativistic'] = relativistic
     return result
 
 
@@ -477,15 +538,38 @@ def validate_result_parser(request, *, backend, template, outputs):
             valid = (isinstance(request['basis'], str) and bool(request['basis'])
                      and re.search(rf'\bBASIS\s*=\s*{re.escape(request["basis"])}(?=\s*[,\n)])',
                                    template, re.IGNORECASE) is not None)
+    elif kind == 'cfour_energy':
+        method = request.get('method')
+        basis = request.get('basis')
+        valid = (
+            set(request) == {'kind', 'file', 'method', 'basis', 'reference',
+                             'correlation', 'core', 'program', 'driver'}
+            and backend == 'cfour' and method == 'CCSDT(Q)'
+            and isinstance(basis, str) and bool(basis)
+            and request.get('reference') == 'RHF'
+            and request.get('correlation') == 'unrestricted'
+            and request.get('core') == 'frozen'
+            and request.get('program') == 'cfour'
+            and request.get('driver') == 'VCC'
+            and re.search(r'\bCALC\s*=\s*CCSDT\(Q\)(?=\s*[,\n)])',
+                          template, re.IGNORECASE)
+            and re.search(rf'\bBASIS\s*=\s*{re.escape(basis)}(?=\s*[,\n)])',
+                          template, re.IGNORECASE)
+            and re.search(r'\bREFERENCE\s*=\s*RHF(?=\s*[,\n)])',
+                          template, re.IGNORECASE)
+            and re.search(r'\bCC_PROGRAM\s*=\s*VCC(?=\s*[,\n)])',
+                          template, re.IGNORECASE)
+            and re.search(r'\bFROZEN_CORE\s*=\s*ON(?=\s*[,\n)])',
+                          template, re.IGNORECASE))
     elif kind == 'molpro_energy':
-        valid = (set(request) in ({'kind', 'file', 'method', 'basis'},
-                                  {'kind', 'file', 'method', 'basis',
-                                   'reference'})
+        required = {'kind', 'file', 'method', 'basis'}
+        optional = {'reference', 'core', 'relativistic'}
+        valid = (required <= set(request) <= required | optional
                  and backend == 'molpro'
                  and request.get('method') in ('CCSD(T)', 'CCSD(T)-F12b')
                  and isinstance(request.get('basis'), str) and bool(request['basis'])
                  and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
-                               template, re.IGNORECASE | re.MULTILINE) is not None)
+                              template, re.IGNORECASE | re.MULTILINE) is not None)
         if valid and 'reference' in request:
             method_command = (_MOLPRO_F12B
                               if request['method'] == 'CCSD(T)-F12b'
@@ -500,6 +584,16 @@ def validate_result_parser(request, *, backend, template, outputs):
                            else _MOLPRO_F12B)
             valid = re.search(method_line, template,
                               re.IGNORECASE | re.MULTILINE) is not None
+        if valid and 'core' in request:
+            core_line = re.search(_MOLPRO_ALL_ELECTRON, template,
+                                  re.IGNORECASE | re.MULTILINE)
+            valid = (request['core'] in ('frozen', 'all-electron')
+                     and ((request['core'] == 'all-electron') == bool(core_line)))
+        if valid and 'relativistic' in request:
+            dkh2 = re.search(r'^\s*set\s*,\s*dkho\s*=\s*2\s*$', template,
+                             re.IGNORECASE | re.MULTILINE)
+            valid = (request['relativistic'] in ('none', 'DKH2')
+                     and ((request['relativistic'] == 'DKH2') == bool(dkh2)))
     elif kind == 'molpro_harmonic':
         valid = (set(request) in ({'kind', 'file', 'basis'},
                                   {'kind', 'file', 'basis', 'reference'})
@@ -579,10 +673,18 @@ def parse_result(output, request):
     if kind == 'cfour_dboc':
         return parse_cfour_dboc(output, level=request['level'],
                                 basis=request.get('basis'))
+    if kind == 'cfour_energy':
+        return parse_cfour_energy(
+            output, method=request['method'], basis=request['basis'],
+            reference=request['reference'], correlation=request['correlation'],
+            core=request['core'], program=request['program'],
+            driver=request['driver'])
     if kind == 'molpro_energy':
         return parse_molpro_energy(output, method=request['method'],
                                    basis=request['basis'],
-                                   reference=request.get('reference'))
+                                   reference=request.get('reference'),
+                                   core=request.get('core'),
+                                   relativistic=request.get('relativistic'))
     if kind == 'molpro_harmonic':
         return parse_molpro_harmonic(output, basis=request['basis'],
                                      reference=request.get('reference'))

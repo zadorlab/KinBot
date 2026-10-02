@@ -1,10 +1,11 @@
 """Connectivity-based hierarchy reactions and 0 K formation enthalpies.
 
-This implementation currently handles neutral, closed-shell molecules with
-ordinary integral bond orders. It constructs capped graph fragments from the
-same explicit-hydrogen SMILES connectivity that KinBot uses for its species.
-Every generated reaction is checked for elemental balance. Radical/ionic and
-aromatic-state extensions require state-aware fragment rules and fail closed.
+This implementation handles neutral, closed-shell molecules with ordinary
+integral bond orders and the neutral-doublet CBH-0 hydrogen-cap rule. It
+constructs capped graph fragments from the same explicit-hydrogen SMILES
+connectivity that KinBot uses for its species. Every generated reaction is
+checked for elemental balance. Higher radical rungs, ions, and aromatic-state
+extensions require additional state-aware fragment rules and fail closed.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from kinbot.energy import ZeroKEnergy
 HARTREE_TO_KJ_MOL = Hartree * mol / kJ
 _VALENCE = {6: 4, 7: 3, 8: 2, 9: 1, 17: 1}
 _H2 = '[H][H]'
+_H = '[H]'
 DEFAULT_METHOD_LADDER = ('ANL1-F12', 'ANL1', 'ANL0-F12', 'ANL0',
                          'L3', 'L2')
 
@@ -67,9 +69,9 @@ class LadderSelection:
 
 
 def _graph_from_smiles(smiles: str, charge: int, multiplicity: int):
-    if charge != 0 or multiplicity != 1:
+    if charge != 0 or multiplicity not in (1, 2):
         raise NotImplementedError('CBH graph fragmentation currently requires '
-                                  'a neutral closed-shell species.')
+                                  'a neutral singlet or doublet species.')
     try:
         import pybel
     except ImportError:
@@ -112,16 +114,27 @@ def _graph_from_smiles(smiles: str, charge: int, multiplicity: int):
         graph.add_edge(left, right, order=order)
     if not nx.is_connected(graph):
         raise ValueError('CBH target SMILES must contain one connected molecule.')
+    deficits = []
     for vertex, data in graph.nodes(data=True):
         valence = data['hydrogens'] + sum(graph[vertex][other]['order']
                                            for other in graph[vertex])
-        if valence != _VALENCE[data['z']]:
+        deficit = _VALENCE[data['z']] - valence
+        data['radical_caps'] = deficit
+        if deficit:
+            deficits.append((vertex, deficit))
+        if deficit < 0:
             raise NotImplementedError('CBH needs explicit radical, ion, or '
                                       'unusual-valence rules for this structure.')
+    if multiplicity == 1 and deficits:
+        raise NotImplementedError('CBH needs explicit radical, ion, or '
+                                  'unusual-valence rules for this structure.')
+    if multiplicity == 2 and (len(deficits) != 1 or deficits[0][1] != 1):
+        raise NotImplementedError('Neutral-doublet CBH-0 requires exactly one '
+                                  'one-electron valence deficit.')
     return graph, canonical
 
 
-def _formula(graph: nx.Graph, vertices) -> Counter:
+def _formula(graph: nx.Graph, vertices, *, cap_radicals=False) -> Counter:
     from ase.data import chemical_symbols
 
     selected = set(vertices)
@@ -130,6 +143,8 @@ def _formula(graph: nx.Graph, vertices) -> Counter:
         data = graph.nodes[vertex]
         result[chemical_symbols[data['z']]] += 1
         result['H'] += data['hydrogens']
+        if cap_radicals:
+            result['H'] += data['radical_caps']
         result['H'] += sum(graph[vertex][other]['order']
                            for other in graph[vertex] if other not in selected)
     return +result
@@ -154,6 +169,7 @@ def _fragment(graph: nx.Graph, vertices):
         cap_h = source['hydrogens'] + sum(
             graph[vertex][other]['order'] for other in graph[vertex]
             if other not in selected)
+        cap_h += source['radical_caps']
         atom.SetImplicitHCount(cap_h)
         indices[vertex] = atom.GetIdx()
     for left, right, data in graph.subgraph(selected).edges(data=True):
@@ -161,7 +177,7 @@ def _fragment(graph: nx.Graph, vertices):
     smiles = pybel.Molecule(native).write('can').split()[0]
     if not smiles:
         raise ValueError('Open Babel could not canonicalize a CBH fragment.')
-    return smiles, _formula(graph, selected)
+    return smiles, _formula(graph, selected, cap_radicals=True)
 
 
 def _cores(graph: nx.Graph, rung: int) -> list[frozenset[int]]:
@@ -209,13 +225,17 @@ def _check_balance(stoichiometry, formulas):
 
 def generate_cbh_reaction(smiles: str, rung: int, *, charge: int = 0,
                           multiplicity: int = 1) -> CBHReaction | None:
-    """Generate a balanced CBH rung from a connected closed-shell SMILES.
+    """Generate a balanced CBH rung from connected molecular connectivity.
 
     Higher rungs use inclusion-exclusion of overlapping capped graph
     neighborhoods. A rung that contains the complete target as a fragment is
     self-referential and returns ``None`` so callers can try a lower rung.
+    A neutral doublet is supported only at CBH-0, where its single radical
+    valence is capped with H and atomic H carries the doublet state.
     """
     graph, target = _graph_from_smiles(smiles, charge, multiplicity)
+    if multiplicity == 2 and rung > 0:
+        return None
     cores = _cores(graph, rung)
     if not cores or set().union(*cores) != set(graph):
         return None
@@ -239,15 +259,23 @@ def generate_cbh_reaction(smiles: str, rung: int, *, charge: int = 0,
     if rung == 0:
         hydrogen_excess = sum(coefficient * formulas[key].get('H', 0)
                               for key, coefficient in stoichiometry.items())
+        states = {target: (0, multiplicity)} if multiplicity != 1 else {}
+        if multiplicity == 2:
+            stoichiometry[_H] = 1
+            formulas[_H] = Counter({'H': 1})
+            states[_H] = (0, 2)
+            hydrogen_excess += 1
         if hydrogen_excess % 2:
             raise ValueError('CBH-0 saturation has an odd hydrogen imbalance.')
         if hydrogen_excess:
             stoichiometry[_H2] = -hydrogen_excess // 2
             formulas[_H2] = Counter({'H': 2})
+    else:
+        states = {}
     _check_balance(stoichiometry, formulas)
     return CBHReaction(rung, target, dict(sorted(stoichiometry.items())),
                        {key: dict(value) for key, value in formulas.items()
-                        if key in stoichiometry})
+                        if key in stoichiometry}, states)
 
 
 def generate_for_stationary_point(species, *, max_rung: int = 3

@@ -14,7 +14,7 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.units import Bohr, Hartree
 import numpy as np
 
-from kinbot.anl.runtime import qc_runtime_environment
+from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment
 
 
 _ENERGY = re.compile(
@@ -162,7 +162,8 @@ class Molpro(Calculator):
     implemented_properties = ['energy', 'forces']
 
     def __init__(self, *, directory, label, method, basis, command='molpro',
-                 charge=0, mult=1, nproc=1, stack_mw=256):
+                 charge=0, mult=1, nproc=1, stack_mw=256,
+                 scratch_min_mb=4096):
         super().__init__()
         if method.upper() != 'CCSD(T)':
             raise ValueError('Molpro ASE geometry currently supports conventional CCSD(T).')
@@ -172,6 +173,9 @@ class Molpro(Calculator):
             raise ValueError('Molpro nproc must be positive.')
         if not isinstance(stack_mw, int) or stack_mw < 32:
             raise ValueError('Molpro stack_mw must be at least 32 MW.')
+        if (isinstance(scratch_min_mb, bool)
+                or not isinstance(scratch_min_mb, int) or scratch_min_mb < 1):
+            raise ValueError('Molpro scratch_min_mb must be positive.')
         if not isinstance(label, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', label):
             raise ValueError('Molpro label must be a safe basename.')
         self.work_directory = Path(directory)
@@ -183,6 +187,7 @@ class Molpro(Calculator):
             raise ValueError('Molpro command is empty.')
         self.nproc = nproc
         self.stack_mw = stack_mw
+        self.scratch_min_mb = scratch_min_mb
         self.evaluations = 0
         self.generated_files = []
 
@@ -201,11 +206,16 @@ class Molpro(Calculator):
         self.generated_files.append(input_name)
         command = [*self.command, '-g', '-n', str(self.nproc), '-m',
                    str(self.stack_mw), input_name]
-        child_env, _ = qc_runtime_environment(command[0], 'molpro')
-        with (self.work_directory / stdout_name).open('w') as stdout, \
-                (self.work_directory / stderr_name).open('w') as stderr:
-            result = subprocess.run(command, cwd=self.work_directory, stdout=stdout,
-                                    stderr=stderr, check=False, env=child_env)
+        child_env, runtime = qc_runtime_environment(
+            command[0], 'molpro', work_directory=self.work_directory,
+            scratch_min_mb=self.scratch_min_mb)
+        try:
+            with (self.work_directory / stdout_name).open('w') as stdout, \
+                    (self.work_directory / stderr_name).open('w') as stderr:
+                result = subprocess.run(command, cwd=self.work_directory, stdout=stdout,
+                                        stderr=stderr, check=False, env=child_env)
+        finally:
+            cleanup_qc_runtime(runtime)
         self.generated_files.extend([stdout_name, stderr_name])
         if result.returncode:
             raise RuntimeError(f'Molpro force evaluation {stem} exited with '

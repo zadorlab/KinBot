@@ -29,7 +29,7 @@ import numpy as np
 
 from kinbot.ase_modules.calculators.factory import capabilities
 from kinbot.anl.cfour import normalize_cfour_zmat
-from kinbot.anl.runtime import qc_runtime_environment
+from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment
 from kinbot.anl.site import assign_partitions, render_site_setup
 from kinbot.theory import TheoryProfile
 
@@ -129,7 +129,7 @@ def _validate_task(task, ids, limits):
         raise ValueError(f'{ident}: task exceeds per-node resource limits.')
     if 'use_all_node_memory' in resources and not isinstance(resources['use_all_node_memory'], bool):
         raise ValueError(f'{ident}: use_all_node_memory must be boolean.')
-    for key in ('max_cores', 'min_memory_mb_per_core'):
+    for key in ('max_cores', 'min_memory_mb_per_core', 'min_scratch_mb'):
         if key in resources:
             _positive_integer(resources[key], f'{ident} {key}')
     if 'min_stack_mw' in resources:
@@ -389,18 +389,22 @@ def _runtime_profile(task):
         raise ValueError(f"{task['id']}: profile must be an object.")
     backend = values.get('calculator', '').lower()
     if backend == 'molpro':
+        resources = task['resources']
         kwargs = values.setdefault('calculator_kwargs', {})
         if not isinstance(kwargs, dict):
             raise ValueError(f"{task['id']}: calculator_kwargs must be an object.")
-        cores = task['resources']['cores']
-        stack_mw = _molpro_stack_mw(task['resources'])
-        if stack_mw < task['resources'].get('min_stack_mw', 32):
+        cores = resources['cores']
+        stack_mw = _molpro_stack_mw(resources)
+        if stack_mw < resources.get('min_stack_mw', 32):
             raise ValueError(f"{task['id']}: Molpro stack per rank is below min_stack_mw.")
         if 'nproc' in kwargs and kwargs['nproc'] != cores:
             raise ValueError(f"{task['id']}: Molpro nproc must match Slurm cores.")
         if 'stack_mw' in kwargs and kwargs['stack_mw'] != stack_mw:
             raise ValueError(f"{task['id']}: Molpro stack_mw must match the node budget.")
         kwargs.update(nproc=cores, stack_mw=stack_mw)
+        kwargs.setdefault(
+            'scratch_min_mb',
+            resources.get('min_scratch_mb', max(4096, resources['memory_mb'] // 2)))
     if backend in ('gaussian', 'gauss'):
         kwargs = values.setdefault('calculator_kwargs', {})
         if not isinstance(kwargs, dict):
@@ -629,7 +633,11 @@ def _run_external(directory, record):
                .replace('{input}', task['input_name'])
                .replace('{molpro_stack_mw}', str(molpro_stack_mw))
                for arg in task['command']]
-    child_env, runtime = qc_runtime_environment(command[0], task['backend'])
+    scratch_min_mb = task['resources'].get(
+        'min_scratch_mb', max(4096, task['resources']['memory_mb'] // 2))
+    child_env, runtime = qc_runtime_environment(
+        command[0], task['backend'], work_directory=directory,
+        scratch_min_mb=scratch_min_mb)
     child_env['OMP_NUM_THREADS'] = str(_omp_threads(task))
     stdin = (directory / task['input_name']).open('rb') if task.get('stdin') else None
     try:
@@ -641,6 +649,7 @@ def _run_external(directory, record):
     finally:
         if stdin:
             stdin.close()
+        cleanup_qc_runtime(runtime)
     if result.returncode:
         error_file = directory / task.get('stderr', 'stderr.txt')
         detail = error_file.read_text(errors='replace').strip()[-1200:]

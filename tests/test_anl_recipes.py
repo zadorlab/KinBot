@@ -80,7 +80,9 @@ def test_anl1_cross_program_higher_order_pairs_and_profiled_label():
     assert result.electronic_hartree == pytest.approx(-100.173)
     assert result.zero_k_hartree == pytest.approx(-100.083)
     assert result.recipe == 'profiled:ANL1:B2PLYP-D3BJ'
-    assert components['hoe_tz_high'].backend == 'mrcc'
+    assert components['hoe_tz_high'].backend == 'cfour'
+    assert components['hoe_tz_high'].settings['reference'] == 'RHF'
+    assert components['hoe_tz_high'].settings['driver'] == 'VCC'
     assert components['hoe_tz_high'].settings['correlation'] == 'unrestricted'
     assert components['hoe_tz_low'].backend == 'molpro'
     assert components['hoe_dz_high'].backend == 'mrcc'
@@ -134,7 +136,7 @@ def test_geometry_method_and_source_identity_are_enforced():
 
 
 def test_open_shell_higher_order_uses_mrcc_and_spin_orbit_is_explicit():
-    equation = recipe('ANL0')
+    equation = recipe('ANL0', multiplicity=2)
     components = components_for(equation, multiplicity=2)
     assert evaluate(equation, components, multiplicity=2).zero_k_hartree == \
         pytest.approx(-100.033)
@@ -146,7 +148,7 @@ def test_open_shell_higher_order_uses_mrcc_and_spin_orbit_is_explicit():
     with pytest.raises(IncompleteRecipeError, match='spin_orbit'):
         evaluate(equation, components, multiplicity=2)
 
-    extended = recipe('ANL1')
+    extended = recipe('ANL1', multiplicity=2)
     extended_components = components_for(extended, multiplicity=2)
     assert evaluate(extended, extended_components, multiplicity=2).recipe == 'ANL1'
     extended_components['hoe_dz_low'] = replace(

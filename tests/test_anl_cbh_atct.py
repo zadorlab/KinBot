@@ -159,9 +159,12 @@ def test_original_cbh_rungs_from_smiles_connectivity():
     assert generate_cbh_reaction('C1CCCCC1', 3) is None
 
 
-def test_cbh_rejects_states_without_validated_fragment_rules():
-    with pytest.raises(NotImplementedError, match='closed-shell'):
-        generate_cbh_reaction('[CH3]', 0, multiplicity=2)
+def test_cbh_generates_validated_neutral_doublet_cbh0_and_rejects_other_states():
+    methyl = generate_cbh_reaction('[CH3]', 0, multiplicity=2)
+    assert methyl.stoichiometry == {
+        '[CH3]': -1, '[H][H]': -1, 'C': 1, '[H]': 1}
+    assert methyl.states == {'[CH3]': (0, 2), '[H]': (0, 2)}
+    assert generate_cbh_reaction('[CH3]', 1, multiplicity=2) is None
     with pytest.raises(NotImplementedError, match='nonaromatic'):
         generate_cbh_reaction('c1ccccc1', 0)
     with pytest.raises(NotImplementedError, match='unusual-valence'):

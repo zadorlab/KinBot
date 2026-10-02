@@ -206,20 +206,59 @@ def _loaded_module(backend):
     return matches[0] if matches else None
 
 
-def _executable(program):
+def _configured_command(value, label):
+    """Resolve one user-configured executable without invoking a shell."""
+    if not value:
+        return None
+    try:
+        parts = shlex.split(value)
+    except ValueError as exc:
+        raise ValueError(f'{label} is not a valid executable value.') from exc
+    if len(parts) != 1:
+        raise ValueError(f'{label} must name one executable without arguments.')
+    candidate = Path(parts[0]).expanduser()
+    if candidate.parent != Path('.'):
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate.absolute()
+        raise ValueError(f'{label} is not an executable file: {candidate}.')
+    found = shutil.which(parts[0])
+    if not found:
+        raise ValueError(f'{label} is not available on PATH: {parts[0]}.')
+    return Path(found).absolute()
+
+
+def _backend_roots(backend):
+    """Return explicitly advertised installation roots for one backend."""
+    tag = re.sub(r'[^A-Za-z0-9]', '_', backend).upper()
+    values = [os.environ.get(f'KINBOT_{tag}_ROOT'),
+              os.environ.get(f'{tag}_ROOT'),
+              os.environ.get(f'{tag}_HOME'),
+              os.environ.get(f'EBROOT{tag}')]
+    command = os.environ.get(f'KINBOT_{tag}_COMMAND')
+    if command:
+        values.insert(0, str(_configured_command(
+            command, f'KINBOT_{tag}_COMMAND').parent))
+    roots = []
+    for value in values:
+        if value:
+            root = Path(value).expanduser().absolute()
+            if root not in roots:
+                roots.append(root)
+    return roots
+
+
+def _executable(program, backend):
+    """Find a program from explicit configuration, PATH, or a backend root."""
+    program_tag = re.sub(r'[^A-Za-z0-9]', '_', program).upper()
+    configured = os.environ.get(f'KINBOT_{program_tag}_EXECUTABLE')
+    if configured:
+        return _configured_command(
+            configured, f'KINBOT_{program_tag}_EXECUTABLE')
     found = shutil.which(program)
     if found:
         return Path(found).absolute()
-    # MRCC is commonly installed as a self-contained directory without a
-    # module file.  Discover that standard layout while retaining explicit
-    # environment roots as the portable override.
-    if program in ('dmrcc', 'mrcc', 'xmrcc'):
-        roots = [os.environ.get('MRCC_ROOT'), os.environ.get('MRCC_HOME'),
-                 '/opt/mrcc', '/usr/local/mrcc']
-        for value in roots:
-            if not value:
-                continue
-            candidate = Path(value).expanduser() / program
+    for root in _backend_roots(backend):
+        for candidate in (root / program, root / 'bin' / program):
             if candidate.is_file() and os.access(candidate, os.X_OK):
                 return candidate.absolute()
     return None
@@ -252,7 +291,8 @@ def render_site_setup(programs_by_backend):
                 '    fi',
                 f'    module load {shlex.quote(module)}',
             ]
-        found = [_executable(program) for program in sorted(programs)]
+        found = [_executable(program, backend)
+                 for program in sorted(programs)]
         dirs = []
         for path in found:
             if path and str(path.parent) not in dirs:

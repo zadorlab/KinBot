@@ -109,13 +109,10 @@ def test_perfluoroalkane_cbh2_and_cbh3_table_reactions():
 
 
 def test_methyl_radical_table_reaction_requires_explicit_spin_state():
-    # The radical CBH extension needs separately validated fragment rules.
-    # This supplied reaction still exercises the state-aware enthalpy solver.
-    reaction = CBHReaction(
-        0, '[CH3]', {'[CH3]': -1, '[H][H]': -1, 'C': 1, '[H]': 1},
-        {'[CH3]': {'C': 1, 'H': 3}, '[H][H]': {'H': 2},
-         'C': {'C': 1, 'H': 4}, '[H]': {'H': 1}},
-        {'[CH3]': (0, 2), '[H]': (0, 2)})
+    reaction = generate_cbh_reaction('[CH3]', 0, multiplicity=2)
+    assert reaction.stoichiometry == {
+        '[CH3]': -1, '[H][H]': -1, 'C': 1, '[H]': 1}
+    assert reaction.states == {'[CH3]': (0, 2), '[H]': (0, 2)}
     energy_values = {'[H][H]': -1., 'C': -40., '[H]': -.5}
     reference_sum = sum(coefficient * energy_values[smiles]
                         for smiles, coefficient in reaction.stoichiometry.items()

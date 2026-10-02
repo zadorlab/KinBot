@@ -8,12 +8,21 @@ from tempfile import TemporaryDirectory
 
 from ase import Atoms
 from ase.db import connect
+from ase.io import read, write
 
-from kinbot.anl.dispatch import validate_spec
-from kinbot.anl.validation import (interface_validation_spec,
+from kinbot.anl.dispatch import (_geometry_hash, prepare,
+                                 validate_spec)
+from kinbot.anl.model import ComponentResult
+from kinbot.anl.recipes import recipe
+from kinbot.anl import validation as validation_module
+from kinbot.anl.validation import (common_corrections_validation_spec,
+                                   assemble_profiled_anl0_f12,
+                                   audit_higher_order_run,
+                                   interface_validation_spec,
                                    higher_order_validation_spec,
                                    audit_kinbot_run,
                                    main as validation_main,
+                                   molecule_from_completed_run,
                                    molecule_from_database)
 from kinbot.anl import site
 from kinbot.parameters import Parameters
@@ -55,13 +64,18 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
     closed = higher_order_validation_spec(
         _molecule(), max_nodes=3, partition='day-long-cpu')
     closed_tasks = {task['id']: task for task in closed['tasks']}
-    assert closed_tasks['ccsdtq_tz']['backend'] == 'mrcc'
-    assert closed_tasks['ccsdtq_dz']['backend'] == 'mrcc'
+    assert closed_tasks['ccsdtq_tz']['backend'] == 'cfour'
+    assert closed_tasks['ccsdtq_dz']['backend'] == 'cfour'
     assert closed_tasks['ccsdtqp_dz']['backend'] == 'mrcc'
     assert closed_tasks['ccsdtqp_dz']['result_parser']['reference'] == 'RHF'
     assert closed_tasks['ccsdtqp_dz']['result_parser']['correlation'] == \
         'unrestricted'
     assert closed_tasks['ccsdt_tz']['backend'] == 'molpro'
+    for ident in ('ccsdtq_tz', 'ccsdtq_dz'):
+        assert closed_tasks[ident]['result_parser']['reference'] == 'RHF'
+        assert closed_tasks[ident]['result_parser']['correlation'] == 'unrestricted'
+        assert closed_tasks[ident]['result_parser']['program'] == 'cfour'
+        assert closed_tasks[ident]['result_parser']['driver'] == 'VCC'
     assert closed['intent']['equation'] == (
         'CCSDT(Q)/TZ - CCSD(T)/TZ + CCSDTQ(P)/DZ - CCSDT(Q)/DZ')
 
@@ -88,6 +102,202 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
             task['resources'].update(cores=4, memory_mb=64000,
                                      partition='test')
         validate_spec(resolved)
+
+
+def test_common_corrections_graph_pins_core_and_relativistic_differences():
+    spec = common_corrections_validation_spec(
+        _molecule(), max_nodes=4, partition='day-long-cpu')
+    tasks = {task['id']: task for task in spec['tasks']}
+    assert set(tasks) == {'cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
+                          'rel_dkh', 'rel_nonrel'}
+    for ident in ('cv_ae_tz', 'cv_ae_qz', 'rel_dkh', 'rel_nonrel'):
+        assert tasks[ident]['result_parser']['core'] == 'all-electron'
+        assert ';core}' in tasks[ident]['input_template'].lower()
+    for ident in ('cv_fc_tz', 'cv_fc_qz'):
+        assert tasks[ident]['result_parser']['core'] == 'frozen'
+        assert ';core}' not in tasks[ident]['input_template'].lower()
+    assert tasks['rel_dkh']['result_parser']['relativistic'] == 'DKH2'
+    assert 'set,dkho=2' in tasks['rel_dkh']['input_template'].lower()
+    assert tasks['rel_nonrel']['result_parser']['relativistic'] == 'none'
+    resolved = deepcopy(spec)
+    for task in resolved['tasks']:
+        task['resources'].update(cores=4, memory_mb=64000,
+                                 partition='test')
+    validate_spec(resolved)
+
+
+def test_higher_order_audit_returns_cross_program_correction(monkeypatch):
+    spec = higher_order_validation_spec(_molecule())
+    state = {'tasks': {task['id']: {'status': 'complete'}
+                       for task in spec['tasks']}}
+    monkeypatch.setattr(
+        validation_module, '_load',
+        lambda run_dir: (Path(run_dir), spec, state))
+    values = {
+        'ccsdt_tz': -10.000, 'ccsdt_dz': -9.900,
+        'ccsdtq_tz': -10.020, 'ccsdtq_dz': -9.915,
+        'ccsdtqp_dz': -9.920,
+    }
+
+    def component(run_dir, task_id, *, key, state_id):
+        task = next(item for item in spec['tasks'] if item['id'] == task_id)
+        parser = task['result_parser']
+        return ComponentResult(
+            key=key, value_hartree=values[task_id], quantity='electronic',
+            method=parser['method'], basis=parser['basis'],
+            backend=task['backend'], state_id=state_id, charge=0,
+            multiplicity=1, geometry_sha256='3' * 64,
+            source_sha256=hashlib.sha256(task_id.encode()).hexdigest(),
+            source=f'{task_id}.out',
+            settings={name: parser[name] for name in
+                      ('reference', 'correlation', 'driver', 'program')
+                      if name in parser})
+
+    monkeypatch.setattr(validation_module, 'task_component', component)
+    result = audit_higher_order_run('/synthetic/higher')
+    assert result['status'] == 'higher_order_interface_complete'
+    assert abs(result['correction_hartree'] + 0.025) < 1e-12
+    assert result['components']['ccsdtq_tz']['backend'] == 'cfour'
+    assert result['components']['ccsdtqp_dz']['backend'] == 'mrcc'
+
+
+def test_completed_run_geometry_export_is_hash_verified():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        spec = interface_validation_spec(_molecule())
+        task = next(item for item in spec['tasks']
+                    if item['id'] == 'l3_geometry')
+        task['geometry_from'] = 'initial'
+        task['resources'].update(cores=2, memory_mb=32000)
+        spec['tasks'] = [task]
+        run_dir = prepare(spec, root / 'run')
+        directory = run_dir / 'tasks' / task['id']
+        atoms = read(directory / 'geometry.xyz')
+        write(directory / 'final.xyz', atoms)
+        (directory / 'optimization.log').write_text('accepted\n')
+        generated = [f"{task['id']}_step_0001{suffix}"
+                     for suffix in ('.inp', '.out', '.log', '.xyz')]
+        for name in generated:
+            (directory / name).write_text('native\n')
+        names = {'geometry.xyz', 'task.json', 'final.xyz',
+                 'optimization.log', *generated}
+        artifacts = {name: hashlib.sha256(
+            (directory / name).read_bytes()).hexdigest() for name in names}
+        final_hash = _geometry_hash(atoms)
+        (directory / 'execution.json').write_text(json.dumps({
+            'schema': 1, 'task_id': task['id'], 'status': 'executed',
+            'geometry_sha256': final_hash, 'artifacts': artifacts,
+            'details': {'final_geometry_sha256': final_hash,
+                        'generated_files': generated}}))
+        state_file = run_dir / 'state.json'
+        state = json.loads(state_file.read_text())
+        state['tasks'][task['id']].update(
+            status='complete', final_geometry_sha256=final_hash)
+        state_file.write_text(json.dumps(state))
+        molecule = molecule_from_completed_run(run_dir)
+        assert molecule['source']['geometry_sha256'] == final_hash
+        assert molecule['multiplicity'] == 1
+        (directory / 'final.xyz').write_text(
+            (directory / 'final.xyz').read_text() + '\n')
+        try:
+            molecule_from_completed_run(run_dir)
+        except RuntimeError as error:
+            assert 'artifact' in str(error)
+        else:
+            raise AssertionError('Changed optimized geometry was accepted.')
+
+
+def test_profiled_anl0_f12_assembler_uses_all_required_components(monkeypatch):
+    interface = Path('/synthetic/interface').resolve()
+    interface_spec = {
+        'name': 'anl1-f12-non-mrcc-interface-validation',
+        'molecule': _molecule(), 'tasks': []}
+    monkeypatch.setattr(
+        validation_module, '_load',
+        lambda run_dir: (interface, interface_spec, {'tasks': {}}))
+    l2_hash, l3_hash = '2' * 64, '3' * 64
+    monkeypatch.setattr(
+        validation_module, 'molecule_from_completed_run',
+        lambda run_dir, task: {'source': {'geometry_sha256':
+                                           l2_hash if task == 'l2_geometry'
+                                           else l3_hash}})
+    monkeypatch.setattr(
+        validation_module, '_same_imported_l3_geometry',
+        lambda *args: None)
+    equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ')
+    values = {item.key: (index + 1) / 1000
+              for index, item in enumerate(equation.requirements)}
+    components = {}
+    for item in equation.requirements:
+        if item.key == 'spin_orbit':
+            continue
+        geometry = l2_hash if item.geometry_role == 'l2' else l3_hash
+        components[item.key] = ComponentResult(
+            key=item.key, value_hartree=values[item.key],
+            quantity=item.quantity, method=item.method, basis=item.basis,
+            backend=item.backends[0], state_id='ethane-singlet', charge=0,
+            multiplicity=1, geometry_sha256=geometry,
+            source_sha256=hashlib.sha256(item.key.encode()).hexdigest(),
+            source=f'{item.key}.out', settings=dict(item.settings))
+    monkeypatch.setattr(
+        validation_module, 'cbs_task_component',
+        lambda *args, **kwargs: components['reference_cbs'])
+    monkeypatch.setattr(
+        validation_module, 'task_component',
+        lambda run_dir, task_id, *, key, state_id: components[key])
+    monkeypatch.setattr(
+        validation_module, 'core_valence_task_component',
+        lambda *args, **kwargs: components['core_valence_cbs'])
+    monkeypatch.setattr(
+        validation_module, 'scalar_relativistic_task_component',
+        lambda *args, **kwargs: components['scalar_relativistic'])
+    result = assemble_profiled_anl0_f12(
+        interface, 'higher', 'corrections', state_id='ethane-singlet',
+        spin_orbit_hartree=0.002, spin_orbit_source='test datum')
+    assert result['status'] == 'complete'
+    assert result['recipe'].startswith('profiled:ANL0-F12:')
+    assert set(result['components']) == {
+        item.key for item in equation.requirements}
+    expected_electronic = sum(
+        (0.002 if term.component == 'spin_orbit'
+         else values[term.component]) * term.coefficient
+        for term in equation.electronic_terms)
+    expected_zpe = sum(values[term.component] * term.coefficient
+                       for term in equation.zero_point_terms)
+    assert result['electronic_hartree'] == expected_electronic
+    assert result['zero_point_hartree'] == expected_zpe
+    assert result['zero_k_hartree'] == expected_electronic + expected_zpe
+
+
+def test_quality_review_is_bound_to_exact_flagged_native_output(tmp_path):
+    component = ComponentResult(
+        key='vpt2_correction', value_hartree=-0.001,
+        quantity='correction', method='B2PLYP-D3BJ', basis='cc-pVTZ',
+        backend='gaussian', state_id='ethane-singlet', charge=0,
+        multiplicity=1, geometry_sha256='2' * 64,
+        source_sha256='a' * 64, source='gaussian_vpt2.log',
+        settings={'dispersion': 'GD3BJ'}, review_required=True)
+    review = tmp_path / 'vpt2_review.json'
+    review.write_text(json.dumps({
+        'schema': 1, 'task_id': 'gaussian_vpt2',
+        'native_output_sha256': 'a' * 64, 'decision': 'accept',
+        'reviewer': 'test reviewer',
+        'rationale': 'Reviewed the named Gaussian warnings and mode table.',
+    }))
+    accepted = validation_module._apply_quality_review(
+        component, 'gaussian_vpt2', review)
+    assert accepted.review_required is False
+    assert accepted.settings['quality_review']['native_output_sha256'] == \
+        component.source_sha256
+    assert accepted.source_sha256 != component.source_sha256
+    review.write_text(review.read_text().replace('a' * 64, 'b' * 64))
+    try:
+        validation_module._apply_quality_review(
+            component, 'gaussian_vpt2', review)
+    except ValueError as error:
+        assert 'exact native output' in str(error)
+    else:
+        raise AssertionError('Mismatched VPT2 review hash was accepted.')
 
 
 def test_database_export_requires_one_complete_accepted_l2_record():

@@ -23,6 +23,7 @@ from kinbot.anl.dispatch import (
     preflight, refresh_status, reparse_failed, retry_failed, run_task,
     validate_spec,
 )
+from kinbot.anl.site import render_site_setup
 
 
 def _write_spec(directory, spec):
@@ -803,6 +804,35 @@ def test_prepare_discovers_vendor_setup_and_cfour_genbas():
                                     text=True, check=False)
             assert result.returncode == 1
             assert 'Gaussian profile failed with exit status 1' in result.stderr
+
+
+def test_mrcc_discovery_uses_configuration_without_site_paths():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary) / 'installed-anywhere'
+        root.mkdir()
+        for program in ('dmrcc', 'scf', 'mrcc'):
+            executable = root / program
+            executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+            executable.chmod(0o755)
+        environment = {
+            'PATH': '/usr/bin:/bin', 'LOADEDMODULES': '',
+            'KINBOT_MRCC_COMMAND': str(root / 'dmrcc'),
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            setup = render_site_setup(
+                {'mrcc': {'dmrcc', 'scf', 'mrcc'}})
+        assert str(root) in setup
+        assert '/opt/mrcc' not in setup
+        # Write only after rendering so this shell check exercises the exact
+        # generated setup without inheriting the configured login environment.
+        Path(temporary, 'setup.sh').write_text(setup)
+        result = subprocess.run(
+            ['bash', '-c', 'export KINBOT_BACKEND=mrcc; source setup.sh; '
+                           'command -v dmrcc; command -v scf; command -v mrcc'],
+            cwd=temporary, env={'PATH': '/usr/bin:/bin'},
+            capture_output=True, text=True, check=True)
+        assert result.stdout.splitlines() == [str(root / name)
+                                              for name in ('dmrcc', 'scf', 'mrcc')]
 
 
 def test_prepare_selects_fitting_slurm_partition_and_keeps_explicit_choice():

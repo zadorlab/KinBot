@@ -2,9 +2,11 @@
 
 ## Readiness decision
 
-The branch is ready for a **profiled workflow and QC-interface validation** on
-the HPC. It is not yet ready to claim a complete ANL1-F12 energy, CBH heat of
-formation, or production MESS result.
+The completed v5 run validates the profiled KinBot, VRC correction, ROTD_py,
+and base QC-interface paths. The next licensed stage can run the missing
+higher-order, core-valence, and scalar-relativistic jobs and assemble one
+provenance-checked **profiled ANL0-F12** 0 K energy. It is not an ANL1-F12
+result, a CBH heat of formation, or a production MESS rate coefficient.
 
 The supplied ethane run performs these real operations:
 
@@ -47,22 +49,20 @@ That status means the requested programs, scheduler path, geometry handoff,
 parsers, restart logic, and one CBS operation worked. It deliberately does
 not label the partial result ANL1-F12.
 
-## Why a complete ANL1-F12 test is not available yet
+## Why this continuation is profiled ANL0-F12
 
 The original literature defines canonical ANL0, ANL0-F12, and ANL1. The
-current branch does not invent an ANL1-F12 equation from the method name. A
-complete higher rung also needs calculations absent from the current external
-graph:
+branch does not invent an ANL1-F12 equation from the method name. Its
+implemented assembler follows ANL0-F12 and records the selected
+`SCALE_TRIP=1` and B2PLYP-D3(BJ) VPT2 choices in a profiled recipe label. The
+following remain outside this first assembled result:
 
 - a pinned, citable equation and label for the requested F12/ANL1 variant;
-- all-electron and frozen-core CCSD(T) TZ/QZ CBS calculations;
-- scalar-relativistic DKH and nonrelativistic reference calculations;
-- direct MRCC RHF/ROHF CCSDT(Q), with native output validation;
-- direct MRCC RHF/ROHF CCSDTQ(P)/cc-pVDZ;
-- state-specific spin-orbit data or a validated zero policy;
-- automatic L3 graph construction for every accepted well, product, and TS;
-- assembly of each complete E0 value, CBH reaction selection, ATcT reference
-  resolution, uncertainty propagation, and the production MESS handoff;
+- the distinct ANL1 a'5Z/a'6Z reference, QZ geometry, and TZ/QZ ZPE graph;
+- a citable definition for any requested ANL1-F12 extension;
+- automatic full-network L3 graph construction for every reference species,
+  well, product, and stationary TS;
+- uncertainty propagation and the production MESS handoff;
 - an external stationary-TS/IRC/restart validation.
 
 Until those gates pass, a run may request the `ANL1-F12` ladder head to select
@@ -97,7 +97,9 @@ provenance-matched recipe. It must not rename a partial sum ANL1-F12.
   correct backend.
 - A preset backend change no longer inherits an empty or unrelated executable;
   Gaussian defaults to `g16` unless the profile supplies a command.
-- Slurm's `queue_name` is emitted as `--partition`, rather than `-q` (QOS).
+- The Blodgett example explicitly selects the additive
+  `slurm_partition.tpl`, so its `queue_name` is emitted as `--partition`.
+  The shared legacy `slurm.tpl` retains master KinBot's `-q` behavior.
 - PBS and Slurm jobs now invoke the exact Python interpreter that submitted
   them. A `.venv` installation therefore remains active on compute nodes even
   when the login shell was not activated.
@@ -523,17 +525,185 @@ retain Gaussian's VPT2 warnings and set `review_required`; this interface
 validation records that scientific review flag without treating a normally
 terminated job as an execution failure.
 
-## Remaining decisions before the production end-to-end test
+## Continue the completed v5 ethane calculation
 
-1. Pin the exact equation and publication label for the desired F12/ANL1
-   ladder head. If it is a Ram-style ladder rather than a canonical recipe,
-   keep the `ANL-LADDER` provenance label.
-2. Decide whether the first production reaction test remains ethane C-C
-   homolysis or uses a stationary TS. The stationary-TS test is required
-   before kinetics can be considered validated.
-3. Enable MRCC for the CCSDTQ(P) increment, or explicitly define the highest
-   allowed fallback when MRCC is unavailable.
-4. Review and approve the cached ATcT `1.220` reference set for the first CBH
-   network calculation; retain its JSON and SHA-256 with the run.
-5. Provide the site MESS/MESSPF commands and compare the internal NASA7 fit
-   against PAC99 before production thermochemistry is released.
+Update KinBot before loading QC modules, reinstall the editable packages, and
+run the local regression suite:
+
+```bash
+cd ~/KinBot
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+  git -c submodule.recurse=false pull --ff-only origin composite
+git submodule sync --recursive
+git submodule update --init --recursive
+
+export KINBOT_CA_FILE=/etc/ssl/certs/ca-certificates.crt
+export PIP_CERT="$KINBOT_CA_FILE"
+.venv/bin/python -m pip install -e . --no-deps
+.venv/bin/python -m pip install -e external/ROTD_py --no-deps
+MPLCONFIGDIR="$PWD/.mpl-cache" \
+  .venv/bin/python -m pytest -q --ignore=tests/test_kinbot.py
+```
+
+Make all native programs visible during preparation. The Blodgett path below
+is site configuration rather than a repository default. `KINBOT_MRCC_ROOT`
+may be replaced by a module, normal `PATH`, `MRCC_ROOT`, `MRCC_HOME`,
+`EBROOTMRCC`, or `KINBOT_MRCC_COMMAND`.
+
+```bash
+module load molpro/molpro24 cfour/2.1
+source /opt/gaussian/g16/bsd/g16.profile
+export KINBOT_MRCC_ROOT=/opt/mrcc
+
+command -v molpro xcfour g16 sbatch squeue sinfo
+test -x "$KINBOT_MRCC_ROOT/dmrcc"
+test -x "$KINBOT_MRCC_ROOT/scf"
+test -x "$KINBOT_MRCC_ROOT/mrcc"
+```
+
+Prepare two immutable graphs from the accepted and hash-verified v5 L3
+geometry. The higher-order graph tests CFOUR RHF/VCC CCSDT(Q) at TZ and DZ,
+direct MRCC CCSDTQ(P)/DZ, and their Molpro CCSD(T) partners. The correction
+graph runs all-electron and frozen-core TZ/QZ pairs plus DKH2/nonrelativistic
+all-electron calculations. Each job is exclusive, and each graph enforces its
+own `max_nodes=3` limit.
+
+```bash
+cd ~/KinBot
+base="$PWD/ethane_profiled_hpc_run_v5"
+
+.venv/bin/python -m kinbot.anl.validation \
+  prepare-higher-order-from-run \
+  "$base/anl_interface" "$base/anl_higher_ethane" \
+  --max-nodes 3 --partition day-long-cpu
+
+.venv/bin/python -m kinbot.anl.validation \
+  prepare-common-corrections-from-run \
+  "$base/anl_interface" "$base/anl_corrections_ethane" \
+  --max-nodes 3 --partition day-long-cpu
+
+.venv/bin/python -m kinbot.anl.dispatch preflight \
+  "$base/anl_higher_ethane"
+.venv/bin/python -m kinbot.anl.dispatch preflight \
+  "$base/anl_corrections_ethane"
+```
+
+Run the graphs sequentially so the combined work never exceeds three
+exclusive nodes. This detached driver works without `tmux`:
+
+```bash
+nohup bash -lc '
+  set -euo pipefail
+  cd "$HOME/KinBot"
+  base="$PWD/ethane_profiled_hpc_run_v5"
+  .venv/bin/python -m kinbot.anl.dispatch drive \
+    "$base/anl_higher_ethane" --interval 20
+  .venv/bin/python -m kinbot.anl.validation audit-higher-order \
+    "$base/anl_higher_ethane" > "$base/anl_higher_ethane_audit.json"
+  .venv/bin/python -m kinbot.anl.dispatch drive \
+    "$base/anl_corrections_ethane" --interval 20
+  .venv/bin/python -m kinbot.anl.validation audit-common-corrections \
+    "$base/anl_corrections_ethane" \
+    > "$base/anl_corrections_ethane_audit.json"
+' > ethane_anl_continuation.log 2>&1 < /dev/null &
+echo $! > ethane_anl_continuation.pid
+disown
+```
+
+Monitor without mutating either graph:
+
+```bash
+base="$PWD/ethane_profiled_hpc_run_v5"
+squeue -u "$USER" -o "%.18i %.30j %.2t %.10M %.10l %R"
+.venv/bin/python -m kinbot.anl.dispatch status "$base/anl_higher_ethane"
+.venv/bin/python -m kinbot.anl.dispatch status "$base/anl_corrections_ethane"
+tail -f ethane_anl_continuation.log
+```
+
+The completed ethane VPT2 parser recorded native Gaussian warnings. Assembly
+therefore stops until those warnings and the mode table are reviewed. First
+print the warnings and exact native-output hash:
+
+```bash
+base="$PWD/ethane_profiled_hpc_run_v5"
+.venv/bin/python - <<'PY'
+import json
+from pathlib import Path
+
+path = Path('ethane_profiled_hpc_run_v5/anl_interface/tasks/gaussian_vpt2/execution.json')
+record = json.loads(path.read_text())
+print('native_output_sha256 =', record['artifacts']['vpt2.log'])
+print('warnings =')
+for warning in record['details']['parsed_result']['warnings']:
+    print(' -', warning)
+PY
+```
+
+If the exact output is accepted after inspection, create
+`$base/ethane_vpt2_review.json` with this schema, substituting the printed
+hash, reviewer, and concrete scientific rationale:
+
+```json
+{
+  "schema": 1,
+  "task_id": "gaussian_vpt2",
+  "native_output_sha256": "PASTE_THE_PRINTED_SHA256",
+  "decision": "accept",
+  "reviewer": "REVIEWER_NAME",
+  "rationale": "DESCRIBE_WHICH_WARNINGS_AND_MODES_WERE_REVIEWED"
+}
+```
+
+Then assemble the profiled ANL0-F12 value. The zero spin-orbit entry below is
+an explicit state policy for this nondegenerate closed-shell validation and
+is recorded in the result; change it if the selected production convention
+uses another state-specific value.
+
+```bash
+base="$PWD/ethane_profiled_hpc_run_v5"
+.venv/bin/python -m kinbot.anl.validation assemble-anl0-f12 \
+  "$base/anl_interface" \
+  "$base/anl_higher_ethane" \
+  "$base/anl_corrections_ethane" \
+  "$base/ethane_profiled_anl0_f12.json" \
+  --state-id ethane-singlet \
+  --spin-orbit-hartree 0.0 \
+  --spin-orbit-backend known_zero \
+  --spin-orbit-source "nondegenerate closed-shell ethane validation policy" \
+  --vpt2-review "$base/ethane_vpt2_review.json"
+cat "$base/ethane_profiled_anl0_f12.json"
+```
+
+The methyl minimum can then be staged from the already accepted KinBot row,
+using `--multiplicity 2`, and sent through the same base, higher-order, and
+common-correction sequence. Before doing that, list the exact database job
+name instead of assuming it:
+
+```bash
+base="$PWD/ethane_profiled_hpc_run_v5"
+.venv/bin/python - <<'PY'
+from ase.db import connect
+for row in connect('ethane_profiled_hpc_run_v5/kinbot.db').select():
+    if '150390060000000000002' in getattr(row, 'name', ''):
+        print(row.name, row.data.get('status'))
+PY
+```
+
+## Gates after this continuation
+
+1. Validate the native CFOUR and MRCC method echoes and total-energy lines in
+   both audit reports before accepting the assembled ethane value.
+2. Complete the methyl doublet graph and compare ethane and methyl values to
+   a pinned literature/ATcT release. Do not compare unlike 0 K and 298 K
+   quantities.
+3. Add the monatomic/diatomic reference-species graphs needed by the methyl
+   CBH-0 reaction before claiming an automated CBH result. The current CBH
+   solver and local table tests are complete, but the general QC graph still
+   needs zero-mode handling for atomic H and the appropriate small-species
+   component policy.
+4. Use the existing completed ROTD_py surface as the interface result. A
+   production CH3 + CH3 rate comparison needs converged sampling grids and the
+   published CASPT2/cc-pVDZ surface plus its higher-level one-dimensional
+   correction, followed by a MESS run with the accepted formation enthalpies.
+5. Run a separate stationary-TS/IRC case before declaring the ANL/MESS path
+   validated for ordinary transition-state kinetics.

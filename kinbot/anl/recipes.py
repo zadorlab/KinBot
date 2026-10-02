@@ -18,7 +18,7 @@ def _required(key, quantity, method, basis, role='l3',
 
 
 def recipe(name: str, *, vpt2_method: str | None = None,
-           vpt2_cbs: bool = False) -> CompositeRecipe:
+           vpt2_cbs: bool = False, multiplicity: int = 1) -> CompositeRecipe:
     """Return the original equation or an explicitly labeled VPT2 variant.
 
     The published ANL1 anharmonic correction uses B3LYP/cc-pVTZ. The selected
@@ -33,6 +33,9 @@ def recipe(name: str, *, vpt2_method: str | None = None,
         raise ValueError(f'Unsupported VPT2 surface {vpt2_method!r}.')
     if not isinstance(vpt2_cbs, bool):
         raise ValueError('vpt2_cbs must be boolean.')
+    if (isinstance(multiplicity, bool) or not isinstance(multiplicity, int)
+            or multiplicity < 1):
+        raise ValueError('multiplicity must be a positive integer.')
     variants = []
     if name == 'ANL0-F12':
         # The 2017 article names F12b but does not specify SCALE_TRIP.
@@ -106,19 +109,28 @@ def recipe(name: str, *, vpt2_method: str | None = None,
                   role='state', backends=('known_zero', 'table',
                                           'calculated', 'manual')),
     ]
+    high_backend = 'cfour' if multiplicity == 1 else 'mrcc'
+    high_settings = {
+        'correlation': 'unrestricted', 'core': 'frozen',
+        'reference': 'RHF' if multiplicity == 1 else 'ROHF',
+        'program': high_backend,
+        'driver': 'VCC' if multiplicity == 1 else 'direct',
+    }
+    qp_settings = {
+        'correlation': 'unrestricted', 'core': 'frozen',
+        'reference': 'RHF' if multiplicity == 1 else 'ROHF',
+        'program': 'mrcc', 'driver': 'direct',
+    }
     if name == 'ANL1':
         higher = [
             _required('hoe_tz_high', 'electronic', 'CCSDT(Q)', 'cc-pVTZ',
-                      backends=('mrcc',), correlation='unrestricted',
-                      program='mrcc'),
+                      backends=(high_backend,), **high_settings),
             _required('hoe_tz_low', 'electronic', 'CCSD(T)', 'cc-pVTZ',
                       backends=('molpro',), correlation='unrestricted'),
             _required('hoe_dz_high', 'electronic', 'CCSDTQ(P)', 'cc-pVDZ',
-                      backends=('mrcc',), correlation='unrestricted',
-                      program='mrcc'),
+                      backends=('mrcc',), **qp_settings),
             _required('hoe_dz_low', 'electronic', 'CCSDT(Q)', 'cc-pVDZ',
-                      backends=('mrcc',), correlation='unrestricted',
-                      program='mrcc'),
+                      backends=(high_backend,), **high_settings),
         ]
         hoe_terms = (ExpressionTerm('hoe_tz_high'),
                      ExpressionTerm('hoe_tz_low', -1),
@@ -127,8 +139,7 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     else:
         higher = [
             _required('hoe_high', 'electronic', 'CCSDT(Q)', 'cc-pVDZ',
-                      backends=('mrcc',), correlation='unrestricted',
-                      program='mrcc'),
+                      backends=(high_backend,), **high_settings),
             _required('hoe_low', 'electronic', 'CCSD(T)', 'cc-pVDZ',
                       backends=('molpro',), correlation='unrestricted'),
         ]

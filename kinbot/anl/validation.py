@@ -1,26 +1,34 @@
-"""Build and audit the portable non-MRCC ANL interface validation graph.
+"""Build and audit portable ANL interface validation graphs.
 
 This module deliberately calls the result an *interface validation*.  It runs
-the available Gaussian, Molpro, and CFOUR calculation types and verifies their
-native outputs, but it cannot label the result ANL1 or ANL1-F12 while the
-MRCC-only CCSDTQ(P)/DZ component is disabled.
+the available Gaussian, Molpro, CFOUR, and optional MRCC calculation types and
+verifies their native outputs without labeling a partial graph as a complete
+ANL1 or ANL1-F12 composite energy.
 """
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import hashlib
 import json
 import math
 from pathlib import Path
 
 from ase.db import connect
+from ase.io import read
 
-from kinbot.anl.dispatch import _load, prepare
+from kinbot.anl.dispatch import (_load, _verify_execution, _verify_stage_files,
+                                 prepare)
+from kinbot.anl.model import ComponentResult
 from kinbot.anl.recipes import recipe
 from kinbot.anl.tasks import higher_order_task, molpro_task
 from kinbot.anl.workflow import (_verified_task_result,
-                                 cbs_task_component, task_component)
+                                 cbs_task_component,
+                                 core_valence_task_component,
+                                 scalar_relativistic_task_component,
+                                 state_correction_component,
+                                 task_component)
 
 
 MOLPRO_HEADER = """***,KinBot ANL interface validation
@@ -198,7 +206,8 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
     }
 
 
-def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None):
+def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
+                                 mrcc_command='dmrcc'):
     """Build the five-job ANL1 higher-order interface probe.
 
     This graph checks native input generation, execution, parsing, and the
@@ -229,15 +238,15 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None):
         higher_order_task(
             'ccsdtq_tz', 'CCSDT(Q)', 'cc-pVTZ',
             multiplicity=multiplicity, walltime='24:00:00',
-            max_cores=8, **common),
+            max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ',
             multiplicity=multiplicity, walltime='12:00:00',
-            max_cores=8, **common),
+            max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtqp_dz', 'CCSDTQ(P)', 'cc-pVDZ',
             multiplicity=multiplicity, walltime='24:00:00',
-            max_cores=4, **common),
+            max_cores=4, command=mrcc_command, **common),
     ]
     return {
         'schema': 1, 'name': 'anl1-higher-order-interface-validation',
@@ -248,11 +257,62 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None):
             'equation': ('CCSDT(Q)/TZ - CCSD(T)/TZ + CCSDTQ(P)/DZ '
                          '- CCSDT(Q)/DZ'),
             'backend_policy': {
-                'closed_shell_ccsdt_q': 'direct-mrcc-rhf-unrestricted-cc',
+                'closed_shell_ccsdt_q': 'cfour-uhf-vcc-unrestricted-cc',
                 'open_shell_ccsdt_q': 'direct-mrcc-semicanonical-rohf',
                 'closed_shell_ccsdtq_p': 'direct-mrcc-rhf-unrestricted-cc',
                 'open_shell_ccsdtq_p': 'direct-mrcc-semicanonical-rohf',
             },
+        },
+    }
+
+
+def common_corrections_validation_spec(molecule, *, max_nodes=3,
+                                       partition=None):
+    """Build core-valence and scalar-relativistic ANL correction jobs."""
+    if not isinstance(molecule, dict):
+        raise TypeError('molecule must be an object.')
+    reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
+    common = dict(geometry_from='initial', partition=partition)
+
+    def energy_task(ident, basis, *, core, relativistic='none', walltime):
+        dkh = 'set,dkho=2\n' if relativistic == 'DKH2' else ''
+        command = ('{uccsd(t),uhf_uccsd=1;core}'
+                   if core == 'all-electron'
+                   else 'uccsd(t),uhf_uccsd=1')
+        body = (f'basis={basis}\n{dkh}rhf\n{command}\n'
+                f'kb_{ident}=energy\n')
+        return molpro_task(
+            ident, body, walltime=walltime, max_cores=8,
+            parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
+                    'basis': basis, 'reference': reference, 'core': core,
+                    'relativistic': relativistic}, **common)
+
+    tasks = [
+        energy_task('cv_ae_tz', 'cc-pCVTZ', core='all-electron',
+                    walltime='12:00:00'),
+        energy_task('cv_ae_qz', 'cc-pCVQZ', core='all-electron',
+                    walltime='24:00:00'),
+        energy_task('cv_fc_tz', 'cc-pCVTZ', core='frozen',
+                    walltime='12:00:00'),
+        energy_task('cv_fc_qz', 'cc-pCVQZ', core='frozen',
+                    walltime='24:00:00'),
+        energy_task('rel_dkh', 'aug-cc-pCVTZ-DK', core='all-electron',
+                    relativistic='DKH2', walltime='12:00:00'),
+        energy_task('rel_nonrel', 'aug-cc-pCVTZ-DK', core='all-electron',
+                    relativistic='none', walltime='12:00:00'),
+    ]
+    return {
+        'schema': 1, 'name': 'anl-common-corrections-validation',
+        'molecule': molecule, 'limits': {'max_nodes': max_nodes},
+        'tasks': tasks,
+        'intent': {
+            'claim': 'common-corrections-interface-validation-only',
+            'core_valence_equation': (
+                'CBS[CCSD(T,all-electron),TZ/QZ] - '
+                'CBS[CCSD(T,frozen-core),TZ/QZ]'),
+            'scalar_relativistic_equation': (
+                'CCSD(T,all-electron,DKH2)/aug-cc-pCVTZ-DK - '
+                'CCSD(T,all-electron,nonrel)/aug-cc-pCVTZ-DK'),
         },
     }
 
@@ -298,6 +358,45 @@ def audit_higher_order_run(run_dir):
     }
 
 
+def audit_common_corrections_run(run_dir):
+    """Reparse and combine completed core-valence and DKH correction jobs."""
+    _, spec, state = _load(run_dir)
+    if spec.get('name') != 'anl-common-corrections-validation':
+        raise ValueError('Run is not an ANL common-corrections graph.')
+    statuses = {task['id']: state['tasks'].get(task['id'], {}).get(
+        'status', 'waiting') for task in spec['tasks']}
+    if any(value != 'complete' for value in statuses.values()):
+        raise RuntimeError(f'Common-corrections run is incomplete: {statuses}')
+    equation = recipe(
+        'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+        multiplicity=spec['molecule'].get('multiplicity', 1))
+    requirements = {item.key: item for item in equation.requirements}
+    state_id = 'common-corrections-validation-state'
+    core_valence = core_valence_task_component(
+        run_dir, all_electron_lower='cv_ae_tz',
+        all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
+        frozen_core_upper='cv_fc_qz',
+        requirement=requirements['core_valence_cbs'], state_id=state_id)
+    relativistic = scalar_relativistic_task_component(
+        run_dir, 'rel_dkh', 'rel_nonrel',
+        requirement=requirements['scalar_relativistic'], state_id=state_id)
+    return {
+        'status': 'common_corrections_interface_complete',
+        'task_statuses': statuses,
+        'core_valence_hartree': core_valence.value_hartree,
+        'scalar_relativistic_hartree': relativistic.value_hartree,
+        'components': {
+            'core_valence_cbs': {
+                'source_sha256': core_valence.source_sha256,
+                'method': core_valence.method, 'basis': core_valence.basis},
+            'scalar_relativistic': {
+                'source_sha256': relativistic.source_sha256,
+                'method': relativistic.method, 'basis': relativistic.basis},
+        },
+        'claim': 'interface-validation-only',
+    }
+
+
 def molecule_from_database(database, job, *, charge, multiplicity):
     rows = list(connect(str(database)).select(name=job))
     if not rows:
@@ -313,6 +412,184 @@ def molecule_from_database(database, job, *, charge, multiplicity):
             'charge': charge, 'multiplicity': multiplicity}
 
 
+def molecule_from_completed_run(run_dir, geometry_task='l3_geometry'):
+    """Import one hash-verified optimized geometry from a dispatcher run."""
+    run_dir, spec, state = _load(run_dir)
+    tasks = {task['id']: task for task in spec['tasks']}
+    task = tasks.get(geometry_task)
+    entry = state['tasks'].get(geometry_task)
+    if (task is None or task.get('kind') != 'ase_optimize'
+            or entry is None or entry.get('status') != 'complete'):
+        raise ValueError(f'{geometry_task}: completed optimization is unavailable.')
+    _verify_stage_files(run_dir, task, entry)
+    execution = json.loads(
+        (run_dir / 'tasks' / geometry_task / 'execution.json').read_text())
+    geometry_hash = _verify_execution(run_dir, task, entry, execution)
+    if (execution.get('status') != 'executed' or geometry_hash is None
+            or geometry_hash != entry.get('final_geometry_sha256')):
+        raise ValueError(f'{geometry_task}: optimized geometry provenance failed.')
+    path = run_dir / 'tasks' / geometry_task / task['geometry_output']
+    atoms = read(path)
+    return {
+        'symbols': atoms.get_chemical_symbols(),
+        'positions': atoms.get_positions().tolist(),
+        'charge': spec['molecule'].get('charge', 0),
+        'multiplicity': spec['molecule'].get('multiplicity', 1),
+        'source': {
+            'run_dir': str(run_dir), 'task_id': geometry_task,
+            'geometry_sha256': geometry_hash,
+            'artifact_sha256': execution['artifacts'][task['geometry_output']],
+        },
+    }
+
+
+def _same_imported_l3_geometry(interface_run, run_dir, l3_hash):
+    """Require a derived run to identify the verified interface L3 source."""
+    run_dir, spec, _ = _load(run_dir)
+    source = spec.get('molecule', {}).get('source')
+    if (not isinstance(source, dict)
+            or source.get('geometry_sha256') != l3_hash):
+        raise ValueError(
+            f'{run_dir}: molecule is not imported from the accepted L3 geometry.')
+    interface_run = Path(interface_run).resolve()
+    recorded = source.get('run_dir')
+    if (not isinstance(recorded, str)
+            or Path(recorded).resolve() != interface_run):
+        raise ValueError(
+            f'{run_dir}: molecule source does not identify the interface run.')
+
+
+def _apply_quality_review(component, task_id, review_file):
+    """Accept one flagged native component through a hash-bound review file."""
+    if not component.review_required:
+        if review_file is not None:
+            raise ValueError(f'{task_id}: a review was supplied for an '
+                             'unflagged component.')
+        return component
+    if review_file is None:
+        return component
+    path = Path(review_file).resolve()
+    try:
+        review = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f'{task_id}: invalid quality-review file.') from exc
+    if (set(review) != {'schema', 'task_id', 'native_output_sha256',
+                        'decision', 'reviewer', 'rationale'}
+            or review.get('schema') != 1
+            or review.get('task_id') != task_id
+            or review.get('native_output_sha256') != component.source_sha256
+            or review.get('decision') != 'accept'
+            or not isinstance(review.get('reviewer'), str)
+            or not review['reviewer'].strip()
+            or not isinstance(review.get('rationale'), str)
+            or not review['rationale'].strip()):
+        raise ValueError(f'{task_id}: quality review does not accept this '
+                         'exact native output.')
+    canonical = json.dumps(review, sort_keys=True,
+                           separators=(',', ':')).encode()
+    review_sha256 = hashlib.sha256(canonical).hexdigest()
+    provenance = hashlib.sha256(json.dumps({
+        'native_output_sha256': component.source_sha256,
+        'review_sha256': review_sha256,
+    }, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return ComponentResult(
+        key=component.key, value_hartree=component.value_hartree,
+        quantity=component.quantity, method=component.method,
+        basis=component.basis, backend=component.backend,
+        state_id=component.state_id, charge=component.charge,
+        multiplicity=component.multiplicity,
+        geometry_sha256=component.geometry_sha256,
+        source_sha256=provenance,
+        source=f'{component.source}; reviewed by {path}',
+        settings={**component.settings,
+                  'quality_review': {
+                      'reviewer': review['reviewer'].strip(),
+                      'rationale': review['rationale'].strip(),
+                      'review_file': str(path),
+                      'review_sha256': review_sha256,
+                      'native_output_sha256': component.source_sha256,
+                  }},
+        review_required=False)
+
+
+def assemble_profiled_anl0_f12(
+        interface_run, higher_order_run, corrections_run, *, state_id,
+        spin_orbit_hartree, spin_orbit_source, spin_orbit_backend='manual',
+        vpt2_review=None):
+    """Assemble one provenance-checked profiled ANL0-F12 0 K energy.
+
+    Every geometry-dependent term must trace to the accepted L2 or L3
+    geometry in ``interface_run``.  The higher-order and common-correction
+    graphs must have been prepared from that completed L3 result.
+    """
+    interface_run, interface_spec, _ = _load(interface_run)
+    if interface_spec.get('name') != 'anl1-f12-non-mrcc-interface-validation':
+        raise ValueError('Interface run has the wrong workflow type.')
+    if not isinstance(state_id, str) or not state_id.strip():
+        raise ValueError('state_id must be a nonempty string.')
+    molecule = interface_spec['molecule']
+    charge = molecule.get('charge', 0)
+    multiplicity = molecule.get('multiplicity', 1)
+    l2 = molecule_from_completed_run(interface_run, 'l2_geometry')
+    l3 = molecule_from_completed_run(interface_run, 'l3_geometry')
+    l2_hash = l2['source']['geometry_sha256']
+    l3_hash = l3['source']['geometry_sha256']
+    _same_imported_l3_geometry(interface_run, higher_order_run, l3_hash)
+    _same_imported_l3_geometry(interface_run, corrections_run, l3_hash)
+
+    equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+                      multiplicity=multiplicity)
+    required = {item.key: item for item in equation.requirements}
+    components = {
+        'reference_cbs': cbs_task_component(
+            interface_run, 'f12_tz', 'f12_qz',
+            requirement=required['reference_cbs'], state_id=state_id,
+            lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12'),
+        'harmonic_zpe': task_component(
+            interface_run, 'harmonic', key='harmonic_zpe', state_id=state_id),
+        'vpt2_correction': task_component(
+            interface_run, 'gaussian_vpt2', key='vpt2_correction',
+            state_id=state_id),
+        'dboc': task_component(
+            interface_run, 'cfour_dboc', key='dboc', state_id=state_id),
+        'hoe_high': task_component(
+            higher_order_run, 'ccsdtq_dz', key='hoe_high', state_id=state_id),
+        'hoe_low': task_component(
+            higher_order_run, 'ccsdt_dz', key='hoe_low', state_id=state_id),
+    }
+    components['vpt2_correction'] = _apply_quality_review(
+        components['vpt2_correction'], 'gaussian_vpt2', vpt2_review)
+    components['core_valence_cbs'] = core_valence_task_component(
+        corrections_run, all_electron_lower='cv_ae_tz',
+        all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
+        frozen_core_upper='cv_fc_qz',
+        requirement=required['core_valence_cbs'], state_id=state_id)
+    components['scalar_relativistic'] = scalar_relativistic_task_component(
+        corrections_run, 'rel_dkh', 'rel_nonrel',
+        requirement=required['scalar_relativistic'], state_id=state_id)
+    components['spin_orbit'] = state_correction_component(
+        requirement=required['spin_orbit'], value_hartree=spin_orbit_hartree,
+        state_id=state_id, charge=charge, multiplicity=multiplicity,
+        source=spin_orbit_source, backend=spin_orbit_backend)
+    result = equation.evaluate(
+        components, state_id=state_id, charge=charge,
+        multiplicity=multiplicity,
+        geometry_hashes={'l2': l2_hash, 'l3': l3_hash})
+    return {
+        'schema': 1, 'status': 'complete', 'state_id': state_id,
+        'charge': charge, 'multiplicity': multiplicity,
+        'recipe': result.recipe, 'recipe_version': result.recipe_version,
+        'electronic_hartree': result.electronic_hartree,
+        'zero_point_hartree': result.zero_point_hartree,
+        'zero_k_hartree': result.zero_k_hartree,
+        'geometry_sha256': {'l2': l2_hash, 'l3': l3_hash},
+        'components': {key: asdict(value)
+                       for key, value in result.components.items()},
+        'electronic_terms': [asdict(term) for term in result.electronic_terms],
+        'zero_point_terms': [asdict(term) for term in result.zero_point_terms],
+    }
+
+
 def audit_interface_run(run_dir):
     """Reparse every declared native result and report the honest boundary."""
     _, spec, state = _load(run_dir)
@@ -325,7 +602,9 @@ def audit_interface_run(run_dir):
         if task.get('result_parser'):
             *_, result = _verified_task_result(run_dir, task['id'])
             parsed[task['id']] = result
-    equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ')
+    equation = recipe(
+        'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+        multiplicity=spec['molecule'].get('multiplicity', 1))
     requirement = next(item for item in equation.requirements
                        if item.key == 'reference_cbs')
     reference = cbs_task_component(
@@ -474,6 +753,7 @@ def main(argv=None):
     higher.add_argument('--multiplicity', type=int, default=1)
     higher.add_argument('--max-nodes', type=int, default=3)
     higher.add_argument('--partition')
+    higher.add_argument('--mrcc-command', default='dmrcc')
     prepare_higher = commands.add_parser('prepare-higher-order-from-db')
     prepare_higher.add_argument('database', type=Path)
     prepare_higher.add_argument('job')
@@ -482,8 +762,37 @@ def main(argv=None):
     prepare_higher.add_argument('--multiplicity', type=int, default=1)
     prepare_higher.add_argument('--max-nodes', type=int, default=3)
     prepare_higher.add_argument('--partition')
+    prepare_higher.add_argument('--mrcc-command', default='dmrcc')
+    prepare_higher_run = commands.add_parser('prepare-higher-order-from-run')
+    prepare_higher_run.add_argument('source_run', type=Path)
+    prepare_higher_run.add_argument('run_dir', type=Path)
+    prepare_higher_run.add_argument('--geometry-task', default='l3_geometry')
+    prepare_higher_run.add_argument('--max-nodes', type=int, default=3)
+    prepare_higher_run.add_argument('--partition')
+    prepare_higher_run.add_argument('--mrcc-command', default='dmrcc')
     audit_higher = commands.add_parser('audit-higher-order')
     audit_higher.add_argument('run_dir', type=Path)
+    prepare_corrections = commands.add_parser(
+        'prepare-common-corrections-from-run')
+    prepare_corrections.add_argument('source_run', type=Path)
+    prepare_corrections.add_argument('run_dir', type=Path)
+    prepare_corrections.add_argument('--geometry-task', default='l3_geometry')
+    prepare_corrections.add_argument('--max-nodes', type=int, default=3)
+    prepare_corrections.add_argument('--partition')
+    audit_corrections = commands.add_parser('audit-common-corrections')
+    audit_corrections.add_argument('run_dir', type=Path)
+    assemble = commands.add_parser('assemble-anl0-f12')
+    assemble.add_argument('interface_run', type=Path)
+    assemble.add_argument('higher_order_run', type=Path)
+    assemble.add_argument('corrections_run', type=Path)
+    assemble.add_argument('output', type=Path)
+    assemble.add_argument('--state-id', required=True)
+    assemble.add_argument('--spin-orbit-hartree', required=True, type=float)
+    assemble.add_argument('--spin-orbit-source', required=True)
+    assemble.add_argument('--spin-orbit-backend', default='manual',
+                          choices=('manual', 'known_zero', 'table',
+                                   'calculated'))
+    assemble.add_argument('--vpt2-review', type=Path)
     gate = commands.add_parser('gate-kinbot')
     gate.add_argument('run_dir', type=Path)
     gate.add_argument('reaction')
@@ -500,6 +809,22 @@ def main(argv=None):
         print(json.dumps(audit_higher_order_run(args.run_dir), indent=2,
                          sort_keys=True))
         return 0
+    if args.action == 'audit-common-corrections':
+        print(json.dumps(audit_common_corrections_run(args.run_dir), indent=2,
+                         sort_keys=True))
+        return 0
+    if args.action == 'assemble-anl0-f12':
+        payload = assemble_profiled_anl0_f12(
+            args.interface_run, args.higher_order_run, args.corrections_run,
+            state_id=args.state_id,
+            spin_orbit_hartree=args.spin_orbit_hartree,
+            spin_orbit_source=args.spin_orbit_source,
+            spin_orbit_backend=args.spin_orbit_backend,
+            vpt2_review=args.vpt2_review)
+        args.output.write_text(json.dumps(payload, indent=2, sort_keys=True)
+                               + '\n')
+        print(args.output.resolve())
+        return 0
     if args.action == 'gate-kinbot':
         print(json.dumps(audit_kinbot_run(
             args.run_dir, args.reaction, parent=args.parent,
@@ -508,15 +833,27 @@ def main(argv=None):
             require_rotdpy_execution=args.require_rotdpy_execution),
             indent=2, sort_keys=True))
         return 0
-    molecule = molecule_from_database(
-        args.database, args.job, charge=args.charge,
-        multiplicity=args.multiplicity)
+    from_run = args.action in ('prepare-higher-order-from-run',
+                               'prepare-common-corrections-from-run')
+    molecule = (molecule_from_completed_run(
+        args.source_run, geometry_task=args.geometry_task) if from_run
+        else molecule_from_database(
+            args.database, args.job, charge=args.charge,
+            multiplicity=args.multiplicity))
     is_higher = args.action in ('higher-order-from-db',
-                                'prepare-higher-order-from-db')
-    spec = (higher_order_validation_spec(
-        molecule, max_nodes=args.max_nodes, partition=args.partition)
-        if is_higher else interface_validation_spec(
-            molecule, max_nodes=args.max_nodes, partition=args.partition))
+                                'prepare-higher-order-from-db',
+                                'prepare-higher-order-from-run')
+    is_corrections = args.action == 'prepare-common-corrections-from-run'
+    if is_higher:
+        spec = higher_order_validation_spec(
+            molecule, max_nodes=args.max_nodes, partition=args.partition,
+            mrcc_command=args.mrcc_command)
+    elif is_corrections:
+        spec = common_corrections_validation_spec(
+            molecule, max_nodes=args.max_nodes, partition=args.partition)
+    else:
+        spec = interface_validation_spec(
+            molecule, max_nodes=args.max_nodes, partition=args.partition)
     if args.action in ('from-db', 'higher-order-from-db'):
         args.spec.write_text(json.dumps(spec, indent=2) + '\n')
         print(args.spec.resolve())

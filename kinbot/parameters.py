@@ -353,7 +353,7 @@ class Parameters:
             # Basis set to scan bonds in vrc_tst_scan
             'vrc_tst_scan_basis': '6-31+G(d)',
             # Calculator keywords scoped only to VRC Gaussian calculations
-            'vrc_tst_calc_kwargs': {},
+            'vrc_tst_calc_kwargs': None,
             # Energy calculations
             'vrc_tst_sample_method': 'caspt2(2,2)',
             'vrc_tst_high_method': 'caspt2(2,2)',

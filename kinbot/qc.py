@@ -905,9 +905,11 @@ class QuantumChemistry:
 
         if frag.natom < 3:
             kwargs.pop('Symm', None)
-        if self.par.get('vrc_tst_calc_kwargs'):
-            kwargs = self.merge_kwargs(
-                kwargs, self.par['vrc_tst_calc_kwargs'])
+        vrc_kwargs = self.par.get('vrc_tst_calc_kwargs')
+        if vrc_kwargs is None:
+            vrc_kwargs = self.par.get('calc_kwargs', {})
+        if vrc_kwargs:
+            kwargs = self.merge_kwargs(kwargs, vrc_kwargs)
 
         template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
@@ -944,9 +946,11 @@ class QuantumChemistry:
         
         if reac.species.natom < 3:
             kwargs.pop('Symm', None)
-        if self.par.get('vrc_tst_calc_kwargs'):
-            kwargs = self.merge_kwargs(
-                kwargs, self.par['vrc_tst_calc_kwargs'])
+        vrc_kwargs = self.par.get('vrc_tst_calc_kwargs')
+        if vrc_kwargs is None:
+            vrc_kwargs = self.par.get('calc_kwargs', {})
+        if vrc_kwargs:
+            kwargs = self.merge_kwargs(kwargs, vrc_kwargs)
         
         if self.par['vrc_tst_scan_sella']:  # TODO sella globally
             kwargs.pop('opt', None)

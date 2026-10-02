@@ -124,18 +124,14 @@ def test_molpro_launcher_process_count_must_fit_allocation():
         assert check_process_count(output, 12) == 12
 
 
-def test_builtin_molpro_f12_template_uses_rohf_uccsd_f12b():
+def test_legacy_molpro_single_point_template_keeps_original_contract():
     template = (Path(__file__).parents[1] / 'kinbot' / 'tpl' /
                 'molpro.tpl').read_text()
-    rendered = template.format(
-        name='CH3', natom=4,
-        geom='C 0 0 0\nH 0 0 1\nH 0 1 0\nH 1 0 0', nelectron=9,
-        symm=1, spin=1, charge=0)
-    assert rendered.count('{rhf;wf,9,1,1,0}') == 2
-    assert rendered.count('{uccsd(t)-f12b,scale_trip=1}') == 2
-    assert '{uhf;' not in rendered.lower()
-    assert 'CCSD(T)-F12\n' not in rendered
-    assert 'energy(1)' not in rendered and 'energy(2)' not in rendered
+    assert 'CCSD(T)-F12\n' in template
+    assert 'mydza = energy(1)' in template
+    assert 'mydzb = energy(2)' in template
+    assert 'mytza = energy(1)' in template
+    assert 'mytzb = energy(2)' in template
 
 
 def test_molpro_numerical_gradient_rejects_missing_or_mismatched_data():

@@ -33,6 +33,8 @@ partition = sys.argv[3]
 fairchem_model = sys.argv[4]
 data = json.loads(source.read_text())
 data['queue_name'] = partition
+data['queue_template'] = str(
+    source.resolve().parents[3] / 'kinbot' / 'tpl' / 'slurm_partition.tpl')
 data['fc_model_path'] = fairchem_model
 data['vrc_tst_max_nodes'] = int(sys.argv[5])
 target.write_text(json.dumps(data, indent=2) + '\n')

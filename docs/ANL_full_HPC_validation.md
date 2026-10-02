@@ -547,11 +547,16 @@ git submodule update --init --recursive
 
 export KINBOT_CA_FILE=/etc/ssl/certs/ca-certificates.crt
 export PIP_CERT="$KINBOT_CA_FILE"
-.venv/bin/python -m pip install -e . --no-deps
-.venv/bin/python -m pip install -e external/ROTD_py --no-deps
+.venv/bin/python -m pip install -e . --no-deps --no-build-isolation
+.venv/bin/python -m pip install -e external/ROTD_py \
+  --no-deps --no-build-isolation
 MPLCONFIGDIR="$PWD/.mpl-cache" \
   .venv/bin/python -m pytest -q --ignore=tests/test_kinbot.py
 ```
+
+`--no-build-isolation` is required on an offline or proxy-restricted login
+node. Without it, pip may try to download the `pyproject.toml` build
+requirements even when `--no-deps` is present.
 
 Make all native programs visible during preparation. The Blodgett path below
 is site configuration rather than a repository default. `KINBOT_MRCC_ROOT`

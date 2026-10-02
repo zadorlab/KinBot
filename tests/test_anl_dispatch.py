@@ -130,8 +130,8 @@ def test_general_graph_stages_geometry_then_all_independent_jobs():
         harmonic = (run_dir / 'tasks' / 'harmonic' / 'harmonic.inp').read_text()
         assert 'frequencies,numerical' in harmonic
         assert 'set,charge=0\nset,spin=0' in harmonic
-        assert 'ccsd(t)-f12,scale_trip=1' in f12
-        assert 'kb_f12b=energy(2)' in f12
+        assert 'uccsd(t)-f12b,scale_trip=1' in f12
+        assert 'kb_f12b=energy' in f12
         assert '-m' in spec['tasks'][3]['command']
         assert '{molpro_stack_mw}' in spec['tasks'][3]['command']
         cfour = (run_dir / 'tasks' / 'cfour_dboc' / 'ZMAT').read_text()

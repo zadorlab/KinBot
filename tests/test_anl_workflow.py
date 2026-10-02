@@ -20,16 +20,20 @@ from tests.anl_fixture import dispatch_spec, molpro_task
 
 
 _F12 = """basis=cc-pVTZ-F12
-ccsd(t)-f12,scale_trip=1
- !CCSD(T)-F12b total energy -40.454906199189
- CCSD(T)-F12/cc-pVTZ-F12 energy= -40.454906199189
+uccsd(t)-f12b,scale_trip=1
+ Starting UCCSD calculation
+ UCCSD-F12b correlation energy -0.288234238676
+ !RHF-UCCSD(T)-F12 energy -40.454906199189
+ PROGRAMS * TOTAL UCCSD(T) RHF-SCF INT
  Molpro calculation terminated
 """
 
 _F12_QZ = """basis=cc-pVQZ-F12
-ccsd(t)-f12,scale_trip=1
- !CCSD(T)-F12b total energy -40.456608306474
- CCSD(T)-F12/cc-pVQZ-F12 energy= -40.456608306474
+uccsd(t)-f12b,scale_trip=1
+ Starting UCCSD calculation
+ UCCSD-F12b correlation energy -0.290012345678
+ !RHF-UCCSD(T)-F12 energy -40.456608306474
+ PROGRAMS * TOTAL UCCSD(T) RHF-SCF INT
  Molpro calculation terminated
 """
 
@@ -144,9 +148,10 @@ def _harmonic_output(basis, shift):
     zpe_hartree = zpe_cm * invcm / Hartree
     zpe_kj = zpe_hartree * Hartree * mol / kJ
     lines = '\n'.join(f' {i} {value:.2f}' for i, value in enumerate(modes, 1))
-    return (f'basis={basis}\nccsd(t)\nfrequencies,numerical\n'
+    return (f'basis={basis}\nrhf\nuccsd(t),uhf_uccsd=1\n'
+            'PROGRAM * RHF-SCF\nfrequencies,numerical\n'
             'PROGRAM * FREQUENCIES (Calculation of harmonic vibrational '
-            'spectra for CCSD(T))\nVibration Wavenumber\n'
+            'spectra for UCCSD(T))\nVibration Wavenumber\n'
             f'{lines}\n\nZero point energy: {zpe_hartree:.8f} [H] '
             f'{zpe_cm:.2f} [1/CM] {zpe_kj:.2f} [KJ/MOL]\n'
             'Molpro calculation terminated\n')
@@ -204,7 +209,8 @@ def _completed_zpe_pair(root, *, kind):
         if is_harmonic:
             task = molpro_task(
                 f'freq_{suffix}',
-                f'basis={basis}\nhf\nccsd(t)\nfrequencies,numerical\n',
+                f'basis={basis}\nrhf\nuccsd(t),uhf_uccsd=1\n'
+                'frequencies,numerical\n',
                 geometry_from=opt['id'],
                 result_parser={'kind': 'molpro_harmonic', 'basis': basis})
         else:

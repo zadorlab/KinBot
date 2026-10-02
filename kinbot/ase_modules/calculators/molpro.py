@@ -40,12 +40,22 @@ def check_process_count(output_path, allocated_ranks):
     return count
 
 
-def render_input(atoms, *, basis, geometry_name):
-    """Render a neutral-singlet conventional CCSD(T) energy and gradient."""
+def render_input(atoms, *, basis, geometry_name, charge=0, mult=1):
+    """Render a restricted-reference, unrestricted-CCSD(T) gradient.
+
+    Molpro can otherwise dispatch its restricted open-shell CC code after an
+    RHF calculation. ``UHF_UCCSD=1`` explicitly selects the unrestricted CC
+    implementation while retaining the RHF/ROHF determinant.
+    """
     if not basis or not _SAFE_BASIS.fullmatch(basis):
         raise ValueError('Molpro basis must be one safe basis identifier.')
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.xyz', geometry_name):
         raise ValueError('Molpro geometry filename must be a safe XYZ basename.')
+    if isinstance(charge, bool) or not isinstance(charge, int):
+        raise ValueError('Molpro charge must be an integer.')
+    if isinstance(mult, bool) or not isinstance(mult, int) or mult < 1:
+        raise ValueError('Molpro multiplicity must be a positive integer.')
+    method = 'uccsd(t),uhf_uccsd=1'
     xyz = '\n'.join(
         f'{symbol} {x:.12f} {y:.12f} {z:.12f}'
         for symbol, (x, y, z) in zip(atoms.get_chemical_symbols(), atoms.positions)
@@ -53,8 +63,8 @@ def render_input(atoms, *, basis, geometry_name):
     return (f'***,KinBot ASE/Sella gradient\n'
             f'symmetry,nosym\norient,noorient\ngeomtyp=xyz\n'
             f'geometry={{\n{len(atoms)}\nKinBot ASE geometry (angstrom)\n{xyz}\n}}\n'
-            f'basis={basis}\nset,charge=0\nset,spin=0\n'
-            f'gthresh,energy=1.d-9\nrhf\nccsd(t)\n'
+            f'basis={basis}\nset,charge={charge}\nset,spin={mult - 1}\n'
+            f'gthresh,energy=1.d-9\nrhf\n{method}\n'
             f'kb_geom_energy=energy\n'
             f'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             f'put,xyz,{geometry_name}\n')
@@ -167,8 +177,10 @@ class Molpro(Calculator):
         super().__init__()
         if method.upper() != 'CCSD(T)':
             raise ValueError('Molpro ASE geometry currently supports conventional CCSD(T).')
-        if charge != 0 or mult != 1:
-            raise ValueError('Molpro ASE geometry currently supports a neutral singlet only.')
+        if isinstance(charge, bool) or not isinstance(charge, int):
+            raise ValueError('Molpro charge must be an integer.')
+        if isinstance(mult, bool) or not isinstance(mult, int) or mult < 1:
+            raise ValueError('Molpro multiplicity must be a positive integer.')
         if not isinstance(nproc, int) or nproc < 1:
             raise ValueError('Molpro nproc must be positive.')
         if not isinstance(stack_mw, int) or stack_mw < 32:
@@ -188,6 +200,8 @@ class Molpro(Calculator):
         self.nproc = nproc
         self.stack_mw = stack_mw
         self.scratch_min_mb = scratch_min_mb
+        self.charge = charge
+        self.mult = mult
         self.evaluations = 0
         self.generated_files = []
 
@@ -202,7 +216,8 @@ class Molpro(Calculator):
         stdout_name = f'{stem}.stdout'
         stderr_name = f'{stem}.stderr'
         (self.work_directory / input_name).write_text(
-            render_input(atoms, basis=self.basis, geometry_name=geometry_name))
+            render_input(atoms, basis=self.basis, geometry_name=geometry_name,
+                         charge=self.charge, mult=self.mult))
         self.generated_files.append(input_name)
         command = [*self.command, '-g', '-n', str(self.nproc), '-m',
                    str(self.stack_mw), input_name]

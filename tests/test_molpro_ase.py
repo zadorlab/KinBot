@@ -75,7 +75,7 @@ def test_documented_molpro_force_input_and_parser_contract():
     atoms = Atoms('CH2', positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
     deck = render_input(atoms, basis='cc-pVTZ', geometry_name='step.xyz')
     assert 'set,charge=0\nset,spin=0\ngthresh,energy=1.d-9\n' in deck
-    assert ('rhf\nccsd(t)\nkb_geom_energy=energy\n'
+    assert ('rhf\nuccsd(t),uhf_uccsd=1\nkb_geom_energy=energy\n'
             'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             'put,xyz,step.xyz') in deck
     assert 'optg' not in deck.lower()
@@ -122,6 +122,20 @@ def test_molpro_launcher_process_count_must_fit_allocation():
         with pytest.raises(RuntimeError, match='12 MPI processes.*8 ranks'):
             check_process_count(output, 8)
         assert check_process_count(output, 12) == 12
+
+
+def test_builtin_molpro_f12_template_uses_rohf_uccsd_f12b():
+    template = (Path(__file__).parents[1] / 'kinbot' / 'tpl' /
+                'molpro.tpl').read_text()
+    rendered = template.format(
+        name='CH3', natom=4,
+        geom='C 0 0 0\nH 0 0 1\nH 0 1 0\nH 1 0 0', nelectron=9,
+        symm=1, spin=1, charge=0)
+    assert rendered.count('{rhf;wf,9,1,1,0}') == 2
+    assert rendered.count('{uccsd(t)-f12b,scale_trip=1}') == 2
+    assert '{uhf;' not in rendered.lower()
+    assert 'CCSD(T)-F12\n' not in rendered
+    assert 'energy(1)' not in rendered and 'energy(2)' not in rendered
 
 
 def test_molpro_numerical_gradient_rejects_missing_or_mismatched_data():
@@ -207,8 +221,15 @@ def test_l3_sella_calls_molpro_at_each_geometry_and_hashes_native_files():
         assert advance(run_dir)['tasks']['l3_geometry']['status'] == 'complete'
 
 
-def test_molpro_calculator_rejects_unsupported_spin():
+def test_molpro_calculator_and_input_support_restricted_open_shell():
     with TemporaryDirectory() as temporary:
-        with pytest.raises(ValueError, match='neutral singlet'):
-            Molpro(directory=temporary, label='ch3', method='CCSD(T)',
-                   basis='cc-pVTZ', charge=0, mult=2)
+        calculator = Molpro(directory=temporary, label='ch3', method='CCSD(T)',
+                            basis='cc-pVTZ', charge=0, mult=2)
+        assert calculator.charge == 0
+        assert calculator.mult == 2
+    deck = render_input(
+        Atoms('CH3', positions=[[0, 0, 0], [0, 0, 1], [0.9, 0, -0.3],
+                                [-0.9, 0, -0.3]]),
+        basis='cc-pVTZ', geometry_name='ch3.xyz', charge=0, mult=2)
+    assert 'set,charge=0\nset,spin=1' in deck
+    assert '\nrhf\nuccsd(t),uhf_uccsd=1\n' in deck.lower()

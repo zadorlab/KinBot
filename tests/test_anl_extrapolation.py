@@ -45,7 +45,7 @@ def test_recipe_pins_each_reference_pair_and_the_tq_corrections():
         assert requirements['core_valence_cbs'].settings['upper_cardinal'] == 4
         assert requirements['core_valence_cbs'].method == \
             'CCSD(T,full)-CCSD(T,frozen-core)'
-        assert requirements['scalar_relativistic'].basis == 'aug-cc-pcVTZ-DK'
+        assert requirements['scalar_relativistic'].basis == 'aug-cc-pCVTZ-DK'
     assert {item.key: item for item in recipe('ANL1').requirements}[
         'harmonic_zpe'].settings['upper_cardinal'] == 4
 

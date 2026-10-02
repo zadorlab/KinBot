@@ -11,6 +11,7 @@ from ase.db import connect
 
 from kinbot.anl.dispatch import validate_spec
 from kinbot.anl.validation import (interface_validation_spec,
+                                   higher_order_validation_spec,
                                    audit_kinbot_run,
                                    main as validation_main,
                                    molecule_from_database)
@@ -48,6 +49,45 @@ def test_non_mrcc_graph_has_geometry_barrier_and_parallel_fanout():
     assert all(task['resources']['cores'] == 'auto' for task in spec['tasks'])
     assert all(task['resources']['partition'] == 'day-long-cpu'
                for task in spec['tasks'])
+
+
+def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
+    closed = higher_order_validation_spec(
+        _molecule(), max_nodes=3, partition='day-long-cpu')
+    closed_tasks = {task['id']: task for task in closed['tasks']}
+    assert closed_tasks['ccsdtq_tz']['backend'] == 'mrcc'
+    assert closed_tasks['ccsdtq_dz']['backend'] == 'mrcc'
+    assert closed_tasks['ccsdtqp_dz']['backend'] == 'mrcc'
+    assert closed_tasks['ccsdtqp_dz']['result_parser']['reference'] == 'RHF'
+    assert closed_tasks['ccsdtqp_dz']['result_parser']['correlation'] == \
+        'unrestricted'
+    assert closed_tasks['ccsdt_tz']['backend'] == 'molpro'
+    assert closed['intent']['equation'] == (
+        'CCSDT(Q)/TZ - CCSD(T)/TZ + CCSDTQ(P)/DZ - CCSDT(Q)/DZ')
+
+    radical = deepcopy(_molecule())
+    radical['symbols'] = radical['symbols'][:-1]
+    radical['positions'] = radical['positions'][:-1]
+    radical['multiplicity'] = 2
+    opened = higher_order_validation_spec(radical)
+    open_tasks = {task['id']: task for task in opened['tasks']}
+    assert '\nuccsd(t),uhf_uccsd=1\n' in \
+        open_tasks['ccsdt_tz']['input_template'].lower()
+    for ident in ('ccsdtq_tz', 'ccsdtq_dz', 'ccsdtqp_dz'):
+        assert open_tasks[ident]['backend'] == 'mrcc'
+        assert open_tasks[ident]['result_parser']['reference'] == 'ROHF'
+        assert open_tasks[ident]['result_parser']['correlation'] == 'unrestricted'
+        assert open_tasks[ident]['result_parser']['program'] == 'mrcc'
+        assert 'scftype=ROHF' in open_tasks[ident]['input_template']
+        assert 'ccprog=mrcc' in open_tasks[ident]['input_template']
+        assert 'rohftype=semicanonical' in open_tasks[ident]['input_template']
+
+    for spec in (closed, opened):
+        resolved = deepcopy(spec)
+        for task in resolved['tasks']:
+            task['resources'].update(cores=4, memory_mb=64000,
+                                     partition='test')
+        validate_spec(resolved)
 
 
 def test_database_export_requires_one_complete_accepted_l2_record():

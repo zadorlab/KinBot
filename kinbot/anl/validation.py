@@ -350,20 +350,52 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
     }
 
 
+def post_geometry_validation_spec(molecule, *, max_nodes=3, partition=None,
+                                  mrcc_command='dmrcc'):
+    """Build one globally throttled fan-out after the accepted L3 geometry."""
+    higher = higher_order_validation_spec(
+        molecule, max_nodes=max_nodes, partition=partition,
+        mrcc_command=mrcc_command)
+    corrections = common_corrections_validation_spec(
+        molecule, max_nodes=max_nodes, partition=partition)
+    tasks = higher['tasks'] + corrections['tasks']
+    identifiers = [task['id'] for task in tasks]
+    if len(identifiers) != len(set(identifiers)):
+        raise RuntimeError('Post-geometry validation task identifiers overlap.')
+    return {
+        'schema': 1, 'name': 'anl-post-geometry-validation',
+        'molecule': molecule, 'limits': {'max_nodes': max_nodes},
+        'tasks': tasks,
+        'intent': {
+            'claim': 'post-geometry-interface-validation-only',
+            'higher_order_equation': higher['intent']['equation'],
+            'backend_policy': higher['intent']['backend_policy'],
+            'core_valence_equation':
+                corrections['intent']['core_valence_equation'],
+            'scalar_relativistic_equation':
+                corrections['intent']['scalar_relativistic_equation'],
+            'scheduling': ('one shared max_nodes limit for every independent '
+                           'post-geometry task'),
+        },
+    }
+
+
 def audit_higher_order_run(run_dir):
     """Reparse and combine a completed higher-order interface probe."""
     _, spec, state = _load(run_dir)
-    if spec.get('name') != 'anl1-higher-order-interface-validation':
+    if spec.get('name') not in ('anl1-higher-order-interface-validation',
+                                 'anl-post-geometry-validation'):
         raise ValueError('Run is not an ANL1 higher-order validation graph.')
-    statuses = {task['id']: state['tasks'].get(task['id'], {}).get(
-        'status', 'waiting') for task in spec['tasks']}
+    identifiers = ('ccsdt_tz', 'ccsdt_dz', 'ccsdtq_tz',
+                   'ccsdtq_dz', 'ccsdtqp_dz')
+    statuses = {ident: state['tasks'].get(ident, {}).get('status', 'waiting')
+                for ident in identifiers}
     if any(value != 'complete' for value in statuses.values()):
         raise RuntimeError(f'Higher-order run is incomplete: {statuses}')
     state_id = 'higher-order-validation-state'
     components = {
         ident: task_component(run_dir, ident, key=ident, state_id=state_id)
-        for ident in ('ccsdt_tz', 'ccsdt_dz', 'ccsdtq_tz',
-                      'ccsdtq_dz', 'ccsdtqp_dz')
+        for ident in identifiers
     }
     correction = math.fsum((
         components['ccsdtq_tz'].value_hartree,
@@ -394,10 +426,13 @@ def audit_higher_order_run(run_dir):
 def audit_common_corrections_run(run_dir):
     """Reparse and combine completed core-valence and DKH correction jobs."""
     _, spec, state = _load(run_dir)
-    if spec.get('name') != 'anl-common-corrections-validation':
+    if spec.get('name') not in ('anl-common-corrections-validation',
+                                 'anl-post-geometry-validation'):
         raise ValueError('Run is not an ANL common-corrections graph.')
-    statuses = {task['id']: state['tasks'].get(task['id'], {}).get(
-        'status', 'waiting') for task in spec['tasks']}
+    identifiers = ('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
+                   'rel_dkh', 'rel_nonrel')
+    statuses = {ident: state['tasks'].get(ident, {}).get('status', 'waiting')
+                for ident in identifiers}
     if any(value != 'complete' for value in statuses.values()):
         raise RuntimeError(f'Common-corrections run is incomplete: {statuses}')
     equation = recipe(
@@ -427,6 +462,27 @@ def audit_common_corrections_run(run_dir):
                 'method': relativistic.method, 'basis': relativistic.basis},
         },
         'claim': 'interface-validation-only',
+    }
+
+
+def audit_post_geometry_run(run_dir):
+    """Audit the shared post-geometry fan-out and both correction groups."""
+    run_dir, spec, state = _load(run_dir)
+    if spec.get('name') != 'anl-post-geometry-validation':
+        raise ValueError('Run is not a combined post-geometry validation graph.')
+    statuses = {task['id']: state['tasks'].get(task['id'], {}).get(
+        'status', 'waiting') for task in spec['tasks']}
+    if any(value != 'complete' for value in statuses.values()):
+        raise RuntimeError(f'Post-geometry run is incomplete: {statuses}')
+    source = spec.get('molecule', {}).get('source', {})
+    higher = audit_higher_order_run(run_dir)
+    corrections = audit_common_corrections_run(run_dir)
+    return {
+        'status': 'post_geometry_interface_complete',
+        'task_statuses': statuses,
+        'geometry_sha256': source.get('geometry_sha256'),
+        'higher_order': higher,
+        'common_corrections': corrections,
     }
 
 
@@ -906,6 +962,15 @@ def main(argv=None):
     prepare_corrections.add_argument('--partition')
     audit_corrections = commands.add_parser('audit-common-corrections')
     audit_corrections.add_argument('run_dir', type=Path)
+    prepare_post = commands.add_parser('prepare-post-geometry-from-run')
+    prepare_post.add_argument('source_run', type=Path)
+    prepare_post.add_argument('run_dir', type=Path)
+    prepare_post.add_argument('--geometry-task', default='l3_geometry')
+    prepare_post.add_argument('--max-nodes', type=int, default=3)
+    prepare_post.add_argument('--partition')
+    prepare_post.add_argument('--mrcc-command', default='dmrcc')
+    audit_post = commands.add_parser('audit-post-geometry')
+    audit_post.add_argument('run_dir', type=Path)
     assemble = commands.add_parser('assemble-anl0-f12')
     assemble.add_argument('interface_run', type=Path)
     assemble.add_argument('higher_order_run', type=Path)
@@ -943,6 +1008,10 @@ def main(argv=None):
         print(json.dumps(audit_common_corrections_run(args.run_dir), indent=2,
                          sort_keys=True))
         return 0
+    if args.action == 'audit-post-geometry':
+        print(json.dumps(audit_post_geometry_run(args.run_dir), indent=2,
+                         sort_keys=True))
+        return 0
     if args.action == 'assemble-anl0-f12':
         payload = assemble_profiled_anl0_f12(
             args.interface_run, args.higher_order_run, args.corrections_run,
@@ -965,7 +1034,8 @@ def main(argv=None):
         return 0
     from_run = args.action in ('prepare-current-base-from-run',
                                'prepare-higher-order-from-run',
-                               'prepare-common-corrections-from-run')
+                               'prepare-common-corrections-from-run',
+                               'prepare-post-geometry-from-run')
     molecule = (molecule_from_completed_run(
         args.source_run, geometry_task=args.geometry_task) if from_run
         else molecule_from_database(
@@ -975,6 +1045,7 @@ def main(argv=None):
                                 'prepare-higher-order-from-db',
                                 'prepare-higher-order-from-run')
     is_corrections = args.action == 'prepare-common-corrections-from-run'
+    is_post = args.action == 'prepare-post-geometry-from-run'
     is_base = args.action == 'prepare-current-base-from-run'
     if is_base:
         spec = current_base_validation_spec(
@@ -986,6 +1057,10 @@ def main(argv=None):
     elif is_corrections:
         spec = common_corrections_validation_spec(
             molecule, max_nodes=args.max_nodes, partition=args.partition)
+    elif is_post:
+        spec = post_geometry_validation_spec(
+            molecule, max_nodes=args.max_nodes, partition=args.partition,
+            mrcc_command=args.mrcc_command)
     else:
         spec = interface_validation_spec(
             molecule, max_nodes=args.max_nodes, partition=args.partition)

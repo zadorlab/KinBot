@@ -595,9 +595,10 @@ base="$PWD/ethane_profiled_hpc_run_v5"
 ```
 
 Run the current base first. Only after its new L3 geometry is complete can the
-higher-order and correction graphs be prepared from that exact geometry. The
-detached driver below performs those steps sequentially, so the combined work
-never exceeds three exclusive nodes and no `tmux` installation is needed:
+post-geometry graph be prepared from that exact geometry. The graph contains
+every higher-order, core-valence, and scalar-relativistic single point. One
+dispatcher therefore fans them out together while enforcing a shared limit of
+three exclusive nodes. No `tmux` installation is needed:
 
 ```bash
 nohup bash -lc '
@@ -610,26 +611,16 @@ nohup bash -lc '
     "$base/anl_current_base_ethane" \
     > "$base/anl_current_base_ethane_audit.json"
   .venv/bin/python -m kinbot.anl.validation \
-    prepare-higher-order-from-run \
-    "$base/anl_current_base_ethane" "$base/anl_higher_ethane" \
-    --max-nodes 3 --partition day-long-cpu
-  .venv/bin/python -m kinbot.anl.validation \
-    prepare-common-corrections-from-run \
-    "$base/anl_current_base_ethane" "$base/anl_corrections_ethane" \
+    prepare-post-geometry-from-run \
+    "$base/anl_current_base_ethane" "$base/anl_post_geometry_ethane" \
     --max-nodes 3 --partition day-long-cpu
   .venv/bin/python -m kinbot.anl.dispatch preflight \
-    "$base/anl_higher_ethane"
-  .venv/bin/python -m kinbot.anl.dispatch preflight \
-    "$base/anl_corrections_ethane"
+    "$base/anl_post_geometry_ethane"
   .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$base/anl_higher_ethane" --interval 20
-  .venv/bin/python -m kinbot.anl.validation audit-higher-order \
-    "$base/anl_higher_ethane" > "$base/anl_higher_ethane_audit.json"
-  .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$base/anl_corrections_ethane" --interval 20
-  .venv/bin/python -m kinbot.anl.validation audit-common-corrections \
-    "$base/anl_corrections_ethane" \
-    > "$base/anl_corrections_ethane_audit.json"
+    "$base/anl_post_geometry_ethane" --interval 20
+  .venv/bin/python -m kinbot.anl.validation audit-post-geometry \
+    "$base/anl_post_geometry_ethane" \
+    > "$base/anl_post_geometry_ethane_audit.json"
 ' > ethane_anl_continuation.log 2>&1 < /dev/null &
 echo $! > ethane_anl_continuation.pid
 disown
@@ -641,8 +632,7 @@ Monitor without mutating either graph:
 base="$PWD/ethane_profiled_hpc_run_v5"
 squeue -u "$USER" -o "%.18i %.30j %.2t %.10M %.10l %R"
 .venv/bin/python -m kinbot.anl.dispatch status "$base/anl_current_base_ethane"
-.venv/bin/python -m kinbot.anl.dispatch status "$base/anl_higher_ethane"
-.venv/bin/python -m kinbot.anl.dispatch status "$base/anl_corrections_ethane"
+.venv/bin/python -m kinbot.anl.dispatch status "$base/anl_post_geometry_ethane"
 tail -f ethane_anl_continuation.log
 ```
 
@@ -672,8 +662,8 @@ fan-out task, and `harmonic_zpe_hartree: 0.07527065`. `reparse` preserves the
 old failure as `tasks/harmonic/execution.failed.json` and records
 `reparsed_without_execution: true` in the accepted execution record.
 
-The stopped driver did not create the higher-order or common-correction
-graphs. Continue from the accepted current-base geometry with:
+The stopped driver did not create any post-geometry graph. Continue from the
+accepted current-base geometry with one globally throttled fan-out:
 
 ```bash
 nohup env PYTHONUNBUFFERED=1 bash -lc '
@@ -681,34 +671,27 @@ nohup env PYTHONUNBUFFERED=1 bash -lc '
   cd "$HOME/KinBot"
   base="$PWD/ethane_profiled_hpc_run_v5"
   current="$base/anl_current_base_ethane_fb3eab2"
-  higher="$base/anl_higher_ethane_fb3eab2"
-  corrections="$base/anl_corrections_ethane_fb3eab2"
+  post="$base/anl_post_geometry_ethane"
 
   .venv/bin/python -m kinbot.anl.validation audit-current-base "$current" \
     > "$base/anl_current_base_ethane_fb3eab2_audit.json"
   .venv/bin/python -m kinbot.anl.validation \
-    prepare-higher-order-from-run "$current" "$higher" \
+    prepare-post-geometry-from-run "$current" "$post" \
     --max-nodes 3 --partition day-long-cpu
-  .venv/bin/python -m kinbot.anl.validation \
-    prepare-common-corrections-from-run "$current" "$corrections" \
-    --max-nodes 3 --partition day-long-cpu
-  .venv/bin/python -m kinbot.anl.dispatch preflight "$higher"
-  .venv/bin/python -m kinbot.anl.dispatch preflight "$corrections"
-  .venv/bin/python -m kinbot.anl.dispatch drive "$higher" --interval 20
-  .venv/bin/python -m kinbot.anl.validation audit-higher-order "$higher" \
-    > "$base/anl_higher_ethane_fb3eab2_audit.json"
-  .venv/bin/python -m kinbot.anl.dispatch drive "$corrections" --interval 20
-  .venv/bin/python -m kinbot.anl.validation \
-    audit-common-corrections "$corrections" \
-    > "$base/anl_corrections_ethane_fb3eab2_audit.json"
-' > ethane_anl_higher_corrections.log 2>&1 < /dev/null &
-echo $! > ethane_anl_higher_corrections.pid
+  .venv/bin/python -m kinbot.anl.dispatch preflight "$post"
+  .venv/bin/python -m kinbot.anl.dispatch drive "$post" --interval 20
+  .venv/bin/python -m kinbot.anl.validation audit-post-geometry "$post" \
+    > "$base/anl_post_geometry_ethane_audit.json"
+' > ethane_anl_post_geometry.log 2>&1 < /dev/null &
+echo $! > ethane_anl_post_geometry.pid
 disown
 ```
 
-This continuation expects those two target directories not to contain an
-existing `workflow.json`. If either graph was already prepared, inspect and
-drive that immutable graph instead of preparing it again.
+This continuation expects `anl_post_geometry_ethane` not to exist. If it was
+already prepared, inspect and drive that immutable graph instead of preparing
+it again. The older split graph commands remain supported for compatibility,
+but the combined graph is required when one `max_nodes` value must govern all
+independent post-geometry calculations.
 
 The completed ethane VPT2 parser recorded native Gaussian warnings. Assembly
 therefore stops until those warnings and the mode table are reviewed. First
@@ -753,8 +736,8 @@ uses another state-specific value.
 base="$PWD/ethane_profiled_hpc_run_v5"
 .venv/bin/python -m kinbot.anl.validation assemble-anl0-f12 \
   "$base/anl_interface" \
-  "$base/anl_higher_ethane" \
-  "$base/anl_corrections_ethane" \
+  "$base/anl_post_geometry_ethane" \
+  "$base/anl_post_geometry_ethane" \
   "$base/ethane_profiled_anl0_f12.json" \
   --state-id ethane-singlet \
   --spin-orbit-hartree 0.0 \

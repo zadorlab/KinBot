@@ -20,13 +20,15 @@ from kinbot.anl.validation import (common_corrections_validation_spec,
                                    audit_current_base_run,
                                    audit_higher_order_run,
                                    audit_interface_run,
+                                   audit_post_geometry_run,
                                    current_base_validation_spec,
                                    interface_validation_spec,
                                    higher_order_validation_spec,
                                    audit_kinbot_run,
                                    main as validation_main,
                                    molecule_from_completed_run,
-                                   molecule_from_database)
+                                   molecule_from_database,
+                                   post_geometry_validation_spec)
 from kinbot.anl import site
 from kinbot.parameters import Parameters
 from kinbot.reaction_finder import ReactionFinder
@@ -189,6 +191,44 @@ def test_common_corrections_graph_pins_core_and_relativistic_differences():
         task['resources'].update(cores=4, memory_mb=64000,
                                  partition='test')
     validate_spec(resolved)
+
+
+def test_post_geometry_graph_has_one_global_parallel_limit():
+    spec = post_geometry_validation_spec(
+        _molecule(), max_nodes=3, partition='day-long-cpu')
+    assert spec['name'] == 'anl-post-geometry-validation'
+    assert spec['limits'] == {'max_nodes': 3}
+    tasks = {task['id']: task for task in spec['tasks']}
+    assert set(tasks) == {
+        'ccsdt_tz', 'ccsdt_dz', 'ccsdtq_tz', 'ccsdtq_dz',
+        'ccsdtqp_dz', 'cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
+        'rel_dkh', 'rel_nonrel'}
+    assert all(task['geometry_from'] == 'initial' for task in tasks.values())
+    resolved = deepcopy(spec)
+    for task in resolved['tasks']:
+        task['resources'].update(cores=4, memory_mb=64000,
+                                 partition='test')
+    validate_spec(resolved)
+
+
+def test_post_geometry_audit_requires_and_combines_both_groups(monkeypatch):
+    spec = post_geometry_validation_spec(_molecule())
+    spec['molecule']['source'] = {'geometry_sha256': '4' * 64}
+    state = {'tasks': {task['id']: {'status': 'complete'}
+                       for task in spec['tasks']}}
+    monkeypatch.setattr(
+        validation_module, '_load',
+        lambda run_dir: (Path(run_dir), spec, state))
+    monkeypatch.setattr(
+        validation_module, 'audit_higher_order_run',
+        lambda run_dir: {'status': 'higher_order_interface_complete'})
+    monkeypatch.setattr(
+        validation_module, 'audit_common_corrections_run',
+        lambda run_dir: {'status': 'common_corrections_interface_complete'})
+    result = audit_post_geometry_run('/synthetic/post')
+    assert result['status'] == 'post_geometry_interface_complete'
+    assert result['geometry_sha256'] == '4' * 64
+    assert len(result['task_statuses']) == 11
 
 
 def test_higher_order_audit_returns_cross_program_correction(monkeypatch):
@@ -434,6 +474,32 @@ def test_prepare_from_database_cli_stages_general_graph(monkeypatch):
                    for task in workflow['tasks'])
         state = json.loads((run_dir / 'state.json').read_text())
         assert set(state['tasks']) == {'l2_geometry'}
+
+
+def test_prepare_post_geometry_cli_builds_one_shared_graph(monkeypatch):
+    molecule = deepcopy(_molecule())
+    molecule['source'] = {
+        'run_dir': '/synthetic/current', 'task_id': 'l3_geometry',
+        'geometry_sha256': '5' * 64, 'artifact_sha256': '6' * 64}
+    captured = {}
+    monkeypatch.setattr(
+        validation_module, 'molecule_from_completed_run',
+        lambda source_run, geometry_task: molecule)
+
+    def fake_prepare(spec, run_dir):
+        captured['spec'] = spec
+        captured['run_dir'] = Path(run_dir)
+        return Path(run_dir)
+
+    monkeypatch.setattr(validation_module, 'prepare', fake_prepare)
+    assert validation_main([
+        'prepare-post-geometry-from-run', '/synthetic/current',
+        '/synthetic/post', '--max-nodes', '3',
+        '--partition', 'day-long-cpu']) == 0
+    assert captured['spec']['name'] == 'anl-post-geometry-validation'
+    assert captured['spec']['limits']['max_nodes'] == 3
+    assert len(captured['spec']['tasks']) == 11
+    assert captured['run_dir'] == Path('/synthetic/post')
 
 
 def test_kinbot_gate_requires_accepted_reaction_hir_and_rotdpy():

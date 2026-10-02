@@ -5101,3 +5101,31 @@ geometry. Higher-order and common-correction graphs are then exported from
 the new base run's exact L3 geometry. Final assembly accepts `--base-run` and
 checks both links: legacy interface L2 to current base, then current base L3
 to the higher-order and correction graphs.
+
+---
+
+# 105. Molpro aggregate harmonic-summary compatibility (2026-10-02)
+
+The first current unrestricted ethane base run completed its native Molpro
+harmonic calculation normally and reported a 0.07527065 hartree ZPE. Molpro
+2024.1 placed the determinant evidence in its aggregate timing summary:
+
+```text
+PROGRAMS * TOTAL FREQ UCCSD(T) RHF-SCF INT
+```
+
+The harmonic parser had required the narrower standalone spelling
+`PROGRAM * RHF-SCF`, so it rejected this valid output after Molpro had
+finished. The single-point parser already accepted both singular and
+aggregate `PROGRAMS` summaries. Harmonic parsing now uses that same anchored
+summary rule: the line must be a native Molpro program summary and must
+contain `RHF-SCF`; a summary containing only `UHF-SCF` is rejected. The
+regression fixture uses the exact aggregate form emitted by the ethane job.
+
+This is a parser-only recovery. The completed harmonic task must be passed to
+`kinbot.anl.dispatch reparse`, which rechecks immutable inputs, geometry,
+rank count, required output, native normal termination, and failure markers
+before archiving the rejected record and accepting the parsed modes and ZPE.
+No licensed calculation is resubmitted. Once the current-base audit passes,
+the higher-order MRCC/CFOUR graph and Molpro correction graph can be prepared
+from the already hash-pinned L3 geometry.

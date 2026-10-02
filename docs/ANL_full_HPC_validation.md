@@ -641,6 +641,70 @@ squeue -u "$USER" -o "%.18i %.30j %.2t %.10M %.10l %R"
 tail -f ethane_anl_continuation.log
 ```
 
+### Recover a completed Molpro harmonic job rejected by the old parser
+
+The first current-base ethane run used the suffix `fb3eab2`. Its Molpro
+harmonic calculation terminated normally, produced a 0.07527065 hartree ZPE,
+and printed `PROGRAMS * TOTAL FREQ UCCSD(T) RHF-SCF INT`. The old parser
+accepted only a standalone `PROGRAM * RHF-SCF` line. After pulling the
+2026-10-02 correction, recover the existing output without submitting a new
+Molpro job:
+
+```bash
+cd ~/KinBot
+base="$PWD/ethane_profiled_hpc_run_v5"
+current="$base/anl_current_base_ethane_fb3eab2"
+
+.venv/bin/python -m kinbot.anl.dispatch reparse "$current" harmonic
+.venv/bin/python -m kinbot.anl.dispatch status "$current"
+.venv/bin/python -m kinbot.anl.validation audit-current-base "$current" \
+  | tee "$base/anl_current_base_ethane_fb3eab2_audit.json"
+```
+
+The status must list all five current-base tasks as `complete`; the audit must
+report `current_base_interface_complete`, the same L3 geometry hash as every
+fan-out task, and `harmonic_zpe_hartree: 0.07527065`. `reparse` preserves the
+old failure as `tasks/harmonic/execution.failed.json` and records
+`reparsed_without_execution: true` in the accepted execution record.
+
+The stopped driver did not create the higher-order or common-correction
+graphs. Continue from the accepted current-base geometry with:
+
+```bash
+nohup env PYTHONUNBUFFERED=1 bash -lc '
+  set -euo pipefail
+  cd "$HOME/KinBot"
+  base="$PWD/ethane_profiled_hpc_run_v5"
+  current="$base/anl_current_base_ethane_fb3eab2"
+  higher="$base/anl_higher_ethane_fb3eab2"
+  corrections="$base/anl_corrections_ethane_fb3eab2"
+
+  .venv/bin/python -m kinbot.anl.validation audit-current-base "$current" \
+    > "$base/anl_current_base_ethane_fb3eab2_audit.json"
+  .venv/bin/python -m kinbot.anl.validation \
+    prepare-higher-order-from-run "$current" "$higher" \
+    --max-nodes 3 --partition day-long-cpu
+  .venv/bin/python -m kinbot.anl.validation \
+    prepare-common-corrections-from-run "$current" "$corrections" \
+    --max-nodes 3 --partition day-long-cpu
+  .venv/bin/python -m kinbot.anl.dispatch preflight "$higher"
+  .venv/bin/python -m kinbot.anl.dispatch preflight "$corrections"
+  .venv/bin/python -m kinbot.anl.dispatch drive "$higher" --interval 20
+  .venv/bin/python -m kinbot.anl.validation audit-higher-order "$higher" \
+    > "$base/anl_higher_ethane_fb3eab2_audit.json"
+  .venv/bin/python -m kinbot.anl.dispatch drive "$corrections" --interval 20
+  .venv/bin/python -m kinbot.anl.validation \
+    audit-common-corrections "$corrections" \
+    > "$base/anl_corrections_ethane_fb3eab2_audit.json"
+' > ethane_anl_higher_corrections.log 2>&1 < /dev/null &
+echo $! > ethane_anl_higher_corrections.pid
+disown
+```
+
+This continuation expects those two target directories not to contain an
+existing `workflow.json`. If either graph was already prepared, inspect and
+drive that immutable graph instead of preparing it again.
+
 The completed ethane VPT2 parser recorded native Gaussian warnings. Assembly
 therefore stops until those warnings and the mode table are reviewed. First
 print the warnings and exact native-output hash:

@@ -378,8 +378,9 @@ def parse_molpro_harmonic(output, *, basis, reference=None, legacy=False):
         if reference not in ('RHF', 'ROHF'):
             raise ValueError(f'Unsupported Molpro reference {reference!r}.')
         if (not re.search(_MOLPRO_RHF, output, re.IGNORECASE | re.MULTILINE)
-                or not re.search(r'PROGRAM\s*\*\s*RHF-SCF', output,
-                                 re.IGNORECASE)):
+                or not re.search(
+                    r'^\s*PROGRAMS?\s+\*.*\bRHF-SCF\b.*$', output,
+                    re.IGNORECASE | re.MULTILINE)):
             raise ValueError('Molpro harmonic output does not contain the '
                              'requested restricted HF reference calculation.')
     if not re.search(r'^\s*frequencies\s*,\s*numerical\s*$', output,

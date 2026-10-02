@@ -5129,3 +5129,22 @@ before archiving the rejected record and accepting the parsed modes and ZPE.
 No licensed calculation is resubmitted. Once the current-base audit passes,
 the higher-order MRCC/CFOUR graph and Molpro correction graph can be prepared
 from the already hash-pinned L3 geometry.
+
+---
+
+# 106. Globally throttled post-geometry fan-out (2026-10-02)
+
+Higher-order, core-valence, and scalar-relativistic calculations depend only
+on the accepted highest-level geometry. Preparing them as two independent
+dispatcher runs would give each run its own `max_nodes` counter and could
+either exceed the user's total allocation when run concurrently or serialize
+independent work when run sequentially.
+
+The `anl-post-geometry-validation` graph now combines all eleven independent
+single-point tasks. `prepare-post-geometry-from-run` imports and verifies the
+completed L3 geometry once, and one dispatcher submits at most the requested
+number of jobs. Every generated Slurm job retains `--exclusive`. The combined
+audit reports the higher-order correction and the core-valence and scalar
+relativistic corrections separately, while final assembly can read both
+groups from the same hash-pinned run. The older split graph commands remain
+available for existing immutable runs.

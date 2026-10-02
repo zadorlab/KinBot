@@ -9,6 +9,7 @@ ANL1 or ANL1-F12 composite energy.
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from dataclasses import asdict
 import hashlib
 import json
@@ -20,8 +21,10 @@ from ase.io import read
 
 from kinbot.anl.dispatch import (_load, _verify_execution, _verify_stage_files,
                                  prepare)
+from kinbot.anl.extrapolation import two_point_cbs
 from kinbot.anl.model import ComponentResult
 from kinbot.anl.recipes import recipe
+from kinbot.anl.results import legacy_molpro_parser
 from kinbot.anl.tasks import higher_order_task, molpro_task
 from kinbot.anl.workflow import (_verified_task_result,
                                  cbs_task_component,
@@ -202,6 +205,36 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
                 'scalar-relativistic provider',
                 'state-specific spin-orbit provider',
                 'complete recipe assembly and CBH/ATcT solve'],
+        },
+    }
+
+
+def current_base_validation_spec(molecule, *, max_nodes=3, partition=None):
+    """Build current unrestricted L3 geometry and base ANL0-F12 jobs.
+
+    ``molecule`` is normally a verified L2 geometry imported from an older
+    completed interface run.  This focused continuation avoids repeating the
+    L2 optimization and Gaussian VPT2 calculation while ensuring no legacy
+    restricted Molpro result enters the current recipe.
+    """
+    full = interface_validation_spec(
+        molecule, max_nodes=max_nodes, partition=partition)
+    keep = {'l3_geometry', 'harmonic', 'f12_tz', 'f12_qz', 'cfour_dboc'}
+    tasks = [deepcopy(task) for task in full['tasks'] if task['id'] in keep]
+    for task in tasks:
+        if task['id'] == 'l3_geometry':
+            task['geometry_from'] = 'initial'
+    return {
+        'schema': 1, 'name': 'anl-current-base-validation',
+        'molecule': molecule, 'limits': {'max_nodes': max_nodes},
+        'tasks': tasks,
+        'intent': {
+            'claim': 'current-unrestricted-base-interface-validation',
+            'source_geometry_role': 'l2',
+            'provides': ['current unrestricted L3 geometry',
+                         'CCSD(T)-F12b TZ/QZ reference pair',
+                         'CCSD(T)/cc-pVTZ harmonic ZPE',
+                         'HF/cc-pVTZ DBOC'],
         },
     }
 
@@ -430,33 +463,47 @@ def molecule_from_completed_run(run_dir, geometry_task='l3_geometry'):
         raise ValueError(f'{geometry_task}: optimized geometry provenance failed.')
     path = run_dir / 'tasks' / geometry_task / task['geometry_output']
     atoms = read(path)
+    profile = task.get('profile', {})
+    source = {
+        'run_dir': str(run_dir), 'task_id': geometry_task,
+        'geometry_sha256': geometry_hash,
+        'artifact_sha256': execution['artifacts'][task['geometry_output']],
+    }
+    if isinstance(profile, dict):
+        source['profile'] = {
+            key: profile[key] for key in ('calculator', 'method', 'basis')
+            if key in profile}
     return {
         'symbols': atoms.get_chemical_symbols(),
         'positions': atoms.get_positions().tolist(),
         'charge': spec['molecule'].get('charge', 0),
         'multiplicity': spec['molecule'].get('multiplicity', 1),
-        'source': {
-            'run_dir': str(run_dir), 'task_id': geometry_task,
-            'geometry_sha256': geometry_hash,
-            'artifact_sha256': execution['artifacts'][task['geometry_output']],
-        },
+        'source': source,
     }
 
 
-def _same_imported_l3_geometry(interface_run, run_dir, l3_hash):
-    """Require a derived run to identify the verified interface L3 source."""
+def _same_imported_geometry(source_run, run_dir, geometry_hash, role,
+                            source_task_id):
+    """Require a derived run to identify one verified source geometry."""
     run_dir, spec, _ = _load(run_dir)
     source = spec.get('molecule', {}).get('source')
     if (not isinstance(source, dict)
-            or source.get('geometry_sha256') != l3_hash):
+            or source.get('geometry_sha256') != geometry_hash
+            or source.get('task_id') != source_task_id):
         raise ValueError(
-            f'{run_dir}: molecule is not imported from the accepted L3 geometry.')
-    interface_run = Path(interface_run).resolve()
+            f'{run_dir}: molecule is not imported from the accepted {role} geometry.')
+    source_run = Path(source_run).resolve()
     recorded = source.get('run_dir')
     if (not isinstance(recorded, str)
-            or Path(recorded).resolve() != interface_run):
+            or Path(recorded).resolve() != source_run):
         raise ValueError(
-            f'{run_dir}: molecule source does not identify the interface run.')
+            f'{run_dir}: molecule source does not identify the source run.')
+
+
+def _same_imported_l3_geometry(interface_run, run_dir, l3_hash):
+    """Backward-compatible L3 provenance helper."""
+    _same_imported_geometry(
+        interface_run, run_dir, l3_hash, 'L3', 'l3_geometry')
 
 
 def _apply_quality_review(component, task_id, review_file):
@@ -515,12 +562,14 @@ def _apply_quality_review(component, task_id, review_file):
 def assemble_profiled_anl0_f12(
         interface_run, higher_order_run, corrections_run, *, state_id,
         spin_orbit_hartree, spin_orbit_source, spin_orbit_backend='manual',
-        vpt2_review=None):
+        vpt2_review=None, base_run=None):
     """Assemble one provenance-checked profiled ANL0-F12 0 K energy.
 
-    Every geometry-dependent term must trace to the accepted L2 or L3
-    geometry in ``interface_run``.  The higher-order and common-correction
-    graphs must have been prepared from that completed L3 result.
+    Every geometry-dependent term must trace to the accepted L2 geometry in
+    ``interface_run`` and the accepted current L3 geometry in ``base_run``.
+    For a fully current interface graph, omitting ``base_run`` uses that graph
+    for both roles. Higher-order and correction graphs must identify the same
+    completed L3 result.
     """
     interface_run, interface_spec, _ = _load(interface_run)
     if interface_spec.get('name') != 'anl1-f12-non-mrcc-interface-validation':
@@ -531,27 +580,35 @@ def assemble_profiled_anl0_f12(
     charge = molecule.get('charge', 0)
     multiplicity = molecule.get('multiplicity', 1)
     l2 = molecule_from_completed_run(interface_run, 'l2_geometry')
-    l3 = molecule_from_completed_run(interface_run, 'l3_geometry')
     l2_hash = l2['source']['geometry_sha256']
+    if base_run is None:
+        base_run = interface_run
+    else:
+        base_run, base_spec, _ = _load(base_run)
+        if base_spec.get('name') != 'anl-current-base-validation':
+            raise ValueError('Base run has the wrong workflow type.')
+        _same_imported_geometry(
+            interface_run, base_run, l2_hash, 'L2', 'l2_geometry')
+    l3 = molecule_from_completed_run(base_run, 'l3_geometry')
     l3_hash = l3['source']['geometry_sha256']
-    _same_imported_l3_geometry(interface_run, higher_order_run, l3_hash)
-    _same_imported_l3_geometry(interface_run, corrections_run, l3_hash)
+    _same_imported_l3_geometry(base_run, higher_order_run, l3_hash)
+    _same_imported_l3_geometry(base_run, corrections_run, l3_hash)
 
     equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ',
                       multiplicity=multiplicity)
     required = {item.key: item for item in equation.requirements}
     components = {
         'reference_cbs': cbs_task_component(
-            interface_run, 'f12_tz', 'f12_qz',
+            base_run, 'f12_tz', 'f12_qz',
             requirement=required['reference_cbs'], state_id=state_id,
             lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12'),
         'harmonic_zpe': task_component(
-            interface_run, 'harmonic', key='harmonic_zpe', state_id=state_id),
+            base_run, 'harmonic', key='harmonic_zpe', state_id=state_id),
         'vpt2_correction': task_component(
             interface_run, 'gaussian_vpt2', key='vpt2_correction',
             state_id=state_id),
         'dboc': task_component(
-            interface_run, 'cfour_dboc', key='dboc', state_id=state_id),
+            base_run, 'cfour_dboc', key='dboc', state_id=state_id),
         'hoe_high': task_component(
             higher_order_run, 'ccsdtq_dz', key='hoe_high', state_id=state_id),
         'hoe_low': task_component(
@@ -607,6 +664,33 @@ def audit_interface_run(run_dir):
         multiplicity=spec['molecule'].get('multiplicity', 1))
     requirement = next(item for item in equation.requirements
                        if item.key == 'reference_cbs')
+    legacy = sorted(
+        task['id'] for task in spec['tasks']
+        if task.get('result_parser', {}).get('kind') in
+        ('molpro_energy', 'molpro_harmonic')
+        and legacy_molpro_parser(task['result_parser'],
+                                 task.get('input_template', '')))
+    if legacy:
+        lower = parsed['f12_tz']['energy_hartree']
+        upper = parsed['f12_qz']['energy_hartree']
+        diagnostic = two_point_cbs(
+            lower, upper,
+            upper_cardinal=requirement.settings['upper_cardinal'],
+            power=requirement.settings['extrapolation_power'])
+        unavailable = list(spec['intent']['unavailable_components'])
+        unavailable.append(
+            'current unrestricted Molpro geometry, reference, and harmonic components')
+        return {
+            'status': 'interface_complete_legacy_recipe_incompatible',
+            'requested_ladder_head': 'ANL1-F12',
+            'mrcc_enabled': False,
+            'task_statuses': statuses,
+            'parsed_kinds': {key: value['kind']
+                             for key, value in parsed.items()},
+            'legacy_molpro_tasks': legacy,
+            'legacy_f12_cbs_hartree_diagnostic': diagnostic,
+            'unavailable_components': unavailable,
+        }
     reference = cbs_task_component(
         run_dir, 'f12_tz', 'f12_qz', requirement=requirement,
         state_id='validation-state', lower_basis='cc-pVTZ-F12',
@@ -619,6 +703,39 @@ def audit_interface_run(run_dir):
         'parsed_kinds': {key: value['kind'] for key, value in parsed.items()},
         'verified_f12_cbs_hartree': reference.value_hartree,
         'unavailable_components': spec['intent']['unavailable_components'],
+    }
+
+
+def audit_current_base_run(run_dir):
+    """Audit the current unrestricted L3/base continuation graph."""
+    _, spec, state = _load(run_dir)
+    if spec.get('name') != 'anl-current-base-validation':
+        raise ValueError('Run is not a current ANL base validation graph.')
+    statuses = {task['id']: state['tasks'].get(task['id'], {}).get(
+        'status', 'waiting') for task in spec['tasks']}
+    if any(value != 'complete' for value in statuses.values()):
+        raise RuntimeError(f'Current base run is incomplete: {statuses}')
+    equation = recipe(
+        'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+        multiplicity=spec['molecule'].get('multiplicity', 1))
+    required = {item.key: item for item in equation.requirements}
+    reference = cbs_task_component(
+        run_dir, 'f12_tz', 'f12_qz',
+        requirement=required['reference_cbs'], state_id='base-validation-state',
+        lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12')
+    harmonic = task_component(
+        run_dir, 'harmonic', key='harmonic_zpe',
+        state_id='base-validation-state')
+    dboc = task_component(
+        run_dir, 'cfour_dboc', key='dboc',
+        state_id='base-validation-state')
+    return {
+        'status': 'current_base_interface_complete',
+        'task_statuses': statuses,
+        'reference_cbs_hartree': reference.value_hartree,
+        'harmonic_zpe_hartree': harmonic.value_hartree,
+        'dboc_hartree': dboc.value_hartree,
+        'geometry_sha256': reference.geometry_sha256,
     }
 
 
@@ -745,6 +862,14 @@ def main(argv=None):
     stage.add_argument('--partition')
     audit = commands.add_parser('audit')
     audit.add_argument('run_dir', type=Path)
+    prepare_base = commands.add_parser('prepare-current-base-from-run')
+    prepare_base.add_argument('source_run', type=Path)
+    prepare_base.add_argument('run_dir', type=Path)
+    prepare_base.add_argument('--geometry-task', default='l2_geometry')
+    prepare_base.add_argument('--max-nodes', type=int, default=3)
+    prepare_base.add_argument('--partition')
+    audit_base = commands.add_parser('audit-current-base')
+    audit_base.add_argument('run_dir', type=Path)
     higher = commands.add_parser('higher-order-from-db')
     higher.add_argument('database', type=Path)
     higher.add_argument('job')
@@ -793,6 +918,7 @@ def main(argv=None):
                           choices=('manual', 'known_zero', 'table',
                                    'calculated'))
     assemble.add_argument('--vpt2-review', type=Path)
+    assemble.add_argument('--base-run', type=Path)
     gate = commands.add_parser('gate-kinbot')
     gate.add_argument('run_dir', type=Path)
     gate.add_argument('reaction')
@@ -803,6 +929,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.action == 'audit':
         print(json.dumps(audit_interface_run(args.run_dir), indent=2,
+                         sort_keys=True))
+        return 0
+    if args.action == 'audit-current-base':
+        print(json.dumps(audit_current_base_run(args.run_dir), indent=2,
                          sort_keys=True))
         return 0
     if args.action == 'audit-higher-order':
@@ -820,7 +950,7 @@ def main(argv=None):
             spin_orbit_hartree=args.spin_orbit_hartree,
             spin_orbit_source=args.spin_orbit_source,
             spin_orbit_backend=args.spin_orbit_backend,
-            vpt2_review=args.vpt2_review)
+            vpt2_review=args.vpt2_review, base_run=args.base_run)
         args.output.write_text(json.dumps(payload, indent=2, sort_keys=True)
                                + '\n')
         print(args.output.resolve())
@@ -833,7 +963,8 @@ def main(argv=None):
             require_rotdpy_execution=args.require_rotdpy_execution),
             indent=2, sort_keys=True))
         return 0
-    from_run = args.action in ('prepare-higher-order-from-run',
+    from_run = args.action in ('prepare-current-base-from-run',
+                               'prepare-higher-order-from-run',
                                'prepare-common-corrections-from-run')
     molecule = (molecule_from_completed_run(
         args.source_run, geometry_task=args.geometry_task) if from_run
@@ -844,7 +975,11 @@ def main(argv=None):
                                 'prepare-higher-order-from-db',
                                 'prepare-higher-order-from-run')
     is_corrections = args.action == 'prepare-common-corrections-from-run'
-    if is_higher:
+    is_base = args.action == 'prepare-current-base-from-run'
+    if is_base:
+        spec = current_base_validation_spec(
+            molecule, max_nodes=args.max_nodes, partition=args.partition)
+    elif is_higher:
         spec = higher_order_validation_spec(
             molecule, max_nodes=args.max_nodes, partition=args.partition,
             mrcc_command=args.mrcc_command)

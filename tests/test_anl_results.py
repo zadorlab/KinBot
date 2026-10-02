@@ -10,7 +10,7 @@ from kinbot.anl.dispatch import _run_external
 from kinbot.anl.results import (
     parse_cfour_dboc, parse_cfour_energy, parse_gaussian_vpt2,
     parse_molpro_energy, parse_molpro_harmonic, parse_mrcc_energy,
-    validate_result_parser,
+    parse_result, validate_result_parser,
 )
 from kinbot.energy import attach_anharmonic_frequencies
 
@@ -196,6 +196,20 @@ uccsd(t),uhf_uccsd=1
 
 _MOLPRO_OPEN_HARMONIC = _MOLPRO_HARMONIC
 
+_MOLPRO_LEGACY_F12 = """basis=cc-pVTZ-F12
+hf
+ccsd(t)-f12,scale_trip=1
+kb_f12b=energy(2)
+ !CCSD(T)-F12b total energy -40.454906199189
+ CCSD(T)-F12/cc-pVTZ-F12 energy = -40.454906199189
+ Molpro calculation terminated
+"""
+
+_MOLPRO_LEGACY_HARMONIC = (_MOLPRO_HARMONIC
+                           .replace('rhf\nuccsd(t),uhf_uccsd=1',
+                                    'hf\nccsd(t)')
+                           .replace('for UCCSD(T))', 'for CCSD(T))'))
+
 _MOLPRO_ALL_ELECTRON_DKH = """basis=aug-cc-pCVTZ-DK
 set,dkho=2
 rhf
@@ -252,6 +266,43 @@ def test_molpro_f12b_selects_exact_total_energy():
     with pytest.raises(ValueError, match='basis'):
         parse_molpro_energy(_MOLPRO_F12, method='CCSD(T)-F12b',
                             basis='cc-pVQZ-F12')
+
+
+def test_legacy_molpro_records_remain_reproducible_but_lack_ucc_provenance():
+    energy_request = {'kind': 'molpro_energy', 'file': 'f12.out',
+                      'method': 'CCSD(T)-F12b', 'basis': 'cc-pVTZ-F12'}
+    validate_result_parser(
+        energy_request, backend='molpro',
+        template='basis=cc-pVTZ-F12\nhf\nccsd(t)-f12,scale_trip=1\n',
+        outputs=['f12.out'])
+    energy = parse_result(_MOLPRO_LEGACY_F12, energy_request)
+    assert energy == {
+        'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
+        'basis': 'cc-pVTZ-F12', 'energy_hartree': -40.454906199189}
+    assert 'reference' not in energy
+    assert 'correlation' not in energy
+
+    harmonic_request = {'kind': 'molpro_harmonic', 'file': 'harmonic.out',
+                        'basis': 'cc-pVTZ'}
+    validate_result_parser(
+        harmonic_request, backend='molpro',
+        template=('basis=cc-pVTZ\nhf\nccsd(t)\n'
+                  'frequencies,numerical\n'), outputs=['harmonic.out'])
+    harmonic = parse_result(_MOLPRO_LEGACY_HARMONIC, harmonic_request)
+    assert harmonic['kind'] == 'molpro_harmonic'
+    assert harmonic['method'] == 'CCSD(T)'
+    assert 'program_variant' not in harmonic
+    assert 'correlation' not in harmonic
+
+
+def test_legacy_parser_declaration_cannot_claim_modern_settings():
+    request = {'kind': 'molpro_energy', 'file': 'sp.out',
+               'method': 'CCSD(T)', 'basis': 'cc-pVDZ',
+               'core': 'frozen'}
+    with pytest.raises(ValueError, match='invalid result_parser'):
+        validate_result_parser(
+            request, backend='molpro',
+            template='basis=cc-pVDZ\nhf\nccsd(t)\n', outputs=['sp.out'])
 
 
 @pytest.mark.parametrize('old,new,error', [
@@ -431,8 +482,9 @@ def test_gaussian_linear_mode_labels_keep_degenerate_components():
 
 def test_parser_declaration_must_match_method_and_input():
     request = {'kind': 'molpro_energy', 'file': 'sp.out',
-               'method': 'CCSD(T)-F12b', 'basis': 'cc-pVTZ-F12'}
-    template = 'basis=cc-pVTZ-F12\nuccsd(t)-f12b,scale_trip=1\n'
+               'method': 'CCSD(T)-F12b', 'basis': 'cc-pVTZ-F12',
+               'reference': 'RHF'}
+    template = 'basis=cc-pVTZ-F12\nrhf\nuccsd(t)-f12b,scale_trip=1\n'
     validate_result_parser(request, backend='molpro', template=template,
                            outputs=['sp.out'])
     with pytest.raises(ValueError, match='invalid result_parser'):

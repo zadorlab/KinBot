@@ -720,8 +720,8 @@ def reparse_failed(run_dir, ident):
     by_id = {task['id']: task for task in spec['tasks']}
     task = by_id.get(ident)
     entry = state['tasks'].get(ident)
-    if task is None or entry is None or entry.get('status') != 'failed':
-        raise ValueError(f'{ident}: only a failed task can be reparsed.')
+    if task is None or entry is None:
+        raise ValueError(f'{ident}: task is unavailable.')
     if task['kind'] != 'external' or not task.get('result_parser'):
         raise ValueError(f'{ident}: reparse requires an external parsed task.')
     if not task.get('success_marker'):
@@ -731,6 +731,21 @@ def reparse_failed(run_dir, ident):
     if not outcome.is_file():
         raise RuntimeError(f'{ident}: failed execution record is missing.')
     previous = json.loads(outcome.read_text())
+    if entry.get('status') == 'complete':
+        _verify_stage_files(run_dir, task, entry)
+        _verify_execution(run_dir, task, entry, previous)
+        if previous.get('status') != 'executed':
+            raise RuntimeError(f'{ident}: complete task has no executed result.')
+        requested = task['result_parser']
+        from kinbot.anl.results import parse_result
+        parsed = parse_result(
+            (directory / requested['file']).read_text(errors='replace'),
+            requested)
+        if parsed != previous.get('details', {}).get('parsed_result'):
+            raise RuntimeError(f'{ident}: saved parsed result differs from native output.')
+        return previous
+    if entry.get('status') != 'failed':
+        raise ValueError(f'{ident}: only a failed or complete task can be reparsed.')
     if (previous.get('status') != 'failed'
             or 'parse_result(' not in previous.get('traceback', '')):
         raise ValueError(f'{ident}: failure did not occur during result parsing.')

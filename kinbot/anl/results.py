@@ -29,9 +29,36 @@ _MOLPRO_CCSD_T = (r'^\s*\{?\s*uccsd\(t\)\s*,[^\n]*'
                   r'\buhf_uccsd\s*=\s*1\b[^\n]*$')
 _MOLPRO_F12B = (r'^\s*\{?\s*uccsd\(t\)-f12b\b[^\n]*'
                   r'\bscale_trip\s*=\s*1\b[^\n]*$')
+_MOLPRO_LEGACY_CCSD_T = r'^\s*ccsd\(t\)(?:\s*,[^\n]*)?\s*$'
+_MOLPRO_LEGACY_F12B = (r'^\s*ccsd\(t\)-f12b?\b[^\n]*'
+                        r'\bscale_trip\s*=\s*1\b[^\n]*$')
 _MOLPRO_RHF = r'^\s*\{?\s*rhf(?:\s*,[^\n]*)?\s*$'
 _MOLPRO_ALL_ELECTRON = r'(?:^|;)\s*core\s*}'
 _MRCC_METHODS = ('CCSDT(Q)', 'CCSDTQ(P)')
+
+
+def legacy_molpro_parser(request, text):
+    """Identify an old parser declaration from its paired input/output text.
+
+    Some intermediate workflow archives omitted ``reference`` while already
+    using the unrestricted command.  The command echo, rather than the absent
+    field alone, therefore distinguishes those records from the older
+    restricted implementation.
+    """
+    if request.get('reference') is not None:
+        return False
+    kind = request.get('kind')
+    if kind == 'molpro_energy':
+        method = request.get('method')
+        modern = _MOLPRO_F12B if method == 'CCSD(T)-F12b' else _MOLPRO_CCSD_T
+        old = (_MOLPRO_LEGACY_F12B if method == 'CCSD(T)-F12b'
+               else _MOLPRO_LEGACY_CCSD_T)
+    elif kind == 'molpro_harmonic':
+        modern, old = _MOLPRO_CCSD_T, _MOLPRO_LEGACY_CCSD_T
+    else:
+        return False
+    return (re.search(old, text, re.IGNORECASE | re.MULTILINE) is not None
+            and re.search(modern, text, re.IGNORECASE | re.MULTILINE) is None)
 
 
 def _number(value):
@@ -161,12 +188,42 @@ def _one_number(output, pattern, label):
     return _number(matches[0])
 
 
+def _parse_legacy_molpro_energy(output, *, method, basis):
+    """Reproduce parser records written by pre-unrestricted workflows.
+
+    This path exists only so completed dispatcher archives remain readable.
+    Its deliberately smaller result has no reference/correlation provenance,
+    so current ANL recipes cannot mistake it for an unrestricted component.
+    """
+    command = (_MOLPRO_LEGACY_F12B if method == 'CCSD(T)-F12b'
+               else _MOLPRO_LEGACY_CCSD_T)
+    if not re.search(command, output, re.IGNORECASE | re.MULTILINE):
+        raise ValueError('Legacy Molpro output does not echo its declared method.')
+    label = (r'CCSD\(T\)-F12b' if method == 'CCSD(T)-F12b'
+             else r'CCSD\(T\)')
+    energy = _one_number(
+        output, rf'^\s*!{label} total energy\s+({_NUMBER})\s*$',
+        f'legacy Molpro {method} total energy')
+    if method == 'CCSD(T)-F12b':
+        summary = _one_number(
+            output, rf'^\s*CCSD\(T\)-F12/{re.escape(basis)} energy\s*=\s*'
+                    rf'({_NUMBER})\s*$', 'legacy Molpro F12 summary')
+        if abs(summary - energy) > 1e-9:
+            raise ValueError('Legacy Molpro F12b energy disagrees with its summary.')
+    return {'kind': 'molpro_energy', 'method': method, 'basis': basis,
+            'energy_hartree': energy}
+
+
 def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
-                        relativistic=None):
+                        relativistic=None, legacy=False):
     """Read the exact named total energy, rather than a rounded variable or F12a."""
     _molpro_output(output, basis)
     if method not in ('CCSD(T)', 'CCSD(T)-F12b'):
         raise ValueError(f'Unsupported Molpro energy method {method!r}.')
+    if legacy:
+        if reference is not None or core is not None or relativistic is not None:
+            raise ValueError('Legacy Molpro parser cannot declare modern settings.')
+        return _parse_legacy_molpro_energy(output, method=method, basis=basis)
     if method == 'CCSD(T)-F12b':
         if not re.search(_MOLPRO_F12B,
                          output, re.IGNORECASE | re.MULTILINE):
@@ -307,13 +364,16 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
             'program_variant': f'{reference}-U{method}'}
 
 
-def parse_molpro_harmonic(output, *, basis, reference=None):
+def parse_molpro_harmonic(output, *, basis, reference=None, legacy=False):
     """Read vibrational modes and ZPE, excluding rotations/translations."""
     _molpro_output(output, basis)
-    if not re.search(_MOLPRO_CCSD_T, output,
+    command = _MOLPRO_LEGACY_CCSD_T if legacy else _MOLPRO_CCSD_T
+    if not re.search(command, output,
                      re.IGNORECASE | re.MULTILINE):
-        raise ValueError('Molpro harmonic output does not echo the forced '
-                         'RHF-UCCSD(T) method.')
+        label = ('legacy CCSD(T)' if legacy else 'forced RHF-UCCSD(T)')
+        raise ValueError(f'Molpro harmonic output does not echo the {label} method.')
+    if legacy and reference is not None:
+        raise ValueError('Legacy Molpro harmonic parser cannot declare a reference.')
     if reference is not None:
         if reference not in ('RHF', 'ROHF'):
             raise ValueError(f'Unsupported Molpro reference {reference!r}.')
@@ -329,7 +389,7 @@ def parse_molpro_harmonic(output, *, basis, reference=None):
         r'^\s*PROGRAM \* FREQUENCIES \(Calculation of harmonic '
         r'vibrational spectra for (.+?)\)\s*$', output,
         re.IGNORECASE | re.MULTILINE)
-    expected_method = 'UCCSD(T)'
+    expected_method = 'CCSD(T)' if legacy else 'UCCSD(T)'
     if len(frequency_sections) != 1 \
             or frequency_sections[0].upper() != expected_method:
         raise ValueError(f'Expected one {expected_method} Molpro frequency section.')
@@ -393,8 +453,9 @@ def parse_molpro_harmonic(output, *, basis, reference=None):
                     'kj_mol': kj_mol}}
     if reference is not None:
         result['reference'] = reference
-    result['program_variant'] = 'RHF-UCCSD(T)'
-    result['correlation'] = 'unrestricted'
+    if not legacy:
+        result['program_variant'] = 'RHF-UCCSD(T)'
+        result['correlation'] = 'unrestricted'
     return result
 
 
@@ -570,6 +631,9 @@ def validate_result_parser(request, *, backend, template, outputs):
                  and isinstance(request.get('basis'), str) and bool(request['basis'])
                  and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
                               template, re.IGNORECASE | re.MULTILINE) is not None)
+        legacy = legacy_molpro_parser(request, template)
+        if valid and legacy:
+            valid = set(request) == required
         if valid and 'reference' in request:
             method_command = (_MOLPRO_F12B
                               if request['method'] == 'CCSD(T)-F12b'
@@ -580,8 +644,11 @@ def validate_result_parser(request, *, backend, template, outputs):
                      and re.search(method_command, template,
                                    re.IGNORECASE | re.MULTILINE) is not None)
         if valid:
-            method_line = (_MOLPRO_CCSD_T if request['method'] == 'CCSD(T)'
-                           else _MOLPRO_F12B)
+            method_line = (
+                (_MOLPRO_LEGACY_CCSD_T if request['method'] == 'CCSD(T)'
+                 else _MOLPRO_LEGACY_F12B) if legacy else
+                (_MOLPRO_CCSD_T if request['method'] == 'CCSD(T)'
+                 else _MOLPRO_F12B))
             valid = re.search(method_line, template,
                               re.IGNORECASE | re.MULTILINE) is not None
         if valid and 'core' in request:
@@ -595,13 +662,15 @@ def validate_result_parser(request, *, backend, template, outputs):
             valid = (request['relativistic'] in ('none', 'DKH2')
                      and ((request['relativistic'] == 'DKH2') == bool(dkh2)))
     elif kind == 'molpro_harmonic':
+        legacy = legacy_molpro_parser(request, template)
         valid = (set(request) in ({'kind', 'file', 'basis'},
                                   {'kind', 'file', 'basis', 'reference'})
                  and backend == 'molpro' and isinstance(request.get('basis'), str)
                  and bool(request['basis'])
                  and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
                                template, re.IGNORECASE | re.MULTILINE) is not None
-                 and re.search(_MOLPRO_CCSD_T, template,
+                 and re.search((_MOLPRO_LEGACY_CCSD_T if legacy
+                                else _MOLPRO_CCSD_T), template,
                                re.IGNORECASE | re.MULTILINE) is not None
                  and bool(re.search(r'^\s*frequencies\s*,\s*numerical\s*$',
                                     template, re.IGNORECASE | re.MULTILINE)))
@@ -684,10 +753,12 @@ def parse_result(output, request):
                                    basis=request['basis'],
                                    reference=request.get('reference'),
                                    core=request.get('core'),
-                                   relativistic=request.get('relativistic'))
+                                   relativistic=request.get('relativistic'),
+                                   legacy=legacy_molpro_parser(request, output))
     if kind == 'molpro_harmonic':
         return parse_molpro_harmonic(output, basis=request['basis'],
-                                     reference=request.get('reference'))
+                                     reference=request.get('reference'),
+                                     legacy=legacy_molpro_parser(request, output))
     if kind == 'mrcc_energy':
         return parse_mrcc_energy(output, method=request['method'],
                                  basis=request['basis'],

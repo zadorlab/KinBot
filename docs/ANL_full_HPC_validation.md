@@ -523,7 +523,15 @@ cd ethane_profiled_hpc_run_v5
 No Gaussian resubmission is part of this recovery. The parsed result will
 retain Gaussian's VPT2 warnings and set `review_required`; this interface
 validation records that scientific review flag without treating a normally
-terminated job as an execution failure.
+terminated job as an execution failure. `reparse` is idempotent: when this
+task is already complete, it verifies and returns the existing record.
+
+The v5 Molpro jobs predate the unrestricted-command policy. Its audit must
+therefore report `interface_complete_legacy_recipe_incompatible`, list the
+legacy Molpro tasks, and expose the old F12 CBS only as a diagnostic. That
+status is expected and prevents those electronic/ZPE values from entering a
+current ANL recipe. The accepted L2 geometry and Gaussian VPT2 result remain
+reusable.
 
 ## Continue the completed v5 ethane calculation
 
@@ -561,41 +569,53 @@ test -x "$KINBOT_MRCC_ROOT/scf"
 test -x "$KINBOT_MRCC_ROOT/mrcc"
 ```
 
-Prepare two immutable graphs from the accepted and hash-verified v5 L3
-geometry. The higher-order graph tests CFOUR RHF/VCC CCSDT(Q) at TZ and DZ,
-direct MRCC CCSDTQ(P)/DZ, and their Molpro CCSD(T) partners. The correction
-graph runs all-electron and frozen-core TZ/QZ pairs plus DKH2/nonrelativistic
-all-electron calculations. Each job is exclusive, and each graph enforces its
-own `max_nodes=3` limit.
+First prepare a current base graph from the accepted and hash-verified v5 L2
+geometry. It reruns the L3 Sella optimization through Molpro's explicitly
+unrestricted CC implementation, then fans out the current F12 TZ/QZ,
+harmonic, and CFOUR DBOC tasks. It does not repeat the L2 optimization or
+Gaussian VPT2 calculation.
 
 ```bash
 cd ~/KinBot
 base="$PWD/ethane_profiled_hpc_run_v5"
 
 .venv/bin/python -m kinbot.anl.validation \
-  prepare-higher-order-from-run \
-  "$base/anl_interface" "$base/anl_higher_ethane" \
-  --max-nodes 3 --partition day-long-cpu
-
-.venv/bin/python -m kinbot.anl.validation \
-  prepare-common-corrections-from-run \
-  "$base/anl_interface" "$base/anl_corrections_ethane" \
+  prepare-current-base-from-run \
+  "$base/anl_interface" "$base/anl_current_base_ethane" \
+  --geometry-task l2_geometry \
   --max-nodes 3 --partition day-long-cpu
 
 .venv/bin/python -m kinbot.anl.dispatch preflight \
-  "$base/anl_higher_ethane"
-.venv/bin/python -m kinbot.anl.dispatch preflight \
-  "$base/anl_corrections_ethane"
+  "$base/anl_current_base_ethane"
 ```
 
-Run the graphs sequentially so the combined work never exceeds three
-exclusive nodes. This detached driver works without `tmux`:
+Run the current base first. Only after its new L3 geometry is complete can the
+higher-order and correction graphs be prepared from that exact geometry. The
+detached driver below performs those steps sequentially, so the combined work
+never exceeds three exclusive nodes and no `tmux` installation is needed:
 
 ```bash
 nohup bash -lc '
   set -euo pipefail
   cd "$HOME/KinBot"
   base="$PWD/ethane_profiled_hpc_run_v5"
+  .venv/bin/python -m kinbot.anl.dispatch drive \
+    "$base/anl_current_base_ethane" --interval 20
+  .venv/bin/python -m kinbot.anl.validation audit-current-base \
+    "$base/anl_current_base_ethane" \
+    > "$base/anl_current_base_ethane_audit.json"
+  .venv/bin/python -m kinbot.anl.validation \
+    prepare-higher-order-from-run \
+    "$base/anl_current_base_ethane" "$base/anl_higher_ethane" \
+    --max-nodes 3 --partition day-long-cpu
+  .venv/bin/python -m kinbot.anl.validation \
+    prepare-common-corrections-from-run \
+    "$base/anl_current_base_ethane" "$base/anl_corrections_ethane" \
+    --max-nodes 3 --partition day-long-cpu
+  .venv/bin/python -m kinbot.anl.dispatch preflight \
+    "$base/anl_higher_ethane"
+  .venv/bin/python -m kinbot.anl.dispatch preflight \
+    "$base/anl_corrections_ethane"
   .venv/bin/python -m kinbot.anl.dispatch drive \
     "$base/anl_higher_ethane" --interval 20
   .venv/bin/python -m kinbot.anl.validation audit-higher-order \
@@ -615,6 +635,7 @@ Monitor without mutating either graph:
 ```bash
 base="$PWD/ethane_profiled_hpc_run_v5"
 squeue -u "$USER" -o "%.18i %.30j %.2t %.10M %.10l %R"
+.venv/bin/python -m kinbot.anl.dispatch status "$base/anl_current_base_ethane"
 .venv/bin/python -m kinbot.anl.dispatch status "$base/anl_higher_ethane"
 .venv/bin/python -m kinbot.anl.dispatch status "$base/anl_corrections_ethane"
 tail -f ethane_anl_continuation.log
@@ -670,6 +691,7 @@ base="$PWD/ethane_profiled_hpc_run_v5"
   --spin-orbit-hartree 0.0 \
   --spin-orbit-backend known_zero \
   --spin-orbit-source "nondegenerate closed-shell ethane validation policy" \
+  --base-run "$base/anl_current_base_ethane" \
   --vpt2-review "$base/ethane_vpt2_review.json"
 cat "$base/ethane_profiled_anl0_f12.json"
 ```

@@ -81,8 +81,10 @@ def task_component(run_dir, task_id, *, key, state_id):
         basis = parsed['basis']
         if 'reference' in parsed:
             settings['reference'] = parsed['reference']
-        settings['program_variant'] = parsed['program_variant']
-        settings['correlation'] = parsed['correlation']
+        if 'program_variant' in parsed:
+            settings['program_variant'] = parsed['program_variant']
+        if 'correlation' in parsed:
+            settings['correlation'] = parsed['correlation']
     elif kind == 'gaussian_vpt2':
         if parsed['optimized_in_job']:
             raise IncompleteRecipeError(

@@ -597,6 +597,7 @@ def test_parser_failure_can_be_recovered_without_rerunning_native_job():
         saved_state = json.loads(state_path.read_text())
         assert saved_state['tasks']['gaussian_vpt2']['status'] == 'complete'
         assert 'error' not in saved_state['tasks']['gaussian_vpt2']
+        assert reparse_failed(run_dir, 'gaussian_vpt2') == result
 
 
 def test_failed_job_missing_from_squeue_can_be_reconciled_and_retried():

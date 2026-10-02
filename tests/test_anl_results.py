@@ -164,7 +164,7 @@ kb_f12b=energy
 _MOLPRO_HARMONIC = """basis=cc-pVTZ
 rhf
 uccsd(t),uhf_uccsd=1
- PROGRAM * RHF-SCF
+ PROGRAMS * TOTAL FREQ UCCSD(T) RHF-SCF INT
 frequencies,numerical
  PROGRAM * FREQUENCIES (Calculation of harmonic vibrational spectra for UCCSD(T))
    Low Vibration      Wavenumber
@@ -361,12 +361,18 @@ def test_molpro_energy_pins_all_electron_and_dkh2_settings():
 
 
 def test_molpro_harmonic_ignores_zero_modes_and_crosschecks_zpe():
-    result = parse_molpro_harmonic(_MOLPRO_HARMONIC, basis='cc-pVTZ')
+    result = parse_molpro_harmonic(
+        _MOLPRO_HARMONIC, basis='cc-pVTZ', reference='RHF')
     assert len(result['wavenumbers_cm_inverse']) == 9
     assert result['low_modes_cm_inverse'] == [0.0]
     assert result['review_required'] is False
     assert result['wavenumbers_cm_inverse'][0] == 1343.29
     assert result['zpe']['hartree'] == pytest.approx(0.04479801)
+    assert result['reference'] == 'RHF'
+    with pytest.raises(ValueError, match='restricted HF reference'):
+        parse_molpro_harmonic(
+            _MOLPRO_HARMONIC.replace('RHF-SCF', 'UHF-SCF'),
+            basis='cc-pVTZ', reference='RHF')
     with pytest.raises(ValueError, match='modes disagree'):
         parse_molpro_harmonic(_MOLPRO_HARMONIC.replace('3153.44', '3253.44'),
                               basis='cc-pVTZ')

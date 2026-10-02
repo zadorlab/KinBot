@@ -13,7 +13,7 @@ UMA integration tests; the core interface tests do not need it.
 ```bash
 mamba create -y -c conda-forge -p .venv python=3.11 pip numpy scipy ase=3.29.0 pytest networkx rmsd openbabel
 .venv/bin/python -m pip install 'sella==2.6.0'
-.venv/bin/python -m pip install -e . --no-deps
+.venv/bin/python -m pip install -e . --no-deps --no-build-isolation
 MPLCONFIGDIR=/tmp/kinbot-mpl .venv/bin/python -m pytest -q --ignore=tests/test_kinbot.py
 ```
 

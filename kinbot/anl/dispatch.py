@@ -629,10 +629,7 @@ def _run_external(directory, record):
     # reserve 200 MW per MPI process and additional node headroom first.
     molpro_stack_mw = (_molpro_stack_mw(task['resources'])
                        if task['backend'].lower() == 'molpro' else 0)
-    command = [arg.replace('{cores}', str(task['resources']['cores']))
-               .replace('{input}', task['input_name'])
-               .replace('{molpro_stack_mw}', str(molpro_stack_mw))
-               for arg in task['command']]
+    command = _external_command(task, molpro_stack_mw)
     scratch_min_mb = task['resources'].get(
         'min_scratch_mb', max(4096, task['resources']['memory_mb'] // 2))
     child_env, runtime = qc_runtime_environment(
@@ -655,6 +652,27 @@ def _run_external(directory, record):
         detail = error_file.read_text(errors='replace').strip()[-1200:]
         suffix = f' Last stderr: {detail}' if detail else ''
         raise RuntimeError(f'Program exited with status {result.returncode}.{suffix}')
+    _validate_external_outputs(directory, task)
+    details = {'command': command, 'returncode': result.returncode, **runtime}
+    if task.get('result_parser'):
+        from kinbot.anl.results import parse_result
+        requested = task['result_parser']
+        details['parsed_result'] = parse_result(
+            (directory / requested['file']).read_text(errors='replace'), requested)
+    return details
+
+
+def _external_command(task, molpro_stack_mw=None):
+    if molpro_stack_mw is None:
+        molpro_stack_mw = (_molpro_stack_mw(task['resources'])
+                           if task['backend'].lower() == 'molpro' else 0)
+    return [arg.replace('{cores}', str(task['resources']['cores']))
+            .replace('{input}', task['input_name'])
+            .replace('{molpro_stack_mw}', str(molpro_stack_mw))
+            for arg in task['command']]
+
+
+def _validate_external_outputs(directory, task):
     missing = [name for name in task['required_outputs']
                if not (directory / name).is_file()
                or not (directory / name).stat().st_size]
@@ -674,13 +692,76 @@ def _run_external(directory, record):
         if output.is_file() and marker['contains'] in output.read_text(errors='replace'):
             raise RuntimeError(f"Failure marker present in {marker['file']}: "
                                f"{marker['contains']}")
-    details = {'command': command, 'returncode': result.returncode, **runtime}
-    if task.get('result_parser'):
-        from kinbot.anl.results import parse_result
-        requested = task['result_parser']
-        details['parsed_result'] = parse_result(
-            (directory / requested['file']).read_text(errors='replace'), requested)
-    return details
+
+
+def reparse_failed(run_dir, ident):
+    """Recover a successful external calculation rejected only by its parser."""
+    run_dir, spec, state = _load(run_dir)
+    by_id = {task['id']: task for task in spec['tasks']}
+    task = by_id.get(ident)
+    entry = state['tasks'].get(ident)
+    if task is None or entry is None or entry.get('status') != 'failed':
+        raise ValueError(f'{ident}: only a failed task can be reparsed.')
+    if task['kind'] != 'external' or not task.get('result_parser'):
+        raise ValueError(f'{ident}: reparse requires an external parsed task.')
+    if not task.get('success_marker'):
+        raise ValueError(f'{ident}: reparse requires a native success marker.')
+    directory = run_dir / 'tasks' / ident
+    outcome = directory / 'execution.json'
+    if not outcome.is_file():
+        raise RuntimeError(f'{ident}: failed execution record is missing.')
+    previous = json.loads(outcome.read_text())
+    if (previous.get('status') != 'failed'
+            or 'parse_result(' not in previous.get('traceback', '')):
+        raise ValueError(f'{ident}: failure did not occur during result parsing.')
+    _verify_execution(run_dir, task, entry, previous)
+    _verify_stage_files(run_dir, task, entry)
+    record = json.loads((directory / 'task.json').read_text())
+    if record.get('geometry_sha256') != entry.get('geometry_sha256'):
+        raise RuntimeError(f'{ident}: staged geometry provenance changed.')
+    previous_name = 'execution.failed.json'
+    previous_path = directory / previous_name
+    if previous_path.exists():
+        raise RuntimeError(f'{ident}: previous failed execution archive already exists.')
+    names = {'geometry.xyz', 'task.json', task['input_name'],
+             task.get('stdout', 'stdout.txt'), task.get('stderr', 'stderr.txt')}
+    names.update(task['required_outputs'])
+    names.update(task.get('files_from_env', {}))
+    missing = sorted(name for name in names if not (directory / name).is_file())
+    if missing:
+        raise RuntimeError(f'{ident}: execution artifacts are missing: {missing}')
+    _validate_external_outputs(directory, task)
+    requested = task['result_parser']
+    from kinbot.anl.results import parse_result
+    parsed = parse_result(
+        (directory / requested['file']).read_text(errors='replace'), requested)
+    _atomic_json(previous_path, previous)
+    details = {
+        'command': _external_command(task),
+        'returncode': 0,
+        'returncode_source': 'original_parser_path_and_native_success_marker',
+        'parsed_result': parsed,
+        'reparsed_without_execution': True,
+        'previous_error': previous.get('error', ''),
+    }
+    names.add(previous_name)
+    result = {
+        'schema': 1,
+        'task_id': ident,
+        'geometry_sha256': record['geometry_sha256'],
+        'status': 'executed',
+        'details': details,
+        'artifacts': {name: _file_hash(directory / name)
+                      for name in sorted(names)},
+    }
+    actual_hash = _verify_execution(run_dir, task, entry, result)
+    _atomic_json(outcome, result)
+    entry.update(status='complete', execution='executed')
+    entry.pop('error', None)
+    if actual_hash is not None:
+        entry['final_geometry_sha256'] = actual_hash
+    _atomic_json(run_dir / 'state.json', state)
+    return result
 
 
 def _run_ase_optimize(directory, record):
@@ -1029,6 +1110,9 @@ def main(argv=None):
     retry = sub.add_parser('retry')
     retry.add_argument('run_dir')
     retry.add_argument('task_id')
+    reparse = sub.add_parser('reparse')
+    reparse.add_argument('run_dir')
+    reparse.add_argument('task_id')
     run = sub.add_parser('run-task')
     run.add_argument('task_file')
     args = parser.parse_args(argv)
@@ -1055,6 +1139,14 @@ def main(argv=None):
             except BlockingIOError as exc:
                 raise RuntimeError('Another driver is managing this run.') from exc
             print(retry_failed(run_dir, args.task_id))
+    elif args.action == 'reparse':
+        run_dir = Path(args.run_dir).resolve()
+        with (run_dir / 'drive.lock').open('w') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise RuntimeError('Another driver is managing this run.') from exc
+            print(json.dumps(reparse_failed(run_dir, args.task_id), indent=2))
     else:
         if args.only and not args.once:
             parser.error('--only requires --once')

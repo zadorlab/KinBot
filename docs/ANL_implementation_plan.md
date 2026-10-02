@@ -4900,3 +4900,32 @@ evaluations inside ASE/Sella.
 The dispatcher stopped at the failed F12/QZ task and preserved every completed
 sibling. After updating the branch, archive and restage only `f12_qz` with the
 dispatcher retry command, then resume the same v5 ANL interface.
+
+---
+
+# 101. Third live ethane run: Gaussian VPT2 archive parsing (2026-10-01)
+
+After the F12/QZ retry, all electronic-structure jobs left the queue. The
+B2PLYP-D3(BJ)/cc-pVTZ Gaussian VPT2 calculation ran for about 72 minutes,
+printed its harmonic and anharmonic ZPE sections, and ended with normal
+termination. KinBot nevertheless marked the task failed because it searched
+only the first 10,000 characters for `EmpiricalDispersion=GD3BJ`. Gaussian's
+short early route passed the method, basis, and `Freq=Anharmonic` checks but
+omitted this long keyword; the complete value appeared in the archive record
+near line 26645.
+
+The Gaussian VPT2 parser now scans the complete, normally terminated output
+for all echoed `EmpiricalDispersion` values and requires the requested value
+to be present. Input validation uses the same extractor but still requires
+the generated input to contain exactly the declared dispersion model. A
+regression fixture places the archive keyword beyond character 10,000.
+
+The dispatcher now provides a guarded `reparse` operation for this class of
+failure. It accepts only an external task with a result parser, a native
+success marker, unchanged staged provenance, and an original failure
+traceback from `parse_result`. It rechecks required outputs, success and
+failure markers, and Molpro rank counts where applicable; reruns the parser;
+archives the rejected record as `execution.failed.json`; hashes the complete
+accepted artifact set; and atomically marks the task complete. It never
+launches the native program. This lets the completed ethane VPT2 calculation
+enter the final interface audit without consuming another Gaussian node.

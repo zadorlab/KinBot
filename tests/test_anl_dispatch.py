@@ -20,7 +20,8 @@ from tests.anl_fixture import dispatch_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
     _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, main, prepare,
-    preflight, refresh_status, retry_failed, run_task, validate_spec,
+    preflight, refresh_status, reparse_failed, retry_failed, run_task,
+    validate_spec,
 )
 
 
@@ -536,6 +537,65 @@ def test_failed_task_can_be_archived_and_retried():
         assert (archive / 'execution.json').is_file()
         assert not (run_dir / 'tasks' / 'sample' / 'execution.json').exists()
         assert advance(run_dir)['tasks']['sample']['status'] == 'staged'
+
+
+def test_parser_failure_can_be_recovered_without_rerunning_native_job():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        advance(run_dir)
+        _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
+        advance(run_dir)
+
+        directory = run_dir / 'tasks' / 'gaussian_vpt2'
+        output = """#p B2PLYP/cc-pVTZ Freq=Anharmonic NoSymm
+ Fundamental Bands
+ Mode(n) Status E(harm) E(anharm) I(harm) I(anharm)
+    1(1) active 1000.00 980.00 0.10 0.11
+ Overtones
+ Anharmonic Zero Point Energy
+ Harmonic       : cm-1 = 500.00000 ; Kcal/mol = 1.430
+ Anharmonic Pot.: cm-1 = -10.00000 ; Kcal/mol = -0.029
+ Watson+Coriolis: cm-1 = 0.00000 ; Kcal/mol = 0.000
+ Total Anharm   : cm-1 = 490.00000 ; Kcal/mol = 1.401
+"""
+        output += ' Gaussian archive payload\n' * 700
+        output += (' EmpiricalDispersion=GD3BJ\n'
+                   ' Normal termination of Gaussian 16\n')
+        assert output.index('EmpiricalDispersion') > 10000
+        (directory / 'vpt2.log').write_text(output)
+        (directory / 'vpt2.err').write_text('')
+
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['gaussian_vpt2'].update(
+            status='failed', execution='failed', error='old parser error')
+        state_path.write_text(json.dumps(state))
+        failed = {
+            'schema': 1,
+            'task_id': 'gaussian_vpt2',
+            'geometry_sha256': state['tasks']['gaussian_vpt2']['geometry_sha256'],
+            'status': 'failed',
+            'error': 'Gaussian output dispersion disagrees with the requested level.',
+            'traceback': 'details[\"parsed_result\"] = parse_result(output, request)',
+        }
+        (directory / 'execution.json').write_text(json.dumps(failed))
+
+        with patch('kinbot.anl.dispatch.subprocess.run',
+                   side_effect=AssertionError('native program must not rerun')):
+            result = reparse_failed(run_dir, 'gaussian_vpt2')
+        assert result['status'] == 'executed'
+        assert result['details']['reparsed_without_execution'] is True
+        assert result['details']['returncode_source'] == \
+            'original_parser_path_and_native_success_marker'
+        assert result['details']['parsed_result']['dispersion'] == 'GD3BJ'
+        assert 'execution.failed.json' in result['artifacts']
+        assert (directory / 'execution.failed.json').is_file()
+        assert json.loads((directory / 'execution.failed.json').read_text()) == failed
+        saved_state = json.loads(state_path.read_text())
+        assert saved_state['tasks']['gaussian_vpt2']['status'] == 'complete'
+        assert 'error' not in saved_state['tasks']['gaussian_vpt2']
 
 
 def test_failed_job_missing_from_squeue_can_be_reconciled_and_retried():

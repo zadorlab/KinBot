@@ -223,10 +223,17 @@ def parse_molpro_harmonic(output, *, basis):
                     'kj_mol': kj_mol}}
 
 
-def _gaussian_dispersion(route):
-    match = re.search(r'\bEmpiricalDispersion\s*(?:=|\()\s*([A-Za-z0-9]+)',
-                      route, re.IGNORECASE)
-    return match.group(1).upper() if match else ''
+def _gaussian_dispersions(output):
+    """Return every dispersion model echoed by Gaussian.
+
+    Gaussian can omit this long keyword from the short route near the start
+    while retaining it in the archive record written near the end. Search the
+    complete, normally terminated output and require the requested model to be
+    present rather than trusting only the first fixed-size text window.
+    """
+    return {match.upper() for match in re.findall(
+        r'\bEmpiricalDispersion\s*(?:=|\()\s*([A-Za-z0-9]+)',
+        output, re.IGNORECASE)}
 
 
 def _gaussian_fundamental_bands(output):
@@ -296,7 +303,10 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
             or not re.search(r'\bFreq\s*=\s*Anharmonic\b', route,
                              re.IGNORECASE)):
         raise ValueError('Gaussian output does not echo the requested Freq=Anharmonic route.')
-    if _gaussian_dispersion(route) != dispersion.upper():
+    reported_dispersion = _gaussian_dispersions(output)
+    requested_dispersion = dispersion.upper()
+    if ((requested_dispersion and requested_dispersion not in reported_dispersion)
+            or (not requested_dispersion and reported_dispersion)):
         raise ValueError('Gaussian output dispersion disagrees with the requested level.')
     marker = output.rfind('Anharmonic Zero Point Energy')
     if marker < 0:
@@ -388,8 +398,9 @@ def validate_result_parser(request, *, backend, template, outputs):
                                re.IGNORECASE) is not None
                  and re.search(r'\bFreq\s*=\s*Anharmonic\b', template,
                                re.IGNORECASE) is not None
-                 and _gaussian_dispersion(template)
-                 == request.get('dispersion', '').upper())
+                 and _gaussian_dispersions(template)
+                 == ({request['dispersion'].upper()}
+                     if request.get('dispersion') else set()))
     else:
         valid = False
     if not valid:

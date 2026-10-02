@@ -204,6 +204,15 @@ def test_gaussian_vpt2_named_zpe_and_warnings():
                                  basis='cc-pVTZ', dispersion='GD3BJ')
     assert result['dispersion'] == 'GD3BJ'
     assert result['optimized_in_job'] is False
+    late_dispersion = frequency_only.replace(
+        ' EmpiricalDispersion=GD3BJ', '').replace(
+            ' Normal termination',
+            (' Gaussian archive payload\n' * 700
+             + ' EmpiricalDispersion=GD3BJ\n Normal termination'))
+    assert late_dispersion.index('EmpiricalDispersion') > 10000
+    assert parse_gaussian_vpt2(
+        late_dispersion, method='B2PLYP', basis='cc-pVTZ',
+        dispersion='GD3BJ')['dispersion'] == 'GD3BJ'
     with pytest.raises(ValueError, match='dispersion'):
         parse_gaussian_vpt2(frequency_only, method='B2PLYP',
                              basis='cc-pVTZ')

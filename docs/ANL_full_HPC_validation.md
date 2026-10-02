@@ -460,6 +460,22 @@ and native output before retrying:
   ethane_profiled_hpc_run_v5/anl_interface --interval 20
 ```
 
+Use `retry` only when the native calculation failed. If the native program
+completed and only KinBot's result parser rejected the output, update KinBot
+and reparse the preserved output without submitting another licensed job:
+
+```bash
+.venv/bin/python -m kinbot.anl.dispatch reparse \
+  ethane_profiled_hpc_run_v5/anl_interface TASK_ID
+```
+
+This operation requires the task's declared native success marker, unchanged
+staged input and geometry, and an `execution.json` traceback showing that the
+failure occurred in `parse_result`. It preserves the original failure as
+`execution.failed.json`, hashes that record with the accepted artifacts, and
+marks the task complete only after all native output checks and the corrected
+parser pass.
+
 Review the final machine-readable report:
 
 ```bash
@@ -479,6 +495,33 @@ pulling this fix, for example:
 ```bash
 export KINBOT_PROFILED_TEST_DIR="$PWD/ethane_profiled_hpc_run_v5"
 ```
+
+The completed v5 B2PLYP-D3(BJ)/cc-pVTZ VPT2 job exposed a parser-only defect.
+Gaussian terminated normally after the complete anharmonic analysis, but its
+short route near the beginning omitted the long `EmpiricalDispersion`
+keyword. The keyword and `GD3BJ` value were retained in Gaussian's archive
+record near the end of the 1.7 MB log. The parser now searches the complete
+normally terminated output for the dispersion model while continuing to
+check the requested method, basis, frequency mode, named ZPE components, and
+mode table. After pulling this correction, recover that exact calculation
+with:
+
+```bash
+cd ~/KinBot
+.venv/bin/python -m kinbot.anl.dispatch reparse \
+  ethane_profiled_hpc_run_v5/anl_interface gaussian_vpt2
+.venv/bin/python -m kinbot.anl.dispatch status \
+  ethane_profiled_hpc_run_v5/anl_interface
+
+cd ethane_profiled_hpc_run_v5
+../.venv/bin/python -m kinbot.anl.validation audit anl_interface \
+  | tee anl_interface_audit.json
+```
+
+No Gaussian resubmission is part of this recovery. The parsed result will
+retain Gaussian's VPT2 warnings and set `review_required`; this interface
+validation records that scientific review flag without treating a normally
+terminated job as an execution failure.
 
 ## Remaining decisions before the production end-to-end test
 

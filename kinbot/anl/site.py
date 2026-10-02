@@ -208,9 +208,21 @@ def _loaded_module(backend):
 
 def _executable(program):
     found = shutil.which(program)
-    if not found:
-        return None
-    return Path(found).absolute()
+    if found:
+        return Path(found).absolute()
+    # MRCC is commonly installed as a self-contained directory without a
+    # module file.  Discover that standard layout while retaining explicit
+    # environment roots as the portable override.
+    if program in ('dmrcc', 'mrcc', 'xmrcc'):
+        roots = [os.environ.get('MRCC_ROOT'), os.environ.get('MRCC_HOME'),
+                 '/opt/mrcc', '/usr/local/mrcc']
+        for value in roots:
+            if not value:
+                continue
+            candidate = Path(value).expanduser() / program
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return candidate.absolute()
+    return None
 
 
 def _installation_paths(path):

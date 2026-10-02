@@ -94,29 +94,31 @@ def dispatch_spec(*, auto_resources=False):
             },
             molpro_task(
                 'harmonic',
-                'basis=cc-pVTZ\nhf\nccsd(t)\nfrequencies,numerical\n',
+                'basis=cc-pVTZ\nrhf\nuccsd(t),uhf_uccsd=1\n'
+                'frequencies,numerical\n',
                 cores=8, memory_mb=32000, walltime='12:00:00',
                 result_parser={'kind': 'molpro_harmonic', 'basis': 'cc-pVTZ'},
             ),
             molpro_task(
                 'f12_tz',
-                'basis=cc-pVTZ-F12\nhf\nccsd(t)-f12,scale_trip=1\n'
-                'kb_f12b=energy(2)\n',
+                'basis=cc-pVTZ-F12\nrhf\nuccsd(t)-f12b,scale_trip=1\n'
+                'kb_f12b=energy\n',
                 cores=8, memory_mb=32000, walltime='06:00:00',
                 result_parser={'kind': 'molpro_energy',
                                'method': 'CCSD(T)-F12b', 'basis': 'cc-pVTZ-F12'},
             ),
             molpro_task(
                 'f12_qz',
-                'basis=cc-pVQZ-F12\nhf\nccsd(t)-f12,scale_trip=1\n'
-                'kb_f12b=energy(2)\n',
+                'basis=cc-pVQZ-F12\nrhf\nuccsd(t)-f12b,scale_trip=1\n'
+                'kb_f12b=energy\n',
                 cores=8, memory_mb=48000, walltime='12:00:00',
                 result_parser={'kind': 'molpro_energy',
                                'method': 'CCSD(T)-F12b', 'basis': 'cc-pVQZ-F12'},
             ),
             molpro_task(
                 'molpro_dz_sp',
-                'basis=cc-pVDZ\nhf\nccsd(t)\nkb_dz_energy=energy\n',
+                'basis=cc-pVDZ\nrhf\nuccsd(t),uhf_uccsd=1\n'
+                'kb_dz_energy=energy\n',
                 result_parser={'kind': 'molpro_energy',
                                'method': 'CCSD(T)', 'basis': 'cc-pVDZ'},
             ),

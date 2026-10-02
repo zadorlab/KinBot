@@ -397,7 +397,12 @@ The equations include:
 - DBOC;
 - spin-orbit correction.
 
-The original ANL paper also states that the general RUCCSD(T) calculations use restricted-spin HF wavefunctions within the unrestricted coupled-cluster formulation in Molpro, while UUCCSDT(Q) calculations use UHF as required by the MRCC implementation. Vibrational frequencies were obtained by Molpro numerical differentiation in that implementation; DBOC by CFOUR; DFT calculations by Gaussian.
+The original ANL paper also states that the general RHF-UCCSD(T)
+calculations use restricted-spin HF determinants with unrestricted
+coupled-cluster theory in Molpro, while its historical higher-order
+calculations used UHF-UCCSDT(Q). Vibrational frequencies were obtained by
+Molpro numerical differentiation in that implementation; DBOC by CFOUR; DFT
+calculations by Gaussian.
 
 That is a critical reference-policy precedent.
 
@@ -469,8 +474,8 @@ never an ambiguous generic `-F12`.
 Later ANL-family kinetic studies commonly use:
 
 - Molpro for most CCSD(T), F12, core-valence, and relativistic pieces;
-- CFOUR for DBOC and selected closed-shell/singlet CCSDT(Q);
-- MRCC for open-shell CCSDT(Q) and CCSDTQ(P);
+- CFOUR for DBOC and, historically, restricted closed-shell CCSDT(Q);
+- MRCC for higher-order CCSDT(Q) and CCSDTQ(P);
 - Gaussian for DFT/VPT2 anharmonicity.
 
 Later papers also use improved variants such as:
@@ -704,20 +709,21 @@ SCF: ROHF / restricted-spin open-shell HF
 CC: unrestricted CC
 ```
 
-This matches the established RUCCSD(T)-style convention.
+This matches the established RHF-UCCSD(T) convention.
 
 ## 5.3 Higher-order exceptions
 
-Use explicit, recipe-pinned exceptions:
+Use explicit, recipe-pinned references:
 
 ```text
-open-shell CCSDT(Q):
-    UHF + unrestricted CC
-    MRCC
+closed shell higher-order CC:
+    RHF determinant + general MRCC CCSDT(Q)/CCSDTQ(P)
 
-CCSDTQ(P):
-    reference pinned by recipe/backend
-    MRCC
+open shell higher-order CC:
+    semicanonical ROHF determinant + general MRCC CCSDT(Q)/CCSDTQ(P)
+
+historical Ram/Elliott reproduction:
+    UHF determinant + general MRCC higher-order CC
 ```
 
 Do not use:
@@ -737,9 +743,9 @@ Do not impose a same-program denominator rule.
 For example, established ANL-family work may form:
 
 ```text
-UUCCSDT(Q)/DZ
+UHF-UCCSDT(Q)/DZ
 -
-RUCCSD(T)/DZ
+RHF-UCCSD(T)/DZ
 ```
 
 where the two calculations are produced through different software paths.
@@ -1039,10 +1045,10 @@ Supported production tasks:
 
 ```text
 energy-like DBOC property
-closed-shell CCSDT(Q) energy
 ```
 
-Optionally expose ordinary energies required for testing or user overrides.
+Native CFOUR `CC_PROGRAM=NCC` higher-order energies are deliberately outside
+this unrestricted-CC profile. Higher-order calculations use direct MRCC.
 
 Do not claim general gradient support in version 1 unless it is explicitly implemented and validated.
 
@@ -1748,19 +1754,28 @@ Default for:
 - all ordinary F12b energy terms;
 - core-valence;
 - scalar relativistic;
-- ordinary RUCCSD(T) denominator/reference nodes.
+- ordinary RHF-UCCSD(T) denominator/reference nodes.
 
 ## CFOUR
 
 Default for:
-- DBOC;
-- closed-shell/singlet CCSDT(Q).
+- DBOC only in this profile.
+
+Native `CC_PROGRAM=NCC` is the fast closed-shell restricted CC path. It is
+not generated for the unrestricted-CC ANL profile. A CFOUR-to-MRCC interface
+would still be an MRCC higher-order calculation and offers no advantage over
+the direct `dmrcc` provider used here.
 
 ## MRCC
 
 Default for:
-- open-shell CCSDT(Q);
-- all CCSDTQ(P).
+- every CCSDT(Q);
+- every CCSDTQ(P).
+
+Direct inputs pin `ccprog=mrcc`, `scftype=RHF` for singlets or
+`scftype=ROHF` plus semicanonical ROHF orbitals for open shells. The Ram
+paper's older UHF reference is available only as an explicit reproduction
+profile.
 
 ## Gaussian
 
@@ -2487,8 +2502,8 @@ For UMA:
 
 ## Molpro
 Fixtures:
-- RHF CCSD(T);
-- ROHF/RUCCSD(T);
+- RHF determinant plus `UCCSD(T),UHF_UCCSD=1`;
+- ROHF determinant plus `UCCSD(T),UHF_UCCSD=1`;
 - F12b unscaled;
 - F12b `SCALE_TRIP=1`;
 - analytic derivative mode;
@@ -2500,14 +2515,13 @@ Validate energy and force units.
 
 ## CFOUR
 Fixtures:
-- DBOC;
-- closed-shell CCSDT(Q).
+- DBOC.
 
 ## MRCC
 Fixtures:
-- open-shell CCSDT(Q);
-- closed-shell CCSDTQ(P);
-- open-shell CCSDTQ(P).
+- RHF and ROHF CCSDT(Q);
+- RHF and ROHF CCSDTQ(P);
+- explicit UHF higher-order reference for historical reproduction.
 
 ## Gaussian
 Reuse existing tests and add:
@@ -3178,8 +3192,8 @@ kinbot/ase_modules/calculators/molpro.py
 ```
 
 Implement in this order:
-1. energy-only RHF;
-2. ROHF/RUCCSD(T);
+1. energy-only RHF-UCCSD(T), with `UHF_UCCSD=1`;
+2. ROHF-determinant RHF-UCCSD(T), with `UHF_UCCSD=1`;
 3. forces;
 4. F12b energy;
 5. `SCALE_TRIP`;
@@ -3201,8 +3215,7 @@ git commit -m "feat(ase): add Molpro calculator"
 ## Step 16 — implement CFOUR calculator
 
 Start with:
-- DBOC;
-- closed-shell CCSDT(Q).
+- DBOC.
 
 Commit:
 
@@ -3571,9 +3584,10 @@ If only the most important decisions are retained, retain these:
 11. **Energy-only F12b defaults to `SCALE_TRIP=1`.**
 12. **Analytic F12 gradients cannot silently use scaled (T).**
 13. **Normal open shell = restricted-spin HF/ROHF reference + unrestricted CC.**
-14. **Higher-order UHF exceptions are recipe-pinned.**
-15. **CFOUR = DBOC + closed-shell CCSDT(Q).**
-16. **MRCC = open-shell CCSDT(Q) + all CCSDTQ(P).**
+14. **Modern higher-order defaults use RHF/semicanonical ROHF determinants;
+    historical UHF references are recipe-pinned.**
+15. **CFOUR = DBOC for this unrestricted-CC profile.**
+16. **Direct MRCC = all CCSDT(Q) + all CCSDTQ(P).**
 17. **Molpro does most remaining ANL work.**
 18. **Gaussian does VPT2.**
 19. **Cross-program corrections are allowed and should reuse existing nodes.**
@@ -3609,8 +3623,8 @@ The external site must run each program's own example, then the KinBot-
 generated input directly and through the ASE wrapper, and compare every
 component. The required matrix includes Gaussian B2PLYP-D3(BJ) gradients,
 native Hessian and VPT2; Molpro conventional and F12b closed/open-shell
-energies and permitted gradients; CFOUR DBOC and closed-shell CCSDT(Q);
-MRCC open-shell CCSDT(Q) and both closed/open-shell CCSDTQ(P). Finally run
+energies and permitted gradients; CFOUR DBOC; direct MRCC RHF/ROHF
+CCSDT(Q) and RHF/ROHF CCSDTQ(P). Finally run
 a mixed L1/L2/HIR restart and compare ANL component energies with published
 values. Record program versions, inputs, output hashes, units, tolerances,
 references, and exact task provenance. Do not claim the feature complete
@@ -3625,9 +3639,9 @@ Molpro supplies per-step energy and forces, so save the accepted geometry as
 an ASE `.xyz` as well. CFOUR reads fixed `ZMAT` and `GENBAS` files, so every
 run needs an isolated directory; MRCC reads `MINP` and is invoked with
 `dmrcc`; and CFOUR's DBOC is limited to HF/CCSD with RHF/UHF references.
-The plan's CFOUR closed-shell CCSDT(Q) node must use and verify the installed
-`xncc` capability or be explicitly reassigned by a recipe override. The
-detailed sources and checks are in the branch runbook.
+The unrestricted-CC profile does not generate CFOUR's native `xncc`
+closed-shell CCSDT(Q) path. The detailed sources and checks are in the branch
+runbook.
 
 ---
 
@@ -4212,14 +4226,15 @@ included file named in an execution artifact map matched its SHA-256 hash.
 The audit findings and exact component values are recorded in
 `docs/composite_qc_validation.md`.
 
-The Molpro F12 outputs printed both F12a and F12b totals, so a generic
-`energy` or last-energy parser would be scientifically ambiguous. The native
-F12b values are `-40.454906199189` Hartree at cc-pVTZ-F12 and
-`-40.456608306474` Hartree at cc-pVQZ-F12. The reported `ENERGY(2)` variable
-matches F12b but is rounded to eight decimal places in the assignment line;
-the parser now reads the exact named `!CCSD(T)-F12b total energy` and checks
-the final method summary. The DZ output is conventional CCSD(T), not CCSDT,
-despite the historical `ccsdt_dz` task ID. Molpro's numerical harmonic task
+The historical Molpro F12 outputs printed both F12a and F12b totals, so a
+generic `energy` or last-energy parser would be scientifically ambiguous.
+Their native F12b values are `-40.454906199189` Hartree at cc-pVTZ-F12 and
+`-40.456608306474` Hartree at cc-pVQZ-F12. That original closed-shell smoke
+run used the legacy generic F12 command and `ENERGY(2)` selection; it is not
+accepted as evidence for the current unrestricted F12 path. Current ANL jobs
+request `UCCSD(T)-F12b` explicitly and require native UCCSD execution markers.
+The DZ output is conventional CCSD(T), not CCSDT, despite the historical
+`ccsdt_dz` task ID. Molpro's numerical harmonic task
 reports nine positive CH4 modes and ZPE `0.04479801` Hartree. The parser
 checks the half-sum of vibrational wavenumbers against the reported ZPE and
 separates zero rotation/translation modes.
@@ -4929,3 +4944,75 @@ archives the rejected record as `execution.failed.json`; hashes the complete
 accepted artifact set; and atomically marks the task complete. It never
 launches the native program. This lets the completed ethane VPT2 calculation
 enter the final interface audit without consuming another Gaussian node.
+
+---
+
+# 102. Unrestricted-CC reference and backend policy (2026-10-01)
+
+The paper's labels describe both the determinant and the coupled-cluster
+ansatz. They must not be shortened to `RCCSD(T)` or to the ambiguous
+`RUCCSD(T)` label.
+
+For conventional Molpro calculations, KinBot generates:
+
+```text
+rhf
+uccsd(t),uhf_uccsd=1
+```
+
+Molpro documents that after an RHF calculation a bare `uccsd(t)` command can
+otherwise dispatch the restricted open-shell coupled-cluster code.
+`UHF_UCCSD=1` forces the spin-unrestricted CC implementation while retaining
+the RHF/ROHF determinant. The recorded method label is `RHF-UCCSD(T)` for
+both closed and open shells; `ROHF` remains explicit determinant provenance
+for open-shell tasks.
+
+For explicitly correlated Molpro calculations, KinBot generates the distinct
+documented method:
+
+```text
+rhf
+uccsd(t)-f12b,scale_trip=1
+kb_f12b=energy
+```
+
+The dedicated UCCSD(T)-F12 program uses restricted open-shell HF orbitals and
+does not document the conventional `UHF_UCCSD` switch. KinBot therefore does
+not add that switch to F12 commands. Molpro 2024.1 outputs from both closed
+shell H2O and open-shell CH3O/HO2 calculations confirm that this command emits
+`Starting UCCSD calculation`, `UCCSD-F12b correlation energy`, a
+`PROGRAMS ... UCCSD(T) ... RHF-SCF` summary, and the final
+`!RHF-UCCSD(T)-F12 energy`. The ANL parser requires all four pieces of native
+evidence and rejects a generic `-F12` input or any RCCSD marker. `energy` is
+the explicitly requested F12b result here; the `energy(2)` indexing belongs
+only to the legacy generic command that computes multiple F12 ansatzes.
+
+Higher-order calculations use direct MRCC with:
+
+```text
+calc=CCSDT(Q) or CCSDTQ(P)
+ccprog=mrcc
+scftype=RHF                         # closed shell
+scftype=ROHF                        # open shell
+rohftype=semicanonical              # open shell
+rohfcore=semicanonical              # open shell
+```
+
+MRCC exposes the high-order method as `calc=...`; it has no Molpro-style
+`UHF_UCCSD` option for these methods. The parser records the general
+spin-orbital CC policy separately as `correlation=unrestricted`. An explicit
+`scftype=UHF` is retained only for reproducing the older Ram/Elliott
+UHF-UCCSDT(Q) and UHF-UCCSDTQ(P) convention. The modern profile uses RHF or
+semicanonical ROHF determinants as requested.
+
+CFOUR remains the DBOC provider. Its fast native `CC_PROGRAM=NCC`
+CCSDT(Q) path is a closed-shell restricted implementation, so it is excluded
+from this profile. `CC_PROG=MRCC` would be an MRCC calculation driven through
+CFOUR; the direct `dmrcc` path is clearer and records fewer interface layers.
+
+This policy still requires licensed native probes before production use:
+closed and open conventional Molpro, closed and open UCCSD(T)-F12b, direct
+MRCC RHF/ROHF CCSDT(Q), direct MRCC RHF/ROHF CCSDTQ(P), and the explicit UHF
+historical reference. Each probe must preserve the complete input, output,
+normal-termination marker, parsed total energy, executable version, and
+artifact hash.

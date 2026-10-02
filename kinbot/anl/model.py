@@ -116,10 +116,7 @@ class CompositeRecipe:
             if (found.quantity, found.method, found.basis) != (
                     expected.quantity, expected.method, expected.basis):
                 raise ValueError(f'{expected.key}: method, basis, or quantity differs.')
-            backends = expected.backends
-            if expected.key in ('hoe_high', 'hoe_tz_high', 'hoe_dz_low'):
-                backends = ('cfour',) if multiplicity == 1 else ('mrcc',)
-            if found.backend not in backends:
+            if found.backend not in expected.backends:
                 raise ValueError(f'{expected.key}: backend differs.')
             if expected.geometry_role == 'state':
                 if found.geometry_sha256 is not None:

@@ -47,6 +47,7 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     if name == 'ANL0-F12':
         reference = _required('reference_cbs', 'electronic', 'CCSD(T)-F12b',
                               'CBS(cc-pVTZ-F12,cc-pVQZ-F12)', scale_trip=1,
+                              correlation='unrestricted',
                               extrapolation_power=ORIGINAL_ANL_POWER,
                               upper_cardinal=4,
                               geometry_method='CCSD(T)',
@@ -54,6 +55,7 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     elif name == 'ANL1':
         reference = _required('reference_cbs', 'electronic', 'CCSD(T)',
                               "CBS(a'5Z,a'6Z)//cc-pVQZ",
+                              correlation='unrestricted',
                               extrapolation_power=ORIGINAL_ANL_POWER,
                               upper_cardinal=6,
                               geometry_method='CCSD(T)',
@@ -61,6 +63,7 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     else:
         reference = _required('reference_cbs', 'electronic', 'CCSD(T)',
                               "CBS(a'QZ,a'5Z)//cc-pVTZ",
+                              correlation='unrestricted',
                               extrapolation_power=ORIGINAL_ANL_POWER,
                               upper_cardinal=5,
                               geometry_method='CCSD(T)',
@@ -70,8 +73,10 @@ def recipe(name: str, *, vpt2_method: str | None = None,
                       else 'cc-pVTZ')
     harmonic_settings = ({'extrapolation_power': ORIGINAL_ANL_POWER,
                           'upper_cardinal': 4,
-                          'geometry_mode': 'basis_optimized'}
-                         if name == 'ANL1' else {})
+                          'geometry_mode': 'basis_optimized',
+                          'correlation': 'unrestricted'}
+                         if name == 'ANL1'
+                         else {'correlation': 'unrestricted'})
     vpt2_settings = ({'dispersion': 'GD3BJ'} if vpt2_method == 'B2PLYP-D3BJ'
                      else {'dispersion': ''})
     if vpt2_cbs:
@@ -89,11 +94,12 @@ def recipe(name: str, *, vpt2_method: str | None = None,
                   role='l2', backends=vpt2_backends, **vpt2_settings),
         _required('core_valence_cbs', 'correction',
                   'CCSD(T,full)-CCSD(T,frozen-core)',
-                  'CBS(cc-pcVTZ,cc-pcVQZ)',
+                  'CBS(cc-pCVTZ,cc-pCVQZ)',
+                  correlation='unrestricted',
                   extrapolation_power=ORIGINAL_ANL_POWER,
                   upper_cardinal=4),
         _required('scalar_relativistic', 'correction', 'CCSD(T)-DKH delta',
-                  'aug-cc-pcVTZ-DK'),
+                  'aug-cc-pCVTZ-DK', correlation='unrestricted'),
         _required('dboc', 'correction', 'HF', 'cc-pVTZ',
                   backends=('cfour',)),
         _required('spin_orbit', 'correction', 'SO', 'state-specific',
@@ -103,13 +109,16 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     if name == 'ANL1':
         higher = [
             _required('hoe_tz_high', 'electronic', 'CCSDT(Q)', 'cc-pVTZ',
-                      backends=('cfour', 'mrcc')),
+                      backends=('mrcc',), correlation='unrestricted',
+                      program='mrcc'),
             _required('hoe_tz_low', 'electronic', 'CCSD(T)', 'cc-pVTZ',
-                      backends=('molpro',)),
+                      backends=('molpro',), correlation='unrestricted'),
             _required('hoe_dz_high', 'electronic', 'CCSDTQ(P)', 'cc-pVDZ',
-                      backends=('mrcc',)),
+                      backends=('mrcc',), correlation='unrestricted',
+                      program='mrcc'),
             _required('hoe_dz_low', 'electronic', 'CCSDT(Q)', 'cc-pVDZ',
-                      backends=('cfour', 'mrcc')),
+                      backends=('mrcc',), correlation='unrestricted',
+                      program='mrcc'),
         ]
         hoe_terms = (ExpressionTerm('hoe_tz_high'),
                      ExpressionTerm('hoe_tz_low', -1),
@@ -118,9 +127,10 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     else:
         higher = [
             _required('hoe_high', 'electronic', 'CCSDT(Q)', 'cc-pVDZ',
-                      backends=('cfour', 'mrcc')),
+                      backends=('mrcc',), correlation='unrestricted',
+                      program='mrcc'),
             _required('hoe_low', 'electronic', 'CCSD(T)', 'cc-pVDZ',
-                      backends=('molpro',)),
+                      backends=('molpro',), correlation='unrestricted'),
         ]
         hoe_terms = (ExpressionTerm('hoe_high'), ExpressionTerm('hoe_low', -1))
     electronic = (ExpressionTerm('reference_cbs'), *hoe_terms,

@@ -8,8 +8,9 @@ import pytest
 
 from kinbot.anl.dispatch import _run_external
 from kinbot.anl.results import (
-    parse_cfour_dboc, parse_gaussian_vpt2, parse_molpro_energy,
-    parse_molpro_harmonic, validate_result_parser,
+    parse_cfour_dboc, parse_gaussian_vpt2,
+    parse_molpro_energy, parse_molpro_harmonic, parse_mrcc_energy,
+    validate_result_parser,
 )
 from kinbot.energy import attach_anharmonic_frequencies
 
@@ -27,6 +28,18 @@ The total diagonal Born-Oppenheimer correction (DBOC) is: 586.407129 cm-1
 The total diagonal Born-Oppenheimer correction (DBOC) is: 7.015 kJ/mole
 The final electronic energy is -40.210746196622267 a.u.
 This computation required 31.93 seconds (walltime).
+"""
+
+_MRCC_CCSDTQP = """Input file:
+basis=cc-pVDZ
+calc=CCSDTQ(P)
+ccprog=mrcc
+scftype=ROHF
+rohftype=semicanonical
+rohfcore=semicanonical
+core=frozen
+Total CCSDTQ(P) energy [au]: -39.123456789012
+Normal termination of mrcc.
 """
 
 
@@ -57,6 +70,28 @@ def test_cfour_rejects_incomplete_and_inconsistent_dboc_output():
             'Summary of diagonal Born-Oppenheimer correction at Hartree-Fock level'))
 
 
+def test_direct_mrcc_higher_order_energy_uses_rohf_ucc_convention():
+    result = parse_mrcc_energy(
+        _MRCC_CCSDTQP, method='CCSDTQ(P)', basis='cc-pVDZ',
+        reference='ROHF', correlation='unrestricted', core='frozen',
+        program='mrcc')
+    assert result['energy_hartree'] == pytest.approx(-39.123456789012)
+    assert result['reference'] == 'ROHF'
+    assert result['correlation'] == 'unrestricted'
+    assert result['program_variant'] == 'ROHF-UCCSDTQ(P)'
+    with pytest.raises(ValueError, match='scftype'):
+        parse_mrcc_energy(
+            _MRCC_CCSDTQP.replace('scftype=ROHF', 'scftype=UHF'),
+            method='CCSDTQ(P)', basis='cc-pVDZ', reference='ROHF',
+            correlation='unrestricted', core='frozen', program='mrcc')
+    with pytest.raises(ValueError, match='normal termination'):
+        parse_mrcc_energy(
+            _MRCC_CCSDTQP.replace('Normal termination of mrcc.',
+                                  'Error at the termination of mrcc.'),
+            method='CCSDTQ(P)', basis='cc-pVDZ', reference='ROHF',
+            correlation='unrestricted', core='frozen', program='mrcc')
+
+
 def test_external_cfour_task_stores_selected_native_result():
     with TemporaryDirectory() as temporary:
         directory = Path(temporary)
@@ -80,21 +115,28 @@ def test_external_cfour_task_stores_selected_native_result():
             pytest.approx(0.0025887093)
 
 
-# Short excerpts preserve the exact labels and units seen in the completed
-# native CH4 outputs; the licensed program files are not bundled with tests.
+# This compact excerpt preserves the exact method markers emitted by native
+# Molpro 2024.1 for both closed-shell H2O and open-shell CH3O/HO2 jobs.  The
+# licensed program output itself is not bundled with the tests.
 _MOLPRO_F12 = """basis=cc-pVTZ-F12
-ccsd(t)-f12,scale_trip=1
-kb_f12b=energy(2)
- !CCSD(T)-F12a total energy -40.458434986468
- !CCSD(T)-F12b total energy -40.454906199189
- CCSD(T)-F12/cc-pVTZ-F12 energy= -40.454906199189
+rhf
+uccsd(t)-f12b,scale_trip=1
+kb_f12b=energy
+ Starting UCCSD calculation
+ F12 corrections for ansatz 3C(FIX) added to UCCSD energy
+ UCCSD-F12b correlation energy -0.288234238676
+ !RHF-UCCSD(T)-F12 energy -40.454906199189
+ PROGRAMS   *        TOTAL  UCCSD(T)   RHF-SCF       INT
+ SETTING KB_F12B = -40.45490620 AU
  Molpro calculation terminated
 """
 
 _MOLPRO_HARMONIC = """basis=cc-pVTZ
-ccsd(t)
+rhf
+uccsd(t),uhf_uccsd=1
+ PROGRAM * RHF-SCF
 frequencies,numerical
- PROGRAM * FREQUENCIES (Calculation of harmonic vibrational spectra for CCSD(T))
+ PROGRAM * FREQUENCIES (Calculation of harmonic vibrational spectra for UCCSD(T))
    Low Vibration      Wavenumber
         Nr             [1/cm]
         1                0.00
@@ -113,6 +155,16 @@ frequencies,numerical
  Zero point energy:  0.04479801 [H]     9832.03 [1/CM]      117.62 [KJ/MOL]
  Molpro calculation terminated
 """
+
+_MOLPRO_OPEN_CCSD_T = """basis=cc-pVDZ
+rhf
+uccsd(t),uhf_uccsd=1
+ PROGRAM * RHF-SCF
+ !RHF-UCCSD(T) energy -39.812345678901
+ Molpro calculation terminated
+"""
+
+_MOLPRO_OPEN_HARMONIC = _MOLPRO_HARMONIC
 
 _GAUSSIAN_VPT2 = """#p B3LYP/cc-pVTZ Opt=(Tight,CalcFC) Freq=Anharmonic NoSymm
  WARNING: Unreliable CUBIC force constant i= 2,j= 1,k= 4
@@ -141,21 +193,57 @@ _GAUSSIAN_VPT2 = """#p B3LYP/cc-pVTZ Opt=(Tight,CalcFC) Freq=Anharmonic NoSymm
 
 def test_molpro_f12b_selects_exact_total_energy():
     result = parse_molpro_energy(_MOLPRO_F12, method='CCSD(T)-F12b',
-                                 basis='cc-pVTZ-F12')
+                                 basis='cc-pVTZ-F12', reference='ROHF')
     assert result['energy_hartree'] == pytest.approx(-40.454906199189)
     assert result['method'] == 'CCSD(T)-F12b'
-    without_fixture_variable = _MOLPRO_F12.replace('kb_f12b=energy(2)\n', '')
+    assert result['reference'] == 'ROHF'
+    assert result['correlation'] == 'unrestricted'
+    assert result['program_variant'] == 'RHF-UCCSD(T)-F12b'
+    without_fixture_variable = (_MOLPRO_F12
+                                .replace('kb_f12b=energy\n', '')
+                                .replace(' SETTING KB_F12B = -40.45490620 AU\n', ''))
     assert parse_molpro_energy(without_fixture_variable, method='CCSD(T)-F12b',
                                basis='cc-pVTZ-F12')['energy_hartree'] == \
         pytest.approx(-40.454906199189)
-    with pytest.raises(ValueError, match='summary'):
+    with pytest.raises(ValueError, match='stored F12b'):
         parse_molpro_energy(_MOLPRO_F12.replace(
-            'CCSD(T)-F12/cc-pVTZ-F12 energy= -40.454906199189',
-            'CCSD(T)-F12/cc-pVTZ-F12 energy= -40.458434986468'),
+            'SETTING KB_F12B = -40.45490620',
+            'SETTING KB_F12B = -40.45843499'),
             method='CCSD(T)-F12b', basis='cc-pVTZ-F12')
     with pytest.raises(ValueError, match='basis'):
         parse_molpro_energy(_MOLPRO_F12, method='CCSD(T)-F12b',
                             basis='cc-pVQZ-F12')
+
+
+@pytest.mark.parametrize('old,new,error', [
+    ('uccsd(t)-f12b,scale_trip=1', 'uccsd(t)-f12,scale_trip=1',
+     'scaled-triples F12'),
+    ('Starting UCCSD calculation', 'Starting RCCSD calculation',
+     'unrestricted coupled-cluster startup'),
+    ('UCCSD-F12b correlation energy', 'RCCSD-F12b correlation energy',
+     'F12b unrestricted correlation'),
+    ('TOTAL  UCCSD(T)   RHF-SCF', 'TOTAL  RCCSD(T)   RHF-SCF',
+     'unrestricted F12 program summary'),
+])
+def test_molpro_f12b_rejects_ambiguous_or_restricted_execution(old, new,
+                                                               error):
+    with pytest.raises(ValueError, match=error):
+        parse_molpro_energy(_MOLPRO_F12.replace(old, new),
+                            method='CCSD(T)-F12b', basis='cc-pVTZ-F12',
+                            reference='ROHF')
+
+
+def test_molpro_open_shell_uses_rhf_uccsd_t_label():
+    result = parse_molpro_energy(
+        _MOLPRO_OPEN_CCSD_T, method='CCSD(T)', basis='cc-pVDZ',
+        reference='ROHF')
+    assert result['energy_hartree'] == pytest.approx(-39.812345678901)
+    assert result['reference'] == 'ROHF'
+    assert result['program_variant'] == 'RHF-UCCSD(T)'
+    with pytest.raises(ValueError, match='UCCSD'):
+        parse_molpro_energy(
+            _MOLPRO_OPEN_CCSD_T.replace(',uhf_uccsd=1', ''),
+            method='CCSD(T)', basis='cc-pVDZ', reference='ROHF')
 
 
 def test_molpro_harmonic_ignores_zero_modes_and_crosschecks_zpe():
@@ -175,6 +263,10 @@ def test_molpro_harmonic_ignores_zero_modes_and_crosschecks_zpe():
         parse_molpro_harmonic(_MOLPRO_HARMONIC.replace(
             '1                0.00', '1              -20.00'),
             basis='cc-pVTZ')
+    opened = parse_molpro_harmonic(
+        _MOLPRO_OPEN_HARMONIC, basis='cc-pVTZ', reference='ROHF')
+    assert opened['reference'] == 'ROHF'
+    assert opened['program_variant'] == 'RHF-UCCSD(T)'
 
 
 def test_gaussian_vpt2_named_zpe_and_warnings():
@@ -277,10 +369,14 @@ def test_gaussian_linear_mode_labels_keep_degenerate_components():
 def test_parser_declaration_must_match_method_and_input():
     request = {'kind': 'molpro_energy', 'file': 'sp.out',
                'method': 'CCSD(T)-F12b', 'basis': 'cc-pVTZ-F12'}
-    template = 'basis=cc-pVTZ-F12\nccsd(t)-f12,scale_trip=1\n'
+    template = 'basis=cc-pVTZ-F12\nuccsd(t)-f12b,scale_trip=1\n'
     validate_result_parser(request, backend='molpro', template=template,
                            outputs=['sp.out'])
     with pytest.raises(ValueError, match='invalid result_parser'):
         validate_result_parser(request, backend='molpro',
                                template=template.replace('scale_trip=1', 'scale_trip=0'),
+                               outputs=['sp.out'])
+    with pytest.raises(ValueError, match='invalid result_parser'):
+        validate_result_parser(request, backend='molpro',
+                               template=template.replace('-f12b', '-f12'),
                                outputs=['sp.out'])

@@ -186,6 +186,14 @@ def _validate_task(task, ids, limits):
                           for token in re.findall(r'\{([^{}]+)\}', arg)}
         if command_tokens - {'cores', 'input', 'molpro_stack_mw'}:
             raise ValueError(f'{ident}: unsupported command placeholders.')
+        required_executables = task.get('required_executables', [])
+        if (not isinstance(required_executables, list)
+                or any(not isinstance(program, str)
+                       or not _SAFE_NAME.fullmatch(program)
+                       for program in required_executables)
+                or len(required_executables) != len(set(required_executables))):
+            raise ValueError(f'{ident}: required_executables must contain '
+                             'unique executable basenames.')
         if task.get('stdin'):
             if task['stdin'] != task['input_name']:
                 raise ValueError(f'{ident}: stdin must equal input_name.')
@@ -292,6 +300,15 @@ def validate_spec(spec):
         if source != 'initial' and not by_id[source].get('geometry_output'):
             raise ValueError(f"{task['id']}: geometry source has no geometry output.")
         parser = task.get('result_parser', {})
+        if parser.get('kind') in ('mrcc_energy',
+                                  'molpro_energy') and 'reference' in parser:
+            multiplicity = spec['molecule'].get('multiplicity', 1)
+            reference = parser['reference']
+            if (reference not in ('RHF', 'ROHF', 'UHF')
+                    or (reference == 'RHF' and multiplicity != 1)
+                    or (reference == 'ROHF' and multiplicity == 1)):
+                raise ValueError(f"{task['id']}: declared reference conflicts "
+                                 'with molecular multiplicity.')
         if (parser.get('kind') == 'gaussian_vpt2'
                 and re.search(r'\bOpt\s*(?:=|\()', task['input_template'],
                               re.IGNORECASE) is None):
@@ -462,6 +479,8 @@ def _slurm_script(task, directory, python):
     lines.append(f'export OMP_NUM_THREADS={_omp_threads(task)}')
     if _backend(task) == 'molpro':
         lines.append('export MKL_NUM_THREADS=1')
+    elif _backend(task) == 'mrcc':
+        lines.append(f'export MKL_NUM_THREADS={_omp_threads(task)}')
     lines.append(f'{shlex.quote(python)} -m kinbot.anl.dispatch run-task task.json')
     return '\n'.join(lines) + '\n'
 
@@ -535,6 +554,7 @@ def prepare(spec_path, run_dir):
                 raise ValueError(f"{task['id']}: calculator command is empty.")
             program = parts[0]
         programs_by_backend.setdefault(backend, set()).add(program)
+        programs_by_backend[backend].update(task.get('required_executables', []))
     site_setup = render_site_setup(programs_by_backend)
     run_dir = Path(run_dir).resolve()
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -890,6 +910,7 @@ def preflight(run_dir):
         task_files = set()
         if task['kind'] == 'external':
             task_programs.add(task['command'][0])
+            task_programs.update(task.get('required_executables', []))
             task_files.update(task.get('files_from_env', {}).values())
         elif _backend(task) in ('gaussian', 'gauss', 'molpro'):
             backend = _backend(task)
@@ -910,6 +931,8 @@ def preflight(run_dir):
         ]
         if _backend(task) == 'molpro':
             lines.append('export MKL_NUM_THREADS=1')
+        elif _backend(task) == 'mrcc':
+            lines.append(f'export MKL_NUM_THREADS={_omp_threads(task)}')
         for program in sorted(task_programs):
             lines.append(f'command -v {shlex.quote(program)} >/dev/null || '
                          f'{{ echo {shlex.quote("Missing executable: " + program)} >&2; exit 1; }}')

@@ -25,8 +25,12 @@ _FINAL_ENERGY = re.compile(
 _SCF_WITH_DBOC = re.compile(
     rf'^\s*Total SCF energy including DBOC\s+({_NUMBER})\s*$',
     re.IGNORECASE | re.MULTILINE)
-_MOLPRO_CCSD_T = r'^\s*ccsd\(t\)(?:\s*,[^\n]*)?\s*$'
-_MOLPRO_F12B = r'^\s*ccsd\(t\)-f12b?\b[^\n]*\bscale_trip\s*=\s*1\b[^\n]*$'
+_MOLPRO_CCSD_T = (r'^\s*\{?\s*uccsd\(t\)\s*,[^\n]*'
+                  r'\buhf_uccsd\s*=\s*1\b[^\n]*$')
+_MOLPRO_F12B = (r'^\s*\{?\s*uccsd\(t\)-f12b\b[^\n]*'
+                  r'\bscale_trip\s*=\s*1\b[^\n]*$')
+_MOLPRO_RHF = r'^\s*\{?\s*rhf(?:\s*,[^\n]*)?\s*$'
+_MRCC_METHODS = ('CCSDT(Q)', 'CCSDTQ(P)')
 
 
 def _number(value):
@@ -121,14 +125,10 @@ def _one_number(output, pattern, label):
     return _number(matches[0])
 
 
-def parse_molpro_energy(output, *, method, basis):
+def parse_molpro_energy(output, *, method, basis, reference=None):
     """Read the exact named total energy, rather than a rounded variable or F12a."""
     _molpro_output(output, basis)
-    labels = {
-        'CCSD(T)': r'CCSD\(T\)',
-        'CCSD(T)-F12b': r'CCSD\(T\)-F12b',
-    }
-    if method not in labels:
+    if method not in ('CCSD(T)', 'CCSD(T)-F12b'):
         raise ValueError(f'Unsupported Molpro energy method {method!r}.')
     if method == 'CCSD(T)-F12b':
         if not re.search(_MOLPRO_F12B,
@@ -137,23 +137,130 @@ def parse_molpro_energy(output, *, method, basis):
     else:
         if not re.search(_MOLPRO_CCSD_T, output,
                          re.IGNORECASE | re.MULTILINE):
-            raise ValueError('Molpro output does not echo conventional CCSD(T).')
+            raise ValueError('Molpro output does not echo conventional '
+                             'RHF-UCCSD(T) with UHF_UCCSD=1.')
+    if reference is not None:
+        if reference not in ('RHF', 'ROHF'):
+            raise ValueError(f'Unsupported Molpro reference {reference!r}.')
+        if (not re.search(_MOLPRO_RHF, output, re.IGNORECASE | re.MULTILINE)
+                or not re.search(r'^\s*PROGRAMS?\s+\*.*\bRHF-SCF\b.*$',
+                                 output, re.IGNORECASE | re.MULTILINE)):
+            raise ValueError('Molpro output does not contain the requested '
+                             'restricted HF reference calculation.')
+    method_pattern = (_MOLPRO_F12B if method == 'CCSD(T)-F12b'
+                      else _MOLPRO_CCSD_T)
+    if not re.search(method_pattern, output, re.IGNORECASE | re.MULTILINE):
+        raise ValueError('Molpro output does not echo the requested '
+                         'RHF-UCCSD(T) method.')
+    output_label = (r'RHF-UCCSD\(T\)-F12'
+                    if method == 'CCSD(T)-F12b'
+                    else r'RHF-UCCSD\(T\)')
     energy = _one_number(
-        output, rf'^\s*!{labels[method]} total energy\s+({_NUMBER})\s*$',
+        output, rf'^\s*!{output_label}(?: total)? energy\s+({_NUMBER})\s*$',
         f'Molpro {method} total energy')
     if method == 'CCSD(T)-F12b':
-        summary = _one_number(
-            output, rf'^\s*CCSD\(T\)-F12/{re.escape(basis)} energy\s*=\s*'
-                    rf'({_NUMBER})\s*$', 'Molpro F12 summary')
-        if abs(summary - energy) > 1e-9:
-            raise ValueError('Molpro F12b total energy disagrees with the summary.')
-    return {'kind': 'molpro_energy', 'method': method, 'basis': basis,
-            'energy_hartree': energy}
+        evidence = {
+            'unrestricted coupled-cluster startup':
+                r'^\s*Starting UCCSD calculation\s*$',
+            'F12b unrestricted correlation result':
+                rf'^\s*UCCSD-F12b correlation energy\s+{_NUMBER}\s*$',
+            'unrestricted F12 program summary':
+                r'^\s*PROGRAMS\s+\*.*\bUCCSD\(T\)(?=\s|$).*'
+                r'\bRHF-SCF\b.*$',
+        }
+        for label, pattern in evidence.items():
+            if not re.search(pattern, output, re.IGNORECASE | re.MULTILINE):
+                raise ValueError(f'Molpro output lacks {label}.')
+        restricted = (r'^\s*Starting RCCSD calculation\s*$|'
+                      r'^\s*!RCCSD\(T\)-F12(?:[ab])?\s+energy\b|'
+                      r'^\s*!RHF-RCCSD\(T\)-F12(?:[ab])?\s+energy\b')
+        if re.search(restricted, output, re.IGNORECASE | re.MULTILINE):
+            raise ValueError('Molpro output contains restricted F12 coupled '
+                             'cluster evidence.')
+        stored = re.findall(
+            rf'^\s*(?:SETTING\s+)?KB_F12B\s*=\s*({_NUMBER})(?:\s+AU)?\s*$',
+            output, re.IGNORECASE | re.MULTILINE)
+        if stored and (len(stored) != 1
+                       or abs(_number(stored[0]) - energy) > 1e-7):
+            raise ValueError('Molpro stored F12b energy disagrees with the '
+                             'native total energy.')
+    result = {'kind': 'molpro_energy', 'method': method, 'basis': basis,
+              'energy_hartree': energy}
+    if reference is not None:
+        result['reference'] = reference
+    result['program_variant'] = ('RHF-UCCSD(T)-F12b'
+                                 if method == 'CCSD(T)-F12b'
+                                 else 'RHF-UCCSD(T)')
+    result['correlation'] = 'unrestricted'
+    return result
 
 
-def parse_molpro_harmonic(output, *, basis):
+def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
+                      program):
+    """Read one final total energy from a direct MRCC calculation."""
+    if method not in _MRCC_METHODS:
+        raise ValueError(f'Unsupported direct MRCC method {method!r}.')
+    if (reference not in ('RHF', 'ROHF', 'UHF')
+            or correlation != 'unrestricted' or core != 'frozen'
+            or program != 'mrcc'):
+        raise ValueError('MRCC reference or core treatment is unsupported.')
+    normal = re.findall(r'^\s*Normal termination of mrcc\.\s*$', output,
+                        re.IGNORECASE | re.MULTILINE)
+    if len(normal) != 1:
+        raise ValueError('MRCC output needs exactly one normal termination.')
+    if re.search(r'Error at the termination of mrcc|\bFatal error\b', output,
+                 re.IGNORECASE):
+        raise ValueError('MRCC reported a fatal or termination error.')
+    if not re.search(rf'^\s*basis\s*=\s*{re.escape(basis)}\s*$', output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError(f'MRCC output does not echo basis {basis}.')
+    if not re.search(rf'^\s*calc\s*=\s*{re.escape(method)}\s*$', output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError(f'MRCC output does not echo calc={method}.')
+    if not re.search(r'^\s*ccprog\s*=\s*mrcc\s*$', output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError('MRCC output does not echo ccprog=mrcc.')
+    if not re.search(rf'^\s*scftype\s*=\s*{reference}\s*$', output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError(f'MRCC output does not echo scftype={reference}.')
+    if (reference == 'ROHF'
+            and not re.search(r'^\s*rohftype\s*=\s*semicanonical\s*$', output,
+                              re.IGNORECASE | re.MULTILINE)):
+        raise ValueError('MRCC output does not echo semicanonical ROHF orbitals.')
+    if (reference == 'ROHF'
+            and not re.search(r'^\s*rohfcore\s*=\s*semicanonical\s*$', output,
+                              re.IGNORECASE | re.MULTILINE)):
+        raise ValueError('MRCC output does not echo semicanonical ROHF core '
+                         'orbitals.')
+    if not re.search(rf'^\s*core\s*=\s*{core}\s*$', output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError(f'MRCC output does not echo core={core}.')
+    energy = _one_number(
+        output,
+        rf'^\s*Total\s+{re.escape(method)}\s+energy\s*\[au\]\s*:\s*'
+        rf'({_NUMBER})\s*$', f'MRCC {method} total energy')
+    return {'kind': 'mrcc_energy', 'method': method, 'basis': basis,
+            'reference': reference, 'correlation': correlation, 'core': core,
+            'program': program,
+            'energy_hartree': energy, 'driver': 'direct',
+            'program_variant': f'{reference}-U{method}'}
+
+
+def parse_molpro_harmonic(output, *, basis, reference=None):
     """Read vibrational modes and ZPE, excluding rotations/translations."""
     _molpro_output(output, basis)
+    if not re.search(_MOLPRO_CCSD_T, output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError('Molpro harmonic output does not echo the forced '
+                         'RHF-UCCSD(T) method.')
+    if reference is not None:
+        if reference not in ('RHF', 'ROHF'):
+            raise ValueError(f'Unsupported Molpro reference {reference!r}.')
+        if (not re.search(_MOLPRO_RHF, output, re.IGNORECASE | re.MULTILINE)
+                or not re.search(r'PROGRAM\s*\*\s*RHF-SCF', output,
+                                 re.IGNORECASE)):
+            raise ValueError('Molpro harmonic output does not contain the '
+                             'requested restricted HF reference calculation.')
     if not re.search(r'^\s*frequencies\s*,\s*numerical\s*$', output,
                      re.IGNORECASE | re.MULTILINE):
         raise ValueError('Molpro output does not echo numerical frequencies.')
@@ -161,8 +268,10 @@ def parse_molpro_harmonic(output, *, basis):
         r'^\s*PROGRAM \* FREQUENCIES \(Calculation of harmonic '
         r'vibrational spectra for (.+?)\)\s*$', output,
         re.IGNORECASE | re.MULTILINE)
-    if len(frequency_sections) != 1 or frequency_sections[0].upper() != 'CCSD(T)':
-        raise ValueError('Expected one CCSD(T) Molpro frequency section.')
+    expected_method = 'UCCSD(T)'
+    if len(frequency_sections) != 1 \
+            or frequency_sections[0].upper() != expected_method:
+        raise ValueError(f'Expected one {expected_method} Molpro frequency section.')
     section = output.split('PROGRAM * FREQUENCIES', 1)[1]
     low_heading = re.search(r'^\s*Low Vibration\s+Wavenumber\s*$', section,
                             re.IGNORECASE | re.MULTILINE)
@@ -215,12 +324,17 @@ def parse_molpro_harmonic(output, *, basis):
         raise ValueError('Molpro harmonic modes disagree with ZPE.')
     if abs(hartree * Hartree * mol / kJ - kj_mol) > 0.02:
         raise ValueError('Molpro harmonic ZPE kJ/mol disagrees.')
-    return {'kind': 'molpro_harmonic', 'method': 'CCSD(T)', 'basis': basis,
+    result = {'kind': 'molpro_harmonic', 'method': 'CCSD(T)', 'basis': basis,
             'wavenumbers_cm_inverse': modes,
             'low_modes_cm_inverse': low_modes,
             'review_required': any(abs(value) > 1.0 for value in low_modes),
             'zpe': {'hartree': hartree, 'cm_inverse': cm_inverse,
                     'kj_mol': kj_mol}}
+    if reference is not None:
+        result['reference'] = reference
+    result['program_variant'] = 'RHF-UCCSD(T)'
+    result['correlation'] = 'unrestricted'
+    return result
 
 
 def _gaussian_dispersions(output):
@@ -364,19 +478,31 @@ def validate_result_parser(request, *, backend, template, outputs):
                      and re.search(rf'\bBASIS\s*=\s*{re.escape(request["basis"])}(?=\s*[,\n)])',
                                    template, re.IGNORECASE) is not None)
     elif kind == 'molpro_energy':
-        valid = (set(request) == {'kind', 'file', 'method', 'basis'}
+        valid = (set(request) in ({'kind', 'file', 'method', 'basis'},
+                                  {'kind', 'file', 'method', 'basis',
+                                   'reference'})
                  and backend == 'molpro'
                  and request.get('method') in ('CCSD(T)', 'CCSD(T)-F12b')
                  and isinstance(request.get('basis'), str) and bool(request['basis'])
                  and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
                                template, re.IGNORECASE | re.MULTILINE) is not None)
+        if valid and 'reference' in request:
+            method_command = (_MOLPRO_F12B
+                              if request['method'] == 'CCSD(T)-F12b'
+                              else _MOLPRO_CCSD_T)
+            valid = (request['reference'] in ('RHF', 'ROHF')
+                     and re.search(_MOLPRO_RHF, template,
+                                   re.IGNORECASE | re.MULTILINE) is not None
+                     and re.search(method_command, template,
+                                   re.IGNORECASE | re.MULTILINE) is not None)
         if valid:
             method_line = (_MOLPRO_CCSD_T if request['method'] == 'CCSD(T)'
                            else _MOLPRO_F12B)
             valid = re.search(method_line, template,
                               re.IGNORECASE | re.MULTILINE) is not None
     elif kind == 'molpro_harmonic':
-        valid = (set(request) == {'kind', 'file', 'basis'}
+        valid = (set(request) in ({'kind', 'file', 'basis'},
+                                  {'kind', 'file', 'basis', 'reference'})
                  and backend == 'molpro' and isinstance(request.get('basis'), str)
                  and bool(request['basis'])
                  and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
@@ -385,6 +511,47 @@ def validate_result_parser(request, *, backend, template, outputs):
                                re.IGNORECASE | re.MULTILINE) is not None
                  and bool(re.search(r'^\s*frequencies\s*,\s*numerical\s*$',
                                     template, re.IGNORECASE | re.MULTILINE)))
+        if valid and 'reference' in request:
+            command = _MOLPRO_CCSD_T
+            valid = (request['reference'] in ('RHF', 'ROHF')
+                     and re.search(_MOLPRO_RHF, template,
+                                   re.IGNORECASE | re.MULTILINE)
+                     and re.search(command, template,
+                                   re.IGNORECASE | re.MULTILINE))
+    elif kind == 'mrcc_energy':
+        method = request.get('method')
+        basis = request.get('basis')
+        reference = request.get('reference')
+        correlation = request.get('correlation')
+        core = request.get('core')
+        program = request.get('program')
+        valid = (set(request) == {'kind', 'file', 'method', 'basis',
+                                  'reference', 'correlation', 'core', 'program'}
+                 and backend == 'mrcc' and method in _MRCC_METHODS
+                 and reference in ('RHF', 'ROHF', 'UHF')
+                 and correlation == 'unrestricted' and core == 'frozen'
+                 and program == 'mrcc'
+                 and isinstance(basis, str) and bool(basis)
+                 and re.search(rf'^\s*calc\s*=\s*{re.escape(method)}\s*$',
+                               template, re.IGNORECASE | re.MULTILINE)
+                 and re.search(r'^\s*ccprog\s*=\s*mrcc\s*$', template,
+                               re.IGNORECASE | re.MULTILINE)
+                 and re.search(rf'^\s*basis\s*=\s*{re.escape(basis)}\s*$',
+                               template, re.IGNORECASE | re.MULTILINE)
+                 and re.search(rf'^\s*scftype\s*=\s*{reference}\s*$',
+                               template, re.IGNORECASE | re.MULTILINE)
+                 and re.search(r'^\s*core\s*=\s*frozen\s*$', template,
+                               re.IGNORECASE | re.MULTILINE)
+                 and re.search(r'^\s*geom\s*=\s*xyz\s*$', template,
+                               re.IGNORECASE | re.MULTILINE)
+                 and re.search(r'^\s*unit\s*=\s*angs\s*$', template,
+                               re.IGNORECASE | re.MULTILINE)
+                 and (reference != 'ROHF' or re.search(
+                     r'^\s*rohftype\s*=\s*semicanonical\s*$', template,
+                     re.IGNORECASE | re.MULTILINE))
+                 and (reference != 'ROHF' or re.search(
+                     r'^\s*rohfcore\s*=\s*semicanonical\s*$', template,
+                     re.IGNORECASE | re.MULTILINE)))
     elif kind == 'gaussian_vpt2':
         valid = (set(request) in ({'kind', 'file', 'method', 'basis'},
                                   {'kind', 'file', 'method', 'basis', 'dispersion'})
@@ -414,9 +581,18 @@ def parse_result(output, request):
                                 basis=request.get('basis'))
     if kind == 'molpro_energy':
         return parse_molpro_energy(output, method=request['method'],
-                                   basis=request['basis'])
+                                   basis=request['basis'],
+                                   reference=request.get('reference'))
     if kind == 'molpro_harmonic':
-        return parse_molpro_harmonic(output, basis=request['basis'])
+        return parse_molpro_harmonic(output, basis=request['basis'],
+                                     reference=request.get('reference'))
+    if kind == 'mrcc_energy':
+        return parse_mrcc_energy(output, method=request['method'],
+                                 basis=request['basis'],
+                                 reference=request['reference'],
+                                 correlation=request['correlation'],
+                                 core=request['core'],
+                                 program=request['program'])
     if kind == 'gaussian_vpt2':
         return parse_gaussian_vpt2(output, method=request['method'],
                                    basis=request['basis'],

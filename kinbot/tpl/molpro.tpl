@@ -7,20 +7,19 @@ geometry={{
 {name}
 {geom}
 }}
-{{uhf;wf,{nelectron},{symm},{spin},{charge}}}
-
 basis=cc-pvdz-f12
-rhf
-CCSD(T)-F12
+{{rhf;wf,{nelectron},{symm},{spin},{charge}}}
+{{uccsd(t)-f12b,scale_trip=1}}
 
-mydza = energy(1)
-mydzb = energy(2)
+! mydza is retained as a compatibility alias; both keys are explicit F12b.
+mydza = energy
+mydzb = energy
 
 basis=cc-pvtz-f12
-rhf
-CCSD(T)-F12
+{{rhf;wf,{nelectron},{symm},{spin},{charge}}}
+{{uccsd(t)-f12b,scale_trip=1}}
 
-mytza = energy(1)
-mytzb = energy(2)
+! mytza is retained as a compatibility alias; both keys are explicit F12b.
+mytza = energy
+mytzb = energy
 ---
-

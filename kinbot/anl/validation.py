@@ -11,14 +11,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 
 from ase.db import connect
 
 from kinbot.anl.dispatch import _load, prepare
 from kinbot.anl.recipes import recipe
+from kinbot.anl.tasks import higher_order_task, molpro_task
 from kinbot.anl.workflow import (_verified_task_result,
-                                 cbs_task_component)
+                                 cbs_task_component, task_component)
 
 
 MOLPRO_HEADER = """***,KinBot ANL interface validation
@@ -77,6 +79,9 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             'scf': 'xqc', 'integral': 'UltraFine'},
         'optimizer': 'sella',
     }
+    reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
+    conventional = 'uccsd(t),uhf_uccsd=1'
+    f12 = 'uccsd(t)-f12b'
     tasks = [
         {
             'id': 'l2_geometry', 'kind': 'ase_optimize',
@@ -101,30 +106,34 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
         },
         _molpro_task(
             'harmonic',
-            'basis=cc-pVTZ\nhf\nccsd(t)\nfrequencies,numerical\n',
+            f'basis=cc-pVTZ\nrhf\n{conventional}\nfrequencies,numerical\n',
             walltime='24:00:00', max_cores=8,
-            parser={'kind': 'molpro_harmonic', 'basis': 'cc-pVTZ'},
+            parser={'kind': 'molpro_harmonic', 'basis': 'cc-pVTZ',
+                    'reference': reference},
             partition=partition),
         _molpro_task(
             'f12_tz',
-            'basis=cc-pVTZ-F12\nhf\nccsd(t)-f12,scale_trip=1\n'
-            'kb_f12b=energy(2)\n',
+            f'basis=cc-pVTZ-F12\nrhf\n{f12},scale_trip=1\n'
+            'kb_f12b=energy\n',
             walltime='12:00:00', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
-                    'basis': 'cc-pVTZ-F12'}, partition=partition),
+                    'basis': 'cc-pVTZ-F12', 'reference': reference},
+            partition=partition),
         _molpro_task(
             'f12_qz',
-            'basis=cc-pVQZ-F12\nhf\nccsd(t)-f12,scale_trip=1\n'
-            'kb_f12b=energy(2)\n',
+            f'basis=cc-pVQZ-F12\nrhf\n{f12},scale_trip=1\n'
+            'kb_f12b=energy\n',
             walltime='24:00:00', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
-                    'basis': 'cc-pVQZ-F12'}, partition=partition),
+                    'basis': 'cc-pVQZ-F12', 'reference': reference},
+            partition=partition),
         _molpro_task(
             'ccsdt_dz',
-            'basis=cc-pVDZ\nhf\nccsd(t)\nkb_dz_energy=energy\n',
+            f'basis=cc-pVDZ\nrhf\n{conventional}\nkb_dz_energy=energy\n',
             walltime='08:00:00', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
-                    'basis': 'cc-pVDZ'}, partition=partition),
+                    'basis': 'cc-pVDZ', 'reference': reference},
+            partition=partition),
         {
             'id': 'cfour_dboc', 'kind': 'external', 'backend': 'cfour',
             'geometry_from': 'l3_geometry',
@@ -134,7 +143,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             'input_template': (
                 'KinBot DBOC interface validation\n{{CARTESIAN}}\n\n'
                 '*CFOUR(CALC=SCF\nBASIS=cc-pVTZ\nDBOC=ON\n'
-                'COORD=CARTESIAN\nUNITS=ANGSTROM\nCHARGE={{CHARGE}}\n'
+                'COORDINATES=CARTESIAN\nUNITS=ANGSTROM\nCHARGE={{CHARGE}}\n'
                 'MULTIPLICITY={{MULT}}\nMEM_UNIT=MB\n'
                 'MEMORY_SIZE={{WORK_MEMORY_MB}})\n'),
             'command': ['xcfour'], 'stdout': 'cfour.out',
@@ -186,6 +195,106 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
                 'state-specific spin-orbit provider',
                 'complete recipe assembly and CBH/ATcT solve'],
         },
+    }
+
+
+def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None):
+    """Build the five-job ANL1 higher-order interface probe.
+
+    This graph checks native input generation, execution, parsing, and the
+    cross-program correction arithmetic on one supplied geometry.  It is a
+    focused backend test and does not claim a complete composite energy.
+    """
+    if not isinstance(molecule, dict):
+        raise TypeError('molecule must be an object.')
+    multiplicity = molecule.get('multiplicity', 1)
+    restricted_reference = 'RHF' if multiplicity == 1 else 'ROHF'
+    conventional = 'uccsd(t),uhf_uccsd=1'
+    common = dict(geometry_from='initial', partition=partition)
+    tasks = [
+        molpro_task(
+            'ccsdt_tz',
+            f'basis=cc-pVTZ\nrhf\n{conventional}\nkb_ccsdt=energy\n',
+            walltime='08:00:00', max_cores=8,
+            parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
+                    'basis': 'cc-pVTZ',
+                    'reference': restricted_reference}, **common),
+        molpro_task(
+            'ccsdt_dz',
+            f'basis=cc-pVDZ\nrhf\n{conventional}\nkb_ccsdt=energy\n',
+            walltime='04:00:00', max_cores=8,
+            parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
+                    'basis': 'cc-pVDZ',
+                    'reference': restricted_reference}, **common),
+        higher_order_task(
+            'ccsdtq_tz', 'CCSDT(Q)', 'cc-pVTZ',
+            multiplicity=multiplicity, walltime='24:00:00',
+            max_cores=8, **common),
+        higher_order_task(
+            'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ',
+            multiplicity=multiplicity, walltime='12:00:00',
+            max_cores=8, **common),
+        higher_order_task(
+            'ccsdtqp_dz', 'CCSDTQ(P)', 'cc-pVDZ',
+            multiplicity=multiplicity, walltime='24:00:00',
+            max_cores=4, **common),
+    ]
+    return {
+        'schema': 1, 'name': 'anl1-higher-order-interface-validation',
+        'molecule': molecule, 'limits': {'max_nodes': max_nodes},
+        'tasks': tasks,
+        'intent': {
+            'claim': 'higher-order-interface-validation-only',
+            'equation': ('CCSDT(Q)/TZ - CCSD(T)/TZ + CCSDTQ(P)/DZ '
+                         '- CCSDT(Q)/DZ'),
+            'backend_policy': {
+                'closed_shell_ccsdt_q': 'direct-mrcc-rhf-unrestricted-cc',
+                'open_shell_ccsdt_q': 'direct-mrcc-semicanonical-rohf',
+                'closed_shell_ccsdtq_p': 'direct-mrcc-rhf-unrestricted-cc',
+                'open_shell_ccsdtq_p': 'direct-mrcc-semicanonical-rohf',
+            },
+        },
+    }
+
+
+def audit_higher_order_run(run_dir):
+    """Reparse and combine a completed higher-order interface probe."""
+    _, spec, state = _load(run_dir)
+    if spec.get('name') != 'anl1-higher-order-interface-validation':
+        raise ValueError('Run is not an ANL1 higher-order validation graph.')
+    statuses = {task['id']: state['tasks'].get(task['id'], {}).get(
+        'status', 'waiting') for task in spec['tasks']}
+    if any(value != 'complete' for value in statuses.values()):
+        raise RuntimeError(f'Higher-order run is incomplete: {statuses}')
+    state_id = 'higher-order-validation-state'
+    components = {
+        ident: task_component(run_dir, ident, key=ident, state_id=state_id)
+        for ident in ('ccsdt_tz', 'ccsdt_dz', 'ccsdtq_tz',
+                      'ccsdtq_dz', 'ccsdtqp_dz')
+    }
+    correction = math.fsum((
+        components['ccsdtq_tz'].value_hartree,
+        -components['ccsdt_tz'].value_hartree,
+        components['ccsdtqp_dz'].value_hartree,
+        -components['ccsdtq_dz'].value_hartree,
+    ))
+    return {
+        'status': 'higher_order_interface_complete',
+        'task_statuses': statuses,
+        'correction_hartree': correction,
+        'components': {
+            key: {
+                'energy_hartree': value.value_hartree,
+                'method': value.method, 'basis': value.basis,
+                'backend': value.backend,
+                'reference': value.settings.get('reference'),
+                'correlation': value.settings.get('correlation'),
+                'driver': value.settings.get('driver'),
+                'program': value.settings.get('program'),
+                'source_sha256': value.source_sha256,
+            } for key, value in components.items()
+        },
+        'claim': 'interface-validation-only',
     }
 
 
@@ -337,7 +446,7 @@ def audit_kinbot_run(run_dir, reaction, *, parent=None, hir_points=0,
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description='Prepare or audit the non-MRCC ANL interface validation')
+        description='Prepare or audit ANL native-interface validations')
     commands = parser.add_subparsers(dest='action', required=True)
     build = commands.add_parser('from-db')
     build.add_argument('database', type=Path)
@@ -357,6 +466,24 @@ def main(argv=None):
     stage.add_argument('--partition')
     audit = commands.add_parser('audit')
     audit.add_argument('run_dir', type=Path)
+    higher = commands.add_parser('higher-order-from-db')
+    higher.add_argument('database', type=Path)
+    higher.add_argument('job')
+    higher.add_argument('spec', type=Path)
+    higher.add_argument('--charge', type=int, default=0)
+    higher.add_argument('--multiplicity', type=int, default=1)
+    higher.add_argument('--max-nodes', type=int, default=3)
+    higher.add_argument('--partition')
+    prepare_higher = commands.add_parser('prepare-higher-order-from-db')
+    prepare_higher.add_argument('database', type=Path)
+    prepare_higher.add_argument('job')
+    prepare_higher.add_argument('run_dir', type=Path)
+    prepare_higher.add_argument('--charge', type=int, default=0)
+    prepare_higher.add_argument('--multiplicity', type=int, default=1)
+    prepare_higher.add_argument('--max-nodes', type=int, default=3)
+    prepare_higher.add_argument('--partition')
+    audit_higher = commands.add_parser('audit-higher-order')
+    audit_higher.add_argument('run_dir', type=Path)
     gate = commands.add_parser('gate-kinbot')
     gate.add_argument('run_dir', type=Path)
     gate.add_argument('reaction')
@@ -367,6 +494,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.action == 'audit':
         print(json.dumps(audit_interface_run(args.run_dir), indent=2,
+                         sort_keys=True))
+        return 0
+    if args.action == 'audit-higher-order':
+        print(json.dumps(audit_higher_order_run(args.run_dir), indent=2,
                          sort_keys=True))
         return 0
     if args.action == 'gate-kinbot':
@@ -380,9 +511,13 @@ def main(argv=None):
     molecule = molecule_from_database(
         args.database, args.job, charge=args.charge,
         multiplicity=args.multiplicity)
-    spec = interface_validation_spec(
+    is_higher = args.action in ('higher-order-from-db',
+                                'prepare-higher-order-from-db')
+    spec = (higher_order_validation_spec(
         molecule, max_nodes=args.max_nodes, partition=args.partition)
-    if args.action == 'from-db':
+        if is_higher else interface_validation_spec(
+            molecule, max_nodes=args.max_nodes, partition=args.partition))
+    if args.action in ('from-db', 'higher-order-from-db'):
         args.spec.write_text(json.dumps(spec, indent=2) + '\n')
         print(args.spec.resolve())
     else:

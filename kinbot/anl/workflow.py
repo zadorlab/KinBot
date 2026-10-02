@@ -53,11 +53,20 @@ def task_component(run_dir, task_id, *, key, state_id):
     kind = parsed['kind']
     settings = {}
     review_required = parsed.get('review_required', False)
-    if kind == 'molpro_energy':
+    if kind in ('molpro_energy', 'mrcc_energy'):
         quantity = 'electronic'
         value = parsed['energy_hartree']
         method = parsed['method']
         basis = parsed['basis']
+        if 'reference' in parsed:
+            settings['reference'] = parsed['reference']
+        if 'program_variant' in parsed:
+            settings['program_variant'] = parsed['program_variant']
+        if 'correlation' in parsed:
+            settings['correlation'] = parsed['correlation']
+        if kind == 'mrcc_energy':
+            settings.update(reference=parsed['reference'], core=parsed['core'],
+                            driver=parsed['driver'], program=parsed['program'])
         if method == 'CCSD(T)-F12b':
             settings['scale_trip'] = 1
     elif kind == 'molpro_harmonic':
@@ -65,6 +74,10 @@ def task_component(run_dir, task_id, *, key, state_id):
         value = parsed['zpe']['hartree']
         method = parsed['method']
         basis = parsed['basis']
+        if 'reference' in parsed:
+            settings['reference'] = parsed['reference']
+        settings['program_variant'] = parsed['program_variant']
+        settings['correlation'] = parsed['correlation']
     elif kind == 'gaussian_vpt2':
         if parsed['optimized_in_job']:
             raise IncompleteRecipeError(

@@ -57,8 +57,8 @@ graph:
 - a pinned, citable equation and label for the requested F12/ANL1 variant;
 - all-electron and frozen-core CCSD(T) TZ/QZ CBS calculations;
 - scalar-relativistic DKH and nonrelativistic reference calculations;
-- closed-shell CFOUR CCSDT(Q), with native output validation;
-- CCSDTQ(P)/cc-pVDZ, currently assigned to MRCC and intentionally disabled;
+- direct MRCC RHF/ROHF CCSDT(Q), with native output validation;
+- direct MRCC RHF/ROHF CCSDTQ(P)/cc-pVDZ;
 - state-specific spin-orbit data or a validated zero policy;
 - automatic L3 graph construction for every accepted well, product, and TS;
 - assembly of each complete E0 value, CBH reaction selection, ATcT reference

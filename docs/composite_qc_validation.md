@@ -392,6 +392,14 @@ task. Gaussian warnings are preserved as `review_required` in the parsed
 result. Existing completed task records are immutable; inspect their native
 outputs with `python -m kinbot.anl.results` after updating the branch.
 
+If a normally terminated native job is rejected only by one of these parsers,
+`python -m kinbot.anl.dispatch reparse RUN_DIR TASK_ID` validates and parses
+the existing output without rerunning the QC program. Recovery is restricted
+to failed external tasks whose original traceback entered `parse_result` and
+whose declared success marker, staged input, geometry, and required outputs
+still pass validation. The rejected execution record is retained as
+`execution.failed.json` and included in the accepted artifact hashes.
+
 The [Molpro F12 manual](https://www.molpro.net/manual/doku.php?id=explicitly_correlated_methods)
 defines `ENERGY(2)` as F12b, and the
 [Molpro frequency manual](https://www.molpro.net/manual/doku.php?id=harmonic_vibrational_frequencies_frequencies)

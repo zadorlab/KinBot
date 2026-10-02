@@ -17,7 +17,10 @@ from kinbot.anl.recipes import recipe
 from kinbot.anl import validation as validation_module
 from kinbot.anl.validation import (common_corrections_validation_spec,
                                    assemble_profiled_anl0_f12,
+                                   audit_current_base_run,
                                    audit_higher_order_run,
+                                   audit_interface_run,
+                                   current_base_validation_spec,
                                    interface_validation_spec,
                                    higher_order_validation_spec,
                                    audit_kinbot_run,
@@ -58,6 +61,68 @@ def test_non_mrcc_graph_has_geometry_barrier_and_parallel_fanout():
     assert all(task['resources']['cores'] == 'auto' for task in spec['tasks'])
     assert all(task['resources']['partition'] == 'day-long-cpu'
                for task in spec['tasks'])
+
+
+def test_current_base_reuses_l2_but_reruns_unrestricted_l3_and_base_terms():
+    molecule = deepcopy(_molecule())
+    molecule['source'] = {
+        'run_dir': '/accepted/interface', 'task_id': 'l2_geometry',
+        'geometry_sha256': '2' * 64, 'artifact_sha256': 'a' * 64,
+        'profile': {'calculator': 'gaussian', 'method': 'B2PLYP',
+                    'basis': 'cc-pVTZ'},
+    }
+    spec = current_base_validation_spec(
+        molecule, max_nodes=3, partition='day-long-cpu')
+    tasks = {task['id']: task for task in spec['tasks']}
+    assert set(tasks) == {
+        'l3_geometry', 'harmonic', 'f12_tz', 'f12_qz', 'cfour_dboc'}
+    assert tasks['l3_geometry']['geometry_from'] == 'initial'
+    assert tasks['l3_geometry']['profile']['method'] == 'CCSD(T)'
+    for ident in ('harmonic', 'f12_tz', 'f12_qz'):
+        assert tasks[ident]['geometry_from'] == 'l3_geometry'
+        assert tasks[ident]['result_parser']['reference'] == 'RHF'
+        assert 'uccsd(t)' in tasks[ident]['input_template'].lower()
+    resolved = deepcopy(spec)
+    for task in resolved['tasks']:
+        task['resources'].update(cores=4, memory_mb=64000,
+                                 partition='test')
+    validate_spec(resolved)
+
+
+def test_legacy_interface_audit_is_readable_but_recipe_incompatible(monkeypatch):
+    spec = interface_validation_spec(_molecule())
+    for task in spec['tasks']:
+        parser = task.get('result_parser', {})
+        if parser.get('kind') in ('molpro_energy', 'molpro_harmonic'):
+            parser.pop('reference', None)
+            task['input_template'] = (task['input_template']
+                                      .replace('rhf\n', 'hf\n')
+                                      .replace('uccsd(t),uhf_uccsd=1',
+                                               'ccsd(t)')
+                                      .replace('uccsd(t)-f12b',
+                                               'ccsd(t)-f12'))
+    state = {'tasks': {task['id']: {'status': 'complete'}
+                       for task in spec['tasks']}}
+    parsed = {
+        'harmonic': {'kind': 'molpro_harmonic'},
+        'f12_tz': {'kind': 'molpro_energy', 'energy_hartree': -10.0},
+        'f12_qz': {'kind': 'molpro_energy', 'energy_hartree': -10.1},
+        'ccsdt_dz': {'kind': 'molpro_energy', 'energy_hartree': -9.9},
+        'cfour_dboc': {'kind': 'cfour_dboc'},
+        'gaussian_vpt2': {'kind': 'gaussian_vpt2'},
+    }
+    monkeypatch.setattr(
+        validation_module, '_load',
+        lambda run_dir: (Path(run_dir), spec, state))
+    monkeypatch.setattr(
+        validation_module, '_verified_task_result',
+        lambda run_dir, task_id: (None, None, None, None, None,
+                                  parsed[task_id]))
+    result = audit_interface_run('/legacy/interface')
+    assert result['status'] == 'interface_complete_legacy_recipe_incompatible'
+    assert set(result['legacy_molpro_tasks']) == {
+        'harmonic', 'f12_tz', 'f12_qz', 'ccsdt_dz'}
+    assert 'verified_f12_cbs_hartree' not in result
 
 
 def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
@@ -209,12 +274,20 @@ def test_completed_run_geometry_export_is_hash_verified():
 
 def test_profiled_anl0_f12_assembler_uses_all_required_components(monkeypatch):
     interface = Path('/synthetic/interface').resolve()
+    base = Path('/synthetic/current-base').resolve()
     interface_spec = {
         'name': 'anl1-f12-non-mrcc-interface-validation',
         'molecule': _molecule(), 'tasks': []}
+    base_spec = {
+        'name': 'anl-current-base-validation',
+        'molecule': {**_molecule(), 'source': {
+            'run_dir': str(interface), 'task_id': 'l2_geometry',
+            'geometry_sha256': '2' * 64}}, 'tasks': []}
     monkeypatch.setattr(
         validation_module, '_load',
-        lambda run_dir: (interface, interface_spec, {'tasks': {}}))
+        lambda run_dir: ((base, base_spec, {'tasks': {}})
+                         if Path(run_dir).resolve() == base else
+                         (interface, interface_spec, {'tasks': {}})))
     l2_hash, l3_hash = '2' * 64, '3' * 64
     monkeypatch.setattr(
         validation_module, 'molecule_from_completed_run',
@@ -253,7 +326,8 @@ def test_profiled_anl0_f12_assembler_uses_all_required_components(monkeypatch):
         lambda *args, **kwargs: components['scalar_relativistic'])
     result = assemble_profiled_anl0_f12(
         interface, 'higher', 'corrections', state_id='ethane-singlet',
-        spin_orbit_hartree=0.002, spin_orbit_source='test datum')
+        spin_orbit_hartree=0.002, spin_orbit_source='test datum',
+        base_run=base)
     assert result['status'] == 'complete'
     assert result['recipe'].startswith('profiled:ANL0-F12:')
     assert set(result['components']) == {

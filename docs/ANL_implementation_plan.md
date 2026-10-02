@@ -5067,3 +5067,37 @@ species in the generated reaction. The next implementation item is a general
 monatomic/diatomic reference-species graph, including zero-mode handling and
 the appropriate atomic component policy, followed by the methyl CBH-0 solve,
 ATcT comparison, and production-grid ROTD_py/MESS validation.
+
+---
+
+# 104. Legacy archive compatibility and unrestricted base replay (2026-10-01)
+
+The first v5 continuation attempt exposed a workflow-schema regression before
+any new job was staged. Dispatcher validation applied the new unrestricted
+Molpro input rules to an immutable workflow created by older composite code,
+so `_load` rejected its legacy harmonic parser declaration. That prevented
+read-only audit, idempotent VPT2 recovery, and geometry export.
+
+KinBot now distinguishes three parser generations from the recorded command
+echo: the original `ccsd(t)`/generic `ccsd(t)-f12` form, an intermediate
+unrestricted form whose parser record omitted `reference`, and the current
+fully declared unrestricted form. Original archives are parsed into their
+original minimal dictionaries so saved-result equality and artifact hashes
+remain valid. They deliberately lack `correlation=unrestricted` and cannot
+satisfy a current recipe requirement. Intermediate and current unrestricted
+archives retain their unrestricted provenance. A completed parsed task may be
+passed to `reparse` again; it is verified and returned without changing files
+or launching a program.
+
+The v5 L3 geometry, conventional energy, F12 energies, and harmonic ZPE were
+created before the unrestricted policy. Reusing them in a current expression
+would violate the requested method definition even though their numerical
+checkpoints are useful diagnostics. The new `anl-current-base-validation`
+continuation imports the verified v5 L2 geometry, reruns only the explicitly
+unrestricted Molpro/Sella L3 optimization, and computes current unrestricted
+F12 TZ/QZ and harmonic components plus CFOUR DBOC. The already completed
+B2PLYP-D3(BJ)/cc-pVTZ Gaussian VPT2 remains attached to its original L2
+geometry. Higher-order and common-correction graphs are then exported from
+the new base run's exact L3 geometry. Final assembly accepts `--base-run` and
+checks both links: legacy interface L2 to current base, then current base L3
+to the higher-order and correction graphs.

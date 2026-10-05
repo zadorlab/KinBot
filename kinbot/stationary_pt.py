@@ -4,6 +4,7 @@ import copy
 import math
 import itertools
 
+import networkx as nx
 import numpy as np
 from ase.data import covalent_radii, atomic_numbers
 
@@ -598,45 +599,29 @@ class StationaryPoint:
             return 0, [abs(si) for si in status]
 
     def find_cycle(self):
+        """Find closed rings, including the perimeters of fused rings.
+
+        Preserve the earlier length/atom order and one cycle per atom set.
+        Searching closed cycles directly avoids generating every open path.
         """
-        Find all the cycles in a molecule, if any
-        This is done by searching from motifs ['X','X', ..., 'X']
-        with length 3 to natom, and the cycles are defined by 
-        the motif instances of which the first and last atom are bonded
-
-        The search is halted before reaching natoms if a certain morif length 
-        does not give any hit
-
-        TODO: leave all the leaves of the graph out for the search, i.e.
-        the atoms that only have neighbor, as they never participate in a cycle
-
-        The cycles are kept in the cycle_chain list, which is a list of lists
-        These lists contain the atom indices participating in each cycle.
-
-        In the case of fused cycles, keep all the possible cycles (e.g. two fused
-        rings lead to three cycles, and they are all defined in the cycle_chain
-        """
-
-        self.cycle_chain = [] #list of the cycles
-        self.cycle = [0 for i in range(self.natom)] # 0 if atom is not in cycle, 1 otherwise
-
-        for cycle_size in range(3, self.natom + 1):
-            motif = ['X' for i in range(cycle_size)]
-            instances = find_motif.start_motif(motif, self.natom, self.bond, self.atom, -1, [[k] for k in range(self.natom)])
-            if len(instances) == 0:
-                break
-            for ins in instances:
-                if self.bond[ins[0]][ins[-1]]:
-                    #cycle found, check if it is new
-                    new = 1
-                    for cyc in self.cycle_chain:
-                        if sorted(cyc) == sorted(ins):
-                            new = 0
-                            break
-                    if new:
-                        self.cycle_chain.append(ins)
-                        for at in ins:
-                            self.cycle[at] = 1
+        # Directed enumeration also works with NetworkX versions whose
+        # simple_cycles does not yet accept an undirected graph.
+        graph = nx.from_numpy_array(self.bond, create_using=nx.DiGraph)
+        rings = {}
+        for cycle in nx.simple_cycles(graph):
+            if len(cycle) < 3:
+                continue
+            first = cycle.index(min(cycle))
+            cycle = cycle[first:] + cycle[:first]
+            cycle = min(cycle, [cycle[0]] + cycle[:0:-1])
+            key = frozenset(cycle)
+            if key not in rings or cycle < rings[key]:
+                rings[key] = cycle
+        self.cycle_chain = sorted(rings.values(), key=lambda cycle: (len(cycle), cycle))
+        self.cycle = [0] * self.natom
+        for cycle in self.cycle_chain:
+            for atom in cycle:
+                self.cycle[atom] = 1
         return 0
 
     def calc_chemid(self):

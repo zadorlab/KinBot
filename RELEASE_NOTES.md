@@ -89,6 +89,11 @@ does not undo other corrections to optical or rotational counting.
 
 ### Reaction pathways and statistical counting
 
+**Find rings without generating every open atom path.**
+Ring detection now enumerates closed cycles directly. It keeps the earlier
+ordered ring list, including larger perimeters of fused rings. This reduces
+the cost for PAHs without changing the resonance-structure search.
+
 **Keep different stereochemical reaction pathways.**
 Virtual substitution distinguishes homotopic, enantiotopic, and diastereotopic
 sites in the related reaction motifs. It does not change the atoms sent to QC.

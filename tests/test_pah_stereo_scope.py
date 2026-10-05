@@ -60,6 +60,31 @@ class TestPAHStereoScope(unittest.TestCase):
             point.characterize()
             cls.points.append(point)
 
+    def test_resonance_does_not_bypass_an_open_chain_cumulene_axis(self):
+        obs = observation(molecule('[CH2]C(=C=CF)C'))
+        point = StationaryPoint('axial_radical', 0, 2, atom=obs.atom, geom=obs.geom)
+        point.characterize()
+        self.assertGreater(len(point.bonds), 1)
+        identity = canonical_identity(point)
+        self.assertEqual(identity['status'], 'unsupported')
+        self.assertIn('cumulene/axial', identity['reason'])
+
+    def test_all_hydrogen_loss_positions_keep_the_aromatic_radical_supported(self):
+        for smiles in (ANTHRACENE, PYRENE, 'c1ccc2cccc-2cc1'):
+            obs = observation(molecule(smiles))
+            for hydrogen, element in enumerate(obs.atom):
+                if element != 'H':
+                    continue
+                with self.subTest(smiles=smiles, hydrogen=hydrogen):
+                    point = StationaryPoint('aryl_radical', 0, 2,
+                        atom=np.delete(obs.atom, hydrogen),
+                        geom=np.delete(obs.geom, hydrogen, axis=0))
+                    point.characterize()
+                    matrices = [matrix.copy() for matrix in point.bonds]
+                    self.assertEqual(canonical_identity(point)['status'], 'assigned')
+                    for before, after in zip(matrices, point.bonds):
+                        np.testing.assert_array_equal(before, after)
+
     def test_supported_skeletons_keep_ordinary_names_and_member_weights(self):
         for original in self.points:
             p = copy.copy(original)

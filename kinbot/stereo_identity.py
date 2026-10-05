@@ -5,10 +5,12 @@ does not identify transition states, torsional basins or atropisomers. The
 charge and multiplicity belong to the identity. Formal charges are included
 when supplied, but electronic localization is not inferred. The canonical
 strings encode configured graphs, not necessarily sanitized Lewis structures.
+Disposable scope checks use RDKit valence perception for aromatic radicals.
 No coordinates or graph arrays are modified.
 """
 import hashlib
 import copy
+from functools import cache
 import numpy as np
 
 
@@ -16,7 +18,7 @@ class UnsupportedStereochemistry(ValueError):
     """The calculation requires an identity outside the supported scope."""
 
 
-def _check_supported_configuration(mol, physical_isotopes, common_bonds):
+def _check_supported_configuration(mol, physical_isotopes, aromatic_forms):
     """Conservative boundary for fixed stereo outside the supported tags.
 
     This detects potential axes/frameworks; it does not infer their barriers
@@ -32,8 +34,7 @@ def _check_supported_configuration(mol, physical_isotopes, common_bonds):
     ranks = Chem.CanonicalRankAtoms(mol, breakTies=False, includeChirality=False)
     doubles = nx.Graph()
     for bond in mol.GetBonds():
-        if (bond.GetBondTypeAsDouble() == 2 and
-                common_bonds[bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()] == 2):
+        if bond.GetBondTypeAsDouble() == 2:
             doubles.add_edge(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
     for component in nx.connected_components(doubles):
         ends = [i for i in component if doubles.degree(i) == 1]
@@ -43,6 +44,12 @@ def _check_supported_configuration(mol, physical_isotopes, common_bonds):
                 and all(mol.GetAtomWithIdx(i).GetDegree() == 2
                         for i in component if i not in ends)
                 and all(len(set(group)) >= 2 for group in substituents)):
+            # A radical resonance drawing can contain consecutive double
+            # bonds within an aromatic framework. Require the whole chain
+            # to be aromatic in ONE supplied form, not a union of forms.
+            edges = {frozenset(edge) for edge in doubles.subgraph(component).edges()}
+            if any(edges <= aromatic for aromatic in aromatic_forms()):
+                continue
             raise ValueError('cumulene/axial configuration is outside the supported stereo scope')
     for atom in mol.GetAtoms():
         if atom.GetDegree() > 4 or (atom.GetDegree() and atom.GetAtomicNum()
@@ -83,7 +90,6 @@ def _molecules(species, geom, tagged_atom=None):
     physical_isotopes = getattr(species, '_stereo_physical_isotopes', isotopes.copy())
     if tagged_atom is not None:
         isotopes[tagged_atom] = max(isotopes + [1000]) + 1
-    common_bonds = np.minimum.reduce(bonds)
     result = []
     for matrix in bonds:
         mol = Chem.RWMol()
@@ -107,7 +113,24 @@ def _molecules(species, geom, tagged_atom=None):
         mol = mol.GetMol()
         mol.UpdatePropertyCache(strict=False)
         Chem.GetSymmSSSR(mol)
-        _check_supported_configuration(mol, physical_isotopes, common_bonds)
+        result.append(mol)
+
+    @cache
+    def aromatic_forms():
+        # Used only if a possible cumulene needs classification. RDKit
+        # perceives valence radicals on disposable copies for aromaticity;
+        # these electron counts never enter identity strings or QC properties.
+        forms = []
+        for candidate in result:
+            probe = Chem.Mol(candidate)
+            Chem.SanitizeMol(probe, sanitizeOps=Chem.SanitizeFlags.SANITIZE_FINDRADICALS)
+            Chem.SetAromaticity(probe)
+            forms.append({frozenset((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()))
+                          for bond in probe.GetBonds() if bond.GetIsAromatic()})
+        return forms
+
+    for mol in result:
+        _check_supported_configuration(mol, physical_isotopes, aromatic_forms)
         conf = Chem.Conformer(n)
         conf.Set3D(True)
         for i, xyz in enumerate(geom):
@@ -130,9 +153,8 @@ def _molecules(species, geom, tagged_atom=None):
             for index in pair:
                 for adjacent in mol.GetAtomWithIdx(index).GetBonds():
                     adjacent.SetBondDir(Chem.BondDir.NONE)
-        # Canonical SMILES normalizes atom numbering, not the supplied set of
-        # resonance structures. Retain the entire provided ensemble explicitly.
-        result.append(mol)
+    # Canonical SMILES normalizes atom numbering, not the supplied set of
+    # resonance structures. Retain the entire provided ensemble explicitly.
     return result
 
 

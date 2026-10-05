@@ -1488,8 +1488,24 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
 
         fragments = []
         states = pp_info.get('frags_routing')
-        if not isinstance(states, list) or len(states) != 2:
-            raise ValueError(f'{json_file}: VRC correction data require the current fragment identities and electronic states')
+        legacy_states = not isinstance(states, list) or len(states) != 2
+        if legacy_states:
+            if any('-s' in str(product) for product in products):
+                raise ValueError(
+                    f'{json_file}: VRC correction data require the current '
+                    'fragment identities and electronic states')
+            # Correction files written before configured stereo routing carry
+            # geometry, multiplicity, and the requested endpoint names.  They
+            # remain valid for connectivity-only channels and are upgraded in
+            # memory here; current writers always persist ``frags_routing``.
+            states = [{
+                'routing_key': str(products[index]),
+                'charge': 0,
+                'multiplicity': int(pp_info['frags_mult'][index]),
+                'optical_population': par.get('optical_population',
+                                              'specified'),
+                'stereo_reference': None,
+            } for index in range(2)]
         for frag_num in range(2):
             state = states[frag_num]
             fragments.append(Fragment(frag_num=frag_num,
@@ -1504,10 +1520,13 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
                                       mult=pp_info['frags_mult'][frag_num]))
             fragment = fragments[-1]
             apply_input_reference(fragment, state)
-            if (routing_name(fragment) != state['routing_key']
-                    or fragment.mult != state['multiplicity']):
+            if (not legacy_states
+                    and (routing_name(fragment) != state['routing_key']
+                         or fragment.mult != state['multiplicity'])):
                 raise ValueError(f'{json_file}: VRC fragment geometry disagrees with its saved state')
-        if sorted(routing_name(fragment) for fragment in fragments) != sorted(products):
+        if (not legacy_states
+                and sorted(routing_name(fragment) for fragment in fragments)
+                != sorted(products)):
             raise ValueError(f'{json_file}: VRC fragments disagree with the requested configured endpoints')
 
         fragnames: list[str] = Fragment.get_fragnames()

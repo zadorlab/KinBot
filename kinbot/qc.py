@@ -645,14 +645,17 @@ class QuantumChemistry:
         if self.qc == 'gauss':
             code = 'gaussian'
             Code = 'Gaussian'
-            # Native MC conformers need their own existing Hessian for the
-            # optical check. Sella force calls and an optional native Hessian
-            # can also reuse the wavefunction from the first evaluation.
-            keep_checkpoint = (self.use_sella
-                               or (self.par.get('multi_conf_tst')
-                                   and not semi_emp))
+            # Only native Gaussian MC conformers retain their checkpoints.
+            # Sella owns its force evaluations and preliminary conformers do
+            # not provide the selected Hessian used by the MC optical check.
+            keep_checkpoint = (self.par.get('multi_conf_tst')
+                               and not self.use_sella and not semi_emp)
             if not keep_checkpoint:
                 kwargs.pop('chk', None)
+            else:
+                # Native Gaussian templates execute from the run root, where
+                # the calculation label is also the checkpoint path.
+                kwargs['chk'] = job
         elif self.qc == 'qchem':
             code = 'qchem'
             Code = 'QChem'
@@ -686,6 +689,7 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
         template = template.format(label=job,
+                                   checkpoint=os.path.basename(job),
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -883,6 +887,7 @@ class QuantumChemistry:
         
         template = open(template_file, 'r').read()
         template = template.format(label=job,
+                                   checkpoint=os.path.basename(job),
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -1697,7 +1702,8 @@ class QuantumChemistry:
         if self.is_in_database(job):
             logger.debug('{} is in db'.format(job))
             for i in range(1):
-                if (self.use_sella and self.qc != 'nn_pes'
+                if (getattr(self, 'use_sella', False)
+                        and self.qc != 'nn_pes'
                         and '_freq_recovery_' not in job
                         and not job.startswith('vrctst/')):
                     log_file = job + '_sella.log'

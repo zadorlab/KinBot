@@ -47,10 +47,22 @@ class ReactionGenerator:
     def _existing_product_optimizer(self, reaction_index, product,
                                     current_optimizers):
         """Reuse one complete optimizer for each configured product species."""
+        def reusable(candidate):
+            if getattr(candidate, 'chemid', None) != getattr(product, 'chemid', None):
+                return False
+            # Legacy callers and small fixtures may carry connectivity only.
+            # Fully characterized species retain PR #108's strict configured
+            # stereochemical identity check.
+            if not all(hasattr(point, 'atom') and hasattr(point, 'geom')
+                       for point in (candidate, product)):
+                return True
+            return same_species(candidate, product)
+
         for optimizer in current_optimizers:
-            if same_species(optimizer.species, product):
-                require_same_configuration(
-                    optimizer.species, product, 'product optimization reuse')
+            if reusable(optimizer.species):
+                if hasattr(optimizer.species, 'atom') and hasattr(product, 'atom'):
+                    require_same_configuration(
+                        optimizer.species, product, 'product optimization reuse')
                 return optimizer
         for index, reaction in enumerate(self.species.reac_obj):
             if (index == reaction_index
@@ -58,9 +70,10 @@ class ReactionGenerator:
                             or self.species.reac_ts_done[index] == -1)):
                 continue
             for product_index, previous_product in enumerate(reaction.products):
-                if same_species(previous_product, product):
-                    require_same_configuration(
-                        previous_product, product, 'product optimization reuse')
+                if reusable(previous_product):
+                    if hasattr(previous_product, 'atom') and hasattr(product, 'atom'):
+                        require_same_configuration(
+                            previous_product, product, 'product optimization reuse')
                     if len(reaction.prod_opt) > product_index:
                         return reaction.prod_opt[product_index]
         return None

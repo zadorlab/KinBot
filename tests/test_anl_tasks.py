@@ -22,7 +22,8 @@ def test_closed_shell_ccsdt_q_routes_to_cfour_rhf_unrestricted_cc():
     assert task['result_parser']['program'] == 'cfour'
     assert task['result_parser']['driver'] == 'VCC'
     assert 'REFERENCE=RHF' in task['input_template']
-    assert 'CC_PROGRAM=VCC' in task['input_template']
+    assert 'CC_PROG=VCC' in task['input_template']
+    assert 'CC_PROGRAM=VCC' not in task['input_template']
     assert 'FROZEN_CORE=ON' in task['input_template']
     assert task['files_from_env'] == {'GENBAS': 'CFOUR_GENBAS'}
     _validate(task)
@@ -52,6 +53,14 @@ def test_every_ccsdtq_p_routes_to_direct_mrcc_ucc(multiplicity, reference):
         assert 'rohfcore=semicanonical' in task['input_template']
     assert 'files_from_env' not in task
     _validate(task)
+
+
+def test_ccsdtq_p_defaults_allow_a_week_and_eight_openmp_threads():
+    task = higher_order_task(
+        'hoe_dz_high', 'CCSDTQ(P)', 'cc-pVDZ', multiplicity=1,
+        walltime='7-00:00:00', max_cores=8)
+    assert task['resources']['walltime'] == '7-00:00:00'
+    assert task['resources']['max_cores'] == 8
 
 
 def test_open_shell_ccsdt_q_routes_to_direct_mrcc_rohf_ucc():

@@ -73,7 +73,7 @@ def cfour_energy_task(ident, method, basis, *, multiplicity,
 *CFOUR(CALC={method}
 BASIS={basis}
 REFERENCE=RHF
-CC_PROGRAM=VCC
+CC_PROG=VCC
 FROZEN_CORE=ON
 COORDINATES=CARTESIAN
 UNITS=ANGSTROM

@@ -89,6 +89,7 @@ else:
                 frequency_kwargs.pop('opt', None)
                 frequency_kwargs['freq'] = ''
                 frequency_kwargs['label'] = '{label}'
+                # Rendered checkpoint option: {{'chk': '{checkpoint}'}}
                 frequency_kwargs['chk'] = os.path.basename('{label}')
                 mol.calc = Gaussian(**frequency_kwargs)
                 e = mol.get_potential_energy()

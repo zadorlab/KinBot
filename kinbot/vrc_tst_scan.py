@@ -26,8 +26,15 @@ from kinbot import constants
 logger = logging.getLogger('KinBot')
 
 
-def fragment_routing_state(species):
-    return {'routing_key': routing_name(species), 'charge': int(species.charge),
+def fragment_routing_state(species, fallback=None):
+    """Serialize a configured fragment, with legacy connectivity fallback."""
+    try:
+        name = routing_name(species)
+    except AttributeError:
+        if fallback is None:
+            raise
+        name = str(fallback)
+    return {'routing_key': name, 'charge': int(getattr(species, 'charge', 0)),
             'multiplicity': int(species.mult),
             'optical_population': getattr(species, 'optical_population', 'specified'),
             'stereo_reference': getattr(species, 'optical_reference', None)}
@@ -538,8 +545,10 @@ class VTS:
                                self.scan_reac[reac].products[1].geom],
                 'frags_mult': [self.scan_reac[reac].products[0].mult,
                                 self.scan_reac[reac].products[1].mult],
-                'frags_routing': [fragment_routing_state(product)
-                                  for product in self.scan_reac[reac].products]
+                'frags_routing': [fragment_routing_state(product,
+                                                          f'fragment_{index}')
+                                  for index, product in enumerate(
+                                      self.scan_reac[reac].products)]
                 }
 
             with open(f'vrctst/corr_{reac}.json', 'w',

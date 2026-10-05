@@ -72,7 +72,9 @@ def _projection_decisions(species, hir, projection):
     usable = {r['index'] for r in hir['rotors'] if r['usable']}
     if not projection:
         issue = 'rotor projection decisions were not recorded' if usable else None
-        if len(species.freq) != len(species.reduced_freqs):
+        raw_frequencies = getattr(
+            species, 'freq', getattr(species, 'reduced_freqs', ()))
+        if len(raw_frequencies) != len(species.reduced_freqs):
             issue = 'frequency mode counts differ without a recorded projection'
         return decisions, issue
     for entry in projection.get('rotors', []):

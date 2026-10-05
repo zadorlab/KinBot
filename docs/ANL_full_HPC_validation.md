@@ -613,7 +613,7 @@ nohup bash -lc '
   .venv/bin/python -m kinbot.anl.validation \
     prepare-post-geometry-from-run \
     "$base/anl_current_base_ethane" "$base/anl_post_geometry_ethane" \
-    --max-nodes 3 --partition day-long-cpu
+    --max-nodes 3
   .venv/bin/python -m kinbot.anl.dispatch preflight \
     "$base/anl_post_geometry_ethane"
   .venv/bin/python -m kinbot.anl.dispatch drive \
@@ -677,7 +677,7 @@ nohup env PYTHONUNBUFFERED=1 bash -lc '
     > "$base/anl_current_base_ethane_fb3eab2_audit.json"
   .venv/bin/python -m kinbot.anl.validation \
     prepare-post-geometry-from-run "$current" "$post" \
-    --max-nodes 3 --partition day-long-cpu
+    --max-nodes 3
   .venv/bin/python -m kinbot.anl.dispatch preflight "$post"
   .venv/bin/python -m kinbot.anl.dispatch drive "$post" --interval 20
   .venv/bin/python -m kinbot.anl.validation audit-post-geometry "$post" \
@@ -692,6 +692,55 @@ already prepared, inspect and drive that immutable graph instead of preparing
 it again. The older split graph commands remain supported for compatibility,
 but the combined graph is required when one `max_nodes` value must govern all
 independent post-geometry calculations.
+
+Leave `--partition` unset for the combined graph unless one named partition
+can satisfy every task. KinBot selects the shortest available partition that
+fits each task. In particular, the direct-MRCC `CCSDTQ(P)/cc-pVDZ` task has a
+seven-day limit and an eight-core efficiency cap, while the shorter jobs can
+use a day partition. Every job still requests its node exclusively.
+
+### Recover the 2026-10-03 higher-order ethane attempt
+
+The first generated CFOUR inputs used `CC_PROGRAM=VCC`. `CC_PROGRAM` is the
+name printed in CFOUR's output table; the input keyword is `CC_PROG`. CFOUR
+2.1 ignored the generated spelling and selected its closed-shell `xncc`
+default. Those successful native calculations must not be accepted as the
+requested RHF-reference unrestricted correction. The migration command below
+archives each old task directory and stages a corrected `CC_PROG=VCC` input.
+
+The direct-MRCC `CCSDTQ(P)/cc-pVDZ` job was killed at its one-day Slurm limit
+after writing a nonempty `fort.16`. MRCC's documented `rest=1` path can reuse
+those amplitudes. The resume command archives the old text inputs and outputs,
+keeps the large scratch/checkpoint files in place, preserves the working-memory
+value, selects cores again from node memory under the new eight-core cap, and
+requests a week partition explicitly here for Blodgett.
+
+```bash
+cd ~/KinBot
+post="$PWD/ethane_profiled_hpc_run_v5/anl_post_geometry_ethane"
+
+.venv/bin/python -m kinbot.anl.dispatch migrate-cfour-vcc \
+  "$post" ccsdtq_tz
+.venv/bin/python -m kinbot.anl.dispatch migrate-cfour-vcc \
+  "$post" ccsdtq_dz
+.venv/bin/python -m kinbot.anl.dispatch resume-mrcc \
+  "$post" ccsdtqp_dz \
+  --walltime 7-00:00:00 --partition week-long-cpu --max-cores 8
+
+.venv/bin/python -m kinbot.anl.dispatch preflight "$post"
+.venv/bin/python -m kinbot.anl.dispatch status "$post"
+
+nohup env PYTHONUNBUFFERED=1 \
+  .venv/bin/python -m kinbot.anl.dispatch drive "$post" --interval 20 \
+  > ethane_anl_post_geometry_recovery.log 2>&1 < /dev/null &
+echo $! > ethane_anl_post_geometry_recovery.pid
+disown
+```
+
+The first three status values should be `staged` before the driver starts.
+Completed Molpro tasks remain accepted. The pending correction jobs remain in
+the same globally throttled graph. Keep `attempts/` until the final audit has
+completed; it contains the original native outputs and recovery provenance.
 
 The completed ethane VPT2 parser recorded native Gaussian warnings. Assembly
 therefore stops until those warnings and the mode table are reviewed. First

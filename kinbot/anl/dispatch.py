@@ -1019,6 +1019,200 @@ def retry_failed(run_dir, ident):
     return archive
 
 
+def migrate_cfour_vcc_keyword(run_dir, ident):
+    """Restage a failed generated CFOUR task that used the wrong VCC keyword.
+
+    CFOUR accepts ``CC_PROG`` as the input keyword and reports the setting as
+    ``CC_PROGRAM``. Older generated workflows wrote the output label back into
+    ZMAT, so CFOUR ignored it and selected its method-specific default. This
+    migration is intentionally narrow and preserves the immutable old task as
+    an attempt archive.
+    """
+    run_dir, spec, state = _load(run_dir)
+    by_id = {task['id']: task for task in spec['tasks']}
+    task = by_id.get(ident)
+    entry = state['tasks'].get(ident)
+    if task is None or entry is None:
+        raise ValueError(f'{ident}: task is unavailable.')
+    parser = task.get('result_parser', {})
+    if (task.get('kind') != 'external'
+            or task.get('backend', '').lower() != 'cfour'
+            or parser.get('kind') != 'cfour_energy'
+            or parser.get('driver') != 'VCC'):
+        raise ValueError(f'{ident}: migration requires a CFOUR VCC energy task.')
+    if entry.get('status') != 'failed':
+        raise ValueError(f'{ident}: only a failed CFOUR task can be migrated.')
+    if entry.get('job_id') and _job_active(entry['job_id']):
+        raise RuntimeError(f'{ident}: Slurm job is still active.')
+    _verify_stage_files(run_dir, task, entry)
+    replacement = deepcopy(task)
+    replacement['input_template'], count = re.subn(
+        r'\bCC_PROGRAM\s*=\s*VCC\b', 'CC_PROG=VCC',
+        replacement['input_template'], count=1, flags=re.IGNORECASE)
+    if count != 1 or re.search(
+            r'\bCC_PROGRAM\s*=\s*VCC\b', replacement['input_template'],
+            re.IGNORECASE):
+        raise ValueError(f'{ident}: workflow does not contain the legacy '
+                         'CC_PROGRAM=VCC spelling exactly once.')
+    spec['tasks'][spec['tasks'].index(task)] = replacement
+    validate_spec(spec)
+
+    old = run_dir / 'tasks' / ident
+    attempt = entry.get('attempt', 1)
+    archive = run_dir / 'attempts' / ident / str(attempt)
+    if archive.exists():
+        raise RuntimeError(f'{ident}: retry archive already exists.')
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    old_workflow = (run_dir / 'workflow.json').read_text()
+    old.replace(archive)
+    try:
+        _atomic_json(run_dir / 'workflow.json', spec)
+        state['spec_sha256'] = _file_hash(run_dir / 'workflow.json')
+        _stage_task(run_dir, spec, state, replacement)
+    except Exception:
+        failed_stage = run_dir / 'tasks' / ident
+        if failed_stage.exists():
+            shutil.rmtree(failed_stage)
+        archive.replace(old)
+        (run_dir / 'workflow.json').write_text(old_workflow)
+        state['spec_sha256'] = _file_hash(run_dir / 'workflow.json')
+        state['tasks'][ident] = entry
+        _atomic_json(run_dir / 'state.json', state)
+        raise
+    state['tasks'][ident]['attempt'] = attempt + 1
+    state['tasks'][ident]['previous_attempt'] = str(archive)
+    state['tasks'][ident]['migration'] = 'CC_PROGRAM=VCC to CC_PROG=VCC'
+    _atomic_json(run_dir / 'state.json', state)
+    return archive
+
+
+def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
+                       partition=None, max_cores=None):
+    """Restage a time-limited direct-MRCC task without discarding amplitudes.
+
+    MRCC documents ``rest=1`` for restarting canonical CC calculations from
+    saved amplitudes. This path keeps the task's working memory and scratch
+    files, archives its prior input and text outputs, and regenerates the
+    immutable dispatcher records with a longer resource request.
+    """
+    run_dir, spec, state = _load(run_dir)
+    by_id = {task['id']: task for task in spec['tasks']}
+    task = by_id.get(ident)
+    entry = state['tasks'].get(ident)
+    if task is None or entry is None:
+        raise ValueError(f'{ident}: task is unavailable.')
+    if (task.get('kind') != 'external'
+            or task.get('backend', '').lower() != 'mrcc'):
+        raise ValueError(f'{ident}: resume-mrcc requires a direct MRCC task.')
+    if entry.get('status') != 'failed':
+        raise ValueError(f'{ident}: only a failed MRCC task can be resumed.')
+    if entry.get('job_id') and _job_active(entry['job_id']):
+        raise RuntimeError(f'{ident}: Slurm job is still active.')
+    if any(other != ident and other in state['tasks']
+           and ident in _task_dependencies(other_task)
+           for other, other_task in by_id.items()):
+        raise RuntimeError(f'{ident}: downstream task already exists; review run.')
+    directory = run_dir / 'tasks' / ident
+    _verify_stage_files(run_dir, task, entry)
+    amplitude = directory / 'fort.16'
+    if not amplitude.is_file() or amplitude.stat().st_size == 0:
+        raise RuntimeError(f'{ident}: nonempty MRCC fort.16 is required to resume.')
+    if (not isinstance(walltime, str) or not _TIME.fullmatch(walltime)):
+        raise ValueError('MRCC resume walltime must be HH:MM:SS or D-HH:MM:SS.')
+    if partition is not None:
+        _basename(partition, 'MRCC resume partition')
+    if max_cores is not None:
+        _positive_integer(max_cores, 'MRCC resume max_cores')
+
+    replacement = deepcopy(task)
+    resources = replacement['resources']
+    resources['walltime'] = walltime
+    resources['cores'] = 'auto'
+    if max_cores is not None:
+        resources['max_cores'] = max_cores
+    if partition is None:
+        resources.pop('partition', None)
+    else:
+        resources['partition'] = partition
+    template = replacement['input_template']
+    if re.search(r'^\s*rest\s*=\s*1\s*$', template,
+                 re.IGNORECASE | re.MULTILINE) is None:
+        template, count = re.subn(
+            r'(^\s*ccprog\s*=\s*mrcc\s*$)', r'\1\nrest=1', template,
+            count=1, flags=re.IGNORECASE | re.MULTILINE)
+        if count != 1:
+            raise RuntimeError(f'{ident}: MRCC input has no unique ccprog=mrcc.')
+        replacement['input_template'] = template
+    replacement['restart'] = {
+        'kind': 'mrcc_amplitudes', 'keyword': 'rest=1',
+        'checkpoint': 'fort.16',
+    }
+    spec['tasks'][spec['tasks'].index(task)] = replacement
+    assign_partitions(spec)
+    validate_spec(spec)
+
+    attempt = entry.get('attempt', 1)
+    archive = run_dir / 'attempts' / ident / str(attempt)
+    if archive.exists():
+        raise RuntimeError(f'{ident}: retry archive already exists.')
+    archive.mkdir(parents=True)
+    archive_names = {
+        'task.json', 'job.slurm', task['input_name'], 'execution.json',
+        'slurm.stdout', 'slurm.stderr', task.get('stdout', 'stdout.txt'),
+        task.get('stderr', 'stderr.txt'), 'EXIT',
+    }
+    archive_names.update(task.get('required_outputs', []))
+    for name in sorted(archive_names):
+        source = directory / name
+        if source.is_file():
+            shutil.copy2(source, archive / name)
+    _atomic_json(archive / 'resume_manifest.json', {
+        'schema': 1, 'task_id': ident, 'attempt': attempt,
+        'checkpoint': 'fort.16',
+        'checkpoint_bytes': amplitude.stat().st_size,
+        'working_memory_mb': task['resources']['memory_mb'],
+    })
+
+    atoms = read(directory / 'geometry.xyz')
+    rendered = _render_input(
+        replacement['input_template'], atoms, spec['molecule'],
+        replacement['resources'])
+    (directory / replacement['input_name']).write_text(rendered)
+    initial = _atoms(spec['molecule'])
+    _atomic_json(directory / 'task.json', {
+        'schema': 1, 'task': replacement,
+        'molecule': {'symbols': initial.get_chemical_symbols(),
+                     'charge': spec['molecule'].get('charge', 0),
+                     'multiplicity': spec['molecule'].get('multiplicity', 1)},
+        'geometry_sha256': entry['geometry_sha256'],
+    })
+    (directory / 'job.slurm').write_text(
+        _slurm_script(replacement, directory, state['python']))
+    for name in {'execution.json', 'slurm.stdout', 'slurm.stderr',
+                 replacement.get('stdout', 'stdout.txt'),
+                 replacement.get('stderr', 'stderr.txt'), 'EXIT'}:
+        path = directory / name
+        if path.is_file():
+            path.unlink()
+
+    _atomic_json(run_dir / 'workflow.json', spec)
+    state['spec_sha256'] = _file_hash(run_dir / 'workflow.json')
+    state['tasks'][ident] = {
+        'status': 'staged',
+        'geometry_from': replacement.get('geometry_from', 'initial'),
+        'geometry_sha256': entry['geometry_sha256'],
+        'task_sha256': _file_hash(directory / 'task.json'),
+        'job_sha256': _file_hash(directory / 'job.slurm'),
+        'input_sha256': _file_hash(directory / replacement['input_name']),
+        'attempt': attempt + 1,
+        'previous_attempt': str(archive),
+        'restart_checkpoint': 'fort.16',
+        'restart_checkpoint_bytes': amplitude.stat().st_size,
+    }
+    _atomic_json(run_dir / 'state.json', state)
+    return archive
+
+
 def advance(run_dir, submit=False, submit_only=None):
     """Complete finished tasks, stage ready tasks, and optionally submit jobs."""
     run_dir, spec, state = _load(run_dir)
@@ -1148,6 +1342,15 @@ def main(argv=None):
     retry = sub.add_parser('retry')
     retry.add_argument('run_dir')
     retry.add_argument('task_id')
+    migrate_cfour = sub.add_parser('migrate-cfour-vcc')
+    migrate_cfour.add_argument('run_dir')
+    migrate_cfour.add_argument('task_id')
+    resume_mrcc = sub.add_parser('resume-mrcc')
+    resume_mrcc.add_argument('run_dir')
+    resume_mrcc.add_argument('task_id')
+    resume_mrcc.add_argument('--walltime', default='7-00:00:00')
+    resume_mrcc.add_argument('--partition')
+    resume_mrcc.add_argument('--max-cores', type=int)
     reparse = sub.add_parser('reparse')
     reparse.add_argument('run_dir')
     reparse.add_argument('task_id')
@@ -1177,6 +1380,24 @@ def main(argv=None):
             except BlockingIOError as exc:
                 raise RuntimeError('Another driver is managing this run.') from exc
             print(retry_failed(run_dir, args.task_id))
+    elif args.action == 'migrate-cfour-vcc':
+        run_dir = Path(args.run_dir).resolve()
+        with (run_dir / 'drive.lock').open('w') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise RuntimeError('Another driver is managing this run.') from exc
+            print(migrate_cfour_vcc_keyword(run_dir, args.task_id))
+    elif args.action == 'resume-mrcc':
+        run_dir = Path(args.run_dir).resolve()
+        with (run_dir / 'drive.lock').open('w') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise RuntimeError('Another driver is managing this run.') from exc
+            print(resume_mrcc_failed(
+                run_dir, args.task_id, walltime=args.walltime,
+                partition=args.partition, max_cores=args.max_cores))
     elif args.action == 'reparse':
         run_dir = Path(args.run_dir).resolve()
         with (run_dir / 'drive.lock').open('w') as lock:

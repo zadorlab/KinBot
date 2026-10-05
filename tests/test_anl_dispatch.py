@@ -20,10 +20,13 @@ from tests.anl_fixture import dispatch_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
     _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, main, prepare,
-    preflight, refresh_status, reparse_failed, retry_failed, run_task,
+    migrate_cfour_vcc_keyword, preflight, refresh_status, reparse_failed,
+    resume_mrcc_failed,
+    retry_failed, run_task,
     validate_spec,
 )
 from kinbot.anl.site import render_site_setup
+from kinbot.anl.tasks import cfour_energy_task, mrcc_task
 
 
 def _write_spec(directory, spec):
@@ -538,6 +541,95 @@ def test_failed_task_can_be_archived_and_retried():
         assert (archive / 'execution.json').is_file()
         assert not (run_dir / 'tasks' / 'sample' / 'execution.json').exists()
         assert advance(run_dir)['tasks']['sample']['status'] == 'staged'
+
+
+def test_time_limited_mrcc_task_can_resume_with_saved_amplitudes():
+    molecule = dispatch_spec()['molecule']
+    task = mrcc_task(
+        'high', 'CCSDTQ(P)', 'cc-pVDZ', multiplicity=1,
+        geometry_from='initial', walltime='24:00:00', max_cores=4,
+        partition='day')
+    task['resources'].update(
+        cores=4, memory_mb=126000, use_all_node_memory=True)
+    spec = {'schema': 1, 'name': 'mrcc-resume', 'molecule': molecule,
+            'limits': {'max_nodes': 1}, 'tasks': [task]}
+    partitions = [{
+        'name': 'week', 'default': False, 'cores': 96,
+        'memory_mb': 126000, 'seconds': 7 * 24 * 3600,
+    }]
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        directory = run_dir / 'tasks' / 'high'
+        (directory / 'fort.16').write_bytes(b'saved amplitudes')
+        (directory / 'high.out').write_text('unfinished native output\n')
+        (directory / 'high.err').write_text('time limit\n')
+        (directory / 'slurm.stderr').write_text('DUE TO TIME LIMIT\n')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['high'].update(status='failed', error='time limit')
+        state_path.write_text(json.dumps(state))
+
+        with patch('kinbot.anl.site._partitions', return_value=partitions):
+            archive = resume_mrcc_failed(
+                run_dir, 'high', max_cores=8, partition='week')
+
+        assert (archive / 'high.out').read_text() == \
+            'unfinished native output\n'
+        assert (archive / 'resume_manifest.json').is_file()
+        assert (directory / 'fort.16').read_bytes() == b'saved amplitudes'
+        assert not (directory / 'high.out').exists()
+        assert 'rest=1\n' in (directory / 'MINP').read_text()
+        assert '#SBATCH --time=7-00:00:00\n' in \
+            (directory / 'job.slurm').read_text()
+        assert '#SBATCH --partition=week\n' in \
+            (directory / 'job.slurm').read_text()
+        workflow = json.loads((run_dir / 'workflow.json').read_text())
+        resumed = workflow['tasks'][0]
+        assert resumed['resources']['cores'] == 8
+        assert resumed['resources']['memory_mb'] == 126000
+        assert resumed['restart']['checkpoint'] == 'fort.16'
+        state = json.loads(state_path.read_text())
+        assert state['tasks']['high']['status'] == 'staged'
+        assert state['tasks']['high']['restart_checkpoint_bytes'] == 16
+        assert advance(run_dir)['tasks']['high']['status'] == 'staged'
+
+
+def test_failed_legacy_cfour_vcc_keyword_can_be_migrated_and_restaged():
+    molecule = dispatch_spec()['molecule']
+    task = cfour_energy_task(
+        'high', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=1,
+        geometry_from='initial', partition='day')
+    task['input_template'] = task['input_template'].replace(
+        'CC_PROG=VCC', 'CC_PROGRAM=VCC')
+    task['resources'].update(
+        cores=8, memory_mb=126000, use_all_node_memory=True)
+    spec = {'schema': 1, 'name': 'cfour-migration', 'molecule': molecule,
+            'limits': {'max_nodes': 1}, 'tasks': [task]}
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        directory = run_dir / 'tasks' / 'high'
+        old_input = (directory / 'ZMAT').read_text()
+        (directory / 'high.out').write_text(
+            'calling xncc\nThe final electronic energy is -1.0 a.u.\n')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['high'].update(status='failed', error='wrong driver')
+        state_path.write_text(json.dumps(state))
+
+        archive = migrate_cfour_vcc_keyword(run_dir, 'high')
+
+        assert (archive / 'ZMAT').read_text() == old_input
+        new_input = (directory / 'ZMAT').read_text()
+        assert 'CC_PROG=VCC\n' in new_input
+        assert 'CC_PROGRAM=VCC' not in new_input
+        workflow = json.loads((run_dir / 'workflow.json').read_text())
+        assert 'CC_PROG=VCC' in workflow['tasks'][0]['input_template']
+        state = json.loads(state_path.read_text())
+        assert state['tasks']['high']['status'] == 'staged'
+        assert state['tasks']['high']['migration'].startswith('CC_PROGRAM')
+        assert advance(run_dir)['tasks']['high']['status'] == 'staged'
 
 
 def test_parser_failure_can_be_recovered_without_rerunning_native_job():

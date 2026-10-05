@@ -42,11 +42,14 @@ Total CCSDTQ(P) energy [au]: -39.123456789012
 Normal termination of mrcc.
 """
 
-_CFOUR_CCSDTQ = """CALC_LEVEL=CCSDT(Q)
-BASIS=cc-pVTZ
-REFERENCE=RHF
-CC_PROGRAM=VCC
-FROZEN_CORE=ON
+_CFOUR_CCSDTQ = """CALC_LEVEL       ICALC       CCSDT(Q)    [ 54]    ***
+BASIS            IBASIS      cc-pVTZ     [ 14]    ***
+REFERENCE        IREF        RHF         [  0]    ***
+CC_PROGRAM       ICCPRO      VCC         [  0]    ***
+FROZEN_CORE      IFROCO      ON          [  1]    ***
+  calling xvcc
+ --invoking executable--
+/opt/cfour/2.1/bin/xvcc
 The final electronic energy is -79.123456789012 a.u.
 This computation required 31.93 seconds (walltime).
 """
@@ -110,13 +113,21 @@ def test_cfour_higher_order_energy_requires_rhf_spin_orbital_execution():
     assert result['program_variant'] == 'RHF-UCCSDT(Q)'
     with pytest.raises(ValueError, match='REFERENCE=RHF'):
         parse_cfour_energy(
-            _CFOUR_CCSDTQ.replace('REFERENCE=RHF', 'REFERENCE=UHF'),
+            _CFOUR_CCSDTQ.replace('RHF         [  0]',
+                                  'UHF         [  1]'),
             method='CCSDT(Q)', basis='cc-pVTZ', reference='RHF',
             correlation='unrestricted', core='frozen', program='cfour',
             driver='VCC')
     with pytest.raises(ValueError, match='completion'):
         parse_cfour_energy(
             _CFOUR_CCSDTQ.replace('This computation required', 'Incomplete'),
+            method='CCSDT(Q)', basis='cc-pVTZ', reference='RHF',
+            correlation='unrestricted', core='frozen', program='cfour',
+            driver='VCC')
+    with pytest.raises(ValueError, match='observed xncc'):
+        parse_cfour_energy(
+            _CFOUR_CCSDTQ.replace('calling xvcc', 'calling xncc')
+            .replace('/xvcc', '/xncc'),
             method='CCSDT(Q)', basis='cc-pVTZ', reference='RHF',
             correlation='unrestricted', core='frozen', program='cfour',
             driver='VCC')

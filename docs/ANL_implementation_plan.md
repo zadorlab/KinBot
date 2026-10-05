@@ -1047,7 +1047,7 @@ Supported production tasks:
 energy-like DBOC property
 ```
 
-Native CFOUR `CC_PROGRAM=NCC` higher-order energies are deliberately outside
+Native CFOUR `CC_PROG=NCC` higher-order energies are deliberately outside
 this unrestricted-CC profile. Higher-order calculations use direct MRCC.
 
 Do not claim general gradient support in version 1 unless it is explicitly implemented and validated.
@@ -1761,7 +1761,7 @@ Default for:
 Default for:
 - DBOC only in this profile.
 
-Native `CC_PROGRAM=NCC` is the fast closed-shell restricted CC path. It is
+Native `CC_PROG=NCC` is the fast closed-shell restricted CC path. It is
 not generated for the unrestricted-CC ANL profile. A CFOUR-to-MRCC interface
 would still be an MRCC higher-order calculation and offers no advantage over
 the direct `dmrcc` provider used here.
@@ -5005,7 +5005,7 @@ spin-orbital CC policy separately as `correlation=unrestricted`. An explicit
 UHF-UCCSDT(Q) and UHF-UCCSDTQ(P) convention. The modern profile uses RHF or
 semicanonical ROHF determinants as requested.
 
-CFOUR remains the DBOC provider. Its fast native `CC_PROGRAM=NCC`
+CFOUR remains the DBOC provider. Its fast native `CC_PROG=NCC`
 CCSDT(Q) path is a closed-shell restricted implementation, so it is excluded
 from this profile. `CC_PROG=MRCC` would be an MRCC calculation driven through
 CFOUR; the direct `dmrcc` path is clearer and records fewer interface layers.
@@ -5032,7 +5032,7 @@ jobs continue to use the dispatcher's independent exclusive-node generator.
 The current higher-order routing supersedes historical notes above that say
 MRCC is deferred or that every CCSDT(Q) task uses direct MRCC:
 
-- closed-shell CCSDT(Q): CFOUR `REFERENCE=RHF`, `CC_PROGRAM=VCC`, unrestricted
+- closed-shell CCSDT(Q): CFOUR `REFERENCE=RHF`, `CC_PROG=VCC`, unrestricted
   spin-orbital coupled cluster, recorded as RHF-UCCSDT(Q);
 - open-shell CCSDT(Q): direct MRCC with a semicanonical ROHF determinant;
 - every CCSDTQ(P): direct MRCC, using RHF for a singlet or semicanonical ROHF
@@ -5148,3 +5148,38 @@ audit reports the higher-order correction and the core-valence and scalar
 relativistic corrections separately, while final assembly can read both
 groups from the same hash-pinned run. The older split graph commands remain
 available for existing immutable runs.
+
+---
+
+# 107. PR #108 integration and higher-order recovery (2026-10-05)
+
+The composite branch is rebased onto master commit `5c6525a`, which contains
+PR #108 from `stereochem` and its PR #111 follow-up. The integration retains PR #108's configured
+stereoisomer identity, conformer counting, pathway selection, optical sums,
+product-complex topology, MESS network handling, and Q-Chem fixes. Composite
+QC routing, CBH/ATcT, ANL energy provenance, ROTD_py, and shared dispatcher
+features remain additive. The old local rebase onto the unrelated `stereo`
+branch is not part of this history.
+
+The first ethane higher-order attempt found that CFOUR input and output use
+different names for the CC driver keyword. Generated ZMAT files contained
+`CC_PROGRAM=VCC`, the label CFOUR prints in its parsed-keyword table. CFOUR's
+input keyword is `CC_PROG=VCC`; version 2.1 ignored the former and selected
+the closed-shell `xncc` default for CCSDT(Q). New inputs use `CC_PROG=VCC`.
+The native parser accepts CFOUR's table-form keyword report and requires the
+actual `xvcc` invocation, so a numerically successful `xncc` calculation
+cannot be mislabeled as RHF-UCCSDT(Q). Existing failed dispatcher tasks can
+be migrated with `migrate-cfour-vcc`; their complete old directories are
+retained under `attempts/`.
+
+The direct-MRCC CCSDTQ(P)/cc-pVDZ calculation was valid but exceeded its
+one-day limit after two iterations. Its default is now seven days with an
+eight-core efficiency cap. When no partition is pinned, preparation selects
+the shortest site partition that can satisfy each task, allowing the long
+MRCC calculation and shorter single points to share one globally throttled
+workflow without forcing one site-specific queue name. A failed MRCC task
+with a nonempty `fort.16` can be continued with `resume-mrcc`. That command
+uses MRCC's documented `rest=1`, keeps working memory and large scratch files
+unchanged, recalculates cores from available node memory under the requested
+cap, archives the previous text evidence, and regenerates dispatcher hashes
+before resubmission.

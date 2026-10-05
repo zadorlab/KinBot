@@ -1136,8 +1136,6 @@ class MESS:
                                          ground_energy=energy)
 
         elif bless == 1:
-            if reaction is None:
-                raise ValueError('A barrierless MESS channel needs its reaction identity.')
             stoich = ''
             el_counter = Counter(self.species.atom)
             for el in constants.elements:
@@ -1145,8 +1143,11 @@ class MESS:
                     stoich += '{}{}'.format(el, el_counter[el])
             well_key = complex_species.name if complex_species is not None else routing_key(self.species)
             well_name = self.well_names[well_key] if not self.par['pes'] else None
-            bimol = self.blbimoltpl.format(barrier=('{blessname}' if self.par['pes'] else
-                                                   f'bl_{well_name}_{self.bimolec_names[pr_name]}'),
+            barrier_name = ('{blessname}' if self.par['pes'] else
+                            'bl_' + self.ts_names[reaction.instance_name]
+                            if reaction is not None else
+                            f'bl_{well_name}_{self.bimolec_names[pr_name]}')
+            bimol = self.blbimoltpl.format(barrier=barrier_name,
                                            reactant=('{wellname}' if self.par['pes'] else well_name),
                                            prod=('{prodname}' if self.par['pes'] else self.bimolec_names[pr_name]),
                                            chemids=name,

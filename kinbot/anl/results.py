@@ -154,12 +154,35 @@ def parse_cfour_energy(output, *, method, basis, reference, correlation, core,
         'CC_PROGRAM': driver, 'FROZEN_CORE': 'ON',
     }
     for keyword, value in expected.items():
-        matches = re.findall(
-            rf'^\s*{keyword}\s*=\s*{re.escape(value)}\s*$', output,
+        # CFOUR 2.1 normally reports parsed keywords as a table, for example
+        # ``CC_PROGRAM ICCPRO VCC [ 0] ***``.  Small fixtures and some builds
+        # also echo ``CC_PROGRAM=VCC``.  Accept either native spelling while
+        # requiring one unambiguous value.
+        equals = re.findall(
+            rf'^\s*{keyword}\s*=\s*([^\s,)]+)\s*$', output,
             re.IGNORECASE | re.MULTILINE)
-        if len(matches) != 1:
+        table = re.findall(
+            rf'^\s*{keyword}\s+\S+\s+([^\s]+)\s+'
+            rf'\[\s*[-+]?\d+\s*\]\s+\*{{3}}\s*$', output,
+            re.IGNORECASE | re.MULTILINE)
+        values = equals + table
+        if len(values) != 1 or values[0].casefold() != value.casefold():
             raise ValueError(f'CFOUR output does not uniquely echo '
                              f'{keyword}={value}.')
+    invoked = {
+        match.casefold() for match in re.findall(
+            r'^\s*calling\s+(x(?:vcc|ncc|ecc))\s*$', output,
+            re.IGNORECASE | re.MULTILINE)
+    }
+    invoked.update(
+        match.casefold() for match in re.findall(
+            r'^\s*/\S*/(x(?:vcc|ncc|ecc))\s*$', output,
+            re.IGNORECASE | re.MULTILINE))
+    expected_executable = 'x' + driver.casefold()
+    if invoked != {expected_executable}:
+        shown = ', '.join(sorted(invoked)) or 'none'
+        raise ValueError(f'CFOUR did not uniquely invoke {expected_executable}; '
+                         f'observed {shown}.')
     finals = _FINAL_ENERGY.findall(output)
     if len(finals) != 1:
         raise ValueError('CFOUR needs exactly one final electronic energy.')
@@ -619,8 +642,9 @@ def validate_result_parser(request, *, backend, template, outputs):
                           template, re.IGNORECASE)
             and re.search(r'\bREFERENCE\s*=\s*RHF(?=\s*[,\n)])',
                           template, re.IGNORECASE)
-            and re.search(r'\bCC_PROGRAM\s*=\s*VCC(?=\s*[,\n)])',
-                          template, re.IGNORECASE)
+            and len(re.findall(
+                r'\bCC_(?:PROG|PROGRAM)\s*=\s*VCC(?=\s*[,\n)])',
+                template, re.IGNORECASE)) == 1
             and re.search(r'\bFROZEN_CORE\s*=\s*ON(?=\s*[,\n)])',
                           template, re.IGNORECASE))
     elif kind == 'molpro_energy':

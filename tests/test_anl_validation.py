@@ -137,12 +137,15 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
     assert closed_tasks['ccsdtqp_dz']['result_parser']['reference'] == 'RHF'
     assert closed_tasks['ccsdtqp_dz']['result_parser']['correlation'] == \
         'unrestricted'
+    assert closed_tasks['ccsdtqp_dz']['resources']['walltime'] == '7-00:00:00'
+    assert closed_tasks['ccsdtqp_dz']['resources']['max_cores'] == 8
     assert closed_tasks['ccsdt_tz']['backend'] == 'molpro'
     for ident in ('ccsdtq_tz', 'ccsdtq_dz'):
         assert closed_tasks[ident]['result_parser']['reference'] == 'RHF'
         assert closed_tasks[ident]['result_parser']['correlation'] == 'unrestricted'
         assert closed_tasks[ident]['result_parser']['program'] == 'cfour'
         assert closed_tasks[ident]['result_parser']['driver'] == 'VCC'
+        assert 'CC_PROG=VCC' in closed_tasks[ident]['input_template']
     assert closed['intent']['equation'] == (
         'CCSDT(Q)/TZ - CCSD(T)/TZ + CCSDTQ(P)/DZ - CCSDT(Q)/DZ')
 

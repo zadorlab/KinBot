@@ -278,8 +278,8 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtqp_dz', 'CCSDTQ(P)', 'cc-pVDZ',
-            multiplicity=multiplicity, walltime='24:00:00',
-            max_cores=4, command=mrcc_command, **common),
+            multiplicity=multiplicity, walltime='7-00:00:00',
+            max_cores=8, command=mrcc_command, **common),
     ]
     return {
         'schema': 1, 'name': 'anl1-higher-order-interface-validation',

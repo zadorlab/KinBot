@@ -197,12 +197,16 @@ class TestReactionPaths(unittest.TestCase):
             with self.assertRaises(UnsupportedStereochemistry):
                 prepare_stereopath(ts, self.p, endpoint_snapshot(q))
 
-    def test_runnable_inputs_enumerate_two_diastereotopic_routes_and_one_control(self):
+    def test_input_templates_enumerate_two_diastereotopic_routes_and_one_control(self):
         directory = Path(__file__).resolve().parents[1] / 'examples/stereochemical_h_transfer'
         for parent, path, expected in [('secbutylperoxy', [5, 4, 2, 1], {9, 10}),
                                        ('propylperoxy_control', [4, 3, 2, 1], {8})]:
             for treatment, mc in [('hir', 0), ('mc_rrho', 1)]:
                 filename = directory / f'{parent}_{treatment}.json'
+                # These are portable templates. Discovery needs no QC backend.
+                raw = json.loads(filename.read_text())
+                self.assertIsInstance(raw['ppn'], str)
+                self.assertIsInstance(raw['queue_job_limit'], str)
                 par = Parameters(str(filename), show_warnings=False).par
                 p = StationaryPoint('input', par['charge'], par['mult'],
                                     structure=par['structure'], smiles=par['smiles'] or None)

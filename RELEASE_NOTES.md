@@ -27,6 +27,13 @@ An unsupported initial reactant stops before QC. An unsupported discovered
 reaction is omitted with a warning that the network is incomplete. Its
 calculation files remain available; unrelated reactions can continue.
 
+The four stereochemical H-transfer example files are valid JSON templates.
+Replace their quoted `SET_...` placeholders with local QC and queue settings
+before running them. Replace the CPU count and job limit strings with integer
+values. The HIR templates use matching placeholders for `method` and
+`high_level_method`, and for `basis` and `high_level_basis`; keep these pairs
+equal when replacing the placeholders for an L1-only HIR calculation.
+
 Ordinary PAHs and biaryls are no longer rejected by their number of aromatic
 rings. Scope checks use an aromatic graph copy so equivalent phenyl arms do
 not appear different in one bond drawing. Aromatic radical resonance forms

@@ -226,7 +226,7 @@ class TestStereoRouting(unittest.TestCase):
     def test_unsupported_well_is_rejected_before_writing_a_reference(self):
         db = connect('kinbot.db')
         qc = SimpleNamespace(db=db)
-        for smiles in ('FC=C=CF', 'Cc1ccc2cc3ccccc3cc2c1'):
+        for smiles in ('FC=C=CF', 'Cc1cccc(F)c1-c1c(C)cccc1F'):
             point = StationaryPoint('unsupported', 0, 1, smiles=smiles)
             point.characterize()
             self.assertEqual(canonical_identity(point)['status'], 'unsupported')

@@ -56,7 +56,7 @@ def test_product_adopts_complete_cache_order_and_keeps_endpoint(tmp_path, monkey
 
 
 def test_unsupported_graph_cannot_authorize_product_reuse():
-    point = StationaryPoint('substituted PAH', 0, 1, smiles='Cc1ccc2cc3ccccc3cc2c1')
+    point = StationaryPoint('substituted allene', 0, 1, smiles='FC=C=CF')
     point.characterize()
     assert canonical_identity(point)['status'] == 'unsupported'
     other = copy.copy(point)

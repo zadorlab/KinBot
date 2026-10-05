@@ -8,6 +8,7 @@ This is the main class to run KinBot to explore
 a full PES instead of only the reactions of one well
 """
 import sys
+import logging
 import os
 import stat
 import shutil
@@ -24,7 +25,8 @@ import getpass
 from copy import deepcopy
 from ase.db import connect
 from kinbot.run_format import ensure_current_run
-from kinbot.stereo_identity import log_input_stereochemistry
+from kinbot.stereo_identity import log_input_stereochemistry, UnsupportedStereochemistry
+from kinbot.stereo_routing import StereoRoutingError
 from ase.atoms import Atoms
 
 from kinbot import kb_path
@@ -97,6 +99,14 @@ def remove_unused_complexes(discarded, reactions, wells, do_vdW, parent):
 
 
 def main():
+    try:
+        return _main()
+    except (StereoRoutingError, UnsupportedStereochemistry) as error:
+        logging.getLogger('KinBot').error('KinBot stopped: %s', error)
+        raise SystemExit(1) from None
+
+
+def _main():
     if sys.version_info.major < 3:
         print(f'KinBot only runs with python 3.10 or higher. You have python {sys.version_info.major}.{sys.version_info.minor}. Bye!')
         sys.exit(-1)

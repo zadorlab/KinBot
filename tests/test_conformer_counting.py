@@ -202,7 +202,7 @@ class TestConformerCounting(unittest.TestCase):
         self.assertAlmostEqual(species.conformer_inventory[0].population_ratio, expected)
 
     def test_canonical_evidence_refreshes_final_member_weights(self):
-        from kinbot.thermochemistry import thermochemistry_evidence
+        from tests.thermochemistry_helpers import thermochemistry_evidence
         species = peroxide()
         species.energy, species.zpe = -1.01, .01
         species.freq = species.reduced_freqs = [100.] * 6
@@ -220,7 +220,7 @@ class TestConformerCounting(unittest.TestCase):
         json.dumps(evidence, allow_nan=False)
 
     def test_unsupported_scope_cannot_receive_conformer_weights(self):
-        from kinbot.thermochemistry import thermochemistry_evidence
+        from tests.thermochemistry_helpers import thermochemistry_evidence
         species = peroxide()
         species.optical_reference = {'status': 'unsupported', 'reason': 'axial configuration'}
         species.energy, species.zpe = -1.01, .01
@@ -285,7 +285,7 @@ class TestConformerCounting(unittest.TestCase):
             self.assertEqual(point.sigma_ext, -1)
 
     def test_repeated_writers_and_error_exports_preserve_excluded_member_sources(self):
-        from kinbot.thermochemistry import thermochemistry_evidence
+        from tests.thermochemistry_helpers import thermochemistry_evidence
         for unsupported in (False, True):
             species = peroxide()
             species.energy, species.zpe = -1.01, .01

@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import unittest
 import numpy as np
-from kinbot.rotor_diagnostics import (hydroxymethyl_coordinates, continuation_diagnostics,
+from tests.rotor_diagnostics import (hydroxymethyl_coordinates, continuation_diagnostics,
                                      cross_continuation_diagnostics)
 
 

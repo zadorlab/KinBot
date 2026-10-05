@@ -16,7 +16,8 @@ from kinbot.mess import MESS
 from kinbot.optical import _Parts, rigid_mirror, evaluate_optical
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.thermochemistry import hir_evidence, thermochemistry_evidence
+from kinbot.thermochemistry import hir_evidence
+from tests.thermochemistry_helpers import thermochemistry_evidence
 from tests.counting_fixtures import saved_point, methanol_data
 from test_hir_optical_domains import pyramidal_product, puckered_ts, relaxed_radical, rigid_mmff_scan
 

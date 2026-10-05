@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from kinbot import frequencies
-from kinbot.thermochemistry import thermochemistry_evidence
+from tests.thermochemistry_helpers import thermochemistry_evidence
 from tests.test_thermochemistry_evidence import scanned_point
 
 

@@ -20,7 +20,7 @@ from kinbot.optimize import Optimize
 from kinbot.parameters import Parameters
 from kinbot.qc import QuantumChemistry
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.thermochemistry import thermochemistry_evidence
+from tests.thermochemistry_helpers import thermochemistry_evidence
 
 
 class TestSelectedHessian(unittest.TestCase):

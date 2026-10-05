@@ -12,7 +12,7 @@ from kinbot.conformer_records import inventory, retain
 from kinbot.counting_contract import site_counting
 from kinbot.stereo_identity import optical_scope, UnsupportedStereochemistry
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.thermochemistry import thermochemistry_evidence
+from tests.thermochemistry_helpers import thermochemistry_evidence
 from tests.counting_fixtures import methanol_data, saved_point
 from tests.test_conformer_counting import peroxide
 from tests.conformer_fixtures import record_conformers

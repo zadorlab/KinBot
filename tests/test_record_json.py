@@ -4,7 +4,8 @@ import unittest
 
 import numpy as np
 
-from kinbot.thermochemistry import thermochemistry_evidence, json_record
+from kinbot.thermochemistry import json_record
+from tests.thermochemistry_helpers import thermochemistry_evidence
 from tests.test_thermochemistry_evidence import scanned_point
 
 

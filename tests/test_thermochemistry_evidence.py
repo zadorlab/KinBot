@@ -9,7 +9,7 @@ from ase.build import molecule
 from kinbot.hindered_rotors import HIR
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import constants, frequencies, symmetry
-from kinbot.thermochemistry import thermochemistry_evidence
+from tests.thermochemistry_helpers import thermochemistry_evidence
 
 
 def scanned_point():

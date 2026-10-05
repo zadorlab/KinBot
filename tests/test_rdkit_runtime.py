@@ -123,7 +123,7 @@ def test_command_rejects_old_results_before_logging_or_qc(tmp_path, monkeypatch,
     assert snapshot(tmp_path) == before
 
 
-def test_unsupported_initial_reactant_stops_before_qc(tmp_path, monkeypatch):
+def test_unsupported_initial_reactant_stops_before_qc(tmp_path, monkeypatch, caplog):
     from kinbot import kb
     from kinbot.stereo_identity import UnsupportedStereochemistry
     monkeypatch.chdir(tmp_path)
@@ -136,8 +136,10 @@ def test_unsupported_initial_reactant_stops_before_qc(tmp_path, monkeypatch):
         raise AssertionError('unsupported initial reactant reached QC')
     monkeypatch.setattr(kb, 'require_supported_identity', unsupported)
     monkeypatch.setattr(kb, 'QuantumChemistry', forbidden)
-    with pytest.raises(UnsupportedStereochemistry, match='unsupported initial reactant'):
+    with pytest.raises(SystemExit) as error:
         kb.main()
+    assert error.value.code == 1
+    assert 'KinBot stopped: unsupported initial reactant fixture' in caplog.text
 
 
 @pytest.mark.parametrize('old_worker', [True, False])

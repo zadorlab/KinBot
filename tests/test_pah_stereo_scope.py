@@ -1,4 +1,4 @@
-"""A narrow ordinary PAH class must not trigger the unsupported-helicity guard."""
+"""Ordinary PAHs and biaryls use the shared stereo and counting workflow."""
 import copy
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,7 +11,7 @@ from ase.db import connect
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.stereo_identity import canonical_identity, _three_ring_benzenoid
+from kinbot.stereo_identity import canonical_identity
 from kinbot.species_routing import routing_key, same_species
 from kinbot.stereo_routing import guard_well_job
 from kinbot.conformer_counting import writer_members
@@ -51,9 +51,12 @@ class TestPAHStereoScope(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.points = []
-        for smiles in (ANTHRACENE, PHENANTHRENE):
+        for smiles in (ANTHRACENE, PHENANTHRENE, PYRENE, 'C'+ANTHRACENE,
+                       'c1ccc2c(c1)Cc1ccccc1-2', '[c]1ccc2cc3ccccc3cc2c1',
+                       'c1ccccc1-c1ccccc1'):
             obs = observation(molecule(smiles))
-            point = StationaryPoint('PAH', 0, 1, atom=obs.atom, geom=obs.geom)
+            point = StationaryPoint('PAH', 0, 2 if smiles.startswith('[c]') else 1,
+                                    atom=obs.atom, geom=obs.geom)
             point.characterize()
             cls.points.append(point)
 
@@ -62,7 +65,7 @@ class TestPAHStereoScope(unittest.TestCase):
             p = copy.copy(original)
             self.assertEqual(canonical_identity(p)['status'], 'assigned')
             self.assertEqual(routing_key(p), p.chemid)
-            other = StationaryPoint('independent', 0, 1, atom=p.atom, geom=p.geom.copy())
+            other = StationaryPoint('independent', 0, p.mult, atom=p.atom, geom=p.geom.copy())
             other.characterize()
             self.assertTrue(same_species(p, other))
             p.conformer_index = [7]
@@ -73,7 +76,7 @@ class TestPAHStereoScope(unittest.TestCase):
             members = writer_members(p)
             self.assertEqual(members[0].index, 7)
             self.assertIsNotNone(members[0].stereo_identity)
-            self.assertEqual(members[0].remaining_optical_weight, 1.)
+            self.assertIn(members[0].remaining_optical_weight, (1., 2.))
 
     def test_bending_rigid_motion_and_permutation_do_not_change_support_or_key(self):
         for original in self.points:
@@ -102,14 +105,14 @@ class TestPAHStereoScope(unittest.TestCase):
                 freq = [100.] * (3*p.natom-6)
                 qc.db.write(Atoms(p.atom, positions=p.geom), name=job,
                     data={'status': 'normal', 'energy': -1./constants.EVtoHARTREE,
-                          'zpe': .01, 'frequencies': freq, 'charge': 0, 'multiplicity': 1})
+                          'zpe': .01, 'frequencies': freq, 'charge': 0, 'multiplicity': p.mult})
                 guard_well_job(qc, p, p.geom, job)
                 load_calculation_record(p, qc, job)
                 self.assertEqual(p.source_job, job)
                 self.assertEqual(p.energy, -1.)
                 self.assertEqual(len(list(qc.db.select(name=job))), 1)
 
-    def test_exemption_preserves_virtual_and_real_isotope_labels(self):
+    def test_assignment_preserves_virtual_and_real_isotope_labels(self):
         p = copy.copy(self.points[0])
         hydrogen = next(i for i, atom in enumerate(p.atom) if atom == 'H')
         self.assertEqual(canonical_identity(p, tagged_atom=hydrogen)['status'], 'assigned')
@@ -119,33 +122,25 @@ class TestPAHStereoScope(unittest.TestCase):
         self.assertEqual(assigned['status'], 'assigned')
         self.assertNotEqual(assigned['id'], canonical_identity(self.points[0])['id'])
 
-    def test_larger_substituted_saturated_and_disconnected_graphs_stay_outside_class(self):
-        cases = [(PYRENE, 'unsupported'), ('C'+ANTHRACENE, 'unsupported'),
-                 # Fewer pi rings already bypass the guard; they do not enter this exemption.
-                 ('C1CCc2cc3ccccc3cc2C1', 'assigned'), (ANTHRACENE+'.C', 'unsupported')]
-        for smiles, status in cases:
-            with self.subTest(smiles=smiles):
-                mol = molecule(smiles)
-                self.assertFalse(_three_ring_benzenoid(mol))
-                self.assertEqual(canonical_identity(observation(mol))['status'], status)
-        # An extra bridge must not pass merely because all carbon atoms remain in the core.
-        mol = Chem.RWMol(molecule(ANTHRACENE))
-        mol.AddBond(0, 4, Chem.BondType.SINGLE)
-        mol = mol.GetMol()
-        mol.UpdatePropertyCache(strict=False)
-        Chem.GetSymmSSSR(mol)
-        self.assertFalse(_three_ring_benzenoid(mol))
+    def test_virtual_labels_do_not_create_a_physical_biaryl_axis(self):
+        from kinbot.stereochemistry import motif_identity, virtually_labelled
+        p = self.points[-1]
+        original = canonical_identity(p)
+        labelled = virtually_labelled(p, {i: i for i in range(p.natom)})
+        self.assertEqual(canonical_identity(labelled)['status'], 'assigned')
+        self.assertEqual(motif_identity(labelled, list(range(p.natom)))['status'], 'assigned')
+        self.assertEqual(canonical_identity(p, tagged_atom=0)['status'], 'assigned')
+        self.assertEqual(canonical_identity(p), original)
+        self.assertFalse(hasattr(p, 'isotopes'))
 
-    def test_actual_helicene_and_mirror_remain_unsupported(self):
+    def test_helicity_is_not_encoded_as_a_supported_configuration(self):
+        # Removing the PAH ban does not add a helical stereoisomer identifier.
+        from kinbot.optical import compare_rigid
         obs = observation(molecule(HELICENE))
-        carbon = obs.geom[np.asarray(obs.atom) == 'C']
-        centered = carbon-carbon.mean(axis=0)
-        _, _, axes = np.linalg.svd(centered, full_matrices=False)
-        self.assertGreater(np.max(abs(centered @ axes[-1])), .2)
-        for geom in (obs.geom, obs.geom * [-1., 1., 1.]):
-            result = canonical_identity(obs, geom)
-            self.assertEqual(result['status'], 'unsupported')
-            self.assertIn('helical/planar', result['reason'])
+        identity = canonical_identity(obs)
+        self.assertEqual(identity['status'], 'assigned')
+        self.assertEqual(identity['id'], identity['mirror_id'])
+        self.assertEqual(compare_rigid(obs, obs.geom, obs.geom)['status'], 'distinct')
 
     def test_existing_biaryl_and_coordination_graph_guards_remain_in_force(self):
         for smiles, reason in [('Cc1cccc(F)c1-c1c(C)cccc1F', 'biaryl'),

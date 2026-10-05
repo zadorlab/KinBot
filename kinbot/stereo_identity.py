@@ -16,35 +16,7 @@ class UnsupportedStereochemistry(ValueError):
     """The calculation requires an identity outside the supported scope."""
 
 
-def _three_ring_benzenoid(mol):
-    """Recognize the unsubstituted anthracene/phenanthrene graph class.
-
-    Ordinary bending does not require a new configured identity for these
-    skeletons. This narrow exemption is not a general helicene classifier.
-    """
-    rings = [set(ring) for ring in mol.GetRingInfo().AtomRings()]
-    if len(rings) != 3 or any(len(ring) != 6 for ring in rings):
-        return False
-    shared = [rings[i] & rings[j] for i in range(3) for j in range(i)]
-    if sorted(map(len, shared)) != [0, 2, 2]:
-        return False
-    if any(atoms and mol.GetBondBetweenAtoms(*sorted(atoms)) is None for atoms in shared):
-        return False
-    core = set.union(*rings)
-    if len(core) != 14 or mol.GetNumAtoms() != 24:
-        return False
-    for atom in mol.GetAtoms():
-        orders = sorted(bond.GetBondTypeAsDouble() for bond in atom.GetBonds())
-        if atom.GetIdx() in core:
-            if atom.GetAtomicNum() != 6 or orders != [1., 1., 2.]:
-                return False
-        elif (atom.GetAtomicNum() != 1 or orders != [1.]
-              or atom.GetNeighbors()[0].GetIdx() not in core):
-            return False
-    return True
-
-
-def _check_supported_configuration(mol):
+def _check_supported_configuration(mol, physical_isotopes, common_bonds):
     """Conservative boundary for fixed stereo outside the supported tags.
 
     This detects potential axes/frameworks; it does not infer their barriers
@@ -52,35 +24,45 @@ def _check_supported_configuration(mol):
     """
     import networkx as nx
     from rdkit import Chem
+    # This copy is only for scope checks. Keep the supplied resonance graphs
+    # and their stereo strings unchanged. Aromatic bonds must not make the
+    # two equivalent arms of a phenyl group appear different.
+    mol = Chem.Mol(mol)
+    Chem.SetAromaticity(mol)
     ranks = Chem.CanonicalRankAtoms(mol, breakTies=False, includeChirality=False)
     doubles = nx.Graph()
     for bond in mol.GetBonds():
-        if bond.GetBondTypeAsDouble() == 2:
+        if (bond.GetBondTypeAsDouble() == 2 and
+                common_bonds[bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()] == 2):
             doubles.add_edge(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
     for component in nx.connected_components(doubles):
         ends = [i for i in component if doubles.degree(i) == 1]
         substituents = [[ranks[a.GetIdx()] for a in mol.GetAtomWithIdx(i).GetNeighbors()
                          if a.GetIdx() not in component] for i in ends]
         if (len(component) > 2 and len(ends) == 2
+                and all(mol.GetAtomWithIdx(i).GetDegree() == 2
+                        for i in component if i not in ends)
                 and all(len(set(group)) >= 2 for group in substituents)):
             raise ValueError('cumulene/axial configuration is outside the supported stereo scope')
     for atom in mol.GetAtoms():
         if atom.GetDegree() > 4 or (atom.GetDegree() and atom.GetAtomicNum()
                                    not in {1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53}):
             raise ValueError('non-tetrahedral/coordination configuration is outside the supported stereo scope')
+    # Test physical biaryl substituents, not isotope tags introduced to compare
+    # reaction sites. A real substituted axis remains outside this scope.
+    for atom, isotope in zip(mol.GetAtoms(), physical_isotopes):
+        atom.SetIsotope(int(isotope))
+    ranks = Chem.CanonicalRankAtoms(mol, breakTies=False, includeChirality=False)
     for bond in mol.GetBonds():
         ends = (bond.GetBeginAtom(), bond.GetEndAtom())
         if (not bond.IsInRing() and all(atom.IsInRing() for atom in ends)
-                and all(any(b.GetBondTypeAsDouble() == 2 for b in atom.GetBonds())
+                and all(any(b.GetIsAromatic() or b.GetBondTypeAsDouble() == 2
+                            for b in atom.GetBonds())
                         for atom in ends)
                 and all(len({ranks[a.GetIdx()] for a in atom.GetNeighbors()
                              if a.GetIdx() not in (ends[0].GetIdx(), ends[1].GetIdx())}) >= 2
                         for atom in ends)):
             raise ValueError('potential biaryl atropisomer requires an explicit configuration model')
-    pi_rings = sum(any(mol.GetBondWithIdx(i).GetBondTypeAsDouble() == 2 for i in ring)
-                   for ring in mol.GetRingInfo().BondRings())
-    if pi_rings >= 3 and not _three_ring_benzenoid(mol):
-        raise ValueError('polycyclic pi-framework configuration requires a helical/planar stereo model')
 
 
 def _molecules(species, geom, tagged_atom=None):
@@ -98,8 +80,10 @@ def _molecules(species, geom, tagged_atom=None):
         bonds = [bond]
     isotopes = list(getattr(species, 'isotopes', [0] * n))
     charges = list(getattr(species, 'formal_charges', [0] * n))
+    physical_isotopes = getattr(species, '_stereo_physical_isotopes', isotopes.copy())
     if tagged_atom is not None:
         isotopes[tagged_atom] = max(isotopes + [1000]) + 1
+    common_bonds = np.minimum.reduce(bonds)
     result = []
     for matrix in bonds:
         mol = Chem.RWMol()
@@ -123,7 +107,7 @@ def _molecules(species, geom, tagged_atom=None):
         mol = mol.GetMol()
         mol.UpdatePropertyCache(strict=False)
         Chem.GetSymmSSSR(mol)
-        _check_supported_configuration(mol)
+        _check_supported_configuration(mol, physical_isotopes, common_bonds)
         conf = Chem.Conformer(n)
         conf.Set3D(True)
         for i, xyz in enumerate(geom):

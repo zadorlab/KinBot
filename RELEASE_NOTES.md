@@ -27,6 +27,15 @@ An unsupported initial reactant stops before QC. An unsupported discovered
 reaction is omitted with a warning that the network is incomplete. Its
 calculation files remain available; unrelated reactions can continue.
 
+Ordinary PAHs and biaryls are no longer rejected by their number of aromatic
+rings. Scope checks use an aromatic graph copy so equivalent phenyl arms do
+not appear different in one bond drawing. Aromatic radical resonance forms
+are not mistaken for cumulenes. Virtual reaction-site labels do not create
+a physical biaryl axis. The existing geometric optical calculation
+still determines whether a harmonic, HIR or MC model includes its mirror.
+No helical stereoisomer identifier is added: selection of one fixed helical
+enantiomer and separation of helical diastereomers remain unsupported.
+
 **Start older calculations in new directories.**
 This release cannot resume calculations from older KinBot versions. It does
 not convert old job names, directories, or result formats. Each new calculation

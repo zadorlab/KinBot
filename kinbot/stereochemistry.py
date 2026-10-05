@@ -70,6 +70,10 @@ def virtually_labelled(species, labels):
     """Return a temporary isotope-labelled view; QC atoms remain untouched."""
     view = copy.copy(species)
     view.isotopes = list(getattr(species, 'isotopes', [0] * species.natom))
+    # Virtual substitutions must not turn an ordinary biaryl into an
+    # unsupported physical atropisomer during reaction-site classification.
+    view._stereo_physical_isotopes = list(getattr(
+        species, '_stereo_physical_isotopes', view.isotopes))
     offset = max(view.isotopes + [1000]) + 1
     for atom, role in labels.items():
         view.isotopes[int(atom)] = offset + int(role)

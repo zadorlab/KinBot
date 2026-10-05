@@ -51,13 +51,18 @@ KinBot can be installed in three different ways: from the PyPI index (`pip insta
 > **Note**
 >  KinBot only works with Python >= 3.11.
 
+RDKit >= 2026.3.5 is a required dependency. KinBot records its version and
+stereochemistry settings in the log and `.kinbot_run.json`. Restart a calculation
+with the same RDKit version and settings. Calculations from older KinBot versions
+are incompatible with this release; start them in new directories.
+
 To use the FAIRChem/UMA machine-learning interatomic potential backend
 (`qc = 'fc'`), install the optional `fc` dependencies (this also pulls in
 `fairchem-core`, `torch`, and a compatible `numpy`/`scipy`):
 
     pip install kinbot[fc]
 
-The optional `plot` extra (`matplotlib`, `rdkit`) enables the plotting
+The optional `plot` extra (`matplotlib`) enables the plotting
 utilities:
 
     pip install kinbot[plot]
@@ -93,6 +98,29 @@ To run a full PES search, make an input file (e.g. input.json) and run:
 
 You can find additional command line arguments in the manual. 
 
+### Product complexes in MESS
+
+`me_skip_vdW` controls the final MESS network in both a single-well search and
+a PES calculation. The default, `0`, includes accepted product complexes as
+wells, with barrierless exits to the separated products. Set `me_skip_vdW: 1`
+to omit these wells and exits and connect each inner transition state directly
+to the separated products.
+
+This option does not change the search or optimization of complexes;
+`vdW_detection` still determines whether a complex is bound. The inner
+transition state's Eckart tunneling depths keep the complex energy reference
+with either setting. Both writers use one lowest-energy complex per set of
+product stereoisomers, as in the existing PES model. For MC-TST, the selected
+complex structure defines the tunneling reference, while its lowest retained
+conformer defines the MESS well ground energy.
+
+Omitting a complex removes its collisional stabilization and its explicit
+capture/redissociation competition. The two settings need not give the same
+rates. `correct_submerged` only raises barriers to connected bound-well ground
+energies; it does not raise an inner TS merely because it lies below the
+separated fragments. This option does not add support for a MESS barrier
+between two sets of separated reactants and products.
+
 ## Documentation
 See the [wiki](https://github.com/zadorlab/KinBot/wiki) for keywords, and our [tutorial](https://hackmd.io/@jzador/ry1DSsEyyx#/) for a more hands-on introduction to the code.
 
@@ -105,6 +133,7 @@ See [list](https://github.com/zadorlab/KinBot/wiki/KinBot-file-structure).
 * Amanda Dewyer
 * Carles Martí
 * Clément Soulié (csoulie@sandia.gov)
+* Luka Dockx
 
 ## Papers using KinBot
 1.	Kendall, D. T., Zádor J.: _Benchmarking the UMA foundation interatomic potential for gas-phase chemical kinetics_ J. Phys. Chem. A, **2026**, 130, 4450-4468. https://pubs.acs.org/doi/10.1021/acs.jpca.6c01748

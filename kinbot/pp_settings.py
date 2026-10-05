@@ -1,3 +1,4 @@
+from kinbot.species_routing import routing_name
 import logging
 from typing import Any
 
@@ -305,7 +306,7 @@ def create_surface(dist,
         pos.extend(pps_coords[fnum])
         atm = Atoms(symbols=f'{frag.atom}{pps}',
                     positions=pos)
-        atm.write(f'rotdPy/S_{VRC_TST_Surface.__id__}_F_{frag.chemid}.xyz')
+        atm.write(f'rotdPy/S_{VRC_TST_Surface.__id__}_F_{routing_name(frag)}.xyz')
 
     return (faces_weights,
             selected_faces,

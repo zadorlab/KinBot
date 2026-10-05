@@ -9,21 +9,102 @@ import unittest
 from unittest.mock import Mock, patch
 
 from ase.build import molecule
+from ase.db import connect
+from ase import Atoms
 from ase.thermochemistry import IdealGasThermo
 import numpy as np
 
 from kinbot.optimize import Optimize
 from kinbot.conformers import Conformers
+from kinbot.conformer_records import ConformerRecord, retain
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.stereo_identity import canonical_identity
 
 
 class TestConformerWeights(unittest.TestCase):
     def setUp(self):
         self.conformers = Conformers.__new__(Conformers)
         atoms = molecule('H2O')
-        self.conformers.species = SimpleNamespace(atom=atoms.get_chemical_symbols(), mult=1)
+        self.conformers.species = StationaryPoint('water', 0, 1,
+            atom=atoms.get_chemical_symbols(), geom=atoms.positions)
+        self.conformers.species.characterize()
+        self.conformers.species.optical_reference = canonical_identity(self.conformers.species)
         self.geometries = [atoms.positions.copy(), atoms.positions * 1.2]
+
+    def test_missing_conformer_energies_fail_only_the_affected_optimization(self):
+        from kinbot.conformer_records import CountingError
+        search = self.conformers
+        search.strict_counting, search.semi_emp = True, 0
+        search.conf, search.conf_status, search.zf = 1, [0], 4
+        search.optical_population = 'specified'
+        search.get_name = lambda: 'water'
+        search.get_job_name = lambda *a, **kw: 'conf/water_0000'
+        opt = Optimize.__new__(Optimize)
+        opt.name, opt.shigh = 'water', 0
+        other = Optimize.__new__(Optimize)
+        other._do_optimization = lambda: 'independent calculation continues'
+        with TemporaryDirectory() as directory:
+            previous = Path.cwd()
+            try:
+                os.chdir(directory)
+                search.db = connect('kinbot.db')
+                atoms = Atoms(search.species.atom, positions=search.species.geom)
+                search.db.write(atoms, name='water_well',
+                                data={'energy': -10., 'zpe': .1})
+                for field in ('energy', 'zpe'):
+                    for value in (None, float('nan'), float('inf')):
+                        data = {'energy': -10., 'zpe': .1}
+                        if value is None:
+                            data.pop(field)
+                        else:
+                            data[field] = value
+                        search.db.write(atoms, name='conf/water_0000', data=data)
+                        opt._do_optimization = search.check_conformers
+                        with self.assertLogs('KinBot', level='WARNING') as logs:
+                            self.assertEqual(opt.do_optimization(), 0)
+                        self.assertEqual(opt.shigh, -999)
+                        self.assertIn(field, '\n'.join(logs.output))
+                        self.assertEqual(other.do_optimization(), 'independent calculation continues')
+                # L2 uses different property readers; their zero defaults must
+                # not turn an incomplete result into an accepted MC member.
+                from kinbot.qc import QuantumChemistry
+                qc = QuantumChemistry.__new__(QuantumChemistry)
+                qc.db = search.db
+                qc.check_qc = lambda job: 'normal'
+                qc.get_qc_geom = lambda *a, **kw: (0, search.species.geom.copy())
+                qc.get_qc_freq = lambda *a, **kw: (0, [100., 200., 300.])
+                opt.species, opt.qc, opt.wait, opt.just_high = search.species, qc, 0, False
+                opt.par = {'multi_conf_tst': 1, 'imagfreq_threshold': 50.}
+                search.species.conformer_index = [0]
+                search.species.conformer_energy = [-1.]
+                search.species.conformer_zeroenergy = [-.99]
+                for conf in (-1, 0):
+                    job = opt.log_name(1, conf=conf)
+                    for field in ('energy', 'zpe'):
+                        for value in (None, float('nan'), float('inf')):
+                            data = {'energy': -10., 'zpe': .1}
+                            data[field] = value
+                            search.db.write(atoms, name=job, data=data)
+                            opt.shigh = .5
+                            opt._do_optimization = lambda: opt.compare_structures(conf=conf)
+                            with self.assertLogs('KinBot', level='WARNING') as logs:
+                                self.assertEqual(opt.do_optimization(), 0)
+                            self.assertEqual(opt.shigh, -999)
+                            self.assertIn(field, '\n'.join(logs.output))
+                            self.assertEqual(search.species.conformer_energy, [-1.])
+                            self.assertEqual(search.species.conformer_zeroenergy, [-.99])
+                # The array and member-counting paths report the same data failure.
+                opt._do_optimization = lambda: search.find_unique(
+                    [search.species.geom], [float('nan')], [[100.] * 3], [0])
+                with self.assertLogs('KinBot', level='WARNING'):
+                    self.assertEqual(opt.do_optimization(), 0)
+                for error in (CountingError('missing internal record'), ValueError('unrelated error')):
+                    opt._do_optimization = Mock(side_effect=error)
+                    with self.assertRaises(type(error)):
+                        opt.do_optimization()
+            finally:
+                os.chdir(previous)
 
     def test_real_saddle_populations_exclude_only_the_reaction_coordinate(self):
         self.conformers.species.wellorts = 1
@@ -90,6 +171,49 @@ class TestConformerWeights(unittest.TestCase):
                 self.assertEqual(result[-1], [valid_index])
 
 
+class TestHighLevelConformerPolling(unittest.TestCase):
+    def test_failed_conformer_is_terminal_while_another_is_running(self):
+        optimization = Optimize.__new__(Optimize)
+        optimization.species = SimpleNamespace(
+            conformer_index=[0, 1], wellorts=1, freq=[-100., 100.])
+        retain(optimization.species, [ConformerRecord(
+            f'fixture:{index}', index, f'conf/fixture_{index:04d}', 'valid',
+            electronic_energy_hartree=-1., zero_energy_hartree=-.99)
+            for index in range(2)], [0, 1])
+        optimization.name = 'fixture'
+        optimization.par = {
+            'conformer_search': 0, 'high_level': 1, 'rotation_restart': 0,
+            'rotor_scan': 0, 'multi_conf_tst': 1, 'L3_calc': 0,
+        }
+        optimization.shigh = .5
+        optimization.shir = -1
+        optimization.restart = 0
+        optimization.wait = 0
+        optimization.just_high = False
+        statuses = {'fixture_0000_high': 'error',
+                    'fixture_0001_high': 'running', 'fixture_high': 'normal'}
+        optimization.qc = SimpleNamespace(check_qc=Mock(side_effect=statuses.get))
+        optimization.compare_structures = Mock()
+        optimization.do_optimization()
+        self.assertEqual(optimization.species.conformer_index, [-999, 1])
+        failed = optimization.species.conformer_inventory[0]
+        self.assertEqual(failed.status, 'failed')
+        self.assertFalse(failed.retained)
+        self.assertEqual(failed.attempted_source_job, 'fixture_0000_high')
+        self.assertEqual(failed.source_job, 'conf/fixture_0000')
+        self.assertEqual(failed.electronic_energy_hartree, -1.)
+        optimization.qc.check_qc.reset_mock()
+        optimization.do_optimization()
+        optimization.qc.check_qc.assert_called_once_with('fixture_0001_high')
+        optimization.compare_structures.assert_not_called()
+        statuses['fixture_0001_high'] = 'normal'
+        with patch('kinbot.optimize.symmetry.calculate_symmetry'):
+            optimization.do_optimization()
+        self.assertEqual(optimization.shigh, 1)
+        self.assertEqual(optimization.species.conformer_inventory[0], failed)
+        optimization.compare_structures.assert_called_once_with(conf=1)
+
+
 class TestSemiEmpiricalConformers(unittest.TestCase):
     def setUp(self):
         temporary = TemporaryDirectory()
@@ -149,19 +273,45 @@ class TestSemiEmpiricalConformers(unittest.TestCase):
         # Surviving geometries are optimized as given, without a new scan.
         self.assertEqual(self.regular.generate_conformers.call_args.args[0], -999)
 
-    def test_all_failed_search_falls_back_to_the_standard_search(self):
+    def test_all_failed_search_falls_back_to_full_l1_dihedral_search(self):
+        self.regular.nconfs = self.par['random_conf']
+        self.regular.generate_conformers.return_value = 0
         self.semi.check_conformers.side_effect = None
         self.semi.check_conformers.return_value = (
             1, '0000', self.geom, -10., [], [], [], [1])
         self.optimization.do_optimization()
         self.assertEqual(self.regular.generate_conformers.call_count, 1)
+        self.assertEqual(self.regular.nconfs, self.par['random_conf'])
         np.testing.assert_array_equal(self.regular.generate_conformers.call_args.args[1], self.geom)
         # Without valid seeds the dihedrals still have to be searched, so the
         # rotor index must start the recursion rather than skip it.
         self.assertEqual(self.regular.generate_conformers.call_args.args[0], 0)
         self.assertNotEqual(self.optimization.species.confs.nconfs, 1)
 
+    def test_saddle_skips_l0_and_polls_l1_without_l0_seed_results(self):
+        self.species.wellorts = 1
+        self.regular.generate_conformers.return_value = 0
+        for _ in range(2):
+            self.optimization.do_optimization()
+        self.semi.generate_conformers.assert_not_called()
+        self.semi.check_conformers.assert_not_called()
+        self.assertEqual(self.optimization.ssemi_empconf, 1)
+        self.regular.generate_conformers.assert_called_once()
+        self.assertEqual(self.regular.generate_conformers.call_args.args[0], 0)
+        self.assertEqual(self.regular.check_conformers.call_count, 2)
 
+    def test_ring_saddle_keeps_ring_sampling_then_proceeds_directly_to_l1(self):
+        self.species.wellorts = 1
+        self.species.cycle_chain = [[0, 1, 2, 3]]
+        self.regular.generate_conformers.return_value = 0
+        self.regular.check_ring_conformers.side_effect = [(0, []), (1, [self.geom])]
+        self.optimization.do_optimization()
+        self.regular.generate_conformers.assert_not_called()
+        self.optimization.do_optimization()
+        self.regular.generate_ring_conformers.assert_called_once()
+        self.semi.generate_conformers.assert_not_called()
+        self.regular.generate_conformers.assert_called_once()
+        self.assertEqual(self.regular.generate_conformers.call_args.args[0], 0)
 
 
     def test_saddle_skips_l0_and_polls_l1_without_l0_seed_results(self):

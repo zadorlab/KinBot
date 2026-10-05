@@ -7,12 +7,23 @@ import numpy as np
 from kinbot import constants
 from kinbot.calculation import load_calculation_record, selected_calculation_job
 from kinbot.conformers import Conformers
+from kinbot.stationary_pt import StationaryPoint
+from kinbot.stereo_identity import optical_scope
+from ase.build import molecule
 
 
 class TestCalculationRecords(unittest.TestCase):
+    def ts_fixture(self):
+        point = StationaryPoint.from_ase_atoms(molecule('H2O'))
+        point.characterize()
+        optical_scope(point)
+        point.wellorts = 1
+        return point
+
     def test_cached_lowest_conformer_tracks_its_calculation_source(self):
         conformers = Conformers.__new__(Conformers)
-        conformers.species = SimpleNamespace(natom=3)
+        conformers.species = self.ts_fixture()
+        conformers.optical_population = 'specified'
         conformers.get_name = lambda: 'ts'
         conformers.qc = SimpleNamespace(get_qc_energy=lambda job: (0, -10.),
             get_qc_zpe=lambda job: (0, .02),
@@ -25,15 +36,17 @@ class TestCalculationRecords(unittest.TestCase):
         self.assertEqual((energy, zpe), (-10., .02))
 
     def test_selected_record_replaces_all_parent_properties_together(self):
-        row = SimpleNamespace(positions=np.arange(9).reshape(3, 3), data={
+        species = self.ts_fixture()
+        row = SimpleNamespace(name='conformer', id=7, symbols=['O', 'H', 'H'],
+                             positions=species.geom + .2, data={
             'energy': -10. / constants.EVtoHARTREE, 'zpe': .04,
             'frequencies': [-800., 400., 1500.], 'hess': np.eye(9),
             'status': 'normal'})
         requested = []
         qc = SimpleNamespace(db=SimpleNamespace(
             select=lambda name: requested.append(name) or [row]))
-        species = SimpleNamespace(natom=3, geom=np.zeros((3, 3)), energy=-9.,
-                                  zpe=.03, freq=[-900.], reduced_freqs=[-900.])
+        species.energy, species.zpe = -9., .03
+        species.freq = species.reduced_freqs = [-900.]
         load_calculation_record(species, qc, 'conformer')
         self.assertEqual(requested, ['conformer'])
         np.testing.assert_array_equal(species.geom, row.positions)

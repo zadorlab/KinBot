@@ -43,7 +43,8 @@ dependencies = [
         "ase>=3.26",
         "networkx",
         "rmsd>=1.5.1",
-        "sella>=2.6.0"
+        "sella>=2.6.0",
+        "rdkit>=2025.9.3"
 ]
 
 [project.optional-dependencies]
@@ -51,8 +52,7 @@ bimol = [
     "kinbot[fc]"
 ]
 plot = [
-    "matplotlib",
-    "rdkit"
+    "matplotlib"
 ]
 # FAIRChem/UMA machine-learning interatomic potential backend (qc = 'fc').
 # fairchem-core pins numpy>=2.0 and ase>=3.26 and pulls in torch, so it is

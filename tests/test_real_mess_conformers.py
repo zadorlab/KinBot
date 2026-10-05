@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 from ase import Atoms
@@ -18,6 +19,7 @@ from kinbot import constants, pes, symmetry
 from kinbot.mess import MESS
 from kinbot.parameters import Parameters
 from kinbot.stationary_pt import StationaryPoint
+from kinbot.conformer_records import ConformerRecord, retain
 
 FIXTURE = Path(__file__).parent / 'reference' / 'thf_mc_rrho.json'
 
@@ -56,13 +58,23 @@ def write_example(directory):
         species.zpe = parent['zpe_hartree']
         species.freq = list(parent['frequencies_cm-1'])
         species.reduced_freqs = list(species.freq)
-        species.conformer_index = [0, 1]
+        species.conformer_index = [int(row['source_job'].rsplit('_', 1)[1]) for row in records]
         species.conformer_geom = [np.array(row['geometry_angstrom']) for row in records]
         species.conformer_freq = [row['frequencies_cm-1'] for row in records]
         species.conformer_energy = [row['electronic_energy_ev'] * constants.EVtoHARTREE
                                     for row in records]
         species.conformer_zeroenergy = [energy + row['zpe_hartree']
                                         for energy, row in zip(species.conformer_energy, records)]
+        retain(species, [ConformerRecord(
+            member_id=f'{species.name}:conformer:{index}', index=index,
+            source_job=row['source_job'], status='valid',
+            geometry=tuple(tuple(xyz) for xyz in row['geometry_angstrom']),
+            electronic_energy_hartree=energy, zpe_hartree=row['zpe_hartree'],
+            zero_energy_hartree=energy + row['zpe_hartree'],
+            frequencies_cm1=tuple(row['frequencies_cm-1']))
+            for index, energy, row in zip(species.conformer_index,
+                                         species.conformer_energy, records)],
+            species.conformer_index)
         Path('me').mkdir(exist_ok=True)
         par['pes'] = 0
         writer = MESS(par, species)
@@ -90,8 +102,23 @@ def write_example(directory):
 
 
 class TestRealConformerOutput(unittest.TestCase):
-    def test_saved_thf_member_grounds_reach_both_final_inputs(self):
+    def test_saved_thf_unresolved_mirror_writes_weight_one_with_warning(self):
+        # This real conformer's 0.105 A local mismatch remains unresolved.
         with TemporaryDirectory() as directory:
+            direct,combined,_=write_example(directory)
+        for output in (direct,combined):
+            self.assertEqual(output.count('End ! RRHO'),2)
+            self.assertIn('unresolved symmetry number',output)
+            self.assertIn('using optical factor 1',output)
+
+    def test_saved_thf_member_grounds_reach_both_final_inputs(self):
+        # Preserve the energy-serialization regression using an explicitly
+        # controlled optical decision. This does not claim these real THF
+        # calculations now have a resolved physical MC counting model.
+        optical = dict(status='resolved', total_optical_states=1,
+                       remaining_multiplier=1., reason='Controlled serialization fixture.')
+        with TemporaryDirectory() as directory, patch(
+                'kinbot.conformer_counting.evaluate_optical', return_value=optical):
             direct, combined, zero = write_example(directory)
         expected = [round((energy - zero[0]) * constants.AUtoKCAL, 2)
                     for energy in zero]

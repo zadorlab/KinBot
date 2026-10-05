@@ -19,7 +19,6 @@ def carry_out_reaction(rxn, step, command, bimol=0):
         length coordinate
     """
     ts = True
-
     if step > 0:
         status = rxn.qc.check_qc(rxn.instance_name)
         if status != 'normal' and status != 'error':

@@ -245,5 +245,22 @@ class TestReverseMismatch(unittest.TestCase):
         self.assertAlmostEqual(b[1], 0.379, places=2)   # 0.390 cm-1 experimentally, at r = 1.162 A
 
 
+class TestMCLinearityIntegration(unittest.TestCase):
+    def test_member_renderer_uses_member_geometry_and_frequency_count(self):
+        from kinbot.conformer_records import ConformerRecord
+        renderer = MESS({'multi_conf_tst': 1, 'freq_uq_ref': 1000., 'freq_uq_max_exp': 1.}, None)
+        point = species_from('OCO', co2(170.), name='co2')
+        point.mult = 1
+        for angle, modes, expected in [
+                (179., [667., 667., 1333., 2349.], 'geometry linearised'),
+                (179.9, [667., 1333., 2349.], 'RotationalConstants[1/cm]')]:
+            record = ConformerRecord('c1', 1, 'c1', 'valid',
+                geometry=tuple(map(tuple, co2(angle))),
+                frequencies_cm1=tuple(modes), sigma_ext=2., remaining_optical_weight=1.)
+            block = renderer._member_rrho(point, record, 1., 0.)
+            self.assertIn(expected, block)
+            np.testing.assert_allclose(point.geom, co2(170.))
+
+
 if __name__ == '__main__':
     unittest.main()

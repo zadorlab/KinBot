@@ -1,3 +1,4 @@
+from kinbot.species_routing import routing_name
 import os
 
 from kinbot import kb_path
@@ -105,5 +106,5 @@ class Orca:
         elif self.species.wellorts:
             fname = self.species.name
         else:
-            fname = str(self.species.chemid)
+            fname = routing_name(self.species)
         return fname

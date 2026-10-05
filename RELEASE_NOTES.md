@@ -23,6 +23,7 @@ partly specified SMILES. It is not emitted for supplied coordinates.
 
 RDKit >= 2025.9.3 is required. KinBot selects its stereo-perception settings
 explicitly and records these settings and the RDKit version in the log.
+SMILES input still requires OpenBabel to generate the starting geometry.
 An unsupported initial reactant stops before QC. An unsupported discovered
 reaction is omitted with a warning that the network is incomplete. Its
 calculation files remain available; unrelated reactions can continue.
@@ -48,6 +49,8 @@ This release cannot resume calculations from older KinBot versions. It does
 not convert old job names, directories, or result formats. Each new calculation
 has a `.kinbot_run.json` format record. A restart requires that record and the
 same RDKit version and settings. KinBot checks this before it changes old files.
+Save an environment specification, such as a conda export or pinned Python
+requirements, with each project so that this runtime can be restored.
 
 ### New feature: select one stereoisomer or a racemate
 
@@ -126,6 +129,11 @@ use the existing lowest-barrier selection. A MESS Union adds the different
 pathway contributions without requiring MC-TST.
 
 **Use the symmetry and properties of each conformer.**
+Earlier MC-TST output could write symmetry-equivalent conformer copies as
+separate RRHO blocks and overcount them. The old moments-of-inertia filter
+was ineffective because `all()` returned a boolean instead of testing each
+moment ratio. Duplicate checks now compare geometries under equivalent atom
+permutations.
 Each selected conformer keeps its geometry, electronic energy, ZPE, frequencies,
 Hessian when available, calculation source, and status together.
 MC population filtering uses each conformer's rotational and optical weights.

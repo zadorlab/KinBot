@@ -1,10 +1,9 @@
 """Member-specific RRHO counting; site degeneracy is deliberately separate."""
 from dataclasses import replace
-import math
 import logging
 from pathlib import Path
 from kinbot import constants, symmetry
-from kinbot.conformer_records import ConformerRecord, retain
+from kinbot.conformer_records import ConformerRecord, CountingError, finite_energy, retain
 from kinbot.molecular_symmetry import (equivalent_geometry,
                                       OPTICAL_RMSD_TOLERANCE)
 from kinbot.optical import evaluate_optical, compare_rigid, unresolved_optical_default
@@ -16,10 +15,6 @@ from kinbot.optical_harmonic import (apply_midpoint_heuristic, conformer_midpoin
 logger = logging.getLogger('KinBot')
 
 DUPLICATE_ENERGY_WINDOW_KCAL_MOL = .5
-
-
-class CountingError(ValueError):
-    """The observations do not support a definitive automatic RRHO sum."""
 
 
 def preserve_counting_error(species, error):
@@ -51,9 +46,8 @@ def evaluate_members(species, records, population='specified', tolerance=.05, *,
     species.optical_counting_scope = scope
     result = list(records)
     for record in result:
-        if record.status == 'valid' and (record.zero_energy_hartree is None
-                                        or not math.isfinite(record.zero_energy_hartree)):
-            raise CountingError(f'MC member {record.member_id} lacks a finite E + ZPE.')
+        if record.status == 'valid':
+            finite_energy(record.zero_energy_hartree, f'MC member {record.member_id}', 'E + ZPE')
     unique = []
     order = sorted(range(len(result)), key=lambda i: (
         result[i].zero_energy_hartree if result[i].status == 'valid' else float('inf'),

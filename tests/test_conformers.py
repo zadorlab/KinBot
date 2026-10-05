@@ -9,6 +9,8 @@ import unittest
 from unittest.mock import Mock, patch
 
 from ase.build import molecule
+from ase.db import connect
+from ase import Atoms
 from ase.thermochemistry import IdealGasThermo
 import numpy as np
 
@@ -29,6 +31,52 @@ class TestConformerWeights(unittest.TestCase):
         self.conformers.species.characterize()
         self.conformers.species.optical_reference = canonical_identity(self.conformers.species)
         self.geometries = [atoms.positions.copy(), atoms.positions * 1.2]
+
+    def test_missing_conformer_energies_fail_only_the_affected_optimization(self):
+        from kinbot.conformer_records import CountingError
+        search = self.conformers
+        search.strict_counting, search.semi_emp = True, 0
+        search.conf, search.conf_status, search.zf = 1, [0], 4
+        search.optical_population = 'specified'
+        search.get_name = lambda: 'water'
+        search.get_job_name = lambda *a, **kw: 'conf/water_0000'
+        opt = Optimize.__new__(Optimize)
+        opt.name, opt.shigh = 'water', 0
+        other = Optimize.__new__(Optimize)
+        other._do_optimization = lambda: 'independent calculation continues'
+        with TemporaryDirectory() as directory:
+            previous = Path.cwd()
+            try:
+                os.chdir(directory)
+                search.db = connect('kinbot.db')
+                atoms = Atoms(search.species.atom, positions=search.species.geom)
+                search.db.write(atoms, name='water_well',
+                                data={'energy': -10., 'zpe': .1})
+                for field in ('energy', 'zpe'):
+                    for value in (None, float('nan'), float('inf')):
+                        data = {'energy': -10., 'zpe': .1}
+                        if value is None:
+                            data.pop(field)
+                        else:
+                            data[field] = value
+                        search.db.write(atoms, name='conf/water_0000', data=data)
+                        opt._do_optimization = search.check_conformers
+                        with self.assertLogs('KinBot', level='WARNING') as logs:
+                            self.assertEqual(opt.do_optimization(), 0)
+                        self.assertEqual(opt.shigh, -999)
+                        self.assertIn(field, '\n'.join(logs.output))
+                        self.assertEqual(other.do_optimization(), 'independent calculation continues')
+                # The array and member-counting paths report the same data failure.
+                opt._do_optimization = lambda: search.find_unique(
+                    [search.species.geom], [float('nan')], [[100.] * 3], [0])
+                with self.assertLogs('KinBot', level='WARNING'):
+                    self.assertEqual(opt.do_optimization(), 0)
+                for error in (CountingError('missing internal record'), ValueError('unrelated error')):
+                    opt._do_optimization = Mock(side_effect=error)
+                    with self.assertRaises(type(error)):
+                        opt.do_optimization()
+            finally:
+                os.chdir(previous)
 
     def test_real_saddle_populations_exclude_only_the_reaction_coordinate(self):
         self.conformers.species.wellorts = 1

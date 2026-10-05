@@ -440,6 +440,10 @@ class Conformers:
                 else:
                     lowest_job = name
                 *_, last_row = self.db.select(name=f'{lowest_job}')
+                if self.strict_counting and not self.semi_emp:
+                    for field in ('energy', 'zpe'):
+                        conformer_records.finite_energy(last_row.data.get(field),
+                                                        f'{lowest_job} {field}')
                 lowest_e_geom = last_row.positions
                 parent_allowed = configured_geometry_allowed(
                     self.species, lowest_e_geom, self.optical_population)
@@ -489,6 +493,11 @@ class Conformers:
                         if self.semi_emp:
                             add = 'semi_emp_'
                         job = self.get_job_name(ci, add=add)
+                        if self.strict_counting and not self.semi_emp:
+                            rows = list(self.db.select(name=job))
+                            data = rows[-1].data if rows else {}
+                            for field in ('energy', 'zpe'):
+                                conformer_records.finite_energy(data.get(field), f'{job} {field}')
                         err, energy = self.qc.get_qc_energy(job)
                         err, zpe = self.qc.get_qc_zpe(job)
                         err, geom = self.qc.get_qc_geom(job, self.species.natom)
@@ -735,12 +744,11 @@ class Conformers:
         zeroenergies_unq = []
         frequencies_unq = []
         indices_unq = []
-        records = conformer_records.inventory(
-            self.species, conformers, energies, frequencies, valid,
-            getattr(self, 'calculation_records', {}))
-
-        conformer_records.retain(self.species, records, [])
         try:
+            records = conformer_records.inventory(
+                self.species, conformers, energies, frequencies, valid,
+                getattr(self, 'calculation_records', {}))
+            conformer_records.retain(self.species, records, [])
             records, groups = evaluate_members(
                 self.species, records, getattr(self, 'optical_population', 'specified'),
                 strict=getattr(self, 'strict_counting', True))

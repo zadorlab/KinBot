@@ -5,10 +5,30 @@ the conformer search are E + ZPE; electronic energy is never guessed from it.
 """
 from dataclasses import asdict, dataclass, replace
 import logging
+import math
 import subprocess
 import numpy as np
 
 from kinbot.calculation import array_fingerprint
+
+
+class CountingError(ValueError):
+    """The calculation records cannot supply the requested RRHO sum."""
+
+
+class ConformerDataError(CountingError):
+    """A completed conformer calculation lacks usable energy data."""
+
+
+def finite_energy(value, context, quantity='energy'):
+    """Reject missing or invalid calculation energies without making up data."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ConformerDataError(f'{context} lacks a finite {quantity}.') from None
+    if not math.isfinite(number):
+        raise ConformerDataError(f'{context} lacks a finite {quantity}.')
+    return number
 
 
 def hessian_record(qc, job, geometry, atoms, *, row=None):
@@ -100,15 +120,15 @@ def inventory(species, geometries, energies, frequencies, valid, sources=None):
         record = ConformerRecord(f'{prefix}:conformer:{index}', index,
                                  source.get('source_job'), 'failed')
         if status == 0:
+            energy = finite_energy(energies[index], f'Conformer {index}', 'E + ZPE')
             geom = np.asarray(geometries[index], dtype=float)
             freq = frequencies[index]
             if (geom.shape != (len(species.atom), 3)
-                    or not np.all(np.isfinite(geom))
-                    or not np.isfinite(energies[index])):
+                    or not np.all(np.isfinite(geom))):
                 raise ValueError(f'Invalid properties for successful conformer {index}.')
             record = replace(record, status='valid',
                 geometry=tuple(tuple(float(x) for x in atom) for atom in geom),
-                zero_energy_hartree=float(energies[index]),
+                zero_energy_hartree=energy,
                 electronic_energy_hartree=source.get('electronic_energy_hartree'),
                 zpe_hartree=source.get('zpe_hartree'),
                 hessian=source.get('hessian'),

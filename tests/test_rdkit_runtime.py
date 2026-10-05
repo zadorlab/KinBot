@@ -142,6 +142,26 @@ def test_unsupported_initial_reactant_stops_before_qc(tmp_path, monkeypatch, cap
     assert 'KinBot stopped: unsupported initial reactant fixture' in caplog.text
 
 
+def test_unsupported_initial_reactant_stops_pes_before_inputs(tmp_path, monkeypatch, caplog):
+    from kinbot import pes
+    from kinbot.stereo_identity import UnsupportedStereochemistry
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'input.json').write_text('{"smiles": "CCO", "barrier_threshold": 100}')
+    monkeypatch.setattr(sys, 'argv', ['pes', 'input.json'])
+    monkeypatch.setattr(pes, 'config_log', lambda *a, **k: logging.getLogger('runtime-test'))
+    def unsupported(*args, **kwargs):
+        raise UnsupportedStereochemistry('unsupported PES reactant fixture')
+    def forbidden(*args, **kwargs):
+        raise AssertionError('unsupported PES reactant reached the input writer')
+    monkeypatch.setattr(pes, 'apply_input_reference', unsupported)
+    monkeypatch.setattr(pes, 'write_input', forbidden)
+    with pytest.raises(SystemExit) as error:
+        pes.main()
+    assert error.value.code == 1
+    assert 'KinBot stopped: unsupported PES reactant fixture' in caplog.text
+    assert not (tmp_path / 'chemids').exists()
+
+
 @pytest.mark.parametrize('old_worker', [True, False])
 def test_pes_checks_worker_format_before_reading_energies(tmp_path, monkeypatch, old_worker):
     from kinbot import pes

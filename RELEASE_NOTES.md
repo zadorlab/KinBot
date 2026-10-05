@@ -146,7 +146,7 @@ mirror comparisons retain their separate treatment without this energy gate.
 Explicit mirror pairs receive no additional optical multiplier.
 Conflicting numerical observations produce warnings. They do not require the
 whole calculation to stop. MC-TST continues to disable HIR scans.
-An MC conformer result with missing or non-finite energy or ZPE now fails the
+An L1 or L2 MC result with missing or non-finite energy or ZPE now fails the
 affected optimization with a warning. Other reaction calculations continue.
 The code does not substitute zero for these missing conformer properties.
 Internal record-association errors still raise an error.

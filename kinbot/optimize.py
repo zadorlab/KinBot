@@ -11,7 +11,7 @@ import numpy as np
 from kinbot import frequencies
 from kinbot import geometry
 from kinbot import symmetry
-from kinbot.conformer_records import update_member, hessian_record, ConformerDataError
+from kinbot.conformer_records import update_member, hessian_record, ConformerDataError, finite_energy
 from kinbot.stereo_identity import optical_scope, configured_geometry_allowed
 from kinbot.conformers import Conformers
 from kinbot.calculation import (load_calculation_record, selected_calculation_job,
@@ -734,6 +734,12 @@ class Optimize:
             freq_ok = 1
         else:
             freq_ok = 0
+
+        if same_geom and freq_ok and self.par['multi_conf_tst']:
+            rows = list(self.qc.db.select(name=job))
+            data = rows[-1].data if rows else {}
+            for field in ('energy', 'zpe'):
+                finite_energy(data.get(field), f'{job} {field}')
 
         if conf == -1:
             # update properties for base structure

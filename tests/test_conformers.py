@@ -66,6 +66,34 @@ class TestConformerWeights(unittest.TestCase):
                         self.assertEqual(opt.shigh, -999)
                         self.assertIn(field, '\n'.join(logs.output))
                         self.assertEqual(other.do_optimization(), 'independent calculation continues')
+                # L2 uses different property readers; their zero defaults must
+                # not turn an incomplete result into an accepted MC member.
+                from kinbot.qc import QuantumChemistry
+                qc = QuantumChemistry.__new__(QuantumChemistry)
+                qc.db = search.db
+                qc.check_qc = lambda job: 'normal'
+                qc.get_qc_geom = lambda *a, **kw: (0, search.species.geom.copy())
+                qc.get_qc_freq = lambda *a, **kw: (0, [100., 200., 300.])
+                opt.species, opt.qc, opt.wait, opt.just_high = search.species, qc, 0, False
+                opt.par = {'multi_conf_tst': 1, 'imagfreq_threshold': 50.}
+                search.species.conformer_index = [0]
+                search.species.conformer_energy = [-1.]
+                search.species.conformer_zeroenergy = [-.99]
+                for conf in (-1, 0):
+                    job = opt.log_name(1, conf=conf)
+                    for field in ('energy', 'zpe'):
+                        for value in (None, float('nan'), float('inf')):
+                            data = {'energy': -10., 'zpe': .1}
+                            data[field] = value
+                            search.db.write(atoms, name=job, data=data)
+                            opt.shigh = .5
+                            opt._do_optimization = lambda: opt.compare_structures(conf=conf)
+                            with self.assertLogs('KinBot', level='WARNING') as logs:
+                                self.assertEqual(opt.do_optimization(), 0)
+                            self.assertEqual(opt.shigh, -999)
+                            self.assertIn(field, '\n'.join(logs.output))
+                            self.assertEqual(search.species.conformer_energy, [-1.])
+                            self.assertEqual(search.species.conformer_zeroenergy, [-.99])
                 # The array and member-counting paths report the same data failure.
                 opt._do_optimization = lambda: search.find_unique(
                     [search.species.geom], [float('nan')], [[100.] * 3], [0])

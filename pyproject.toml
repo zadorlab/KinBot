@@ -44,7 +44,7 @@ dependencies = [
         "networkx",
         "rmsd>=1.5.1",
         "sella>=2.6.0",
-        "rdkit>=2026.3.5"
+        "rdkit>=2025.9.3"
 ]
 
 [project.optional-dependencies]

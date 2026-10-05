@@ -21,7 +21,7 @@ If an input SMILES leaves stereochemistry unspecified, the log reports the
 assignment in the generated geometry at INFO level. This note also covers
 partly specified SMILES. It is not emitted for supplied coordinates.
 
-RDKit >= 2026.3.5 is required. KinBot selects its stereo-perception settings
+RDKit >= 2025.9.3 is required. KinBot selects its stereo-perception settings
 explicitly and records these settings and the RDKit version in the log.
 An unsupported initial reactant stops before QC. An unsupported discovered
 reaction is omitted with a warning that the network is incomplete. Its

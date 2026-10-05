@@ -35,10 +35,10 @@ def test_required_rdkit_and_explicit_perception_in_a_fresh_process():
 
 def test_minimum_version_is_numeric_and_runtime_is_logged(monkeypatch, caplog):
     installed = rdBase.rdkitVersion
-    monkeypatch.setattr(rdBase, 'rdkitVersion', '2026.03.5')
+    monkeypatch.setattr(rdBase, 'rdkitVersion', '2025.09.3')
     rdkit_config.configure_rdkit()
-    monkeypatch.setattr(rdBase, 'rdkitVersion', '2026.03.4')
-    with pytest.raises((ImportError, RuntimeError), match='2026'):
+    monkeypatch.setattr(rdBase, 'rdkitVersion', '2025.09.2')
+    with pytest.raises((ImportError, RuntimeError), match='2025'):
         rdkit_config.configure_rdkit()
     monkeypatch.setattr(rdBase, 'rdkitVersion', installed)
     with caplog.at_level(logging.INFO):

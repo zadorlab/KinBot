@@ -4,7 +4,7 @@ import re
 from rdkit import Chem, rdBase
 
 
-MIN_RDKIT_VERSION = '2026.3.5'
+MIN_RDKIT_VERSION = '2025.9.3'
 
 
 def configure_rdkit():

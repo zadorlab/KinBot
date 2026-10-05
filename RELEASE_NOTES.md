@@ -131,6 +131,10 @@ Hessian when available, calculation source, and status together.
 MC population filtering uses each conformer's rotational and optical weights.
 MESS then uses those same weights. Comparisons allow equivalent atom
 permutations and proper rotations, so the same conformer is not counted twice.
+Duplicate geometry comparisons use an E + ZPE window of 0.5 kcal/mol. This
+allows more numerical variation than the earlier 0.2 kcal/mol window while
+avoiding expensive comparisons between well-separated energies. Explicit
+mirror comparisons retain their separate treatment without this energy gate.
 Explicit mirror pairs receive no additional optical multiplier.
 Conflicting numerical observations produce warnings. They do not require the
 whole calculation to stop. MC-TST continues to disable HIR scans.

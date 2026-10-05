@@ -95,10 +95,12 @@ class TestConformerCounting(unittest.TestCase):
         self.assertEqual(records[1].duplicate_of, 0)
 
     def test_inconsistent_duplicate_and_mirror_energies_warn_without_mixing_properties(self):
+        from kinbot.constants import AUtoKCAL
         species = peroxide()
         for second in (species.geom.copy(), species.geom * [-1, 1, 1]):
             records = list(self.records(species, [species.geom, second]))
-            records[1] = replace(records[1], zero_energy_hartree=-1.01,
+            energy = -1. - (.3 if np.array_equal(second, species.geom) else 6.) / AUtoKCAL
+            records[1] = replace(records[1], zero_energy_hartree=energy,
                                  frequencies_cm1=(111.,)*6, source_job='lower_calculation')
             with self.assertLogs('KinBot', level='WARNING'):
                 result, groups = evaluate_members(species, records)
@@ -117,7 +119,19 @@ class TestConformerCounting(unittest.TestCase):
                 self.assertEqual(groups, [[1, 0]])
                 self.assertEqual([r.remaining_optical_weight for r in result], [1., 1.])
             # Original observations remain intact, not converted into states.
-            self.assertEqual(records[1].zero_energy_hartree, -1.01)
+            self.assertEqual(records[1].zero_energy_hartree, energy)
+
+    def test_duplicate_energy_window_skips_expensive_geometry_comparisons(self):
+        from kinbot.constants import AUtoKCAL
+        from kinbot.molecular_symmetry import equivalent_geometry
+        species = peroxide()
+        records = list(self.records(species, [species.geom, species.geom.copy()]))
+        for difference, comparisons, groups in ((.49, 1, [[0]]), (.51, 0, [[0], [1]])):
+            records[1] = replace(records[1], zero_energy_hartree=-1. + difference / AUtoKCAL)
+            with patch('kinbot.conformer_counting.equivalent_geometry', wraps=equivalent_geometry) as compare:
+                result, retained = evaluate_members(species, records)
+            self.assertEqual(compare.call_count, comparisons)
+            self.assertEqual(retained, groups)
 
     def test_mirror_energy_tolerance_does_not_relax_duplicate_tolerance(self):
         from kinbot.constants import AUtoKCAL

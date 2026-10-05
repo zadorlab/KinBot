@@ -15,6 +15,8 @@ from kinbot.optical_harmonic import (apply_midpoint_heuristic, conformer_midpoin
 
 logger = logging.getLogger('KinBot')
 
+DUPLICATE_ENERGY_WINDOW_KCAL_MOL = .5
+
 
 class CountingError(ValueError):
     """The observations do not support a definitive automatic RRHO sum."""
@@ -99,6 +101,8 @@ def evaluate_members(species, records, population='specified', tolerance=.05, *,
         for previous in unique:
             other = result[previous]
             difference = abs(record.zero_energy_hartree-other.zero_energy_hartree) * constants.AUtoKCAL
+            if difference > DUPLICATE_ENERGY_WINDOW_KCAL_MOL:
+                continue
             if equivalent_geometry(species, record.geometry, other.geometry, tolerance):
                 if difference >= .2:
                     message = (f'Geometrically duplicate conformers {record.member_id} and '

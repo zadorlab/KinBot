@@ -720,15 +720,10 @@ class Conformers:
     def find_unique(self, conformers, energies, frequencies, valid, temp=None, boltz=None):
         """
         Given a set of conformers, finds the set of unique ones.
-        Algorithm:
-        If valid:
-            If energy is close to test energy:
-                If moments of inertia are close to test moi:
-                    If rmsd is small:
-                        They are the same
-        Otherwise unique
-
-        test all previous structures.
+        Compare valid geometries only within 0.5 kcal/mol in E + ZPE.
+        Duplicate comparison permits equivalent atom permutations and proper
+        rotations. The complete lower-energy calculation is retained.
+        Explicit mirror matching is a separate test without this energy gate.
 
         temp is temperature, and only exp(-G/RT) > boltz conformers are considered if defined.
         energies contains E + ZPE in Hartree, as returned by check_conformers.

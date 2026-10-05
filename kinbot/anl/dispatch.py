@@ -987,6 +987,14 @@ def preflight(run_dir):
             'slurm_scripts_tested': checked}
 
 
+def _clear_blocked_tasks(state):
+    """Discard derived dependency blocks so the graph can be reevaluated."""
+    for task_id in [
+            task_id for task_id, entry in state['tasks'].items()
+            if entry.get('status') == 'blocked']:
+        state['tasks'].pop(task_id)
+
+
 def retry_failed(run_dir, ident):
     """Archive one failed attempt and restage it without rerunning siblings."""
     run_dir, spec, state = _load(run_dir)
@@ -997,6 +1005,7 @@ def retry_failed(run_dir, ident):
     if entry.get('job_id') and _job_active(entry['job_id']):
         raise RuntimeError(f'{ident}: Slurm job is still active.')
     if any(other != ident and other in state['tasks']
+           and state['tasks'][other].get('status') != 'blocked'
            and ident in _task_dependencies(task)
            for other, task in by_id.items()):
         raise RuntimeError(f'{ident}: downstream task already exists; review run.')
@@ -1015,6 +1024,7 @@ def retry_failed(run_dir, ident):
         raise
     state['tasks'][ident]['attempt'] = attempt + 1
     state['tasks'][ident]['previous_attempt'] = str(archive)
+    _clear_blocked_tasks(state)
     _atomic_json(run_dir / 'state.json', state)
     return archive
 
@@ -1082,6 +1092,7 @@ def migrate_cfour_vcc_keyword(run_dir, ident):
     state['tasks'][ident]['attempt'] = attempt + 1
     state['tasks'][ident]['previous_attempt'] = str(archive)
     state['tasks'][ident]['migration'] = 'CC_PROGRAM=VCC to CC_PROG=VCC'
+    _clear_blocked_tasks(state)
     _atomic_json(run_dir / 'state.json', state)
     return archive
 
@@ -1109,6 +1120,7 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
     if entry.get('job_id') and _job_active(entry['job_id']):
         raise RuntimeError(f'{ident}: Slurm job is still active.')
     if any(other != ident and other in state['tasks']
+           and state['tasks'][other].get('status') != 'blocked'
            and ident in _task_dependencies(other_task)
            for other, other_task in by_id.items()):
         raise RuntimeError(f'{ident}: downstream task already exists; review run.')
@@ -1209,6 +1221,7 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
         'restart_checkpoint': 'fort.16',
         'restart_checkpoint_bytes': amplitude.stat().st_size,
     }
+    _clear_blocked_tasks(state)
     _atomic_json(run_dir / 'state.json', state)
     return archive
 
@@ -1252,15 +1265,33 @@ def advance(run_dir, submit=False, submit_only=None):
         elif entry['status'] == 'submitted' and not _job_active(entry['job_id']):
             entry['status'] = 'failed'
             entry['error'] = 'Slurm job disappeared without execution.json.'
-    if any(entry['status'] == 'failed' for entry in state['tasks'].values()):
-        _atomic_json(run_dir / 'state.json', state)
-        return state
     for task in spec['tasks']:
         ident = task['id']
-        if ident in state['tasks']:
+        dependencies = _task_dependencies(task)
+        failed_dependencies = [
+            dependency for dependency in dependencies
+            if state['tasks'].get(dependency, {}).get('status') in
+            ('failed', 'blocked')]
+        entry = state['tasks'].get(ident)
+        if entry is not None and entry.get('status') == 'blocked':
+            if failed_dependencies:
+                entry['blocked_by'] = failed_dependencies
+                continue
+            # A failed dependency may have been explicitly retried. Return the
+            # child to the ordinary dependency gate without fabricating a
+            # staged calculation.
+            state['tasks'].pop(ident)
+            entry = None
+        if entry is not None:
             continue
-        if all(state['tasks'].get(dep, {}).get('status') == 'complete'
-               for dep in _task_dependencies(task)):
+        if failed_dependencies:
+            state['tasks'][ident] = {
+                'status': 'blocked',
+                'geometry_from': task.get('geometry_from', 'initial'),
+                'blocked_by': failed_dependencies,
+            }
+        elif all(state['tasks'].get(dep, {}).get('status') == 'complete'
+                 for dep in dependencies):
             _stage_task(run_dir, spec, state, task)
     _atomic_json(run_dir / 'state.json', state)
     if submit:
@@ -1420,12 +1451,13 @@ def main(argv=None):
                 _, spec, _ = _load(run_dir)
                 summary = _summary(spec, state)
                 print(json.dumps(summary, sort_keys=True), flush=True)
-                if all(value == 'complete' for value in summary.values()):
-                    return 0
-                if 'failed' in summary.values():
-                    return 1
+                terminal = {'complete', 'failed', 'blocked'}
+                if all(value in terminal for value in summary.values()):
+                    return 0 if all(value == 'complete'
+                                    for value in summary.values()) else 1
                 if args.once:
-                    return 0
+                    return int(any(value in ('failed', 'blocked')
+                                   for value in summary.values()))
                 if args.interval < 1 or args.interval > 60:
                     parser.error('--interval must be 1 through 60 seconds')
                 time.sleep(args.interval)

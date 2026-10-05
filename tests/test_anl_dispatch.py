@@ -543,6 +543,55 @@ def test_failed_task_can_be_archived_and_retried():
         assert advance(run_dir)['tasks']['sample']['status'] == 'staged'
 
 
+def test_failed_task_does_not_stop_independent_work_and_blocks_only_children():
+    def task(ident, depends_on=()):
+        record = {
+            'id': ident, 'kind': 'external', 'backend': 'fake',
+            'resources': {'cores': 1, 'memory_mb': 512,
+                          'walltime': '00:10:00'},
+            'input_name': f'{ident}.inp',
+            'input_template': '{{XYZ}}\n',
+            'command': [sys.executable, '-c', 'pass'],
+            'required_outputs': [f'{ident}.out'],
+        }
+        if depends_on:
+            record['depends_on'] = list(depends_on)
+        return record
+
+    spec = {
+        'schema': 1, 'name': 'independent-failure',
+        'molecule': dispatch_spec()['molecule'],
+        'limits': {'max_nodes': 2},
+        'tasks': [task('failed'), task('independent'),
+                  task('child', ('failed',))],
+    }
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['failed']['status'] = 'failed'
+        state_path.write_text(json.dumps(state))
+
+        response = subprocess.CompletedProcess(
+            ['sbatch'], 0, stdout='12345\n', stderr='')
+        with patch('kinbot.anl.dispatch.subprocess.run', return_value=response):
+            state = advance(run_dir, submit=True)
+
+        assert state['tasks']['failed']['status'] == 'failed'
+        assert state['tasks']['independent']['status'] == 'submitted'
+        assert state['tasks']['independent']['job_id'] == '12345'
+        assert state['tasks']['child']['status'] == 'blocked'
+        assert state['tasks']['child']['blocked_by'] == ['failed']
+
+        retry_failed(run_dir, 'failed')
+        state = json.loads(state_path.read_text())
+        assert state['tasks']['failed']['status'] == 'staged'
+        assert 'child' not in state['tasks']
+        with patch('kinbot.anl.dispatch._job_active', return_value=True):
+            assert advance(run_dir)['tasks'].get('child') is None
+
+
 def test_time_limited_mrcc_task_can_resume_with_saved_amplitudes():
     molecule = dispatch_spec()['molecule']
     task = mrcc_task(

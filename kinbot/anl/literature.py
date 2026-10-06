@@ -174,8 +174,9 @@ BENCHMARKS = {
         'reference_note': (
             'The source RHF-UCCSD(T) component uses the restricted HF '
             'determinant. Its MRCC CCSDT(Q) and CCSDTQ(P) components use a '
-            'UHF determinant and are not numerical targets for the modern '
-            'semicanonical-ROHF profile.'),
+            'UHF determinant. Current validation uses a semicanonical ROHF '
+            'determinant with unrestricted coupled cluster and compares the '
+            'results directly as an explicitly recorded reference variant.'),
         'molecule': {
             'symbols': ['C', 'H', 'H', 'H'],
             'positions': [
@@ -197,13 +198,17 @@ BENCHMARKS = {
                           'request': {
                               'backend': 'mrcc', 'method': 'CCSDT(Q)',
                               'basis': 'cc-pVDZ', 'reference': 'UHF',
-                              'correlation': 'unrestricted'}},
+                              'correlation': 'unrestricted'},
+                          'comparison_variants': {
+                              'reference': ['ROHF']}},
             'ccsdtqp_dz': {'path': ('energy_hartree',),
                            'expected': -39.716271925574, 'atol': 2e-6,
                            'request': {
                                'backend': 'mrcc', 'method': 'CCSDTQ(P)',
                                'basis': 'cc-pVDZ', 'reference': 'UHF',
-                               'correlation': 'unrestricted'}},
+                               'correlation': 'unrestricted'},
+                           'comparison_variants': {
+                               'reference': ['ROHF']}},
         },
         'derived': {
             'delta_q_dz': {
@@ -337,6 +342,7 @@ def compare_run(name, run_dir):
         spec['molecule'], benchmark['molecule'])
     exact_geometry = geometry_deviation <= 5e-5
     observed = {}
+    request_variants = {}
     for task_id, target in benchmark['tasks'].items():
         if (task_id not in tasks
                 or state['tasks'].get(task_id, {}).get('status') != 'complete'):
@@ -344,14 +350,25 @@ def compare_run(name, run_dir):
         task = tasks[task_id]
         parser = task.get('result_parser', {})
         actual_request = {'backend': task.get('backend'), **parser}
+        allowed_variants = target.get('comparison_variants', {})
         mismatch = {
             key: {'expected': value, 'observed': actual_request.get(key)}
             for key, value in target.get('request', {}).items()
-            if actual_request.get(key) != value}
+            if (actual_request.get(key) != value
+                and actual_request.get(key) not in
+                allowed_variants.get(key, ()))}
         if mismatch:
             raise ValueError(
                 f'{task_id}: calculation request does not match the '
                 f'literature benchmark: {mismatch}')
+        variants = {
+            key: {'published': value, 'observed': actual_request.get(key)}
+            for key, value in target.get('request', {}).items()
+            if (actual_request.get(key) != value
+                and actual_request.get(key) in
+                allowed_variants.get(key, ()))}
+        if variants:
+            request_variants[task_id] = variants
         *_, parsed = _verified_task_result(run_dir, task_id)
         observed[task_id] = _nested(parsed, target['path'])
     try:
@@ -374,6 +391,8 @@ def compare_run(name, run_dir):
             result['reference_note'] = benchmark['reference_note']
     result['geometry_match'] = exact_geometry
     result['maximum_pair_distance_error_angstrom'] = geometry_deviation
+    result['calculation_request_variants'] = request_variants
+    result['profiled_variant'] = bool(request_variants)
     if not exact_geometry:
         result['absolute_checks_skipped'] = sorted(
             task_id for task_id in observed if task_id in benchmark['tasks'])
@@ -491,17 +510,10 @@ def main(argv=None):
         benchmark = BENCHMARKS[args.benchmark]
         selected = args.task_ids or (
             'ccsdt_dz', 'ccsdtq_dz', 'ccsdtqp_dz')
-        references = {
-            task_id: benchmark['tasks'][task_id]['request']['reference']
-            for task_id in selected
-            if task_id in benchmark['tasks']
-            and benchmark['tasks'][task_id].get('request', {}).get(
-                'backend') == 'mrcc'
-        }
         spec = higher_order_validation_spec(
             benchmark['molecule'], max_nodes=args.max_nodes,
             partition=args.partition, mrcc_command=args.mrcc_command,
-            task_ids=selected, reference_overrides=references)
+            task_ids=selected)
         for task in spec['tasks']:
             if task['id'] == 'ccsdtqp_dz':
                 # The small source-matched probes should finish on a day

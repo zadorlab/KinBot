@@ -281,8 +281,7 @@ def _rank_exact_higher_order(molecule):
 
 
 def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
-                                 mrcc_command='dmrcc', task_ids=None,
-                                 reference_overrides=None):
+                                 mrcc_command='dmrcc', task_ids=None):
     """Build the five-job ANL1 higher-order interface probe.
 
     This graph checks native input generation, execution, parsing, and the
@@ -294,13 +293,6 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
     multiplicity = molecule.get('multiplicity', 1)
     restricted_reference = 'RHF' if multiplicity == 1 else 'ROHF'
     conventional = molpro_ccsdt_command(multiplicity)
-    reference_overrides = {} if reference_overrides is None else dict(
-        reference_overrides)
-    unknown_references = sorted(
-        set(reference_overrides) - set(_HIGHER_ORDER_TASK_IDS))
-    if unknown_references:
-        raise ValueError(
-            f'Unknown higher-order reference overrides: {unknown_references}.')
     common = dict(geometry_from='initial', partition=partition)
     tasks = [
         molpro_task(
@@ -320,19 +312,16 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         higher_order_task(
             'ccsdtq_tz', 'CCSDT(Q)', 'cc-pVTZ',
             multiplicity=multiplicity,
-            reference=reference_overrides.get('ccsdtq_tz'),
             walltime='24:00:00',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ',
             multiplicity=multiplicity,
-            reference=reference_overrides.get('ccsdtq_dz'),
             walltime='12:00:00',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtqp_dz', 'CCSDTQ(P)', 'cc-pVDZ',
             multiplicity=multiplicity,
-            reference=reference_overrides.get('ccsdtqp_dz'),
             walltime='7-00:00:00',
             max_cores=8, command=mrcc_command, **common),
     ]

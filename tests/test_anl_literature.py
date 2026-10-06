@@ -75,7 +75,7 @@ def test_prepare_cli_builds_only_the_default_small_species_pair_plus_low(
     json.dumps(spec)
 
 
-def test_prepare_methyl_source_benchmark_uses_its_published_uhf_reference(
+def test_prepare_methyl_benchmark_uses_current_rohf_ucc_profile(
         monkeypatch, tmp_path):
     captured = {}
 
@@ -89,14 +89,38 @@ def test_prepare_methyl_source_benchmark_uses_its_published_uhf_reference(
         '--task', 'ccsdt_dz', '--task', 'ccsdtq_dz']) == 0
     tasks = {task['id']: task for task in captured['spec']['tasks']}
     assert tasks['ccsdt_dz']['result_parser']['reference'] == 'ROHF'
-    assert tasks['ccsdtq_dz']['result_parser']['reference'] == 'UHF'
-    assert 'scftype=UHF' in tasks['ccsdtq_dz']['input_template']
-    assert 'rohftype=semicanonical' not in \
+    assert tasks['ccsdtq_dz']['result_parser']['reference'] == 'ROHF'
+    assert 'scftype=ROHF' in tasks['ccsdtq_dz']['input_template']
+    assert 'rohftype=semicanonical' in \
         tasks['ccsdtq_dz']['input_template']
     for task in captured['spec']['tasks']:
         task['resources'].update(
             cores=4, memory_mb=64000, partition='test')
     validate_spec(captured['spec'])
+
+
+def test_methyl_rohf_run_compares_to_published_uhf_target(monkeypatch):
+    benchmark = BENCHMARKS['methyl-qz-2017']
+    task = {
+        'id': 'ccsdtq_dz', 'backend': 'mrcc',
+        'result_parser': {
+            'method': 'CCSDT(Q)', 'basis': 'cc-pVDZ',
+            'reference': 'ROHF', 'correlation': 'unrestricted'}}
+    monkeypatch.setattr(
+        literature, '_load',
+        lambda run_dir: (Path(run_dir), {
+            'molecule': benchmark['molecule'], 'tasks': [task]}, {
+            'tasks': {'ccsdtq_dz': {'status': 'complete'}}}))
+    monkeypatch.setattr(
+        literature, '_verified_task_result',
+        lambda run_dir, task_id: (
+            None, None, None, None, None,
+            {'energy_hartree': benchmark['tasks'][task_id]['expected']}))
+    result = literature.compare_run('methyl-qz-2017', '/synthetic/run')
+    assert result['status'] == 'passed'
+    assert result['profiled_variant'] is True
+    assert result['calculation_request_variants']['ccsdtq_dz'] == {
+        'reference': {'published': 'UHF', 'observed': 'ROHF'}}
 
 
 def test_run_comparison_rejects_a_different_reference(monkeypatch):

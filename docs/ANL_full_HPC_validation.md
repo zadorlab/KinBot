@@ -730,40 +730,28 @@ cd ~/KinBot
   | tee methane_qz_higher_2017_literature.json
 ```
 
-For methyl, first run only the source-comparable conventional component:
+For methyl, run the normal current profile at the pinned source geometry:
+Molpro RHF/ROHF-UCCSD(T), followed by direct-MRCC semicanonical
+ROHF-UCCSDT(Q) and ROHF-UCCSDTQ(P).
 
 ```bash
 .venv/bin/python -m kinbot.anl.literature prepare-higher-order \
-  methyl-qz-2017 methyl_qz_ccsdt_dz_2017 \
-  --task ccsdt_dz --max-nodes 1
-.venv/bin/python -m kinbot.anl.dispatch preflight methyl_qz_ccsdt_dz_2017
+  methyl-qz-2017 methyl_qz_rohf_higher_2017 --max-nodes 2
+.venv/bin/python -m kinbot.anl.dispatch preflight methyl_qz_rohf_higher_2017
 .venv/bin/python -m kinbot.anl.dispatch drive \
-  methyl_qz_ccsdt_dz_2017 --interval 20
+  methyl_qz_rohf_higher_2017 --interval 20
 .venv/bin/python -m kinbot.anl.literature compare-run \
-  methyl-qz-2017 methyl_qz_ccsdt_dz_2017 \
-  | tee methyl_qz_ccsdt_dz_2017_literature.json
+  methyl-qz-2017 methyl_qz_rohf_higher_2017 \
+  | tee methyl_qz_rohf_higher_2017_literature.json
 ```
 
 The published methyl CCSDT(Q) and CCSDTQ(P) targets used a UHF determinant,
-as stated by the paper. The current profile deliberately uses semicanonical
-ROHF, so those absolute values are retained as source provenance but are not
-tight numerical acceptance targets for the changed reference. Stage the
-modern `ccsdtq_dz` and `ccsdtqp_dz` pair separately and use
-`audit-higher-order` to validate input, execution, parsing, and the common
-geometry correction. Preserve one real interrupted MRCC attempt and
-successful `resume-mrcc` continuation as restart evidence; do not manufacture
-interruptions for every species.
-
-```bash
-.venv/bin/python -m kinbot.anl.literature prepare-higher-order \
-  methyl-qz-2017 methyl_qz_rohf_higher \
-  --task ccsdtq_dz --task ccsdtqp_dz --max-nodes 2
-.venv/bin/python -m kinbot.anl.dispatch preflight methyl_qz_rohf_higher
-.venv/bin/python -m kinbot.anl.dispatch drive \
-  methyl_qz_rohf_higher --interval 20
-.venv/bin/python -m kinbot.anl.validation audit-higher-order \
-  methyl_qz_rohf_higher | tee methyl_qz_rohf_higher_audit.json
-```
+as stated by the paper. The comparison records that determinant difference as
+a profiled variant, but still evaluates the current ROHF results directly
+against the published values and tolerances. Published UHF values never alter
+the generated input or the computed recipe. Preserve one real interrupted
+MRCC attempt and successful `resume-mrcc` continuation as restart evidence;
+do not manufacture interruptions for every species.
 
 The completed ethane VPT2 parser recorded native Gaussian warnings. Assembly
 therefore stops until those warnings and the mode table are reviewed. First
@@ -1039,8 +1027,9 @@ requests an exclusive node:
 
 1. CH4 at the pinned 2017 QZ geometry, for the closed-shell direct-MRCC
    higher-order comparison;
-2. CH3 at the pinned 2017 QZ geometry, using the source's UHF determinant for
-   the two direct-MRCC comparison tasks;
+2. CH3 at the pinned 2017 QZ geometry, using the current semicanonical ROHF
+   determinant and unrestricted CC methods, compared directly with the
+   paper's older UHF-reference values as a recorded profile variant;
 3. production CH3 from the accepted KinBot product row, using semicanonical
    ROHF determinants and unrestricted coupled cluster;
 4. production atomic H from `[H]` for the methyl CBH-0 balance.

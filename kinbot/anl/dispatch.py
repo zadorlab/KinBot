@@ -307,13 +307,9 @@ def validate_spec(spec, *, allow_obsolete=False):
                                   'molpro_energy') and 'reference' in parser:
             multiplicity = spec['molecule'].get('multiplicity', 1)
             reference = parser['reference']
-            allowed = (('RHF', 'ROHF', 'UHF')
-                       if parser['kind'] == 'mrcc_energy'
-                       else ('RHF', 'ROHF'))
-            if (reference not in allowed
+            if (reference not in ('RHF', 'ROHF')
                     or (reference == 'RHF' and multiplicity != 1)
-                    or (reference in ('ROHF', 'UHF')
-                        and multiplicity == 1)):
+                    or (reference == 'ROHF' and multiplicity == 1)):
                 raise ValueError(f"{task['id']}: declared reference conflicts "
                                  'with molecular multiplicity.')
         if (parser.get('kind') == 'gaussian_vpt2'

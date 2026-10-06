@@ -25,7 +25,8 @@ from kinbot.anl.extrapolation import two_point_cbs
 from kinbot.anl.model import ComponentResult
 from kinbot.anl.recipes import recipe
 from kinbot.anl.results import legacy_molpro_parser
-from kinbot.anl.tasks import higher_order_task, molpro_task
+from kinbot.anl.tasks import (higher_order_task, molpro_ccsdt_command,
+                              molpro_task)
 from kinbot.anl.workflow import (_verified_task_result,
                                  cbs_task_component,
                                  core_valence_task_component,
@@ -91,7 +92,8 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
         'optimizer': 'sella',
     }
     reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
-    conventional = 'uccsd(t),uhf_uccsd=1'
+    conventional = molpro_ccsdt_command(
+        molecule.get('multiplicity', 1))
     f12 = 'uccsd(t)-f12b'
     tasks = [
         {
@@ -255,7 +257,7 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         raise TypeError('molecule must be an object.')
     multiplicity = molecule.get('multiplicity', 1)
     restricted_reference = 'RHF' if multiplicity == 1 else 'ROHF'
-    conventional = 'uccsd(t),uhf_uccsd=1'
+    conventional = molpro_ccsdt_command(multiplicity)
     common = dict(geometry_from='initial', partition=partition)
     tasks = [
         molpro_task(
@@ -303,7 +305,7 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
             'equation': ('CCSDT(Q)/TZ - CCSD(T)/TZ + CCSDTQ(P)/DZ '
                          '- CCSDT(Q)/DZ'),
             'backend_policy': {
-                'closed_shell_ccsdt_q': 'cfour-uhf-vcc-unrestricted-cc',
+                'closed_shell_ccsdt_q': 'direct-mrcc-rhf-unrestricted-cc',
                 'open_shell_ccsdt_q': 'direct-mrcc-semicanonical-rohf',
                 'closed_shell_ccsdtq_p': 'direct-mrcc-rhf-unrestricted-cc',
                 'open_shell_ccsdtq_p': 'direct-mrcc-semicanonical-rohf',
@@ -323,9 +325,9 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
 
     def energy_task(ident, basis, *, core, relativistic='none', walltime):
         dkh = 'set,dkho=2\n' if relativistic == 'DKH2' else ''
-        command = ('{uccsd(t),uhf_uccsd=1;core}'
-                   if core == 'all-electron'
-                   else 'uccsd(t),uhf_uccsd=1')
+        command = molpro_ccsdt_command(
+            molecule.get('multiplicity', 1),
+            all_electron=(core == 'all-electron'))
         body = (f'basis={basis}\n{dkh}rhf\n{command}\n'
                 f'kb_{ident}=energy\n')
         return molpro_task(
@@ -365,11 +367,19 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
 
 
 def post_geometry_validation_spec(molecule, *, max_nodes=3, partition=None,
-                                  mrcc_command='dmrcc'):
-    """Build one globally throttled fan-out after the accepted L3 geometry."""
+                                  mrcc_command='dmrcc', anl0_only=False):
+    """Build one globally throttled fan-out after the accepted L3 geometry.
+
+    ``anl0_only`` omits the ANL1-only TZ quadruples and DZ pentuples probes.
+    It leaves the complete ANL0/ANL0-F12 higher-order and common-correction
+    graph, so an affordable chemistry validation cannot accidentally submit
+    the week-long CCSDTQ(P) task.
+    """
+    higher_task_ids = (('ccsdt_dz', 'ccsdtq_dz')
+                       if anl0_only else None)
     higher = higher_order_validation_spec(
         molecule, max_nodes=max_nodes, partition=partition,
-        mrcc_command=mrcc_command)
+        mrcc_command=mrcc_command, task_ids=higher_task_ids)
     corrections = common_corrections_validation_spec(
         molecule, max_nodes=max_nodes, partition=partition)
     tasks = higher['tasks'] + corrections['tasks']
@@ -384,6 +394,8 @@ def post_geometry_validation_spec(molecule, *, max_nodes=3, partition=None,
             'claim': 'post-geometry-interface-validation-only',
             'higher_order_equation': higher['intent']['equation'],
             'backend_policy': higher['intent']['backend_policy'],
+            'selected_higher_order_tasks':
+                higher['intent']['selected_tasks'],
             'core_valence_equation':
                 corrections['intent']['core_valence_equation'],
             'scalar_relativistic_equation':
@@ -1050,6 +1062,7 @@ def main(argv=None):
     prepare_post.add_argument('--max-nodes', type=int, default=3)
     prepare_post.add_argument('--partition')
     prepare_post.add_argument('--mrcc-command', default='dmrcc')
+    prepare_post.add_argument('--anl0-only', action='store_true')
     audit_post = commands.add_parser('audit-post-geometry')
     audit_post.add_argument('run_dir', type=Path)
     audit_anl0_post = commands.add_parser('audit-anl0-post-geometry')
@@ -1147,7 +1160,7 @@ def main(argv=None):
     elif is_post:
         spec = post_geometry_validation_spec(
             molecule, max_nodes=args.max_nodes, partition=args.partition,
-            mrcc_command=args.mrcc_command)
+            mrcc_command=args.mrcc_command, anl0_only=args.anl0_only)
     else:
         spec = interface_validation_spec(
             molecule, max_nodes=args.max_nodes, partition=args.partition)

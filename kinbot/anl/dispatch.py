@@ -31,6 +31,7 @@ from kinbot.ase_modules.calculators.factory import capabilities
 from kinbot.anl.cfour import normalize_cfour_zmat
 from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment
 from kinbot.anl.site import assign_partitions, render_site_setup
+from kinbot.anl.tasks import mrcc_task
 from kinbot.theory import TheoryProfile
 
 
@@ -106,7 +107,7 @@ def _file_hash(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def _validate_task(task, ids, limits):
+def _validate_task(task, ids, limits, *, allow_obsolete=False):
     if not isinstance(task, dict):
         raise ValueError('Every task must be an object.')
     ident = _basename(task.get('id'), 'Task id')
@@ -261,7 +262,9 @@ def _validate_task(task, ids, limits):
             from kinbot.anl.results import validate_result_parser
             try:
                 validate_result_parser(result_parser, backend=backend,
-                                       template=task['input_template'], outputs=outputs)
+                                       template=task['input_template'],
+                                       outputs=outputs,
+                                       allow_obsolete=allow_obsolete)
             except ValueError as exc:
                 raise ValueError(f'{ident}: {exc}') from exc
         failure_markers = task.get('failure_markers', [])
@@ -273,7 +276,7 @@ def _validate_task(task, ids, limits):
             raise ValueError(f'{ident}: failure_markers must refer to output files.')
 
 
-def validate_spec(spec):
+def validate_spec(spec, *, allow_obsolete=False):
     """Validate a declarative graph before creating or submitting any job."""
     if not isinstance(spec, dict) or spec.get('schema') != 1:
         raise ValueError('Workflow must be a schema 1 object.')
@@ -295,7 +298,7 @@ def validate_spec(spec):
         raise ValueError('Task ids must be unique.')
     by_id = dict(zip(ids, tasks))
     for task in tasks:
-        _validate_task(task, by_id, limits)
+        _validate_task(task, by_id, limits, allow_obsolete=allow_obsolete)
         source = task.get('geometry_from', 'initial')
         if source != 'initial' and not by_id[source].get('geometry_output'):
             raise ValueError(f"{task['id']}: geometry source has no geometry output.")
@@ -304,7 +307,7 @@ def validate_spec(spec):
                                   'molpro_energy') and 'reference' in parser:
             multiplicity = spec['molecule'].get('multiplicity', 1)
             reference = parser['reference']
-            if (reference not in ('RHF', 'ROHF', 'UHF')
+            if (reference not in ('RHF', 'ROHF')
                     or (reference == 'RHF' and multiplicity != 1)
                     or (reference == 'ROHF' and multiplicity == 1)):
                 raise ValueError(f"{task['id']}: declared reference conflicts "
@@ -356,7 +359,7 @@ def _atomic_json(path, data):
 def _load(run_dir):
     run_dir = Path(run_dir).resolve()
     spec = json.loads((run_dir / 'workflow.json').read_text())
-    validate_spec(spec)
+    validate_spec(spec, allow_obsolete=True)
     state = json.loads((run_dir / 'state.json').read_text())
     checksum = hashlib.sha256((run_dir / 'workflow.json').read_bytes()).hexdigest()
     if state['spec_sha256'] != checksum:
@@ -1029,14 +1032,17 @@ def retry_failed(run_dir, ident):
     return archive
 
 
-def migrate_cfour_vcc_keyword(run_dir, ident):
-    """Restage a failed generated CFOUR task that used the wrong VCC keyword.
+def reroute_cfour_higher_order_to_mrcc(
+        run_dir, ident, *, command='dmrcc', walltime=None,
+        partition=None, max_cores=None):
+    """Replace one failed CFOUR CCSDT(Q) probe with direct MRCC.
 
-    CFOUR accepts ``CC_PROG`` as the input keyword and reports the setting as
-    ``CC_PROGRAM``. Older generated workflows wrote the output label back into
-    ZMAT, so CFOUR ignored it and selected its method-specific default. This
-    migration is intentionally narrow and preserves the immutable old task as
-    an attempt archive.
+    CFOUR 2.1 selects its restricted closed-shell ``xncc`` solver for
+    CCSDT(Q), even when a generated ZMAT requests ``CC_PROG=VCC``.  Such a
+    result cannot supply the required RHF determinant plus unrestricted CC
+    component.  This narrow migration archives the rejected attempt, rewrites
+    only that task in the prepared workflow, and stages an RHF-UCCSDT(Q)
+    direct-MRCC replacement on the identical geometry.
     """
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
@@ -1048,22 +1054,40 @@ def migrate_cfour_vcc_keyword(run_dir, ident):
     if (task.get('kind') != 'external'
             or task.get('backend', '').lower() != 'cfour'
             or parser.get('kind') != 'cfour_energy'
-            or parser.get('driver') != 'VCC'):
-        raise ValueError(f'{ident}: migration requires a CFOUR VCC energy task.')
+            or parser.get('method') != 'CCSDT(Q)'
+            or parser.get('reference') != 'RHF'):
+        raise ValueError(
+            f'{ident}: rerouting requires a closed-shell CFOUR CCSDT(Q) task.')
     if entry.get('status') != 'failed':
         raise ValueError(f'{ident}: only a failed CFOUR task can be migrated.')
     if entry.get('job_id') and _job_active(entry['job_id']):
         raise RuntimeError(f'{ident}: Slurm job is still active.')
     _verify_stage_files(run_dir, task, entry)
-    replacement = deepcopy(task)
-    replacement['input_template'], count = re.subn(
-        r'\bCC_PROGRAM\s*=\s*VCC\b', 'CC_PROG=VCC',
-        replacement['input_template'], count=1, flags=re.IGNORECASE)
-    if count != 1 or re.search(
-            r'\bCC_PROGRAM\s*=\s*VCC\b', replacement['input_template'],
-            re.IGNORECASE):
-        raise ValueError(f'{ident}: workflow does not contain the legacy '
-                         'CC_PROGRAM=VCC spelling exactly once.')
+    resources = deepcopy(task['resources'])
+    selected_walltime = walltime or resources['walltime']
+    selected_partition = (partition if partition is not None
+                          else resources.get('partition'))
+    selected_max_cores = (max_cores if max_cores is not None
+                          else resources.get('max_cores',
+                                             resources.get('cores')))
+    if selected_max_cores == 'auto':
+        selected_max_cores = 8
+    _positive_integer(selected_max_cores, 'MRCC reroute max_cores')
+    replacement = mrcc_task(
+        ident, 'CCSDT(Q)', parser['basis'], multiplicity=1, reference='RHF',
+        geometry_from=task.get('geometry_from', 'initial'),
+        walltime=selected_walltime, max_cores=selected_max_cores,
+        partition=selected_partition, command=command)
+    replacement['resources'] = resources
+    replacement['resources']['walltime'] = selected_walltime
+    replacement['resources']['max_cores'] = selected_max_cores
+    replacement['resources']['min_memory_mb_per_core'] = 4096
+    if selected_partition is None:
+        replacement['resources'].pop('partition', None)
+    else:
+        replacement['resources']['partition'] = selected_partition
+    if 'depends_on' in task:
+        replacement['depends_on'] = deepcopy(task['depends_on'])
     spec['tasks'][spec['tasks'].index(task)] = replacement
     validate_spec(spec)
 
@@ -1091,10 +1115,16 @@ def migrate_cfour_vcc_keyword(run_dir, ident):
         raise
     state['tasks'][ident]['attempt'] = attempt + 1
     state['tasks'][ident]['previous_attempt'] = str(archive)
-    state['tasks'][ident]['migration'] = 'CC_PROGRAM=VCC to CC_PROG=VCC'
+    state['tasks'][ident]['migration'] = \
+        'rejected CFOUR xncc CCSDT(Q) to direct MRCC RHF-UCCSDT(Q)'
     _clear_blocked_tasks(state)
     _atomic_json(run_dir / 'state.json', state)
     return archive
+
+
+def migrate_cfour_vcc_keyword(run_dir, ident):
+    """Backward-compatible alias for the corrected CFOUR-to-MRCC migration."""
+    return reroute_cfour_higher_order_to_mrcc(run_dir, ident)
 
 
 def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
@@ -1376,6 +1406,13 @@ def main(argv=None):
     migrate_cfour = sub.add_parser('migrate-cfour-vcc')
     migrate_cfour.add_argument('run_dir')
     migrate_cfour.add_argument('task_id')
+    reroute_cfour = sub.add_parser('reroute-cfour-mrcc')
+    reroute_cfour.add_argument('run_dir')
+    reroute_cfour.add_argument('task_id')
+    reroute_cfour.add_argument('--mrcc-command', default='dmrcc')
+    reroute_cfour.add_argument('--walltime')
+    reroute_cfour.add_argument('--partition')
+    reroute_cfour.add_argument('--max-cores', type=int)
     resume_mrcc = sub.add_parser('resume-mrcc')
     resume_mrcc.add_argument('run_dir')
     resume_mrcc.add_argument('task_id')
@@ -1419,6 +1456,17 @@ def main(argv=None):
             except BlockingIOError as exc:
                 raise RuntimeError('Another driver is managing this run.') from exc
             print(migrate_cfour_vcc_keyword(run_dir, args.task_id))
+    elif args.action == 'reroute-cfour-mrcc':
+        run_dir = Path(args.run_dir).resolve()
+        with (run_dir / 'drive.lock').open('w') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise RuntimeError('Another driver is managing this run.') from exc
+            print(reroute_cfour_higher_order_to_mrcc(
+                run_dir, args.task_id, command=args.mrcc_command,
+                walltime=args.walltime, partition=args.partition,
+                max_cores=args.max_cores))
     elif args.action == 'resume-mrcc':
         run_dir = Path(args.run_dir).resolve()
         with (run_dir / 'drive.lock').open('w') as lock:

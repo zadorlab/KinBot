@@ -15,6 +15,7 @@ from ase.units import Bohr, Hartree
 import numpy as np
 
 from kinbot.anl.runtime import cleanup_qc_runtime, qc_runtime_environment
+from kinbot.anl.results import validate_molpro_triples
 
 
 _ENERGY = re.compile(
@@ -43,9 +44,11 @@ def check_process_count(output_path, allocated_ranks):
 def render_input(atoms, *, basis, geometry_name, charge=0, mult=1):
     """Render a restricted-reference, unrestricted-CCSD(T) gradient.
 
-    Molpro can otherwise dispatch its restricted open-shell CC code after an
-    RHF calculation. ``UHF_UCCSD=1`` explicitly selects the unrestricted CC
-    implementation while retaining the RHF/ROHF determinant.
+    Molpro's RHF step supplies RHF or ROHF orbitals according to multiplicity.
+    Bare ``UCCSD(T)`` then uses the restricted-reference unrestricted-CC
+    formalism.  ``UHF_UCCSD=1`` must not be added: it forces Molpro's separate
+    UHF-UCC engine and produced a zero triples correction for closed-shell
+    ethane in Molpro 2024.1.
     """
     if not basis or not _SAFE_BASIS.fullmatch(basis):
         raise ValueError('Molpro basis must be one safe basis identifier.')
@@ -55,7 +58,7 @@ def render_input(atoms, *, basis, geometry_name, charge=0, mult=1):
         raise ValueError('Molpro charge must be an integer.')
     if isinstance(mult, bool) or not isinstance(mult, int) or mult < 1:
         raise ValueError('Molpro multiplicity must be a positive integer.')
-    method = 'uccsd(t),uhf_uccsd=1'
+    method = 'uccsd(t)'
     xyz = '\n'.join(
         f'{symbol} {x:.12f} {y:.12f} {z:.12f}'
         for symbol, (x, y, z) in zip(atoms.get_chemical_symbols(), atoms.positions)
@@ -154,6 +157,7 @@ def parse_output(path):
     output = Path(path).read_text(errors='replace')
     if 'Molpro calculation terminated' not in output or 'ERROR EXIT' in output:
         raise ValueError('Molpro did not terminate normally.')
+    validate_molpro_triples(output, scaled=False)
     # Molpro 2024.1 prints SETTING for a user assignment, as in the supplied
     # CH4/H2O2 outputs. Use the first such line: numerical FORCE then repeats
     # the energy procedure for displaced geometries in the same invocation.

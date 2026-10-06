@@ -27,6 +27,9 @@ _F12 = """basis=cc-pVTZ-F12
 uccsd(t)-f12b,scale_trip=1
  Starting UCCSD calculation
  UCCSD-F12b correlation energy -0.288234238676
+ Number of N-1 electron functions: 7
+ Triples (T) contribution (scaled) -0.006123456789
+ RHF-UCCSD-F12b energy -40.448782742400
  !RHF-UCCSD(T)-F12 energy -40.454906199189
  PROGRAMS * TOTAL UCCSD(T) RHF-SCF INT
  Molpro calculation terminated
@@ -36,6 +39,9 @@ _F12_QZ = """basis=cc-pVQZ-F12
 uccsd(t)-f12b,scale_trip=1
  Starting UCCSD calculation
  UCCSD-F12b correlation energy -0.290012345678
+ Number of N-1 electron functions: 7
+ Triples (T) contribution (scaled) -0.006123456789
+ RHF-UCCSD-F12b energy -40.450484849685
  !RHF-UCCSD(T)-F12 energy -40.456608306474
  PROGRAMS * TOTAL UCCSD(T) RHF-SCF INT
  Molpro calculation terminated
@@ -207,8 +213,11 @@ def _harmonic_output(basis, shift):
     zpe_hartree = zpe_cm * invcm / Hartree
     zpe_kj = zpe_hartree * Hartree * mol / kJ
     lines = '\n'.join(f' {i} {value:.2f}' for i, value in enumerate(modes, 1))
-    return (f'basis={basis}\nrhf\nuccsd(t),uhf_uccsd=1\n'
-            'PROGRAM * RHF-SCF\nfrequencies,numerical\n'
+    return (f'basis={basis}\nrhf\nuccsd(t)\n'
+            'PROGRAM * RHF-SCF\n'
+            'Number of N-1 electron functions: 7\n'
+            'Triples (T) contribution -0.006123456789\n'
+            'frequencies,numerical\n'
             'PROGRAM * FREQUENCIES (Calculation of harmonic vibrational '
             'spectra for UCCSD(T))\nVibration Wavenumber\n'
             f'{lines}\n\nZero point energy: {zpe_hartree:.8f} [H] '
@@ -268,7 +277,7 @@ def _completed_zpe_pair(root, *, kind):
         if is_harmonic:
             task = molpro_task(
                 f'freq_{suffix}',
-                f'basis={basis}\nrhf\nuccsd(t),uhf_uccsd=1\n'
+                f'basis={basis}\nrhf\nuccsd(t)\n'
                 'frequencies,numerical\n',
                 geometry_from=opt['id'],
                 result_parser={'kind': 'molpro_harmonic', 'basis': basis})

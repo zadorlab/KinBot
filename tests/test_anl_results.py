@@ -166,6 +166,9 @@ kb_f12b=energy
  Starting UCCSD calculation
  F12 corrections for ansatz 3C(FIX) added to UCCSD energy
  UCCSD-F12b correlation energy -0.288234238676
+ Number of N-1 electron functions: 7
+ Triples (T) contribution (scaled) -0.006123456789
+ RHF-UCCSD-F12b energy -40.448782742400
  !RHF-UCCSD(T)-F12 energy -40.454906199189
  PROGRAMS   *        TOTAL  UCCSD(T)   RHF-SCF       INT
  SETTING KB_F12B = -40.45490620 AU
@@ -174,7 +177,9 @@ kb_f12b=energy
 
 _MOLPRO_HARMONIC = """basis=cc-pVTZ
 rhf
-uccsd(t),uhf_uccsd=1
+uccsd(t)
+ Number of N-1 electron functions: 7
+ Triples (T) contribution -0.006123456789
  PROGRAMS * TOTAL FREQ UCCSD(T) RHF-SCF INT
 frequencies,numerical
  PROGRAM * FREQUENCIES (Calculation of harmonic vibrational spectra for UCCSD(T))
@@ -199,8 +204,11 @@ frequencies,numerical
 
 _MOLPRO_OPEN_CCSD_T = """basis=cc-pVDZ
 rhf
-uccsd(t),uhf_uccsd=1
+uccsd(t)
  PROGRAM * RHF-SCF
+ Number of N-1 electron functions: 7
+ Triples (T) contribution -0.006123456789
+ RHF-UCCSD energy -39.806222222112
  !RHF-UCCSD(T) energy -39.812345678901
  Molpro calculation terminated
 """
@@ -217,15 +225,18 @@ kb_f12b=energy(2)
 """
 
 _MOLPRO_LEGACY_HARMONIC = (_MOLPRO_HARMONIC
-                           .replace('rhf\nuccsd(t),uhf_uccsd=1',
+                           .replace('rhf\nuccsd(t)',
                                     'hf\nccsd(t)')
                            .replace('for UCCSD(T))', 'for CCSD(T))'))
 
 _MOLPRO_ALL_ELECTRON_DKH = """basis=aug-cc-pCVTZ-DK
 set,dkho=2
 rhf
-{uccsd(t),uhf_uccsd=1;core}
+{uccsd(t);core}
  PROGRAM * RHF-SCF
+ Number of N-1 electron functions: 7
+ Triples (T) contribution -0.006123456789
+ RHF-UCCSD energy -40.006222222112
  !RHF-UCCSD(T) energy -40.012345678901
  Molpro calculation terminated
 """
@@ -341,10 +352,46 @@ def test_molpro_open_shell_uses_rhf_uccsd_t_label():
     assert result['energy_hartree'] == pytest.approx(-39.812345678901)
     assert result['reference'] == 'ROHF'
     assert result['program_variant'] == 'RHF-UCCSD(T)'
-    with pytest.raises(ValueError, match='UCCSD'):
+    with pytest.raises(ValueError, match='UHF-UCC engine'):
         parse_molpro_energy(
-            _MOLPRO_OPEN_CCSD_T.replace(',uhf_uccsd=1', ''),
+            _MOLPRO_OPEN_CCSD_T.replace('uccsd(t)',
+                                         'uccsd(t),uhf_uccsd=1'),
             method='CCSD(T)', basis='cc-pVDZ', reference='ROHF')
+
+
+def test_molpro_rejects_false_uccsdt_label_with_zero_triples():
+    broken = (_MOLPRO_OPEN_CCSD_T
+              .replace('uccsd(t)', 'uccsd(t),uhf_uccsd=1')
+              .replace('Triples (T) contribution -0.006123456789',
+                       'Triples (T) contribution 0.000000000000')
+              .replace('RHF-UCCSD energy -39.806222222112',
+                       'RHF-UCCSD energy -39.812345678901'))
+    with pytest.raises(ValueError, match='UHF-UCC engine'):
+        parse_molpro_energy(broken, method='CCSD(T)', basis='cc-pVDZ',
+                            reference='RHF')
+
+    zero_without_forced_flag = broken.replace(',uhf_uccsd=1', '')
+    with pytest.raises(ValueError, match='zero perturbative triples'):
+        parse_molpro_energy(zero_without_forced_flag, method='CCSD(T)',
+                            basis='cc-pVDZ', reference='RHF')
+
+
+def test_old_forced_ucc_workflow_can_load_but_result_is_rejected():
+    request = {'kind': 'molpro_energy', 'file': 'sp.out',
+               'method': 'CCSD(T)', 'basis': 'cc-pVDZ',
+               'reference': 'RHF'}
+    old_template = 'basis=cc-pVDZ\nrhf\nuccsd(t),uhf_uccsd=1\n'
+    with pytest.raises(ValueError, match='invalid result_parser'):
+        validate_result_parser(
+            request, backend='molpro', template=old_template,
+            outputs=['sp.out'])
+    validate_result_parser(
+        request, backend='molpro', template=old_template,
+        outputs=['sp.out'], allow_obsolete=True)
+    forced = _MOLPRO_OPEN_CCSD_T.replace(
+        'uccsd(t)', 'uccsd(t),uhf_uccsd=1')
+    with pytest.raises(ValueError, match='UHF-UCC engine'):
+        parse_result(forced, request)
 
 
 def test_molpro_energy_pins_all_electron_and_dkh2_settings():
@@ -398,6 +445,11 @@ def test_molpro_harmonic_ignores_zero_modes_and_crosschecks_zpe():
         _MOLPRO_OPEN_HARMONIC, basis='cc-pVTZ', reference='ROHF')
     assert opened['reference'] == 'ROHF'
     assert opened['program_variant'] == 'RHF-UCCSD(T)'
+    with pytest.raises(ValueError, match='UHF-UCC engine'):
+        parse_molpro_harmonic(
+            _MOLPRO_HARMONIC.replace(
+                'uccsd(t)', 'uccsd(t),uhf_uccsd=1'),
+            basis='cc-pVTZ', reference='RHF')
 
 
 def test_gaussian_vpt2_named_zpe_and_warnings():

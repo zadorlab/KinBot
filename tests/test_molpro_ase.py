@@ -56,6 +56,8 @@ stem = inp.stem
 Path(stem + '.out').write_text(
     f' SETTING KB_GEOM_ENERGY = {energy:.14f} AU\n'
     f' SETTING KB_GEOM_ENERGY = {energy + 0.1:.14f} AU\n'
+    ' Number of N-1 electron functions: 7\n'
+    ' Triples (T) contribution -0.006123456789\n'
     ' Numerical gradient for KB_GEOM_ENERGY\n'
     ' Atom          dE/dx               dE/dy               dE/dz'
     '                  d2E/dx2             d2E/dy2             d2E/dz2\n' +
@@ -75,7 +77,7 @@ def test_documented_molpro_force_input_and_parser_contract():
     atoms = Atoms('CH2', positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
     deck = render_input(atoms, basis='cc-pVTZ', geometry_name='step.xyz')
     assert 'set,charge=0\nset,spin=0\ngthresh,energy=1.d-9\n' in deck
-    assert ('rhf\nuccsd(t),uhf_uccsd=1\nkb_geom_energy=energy\n'
+    assert ('rhf\nuccsd(t)\nkb_geom_energy=energy\n'
             'forces,numerical,variable=kb_geom_energy,startcmd=rhf\n'
             'put,xyz,step.xyz') in deck
     assert 'optg' not in deck.lower()
@@ -84,6 +86,8 @@ def test_documented_molpro_force_input_and_parser_contract():
         output = Path(temporary) / 'step.out'
         output.write_text(' SETTING KB_GEOM_ENERGY        =       -40.123456789  AU\n'
                           ' SETTING KB_GEOM_ENERGY = -39.0 AU\n'
+                          ' Number of N-1 electron functions: 7\n'
+                          ' Triples (T) contribution -0.006123456789\n'
                           ' Molpro calculation terminated\n')
         assert parse_output(output) == pytest.approx(-40.123456789 * Hartree)
         geometry = Path(temporary) / 'step.xyz'
@@ -110,7 +114,7 @@ def test_documented_molpro_force_input_and_parser_contract():
         output.write_text(' Version 2024.1\n'
                           ' !RHF-UCCSD(T)-F12 energy             -40.448936939114\n'
                           ' Molpro calculation terminated\n')
-        with pytest.raises(ValueError, match='KB_GEOM_ENERGY missing'):
+        with pytest.raises(ValueError, match=r'native \(T\) contribution'):
             parse_output(output)
 
 
@@ -228,4 +232,5 @@ def test_molpro_calculator_and_input_support_restricted_open_shell():
                                 [-0.9, 0, -0.3]]),
         basis='cc-pVTZ', geometry_name='ch3.xyz', charge=0, mult=2)
     assert 'set,charge=0\nset,spin=1' in deck
-    assert '\nrhf\nuccsd(t),uhf_uccsd=1\n' in deck.lower()
+    assert '\nrhf\nuccsd(t)\n' in deck.lower()
+    assert 'uhf_uccsd' not in deck.lower()

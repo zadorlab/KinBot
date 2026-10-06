@@ -94,7 +94,7 @@ def dispatch_spec(*, auto_resources=False):
             },
             molpro_task(
                 'harmonic',
-                'basis=cc-pVTZ\nrhf\nuccsd(t),uhf_uccsd=1\n'
+                'basis=cc-pVTZ\nrhf\nuccsd(t)\n'
                 'frequencies,numerical\n',
                 cores=8, memory_mb=32000, walltime='12:00:00',
                 result_parser={'kind': 'molpro_harmonic', 'basis': 'cc-pVTZ'},
@@ -117,7 +117,7 @@ def dispatch_spec(*, auto_resources=False):
             ),
             molpro_task(
                 'molpro_dz_sp',
-                'basis=cc-pVDZ\nrhf\nuccsd(t),uhf_uccsd=1\n'
+                'basis=cc-pVDZ\nrhf\nuccsd(t)\n'
                 'kb_dz_energy=energy\n',
                 result_parser={'kind': 'molpro_energy',
                                'method': 'CCSD(T)', 'basis': 'cc-pVDZ'},

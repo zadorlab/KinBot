@@ -721,9 +721,6 @@ closed shell higher-order CC:
 
 open shell higher-order CC:
     semicanonical ROHF determinant + general MRCC CCSDT(Q)/CCSDTQ(P)
-
-historical Ram/Elliott reproduction:
-    UHF determinant + general MRCC higher-order CC
 ```
 
 Do not use:
@@ -944,12 +941,11 @@ native_hessian
 
 through a separate frequency driver.
 
-The calculator should support:
+The ANL calculator should support:
 
-- RHF/ROHF/UHF reference rendering;
-- CCSD(T);
+- RHF/ROHF reference rendering;
 - UCCSD(T);
-- CCSD(T)-F12b/UCCSD(T)-F12b;
+- UCCSD(T)-F12b;
 - frozen-core/all-electron modes;
 - DKH settings;
 - arbitrary Dunning basis names and explicit basis blocks;
@@ -1774,8 +1770,8 @@ Default for:
 
 Direct inputs pin `ccprog=mrcc`, `scftype=RHF` for singlets or
 `scftype=ROHF` plus semicanonical ROHF orbitals for open shells. The Ram
-paper's older UHF reference is available only as an explicit reproduction
-profile.
+paper's older UHF-reference convention remains historical provenance; this
+profile does not generate it.
 
 ## Gaussian
 
@@ -2502,8 +2498,10 @@ For UMA:
 
 ## Molpro
 Fixtures:
-- RHF determinant plus `UCCSD(T),UHF_UCCSD=1`;
-- ROHF determinant plus `UCCSD(T),UHF_UCCSD=1`;
+- RHF determinant plus bare `UCCSD(T)`;
+- ROHF determinant plus bare `UCCSD(T)`;
+- rejection of the obsolete forced `UHF_UCCSD=1` route and any nominal
+  CCSD(T) result with an invalid zero triples correction;
 - F12b unscaled;
 - F12b `SCALE_TRIP=1`;
 - analytic derivative mode;
@@ -2521,7 +2519,6 @@ Fixtures:
 Fixtures:
 - RHF and ROHF CCSDT(Q);
 - RHF and ROHF CCSDTQ(P);
-- explicit UHF higher-order reference for historical reproduction.
 
 ## Gaussian
 Reuse existing tests and add:
@@ -3192,8 +3189,9 @@ kinbot/ase_modules/calculators/molpro.py
 ```
 
 Implement in this order:
-1. energy-only RHF-UCCSD(T), with `UHF_UCCSD=1`;
-2. ROHF-determinant RHF-UCCSD(T), with `UHF_UCCSD=1`;
+1. energy-only RHF-UCCSD(T), using `rhf; uccsd(t)`;
+2. ROHF-reference UCCSD(T), using the same `rhf; uccsd(t)` commands with an
+   open-shell wavefunction;
 3. forces;
 4. F12b energy;
 5. `SCALE_TRIP`;
@@ -3584,8 +3582,8 @@ If only the most important decisions are retained, retain these:
 11. **Energy-only F12b defaults to `SCALE_TRIP=1`.**
 12. **Analytic F12 gradients cannot silently use scaled (T).**
 13. **Normal open shell = restricted-spin HF/ROHF reference + unrestricted CC.**
-14. **Modern higher-order defaults use RHF/semicanonical ROHF determinants;
-    historical UHF references are recipe-pinned.**
+14. **Every generated CC calculation uses an RHF or semicanonical ROHF
+    determinant; UHF determinant substitution is rejected.**
 15. **CFOUR = DBOC for this unrestricted-CC profile.**
 16. **Direct MRCC = all CCSDT(Q) + all CCSDTQ(P).**
 17. **Molpro does most remaining ANL work.**
@@ -4957,15 +4955,21 @@ For conventional Molpro calculations, KinBot generates:
 
 ```text
 rhf
-uccsd(t),uhf_uccsd=1
+uccsd(t)
 ```
 
-Molpro documents that after an RHF calculation a bare `uccsd(t)` command can
-otherwise dispatch the restricted open-shell coupled-cluster code.
-`UHF_UCCSD=1` forces the spin-unrestricted CC implementation while retaining
-the RHF/ROHF determinant. The recorded method label is `RHF-UCCSD(T)` for
-both closed and open shells; `ROHF` remains explicit determinant provenance
-for open-shell tasks.
+Molpro documents `UCCSD(T)` as its RHF-UCCSD(T) ansatz and uses the high-spin
+RHF reference, which is an RHF determinant for a closed shell and an ROHF
+determinant for an open shell. Bare `uccsd(t)` selects Molpro's normal
+restricted-reference implementation. `UHF_UCCSD=1` instead forces the
+separate UHF-UCC program and is not part of this profile. A Blodgett ethane
+calculation exposed why this distinction must be checked: the forced route
+printed an `RHF-UCCSD(T)` total label but reported exactly zero for `(T)`, so
+the value was actually the UCCSD energy. The parser now rejects the forced
+option, requires the native triples contribution, and checks that the printed
+CCSD energy plus `(T)` equals the accepted total. The Molpro method label is
+`RHF-UCCSD(T)` in both cases, matching Molpro's terminology; the separate
+reference field records `RHF` for a closed shell and `ROHF` for an open shell.
 
 For explicitly correlated Molpro calculations, KinBot generates the distinct
 documented method:
@@ -5000,10 +5004,9 @@ rohfcore=semicanonical              # open shell
 
 MRCC exposes the high-order method as `calc=...`; it has no Molpro-style
 `UHF_UCCSD` option for these methods. The parser records the general
-spin-orbital CC policy separately as `correlation=unrestricted`. An explicit
-`scftype=UHF` is retained only for reproducing the older Ram/Elliott
-UHF-UCCSDT(Q) and UHF-UCCSDTQ(P) convention. The modern profile uses RHF or
-semicanonical ROHF determinants as requested.
+spin-orbital CC policy separately as `correlation=unrestricted`. Generated
+ANL work accepts only RHF or semicanonical ROHF determinants; it does not
+silently substitute a UHF determinant.
 
 CFOUR remains the DBOC provider. Its fast native `CC_PROG=NCC`
 CCSDT(Q) path is a closed-shell restricted implementation, so it is excluded
@@ -5012,8 +5015,8 @@ CFOUR; the direct `dmrcc` path is clearer and records fewer interface layers.
 
 This policy still requires licensed native probes before production use:
 closed and open conventional Molpro, closed and open UCCSD(T)-F12b, direct
-MRCC RHF/ROHF CCSDT(Q), direct MRCC RHF/ROHF CCSDTQ(P), and the explicit UHF
-historical reference. Each probe must preserve the complete input, output,
+MRCC RHF/ROHF CCSDT(Q), and direct MRCC RHF/ROHF CCSDTQ(P). Each probe must
+preserve the complete input, output,
 normal-termination marker, parsed total energy, executable version, and
 artifact hash.
 
@@ -5030,13 +5033,12 @@ separate `slurm_partition.tpl` is selected by the Blodgett example. ANL L3
 jobs continue to use the dispatcher's independent exclusive-node generator.
 
 The current higher-order routing supersedes historical notes above that say
-MRCC is deferred or that every CCSDT(Q) task uses direct MRCC:
+MRCC is deferred:
 
-- closed-shell CCSDT(Q): CFOUR `REFERENCE=RHF`, `CC_PROG=VCC`, unrestricted
-  spin-orbital coupled cluster, recorded as RHF-UCCSDT(Q);
-- open-shell CCSDT(Q): direct MRCC with a semicanonical ROHF determinant;
-- every CCSDTQ(P): direct MRCC, using RHF for a singlet or semicanonical ROHF
-  for an open shell;
+- every CCSDT(Q) and CCSDTQ(P) calculation uses direct MRCC;
+- a closed shell uses an RHF determinant with unrestricted correlation;
+- an open shell uses a semicanonical ROHF determinant with unrestricted
+  correlation;
 - conventional and F12 base energies: Molpro RHF/ROHF determinant with the
   explicitly verified unrestricted coupled-cluster path.
 
@@ -5161,16 +5163,16 @@ QC routing, CBH/ATcT, ANL energy provenance, ROTD_py, and shared dispatcher
 features remain additive. The old local rebase onto the unrelated `stereo`
 branch is not part of this history.
 
-The first ethane higher-order attempt found that CFOUR input and output use
-different names for the CC driver keyword. Generated ZMAT files contained
-`CC_PROGRAM=VCC`, the label CFOUR prints in its parsed-keyword table. CFOUR's
-input keyword is `CC_PROG=VCC`; version 2.1 ignored the former and selected
-the closed-shell `xncc` default for CCSDT(Q). New inputs use `CC_PROG=VCC`.
-The native parser accepts CFOUR's table-form keyword report and requires the
-actual `xvcc` invocation, so a numerically successful `xncc` calculation
-cannot be mislabeled as RHF-UCCSDT(Q). Existing failed dispatcher tasks can
-be migrated with `migrate-cfour-vcc`; their complete old directories are
-retained under `attempts/`.
+The first ethane higher-order attempts established two separate facts. The
+input keyword is `CC_PROG`, rather than CFOUR's printed table label
+`CC_PROGRAM`. More decisively, CFOUR 2.1 still selected the closed-shell
+`xncc` solver for CCSDT(Q) when a corrected ZMAT explicitly contained
+`CC_PROG=VCC`. The run converged numerically, but it did not perform the
+requested unrestricted CC calculation. The native parser correctly rejected
+that result. Production CCSDT(Q) now uses direct MRCC for both closed and open
+shells; the CFOUR builder remains only for reading and diagnosing old runs.
+Existing failed CFOUR tasks can be archived and restaged as direct MRCC with
+`reroute-cfour-mrcc`.
 
 The direct-MRCC CCSDTQ(P)/cc-pVDZ calculation was valid but exceeded its
 one-day limit after two iterations. Its default is now seven days with an
@@ -5252,9 +5254,8 @@ python -m kinbot.anl.literature prepare-higher-order \
 ```
 
 Each graph contains UCCSD(T)/DZ, UCCSDT(Q)/DZ, and UCCSDTQ(P)/DZ by default.
-The methane graph uses CFOUR VCC for UCCSDT(Q) and direct MRCC for
-UCCSDTQ(P); the methyl graph uses direct MRCC with a semicanonical ROHF
-determinant for both higher-order methods. `--task` can narrow the graph
+Both higher-order methods use direct MRCC. Methane uses an RHF determinant;
+methyl uses a semicanonical ROHF determinant. `--task` can narrow the graph
 further after the corresponding lower term has already been validated.
 
 A failing comparison is evidence to inspect geometry convention, reference,

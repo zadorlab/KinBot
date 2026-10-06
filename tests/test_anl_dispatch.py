@@ -21,6 +21,7 @@ from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
     _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, main, prepare,
     migrate_cfour_vcc_keyword, preflight, refresh_status, reparse_failed,
+    reroute_cfour_higher_order_to_mrcc,
     resume_mrcc_failed,
     retry_failed, run_task,
     validate_spec,
@@ -644,13 +645,11 @@ def test_time_limited_mrcc_task_can_resume_with_saved_amplitudes():
         assert advance(run_dir)['tasks']['high']['status'] == 'staged'
 
 
-def test_failed_legacy_cfour_vcc_keyword_can_be_migrated_and_restaged():
+def test_failed_cfour_ccsdt_q_can_be_rerouted_to_direct_mrcc():
     molecule = dispatch_spec()['molecule']
     task = cfour_energy_task(
         'high', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=1,
         geometry_from='initial', partition='day')
-    task['input_template'] = task['input_template'].replace(
-        'CC_PROG=VCC', 'CC_PROGRAM=VCC')
     task['resources'].update(
         cores=8, memory_mb=126000, use_all_node_memory=True)
     spec = {'schema': 1, 'name': 'cfour-migration', 'molecule': molecule,
@@ -667,17 +666,19 @@ def test_failed_legacy_cfour_vcc_keyword_can_be_migrated_and_restaged():
         state['tasks']['high'].update(status='failed', error='wrong driver')
         state_path.write_text(json.dumps(state))
 
-        archive = migrate_cfour_vcc_keyword(run_dir, 'high')
+        archive = reroute_cfour_higher_order_to_mrcc(run_dir, 'high')
 
         assert (archive / 'ZMAT').read_text() == old_input
-        new_input = (directory / 'ZMAT').read_text()
-        assert 'CC_PROG=VCC\n' in new_input
-        assert 'CC_PROGRAM=VCC' not in new_input
+        new_input = (directory / 'MINP').read_text()
+        assert 'calc=CCSDT(Q)' in new_input
+        assert 'ccprog=mrcc' in new_input
+        assert 'scftype=RHF' in new_input
         workflow = json.loads((run_dir / 'workflow.json').read_text())
-        assert 'CC_PROG=VCC' in workflow['tasks'][0]['input_template']
+        assert workflow['tasks'][0]['backend'] == 'mrcc'
+        assert workflow['tasks'][0]['command'] == ['dmrcc']
         state = json.loads(state_path.read_text())
         assert state['tasks']['high']['status'] == 'staged'
-        assert state['tasks']['high']['migration'].startswith('CC_PROGRAM')
+        assert 'direct MRCC' in state['tasks']['high']['migration']
         assert advance(run_dir)['tasks']['high']['status'] == 'staged'
 
 

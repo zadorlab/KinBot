@@ -15,6 +15,23 @@ set,spin={{SPIN}}
 """
 
 
+def molpro_ccsdt_command(multiplicity, *, all_electron=False):
+    """Return the Molpro CCSD(T) command for the ANL reference convention.
+
+    Molpro's ``RHF`` command supplies an RHF determinant for a closed shell and
+    an ROHF determinant for an open shell.  Bare ``UCCSD(T)`` then selects the
+    RHF/ROHF-UCCSD(T) formalism used by the ANL work.  Do not add
+    ``UHF_UCCSD=1``: that forces Molpro's separate UHF-UCC engine and Molpro
+    2024.1 can then print an RHF-UCCSD(T) label with a zero (T) contribution
+    for an ordinary closed-shell molecule.
+    """
+    if isinstance(multiplicity, bool) or not isinstance(multiplicity, int) \
+            or multiplicity < 1:
+        raise ValueError('Multiplicity must be a positive integer.')
+    method = 'uccsd(t)'
+    return f'{{{method};core}}' if all_electron else method
+
+
 def resources(walltime, *, max_cores=8, min_stack_mw=None,
               min_memory_mb_per_core=None, partition=None):
     """Request one exclusive node with portable, memory-aware core sizing."""
@@ -55,12 +72,13 @@ def molpro_task(ident, body, *, geometry_from='l3_geometry',
 def cfour_energy_task(ident, method, basis, *, multiplicity,
                       geometry_from='l3_geometry', walltime='24:00:00',
                       max_cores=8, partition=None):
-    """Build the native CFOUR spin-orbital closed-shell CCSDT(Q) task.
+    """Build a legacy CFOUR VCC probe for diagnosing site capabilities.
 
-    CFOUR's faster NCC implementation is restricted closed-shell CC.  The ANL
-    convention requested here is unrestricted CC, so this task deliberately
-    selects an RHF determinant and the general VCC spin-orbital implementation.
-    Open-shell higher-order jobs use :func:`mrcc_task` instead.
+    This builder is retained so old run directories remain readable.  It is
+    not selected by :func:`higher_order_task`: CFOUR 2.1 routes CCSDT(Q) to
+    ``xncc`` even when ``CC_PROG=VCC`` is present, and that closed-shell solver
+    does not satisfy the unrestricted-CC ANL convention.  Its strict result
+    parser therefore rejects such output instead of silently consuming it.
     """
     if method != 'CCSDT(Q)':
         raise ValueError(f'Unsupported CFOUR higher-order method {method!r}.')
@@ -117,10 +135,10 @@ def mrcc_task(ident, method, basis, *, multiplicity, reference=None,
     """Build a direct MRCC higher-order task.
 
     Direct ``dmrcc`` uses RHF for a closed shell and semicanonical ROHF for an
-    open shell by default.  A recipe that reproduces the older Ram/Elliott
-    UHF higher-order convention can request ``reference='UHF'`` explicitly.
-    One process uses OpenMP threads selected from node memory and the explicit
-    performance cap; MRCC's replicated-memory MPI mode is not enabled.
+    open shell.  These are the determinant analogues of the ``rhf`` step that
+    precedes Molpro ``uccsd(t)``.  One process uses OpenMP threads selected
+    from node memory and the explicit performance cap; MRCC's
+    replicated-memory MPI mode is not enabled.
     """
     if method not in ('CCSDT(Q)', 'CCSDTQ(P)'):
         raise ValueError(f'Unsupported MRCC method {method!r}.')
@@ -129,7 +147,7 @@ def mrcc_task(ident, method, basis, *, multiplicity, reference=None,
         raise ValueError('MRCC multiplicity must be a positive integer.')
     if reference is None:
         reference = 'RHF' if multiplicity == 1 else 'ROHF'
-    if reference not in ('RHF', 'ROHF', 'UHF'):
+    if reference not in ('RHF', 'ROHF'):
         raise ValueError(f'Unsupported MRCC reference {reference!r}.')
     if ((reference == 'RHF' and multiplicity != 1)
             or (reference == 'ROHF' and multiplicity == 1)):
@@ -186,19 +204,15 @@ def higher_order_task(ident, method, basis, *, multiplicity, reference=None,
                       max_cores=8, partition=None, command='dmrcc'):
     """Select the pinned ANL higher-order backend for one electronic state.
 
-    Closed-shell CCSDT(Q) uses CFOUR's general VCC spin-orbital code with an RHF
-    determinant. Open-shell CCSDT(Q) and all CCSDTQ(P) calculations use direct
-    MRCC; semicanonical ROHF is its default open-shell determinant. No
-    partially spin-adapted or restricted CC ansatz is generated.
+    Every CCSDT(Q) and CCSDTQ(P) calculation uses direct MRCC.  Closed shells
+    use an RHF determinant and open shells use semicanonical ROHF by default;
+    the correlation treatment remains unrestricted in both cases.  CFOUR 2.1
+    forcibly selects its closed-shell ``xncc`` implementation for CCSDT(Q), so
+    it cannot supply the requested RHF-UCCSDT(Q) component.
     """
     options = dict(
         geometry_from=geometry_from, walltime=walltime,
         max_cores=max_cores, partition=partition, command=command)
-    if method == 'CCSDT(Q)' and multiplicity == 1 and reference in (None, 'RHF'):
-        return cfour_energy_task(
-            ident, method, basis, multiplicity=multiplicity,
-            geometry_from=geometry_from, walltime=walltime,
-            max_cores=max_cores, partition=partition)
     if method in ('CCSDT(Q)', 'CCSDTQ(P)'):
         return mrcc_task(
             ident, method, basis, multiplicity=multiplicity,

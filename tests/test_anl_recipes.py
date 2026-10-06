@@ -80,9 +80,9 @@ def test_anl1_cross_program_higher_order_pairs_and_profiled_label():
     assert result.electronic_hartree == pytest.approx(-100.173)
     assert result.zero_k_hartree == pytest.approx(-100.083)
     assert result.recipe == 'profiled:ANL1:B2PLYP-D3BJ'
-    assert components['hoe_tz_high'].backend == 'cfour'
+    assert components['hoe_tz_high'].backend == 'mrcc'
     assert components['hoe_tz_high'].settings['reference'] == 'RHF'
-    assert components['hoe_tz_high'].settings['driver'] == 'VCC'
+    assert components['hoe_tz_high'].settings['driver'] == 'direct'
     assert components['hoe_tz_high'].settings['correlation'] == 'unrestricted'
     assert components['hoe_tz_low'].backend == 'molpro'
     assert components['hoe_dz_high'].backend == 'mrcc'

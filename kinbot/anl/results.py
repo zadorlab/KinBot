@@ -25,8 +25,12 @@ _FINAL_ENERGY = re.compile(
 _SCF_WITH_DBOC = re.compile(
     rf'^\s*Total SCF energy including DBOC\s+({_NUMBER})\s*$',
     re.IGNORECASE | re.MULTILINE)
-_MOLPRO_CCSD_T = (r'^\s*\{?\s*uccsd\(t\)\s*,[^\n]*'
-                  r'\buhf_uccsd\s*=\s*1\b[^\n]*$')
+_MOLPRO_CCSD_T = (r'^\s*\{?\s*uccsd\(t\)'
+                  r'(?=\s*(?:,|;|}|$))'
+                  r'(?![^\n]*\buhf_uccsd\b)'
+                  r'(?:\s*,[^\n;}]*)?(?:\s*;\s*core\s*)?}?\s*$')
+_MOLPRO_FORCED_UHF_CCSD_T = (r'^\s*\{?\s*uccsd\(t\)[^\n]*'
+                             r'\buhf_uccsd\s*=\s*1\b[^\n]*$')
 _MOLPRO_F12B = (r'^\s*\{?\s*uccsd\(t\)-f12b\b[^\n]*'
                   r'\bscale_trip\s*=\s*1\b[^\n]*$')
 _MOLPRO_LEGACY_CCSD_T = r'^\s*ccsd\(t\)(?:\s*,[^\n]*)?\s*$'
@@ -35,6 +39,13 @@ _MOLPRO_LEGACY_F12B = (r'^\s*ccsd\(t\)-f12b?\b[^\n]*'
 _MOLPRO_RHF = r'^\s*\{?\s*rhf(?:\s*,[^\n]*)?\s*$'
 _MOLPRO_ALL_ELECTRON = r'(?:^|;)\s*core\s*}'
 _MRCC_METHODS = ('CCSDT(Q)', 'CCSDTQ(P)')
+
+
+def _declares_molpro_ccsdt(text, *, accept_obsolete_forced=False):
+    if re.search(_MOLPRO_CCSD_T, text, re.IGNORECASE | re.MULTILINE):
+        return True
+    return bool(accept_obsolete_forced and re.search(
+        _MOLPRO_FORCED_UHF_CCSD_T, text, re.IGNORECASE | re.MULTILINE))
 
 
 def legacy_molpro_parser(request, text):
@@ -211,6 +222,37 @@ def _one_number(output, pattern, label):
     return _number(matches[0])
 
 
+def validate_molpro_triples(output, *, scaled=None):
+    """Validate every native Molpro perturbative triples contribution.
+
+    An exactly zero correction is legitimate only when too few correlated
+    electrons exist to form a triple excitation.  Molpro's native N-1 count
+    distinguishes that case from the Molpro 2024.1 forced-UHF-UCC failure
+    observed for ethane.
+    """
+    suffix = (r'\s+\(scaled\)' if scaled is True else
+              r'(?!\s+\(scaled\))' if scaled is False else
+              r'(?:\s+\(scaled\))?')
+    values = [
+        _number(value) for value in re.findall(
+            rf'^\s*Triples \(T\) contribution{suffix}\s+({_NUMBER})\s*$',
+            output, re.IGNORECASE | re.MULTILINE)
+    ]
+    if not values:
+        label = 'scaled (T)' if scaled else '(T)'
+        raise ValueError(f'Molpro output has no native {label} contribution.')
+    counts = [int(value) for value in re.findall(
+        r'^\s*Number of N-1 electron functions:\s*(\d+)\s*$', output,
+        re.IGNORECASE | re.MULTILINE)]
+    if any(abs(value) < 5e-13 for value in values) \
+            and (not counts or max(counts) > 2):
+        raise ValueError(
+            'Molpro reported a zero perturbative triples contribution for a '
+            'system that supports triple excitations; reject the nominal '
+            'CCSD(T) result.')
+    return values
+
+
 def _parse_legacy_molpro_energy(output, *, method, basis):
     """Reproduce parser records written by pre-unrestricted workflows.
 
@@ -252,10 +294,14 @@ def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
                          output, re.IGNORECASE | re.MULTILINE):
             raise ValueError('Molpro output does not echo scaled-triples F12 input.')
     else:
+        if re.search(_MOLPRO_FORCED_UHF_CCSD_T, output,
+                     re.IGNORECASE | re.MULTILINE):
+            raise ValueError('Molpro input forces the UHF-UCC engine with '
+                             'UHF_UCCSD=1 instead of RHF/ROHF-UCCSD(T).')
         if not re.search(_MOLPRO_CCSD_T, output,
                          re.IGNORECASE | re.MULTILINE):
             raise ValueError('Molpro output does not echo conventional '
-                             'RHF-UCCSD(T) with UHF_UCCSD=1.')
+                             'RHF/ROHF-UCCSD(T) input.')
     if reference is not None:
         if reference not in ('RHF', 'ROHF'):
             raise ValueError(f'Unsupported Molpro reference {reference!r}.')
@@ -266,7 +312,7 @@ def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
                              'restricted HF reference calculation.')
     if core not in (None, 'frozen', 'all-electron'):
         raise ValueError(f'Unsupported Molpro core treatment {core!r}.')
-    # Molpro's documented all-electron form is ``{ccsd(t);core}``.  Echoed
+    # Molpro's all-electron form is ``{uccsd(t);core}``.  Echoed
     # input can retain that one-line spelling or wrap the local directive onto
     # its own line, so accept either representation while still requiring the
     # directive to close the coupled-cluster command block.
@@ -295,6 +341,19 @@ def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
     energy = _one_number(
         output, rf'^\s*!{output_label}(?: total)? energy\s+({_NUMBER})\s*$',
         f'Molpro {method} total energy')
+    triples = validate_molpro_triples(
+        output, scaled=(method == 'CCSD(T)-F12b'))
+    if len(triples) != 1:
+        raise ValueError('Molpro single-point output must contain exactly one '
+                         'perturbative triples contribution.')
+    base_label = (r'RHF-UCCSD-F12b'
+                  if method == 'CCSD(T)-F12b' else r'RHF-UCCSD')
+    base = _one_number(
+        output, rf'^\s*{base_label} energy\s+({_NUMBER})\s*$',
+        f'Molpro {method} base CCSD energy')
+    if abs((energy - base) - triples[0]) > 2e-9:
+        raise ValueError('Molpro total energy and native triples contribution '
+                         'are inconsistent.')
     if method == 'CCSD(T)-F12b':
         evidence = {
             'unrestricted coupled-cluster startup':
@@ -341,7 +400,7 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
     """Read one final total energy from a direct MRCC calculation."""
     if method not in _MRCC_METHODS:
         raise ValueError(f'Unsupported direct MRCC method {method!r}.')
-    if (reference not in ('RHF', 'ROHF', 'UHF')
+    if (reference not in ('RHF', 'ROHF')
             or correlation != 'unrestricted' or core != 'frozen'
             or program != 'mrcc'):
         raise ValueError('MRCC reference or core treatment is unsupported.')
@@ -391,10 +450,16 @@ def parse_molpro_harmonic(output, *, basis, reference=None, legacy=False):
     """Read vibrational modes and ZPE, excluding rotations/translations."""
     _molpro_output(output, basis)
     command = _MOLPRO_LEGACY_CCSD_T if legacy else _MOLPRO_CCSD_T
+    if not legacy and re.search(_MOLPRO_FORCED_UHF_CCSD_T, output,
+                                re.IGNORECASE | re.MULTILINE):
+        raise ValueError('Molpro harmonic input forces the UHF-UCC engine '
+                         'with UHF_UCCSD=1.')
     if not re.search(command, output,
                      re.IGNORECASE | re.MULTILINE):
-        label = ('legacy CCSD(T)' if legacy else 'forced RHF-UCCSD(T)')
+        label = ('legacy CCSD(T)' if legacy else 'RHF/ROHF-UCCSD(T)')
         raise ValueError(f'Molpro harmonic output does not echo the {label} method.')
+    if not legacy:
+        validate_molpro_triples(output, scaled=False)
     if legacy and reference is not None:
         raise ValueError('Legacy Molpro harmonic parser cannot declare a reference.')
     if reference is not None:
@@ -607,7 +672,8 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
             'warnings': warnings, 'review_required': bool(warnings)}
 
 
-def validate_result_parser(request, *, backend, template, outputs):
+def validate_result_parser(request, *, backend, template, outputs,
+                           allow_obsolete=False):
     """Reject a parser whose declared method is inconsistent with its input."""
     if not isinstance(request, dict) or not isinstance(request.get('file'), str) \
             or request['file'] not in outputs:
@@ -666,16 +732,25 @@ def validate_result_parser(request, *, backend, template, outputs):
             valid = (request['reference'] in ('RHF', 'ROHF')
                      and re.search(_MOLPRO_RHF, template,
                                    re.IGNORECASE | re.MULTILINE) is not None
-                     and re.search(method_command, template,
-                                   re.IGNORECASE | re.MULTILINE) is not None)
+                     and ((request['method'] == 'CCSD(T)'
+                           and _declares_molpro_ccsdt(
+                               template,
+                               accept_obsolete_forced=allow_obsolete))
+                          or (request['method'] == 'CCSD(T)-F12b'
+                              and re.search(
+                                  method_command, template,
+                                  re.IGNORECASE | re.MULTILINE) is not None)))
         if valid:
             method_line = (
                 (_MOLPRO_LEGACY_CCSD_T if request['method'] == 'CCSD(T)'
                  else _MOLPRO_LEGACY_F12B) if legacy else
                 (_MOLPRO_CCSD_T if request['method'] == 'CCSD(T)'
                  else _MOLPRO_F12B))
-            valid = re.search(method_line, template,
-                              re.IGNORECASE | re.MULTILINE) is not None
+            valid = (_declares_molpro_ccsdt(
+                template, accept_obsolete_forced=allow_obsolete)
+                     if not legacy and request['method'] == 'CCSD(T)'
+                     else re.search(method_line, template,
+                                    re.IGNORECASE | re.MULTILINE) is not None)
         if valid and 'core' in request:
             core_line = re.search(_MOLPRO_ALL_ELECTRON, template,
                                   re.IGNORECASE | re.MULTILINE)
@@ -694,18 +769,18 @@ def validate_result_parser(request, *, backend, template, outputs):
                  and bool(request['basis'])
                  and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
                                template, re.IGNORECASE | re.MULTILINE) is not None
-                 and re.search((_MOLPRO_LEGACY_CCSD_T if legacy
-                                else _MOLPRO_CCSD_T), template,
-                               re.IGNORECASE | re.MULTILINE) is not None
+                 and ((re.search(_MOLPRO_LEGACY_CCSD_T, template,
+                                 re.IGNORECASE | re.MULTILINE) is not None)
+                      if legacy else _declares_molpro_ccsdt(
+                          template, accept_obsolete_forced=allow_obsolete))
                  and bool(re.search(r'^\s*frequencies\s*,\s*numerical\s*$',
                                     template, re.IGNORECASE | re.MULTILINE)))
         if valid and 'reference' in request:
-            command = _MOLPRO_CCSD_T
             valid = (request['reference'] in ('RHF', 'ROHF')
                      and re.search(_MOLPRO_RHF, template,
                                    re.IGNORECASE | re.MULTILINE)
-                     and re.search(command, template,
-                                   re.IGNORECASE | re.MULTILINE))
+                     and _declares_molpro_ccsdt(
+                         template, accept_obsolete_forced=allow_obsolete))
     elif kind == 'mrcc_energy':
         method = request.get('method')
         basis = request.get('basis')
@@ -716,7 +791,7 @@ def validate_result_parser(request, *, backend, template, outputs):
         valid = (set(request) == {'kind', 'file', 'method', 'basis',
                                   'reference', 'correlation', 'core', 'program'}
                  and backend == 'mrcc' and method in _MRCC_METHODS
-                 and reference in ('RHF', 'ROHF', 'UHF')
+                 and reference in ('RHF', 'ROHF')
                  and correlation == 'unrestricted' and core == 'frozen'
                  and program == 'mrcc'
                  and isinstance(basis, str) and bool(basis)

@@ -86,6 +86,7 @@ def test_current_base_reuses_l2_but_reruns_unrestricted_l3_and_base_terms():
         assert tasks[ident]['geometry_from'] == 'l3_geometry'
         assert tasks[ident]['result_parser']['reference'] == 'RHF'
         assert 'uccsd(t)' in tasks[ident]['input_template'].lower()
+        assert 'uhf_uccsd' not in tasks[ident]['input_template'].lower()
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(cores=4, memory_mb=64000,
@@ -101,8 +102,7 @@ def test_legacy_interface_audit_is_readable_but_recipe_incompatible(monkeypatch)
             parser.pop('reference', None)
             task['input_template'] = (task['input_template']
                                       .replace('rhf\n', 'hf\n')
-                                      .replace('uccsd(t),uhf_uccsd=1',
-                                               'ccsd(t)')
+                                      .replace('uccsd(t)', 'ccsd(t)')
                                       .replace('uccsd(t)-f12b',
                                                'ccsd(t)-f12'))
     state = {'tasks': {task['id']: {'status': 'complete'}
@@ -133,8 +133,8 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
     closed = higher_order_validation_spec(
         _molecule(), max_nodes=3, partition='day-long-cpu')
     closed_tasks = {task['id']: task for task in closed['tasks']}
-    assert closed_tasks['ccsdtq_tz']['backend'] == 'cfour'
-    assert closed_tasks['ccsdtq_dz']['backend'] == 'cfour'
+    assert closed_tasks['ccsdtq_tz']['backend'] == 'mrcc'
+    assert closed_tasks['ccsdtq_dz']['backend'] == 'mrcc'
     assert closed_tasks['ccsdtqp_dz']['backend'] == 'mrcc'
     assert closed_tasks['ccsdtqp_dz']['result_parser']['reference'] == 'RHF'
     assert closed_tasks['ccsdtqp_dz']['result_parser']['correlation'] == \
@@ -145,9 +145,9 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
     for ident in ('ccsdtq_tz', 'ccsdtq_dz'):
         assert closed_tasks[ident]['result_parser']['reference'] == 'RHF'
         assert closed_tasks[ident]['result_parser']['correlation'] == 'unrestricted'
-        assert closed_tasks[ident]['result_parser']['program'] == 'cfour'
-        assert closed_tasks[ident]['result_parser']['driver'] == 'VCC'
-        assert 'CC_PROG=VCC' in closed_tasks[ident]['input_template']
+        assert closed_tasks[ident]['result_parser']['program'] == 'mrcc'
+        assert 'scftype=RHF' in closed_tasks[ident]['input_template']
+        assert 'ccprog=mrcc' in closed_tasks[ident]['input_template']
     assert closed['intent']['equation'] == (
         'CCSDT(Q)/TZ - CCSD(T)/TZ + CCSDTQ(P)/DZ - CCSDT(Q)/DZ')
 
@@ -157,8 +157,9 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
     radical['multiplicity'] = 2
     opened = higher_order_validation_spec(radical)
     open_tasks = {task['id']: task for task in opened['tasks']}
-    assert '\nuccsd(t),uhf_uccsd=1\n' in \
+    assert '\nuccsd(t)\n' in \
         open_tasks['ccsdt_tz']['input_template'].lower()
+    assert 'uhf_uccsd' not in open_tasks['ccsdt_tz']['input_template'].lower()
     for ident in ('ccsdtq_tz', 'ccsdtq_dz', 'ccsdtqp_dz'):
         assert open_tasks[ident]['backend'] == 'mrcc'
         assert open_tasks[ident]['result_parser']['reference'] == 'ROHF'
@@ -227,6 +228,20 @@ def test_post_geometry_graph_has_one_global_parallel_limit():
     validate_spec(resolved)
 
 
+def test_post_geometry_graph_can_limit_execution_to_anl0():
+    spec = post_geometry_validation_spec(
+        _molecule(), max_nodes=2, partition='day-long-cpu', anl0_only=True)
+    tasks = {task['id']: task for task in spec['tasks']}
+    assert set(tasks) == {
+        'ccsdt_dz', 'ccsdtq_dz',
+        'cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
+        'rel_dkh', 'rel_nonrel'}
+    assert spec['intent']['selected_higher_order_tasks'] == [
+        'ccsdt_dz', 'ccsdtq_dz']
+    assert 'ccsdtq_tz' not in tasks
+    assert 'ccsdtqp_dz' not in tasks
+
+
 def test_post_geometry_audit_requires_and_combines_both_groups(monkeypatch):
     spec = post_geometry_validation_spec(_molecule())
     spec['molecule']['source'] = {'geometry_sha256': '4' * 64}
@@ -263,7 +278,7 @@ def test_anl0_post_geometry_audit_ignores_anl1_only_failures(monkeypatch):
         return ComponentResult(
             key=key, value_hartree=value, quantity='electronic',
             method='CCSDT(Q)' if task_id == 'ccsdtq_dz' else 'CCSD(T)',
-            basis='cc-pVDZ', backend='cfour' if task_id == 'ccsdtq_dz'
+            basis='cc-pVDZ', backend='mrcc' if task_id == 'ccsdtq_dz'
             else 'molpro', state_id=state_id, charge=0, multiplicity=1,
             geometry_sha256='4' * 64,
             source_sha256=hashlib.sha256(task_id.encode()).hexdigest(),
@@ -311,7 +326,7 @@ def test_higher_order_audit_returns_cross_program_correction(monkeypatch):
     result = audit_higher_order_run('/synthetic/higher')
     assert result['status'] == 'higher_order_interface_complete'
     assert abs(result['correction_hartree'] + 0.025) < 1e-12
-    assert result['components']['ccsdtq_tz']['backend'] == 'cfour'
+    assert result['components']['ccsdtq_tz']['backend'] == 'mrcc'
     assert result['components']['ccsdtqp_dz']['backend'] == 'mrcc'
 
 
@@ -584,6 +599,14 @@ def test_prepare_post_geometry_cli_builds_one_shared_graph(monkeypatch):
     assert captured['spec']['limits']['max_nodes'] == 3
     assert len(captured['spec']['tasks']) == 11
     assert captured['run_dir'] == Path('/synthetic/post')
+
+    assert validation_main([
+        'prepare-post-geometry-from-run', '/synthetic/current',
+        '/synthetic/post-anl0', '--max-nodes', '3', '--anl0-only']) == 0
+    assert {task['id'] for task in captured['spec']['tasks']} == {
+        'ccsdt_dz', 'ccsdtq_dz',
+        'cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
+        'rel_dkh', 'rel_nonrel'}
 
 
 def test_prepare_higher_order_cli_can_stage_only_the_mrcc_pair(monkeypatch):

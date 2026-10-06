@@ -109,12 +109,11 @@ def recipe(name: str, *, vpt2_method: str | None = None,
                   role='state', backends=('known_zero', 'table',
                                           'calculated', 'manual')),
     ]
-    high_backend = 'cfour' if multiplicity == 1 else 'mrcc'
+    high_backend = 'mrcc'
     high_settings = {
         'correlation': 'unrestricted', 'core': 'frozen',
         'reference': 'RHF' if multiplicity == 1 else 'ROHF',
-        'program': high_backend,
-        'driver': 'VCC' if multiplicity == 1 else 'direct',
+        'program': high_backend, 'driver': 'direct',
     }
     qp_settings = {
         'correlation': 'unrestricted', 'core': 'frozen',

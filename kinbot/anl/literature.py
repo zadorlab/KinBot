@@ -9,6 +9,7 @@ assembled composite result.
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import json
 import math
 from pathlib import Path
@@ -35,6 +36,20 @@ BENCHMARKS = {
         'species': 'C2H6',
         'geometry': 'CCSD(T)/cc-pVTZ optimized geometry',
         'worksheet': 'stable,TZ!A33:CU33',
+        'molecule': {
+            'symbols': ['C', 'C', 'H', 'H', 'H', 'H', 'H', 'H'],
+            'positions': [
+                [0.0, 0.0, -0.7644921462],
+                [0.0, 0.0, 0.7644921462],
+                [1.0179776872, 0.0, -1.1592669740],
+                [-0.5089888436, -0.8815945376, -1.1592669740],
+                [-0.5089888436, 0.8815945376, -1.1592669740],
+                [-1.0179776872, 0.0, 1.1592669740],
+                [0.5089888436, 0.8815945376, 1.1592669740],
+                [0.5089888436, -0.8815945376, 1.1592669740],
+            ],
+            'charge': 0, 'multiplicity': 1,
+        },
         'tasks': {
             'harmonic': {'path': ('zpe', 'hartree'),
                          'expected': 0.07472969, 'atol': 2e-6},
@@ -63,6 +78,20 @@ BENCHMARKS = {
         'species': 'C2H6',
         'geometry': 'CCSD(T)/cc-pVQZ optimized geometry',
         'worksheet': 'Stable,QZ!A31:CF31',
+        'molecule': {
+            'symbols': ['C', 'C', 'H', 'H', 'H', 'H', 'H', 'H'],
+            'positions': [
+                [0.0, 0.0, -0.7632756988],
+                [0.0, 0.0, 0.7632756988],
+                [1.0169667994, 0.0, -1.1578258559],
+                [-0.5084833997, -0.8807190831, -1.1578258559],
+                [-0.5084833997, 0.8807190831, -1.1578258559],
+                [-1.0169667994, 0.0, 1.1578258559],
+                [0.5084833997, 0.8807190831, 1.1578258559],
+                [0.5084833997, -0.8807190831, 1.1578258559],
+            ],
+            'charge': 0, 'multiplicity': 1,
+        },
         'tasks': {
             'ccsdt_tz': {'path': ('energy_hartree',),
                          'expected': -79.674438136905, 'atol': 2e-6},
@@ -109,10 +138,10 @@ BENCHMARKS = {
             'ccsdtq_dz': {'path': ('energy_hartree',),
                           'expected': -40.3875184, 'atol': 2e-6,
                           'request': {
-                              'backend': 'cfour', 'method': 'CCSDT(Q)',
+                              'backend': 'mrcc', 'method': 'CCSDT(Q)',
                               'basis': 'cc-pVDZ', 'reference': 'RHF',
                               'correlation': 'unrestricted',
-                              'driver': 'VCC'}},
+                              'driver': 'direct'}},
             'ccsdtqp_dz': {'path': ('energy_hartree',),
                            'expected': -40.387527542311, 'atol': 2e-6,
                            'request': {
@@ -138,6 +167,11 @@ BENCHMARKS = {
         'species': 'CH3',
         'geometry': 'CCSD(T)/cc-pVQZ optimized geometry',
         'worksheet': 'Stable,QZ!A21:CF21',
+        'reference_note': (
+            'The source RHF-UCCSD(T) component uses the restricted HF '
+            'determinant. Its MRCC CCSDT(Q) and CCSDTQ(P) components use a '
+            'UHF determinant and are not numerical targets for the modern '
+            'semicanonical-ROHF profile.'),
         'molecule': {
             'symbols': ['C', 'H', 'H', 'H'],
             'positions': [
@@ -158,13 +192,13 @@ BENCHMARKS = {
                           'expected': -39.71626066, 'atol': 2e-6,
                           'request': {
                               'backend': 'mrcc', 'method': 'CCSDT(Q)',
-                              'basis': 'cc-pVDZ', 'reference': 'ROHF',
+                              'basis': 'cc-pVDZ', 'reference': 'UHF',
                               'correlation': 'unrestricted'}},
             'ccsdtqp_dz': {'path': ('energy_hartree',),
                            'expected': -39.716271925574, 'atol': 2e-6,
                            'request': {
                                'backend': 'mrcc', 'method': 'CCSDTQ(P)',
-                               'basis': 'cc-pVDZ', 'reference': 'ROHF',
+                               'basis': 'cc-pVDZ', 'reference': 'UHF',
                                'correlation': 'unrestricted'}},
         },
         'derived': {
@@ -196,13 +230,15 @@ def _nested(record, path):
     return float(value)
 
 
-def compare_values(name, observed):
+def compare_values(name, observed, *, include_absolute=True):
     """Compare verified task values with one source and geometry convention."""
     if name not in BENCHMARKS:
         raise ValueError(f'Unknown literature benchmark {name!r}.')
     benchmark = BENCHMARKS[name]
     checks = {}
     for task_id, target in benchmark['tasks'].items():
+        if not include_absolute:
+            continue
         if task_id not in observed:
             continue
         value = observed[task_id]
@@ -230,7 +266,7 @@ def compare_values(name, observed):
         }
     if not checks:
         raise ValueError('Run and benchmark have no completed components in common.')
-    return {
+    result = {
         'schema': 1,
         'status': ('passed' if all(item['passed'] for item in checks.values())
                    else 'failed'),
@@ -245,6 +281,45 @@ def compare_values(name, observed):
         'note': ('Published values are comparison targets only and were not '
                  'inserted into any computed component or recipe.'),
     }
+    if 'reference_note' in benchmark:
+        result['reference_note'] = benchmark['reference_note']
+    return result
+
+
+def _distance_signature(molecule):
+    """Return an orientation and same-element-permutation invariant geometry."""
+    symbols = molecule.get('symbols')
+    positions = molecule.get('positions')
+    if (not isinstance(symbols, list) or not isinstance(positions, list)
+            or len(symbols) != len(positions)):
+        raise ValueError('Benchmark molecule has invalid symbols or positions.')
+    groups = defaultdict(list)
+    for left in range(len(symbols)):
+        if len(positions[left]) != 3:
+            raise ValueError('Benchmark molecule coordinates must be Cartesian.')
+        for right in range(left + 1, len(symbols)):
+            key = tuple(sorted((symbols[left], symbols[right])))
+            distance = math.sqrt(math.fsum(
+                (float(positions[left][axis]) -
+                 float(positions[right][axis])) ** 2
+                for axis in range(3)))
+            groups[key].append(distance)
+    return {key: sorted(values) for key, values in groups.items()}
+
+
+def _geometry_deviation(molecule, reference):
+    """Maximum pair-distance difference in angstrom, or infinity on mismatch."""
+    if (molecule.get('charge', 0), molecule.get('multiplicity', 1)) != (
+            reference.get('charge', 0), reference.get('multiplicity', 1)):
+        return math.inf
+    actual = _distance_signature(molecule)
+    expected = _distance_signature(reference)
+    if actual.keys() != expected.keys() or any(
+            len(actual[key]) != len(expected[key]) for key in actual):
+        return math.inf
+    return max((abs(value - expected[key][index])
+                for key, values in actual.items()
+                for index, value in enumerate(values)), default=0.0)
 
 
 def compare_run(name, run_dir):
@@ -254,6 +329,9 @@ def compare_run(name, run_dir):
     if benchmark is None:
         raise ValueError(f'Unknown literature benchmark {name!r}.')
     tasks = {task['id']: task for task in spec['tasks']}
+    geometry_deviation = _geometry_deviation(
+        spec['molecule'], benchmark['molecule'])
+    exact_geometry = geometry_deviation <= 5e-5
     observed = {}
     for task_id, target in benchmark['tasks'].items():
         if (task_id not in tasks
@@ -272,7 +350,34 @@ def compare_run(name, run_dir):
                 f'literature benchmark: {mismatch}')
         *_, parsed = _verified_task_result(run_dir, task_id)
         observed[task_id] = _nested(parsed, target['path'])
-    return compare_values(name, observed)
+    try:
+        result = compare_values(
+            name, observed, include_absolute=exact_geometry)
+    except ValueError as exc:
+        if exact_geometry or 'no completed components' not in str(exc):
+            raise
+        result = {
+            'schema': 1, 'status': 'incomplete', 'benchmark': name,
+            'species': benchmark['species'],
+            'geometry_convention': benchmark['geometry'], 'source': SOURCE,
+            'worksheet': benchmark['worksheet'], 'checks': {},
+            'published_formation_enthalpy_0k_kcal_mol':
+                benchmark['formation_enthalpy_0k_kcal_mol'],
+            'note': ('No geometry-independent literature difference can be '
+                     'formed from the completed tasks.'),
+        }
+        if 'reference_note' in benchmark:
+            result['reference_note'] = benchmark['reference_note']
+    result['geometry_match'] = exact_geometry
+    result['maximum_pair_distance_error_angstrom'] = geometry_deviation
+    if not exact_geometry:
+        result['absolute_checks_skipped'] = sorted(
+            task_id for task_id in observed if task_id in benchmark['tasks'])
+        result['note'] += (
+            ' Absolute energies were skipped because the run geometry is not '
+            'the pinned source geometry; completed same-geometry differences '
+            'remain comparable.')
+    return result
 
 
 def main(argv=None):

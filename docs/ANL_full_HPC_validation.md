@@ -2,13 +2,26 @@
 
 ## Readiness decision
 
-The completed v5 run validates the profiled KinBot, VRC correction, ROTD_py,
-and base QC-interface paths. The next licensed stage can run the missing
-higher-order, core-valence, and scalar-relativistic jobs and assemble one
-provenance-checked **profiled ANL0-F12** 0 K energy. It is not an ANL1-F12
-result, a CBH heat of formation, or a production MESS rate coefficient.
+The completed v5 run validates profiled KinBot reaction handling, its VRC
+correction dispatch, ROTD_py execution, Gaussian L2, Gaussian VPT2, Molpro
+F12, and CFOUR DBOC interfaces. It does **not** validate the conventional
+Molpro CCSD(T) base. Those inputs contained `UHF_UCCSD=1`; Molpro 2024.1
+printed an `RHF-UCCSD(T)` total label for ethane while its native `(T)`
+contribution was exactly zero and the total equaled UCCSD. Consequently the
+v5 L3 geometry, harmonic calculation, conventional single points, and every
+post-geometry result evaluated on that L3 geometry are chemistry-invalid.
+Keep them as failure and restart evidence, but do not assemble an ANL result
+from them.
 
-The supplied ethane run performs these real operations:
+The corrected path generates `rhf` followed by bare `uccsd(t)`, requires a
+native triples contribution, and verifies CCSD + `(T)` against the selected
+total. First run the source-geometry ethane CCSD(T)/cc-pVDZ probe and compare
+it with the published `-79.582320541811` hartree value. Then make a fresh
+current-base graph from the already accepted v5 L2 geometry. Only its new L3
+geometry may seed a new post-geometry graph. No KinBot reaction search or
+ROTD_py sampling needs to be repeated for this correction.
+
+The corrected ethane continuation performs these operations:
 
 1. KinBot uses FairChem UMA at L1 for the initial structure, conformer search,
    and a restricted C-C homolytic reaction search.
@@ -574,9 +587,30 @@ test -x "$KINBOT_MRCC_ROOT/scf"
 test -x "$KINBOT_MRCC_ROOT/mrcc"
 ```
 
-First prepare a current base graph from the accepted and hash-verified v5 L2
-geometry. It reruns the L3 Sella optimization through Molpro's explicitly
-unrestricted CC implementation, then fans out the current F12 TZ/QZ,
+Before continuing the profiled geometry, run the inexpensive conventional
+CCSD(T)/cc-pVDZ calculation at the published ethane TZ geometry. This catches
+method-selection and parsing errors without mixing in a geometry difference:
+
+```bash
+cd ~/KinBot
+.venv/bin/python -m kinbot.anl.literature prepare-higher-order \
+  ethane-tz-2017 ethane_tz_ccsdt_dz_bare_ucc \
+  --task ccsdt_dz --max-nodes 1 --partition day-long-cpu
+.venv/bin/python -m kinbot.anl.dispatch preflight \
+  ethane_tz_ccsdt_dz_bare_ucc
+.venv/bin/python -m kinbot.anl.dispatch drive \
+  ethane_tz_ccsdt_dz_bare_ucc --interval 20
+.venv/bin/python -m kinbot.anl.literature compare-run \
+  ethane-tz-2017 ethane_tz_ccsdt_dz_bare_ucc \
+  | tee ethane_tz_ccsdt_dz_bare_ucc_literature.json
+```
+
+The comparison must pass near `-79.582320541811` hartree, and the generated
+input must contain `rhf` followed by bare `uccsd(t)`.
+
+Next prepare a current base graph from the accepted and hash-verified v5 L2
+geometry. It reruns the L3 Sella optimization through Molpro's normal
+restricted-reference UCCSD(T) path, then fans out the current F12 TZ/QZ,
 harmonic, and CFOUR DBOC tasks. It does not repeat the L2 optimization or
 Gaussian VPT2 calculation.
 
@@ -586,19 +620,20 @@ base="$PWD/ethane_profiled_hpc_run_v5"
 
 .venv/bin/python -m kinbot.anl.validation \
   prepare-current-base-from-run \
-  "$base/anl_interface" "$base/anl_current_base_ethane" \
+  "$base/anl_interface" "$base/anl_current_base_ethane_bare_ucc" \
   --geometry-task l2_geometry \
   --max-nodes 3 --partition day-long-cpu
 
 .venv/bin/python -m kinbot.anl.dispatch preflight \
-  "$base/anl_current_base_ethane"
+  "$base/anl_current_base_ethane_bare_ucc"
 ```
 
 Run the current base first. Only after its new L3 geometry is complete can the
-post-geometry graph be prepared from that exact geometry. The graph contains
-every higher-order, core-valence, and scalar-relativistic single point. One
-dispatcher therefore fans them out together while enforcing a shared limit of
-three exclusive nodes. No `tmux` installation is needed:
+post-geometry graph be prepared from that exact geometry. With `--anl0-only`,
+the graph contains the ANL0 higher-order term and every common core-valence and
+scalar-relativistic single point. One dispatcher therefore fans them out
+together while enforcing a shared limit of three exclusive nodes. No `tmux`
+installation is needed:
 
 ```bash
 nohup bash -lc '
@@ -606,23 +641,24 @@ nohup bash -lc '
   cd "$HOME/KinBot"
   base="$PWD/ethane_profiled_hpc_run_v5"
   .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$base/anl_current_base_ethane" --interval 20
+    "$base/anl_current_base_ethane_bare_ucc" --interval 20
   .venv/bin/python -m kinbot.anl.validation audit-current-base \
-    "$base/anl_current_base_ethane" \
-    > "$base/anl_current_base_ethane_audit.json"
+    "$base/anl_current_base_ethane_bare_ucc" \
+    > "$base/anl_current_base_ethane_bare_ucc_audit.json"
   .venv/bin/python -m kinbot.anl.validation \
     prepare-post-geometry-from-run \
-    "$base/anl_current_base_ethane" "$base/anl_post_geometry_ethane" \
-    --max-nodes 3
+    "$base/anl_current_base_ethane_bare_ucc" \
+    "$base/anl_post_geometry_ethane_bare_ucc" \
+    --max-nodes 3 --anl0-only
   .venv/bin/python -m kinbot.anl.dispatch preflight \
-    "$base/anl_post_geometry_ethane"
+    "$base/anl_post_geometry_ethane_bare_ucc"
   .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$base/anl_post_geometry_ethane" --interval 20
-  .venv/bin/python -m kinbot.anl.validation audit-post-geometry \
-    "$base/anl_post_geometry_ethane" \
-    > "$base/anl_post_geometry_ethane_audit.json"
-' > ethane_anl_continuation.log 2>&1 < /dev/null &
-echo $! > ethane_anl_continuation.pid
+    "$base/anl_post_geometry_ethane_bare_ucc" --interval 20
+  .venv/bin/python -m kinbot.anl.validation audit-anl0-post-geometry \
+    "$base/anl_post_geometry_ethane_bare_ucc" \
+    > "$base/anl_post_geometry_ethane_bare_ucc_anl0_audit.json"
+' > ethane_anl_bare_ucc_continuation.log 2>&1 < /dev/null &
+echo $! > ethane_anl_bare_ucc_continuation.pid
 disown
 ```
 
@@ -631,147 +667,33 @@ Monitor without mutating either graph:
 ```bash
 base="$PWD/ethane_profiled_hpc_run_v5"
 squeue -u "$USER" -o "%.18i %.30j %.2t %.10M %.10l %R"
-.venv/bin/python -m kinbot.anl.dispatch status "$base/anl_current_base_ethane"
-.venv/bin/python -m kinbot.anl.dispatch status "$base/anl_post_geometry_ethane"
-tail -f ethane_anl_continuation.log
+.venv/bin/python -m kinbot.anl.dispatch status \
+  "$base/anl_current_base_ethane_bare_ucc"
+.venv/bin/python -m kinbot.anl.dispatch status \
+  "$base/anl_post_geometry_ethane_bare_ucc"
+tail -f ethane_anl_bare_ucc_continuation.log
 ```
 
-### Recover a completed Molpro harmonic job rejected by the old parser
+### Superseded v5 recovery record
 
-The first current-base ethane run used the suffix `fb3eab2`. Its Molpro
-harmonic calculation terminated normally, produced a 0.07527065 hartree ZPE,
-and printed `PROGRAMS * TOTAL FREQ UCCSD(T) RHF-SCF INT`. The old parser
-accepted only a standalone `PROGRAM * RHF-SCF` line. After pulling the
-2026-10-02 correction, recover the existing output without submitting a new
-Molpro job:
+The old `fb3eab2` current-base graph and its dependent
+`anl_post_geometry_ethane` graph used `UHF_UCCSD=1`. Their ethane output
+reported zero for `(T)`, so their conventional coupled-cluster energies and
+all recipes depending on those energies are invalid. Keep the directories as
+diagnostic provenance, but do not reparse, resume, or use them in a recipe.
 
-```bash
-cd ~/KinBot
-base="$PWD/ethane_profiled_hpc_run_v5"
-current="$base/anl_current_base_ethane_fb3eab2"
+An early CFOUR `xncc` CCSDT(Q) route and the first direct-MRCC restart attempts
+also remain only as provenance. Fresh graphs use direct MRCC with RHF or
+semicanonical ROHF orbitals for high-order terms. The `--anl0-only` graph omits
+the ANL1-only CCSDT(Q)/cc-pVTZ and CCSDTQ(P)/cc-pVDZ jobs. Chemistry validation
+still requires comparison of the affordable ethane ANL0-F12 components and
+the final 0 K heat of formation with the 2017 source workbook.
 
-.venv/bin/python -m kinbot.anl.dispatch reparse "$current" harmonic
-.venv/bin/python -m kinbot.anl.dispatch status "$current"
-.venv/bin/python -m kinbot.anl.validation audit-current-base "$current" \
-  | tee "$base/anl_current_base_ethane_fb3eab2_audit.json"
-```
-
-The status must list all five current-base tasks as `complete`; the audit must
-report `current_base_interface_complete`, the same L3 geometry hash as every
-fan-out task, and `harmonic_zpe_hartree: 0.07527065`. `reparse` preserves the
-old failure as `tasks/harmonic/execution.failed.json` and records
-`reparsed_without_execution: true` in the accepted execution record.
-
-The stopped driver did not create any post-geometry graph. Continue from the
-accepted current-base geometry with one globally throttled fan-out:
-
-```bash
-nohup env PYTHONUNBUFFERED=1 bash -lc '
-  set -euo pipefail
-  cd "$HOME/KinBot"
-  base="$PWD/ethane_profiled_hpc_run_v5"
-  current="$base/anl_current_base_ethane_fb3eab2"
-  post="$base/anl_post_geometry_ethane"
-
-  .venv/bin/python -m kinbot.anl.validation audit-current-base "$current" \
-    > "$base/anl_current_base_ethane_fb3eab2_audit.json"
-  .venv/bin/python -m kinbot.anl.validation \
-    prepare-post-geometry-from-run "$current" "$post" \
-    --max-nodes 3
-  .venv/bin/python -m kinbot.anl.dispatch preflight "$post"
-  .venv/bin/python -m kinbot.anl.dispatch drive "$post" --interval 20
-  .venv/bin/python -m kinbot.anl.validation audit-post-geometry "$post" \
-    > "$base/anl_post_geometry_ethane_audit.json"
-' > ethane_anl_post_geometry.log 2>&1 < /dev/null &
-echo $! > ethane_anl_post_geometry.pid
-disown
-```
-
-This continuation expects `anl_post_geometry_ethane` not to exist. If it was
-already prepared, inspect and drive that immutable graph instead of preparing
-it again. The older split graph commands remain supported for compatibility,
-but the combined graph is required when one `max_nodes` value must govern all
-independent post-geometry calculations.
-
-Leave `--partition` unset for the combined graph unless one named partition
-can satisfy every task. KinBot selects the shortest available partition that
-fits each task. The direct-MRCC `CCSDTQ(P)/cc-pVDZ` task has a seven-day limit
-and an eight-core efficiency cap when an exact ANL1 ethane calculation is
-requested. Every job still requests its node exclusively.
-
-The current validation phase does not require a week-long ethane
-CCSDTQ(P)/cc-pVDZ job. Chemistry validation is still mandatory: complete the
-affordable ethane ANL0-F12 graph and compare every available component and
-the final 0 K heat of formation with the 2017 source workbook. Validate the
-closed-shell and open-shell direct-MRCC paths with targeted CH4 and CH3
-CCSDT(Q)/CCSDTQ(P) pairs. This covers input generation, native method echo,
-execution, restart, parsing, correction arithmetic, and literature agreement
-without repeating the most expensive calculation on every molecule.
-
-### Recover the 2026-10-03 higher-order ethane attempt
-
-The first generated CFOUR inputs used `CC_PROGRAM=VCC`. `CC_PROGRAM` is the
-name printed in CFOUR's output table; the input keyword is `CC_PROG`. CFOUR
-2.1 ignored the generated spelling and selected its closed-shell `xncc`
-default. Those successful native calculations must not be accepted as the
-requested RHF-reference unrestricted correction. The migration command below
-archives each old task directory and stages a corrected `CC_PROG=VCC` input.
-
-The direct-MRCC `CCSDTQ(P)/cc-pVDZ` job was killed at its one-day Slurm limit
-after writing a nonempty `fort.16`. MRCC's documented `rest=1` path can reuse
-those amplitudes. The resume command archives the old text inputs and outputs,
-keeps the large scratch/checkpoint files in place, preserves the working-memory
-value, and selects cores again from node memory. Run that seven-day retry only
-when completing the ethane ANL1 benchmark; it is not needed for ethane
-ANL0-F12.
-
-```bash
-cd ~/KinBot
-post="$PWD/ethane_profiled_hpc_run_v5/anl_post_geometry_ethane"
-
-.venv/bin/python -m kinbot.anl.dispatch migrate-cfour-vcc \
-  "$post" ccsdtq_tz
-.venv/bin/python -m kinbot.anl.dispatch migrate-cfour-vcc \
-  "$post" ccsdtq_dz
-.venv/bin/python -m kinbot.anl.dispatch preflight "$post"
-.venv/bin/python -m kinbot.anl.dispatch status "$post"
-
-nohup env PYTHONUNBUFFERED=1 \
-  .venv/bin/python -m kinbot.anl.dispatch drive "$post" --interval 20 \
-  > ethane_anl_post_geometry_recovery.log 2>&1 < /dev/null &
-echo $! > ethane_anl_post_geometry_recovery.pid
-disown
-```
-
-If exact ethane ANL1 validation is selected, resume the QP task before
-starting the driver:
-
-```bash
-.venv/bin/python -m kinbot.anl.dispatch resume-mrcc \
-  "$post" ccsdtqp_dz \
-  --walltime 7-00:00:00 --partition week-long-cpu --max-cores 8
-```
-
-The corrected CFOUR task values should be `staged` before the driver starts.
-Completed Molpro tasks remain accepted. The pending correction jobs remain in
-the same globally throttled graph. Keep `attempts/` until the final audit has
-completed; it contains the original native outputs and recovery provenance.
-After the DZ higher-order pair and all common corrections complete, audit the
-ANL0 subset even if ANL1-only jobs were cancelled or failed:
-
-```bash
-.venv/bin/python -m kinbot.anl.validation audit-anl0-post-geometry "$post" \
-  | tee "$base/anl_post_geometry_ethane_anl0_audit.json"
-.venv/bin/python -m kinbot.anl.literature compare-run \
-  ethane-tz-2017 "$post" \
-  | tee "$base/anl_post_geometry_ethane_literature.json"
-```
-
-The literature command only compares tasks present in that run. Apply it to
-the base/interface run as well to cover harmonic, F12, and DBOC components.
-An exact source comparison requires the stated source geometry and calculation
-convention; a result from a deliberately changed production profile must be
-reported as such instead of relaxing the tolerance.
+The literature command compares only tasks present in a run. Apply it to the
+base/interface run as well to cover harmonic, F12, and DBOC components. Exact
+source comparison requires the source geometry and reference convention; a
+result from a deliberately changed production profile must be reported as
+such instead of relaxing the tolerance.
 
 Prepare the short source-matched MRCC checks from the published QZ geometries
 after the ethane correction fan-out is under control:
@@ -790,10 +712,40 @@ cd ~/KinBot
   | tee methane_qz_higher_2017_literature.json
 ```
 
-Repeat with `methyl-qz-2017` after the closed-shell path passes. The methyl
-case exercises the ROHF-reference unrestricted-CC MRCC path. Preserve one
-real interrupted MRCC attempt and successful `resume-mrcc` continuation as
-restart evidence; do not manufacture interruptions for every species.
+For methyl, first run only the source-comparable conventional component:
+
+```bash
+.venv/bin/python -m kinbot.anl.literature prepare-higher-order \
+  methyl-qz-2017 methyl_qz_ccsdt_dz_2017 \
+  --task ccsdt_dz --max-nodes 1
+.venv/bin/python -m kinbot.anl.dispatch preflight methyl_qz_ccsdt_dz_2017
+.venv/bin/python -m kinbot.anl.dispatch drive \
+  methyl_qz_ccsdt_dz_2017 --interval 20
+.venv/bin/python -m kinbot.anl.literature compare-run \
+  methyl-qz-2017 methyl_qz_ccsdt_dz_2017 \
+  | tee methyl_qz_ccsdt_dz_2017_literature.json
+```
+
+The published methyl CCSDT(Q) and CCSDTQ(P) targets used a UHF determinant,
+as stated by the paper. The current profile deliberately uses semicanonical
+ROHF, so those absolute values are retained as source provenance but are not
+tight numerical acceptance targets for the changed reference. Stage the
+modern `ccsdtq_dz` and `ccsdtqp_dz` pair separately and use
+`audit-higher-order` to validate input, execution, parsing, and the common
+geometry correction. Preserve one real interrupted MRCC attempt and
+successful `resume-mrcc` continuation as restart evidence; do not manufacture
+interruptions for every species.
+
+```bash
+.venv/bin/python -m kinbot.anl.literature prepare-higher-order \
+  methyl-qz-2017 methyl_qz_rohf_higher \
+  --task ccsdtq_dz --task ccsdtqp_dz --max-nodes 2
+.venv/bin/python -m kinbot.anl.dispatch preflight methyl_qz_rohf_higher
+.venv/bin/python -m kinbot.anl.dispatch drive \
+  methyl_qz_rohf_higher --interval 20
+.venv/bin/python -m kinbot.anl.validation audit-higher-order \
+  methyl_qz_rohf_higher | tee methyl_qz_rohf_higher_audit.json
+```
 
 The completed ethane VPT2 parser recorded native Gaussian warnings. Assembly
 therefore stops until those warnings and the mode table are reviewed. First
@@ -838,14 +790,14 @@ uses another state-specific value.
 base="$PWD/ethane_profiled_hpc_run_v5"
 .venv/bin/python -m kinbot.anl.validation assemble-anl0-f12 \
   "$base/anl_interface" \
-  "$base/anl_post_geometry_ethane" \
-  "$base/anl_post_geometry_ethane" \
+  "$base/anl_post_geometry_ethane_bare_ucc" \
+  "$base/anl_post_geometry_ethane_bare_ucc" \
   "$base/ethane_profiled_anl0_f12.json" \
   --state-id ethane-singlet \
   --spin-orbit-hartree 0.0 \
   --spin-orbit-backend known_zero \
   --spin-orbit-source "nondegenerate closed-shell ethane validation policy" \
-  --base-run "$base/anl_current_base_ethane" \
+  --base-run "$base/anl_current_base_ethane_bare_ucc" \
   --vpt2-review "$base/ethane_vpt2_review.json"
 cat "$base/ethane_profiled_anl0_f12.json"
 ```

@@ -82,7 +82,10 @@ def test_run_comparison_rejects_a_different_reference(monkeypatch):
             'reference': 'UHF', 'correlation': 'unrestricted'}}
     monkeypatch.setattr(
         literature, '_load',
-        lambda run_dir: (Path(run_dir), {'tasks': [task]}, {
+        lambda run_dir: (Path(run_dir), {
+            'molecule':
+                literature.BENCHMARKS['methane-qz-2017']['molecule'],
+            'tasks': [task]}, {
             'tasks': {'ccsdtqp_dz': {'status': 'complete'}}}))
     with pytest.raises(ValueError, match='does not match'):
         literature.compare_run('methane-qz-2017', '/synthetic/run')

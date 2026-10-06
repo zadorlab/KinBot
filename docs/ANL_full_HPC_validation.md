@@ -1052,17 +1052,24 @@ base="$PWD/ethane_profiled_hpc_run_v5"
 refs="$base/cbh0_reference_graphs"
 methyl_job=150390060000000000002_well_high
 
-python -m kinbot.anl.literature prepare-higher-order \
+# Site configuration: KinBot also accepts MRCC_ROOT, MRCC_HOME,
+# EBROOTMRCC, a normal PATH entry, or KINBOT_MRCC_COMMAND.
+export KINBOT_MRCC_ROOT=/opt/mrcc
+test -x "$KINBOT_MRCC_ROOT/dmrcc"
+test -x "$KINBOT_MRCC_ROOT/scf"
+test -x "$KINBOT_MRCC_ROOT/mrcc"
+
+.venv/bin/python -m kinbot.anl.literature prepare-higher-order \
   methane-qz-2017 "$refs/methane_source_qz" \
   --max-nodes 2 --partition day-long-cpu
-python -m kinbot.anl.literature prepare-higher-order \
+.venv/bin/python -m kinbot.anl.literature prepare-higher-order \
   methyl-qz-2017 "$refs/methyl_source_qz" \
   --max-nodes 2 --partition day-long-cpu
-python -m kinbot.anl.validation prepare-composite-from-db \
+.venv/bin/python -m kinbot.anl.validation prepare-composite-from-db \
   "$base/kinbot.db" "$methyl_job" "$refs/methyl_composite" \
   --charge 0 --multiplicity 2 --max-nodes 2 \
   --partition day-long-cpu --anl0-only
-python -m kinbot.anl.validation prepare-composite-from-smiles \
+.venv/bin/python -m kinbot.anl.validation prepare-composite-from-smiles \
   '[H]' "$refs/atomic_h_composite" \
   --charge 0 --multiplicity 2 --max-nodes 2 \
   --partition day-long-cpu --anl0-only
@@ -1107,9 +1114,9 @@ angstrom, a 0.85 dynamical correction, five-percent flux target, and
 `rotdpy_max_jobs=8`. Run it with:
 
 ```bash
-python -m kinbot.rotdpy run PATH/TO/REACTION.py
-python -m kinbot.rotdpy check PATH/TO/REACTION.py
-python -m kinbot.rotdpy select PATH/TO/REACTION.py
+.venv/bin/python -m kinbot.rotdpy run PATH/TO/REACTION.py
+.venv/bin/python -m kinbot.rotdpy check PATH/TO/REACTION.py
+.venv/bin/python -m kinbot.rotdpy select PATH/TO/REACTION.py
 ```
 
 After MESS consumes that production result,

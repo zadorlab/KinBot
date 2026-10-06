@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from kinbot.anl import literature
+from kinbot.anl.dispatch import validate_spec
 from kinbot.anl.literature import BENCHMARKS, compare_values
 
 
@@ -92,6 +93,10 @@ def test_prepare_methyl_source_benchmark_uses_its_published_uhf_reference(
     assert 'scftype=UHF' in tasks['ccsdtq_dz']['input_template']
     assert 'rohftype=semicanonical' not in \
         tasks['ccsdtq_dz']['input_template']
+    for task in captured['spec']['tasks']:
+        task['resources'].update(
+            cores=4, memory_mb=64000, partition='test')
+    validate_spec(captured['spec'])
 
 
 def test_run_comparison_rejects_a_different_reference(monkeypatch):

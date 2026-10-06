@@ -1154,3 +1154,29 @@ ethane C--C homolysis, CBH-0/ATcT, MESSPF thermochemistry, and direct VRC
 kinetics. Stationary saddle/IRC kinetics, ions, other elements, and strongly
 multireference stationary points remain separate coverage classes; one small
 system cannot establish correctness for every possible molecule.
+
+### Dispatcher recovery for the reference batch
+
+Two reference-batch outcomes are reconciled by the dispatcher itself after
+updating KinBot. A native calculation that terminated successfully but was
+rejected by an older result parser is reparsed from its hash-checked output;
+the failed parser record is archived and the QC executable is not called
+again. A monatomic L2 or L3 geometry node is completed as an exact identity
+operation because an atom has no geometry coordinate to optimize. No ASE
+calculator or Slurm job is used for that node, and a failed legacy atomic
+geometry attempt is retained as `execution.failed.json`.
+
+Consequently, after pulling the fix, an ordinary status refresh repairs the
+old methyl parser result and the old atomic-H geometry result, clears their
+dependent `blocked` states, and stages the actual atomic property jobs:
+
+```bash
+.venv/bin/python -m kinbot.anl.dispatch status \
+  "$refs/methyl_composite"
+.venv/bin/python -m kinbot.anl.dispatch status \
+  "$refs/atomic_h_composite"
+```
+
+Restart a dispatcher only if its previous driver has exited. The two already
+running `ccsdtqp_dz` source-validation jobs are independent and must not be
+cancelled or resubmitted for this recovery.

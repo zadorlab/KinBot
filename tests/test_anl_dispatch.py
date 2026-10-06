@@ -882,6 +882,141 @@ def test_parser_failure_can_be_recovered_without_rerunning_native_job():
         assert reparse_failed(run_dir, 'gaussian_vpt2') == result
 
 
+def test_advance_automatically_reparses_old_successful_mrcc_output():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        task = mrcc_task(
+            'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=2,
+            reference='ROHF', geometry_from='initial')
+        task['resources'].update(
+            cores=1, memory_mb=4096, partition='test')
+        spec = {
+            'schema': 1, 'name': 'automatic-parser-recovery',
+            'molecule': {
+                'symbols': ['C', 'H', 'H', 'H'],
+                'positions': [[0., 0., 0.], [0., 0., 1.],
+                              [0.94, 0., -0.33], [-0.47, 0.81, -0.33]],
+                'charge': 0, 'multiplicity': 2,
+            },
+            'limits': {'max_nodes': 1}, 'tasks': [task],
+        }
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        directory = run_dir / 'tasks' / 'ccsdtq_dz'
+        output = """Input file:
+basis=cc-pVDZ
+calc=CCSDT(Q)
+ccprog=mrcc
+scftype=ROHF
+rohftype=semicanonical
+rohfcore=semicanonical
+core=frozen
+Total CCSDT energy [au]: -39.716126916675
+Total CCSDT[Q] energy [au]: -39.716201539184
+Total CCSDT(Q)/A energy [au]: -39.716240924926
+Total CCSDT(Q)/B energy [au]: -39.716241160157
+Normal termination of mrcc.
+"""
+        (directory / 'ccsdtq_dz.out').write_text(output)
+        (directory / 'ccsdtq_dz.err').write_text('')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        entry = state['tasks']['ccsdtq_dz']
+        entry.update(status='failed', execution='failed',
+                     error='old parser error')
+        state_path.write_text(json.dumps(state))
+        failed = {
+            'schema': 1, 'task_id': 'ccsdtq_dz',
+            'geometry_sha256': entry['geometry_sha256'],
+            'status': 'failed',
+            'error': 'Expected exactly one MRCC CCSDT(Q) total energy; found 0.',
+            'traceback': 'details["parsed_result"] = parse_result(output, request)',
+        }
+        (directory / 'execution.json').write_text(json.dumps(failed))
+
+        recovered = advance(run_dir)
+        assert recovered['tasks']['ccsdtq_dz']['status'] == 'complete'
+        assert recovered['tasks']['ccsdtq_dz']['automatically_reparsed'] is True
+        execution = json.loads((directory / 'execution.json').read_text())
+        parsed = execution['details']['parsed_result']
+        assert parsed['energy_hartree'] == pytest.approx(-39.716241160157)
+        assert parsed['selected_perturbative_variant'] == 'B'
+        assert json.loads(
+            (directory / 'execution.failed.json').read_text()) == failed
+
+
+def _monatomic_geometry_spec():
+    source = dispatch_spec()
+    task = next(item for item in source['tasks']
+                if item['id'] == 'l3_geometry')
+    task['geometry_from'] = 'initial'
+    return {
+        'schema': 1, 'name': 'monatomic-geometry-identity',
+        'molecule': {
+            'symbols': ['H'], 'positions': [[0., 0., 0.]],
+            'charge': 0, 'multiplicity': 2,
+        },
+        'limits': {'max_nodes': 1}, 'tasks': [task],
+    }
+
+
+def test_monatomic_geometry_completes_without_qc_or_slurm():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(
+            _write_spec(root, _monatomic_geometry_spec()), root / 'run')
+        with patch('kinbot.anl.dispatch.subprocess.run',
+                   side_effect=AssertionError('must not submit or run QC')):
+            state = advance(run_dir, submit=True)
+        assert state['tasks']['l3_geometry']['status'] == 'complete'
+        directory = run_dir / 'tasks' / 'l3_geometry'
+        execution = json.loads((directory / 'execution.json').read_text())
+        assert execution['details']['optimizer'] == 'identity_monatomic'
+        assert execution['details']['calculation_performed'] is False
+        assert execution['details']['generated_files'] == []
+        assert read(directory / 'final.xyz').get_chemical_symbols() == ['H']
+        assert not list(directory.glob('l3_geometry_step_*'))
+
+
+def test_failed_legacy_monatomic_geometry_is_recovered_without_qc():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        spec = _monatomic_geometry_spec()
+        child = next(item for item in dispatch_spec()['tasks']
+                     if item['id'] == 'harmonic')
+        spec['tasks'].append(child)
+        run_dir = prepare(
+            _write_spec(root, spec), root / 'run')
+        directory = run_dir / 'tasks' / 'l3_geometry'
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        entry = state['tasks']['l3_geometry']
+        entry.update(status='failed', execution='failed',
+                     error='legacy atomic force evaluation failed')
+        state['tasks']['harmonic'] = {
+            'status': 'blocked', 'geometry_from': 'l3_geometry',
+            'blocked_by': ['l3_geometry'],
+        }
+        state_path.write_text(json.dumps(state))
+        failed = {
+            'schema': 1, 'task_id': 'l3_geometry',
+            'geometry_sha256': entry['geometry_sha256'],
+            'status': 'failed',
+            'error': 'legacy atomic force evaluation failed',
+            'traceback': 'old calculator traceback',
+        }
+        (directory / 'execution.json').write_text(json.dumps(failed))
+
+        with patch('kinbot.anl.dispatch.subprocess.run',
+                   side_effect=AssertionError('must not submit or run QC')):
+            recovered = advance(run_dir, submit=False)
+        assert recovered['tasks']['l3_geometry']['status'] == 'complete'
+        assert recovered['tasks']['harmonic']['status'] == 'staged'
+        execution = json.loads((directory / 'execution.json').read_text())
+        assert execution['details']['recovered_without_qc_execution'] is True
+        assert json.loads(
+            (directory / 'execution.failed.json').read_text()) == failed
+
+
 def test_failed_job_missing_from_squeue_can_be_reconciled_and_retried():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)

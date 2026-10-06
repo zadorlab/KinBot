@@ -638,7 +638,15 @@ def _verify_execution(run_dir, task, entry, execution):
         needed.update(task.get('files_from_env', {}))
     else:
         needed.update({'final.xyz', 'optimization.log'})
-        if _backend(task) == 'molpro':
+        details = execution.get('details', {})
+        monatomic_identity = details.get('optimizer') == 'identity_monatomic'
+        if monatomic_identity:
+            if (details.get('calculation_performed') is not False
+                    or details.get('generated_files') != []
+                    or len(read(directory / 'geometry.xyz')) != 1):
+                raise RuntimeError(
+                    f'{ident}: invalid monatomic identity geometry record.')
+        elif _backend(task) == 'molpro':
             generated = execution.get('details', {}).get('generated_files')
             if (not isinstance(generated, list) or
                     not all(isinstance(name, str) and _SAFE_NAME.fullmatch(name)
@@ -736,40 +744,21 @@ def _validate_external_outputs(directory, task):
                                f"{marker['contains']}")
 
 
-def reparse_failed(run_dir, ident):
-    """Recover a successful external calculation rejected only by its parser."""
-    run_dir, spec, state = _load(run_dir)
-    by_id = {task['id']: task for task in spec['tasks']}
-    task = by_id.get(ident)
-    entry = state['tasks'].get(ident)
-    if task is None or entry is None:
-        raise ValueError(f'{ident}: task is unavailable.')
-    if task['kind'] != 'external' or not task.get('result_parser'):
-        raise ValueError(f'{ident}: reparse requires an external parsed task.')
-    if not task.get('success_marker'):
-        raise ValueError(f'{ident}: reparse requires a native success marker.')
+def _parser_failure(task, execution):
+    """Whether a failed record is eligible for a no-execution reparse."""
+    return (task.get('kind') == 'external'
+            and bool(task.get('result_parser'))
+            and bool(task.get('success_marker'))
+            and execution.get('status') == 'failed'
+            and 'parse_result(' in execution.get('traceback', ''))
+
+
+def _reparse_execution(run_dir, task, entry, previous):
+    """Reparse one hash-checked native success without changing state.json."""
+    ident = task['id']
     directory = run_dir / 'tasks' / ident
     outcome = directory / 'execution.json'
-    if not outcome.is_file():
-        raise RuntimeError(f'{ident}: failed execution record is missing.')
-    previous = json.loads(outcome.read_text())
-    if entry.get('status') == 'complete':
-        _verify_stage_files(run_dir, task, entry)
-        _verify_execution(run_dir, task, entry, previous)
-        if previous.get('status') != 'executed':
-            raise RuntimeError(f'{ident}: complete task has no executed result.')
-        requested = task['result_parser']
-        from kinbot.anl.results import parse_result
-        parsed = parse_result(
-            (directory / requested['file']).read_text(errors='replace'),
-            requested)
-        if parsed != previous.get('details', {}).get('parsed_result'):
-            raise RuntimeError(f'{ident}: saved parsed result differs from native output.')
-        return previous
-    if entry.get('status') != 'failed':
-        raise ValueError(f'{ident}: only a failed or complete task can be reparsed.')
-    if (previous.get('status') != 'failed'
-            or 'parse_result(' not in previous.get('traceback', '')):
+    if not _parser_failure(task, previous):
         raise ValueError(f'{ident}: failure did not occur during result parsing.')
     _verify_execution(run_dir, task, entry, previous)
     _verify_stage_files(run_dir, task, entry)
@@ -813,6 +802,43 @@ def reparse_failed(run_dir, ident):
     }
     actual_hash = _verify_execution(run_dir, task, entry, result)
     _atomic_json(outcome, result)
+    return result, actual_hash
+
+
+def reparse_failed(run_dir, ident):
+    """Recover a successful external calculation rejected only by its parser."""
+    run_dir, spec, state = _load(run_dir)
+    by_id = {task['id']: task for task in spec['tasks']}
+    task = by_id.get(ident)
+    entry = state['tasks'].get(ident)
+    if task is None or entry is None:
+        raise ValueError(f'{ident}: task is unavailable.')
+    if task['kind'] != 'external' or not task.get('result_parser'):
+        raise ValueError(f'{ident}: reparse requires an external parsed task.')
+    if not task.get('success_marker'):
+        raise ValueError(f'{ident}: reparse requires a native success marker.')
+    directory = run_dir / 'tasks' / ident
+    outcome = directory / 'execution.json'
+    if not outcome.is_file():
+        raise RuntimeError(f'{ident}: failed execution record is missing.')
+    previous = json.loads(outcome.read_text())
+    if entry.get('status') == 'complete':
+        _verify_stage_files(run_dir, task, entry)
+        _verify_execution(run_dir, task, entry, previous)
+        if previous.get('status') != 'executed':
+            raise RuntimeError(f'{ident}: complete task has no executed result.')
+        requested = task['result_parser']
+        from kinbot.anl.results import parse_result
+        parsed = parse_result(
+            (directory / requested['file']).read_text(errors='replace'),
+            requested)
+        if parsed != previous.get('details', {}).get('parsed_result'):
+            raise RuntimeError(f'{ident}: saved parsed result differs from native output.')
+        return previous
+    if entry.get('status') != 'failed':
+        raise ValueError(f'{ident}: only a failed or complete task can be reparsed.')
+    result, actual_hash = _reparse_execution(
+        run_dir, task, entry, previous)
     entry.update(status='complete', execution='executed')
     entry.pop('error', None)
     if actual_hash is not None:
@@ -822,12 +848,28 @@ def reparse_failed(run_dir, ident):
 
 
 def _run_ase_optimize(directory, record):
+    task = record['task']
+    atoms = read(directory / 'geometry.xyz')
+    if len(atoms) == 1:
+        # A monatomic state has no internal or Cartesian geometry degree of
+        # freedom after removal of translation.  Calling an electronic
+        # structure calculator here adds no geometry information and several
+        # otherwise valid gradient implementations reject the empty problem.
+        # Preserve the exact accepted position and record the identity step;
+        # the independent energy/correction tasks still run normally.
+        (directory / 'optimization.log').write_text(
+            'Monatomic state: geometry optimization is an exact identity; '
+            'no calculator was invoked.\n')
+        write(directory / 'final.xyz', atoms)
+        return {
+            'optimizer': 'identity_monatomic',
+            'calculation_performed': False,
+            'generated_files': [],
+        }
     from ase.optimize import BFGS
     from sella import Sella
     from kinbot.ase_modules.calculators.factory import build_calculator
 
-    task = record['task']
-    atoms = read(directory / 'geometry.xyz')
     # UMA/OMol reads these from Atoms.info; XYZ does not preserve them.
     atoms.info['charge'] = record['molecule']['charge']
     atoms.info['spin'] = record['molecule']['multiplicity']
@@ -836,21 +878,17 @@ def _run_ase_optimize(directory, record):
         'name': task['id'], 'charge': record['molecule']['charge'],
         'mult': record['molecule']['multiplicity']})
     options = task.get('optimizer', {})
-    if len(atoms) > 1:
-        common = {'trajectory': str(directory / 'optimization.traj'),
-                  'logfile': str(directory / 'optimization.log')}
-        if len(atoms) > 2 and profile.optimizer == 'sella':
-            optimizer = Sella(atoms, order=0,
-                              **common, **options.get('sella_kwargs', {}))
-        else:
-            optimizer = BFGS(atoms, **common)
-        converged = optimizer.run(fmax=options.get('fmax', 0.03),
-                                  steps=options.get('steps', 100))
-        if not converged:
-            raise RuntimeError('ASE geometry optimization did not converge.')
+    common = {'trajectory': str(directory / 'optimization.traj'),
+              'logfile': str(directory / 'optimization.log')}
+    if len(atoms) > 2 and profile.optimizer == 'sella':
+        optimizer = Sella(atoms, order=0,
+                          **common, **options.get('sella_kwargs', {}))
     else:
-        (directory / 'optimization.log').write_text(
-            'Single atom: geometry optimization is unnecessary.\n')
+        optimizer = BFGS(atoms, **common)
+    converged = optimizer.run(fmax=options.get('fmax', 0.03),
+                              steps=options.get('steps', 100))
+    if not converged:
+        raise RuntimeError('ASE geometry optimization did not converge.')
     energy_ev = float(atoms.get_potential_energy())
     write(directory / 'final.xyz', atoms)
     return {'energy_ev': energy_ev, 'energy_hartree': energy_ev / Hartree,
@@ -906,6 +944,59 @@ def run_task(task_file):
     _atomic_json(outcome, result)
     if result['status'] != 'executed':
         raise RuntimeError(f"{task['id']}: {result['error']}")
+    return result
+
+
+def _monatomic_geometry_task(spec, task):
+    return (task.get('kind') == 'ase_optimize'
+            and len(spec.get('molecule', {}).get('symbols', ())) == 1)
+
+
+def _complete_monatomic_geometry(run_dir, spec, task, entry, previous=None):
+    """Complete an atomic geometry node as an exact identity operation."""
+    ident = task['id']
+    if not _monatomic_geometry_task(spec, task):
+        raise ValueError(f'{ident}: task is not a monatomic geometry operation.')
+    _verify_stage_files(run_dir, task, entry)
+    directory = run_dir / 'tasks' / ident
+    record = json.loads((directory / 'task.json').read_text())
+    if record.get('geometry_sha256') != entry.get('geometry_sha256'):
+        raise RuntimeError(f'{ident}: staged geometry provenance changed.')
+    if previous is not None and previous.get('status') != 'failed':
+        raise RuntimeError(f'{ident}: only a failed atomic attempt can be recovered.')
+
+    details = _run_ase_optimize(directory, record)
+    final_hash = _geometry_hash(read(directory / 'final.xyz'))
+    if final_hash != entry['geometry_sha256']:
+        raise RuntimeError(f'{ident}: monatomic identity changed the geometry.')
+    details['final_geometry_sha256'] = final_hash
+    names = {'geometry.xyz', 'task.json', 'final.xyz', 'optimization.log'}
+    if previous is not None:
+        previous_name = 'execution.failed.json'
+        previous_path = directory / previous_name
+        if previous_path.exists():
+            raise RuntimeError(
+                f'{ident}: previous failed execution archive already exists.')
+        _atomic_json(previous_path, previous)
+        names.add(previous_name)
+        details.update(
+            recovered_without_qc_execution=True,
+            previous_error=previous.get('error', ''))
+    result = {
+        'schema': 1,
+        'task_id': ident,
+        'geometry_sha256': record['geometry_sha256'],
+        'status': 'executed',
+        'details': details,
+        'artifacts': {name: _file_hash(directory / name)
+                      for name in sorted(names)},
+    }
+    _verify_execution(run_dir, task, entry, result)
+    _atomic_json(directory / 'execution.json', result)
+    entry.update(status='complete', execution='executed',
+                 final_geometry_sha256=final_hash)
+    entry.pop('error', None)
+    entry.pop('job_id', None)
     return result
 
 
@@ -1452,6 +1543,44 @@ def advance(run_dir, submit=False, submit_only=None):
         unknown = submit_only - by_id.keys()
         if unknown:
             raise ValueError(f"Unknown submission task(s): {', '.join(sorted(unknown))}")
+
+    # Reconcile two deterministic non-QC cases before dependency handling.
+    # First, a newer parser may accept a native calculation that an older
+    # installed KinBot rejected.  Second, an atom has no geometry coordinate
+    # to optimize, so its geometry nodes are exact identity operations and do
+    # not belong in the scheduler at all.
+    for ident, entry in state['tasks'].items():
+        task = by_id[ident]
+        outcome = run_dir / 'tasks' / ident / 'execution.json'
+        previous = (json.loads(outcome.read_text())
+                    if outcome.is_file() else None)
+        if (entry.get('status') == 'failed' and previous is not None
+                and _parser_failure(task, previous)):
+            try:
+                recovered, actual_hash = _reparse_execution(
+                    run_dir, task, entry, previous)
+            except ValueError:
+                # The current parser still rejects the native result.  Keep
+                # the original failure available for diagnosis or migration.
+                pass
+            else:
+                entry.update(status='complete', execution='executed',
+                             automatically_reparsed=True)
+                entry.pop('error', None)
+                entry.pop('job_id', None)
+                if actual_hash is not None:
+                    entry['final_geometry_sha256'] = actual_hash
+                previous = recovered
+        if (_monatomic_geometry_task(spec, task)
+                and entry.get('status') in ('staged', 'failed')):
+            if entry['status'] == 'staged' and previous is not None:
+                # Let the ordinary reconciliation below accept an already
+                # written execution record after a state-file interruption.
+                continue
+            _complete_monatomic_geometry(
+                run_dir, spec, task, entry,
+                previous=previous if entry['status'] == 'failed' else None)
+
     for ident, entry in state['tasks'].items():
         task = by_id[ident]
         if entry['status'] == 'submitting':
@@ -1473,6 +1602,14 @@ def advance(run_dir, submit=False, submit_only=None):
             execution = json.loads(outcome.read_text())
             if entry['status'] == 'submitted' and _job_active(entry['job_id']):
                 continue
+            if _parser_failure(task, execution):
+                try:
+                    execution, _ = _reparse_execution(
+                        run_dir, task, entry, execution)
+                    entry['automatically_reparsed'] = True
+                except ValueError:
+                    # Preserve a real parser rejection as a failed task.
+                    pass
             actual_hash = _verify_execution(run_dir, task, entry, execution)
             entry['status'] = ('complete' if execution['status'] == 'executed'
                                else 'failed')

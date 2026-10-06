@@ -5331,3 +5331,13 @@ with 2.3--4.6 angstrom surfaces, a 0.85 dynamical correction, and a
 five-percent flux target is the chemistry-level VRC gate. The exact staging,
 monitoring, and acceptance procedure is in
 `docs/ANL_full_HPC_validation.md`.
+
+Reference-graph recovery is part of the same general dispatcher behavior.
+Monatomic geometry nodes are exact identity transformations and never invoke
+ASE, a QC calculator, or Slurm. Existing failed atomic geometry records are
+retained while the dispatcher accepts the unchanged geometry and releases
+its electronic-property children. Likewise, when a newer parser accepts a
+hash-checked native success that an older parser rejected, dispatcher refresh
+archives the parser failure and accepts the native result without repeating
+the electronic-structure calculation. Neither rule contains a species name,
+path, site configuration, or benchmark-specific energy.

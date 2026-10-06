@@ -266,6 +266,20 @@ _GAUSSIAN_VPT2 = """#p B3LYP/cc-pVTZ Opt=(Tight,CalcFC) Freq=Anharmonic NoSymm
 """
 
 
+def test_gaussian_vpt2_c1_route_requires_native_framework_confirmation():
+    requested = _GAUSSIAN_VPT2.replace(
+        'Freq=Anharmonic NoSymm',
+        'Freq=Anharmonic Symmetry=(PG=C1)')
+    with pytest.raises(ValueError, match='confirm the requested C1'):
+        parse_gaussian_vpt2(
+            requested, method='B3LYP', basis='cc-pVTZ')
+    confirmed = requested.replace(
+        ' WARNING:', ' Framework group  C1[X(C,H4)]\n WARNING:', 1)
+    result = parse_gaussian_vpt2(
+        confirmed, method='B3LYP', basis='cc-pVTZ')
+    assert result['framework_group_cap'] == 'C1'
+
+
 def test_molpro_f12b_selects_exact_total_energy():
     result = parse_molpro_energy(_MOLPRO_F12, method='CCSD(T)-F12b',
                                  basis='cc-pVTZ-F12', reference='ROHF')

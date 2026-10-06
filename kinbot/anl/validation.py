@@ -182,7 +182,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             'input_name': 'vpt2.com',
             'input_template': (
                 '%nprocshared={{CORES}}\n%mem={{WORK_MEMORY_MB}}MB\n'
-                '#p B2PLYP/cc-pVTZ Freq=Anharmonic SCF=XQC '
+                '#p B2PLYP/cc-pVTZ Freq=Anharmonic Symmetry=(PG=C1) SCF=XQC '
                 'EmpiricalDispersion=GD3BJ Integral=UltraFine\n\n'
                 'KinBot frequency-only VPT2 interface validation\n\n'
                 '{{CHARGE}} {{MULT}}\n{{CARTESIAN}}\n\n'),

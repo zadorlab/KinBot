@@ -1033,15 +1033,16 @@ def retry_failed(run_dir, ident):
 
 
 def recover_gaussian_vpt2_symmetry(run_dir, ident):
-    """Retry the Gaussian framework-group VPT2 failure with symmetry enabled.
+    """Retry the Gaussian framework-group VPT2 failure in a fixed C1 group.
 
     Gaussian 16 can classify a nearly tetrahedral input as a spherical top
     before an anharmonic calculation, then reclassify its Eckart-oriented
-    coordinates as C1 because ``NoSymm`` was requested. Link 717 aborts with
-    an internal framework-group inconsistency. This migration is intentionally
-    narrow: it accepts only that native error, removes only ``NoSymm``, keeps
-    the same accepted L2 geometry and method, and archives the entire failed
-    attempt before staging the retry.
+    coordinates as C1. Link 717 aborts with an internal framework-group
+    inconsistency. This migration is intentionally narrow: it accepts only
+    that native error, replaces ``NoSymm`` (or an implicit symmetry setting)
+    with the documented ``Symmetry=(PG=C1)`` cap, keeps the same accepted L2
+    geometry and method, and archives the entire failed attempt before staging
+    the retry.
     """
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
@@ -1071,6 +1072,7 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     output = native.read_text(errors='replace')
     required = (
         'ERROR: Inconsistency found in framework group definition:',
+        'New: C1 - Old: T',
         'Error termination via Lnk1e',
     )
     if (not all(marker in output for marker in required)
@@ -1078,15 +1080,31 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
         raise RuntimeError(
             f'{ident}: native output is not the framework-group VPT2 failure.')
     replacement = deepcopy(task)
-    template, count = re.subn(
-        r'(?i)(?<!\S)NoSymm(?!\S)', '', replacement['input_template'],
-        count=1)
-    if count != 1:
-        raise RuntimeError(f'{ident}: input has no unique NoSymm keyword.')
+    original_template = replacement['input_template']
+    if re.search(r'(?i)Symm(?:etry)?\s*=\s*\(\s*PG\s*=\s*C1\s*\)',
+                 original_template):
+        raise RuntimeError(
+            f'{ident}: input already fixes the Gaussian framework to C1.')
+    occurrences = len(re.findall(
+        r'(?i)(?<!\S)NoSymm(?:etry)?(?!\S)', original_template))
+    if occurrences > 1:
+        raise RuntimeError(f'{ident}: input has multiple NoSymm keywords.')
+    if occurrences == 1:
+        template = re.sub(
+            r'(?i)(?<!\S)NoSymm(?:etry)?(?!\S)', 'Symmetry=(PG=C1)',
+            original_template, count=1)
+    else:
+        template, count = re.subn(
+            r'(?i)(\bFreq\s*=\s*Anharmonic\b)',
+            r'\1 Symmetry=(PG=C1)', original_template, count=1)
+        if count != 1:
+            raise RuntimeError(
+                f'{ident}: input has no unique Freq=Anharmonic keyword.')
     replacement['input_template'] = template
     replacement['recovery'] = {
         'kind': 'gaussian_vpt2_framework_group',
-        'change': 'removed NoSymm; Gaussian determines the molecular group',
+        'change': ('fixed Gaussian framework at C1 with the documented '
+                   'Symmetry=(PG=C1) option'),
         'geometry_changed': False,
     }
     spec['tasks'][spec['tasks'].index(task)] = replacement
@@ -1118,7 +1136,7 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     state['tasks'][ident]['attempt'] = attempt + 1
     state['tasks'][ident]['previous_attempt'] = str(archive)
     state['tasks'][ident]['migration'] = \
-        'Gaussian VPT2 framework-group recovery without NoSymm'
+        'Gaussian VPT2 framework-group recovery with Symmetry=(PG=C1)'
     _clear_blocked_tasks(state)
     _atomic_json(run_dir / 'state.json', state)
     return archive

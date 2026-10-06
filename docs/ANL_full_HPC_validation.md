@@ -903,8 +903,8 @@ reference with its interface run as the base and its post run as both the
 higher-order and correction provider.
 
 Gaussian 16 B.01 can abort methane VPT2 in Link 717 with
-`New: C1 - Old: T` when a legacy prepared input combines a tetrahedral
-framework with `NoSymm`. Recover only that exact failure with:
+`New: C1 - Old: T` when the Eckart-oriented structure and the initial
+tetrahedral framework disagree. Recover only that exact failure with:
 
 ```bash
 .venv/bin/python -m kinbot.anl.dispatch \
@@ -917,10 +917,11 @@ framework with `NoSymm`. Recover only that exact failure with:
 ```
 
 The recovery archives the failed attempt, preserves the exact L2 geometry,
-method, basis, dispersion, resources, and frequency-only character, and
-removes only `NoSymm` so Gaussian uses a consistent molecular framework. New
-graphs use this route directly. The migration refuses unrelated Gaussian
-failures.
+method, basis, dispersion, resources, and frequency-only character, and uses
+Gaussian's documented `Symmetry=(PG=C1)` option to keep one framework group
+throughout the numerical anharmonic calculation. New graphs use this route
+directly. The migration refuses unrelated Gaussian failures and refuses to
+retry a task that already used the C1 cap.
 
 Once the methane and hydrogen composite JSON files exist, generate and solve
 the ethane CBH-0 reaction directly from the three records:

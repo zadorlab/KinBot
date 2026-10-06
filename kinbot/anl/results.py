@@ -628,6 +628,14 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
             or not re.search(r'\bFreq\s*=\s*Anharmonic\b', route,
                              re.IGNORECASE)):
         raise ValueError('Gaussian output does not echo the requested Freq=Anharmonic route.')
+    c1_framework = bool(re.search(
+        r'\bSymm(?:etry)?\s*=\s*\(\s*PG\s*=\s*C1\s*\)', route,
+        re.IGNORECASE))
+    if c1_framework and not re.search(
+            r'^\s*Framework group\s+C1\b', output,
+            re.IGNORECASE | re.MULTILINE):
+        raise ValueError(
+            'Gaussian output does not confirm the requested C1 framework.')
     reported_dispersion = _gaussian_dispersions(output)
     requested_dispersion = dispersion.upper()
     if ((requested_dispersion and requested_dispersion not in reported_dispersion)
@@ -661,6 +669,7 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
     correction = components['total_anharmonic'] - components['harmonic']
     return {'kind': 'gaussian_vpt2', 'method': method, 'basis': basis,
             'dispersion': dispersion.upper(),
+            'framework_group_cap': 'C1' if c1_framework else None,
             'optimized_in_job': bool(re.search(r'\bOpt\s*(?:=|\()', route,
                                                re.IGNORECASE)),
             'zpe_cm_inverse': components,

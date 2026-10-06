@@ -581,6 +581,7 @@ def test_gaussian_framework_group_failure_has_narrow_same_geometry_recovery():
         recovered = (directory / 'vpt2.com').read_text()
         assert 'Freq=Anharmonic' in recovered
         assert 'NoSymm' not in recovered
+        assert 'Symmetry=(PG=C1)' in recovered
         assert 'B2PLYP/cc-pVTZ' in recovered
         workflow = json.loads((run_dir / 'workflow.json').read_text())
         task = next(item for item in workflow['tasks']
@@ -589,6 +590,42 @@ def test_gaussian_framework_group_failure_has_narrow_same_geometry_recovery():
         state = json.loads(state_path.read_text())
         assert state['tasks']['gaussian_vpt2']['status'] == 'staged'
         assert state['tasks']['gaussian_vpt2']['attempt'] == 2
+
+
+def test_gaussian_framework_recovery_adds_c1_to_prior_symmetry_retry():
+    spec = dispatch_spec()
+    task = next(item for item in spec['tasks']
+                if item['id'] == 'gaussian_vpt2')
+    task['input_template'] = task['input_template'].replace(' NoSymm', '')
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        advance(run_dir)
+        _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
+        advance(run_dir)
+        directory = run_dir / 'tasks' / 'gaussian_vpt2'
+        original_geometry = (directory / 'geometry.xyz').read_bytes()
+        (directory / 'vpt2.log').write_text(
+            'Framework group T[O(C),X(H4)]\n'
+            'ERROR: Inconsistency found in framework group definition:\n'
+            'New: C1 - Old: T\n'
+            'Error termination via Lnk1e in l717.exe\n')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['gaussian_vpt2'].update(status='failed', attempt=2)
+        state_path.write_text(json.dumps(state))
+
+        archive = recover_gaussian_vpt2_symmetry(
+            run_dir, 'gaussian_vpt2')
+        assert archive.name == '2'
+        assert 'Symmetry=(PG=C1)' not in (archive / 'vpt2.com').read_text()
+        assert (directory / 'geometry.xyz').read_bytes() == original_geometry
+        recovered = (directory / 'vpt2.com').read_text()
+        assert recovered.count('Symmetry=(PG=C1)') == 1
+        assert 'Freq=Anharmonic Symmetry=(PG=C1)' in recovered
+        state = json.loads(state_path.read_text())
+        assert state['tasks']['gaussian_vpt2']['attempt'] == 3
 
 
 def test_gaussian_symmetry_recovery_rejects_unrelated_failure():

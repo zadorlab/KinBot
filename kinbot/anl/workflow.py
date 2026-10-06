@@ -98,6 +98,8 @@ def task_component(run_dir, task_id, *, key, state_id):
                   if parsed['dispersion'] == 'GD3BJ' else parsed['method'])
         basis = parsed['basis']
         settings['dispersion'] = parsed['dispersion']
+        if parsed.get('framework_group_cap'):
+            settings['framework_group_cap'] = parsed['framework_group_cap']
     elif kind == 'cfour_dboc':
         if 'basis' not in request:
             raise IncompleteRecipeError(

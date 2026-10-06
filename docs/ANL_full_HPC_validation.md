@@ -594,23 +594,27 @@ method-selection and parsing errors without mixing in a geometry difference:
 ```bash
 cd ~/KinBot
 .venv/bin/python -m kinbot.anl.literature prepare-higher-order \
-  ethane-tz-2017 ethane_tz_ccsdt_dz_bare_ucc \
+  ethane-tz-2017 ethane_tz_ccsdt_dz_449cfbd \
   --task ccsdt_dz --max-nodes 1 --partition day-long-cpu
 .venv/bin/python -m kinbot.anl.dispatch preflight \
-  ethane_tz_ccsdt_dz_bare_ucc
+  ethane_tz_ccsdt_dz_449cfbd
 .venv/bin/python -m kinbot.anl.dispatch drive \
-  ethane_tz_ccsdt_dz_bare_ucc --interval 20
+  ethane_tz_ccsdt_dz_449cfbd --interval 20
 .venv/bin/python -m kinbot.anl.literature compare-run \
-  ethane-tz-2017 ethane_tz_ccsdt_dz_bare_ucc \
-  | tee ethane_tz_ccsdt_dz_bare_ucc_literature.json
+  ethane-tz-2017 ethane_tz_ccsdt_dz_449cfbd \
+  | tee ethane_tz_ccsdt_dz_449cfbd_literature.json
 ```
 
 The comparison must pass near `-79.582320541811` hartree, and the generated
 input must contain `rhf` followed by bare `uccsd(t)`.
 
+The Blodgett validation at revision `449cfbd` returned
+`-79.582320352486` hartree, an error of `1.89325e-7` hartree, and passed the
+pinned tolerance.
+
 Next prepare a current base graph from the accepted and hash-verified v5 L2
 geometry. It reruns the L3 Sella optimization through Molpro's normal
-restricted-reference UCCSD(T) path, then fans out the current F12 TZ/QZ,
+RHF-referenced unrestricted CCSD(T) path, then fans out the current F12 TZ/QZ,
 harmonic, and CFOUR DBOC tasks. It does not repeat the L2 optimization or
 Gaussian VPT2 calculation.
 
@@ -620,12 +624,12 @@ base="$PWD/ethane_profiled_hpc_run_v5"
 
 .venv/bin/python -m kinbot.anl.validation \
   prepare-current-base-from-run \
-  "$base/anl_interface" "$base/anl_current_base_ethane_bare_ucc" \
+  "$base/anl_interface" "$base/anl_current_base_ethane_449cfbd" \
   --geometry-task l2_geometry \
   --max-nodes 3 --partition day-long-cpu
 
 .venv/bin/python -m kinbot.anl.dispatch preflight \
-  "$base/anl_current_base_ethane_bare_ucc"
+  "$base/anl_current_base_ethane_449cfbd"
 ```
 
 Run the current base first. Only after its new L3 geometry is complete can the
@@ -641,24 +645,24 @@ nohup bash -lc '
   cd "$HOME/KinBot"
   base="$PWD/ethane_profiled_hpc_run_v5"
   .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$base/anl_current_base_ethane_bare_ucc" --interval 20
+    "$base/anl_current_base_ethane_449cfbd" --interval 20
   .venv/bin/python -m kinbot.anl.validation audit-current-base \
-    "$base/anl_current_base_ethane_bare_ucc" \
-    > "$base/anl_current_base_ethane_bare_ucc_audit.json"
+    "$base/anl_current_base_ethane_449cfbd" \
+    > "$base/anl_current_base_ethane_449cfbd_audit.json"
   .venv/bin/python -m kinbot.anl.validation \
     prepare-post-geometry-from-run \
-    "$base/anl_current_base_ethane_bare_ucc" \
-    "$base/anl_post_geometry_ethane_bare_ucc" \
+    "$base/anl_current_base_ethane_449cfbd" \
+    "$base/anl_post_geometry_ethane_449cfbd" \
     --max-nodes 3 --anl0-only
   .venv/bin/python -m kinbot.anl.dispatch preflight \
-    "$base/anl_post_geometry_ethane_bare_ucc"
+    "$base/anl_post_geometry_ethane_449cfbd"
   .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$base/anl_post_geometry_ethane_bare_ucc" --interval 20
+    "$base/anl_post_geometry_ethane_449cfbd" --interval 20
   .venv/bin/python -m kinbot.anl.validation audit-anl0-post-geometry \
-    "$base/anl_post_geometry_ethane_bare_ucc" \
-    > "$base/anl_post_geometry_ethane_bare_ucc_anl0_audit.json"
-' > ethane_anl_bare_ucc_continuation.log 2>&1 < /dev/null &
-echo $! > ethane_anl_bare_ucc_continuation.pid
+    "$base/anl_post_geometry_ethane_449cfbd" \
+    > "$base/anl_post_geometry_ethane_449cfbd_anl0_audit.json"
+' > ethane_anl_449cfbd.log 2>&1 < /dev/null &
+echo $! > ethane_anl_449cfbd.pid
 disown
 ```
 
@@ -668,11 +672,20 @@ Monitor without mutating either graph:
 base="$PWD/ethane_profiled_hpc_run_v5"
 squeue -u "$USER" -o "%.18i %.30j %.2t %.10M %.10l %R"
 .venv/bin/python -m kinbot.anl.dispatch status \
-  "$base/anl_current_base_ethane_bare_ucc"
+  "$base/anl_current_base_ethane_449cfbd"
 .venv/bin/python -m kinbot.anl.dispatch status \
-  "$base/anl_post_geometry_ethane_bare_ucc"
-tail -f ethane_anl_bare_ucc_continuation.log
+  "$base/anl_post_geometry_ethane_449cfbd"
+tail -f ethane_anl_449cfbd.log
 ```
+
+The completed `449cfbd` continuation produced a common L3 geometry hash of
+`3b499b5022d557e6af706cca1a68949b57c9b6ade480832c60a57e464b26919b`.
+The current-base audit completed the F12 TZ/QZ reference, harmonic ZPE, and
+CFOUR DBOC. The post-geometry audit completed the unrestricted
+CCSD(T)/cc-pVDZ and direct-MRCC CCSDT(Q)/cc-pVDZ pair, both core-valence
+pairs, and both scalar-relativistic tasks. Against the pinned ethane source,
+the harmonic ZPE, DBOC, and CCSDT(Q)-CCSD(T) increment differed by
+`3.0e-8`, `-6.9e-9`, and `-9.9318e-8` hartree, respectively.
 
 ### Superseded v5 recovery record
 
@@ -790,16 +803,16 @@ uses another state-specific value.
 base="$PWD/ethane_profiled_hpc_run_v5"
 .venv/bin/python -m kinbot.anl.validation assemble-anl0-f12 \
   "$base/anl_interface" \
-  "$base/anl_post_geometry_ethane_bare_ucc" \
-  "$base/anl_post_geometry_ethane_bare_ucc" \
-  "$base/ethane_profiled_anl0_f12.json" \
+  "$base/anl_post_geometry_ethane_449cfbd" \
+  "$base/anl_post_geometry_ethane_449cfbd" \
+  "$base/ethane_profiled_anl0_f12_449cfbd.json" \
   --state-id ethane-singlet \
   --spin-orbit-hartree 0.0 \
   --spin-orbit-backend known_zero \
   --spin-orbit-source "nondegenerate closed-shell ethane validation policy" \
-  --base-run "$base/anl_current_base_ethane_bare_ucc" \
+  --base-run "$base/anl_current_base_ethane_449cfbd" \
   --vpt2-review "$base/ethane_vpt2_review.json"
-cat "$base/ethane_profiled_anl0_f12.json"
+cat "$base/ethane_profiled_anl0_f12_449cfbd.json"
 ```
 
 The methyl minimum can then be staged from the already accepted KinBot row,

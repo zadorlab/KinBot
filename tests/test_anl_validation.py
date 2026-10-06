@@ -19,11 +19,13 @@ from kinbot.anl import validation as validation_module
 from kinbot.anl.validation import (common_corrections_validation_spec,
                                    assemble_profiled_anl0_f12,
                                    audit_anl0_post_geometry_run,
+                                   audit_composite_run,
                                    audit_current_base_run,
                                    audit_higher_order_run,
                                    audit_interface_run,
                                    audit_post_geometry_run,
                                    current_base_validation_spec,
+                                   composite_validation_spec,
                                    interface_validation_spec,
                                    higher_order_validation_spec,
                                    audit_kinbot_run,
@@ -243,6 +245,33 @@ def test_post_geometry_graph_can_limit_execution_to_anl0():
     assert 'ccsdtqp_dz' not in tasks
 
 
+def test_composite_graph_releases_every_property_after_one_l3_barrier():
+    spec = composite_validation_spec(
+        _molecule(), max_nodes=4, partition='day-long-cpu', anl0_only=True)
+    assert spec['name'] == 'anl-composite-validation'
+    assert spec['limits'] == {'max_nodes': 4}
+    tasks = {task['id']: task for task in spec['tasks']}
+    assert set(tasks) == {
+        'l2_geometry', 'l3_geometry', 'harmonic', 'f12_tz', 'f12_qz',
+        'cfour_dboc', 'gaussian_vpt2', 'ccsdt_dz', 'ccsdtq_dz',
+        'cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
+        'rel_dkh', 'rel_nonrel'}
+    assert tasks['l2_geometry']['geometry_from'] == 'initial'
+    assert tasks['l3_geometry']['geometry_from'] == 'l2_geometry'
+    assert tasks['gaussian_vpt2']['geometry_from'] == 'l2_geometry'
+    assert tasks['gaussian_vpt2']['depends_on'] == ['l3_geometry']
+    property_ids = set(tasks) - {'l2_geometry', 'l3_geometry',
+                                 'gaussian_vpt2'}
+    assert all(tasks[ident]['geometry_from'] == 'l3_geometry'
+               for ident in property_ids)
+    assert spec['intent']['anl0_only'] is True
+    resolved = deepcopy(spec)
+    for task in resolved['tasks']:
+        task['resources'].update(cores=4, memory_mb=64000,
+                                 partition='test')
+    validate_spec(resolved)
+
+
 def test_two_electron_post_graph_skips_impossible_higher_rank_job():
     hydrogen = {
         'symbols': ['H', 'H'],
@@ -323,6 +352,34 @@ def test_post_geometry_audit_requires_and_combines_both_groups(monkeypatch):
     assert result['status'] == 'post_geometry_interface_complete'
     assert result['geometry_sha256'] == '4' * 64
     assert len(result['task_statuses']) == 11
+
+
+def test_composite_audit_combines_base_vpt2_and_anl0_fanout(monkeypatch):
+    spec = composite_validation_spec(_molecule(), anl0_only=True)
+    state = {'tasks': {task['id']: {'status': 'complete'}
+                       for task in spec['tasks']}}
+    monkeypatch.setattr(
+        validation_module, '_load',
+        lambda run_dir: (Path(run_dir), spec, state))
+    monkeypatch.setattr(
+        validation_module, '_verified_task_result',
+        lambda run_dir, task_id: (
+            None, None, None, None, None,
+            {'review_required': True, 'warnings': ['native warning'],
+             'anharmonic_correction_hartree': -0.001}))
+    monkeypatch.setattr(
+        validation_module, 'audit_current_base_run',
+        lambda run_dir: {'status': 'current_base_interface_complete'})
+    monkeypatch.setattr(
+        validation_module, 'audit_anl0_post_geometry_run',
+        lambda run_dir: {'status': 'anl0_post_geometry_interface_complete'})
+    result = audit_composite_run('/synthetic/composite')
+    assert result['status'] == 'composite_anl_interface_complete'
+    assert result['requested_ladder_head'] == 'ANL0-F12'
+    assert result['base']['status'] == 'current_base_interface_complete'
+    assert result['post_geometry']['status'] == \
+        'anl0_post_geometry_interface_complete'
+    assert result['vpt2']['review_required'] is True
 
 
 def test_anl0_post_geometry_audit_ignores_anl1_only_failures(monkeypatch):
@@ -545,6 +602,62 @@ def test_profiled_anl0_f12_assembler_uses_all_required_components(monkeypatch):
     assert result['zero_k_hartree'] == expected_electronic + expected_zpe
 
 
+def test_profiled_anl0_f12_assembler_accepts_one_composite_run(monkeypatch):
+    run = Path('/synthetic/composite').resolve()
+    spec = {'name': 'anl-composite-validation',
+            'molecule': _molecule(), 'tasks': []}
+    monkeypatch.setattr(
+        validation_module, '_load',
+        lambda run_dir: (run, spec, {'tasks': {}}))
+    l2_hash, l3_hash = '2' * 64, '3' * 64
+    monkeypatch.setattr(
+        validation_module, 'molecule_from_completed_run',
+        lambda run_dir, task: {'source': {'geometry_sha256':
+                                           l2_hash if task == 'l2_geometry'
+                                           else l3_hash}})
+
+    def unexpected_import(*args):
+        raise AssertionError('A single composite run must not be treated as '
+                             'an imported child graph.')
+
+    monkeypatch.setattr(
+        validation_module, '_same_imported_geometry', unexpected_import)
+    monkeypatch.setattr(
+        validation_module, '_same_imported_l3_geometry', unexpected_import)
+    equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ')
+    components = {}
+    for index, item in enumerate(equation.requirements, 1):
+        if item.key == 'spin_orbit':
+            continue
+        components[item.key] = ComponentResult(
+            key=item.key, value_hartree=index / 1000,
+            quantity=item.quantity, method=item.method, basis=item.basis,
+            backend=item.backends[0], state_id='methane-singlet', charge=0,
+            multiplicity=1,
+            geometry_sha256=(l2_hash if item.geometry_role == 'l2'
+                             else l3_hash),
+            source_sha256=hashlib.sha256(item.key.encode()).hexdigest(),
+            source=f'{item.key}.out', settings=dict(item.settings))
+    monkeypatch.setattr(
+        validation_module, 'cbs_task_component',
+        lambda *args, **kwargs: components['reference_cbs'])
+    monkeypatch.setattr(
+        validation_module, 'task_component',
+        lambda run_dir, task_id, *, key, state_id: components[key])
+    monkeypatch.setattr(
+        validation_module, 'core_valence_task_component',
+        lambda *args, **kwargs: components['core_valence_cbs'])
+    monkeypatch.setattr(
+        validation_module, 'scalar_relativistic_task_component',
+        lambda *args, **kwargs: components['scalar_relativistic'])
+    result = assemble_profiled_anl0_f12(
+        run, run, run, state_id='methane-singlet',
+        spin_orbit_hartree=0., spin_orbit_source='closed-shell test',
+        spin_orbit_backend='known_zero')
+    assert result['status'] == 'complete'
+    assert result['geometry_sha256'] == {'l2': l2_hash, 'l3': l3_hash}
+
+
 def test_quality_review_is_bound_to_exact_flagged_native_output(tmp_path):
     component = ComponentResult(
         key='vpt2_correction', value_hartree=-0.001,
@@ -678,6 +791,28 @@ def test_prepare_from_smiles_cli_stages_general_graph(monkeypatch):
     assert captured['spec']['limits']['max_nodes'] == 2
     assert all(task['resources']['partition'] == 'day-long-cpu'
                for task in captured['spec']['tasks'])
+
+
+def test_prepare_composite_from_smiles_cli_stages_one_graph(monkeypatch):
+    captured = {}
+
+    def fake_prepare(spec, run_dir):
+        captured['spec'] = spec
+        captured['run_dir'] = Path(run_dir)
+        return Path(run_dir)
+
+    monkeypatch.setattr(validation_module, 'prepare', fake_prepare)
+    assert validation_main([
+        'prepare-composite-from-smiles', 'C', '/synthetic/methane-full',
+        '--max-nodes', '2', '--partition', 'day-long-cpu',
+        '--anl0-only']) == 0
+    spec = captured['spec']
+    assert spec['name'] == 'anl-composite-validation'
+    assert spec['intent']['requested_ladder_head'] == 'ANL0-F12'
+    assert spec['limits']['max_nodes'] == 2
+    assert captured['run_dir'] == Path('/synthetic/methane-full')
+    assert all(task['resources']['partition'] == 'day-long-cpu'
+               for task in spec['tasks'])
 
 
 def test_prepare_post_geometry_cli_builds_one_shared_graph(monkeypatch):

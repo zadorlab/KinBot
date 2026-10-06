@@ -5261,3 +5261,31 @@ further after the corresponding lower term has already been validated.
 A failing comparison is evidence to inspect geometry convention, reference,
 basis, method echo, parser selection, and program version. Its tolerance must
 not be widened merely to make a mismatched calculation pass.
+
+---
+
+# 109. Single-graph geometry barrier and ANL fan-out (2026-10-06)
+
+The base/post-geometry split was transitional validation scaffolding, not a
+required scientific dependency. Once L3 geometry is accepted, the harmonic,
+F12, DBOC, higher-order, core-valence, scalar-relativistic, and other
+independent electronic-structure jobs can run concurrently. Gaussian VPT2
+uses its matching L2 geometry, but waits for the same L3 completion barrier
+so no property work starts before geometry preparation finishes.
+
+`anl-composite-validation` now represents this as one dispatcher DAG:
+
+```text
+L2 geometry -> L3 geometry -> all independent property calculations
+```
+
+All L3 property tasks declare `geometry_from: l3_geometry`; VPT2 declares
+`geometry_from: l2_geometry` and `depends_on: [l3_geometry]`. One global
+`max_nodes` counter throttles the fan-out, and every Slurm task remains
+exclusive. The graph contains only one conventional CCSD(T)/DZ task, shared
+by the base and higher-order expressions. It can be prepared from SMILES or
+an accepted KinBot database record with `prepare-composite-from-smiles` or
+`prepare-composite-from-db`, audited with `audit-composite`, and passed as the
+interface, base, higher-order, and correction provider to the existing ANL0
+assembler. Older interface/base/post commands remain available for immutable
+run directories and do not change existing KinBot input formats.

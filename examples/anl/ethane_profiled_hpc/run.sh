@@ -65,13 +65,35 @@ reaction=${parent}_hom_sci_1_2
 "$python_bin" -m kinbot.anl.validation gate-kinbot . "$reaction" \
     --parent "$parent" --hir-points 4 --require-rotdpy-execution \
     | tee kinbot_gate.json
-if [ ! -f anl_interface/workflow.json ]; then
-    "$python_bin" -m kinbot.anl.validation prepare-from-db \
-        kinbot.db "$parent_job" anl_interface --max-nodes "$max_nodes" \
-        --partition "$partition"
-fi
-"$python_bin" -m kinbot.anl.dispatch preflight anl_interface
-"$python_bin" -m kinbot.anl.dispatch drive anl_interface --interval 20
-"$python_bin" -m kinbot.anl.validation audit anl_interface | tee anl_interface_audit.json
 
-echo "Validation completed. Review $run_dir/anl_interface_audit.json"
+# Preserve an already prepared legacy smoke graph. Fresh runs use one
+# dispatcher DAG so every independent L3 consumer shares the same fan-out and
+# global max_nodes limit. ANL0 is the affordable default; request the complete
+# ANL1 validation set explicitly with KINBOT_ANL_SCOPE=anl1.
+if [ -f anl_interface/workflow.json ] && [ ! -f anl_composite/workflow.json ]; then
+    anl_run=anl_interface
+    audit_action=audit
+else
+    anl_run=anl_composite
+    audit_action=audit-composite
+    anl_scope=${KINBOT_ANL_SCOPE:-anl0}
+    case "$anl_scope" in
+        anl0) anl_scope_args=(--anl0-only) ;;
+        anl1) anl_scope_args=() ;;
+        *)
+            echo "KINBOT_ANL_SCOPE must be anl0 or anl1: $anl_scope" >&2
+            exit 2
+            ;;
+    esac
+    if [ ! -f "$anl_run/workflow.json" ]; then
+        "$python_bin" -m kinbot.anl.validation prepare-composite-from-db \
+            kinbot.db "$parent_job" "$anl_run" --max-nodes "$max_nodes" \
+            --partition "$partition" "${anl_scope_args[@]}"
+    fi
+fi
+"$python_bin" -m kinbot.anl.dispatch preflight "$anl_run"
+"$python_bin" -m kinbot.anl.dispatch drive "$anl_run" --interval 20
+"$python_bin" -m kinbot.anl.validation "$audit_action" "$anl_run" \
+    | tee "${anl_run}_audit.json"
+
+echo "Validation completed. Review $run_dir/${anl_run}_audit.json"

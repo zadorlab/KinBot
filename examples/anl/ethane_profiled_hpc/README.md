@@ -1,7 +1,7 @@
 # Profiled ethane HPC validation
 
 This external-site test exercises one automatic KinBot reaction workflow and
-the portable non-MRCC ANL interfaces:
+the portable ANL interfaces:
 
 1. FairChem UMA L1 initial optimization, conformer search, ethane C-C
    homolytic reaction discovery, and product optimization.
@@ -18,17 +18,18 @@ the portable non-MRCC ANL interfaces:
    and a completed, hash-verified rotdPy result.
 5. A fresh, accepted L2 parent geometry exported from `kinbot.db` into the
    exclusive-node dispatcher.
-6. Molpro CCSD(T)/cc-pVTZ ASE/Sella geometry, followed by concurrent Molpro
-   harmonic, F12/TZ, F12/QZ, and CCSD(T)/DZ jobs, CFOUR DBOC, and a
-   frequency-only Gaussian VPT2 calculation.
-7. Native-output hash verification, method-aware parsing, and F12 CBS
-   extrapolation.
+6. Molpro CCSD(T)/cc-pVTZ ASE/Sella geometry, followed by one globally
+   throttled fan-out containing Molpro harmonic, F12, core-valence, and
+   relativistic jobs; direct-MRCC higher-order jobs; CFOUR DBOC; and a
+   frequency-only Gaussian VPT2 calculation on its matching L2 geometry.
+7. Native-output hash verification, method-aware parsing, correction
+   assembly, and one-run ANL audit.
 
-The final audit status is intentionally
-`interface_complete_recipe_incomplete`. MRCC is disabled, and the branch does
-not yet have a pinned ANL1-F12 equation or production providers for every
-core-valence, scalar-relativistic, spin-orbit, and higher-order component.
-Therefore this test must not publish an ANL1-F12 energy or heat of formation.
+Fresh runs create `anl_composite`. The affordable default is the complete
+ANL0/ANL0-F12 interface set. Set `KINBOT_ANL_SCOPE=anl1` to include the
+ANL1-only CCSDT(Q)/cc-pVTZ and CCSDTQ(P)/cc-pVDZ jobs; these may require days.
+An existing `anl_interface` directory is treated as immutable legacy state
+and continues through its original interface-only audit.
 
 Run `run.sh PARTITION MAX_CONCURRENT_NODES [FAIRCHEM_MODEL]` after
 installing FairChem, obtaining access to the UMA model, loading the licensed
@@ -36,8 +37,9 @@ QC programs, initializing and installing the private `external/ROTD_py`
 submodule, and activating the KinBot environment. `FAIRCHEM_MODEL` may be a
 registered name or, preferably for offline compute nodes, the absolute path
 to a previously downloaded checkpoint. It can also be supplied through
-`KINBOT_FAIRCHEM_MODEL`. The script is restartable: KinBot reuses its database
-and the ANL dispatcher reuses its immutable workflow state.
+`KINBOT_FAIRCHEM_MODEL`. `KINBOT_ANL_SCOPE` accepts `anl0` or `anl1`. The
+script is restartable: KinBot reuses its database and the ANL dispatcher
+reuses its immutable workflow state.
 
 The methyl product still receives its ordinary minimum Hessian because MESS
 needs fragment partition functions. The barrierless reaction itself never

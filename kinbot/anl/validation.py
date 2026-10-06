@@ -440,11 +440,71 @@ def post_geometry_validation_spec(molecule, *, max_nodes=3, partition=None,
     }
 
 
+def composite_validation_spec(molecule, *, max_nodes=3, partition=None,
+                              mrcc_command='dmrcc', anl0_only=False):
+    """Build one L2 -> L3 -> parallel ANL validation graph.
+
+    Every electronic, harmonic, anharmonic, DBOC, core-valence, and
+    scalar-relativistic task that consumes the accepted L3 geometry belongs
+    to this graph.  Gaussian VPT2 consumes the accepted L2 geometry, but is
+    held behind the same L3 completion barrier so all property jobs fan out
+    together under one global ``max_nodes`` limit.
+
+    The older interface/base/post builders remain available for reading and
+    continuing immutable validation runs.  New end-to-end runs should use
+    this graph so no external driver has to export L3 and prepare a second
+    dispatcher directory.
+    """
+    interface = interface_validation_spec(
+        molecule, max_nodes=max_nodes, partition=partition)
+    post = post_geometry_validation_spec(
+        molecule, max_nodes=max_nodes, partition=partition,
+        mrcc_command=mrcc_command, anl0_only=anl0_only)
+
+    # The interface probe carries a conventional CCSD(T)/DZ task.  The
+    # higher-order group supplies the same physical component with the task
+    # identity used by recipe assembly, so retain exactly one copy.
+    tasks = [deepcopy(task) for task in interface['tasks']
+             if task['id'] != 'ccsdt_dz']
+    for task in post['tasks']:
+        task = deepcopy(task)
+        task['geometry_from'] = 'l3_geometry'
+        tasks.append(task)
+    identifiers = [task['id'] for task in tasks]
+    if len(identifiers) != len(set(identifiers)):
+        raise RuntimeError('Composite validation task identifiers overlap.')
+
+    return {
+        'schema': 1, 'name': 'anl-composite-validation',
+        'molecule': molecule, 'limits': {'max_nodes': max_nodes},
+        'tasks': tasks,
+        'intent': {
+            'claim': 'unified-anl-interface-validation-only',
+            'requested_ladder_head': ('ANL0-F12' if anl0_only
+                                      else 'ANL1-F12'),
+            'anl0_only': anl0_only,
+            'higher_order_equation': post['intent']['higher_order_equation'],
+            'backend_policy': post['intent']['backend_policy'],
+            'selected_higher_order_tasks':
+                post['intent']['selected_higher_order_tasks'],
+            'rank_exact_higher_order':
+                post['intent']['rank_exact_higher_order'],
+            'core_valence_equation': post['intent']['core_valence_equation'],
+            'scalar_relativistic_equation':
+                post['intent']['scalar_relativistic_equation'],
+            'scheduling': (
+                'L2 geometry, then L3 geometry, then one globally throttled '
+                'parallel fan-out of every independent property task'),
+        },
+    }
+
+
 def audit_higher_order_run(run_dir):
     """Reparse a complete full or targeted higher-order interface probe."""
     _, spec, state = _load(run_dir)
     if spec.get('name') not in ('anl1-higher-order-interface-validation',
-                                 'anl-post-geometry-validation'):
+                                 'anl-post-geometry-validation',
+                                 'anl-composite-validation'):
         raise ValueError('Run is not an ANL1 higher-order validation graph.')
     declared = {task['id'] for task in spec['tasks']}
     identifiers = tuple(ident for ident in _HIGHER_ORDER_TASK_IDS
@@ -507,7 +567,8 @@ def audit_anl0_post_geometry_run(run_dir):
     prevent an independently complete ANL0-F12 result from being audited.
     """
     run_dir, spec, state = _load(run_dir)
-    if spec.get('name') != 'anl-post-geometry-validation':
+    if spec.get('name') not in ('anl-post-geometry-validation',
+                                 'anl-composite-validation'):
         raise ValueError('Run is not a combined post-geometry validation graph.')
     rank_exact = _rank_exact_higher_order(spec['molecule'])
     required = (('ccsdt_dz',) if rank_exact else
@@ -552,8 +613,10 @@ def audit_anl0_post_geometry_run(run_dir):
             'ccsdtq_dz': asdict(high), 'ccsdt_dz': asdict(low)},
         'rank_exact_higher_order': rank_exact,
         'common_corrections': corrections,
-        'geometry_sha256': spec.get('molecule', {}).get(
-            'source', {}).get('geometry_sha256'),
+        'geometry_sha256': (
+            spec.get('molecule', {}).get('source', {}).get('geometry_sha256')
+            or state['tasks'].get('l3_geometry', {}).get(
+                'final_geometry_sha256')),
     }
 
 
@@ -561,7 +624,8 @@ def audit_common_corrections_run(run_dir):
     """Reparse and combine completed core-valence and DKH correction jobs."""
     _, spec, state = _load(run_dir)
     if spec.get('name') not in ('anl-common-corrections-validation',
-                                 'anl-post-geometry-validation'):
+                                 'anl-post-geometry-validation',
+                                 'anl-composite-validation'):
         raise ValueError('Run is not an ANL common-corrections graph.')
     identifiers = ('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
                    'rel_dkh', 'rel_nonrel')
@@ -602,10 +666,15 @@ def audit_common_corrections_run(run_dir):
 def audit_post_geometry_run(run_dir):
     """Audit the shared post-geometry fan-out and both correction groups."""
     run_dir, spec, state = _load(run_dir)
-    if spec.get('name') != 'anl-post-geometry-validation':
+    if spec.get('name') not in ('anl-post-geometry-validation',
+                                 'anl-composite-validation'):
         raise ValueError('Run is not a combined post-geometry validation graph.')
-    statuses = {task['id']: state['tasks'].get(task['id'], {}).get(
-        'status', 'waiting') for task in spec['tasks']}
+    post_ids = set(_HIGHER_ORDER_TASK_IDS) | {
+        'cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
+        'rel_dkh', 'rel_nonrel'}
+    statuses = {
+        task['id']: state['tasks'].get(task['id'], {}).get('status', 'waiting')
+        for task in spec['tasks'] if task['id'] in post_ids}
     if any(value != 'complete' for value in statuses.values()):
         raise RuntimeError(f'Post-geometry run is incomplete: {statuses}')
     source = spec.get('molecule', {}).get('source', {})
@@ -614,7 +683,10 @@ def audit_post_geometry_run(run_dir):
     return {
         'status': 'post_geometry_interface_complete',
         'task_statuses': statuses,
-        'geometry_sha256': source.get('geometry_sha256'),
+        'geometry_sha256': (
+            source.get('geometry_sha256')
+            or state['tasks'].get('l3_geometry', {}).get(
+                'final_geometry_sha256')),
         'higher_order': higher,
         'common_corrections': corrections,
     }
@@ -835,7 +907,9 @@ def assemble_profiled_anl0_f12(
     completed L3 result.
     """
     interface_run, interface_spec, _ = _load(interface_run)
-    if interface_spec.get('name') != 'anl1-f12-non-mrcc-interface-validation':
+    if interface_spec.get('name') not in (
+            'anl1-f12-non-mrcc-interface-validation',
+            'anl-composite-validation'):
         raise ValueError('Interface run has the wrong workflow type.')
     if not isinstance(state_id, str) or not state_id.strip():
         raise ValueError('state_id must be a nonempty string.')
@@ -848,14 +922,18 @@ def assemble_profiled_anl0_f12(
         base_run = interface_run
     else:
         base_run, base_spec, _ = _load(base_run)
-        if base_spec.get('name') != 'anl-current-base-validation':
+        if base_spec.get('name') not in ('anl-current-base-validation',
+                                         'anl-composite-validation'):
             raise ValueError('Base run has the wrong workflow type.')
-        _same_imported_geometry(
-            interface_run, base_run, l2_hash, 'L2', 'l2_geometry')
+        if base_run != interface_run:
+            _same_imported_geometry(
+                interface_run, base_run, l2_hash, 'L2', 'l2_geometry')
     l3 = molecule_from_completed_run(base_run, 'l3_geometry')
     l3_hash = l3['source']['geometry_sha256']
-    _same_imported_l3_geometry(base_run, higher_order_run, l3_hash)
-    _same_imported_l3_geometry(base_run, corrections_run, l3_hash)
+    if Path(higher_order_run).resolve() != base_run:
+        _same_imported_l3_geometry(base_run, higher_order_run, l3_hash)
+    if Path(corrections_run).resolve() != base_run:
+        _same_imported_l3_geometry(base_run, corrections_run, l3_hash)
 
     equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ',
                       multiplicity=multiplicity)
@@ -978,10 +1056,18 @@ def audit_interface_run(run_dir):
 def audit_current_base_run(run_dir):
     """Audit the current unrestricted L3/base continuation graph."""
     _, spec, state = _load(run_dir)
-    if spec.get('name') != 'anl-current-base-validation':
+    if spec.get('name') not in ('anl-current-base-validation',
+                                 'anl-composite-validation'):
         raise ValueError('Run is not a current ANL base validation graph.')
-    statuses = {task['id']: state['tasks'].get(task['id'], {}).get(
-        'status', 'waiting') for task in spec['tasks']}
+    required_ids = {
+        'l3_geometry', 'harmonic', 'f12_tz', 'f12_qz', 'cfour_dboc'}
+    declared = {task['id'] for task in spec['tasks']}
+    missing = sorted(required_ids - declared)
+    if missing:
+        raise RuntimeError(f'Current base tasks are absent: {missing}')
+    statuses = {
+        ident: state['tasks'].get(ident, {}).get('status', 'waiting')
+        for ident in sorted(required_ids)}
     if any(value != 'complete' for value in statuses.values()):
         raise RuntimeError(f'Current base run is incomplete: {statuses}')
     equation = recipe(
@@ -1005,6 +1091,36 @@ def audit_current_base_run(run_dir):
         'harmonic_zpe_hartree': harmonic.value_hartree,
         'dboc_hartree': dboc.value_hartree,
         'geometry_sha256': reference.geometry_sha256,
+    }
+
+
+def audit_composite_run(run_dir):
+    """Audit one unified geometry and ANL property graph."""
+    run_dir, spec, state = _load(run_dir)
+    if spec.get('name') != 'anl-composite-validation':
+        raise ValueError('Run is not a unified ANL validation graph.')
+    statuses = {
+        task['id']: state['tasks'].get(task['id'], {}).get('status', 'waiting')
+        for task in spec['tasks']}
+    if any(value != 'complete' for value in statuses.values()):
+        raise RuntimeError(f'Composite ANL run is incomplete: {statuses}')
+    *_, vpt2 = _verified_task_result(run_dir, 'gaussian_vpt2')
+    post = (audit_anl0_post_geometry_run(run_dir)
+            if spec.get('intent', {}).get('anl0_only')
+            else audit_post_geometry_run(run_dir))
+    return {
+        'status': 'composite_anl_interface_complete',
+        'requested_ladder_head':
+            spec.get('intent', {}).get('requested_ladder_head'),
+        'task_statuses': statuses,
+        'base': audit_current_base_run(run_dir),
+        'post_geometry': post,
+        'vpt2': {
+            'review_required': vpt2.get('review_required', False),
+            'warnings': vpt2.get('warnings', []),
+            'anharmonic_correction_hartree':
+                vpt2['anharmonic_correction_hartree'],
+        },
     }
 
 
@@ -1145,8 +1261,30 @@ def main(argv=None):
     smiles_stage.add_argument('--random-seed', type=int, default=312)
     smiles_stage.add_argument('--max-nodes', type=int, default=3)
     smiles_stage.add_argument('--partition')
+    composite_db = commands.add_parser('prepare-composite-from-db')
+    composite_db.add_argument('database', type=Path)
+    composite_db.add_argument('job')
+    composite_db.add_argument('run_dir', type=Path)
+    composite_db.add_argument('--charge', type=int, default=0)
+    composite_db.add_argument('--multiplicity', type=int, default=1)
+    composite_db.add_argument('--max-nodes', type=int, default=3)
+    composite_db.add_argument('--partition')
+    composite_db.add_argument('--mrcc-command', default='dmrcc')
+    composite_db.add_argument('--anl0-only', action='store_true')
+    composite_smiles = commands.add_parser('prepare-composite-from-smiles')
+    composite_smiles.add_argument('smiles')
+    composite_smiles.add_argument('run_dir', type=Path)
+    composite_smiles.add_argument('--charge', type=int, default=0)
+    composite_smiles.add_argument('--multiplicity', type=int, default=1)
+    composite_smiles.add_argument('--random-seed', type=int, default=312)
+    composite_smiles.add_argument('--max-nodes', type=int, default=3)
+    composite_smiles.add_argument('--partition')
+    composite_smiles.add_argument('--mrcc-command', default='dmrcc')
+    composite_smiles.add_argument('--anl0-only', action='store_true')
     audit = commands.add_parser('audit')
     audit.add_argument('run_dir', type=Path)
+    audit_composite = commands.add_parser('audit-composite')
+    audit_composite.add_argument('run_dir', type=Path)
     prepare_base = commands.add_parser('prepare-current-base-from-run')
     prepare_base.add_argument('source_run', type=Path)
     prepare_base.add_argument('run_dir', type=Path)
@@ -1234,6 +1372,10 @@ def main(argv=None):
         print(json.dumps(audit_interface_run(args.run_dir), indent=2,
                          sort_keys=True))
         return 0
+    if args.action == 'audit-composite':
+        print(json.dumps(audit_composite_run(args.run_dir), indent=2,
+                         sort_keys=True))
+        return 0
     if args.action == 'audit-current-base':
         print(json.dumps(audit_current_base_run(args.run_dir), indent=2,
                          sort_keys=True))
@@ -1278,7 +1420,9 @@ def main(argv=None):
                                'prepare-higher-order-from-run',
                                'prepare-common-corrections-from-run',
                                'prepare-post-geometry-from-run')
-    from_smiles = args.action in ('from-smiles', 'prepare-from-smiles')
+    from_smiles = args.action in (
+        'from-smiles', 'prepare-from-smiles',
+        'prepare-composite-from-smiles')
     if from_run:
         molecule = molecule_from_completed_run(
             args.source_run, geometry_task=args.geometry_task)
@@ -1296,7 +1440,13 @@ def main(argv=None):
     is_corrections = args.action == 'prepare-common-corrections-from-run'
     is_post = args.action == 'prepare-post-geometry-from-run'
     is_base = args.action == 'prepare-current-base-from-run'
-    if is_base:
+    is_composite = args.action in ('prepare-composite-from-db',
+                                   'prepare-composite-from-smiles')
+    if is_composite:
+        spec = composite_validation_spec(
+            molecule, max_nodes=args.max_nodes, partition=args.partition,
+            mrcc_command=args.mrcc_command, anl0_only=args.anl0_only)
+    elif is_base:
         spec = current_base_validation_spec(
             molecule, max_nodes=args.max_nodes, partition=args.partition)
     elif is_higher:

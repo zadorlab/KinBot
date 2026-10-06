@@ -410,9 +410,11 @@ Monitor either layer with:
 
 ```bash
 cd ~/KinBot
+anl_run=ethane_profiled_hpc_run_v5/anl_composite
+test -f "$anl_run/workflow.json" || \
+  anl_run=ethane_profiled_hpc_run_v5/anl_interface
 squeue -u "$USER"
-.venv/bin/python -m kinbot.anl.dispatch status \
-  ethane_profiled_hpc_run_v5/anl_interface
+.venv/bin/python -m kinbot.anl.dispatch status "$anl_run"
 .venv/bin/python -m kinbot.anl.dispatch status \
   ethane_profiled_hpc_run_v5/vrctst/molpro/dispatch
 tail -f ethane_profiled_hpc_run_v5/kinbot.log
@@ -469,10 +471,12 @@ For a failed dispatcher task, inspect its `execution.json`, `slurm.stderr`,
 and native output before retrying:
 
 ```bash
+anl_run=ethane_profiled_hpc_run_v5/anl_composite
+test -f "$anl_run/workflow.json" || \
+  anl_run=ethane_profiled_hpc_run_v5/anl_interface
 .venv/bin/python -m kinbot.anl.dispatch retry \
-  ethane_profiled_hpc_run_v5/anl_interface TASK_ID
-.venv/bin/python -m kinbot.anl.dispatch drive \
-  ethane_profiled_hpc_run_v5/anl_interface --interval 20
+  "$anl_run" TASK_ID
+.venv/bin/python -m kinbot.anl.dispatch drive "$anl_run" --interval 20
 ```
 
 Use `retry` only when the native calculation failed. If the native program
@@ -481,7 +485,7 @@ and reparse the preserved output without submitting another licensed job:
 
 ```bash
 .venv/bin/python -m kinbot.anl.dispatch reparse \
-  ethane_profiled_hpc_run_v5/anl_interface TASK_ID
+  "$anl_run" TASK_ID
 ```
 
 This operation requires the task's declared native success marker, unchanged
@@ -494,13 +498,14 @@ parser pass.
 Review the final machine-readable report:
 
 ```bash
-cat ethane_profiled_hpc_run_v5/anl_interface_audit.json
+cat "${anl_run}_audit.json"
 cat ethane_profiled_hpc_run_v5/kinbot_gate.json
 ```
 
-The report is acceptable for this validation only when every task is
-`complete`, the native parsers are listed, a finite F12 CBS value is present,
-and the top-level status remains `interface_complete_recipe_incomplete`.
+The report is acceptable only when every declared task is `complete`, the
+native parsers and derived corrections are present, and a new unified run has
+top-level status `composite_anl_interface_complete`. An immutable legacy
+`anl_interface` run retains its historical interface audit status.
 The KinBot gate must separately report `kinbot_reaction_complete`.
 
 Do not resume an older run directory that already recorded failed HIR or
@@ -823,7 +828,10 @@ then runs the same Gaussian/Sella L2 optimization, Molpro/Sella L3
 optimization, and native component graph. The embedded coordinates are never
 used as a final energy geometry. Diatomics use Cartesian Sella coordinates.
 
-Prepare methane and hydrogen with one exclusive node available to each graph:
+For a fresh reference calculation, prepare one composite graph per species.
+Each graph runs L2 and L3 serially, then releases every independent property
+calculation through its one `max_nodes` counter. `--anl0-only` omits the
+ANL1-only TZ quadruples and DZ pentuples jobs.
 
 ```bash
 cd ~/KinBot
@@ -831,19 +839,50 @@ base="$PWD/ethane_profiled_hpc_run_v5"
 refs="$base/cbh0_reference_graphs"
 mkdir -p "$refs"
 
-.venv/bin/python -m kinbot.anl.validation prepare-from-smiles \
-  C "$refs/methane_interface" \
-  --charge 0 --multiplicity 1 --max-nodes 1 --partition day-long-cpu
-.venv/bin/python -m kinbot.anl.validation prepare-from-smiles \
-  '[H][H]' "$refs/hydrogen_interface" \
-  --charge 0 --multiplicity 1 --max-nodes 1 --partition day-long-cpu
+.venv/bin/python -m kinbot.anl.validation prepare-composite-from-smiles \
+  C "$refs/methane_composite" \
+  --charge 0 --multiplicity 1 --max-nodes 1 --partition day-long-cpu \
+  --anl0-only
+.venv/bin/python -m kinbot.anl.validation prepare-composite-from-smiles \
+  '[H][H]' "$refs/hydrogen_composite" \
+  --charge 0 --multiplicity 1 --max-nodes 1 --partition day-long-cpu \
+  --anl0-only
 
-.venv/bin/python -m kinbot.anl.dispatch preflight "$refs/methane_interface"
-.venv/bin/python -m kinbot.anl.dispatch preflight "$refs/hydrogen_interface"
+.venv/bin/python -m kinbot.anl.dispatch preflight "$refs/methane_composite"
+.venv/bin/python -m kinbot.anl.dispatch preflight "$refs/hydrogen_composite"
 ```
 
-Run the independent graphs concurrently, then prepare each post-geometry
-ANL0 fan-out from its exact accepted L3 geometry:
+No second graph is prepared after L3. The dispatcher stages harmonic, F12,
+DBOC, VPT2, higher-order, core-valence, and relativistic tasks together when
+L3 completes, then submits at most `max_nodes` of them at a time. VPT2 reads
+the L2 geometry but shares the L3 completion barrier with the property jobs.
+
+```bash
+nohup bash -lc '
+  set -euo pipefail
+  cd "$HOME/KinBot"
+  refs="$PWD/ethane_profiled_hpc_run_v5/cbh0_reference_graphs"
+  .venv/bin/python -m kinbot.anl.dispatch drive \
+    "$refs/methane_composite" --interval 20 &
+  methane_pid=$!
+  .venv/bin/python -m kinbot.anl.dispatch drive \
+    "$refs/hydrogen_composite" --interval 20 &
+  hydrogen_pid=$!
+  wait "$methane_pid"
+  wait "$hydrogen_pid"
+  .venv/bin/python -m kinbot.anl.validation audit-composite \
+    "$refs/methane_composite" > "$refs/methane_composite_audit.json"
+  .venv/bin/python -m kinbot.anl.validation audit-composite \
+    "$refs/hydrogen_composite" > "$refs/hydrogen_composite_audit.json"
+' > cbh0_reference_composite.log 2>&1 < /dev/null &
+echo $! > cbh0_reference_composite.pid
+disown
+```
+
+The existing `methane_interface` and `hydrogen_interface` directories are
+immutable split-graph runs and must not be restarted merely to adopt the new
+layout. Finish those with the following legacy continuation procedure. New
+runs should use the composite commands above.
 
 For one- and two-electron reference states, the post-geometry builder omits
 the direct-MRCC CCSDT(Q) job. Triple and quadruple excitations do not exist in

@@ -847,46 +847,42 @@ ANL0 fan-out from its exact accepted L3 geometry:
 
 ```bash
 nohup bash -lc '
-  set -euo pipefail
+  set -uo pipefail
   cd "$HOME/KinBot"
   base="$PWD/ethane_profiled_hpc_run_v5"
   refs="$base/cbh0_reference_graphs"
 
-  .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$refs/methane_interface" --interval 20 &
+  run_reference() (
+    set -euo pipefail
+    name=$1
+    .venv/bin/python -m kinbot.anl.dispatch drive \
+      "$refs/${name}_interface" --interval 20
+    .venv/bin/python -m kinbot.anl.validation \
+      prepare-post-geometry-from-run \
+      "$refs/${name}_interface" "$refs/${name}_post" \
+      --max-nodes 1 --partition day-long-cpu --anl0-only
+    .venv/bin/python -m kinbot.anl.dispatch preflight "$refs/${name}_post"
+    .venv/bin/python -m kinbot.anl.dispatch drive \
+      "$refs/${name}_post" --interval 20
+    .venv/bin/python -m kinbot.anl.validation audit \
+      "$refs/${name}_interface" > "$refs/${name}_interface_audit.json"
+    .venv/bin/python -m kinbot.anl.validation audit-anl0-post-geometry \
+      "$refs/${name}_post" > "$refs/${name}_post_audit.json"
+  )
+
+  run_reference methane &
   methane_pid=$!
-  .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$refs/hydrogen_interface" --interval 20 &
+  run_reference hydrogen &
   hydrogen_pid=$!
-  wait "$methane_pid"
-  wait "$hydrogen_pid"
-
-  .venv/bin/python -m kinbot.anl.validation prepare-post-geometry-from-run \
-    "$refs/methane_interface" "$refs/methane_post" \
-    --max-nodes 1 --partition day-long-cpu --anl0-only
-  .venv/bin/python -m kinbot.anl.validation prepare-post-geometry-from-run \
-    "$refs/hydrogen_interface" "$refs/hydrogen_post" \
-    --max-nodes 1 --partition day-long-cpu --anl0-only
-  .venv/bin/python -m kinbot.anl.dispatch preflight "$refs/methane_post"
-  .venv/bin/python -m kinbot.anl.dispatch preflight "$refs/hydrogen_post"
-
-  .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$refs/methane_post" --interval 20 &
-  methane_pid=$!
-  .venv/bin/python -m kinbot.anl.dispatch drive \
-    "$refs/hydrogen_post" --interval 20 &
-  hydrogen_pid=$!
-  wait "$methane_pid"
-  wait "$hydrogen_pid"
-
-  .venv/bin/python -m kinbot.anl.validation audit \
-    "$refs/methane_interface" > "$refs/methane_interface_audit.json"
-  .venv/bin/python -m kinbot.anl.validation audit \
-    "$refs/hydrogen_interface" > "$refs/hydrogen_interface_audit.json"
-  .venv/bin/python -m kinbot.anl.validation audit-anl0-post-geometry \
-    "$refs/methane_post" > "$refs/methane_post_audit.json"
-  .venv/bin/python -m kinbot.anl.validation audit-anl0-post-geometry \
-    "$refs/hydrogen_post" > "$refs/hydrogen_post_audit.json"
+  methane_rc=0
+  hydrogen_rc=0
+  wait "$methane_pid" || methane_rc=$?
+  wait "$hydrogen_pid" || hydrogen_rc=$?
+  if (( methane_rc || hydrogen_rc )); then
+    printf "reference failures: methane=%s hydrogen=%s\\n" \
+      "$methane_rc" "$hydrogen_rc" >&2
+    exit 1
+  fi
 ' > cbh0_reference_graphs.log 2>&1 < /dev/null &
 echo $! > cbh0_reference_graphs.pid
 disown

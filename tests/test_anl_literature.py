@@ -99,6 +99,39 @@ def test_prepare_methyl_benchmark_uses_current_rohf_ucc_profile(
     validate_spec(captured['spec'])
 
 
+def test_prepare_one_off_methyl_uhf_source_reproduction(
+        monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_prepare(spec, run_dir):
+        for task in spec['tasks']:
+            task['resources'].update(
+                cores=4, memory_mb=64000, partition='test')
+        validate_spec(spec)
+        captured['spec'] = spec
+        return Path(run_dir)
+
+    monkeypatch.setattr('kinbot.anl.dispatch.prepare', fake_prepare)
+    run_dir = tmp_path / 'methyl-uhf'
+    assert literature.main([
+        'prepare-methyl-uhf', str(run_dir),
+        '--partition', 'test']) == 0
+    spec = captured['spec']
+    assert len(spec['tasks']) == 1
+    task = spec['tasks'][0]
+    assert task['id'] == 'ccsdtq_dz'
+    assert task['result_parser']['reference'] == 'UHF'
+    assert task['source_reference_validation'] == 'methyl-qz-2017-UHF'
+    assert 'scftype=UHF' in task['input_template']
+    assert 'rohftype=' not in task['input_template']
+    assert spec['intent']['source_reference_validation'] == \
+        'methyl-qz-2017-UHF'
+    unpinned = json.loads(json.dumps(spec))
+    del unpinned['intent']['source_reference_validation']
+    with pytest.raises(ValueError, match='reference conflicts'):
+        validate_spec(unpinned)
+
+
 def test_methyl_rohf_run_compares_to_published_uhf_target(monkeypatch):
     benchmark = BENCHMARKS['methyl-qz-2017']
     task = {

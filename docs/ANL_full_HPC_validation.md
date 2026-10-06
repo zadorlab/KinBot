@@ -767,6 +767,26 @@ input or the computed recipe. Preserve one real interrupted
 MRCC attempt and successful `resume-mrcc` continuation as restart evidence;
 do not manufacture interruptions for every species.
 
+One bounded source-reference check may reproduce the published methyl
+UHF-CCSDT(Q)/cc-pVDZ value. This command is hardcoded to that benchmark and
+cannot change the RHF/ROHF policy of production ANL graphs:
+
+```bash
+.venv/bin/python -m kinbot.anl.literature prepare-methyl-uhf \
+  methyl_qz_uhf_source_2017 --partition day-long-cpu
+.venv/bin/python -m kinbot.anl.dispatch preflight \
+  methyl_qz_uhf_source_2017
+.venv/bin/python -m kinbot.anl.dispatch drive \
+  methyl_qz_uhf_source_2017 --interval 20
+.venv/bin/python -m kinbot.anl.literature compare-run \
+  methyl-qz-2017 methyl_qz_uhf_source_2017 \
+  | tee methyl_qz_uhf_source_2017_literature.json
+```
+
+The graph contains only the published-geometry UHF-CCSDT(Q)/cc-pVDZ job. It
+uses the source-exact 2e-6 hartree tolerance and is not part of recipe
+assembly. Once it passes, do not repeat it for other species.
+
 The completed ethane VPT2 parser recorded native Gaussian warnings. Assembly
 therefore stops until those warnings and the mode table are reviewed. First
 print the warnings and exact native-output hash:

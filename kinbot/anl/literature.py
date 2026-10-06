@@ -485,6 +485,41 @@ def compare_formation(name, source, *, method='ANL0-F12',
     }
 
 
+def methyl_uhf_source_validation_spec(*, max_nodes=1, partition=None,
+                                      mrcc_command='dmrcc'):
+    """Build the one-off published-UHF methyl CCSDT(Q) reproduction.
+
+    Normal ANL generation deliberately remains RHF/ROHF-only.  This pinned
+    graph exists solely to reproduce the historical UHF value in the 2017
+    source workbook once, at its published geometry and method.
+    """
+    from kinbot.anl.validation import higher_order_validation_spec
+
+    benchmark = BENCHMARKS['methyl-qz-2017']
+    spec = higher_order_validation_spec(
+        benchmark['molecule'], max_nodes=max_nodes, partition=partition,
+        mrcc_command=mrcc_command, task_ids=('ccsdtq_dz',))
+    task = spec['tasks'][0]
+    task['input_template'] = task['input_template'].replace(
+        'scftype=ROHF\n'
+        'rohftype=semicanonical\n'
+        'rohfcore=semicanonical\n',
+        'scftype=UHF\n')
+    task['result_parser']['reference'] = 'UHF'
+    task['source_reference_validation'] = 'methyl-qz-2017-UHF'
+    spec['intent'].update({
+        'claim': 'pinned-literature-source-reference-validation-only',
+        'source_reference_validation': 'methyl-qz-2017-UHF',
+        'literature_benchmark': {
+            'name': 'methyl-qz-2017',
+            'source': SOURCE,
+            'worksheet': benchmark['worksheet'],
+            'geometry_convention': benchmark['geometry'],
+        },
+    })
+    return spec
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description='Compare hash-verified ANL tasks with pinned literature')
@@ -513,6 +548,10 @@ def main(argv=None):
         '--task', dest='task_ids', action='append',
         choices=('ccsdt_tz', 'ccsdt_dz', 'ccsdtq_tz', 'ccsdtq_dz',
                  'ccsdtqp_dz'))
+    prepare_uhf = commands.add_parser('prepare-methyl-uhf')
+    prepare_uhf.add_argument('run_dir', type=Path)
+    prepare_uhf.add_argument('--partition')
+    prepare_uhf.add_argument('--mrcc-command', default='dmrcc')
     args = parser.parse_args(argv)
     if args.action == 'show':
         print(json.dumps({
@@ -528,6 +567,12 @@ def main(argv=None):
                 args.absolute_tolerance_kcal_mol)
         print(json.dumps(result, indent=2, sort_keys=True))
         return int(result['status'] != 'passed')
+    if args.action == 'prepare-methyl-uhf':
+        from kinbot.anl.dispatch import prepare
+        spec = methyl_uhf_source_validation_spec(
+            partition=args.partition, mrcc_command=args.mrcc_command)
+        print(prepare(spec, args.run_dir))
+        return 0
     if args.action == 'prepare-higher-order':
         from kinbot.anl.dispatch import prepare
         from kinbot.anl.validation import higher_order_validation_spec

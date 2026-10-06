@@ -653,6 +653,32 @@ def test_gaussian_symmetry_recovery_rejects_unrelated_failure():
             recover_gaussian_vpt2_symmetry(run_dir, 'gaussian_vpt2')
 
 
+def test_gaussian_symmetry_recovery_accepts_general_named_group_change():
+    spec = dispatch_spec()
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        advance(run_dir)
+        _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
+        advance(run_dir)
+        directory = run_dir / 'tasks' / 'gaussian_vpt2'
+        (directory / 'vpt2.log').write_text(
+            'ERROR: Inconsistency found in framework group definition:\n'
+            'New: C2V - Old: CS\n'
+            'Error termination via Lnk1e in l717.exe\n')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['gaussian_vpt2']['status'] = 'failed'
+        state_path.write_text(json.dumps(state))
+        recover_gaussian_vpt2_symmetry(run_dir, 'gaussian_vpt2')
+        workflow = json.loads((run_dir / 'workflow.json').read_text())
+        recovered = next(task for task in workflow['tasks']
+                         if task['id'] == 'gaussian_vpt2')
+        assert recovered['recovery']['observed_framework_change'] == \
+            'New: C2V - Old: CS'
+
+
 def test_failed_task_does_not_stop_independent_work_and_blocks_only_children():
     def task(ident, depends_on=()):
         record = {
@@ -794,14 +820,21 @@ def test_failed_cfour_ccsdt_q_can_be_rerouted_to_direct_mrcc():
 def test_parser_failure_can_be_recovered_without_rerunning_native_job():
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
-        run_dir = prepare(_write_spec(root, dispatch_spec()), root / 'run')
+        spec = dispatch_spec()
+        vpt2 = next(task for task in spec['tasks']
+                    if task['id'] == 'gaussian_vpt2')
+        vpt2['input_template'] = vpt2['input_template'].replace(
+            'NoSymm', 'Symmetry=(PG=C1)')
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
         _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
         advance(run_dir)
         _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
         advance(run_dir)
 
         directory = run_dir / 'tasks' / 'gaussian_vpt2'
-        output = """#p B2PLYP/cc-pVTZ Freq=Anharmonic NoSymm
+        output = """#p B2PLYP/cc-pVTZ Freq=Anharmonic Symmetry=(PG=C1) EmpiricalDispersion=G
+ D3BJ
+ Framework group  C1[X(CH4)]
  Fundamental Bands
  Mode(n) Status E(harm) E(anharm) I(harm) I(anharm)
     1(1) active 1000.00 980.00 0.10 0.11
@@ -813,9 +846,7 @@ def test_parser_failure_can_be_recovered_without_rerunning_native_job():
  Total Anharm   : cm-1 = 490.00000 ; Kcal/mol = 1.401
 """
         output += ' Gaussian archive payload\n' * 700
-        output += (' EmpiricalDispersion=GD3BJ\n'
-                   ' Normal termination of Gaussian 16\n')
-        assert output.index('EmpiricalDispersion') > 10000
+        output += ' Normal termination of Gaussian 16\n'
         (directory / 'vpt2.log').write_text(output)
         (directory / 'vpt2.err').write_text('')
 

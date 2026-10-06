@@ -280,6 +280,34 @@ def test_gaussian_vpt2_c1_route_requires_native_framework_confirmation():
     assert result['framework_group_cap'] == 'C1'
 
 
+def test_gaussian_vpt2_dispersion_value_may_wrap_inside_token():
+    wrapped = (_GAUSSIAN_VPT2
+               .replace('B3LYP/cc-pVTZ Opt=(Tight,CalcFC)',
+                        'B2PLYP/cc-pVTZ')
+               .replace('Freq=Anharmonic NoSymm',
+                        ('Freq=Anharmonic Symmetry=(PG=C1) '
+                         'EmpiricalDispersion=G\n D3BJ'))
+               .replace(' WARNING:',
+                        ' Framework group  C1[X(CH4)]\n WARNING:', 1))
+    result = parse_gaussian_vpt2(
+        wrapped, method='B2PLYP', basis='cc-pVTZ', dispersion='GD3BJ')
+    assert result['dispersion'] == 'GD3BJ'
+    assert result['framework_group_cap'] == 'C1'
+    with pytest.raises(ValueError, match='dispersion disagrees'):
+        parse_gaussian_vpt2(
+            wrapped, method='B2PLYP', basis='cc-pVTZ', dispersion='GD3')
+
+
+def test_gaussian_vpt2_framework_cap_parser_is_not_group_specific():
+    output = (_GAUSSIAN_VPT2
+              .replace('NoSymm', 'Symmetry=(PG=C2V)')
+              .replace(' WARNING:',
+                       ' Framework group  C2V[X(CH4)]\n WARNING:', 1))
+    result = parse_gaussian_vpt2(
+        output, method='B3LYP', basis='cc-pVTZ')
+    assert result['framework_group_cap'] == 'C2V'
+
+
 def test_molpro_f12b_selects_exact_total_energy():
     result = parse_molpro_energy(_MOLPRO_F12, method='CCSD(T)-F12b',
                                  basis='cc-pVTZ-F12', reference='ROHF')

@@ -548,17 +548,44 @@ def parse_molpro_harmonic(output, *, basis, reference=None, legacy=False):
     return result
 
 
-def _gaussian_dispersions(output):
-    """Return every dispersion model echoed by Gaussian.
+def _gaussian_declares_dispersion(text, model):
+    """Whether Gaussian text declares one requested dispersion model.
 
-    Gaussian can omit this long keyword from the short route near the start
-    while retaining it in the archive record written near the end. Search the
-    complete, normally terminated output and require the requested model to be
-    present rather than trusting only the first fixed-size text window.
+    Gaussian wraps long route sections at a fixed output width and can split
+    an option value itself, for example ``EmpiricalDispersion=G`` followed by
+    ``D3BJ`` on the next line. Match the requested alphanumeric value while
+    allowing an output line break between its characters. This avoids a table
+    of program-specific model names and still requires the complete exact
+    value rather than accepting a prefix such as GD3 for GD3BJ.
     """
-    return {match.upper() for match in re.findall(
-        r'\bEmpiricalDispersion\s*(?:=|\()\s*([A-Za-z0-9]+)',
-        output, re.IGNORECASE)}
+    if not isinstance(model, str) or not model or not model.isalnum():
+        return False
+    wrap = r'(?:[ \t]*\r?\n[ \t]*)?'
+    value = wrap.join(re.escape(character) for character in model)
+    return re.search(
+        rf'\bEmpiricalDispersion\s*(?:=|\()\s*{value}'
+        rf'(?![A-Za-z0-9])', text, re.IGNORECASE) is not None
+
+
+def _gaussian_has_any_dispersion(text):
+    """Whether a Gaussian input or output declares a dispersion option."""
+    return re.search(
+        r'\bEmpiricalDispersion\s*(?:=|\()', text,
+        re.IGNORECASE) is not None
+
+
+def _gaussian_dispersion_declaration_count(text):
+    """Count explicit dispersion keywords in generated Gaussian input."""
+    return len(re.findall(
+        r'\bEmpiricalDispersion\s*(?:=|\()', text, re.IGNORECASE))
+
+
+def _gaussian_framework_group_cap(route):
+    """Return a declared ``Symmetry=(PG=group)`` cap, if present."""
+    match = re.search(
+        r'\bSymm(?:etry)?\s*=\s*\(\s*PG\s*=\s*([A-Za-z0-9]+)\s*\)',
+        route, re.IGNORECASE)
+    return match.group(1).upper() if match else None
 
 
 def _gaussian_fundamental_bands(output):
@@ -628,18 +655,18 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
             or not re.search(r'\bFreq\s*=\s*Anharmonic\b', route,
                              re.IGNORECASE)):
         raise ValueError('Gaussian output does not echo the requested Freq=Anharmonic route.')
-    c1_framework = bool(re.search(
-        r'\bSymm(?:etry)?\s*=\s*\(\s*PG\s*=\s*C1\s*\)', route,
-        re.IGNORECASE))
-    if c1_framework and not re.search(
-            r'^\s*Framework group\s+C1\b', output,
+    framework_cap = _gaussian_framework_group_cap(route)
+    if framework_cap and not re.search(
+            rf'^\s*Framework group\s+{re.escape(framework_cap)}\b', output,
             re.IGNORECASE | re.MULTILINE):
         raise ValueError(
-            'Gaussian output does not confirm the requested C1 framework.')
-    reported_dispersion = _gaussian_dispersions(output)
+            'Gaussian output does not confirm the requested '
+            f'{framework_cap} framework.')
     requested_dispersion = dispersion.upper()
-    if ((requested_dispersion and requested_dispersion not in reported_dispersion)
-            or (not requested_dispersion and reported_dispersion)):
+    if ((requested_dispersion and not _gaussian_declares_dispersion(
+            output, requested_dispersion))
+            or (not requested_dispersion
+                and _gaussian_has_any_dispersion(output))):
         raise ValueError('Gaussian output dispersion disagrees with the requested level.')
     marker = output.rfind('Anharmonic Zero Point Energy')
     if marker < 0:
@@ -669,7 +696,7 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
     correction = components['total_anharmonic'] - components['harmonic']
     return {'kind': 'gaussian_vpt2', 'method': method, 'basis': basis,
             'dispersion': dispersion.upper(),
-            'framework_group_cap': 'C1' if c1_framework else None,
+            'framework_group_cap': framework_cap,
             'optimized_in_job': bool(re.search(r'\bOpt\s*(?:=|\()', route,
                                                re.IGNORECASE)),
             'zpe_cm_inverse': components,
@@ -837,9 +864,12 @@ def validate_result_parser(request, *, backend, template, outputs,
                                re.IGNORECASE) is not None
                  and re.search(r'\bFreq\s*=\s*Anharmonic\b', template,
                                re.IGNORECASE) is not None
-                 and _gaussian_dispersions(template)
-                 == ({request['dispersion'].upper()}
-                     if request.get('dispersion') else set()))
+                 and ((bool(request.get('dispersion'))
+                       and _gaussian_dispersion_declaration_count(template) == 1
+                       and _gaussian_declares_dispersion(
+                           template, request['dispersion']))
+                      or (not request.get('dispersion')
+                          and not _gaussian_has_any_dispersion(template))))
     else:
         valid = False
     if not valid:

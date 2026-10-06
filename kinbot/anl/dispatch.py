@@ -1035,14 +1035,13 @@ def retry_failed(run_dir, ident):
 def recover_gaussian_vpt2_symmetry(run_dir, ident):
     """Retry the Gaussian framework-group VPT2 failure in a fixed C1 group.
 
-    Gaussian 16 can classify a nearly tetrahedral input as a spherical top
-    before an anharmonic calculation, then reclassify its Eckart-oriented
-    coordinates as C1. Link 717 aborts with an internal framework-group
-    inconsistency. This migration is intentionally narrow: it accepts only
-    that native error, replaces ``NoSymm`` (or an implicit symmetry setting)
-    with the documented ``Symmetry=(PG=C1)`` cap, keeps the same accepted L2
-    geometry and method, and archives the entire failed attempt before staging
-    the retry.
+    Gaussian 16 can classify the input and Eckart-oriented structures with
+    different framework groups. Link 717 then aborts with an explicit
+    framework-group inconsistency. This migration is intentionally narrow: it
+    accepts only that native error with named, different old and new groups,
+    replaces ``NoSymm`` (or an implicit symmetry setting) with the documented
+    ``Symmetry=(PG=C1)`` cap, keeps the same accepted L2 geometry and method,
+    and archives the entire failed attempt before staging the retry.
     """
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
@@ -1075,10 +1074,12 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
         'Error termination via Lnk1e',
     )
     framework_change = re.search(
-        r'New:\s*(?:C1|TD)\s*-\s*Old:\s*T\b', output,
-        re.IGNORECASE)
+        r'New:\s*([A-Za-z0-9]+)\s*-\s*Old:\s*([A-Za-z0-9]+)\b',
+        output, re.IGNORECASE)
     if (not all(marker in output for marker in required)
             or framework_change is None
+            or framework_change.group(1).casefold()
+            == framework_change.group(2).casefold()
             or 'Normal termination of Gaussian' in output):
         raise RuntimeError(
             f'{ident}: native output is not the framework-group VPT2 failure.')

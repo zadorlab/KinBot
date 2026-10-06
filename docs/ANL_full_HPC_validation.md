@@ -902,9 +902,10 @@ unflagged result must not receive a review file. Assemble each accepted
 reference with its interface run as the base and its post run as both the
 higher-order and correction provider.
 
-Gaussian 16 B.01 can abort methane VPT2 in Link 717 with
-`New: C1 - Old: T` when the Eckart-oriented structure and the initial
-tetrahedral framework disagree. Recover only that exact failure with:
+Gaussian 16 B.01 can abort methane VPT2 in Link 717 with either
+`New: C1 - Old: T` under `NoSymm` or `New: TD - Old: T` after removing that
+keyword when the Eckart-oriented structure and the initial tetrahedral
+framework disagree. Recover only those exact failures with:
 
 ```bash
 .venv/bin/python -m kinbot.anl.dispatch \

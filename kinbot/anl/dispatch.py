@@ -1072,10 +1072,13 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
     output = native.read_text(errors='replace')
     required = (
         'ERROR: Inconsistency found in framework group definition:',
-        'New: C1 - Old: T',
         'Error termination via Lnk1e',
     )
+    framework_change = re.search(
+        r'New:\s*(?:C1|TD)\s*-\s*Old:\s*T\b', output,
+        re.IGNORECASE)
     if (not all(marker in output for marker in required)
+            or framework_change is None
             or 'Normal termination of Gaussian' in output):
         raise RuntimeError(
             f'{ident}: native output is not the framework-group VPT2 failure.')
@@ -1105,6 +1108,7 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
         'kind': 'gaussian_vpt2_framework_group',
         'change': ('fixed Gaussian framework at C1 with the documented '
                    'Symmetry=(PG=C1) option'),
+        'observed_framework_change': framework_change.group(0),
         'geometry_changed': False,
     }
     spec['tasks'][spec['tasks'].index(task)] = replacement

@@ -609,7 +609,7 @@ def test_gaussian_framework_recovery_adds_c1_to_prior_symmetry_retry():
         (directory / 'vpt2.log').write_text(
             'Framework group T[O(C),X(H4)]\n'
             'ERROR: Inconsistency found in framework group definition:\n'
-            'New: C1 - Old: T\n'
+            'New: TD - Old: T\n'
             'Error termination via Lnk1e in l717.exe\n')
         state_path = run_dir / 'state.json'
         state = json.loads(state_path.read_text())
@@ -624,6 +624,11 @@ def test_gaussian_framework_recovery_adds_c1_to_prior_symmetry_retry():
         recovered = (directory / 'vpt2.com').read_text()
         assert recovered.count('Symmetry=(PG=C1)') == 1
         assert 'Freq=Anharmonic Symmetry=(PG=C1)' in recovered
+        workflow = json.loads((run_dir / 'workflow.json').read_text())
+        recovered_task = next(item for item in workflow['tasks']
+                              if item['id'] == 'gaussian_vpt2')
+        assert recovered_task['recovery']['observed_framework_change'] == \
+            'New: TD - Old: T'
         state = json.loads(state_path.read_text())
         assert state['tasks']['gaussian_vpt2']['attempt'] == 3
 

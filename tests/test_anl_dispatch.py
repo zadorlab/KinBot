@@ -1118,6 +1118,53 @@ def test_mrcc_discovery_uses_configuration_without_site_paths():
                                               for name in ('dmrcc', 'scf', 'mrcc')]
 
 
+def test_preflight_refreshes_a_stale_generated_mrcc_site_setup():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        install = root / 'mrcc-installed-later'
+        install.mkdir()
+        for program in ('dmrcc', 'scf', 'mrcc'):
+            executable = install / program
+            executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+            executable.chmod(0o755)
+        task = mrcc_task(
+            'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=1,
+            geometry_from='initial')
+        task['resources'].update(
+            cores=1, memory_mb=4096, partition='test')
+        spec = {
+            'schema': 1, 'name': 'late-mrcc-site',
+            'molecule': {
+                'symbols': ['H', 'H'],
+                'positions': [[0., 0., 0.], [0., 0., 0.74]],
+                'charge': 0, 'multiplicity': 1,
+            },
+            'limits': {'max_nodes': 1}, 'tasks': [task],
+        }
+        with patch.dict(os.environ, {
+                'PATH': '/usr/bin:/bin', 'LOADEDMODULES': ''}, clear=True):
+            run_dir = prepare(spec, root / 'run')
+        assert str(install) not in (run_dir / 'site_setup.sh').read_text()
+
+        bindir = root / 'scheduler'
+        bindir.mkdir()
+        for program in ('sbatch', 'squeue'):
+            executable = bindir / program
+            executable.write_text('#!/usr/bin/env bash\nexit 0\n')
+            executable.chmod(0o755)
+        environment = {
+            'PATH': f'{bindir}:/usr/bin:/bin', 'LOADEDMODULES': '',
+            'KINBOT_MRCC_ROOT': str(install),
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            result = preflight(run_dir)
+        assert result['site_setup_refreshed'] is True
+        assert result['slurm_scripts_tested'] == 1
+        setup = (run_dir / 'site_setup.sh').read_text()
+        assert str(install) in setup
+        assert setup.count('KinBot preflight site refresh') == 1
+
+
 def test_prepare_selects_fitting_slurm_partition_and_keeps_explicit_choice():
     display = ('short-cpu*|96|126000|30:00|up\n'
                'day-long-cpu|96|126000|1-00:00:00|up\n'

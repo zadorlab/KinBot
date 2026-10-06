@@ -538,13 +538,8 @@ def _stage_task(run_dir, spec, state, task):
             directory / task['input_name'])
 
 
-def prepare(spec_path, run_dir):
-    if isinstance(spec_path, dict):
-        spec = deepcopy(spec_path)
-    else:
-        spec = json.loads(Path(spec_path).read_text())
-    assign_partitions(spec)
-    validate_spec(spec)
+def _programs_by_backend(spec):
+    """Collect every executable that a prepared workflow must expose."""
     programs_by_backend = {}
     for task in spec['tasks']:
         backend = _backend(task)
@@ -558,6 +553,17 @@ def prepare(spec_path, run_dir):
             program = parts[0]
         programs_by_backend.setdefault(backend, set()).add(program)
         programs_by_backend[backend].update(task.get('required_executables', []))
+    return programs_by_backend
+
+
+def prepare(spec_path, run_dir):
+    if isinstance(spec_path, dict):
+        spec = deepcopy(spec_path)
+    else:
+        spec = json.loads(Path(spec_path).read_text())
+    assign_partitions(spec)
+    validate_spec(spec)
+    programs_by_backend = _programs_by_backend(spec)
     site_setup = render_site_setup(programs_by_backend)
     run_dir = Path(run_dir).resolve()
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -903,9 +909,52 @@ def _job_active(job_id):
     return str(job_id) in result.stdout.split()
 
 
-def preflight(run_dir):
+def _refresh_generated_site_setup(run_dir, backend, programs):
+    """Append a verified setup overlay when site configuration appeared late.
+
+    Prepared graphs remain reusable when a module, PATH entry, or advertised
+    backend root becomes available after ``prepare``.  Existing setup is
+    preserved verbatim; the overlay is appended only after a shell probe proves
+    that it resolves every missing executable for the affected backend.
+    """
+    path = run_dir / 'site_setup.sh'
+    current = path.read_text()
+    generated_marker = '# Generated from the environment visible during prepare.'
+    if generated_marker not in current:
+        return False
+    overlay = render_site_setup({backend: set(programs)})
+    digest = hashlib.sha256(overlay.encode()).hexdigest()
+    marker = f'# KinBot preflight site refresh {digest}'
+    if marker in current:
+        return False
+    temporary = run_dir / '.site_setup.refresh.sh'
+    temporary.write_text(overlay)
+    lines = [
+        'set -euo pipefail',
+        f'export KINBOT_BACKEND={shlex.quote(backend)}',
+        f'source {shlex.quote(str(path))}',
+        f'source {shlex.quote(str(temporary))}',
+    ]
+    for program in sorted(programs):
+        lines.append(f'command -v {shlex.quote(program)} >/dev/null')
+    try:
+        result = subprocess.run(
+            ['bash', '-c', '\n'.join(lines)], cwd=run_dir,
+            capture_output=True, text=True, check=False)
+    finally:
+        temporary.unlink(missing_ok=True)
+    if result.returncode:
+        return False
+    with path.open('a') as stream:
+        stream.write(f'\n{marker}\n{overlay}')
+    return True
+
+
+def preflight(run_dir, _site_refresh_attempts=None):
     """Check login-node tools and the same site setup sourced by batch jobs."""
     run_dir, spec, state = _load(run_dir)
+    refresh_attempts = (set() if _site_refresh_attempts is None
+                        else _site_refresh_attempts)
     for name in ('sbatch', 'squeue', 'bash'):
         if not shutil.which(name):
             raise RuntimeError(f'Preflight: {name} is unavailable on PATH.')
@@ -971,6 +1020,16 @@ def preflight(run_dir):
         if result.returncode:
             detail = (result.stderr.strip() or result.stdout.strip()
                       or f'exit status {result.returncode} without diagnostics')
+            refresh_key = (_backend(task), tuple(sorted(task_programs)))
+            if ('Missing executable:' in detail
+                    and refresh_key not in refresh_attempts):
+                refresh_attempts.add(refresh_key)
+                if _refresh_generated_site_setup(
+                        run_dir, refresh_key[0], refresh_key[1]):
+                    refreshed = preflight(
+                        run_dir, _site_refresh_attempts=refresh_attempts)
+                    refreshed['site_setup_refreshed'] = True
+                    return refreshed
             raise RuntimeError(f"{task['id']}: preflight failed after site setup: "
                                + detail)
     checked = 0

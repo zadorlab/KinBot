@@ -592,6 +592,12 @@ test -x "$KINBOT_MRCC_ROOT/scf"
 test -x "$KINBOT_MRCC_ROOT/mrcc"
 ```
 
+If a workflow was prepared before a backend root or module became visible,
+`preflight` appends a verified setup overlay to the generated
+`site_setup.sh` and retries once. It preserves existing setup text and still
+fails before submission when the newly advertised installation cannot resolve
+every required executable.
+
 Before continuing the profiled geometry, run the inexpensive conventional
 CCSD(T)/cc-pVDZ calculation at the published ethane TZ geometry. This catches
 method-selection and parsing errors without mixing in a geometry difference:

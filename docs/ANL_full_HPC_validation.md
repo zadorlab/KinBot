@@ -1017,14 +1017,110 @@ PY
 2. Complete the methyl doublet graph and compare ethane and methyl values to
    a pinned literature/ATcT release. Do not compare unlike 0 K and 298 K
    quantities.
-3. Add the monatomic/diatomic reference-species graphs needed by the methyl
-   CBH-0 reaction before claiming an automated CBH result. The current CBH
-   solver and local table tests are complete, but the general QC graph still
-   needs zero-mode handling for atomic H and the appropriate small-species
-   component policy.
+3. Complete the monatomic/diatomic reference-species graphs needed by the
+   methyl CBH-0 reaction before claiming an automated CBH result. Monatomic
+   graphs retain all electronic and DBOC calculations, omit nonexistent
+   harmonic/VPT2 jobs, and bind exact zero vibrational components to the
+   accepted electronic state and geometry hashes.
 4. Use the existing completed ROTD_py surface as the interface result. A
    production CH3 + CH3 rate comparison needs converged sampling grids and the
    published CASPT2/cc-pVDZ surface plus its higher-level one-dimensional
    correction, followed by a MESS run with the accepted formation enthalpies.
 5. Run a separate stationary-TS/IRC case before declaring the ANL/MESS path
    validated for ordinary transition-state kinetics.
+
+---
+
+# 110. Eight-slot methane/methyl, CBH, MESSPF, and VRC continuation
+
+The final ethane validation uses four independent dispatcher graphs with two
+slots each. The sum of their `max_nodes` limits is eight; every ANL task still
+requests an exclusive node:
+
+1. CH4 at the pinned 2017 QZ geometry, for the closed-shell direct-MRCC
+   higher-order comparison;
+2. CH3 at the pinned 2017 QZ geometry, using the source's UHF determinant for
+   the two direct-MRCC comparison tasks;
+3. production CH3 from the accepted KinBot product row, using semicanonical
+   ROHF determinants and unrestricted coupled cluster;
+4. production atomic H from `[H]` for the methyl CBH-0 balance.
+
+Prepare the graphs with two slots each:
+
+```bash
+base="$PWD/ethane_profiled_hpc_run_v5"
+refs="$base/cbh0_reference_graphs"
+methyl_job=150390060000000000002_well_high
+
+python -m kinbot.anl.literature prepare-higher-order \
+  methane-qz-2017 "$refs/methane_source_qz" \
+  --max-nodes 2 --partition day-long-cpu
+python -m kinbot.anl.literature prepare-higher-order \
+  methyl-qz-2017 "$refs/methyl_source_qz" \
+  --max-nodes 2 --partition day-long-cpu
+python -m kinbot.anl.validation prepare-composite-from-db \
+  "$base/kinbot.db" "$methyl_job" "$refs/methyl_composite" \
+  --charge 0 --multiplicity 2 --max-nodes 2 \
+  --partition day-long-cpu --anl0-only
+python -m kinbot.anl.validation prepare-composite-from-smiles \
+  '[H]' "$refs/atomic_h_composite" \
+  --charge 0 --multiplicity 2 --max-nodes 2 \
+  --partition day-long-cpu --anl0-only
+```
+
+Run the four restartable `kinbot.anl.dispatch drive` processes concurrently,
+then require both `compare-run` source-geometry reports and both
+`audit-composite` production reports to pass. The source and production
+graphs establish different facts and must not be substituted for one another.
+
+Assemble CH4, H2, CH3, H, and C2H6 with one exact profiled ANL0-F12 label.
+Solve both CBH-0 reactions from those computed records. The methyl reaction is
+`CH3 + H2 -> CH4 + H`; atomic H therefore needs an explicit non-singlet ATcT
+identifier. `compare-formation` accepts a complete profiled label, maps it to
+the matching published ANL family for comparison, and records
+`profiled_variant: true`; it never changes the computed method label.
+
+The resulting `anl_handoff.json` is keyed by the exact KinBot routing names
+for ethane and methyl. In `strict` mode every well/product and every ordinary
+transition state in the reconstructed network must be listed. Stable species
+and transition states may each receive a reviewed VPT2 frequency record. A
+formula-only match, state mismatch, changed native hash, or unreviewed flagged
+VPT2 result is rejected.
+
+In CBH/ANL mode, MESS uses accepted Hf(0 K) differences for stable-species
+relative energies and accepted composite differences for stationary barriers.
+KinBot also writes standalone MESSPF inputs using accepted VPT2 fundamentals
+and the existing L2 hindered rotors, runs the configured `messpf_command`, and
+records Hf(298.15 K) plus NASA-7 fit data in
+`me/thermochemistry_298.json`.
+
+The completed reduced ROTD_py result is first consumed with
+`rotdpy_mess_mode=required`. KinBot hash-checks its highest corrected
+`Ne_<n>.out`, writes a MESS `Core Rotd` model, and records the source in
+`me/rotdpy_sources.json`. MESS completion writes hashes to
+`me/mess_execution.json`; `kinbot.anl.kinetics parse-high-pressure` then
+checks that the native high-pressure rate table can be read.
+
+The chemistry-level VRC gate is a separate, restartable ROTD_py calculation
+with CASPT2(2e,2o)/cc-pVDZ sampling, dividing surfaces from 2.3 through 4.6
+angstrom, a 0.85 dynamical correction, five-percent flux target, and
+`rotdpy_max_jobs=8`. Run it with:
+
+```bash
+python -m kinbot.rotdpy run PATH/TO/REACTION.py
+python -m kinbot.rotdpy check PATH/TO/REACTION.py
+python -m kinbot.rotdpy select PATH/TO/REACTION.py
+```
+
+After MESS consumes that production result,
+`kinbot.anl.kinetics compare-methyl-recombination` verifies the native output
+hash and network mapping and compares its high-pressure 300--1700 K rates
+with the pinned 1996 experimental global fit. A reduced one-surface smoke
+result is an interface test and is not allowed to satisfy this chemistry
+gate.
+
+Passing these gates covers neutral closed-shell and doublet C/H species,
+ethane C--C homolysis, CBH-0/ATcT, MESSPF thermochemistry, and direct VRC
+kinetics. Stationary saddle/IRC kinetics, ions, other elements, and strongly
+multireference stationary points remain separate coverage classes; one small
+system cannot establish correctness for every possible molecule.

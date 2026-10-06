@@ -29,6 +29,7 @@ from kinbot.anl.results import legacy_molpro_parser
 from kinbot.anl.tasks import (higher_order_task, molpro_ccsdt_command,
                               molpro_task)
 from kinbot.anl.workflow import (_verified_task_result,
+                                 atomic_zero_vibrational_component,
                                  cbs_task_component,
                                  core_valence_task_component,
                                  rank_exact_higher_order_component,
@@ -196,6 +197,12 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
                               'dispersion': 'GD3BJ'},
         },
     ]
+    if len(molecule.get('symbols', ())) == 1:
+        # An atom has no vibrational normal modes.  Keep both electronic
+        # geometry evaluations and every electronic correction, while the
+        # assembler supplies hash-bound exact zeros for ZPE and VPT2.
+        tasks = [task for task in tasks
+                 if task['id'] not in ('harmonic', 'gaussian_vpt2')]
     return {
         'schema': 1, 'name': 'anl1-f12-non-mrcc-interface-validation',
         'molecule': molecule,
@@ -227,6 +234,8 @@ def current_base_validation_spec(molecule, *, max_nodes=3, partition=None):
     full = interface_validation_spec(
         molecule, max_nodes=max_nodes, partition=partition)
     keep = {'l3_geometry', 'harmonic', 'f12_tz', 'f12_qz', 'cfour_dboc'}
+    if len(molecule.get('symbols', ())) == 1:
+        keep.remove('harmonic')
     tasks = [deepcopy(task) for task in full['tasks'] if task['id'] in keep]
     for task in tasks:
         if task['id'] == 'l3_geometry':
@@ -272,7 +281,8 @@ def _rank_exact_higher_order(molecule):
 
 
 def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
-                                 mrcc_command='dmrcc', task_ids=None):
+                                 mrcc_command='dmrcc', task_ids=None,
+                                 reference_overrides=None):
     """Build the five-job ANL1 higher-order interface probe.
 
     This graph checks native input generation, execution, parsing, and the
@@ -284,6 +294,13 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
     multiplicity = molecule.get('multiplicity', 1)
     restricted_reference = 'RHF' if multiplicity == 1 else 'ROHF'
     conventional = molpro_ccsdt_command(multiplicity)
+    reference_overrides = {} if reference_overrides is None else dict(
+        reference_overrides)
+    unknown_references = sorted(
+        set(reference_overrides) - set(_HIGHER_ORDER_TASK_IDS))
+    if unknown_references:
+        raise ValueError(
+            f'Unknown higher-order reference overrides: {unknown_references}.')
     common = dict(geometry_from='initial', partition=partition)
     tasks = [
         molpro_task(
@@ -302,15 +319,21 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
                     'reference': restricted_reference}, **common),
         higher_order_task(
             'ccsdtq_tz', 'CCSDT(Q)', 'cc-pVTZ',
-            multiplicity=multiplicity, walltime='24:00:00',
+            multiplicity=multiplicity,
+            reference=reference_overrides.get('ccsdtq_tz'),
+            walltime='24:00:00',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ',
-            multiplicity=multiplicity, walltime='12:00:00',
+            multiplicity=multiplicity,
+            reference=reference_overrides.get('ccsdtq_dz'),
+            walltime='12:00:00',
             max_cores=8, command=mrcc_command, **common),
         higher_order_task(
             'ccsdtqp_dz', 'CCSDTQ(P)', 'cc-pVDZ',
-            multiplicity=multiplicity, walltime='7-00:00:00',
+            multiplicity=multiplicity,
+            reference=reference_overrides.get('ccsdtqp_dz'),
+            walltime='7-00:00:00',
             max_cores=8, command=mrcc_command, **common),
     ]
     if task_ids is not None:
@@ -935,24 +958,33 @@ def assemble_profiled_anl0_f12(
     if Path(corrections_run).resolve() != base_run:
         _same_imported_l3_geometry(base_run, corrections_run, l3_hash)
 
+    atomic = len(molecule.get('symbols', ())) == 1
     equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ',
-                      multiplicity=multiplicity)
+                      multiplicity=multiplicity, atomic=atomic)
     required = {item.key: item for item in equation.requirements}
     components = {
         'reference_cbs': cbs_task_component(
             base_run, 'f12_tz', 'f12_qz',
             requirement=required['reference_cbs'], state_id=state_id,
             lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12'),
-        'harmonic_zpe': task_component(
-            base_run, 'harmonic', key='harmonic_zpe', state_id=state_id),
-        'vpt2_correction': task_component(
-            interface_run, 'gaussian_vpt2', key='vpt2_correction',
-            state_id=state_id),
         'dboc': task_component(
             base_run, 'cfour_dboc', key='dboc', state_id=state_id),
         'hoe_low': task_component(
             higher_order_run, 'ccsdt_dz', key='hoe_low', state_id=state_id),
     }
+    if atomic:
+        components['harmonic_zpe'] = atomic_zero_vibrational_component(
+            molecule, required['harmonic_zpe'], state_id=state_id,
+            geometry_sha256=l3_hash)
+        components['vpt2_correction'] = atomic_zero_vibrational_component(
+            molecule, required['vpt2_correction'], state_id=state_id,
+            geometry_sha256=l2_hash)
+    else:
+        components['harmonic_zpe'] = task_component(
+            base_run, 'harmonic', key='harmonic_zpe', state_id=state_id)
+        components['vpt2_correction'] = task_component(
+            interface_run, 'gaussian_vpt2', key='vpt2_correction',
+            state_id=state_id)
     if _rank_exact_higher_order(molecule):
         components['hoe_high'] = rank_exact_higher_order_component(
             molecule, components['hoe_low'], required['hoe_high'],
@@ -961,8 +993,12 @@ def assemble_profiled_anl0_f12(
         components['hoe_high'] = task_component(
             higher_order_run, 'ccsdtq_dz', key='hoe_high',
             state_id=state_id)
-    components['vpt2_correction'] = _apply_quality_review(
-        components['vpt2_correction'], 'gaussian_vpt2', vpt2_review)
+    if atomic:
+        if vpt2_review is not None:
+            raise ValueError('A monatomic species must not receive a VPT2 review.')
+    else:
+        components['vpt2_correction'] = _apply_quality_review(
+            components['vpt2_correction'], 'gaussian_vpt2', vpt2_review)
     components['core_valence_cbs'] = core_valence_task_component(
         corrections_run, all_electron_lower='cv_ae_tz',
         all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
@@ -1059,8 +1095,11 @@ def audit_current_base_run(run_dir):
     if spec.get('name') not in ('anl-current-base-validation',
                                  'anl-composite-validation'):
         raise ValueError('Run is not a current ANL base validation graph.')
-    required_ids = {
-        'l3_geometry', 'harmonic', 'f12_tz', 'f12_qz', 'cfour_dboc'}
+    molecule = spec['molecule']
+    atomic = len(molecule.get('symbols', ())) == 1
+    required_ids = {'l3_geometry', 'f12_tz', 'f12_qz', 'cfour_dboc'}
+    if not atomic:
+        required_ids.add('harmonic')
     declared = {task['id'] for task in spec['tasks']}
     missing = sorted(required_ids - declared)
     if missing:
@@ -1072,15 +1111,17 @@ def audit_current_base_run(run_dir):
         raise RuntimeError(f'Current base run is incomplete: {statuses}')
     equation = recipe(
         'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
-        multiplicity=spec['molecule'].get('multiplicity', 1))
+        multiplicity=molecule.get('multiplicity', 1), atomic=atomic)
     required = {item.key: item for item in equation.requirements}
     reference = cbs_task_component(
         run_dir, 'f12_tz', 'f12_qz',
         requirement=required['reference_cbs'], state_id='base-validation-state',
         lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12')
-    harmonic = task_component(
-        run_dir, 'harmonic', key='harmonic_zpe',
-        state_id='base-validation-state')
+    harmonic = (atomic_zero_vibrational_component(
+        molecule, required['harmonic_zpe'], state_id='base-validation-state',
+        geometry_sha256=reference.geometry_sha256) if atomic else
+        task_component(run_dir, 'harmonic', key='harmonic_zpe',
+                       state_id='base-validation-state'))
     dboc = task_component(
         run_dir, 'cfour_dboc', key='dboc',
         state_id='base-validation-state')
@@ -1104,7 +1145,21 @@ def audit_composite_run(run_dir):
         for task in spec['tasks']}
     if any(value != 'complete' for value in statuses.values()):
         raise RuntimeError(f'Composite ANL run is incomplete: {statuses}')
-    *_, vpt2 = _verified_task_result(run_dir, 'gaussian_vpt2')
+    atomic = len(spec['molecule'].get('symbols', ())) == 1
+    if atomic:
+        vpt2_summary = {
+            'review_required': False, 'warnings': [],
+            'anharmonic_correction_hartree': 0.,
+            'provider': 'known_zero_atomic_vibration',
+        }
+    else:
+        *_, vpt2 = _verified_task_result(run_dir, 'gaussian_vpt2')
+        vpt2_summary = {
+            'review_required': vpt2.get('review_required', False),
+            'warnings': vpt2.get('warnings', []),
+            'anharmonic_correction_hartree':
+                vpt2['anharmonic_correction_hartree'],
+        }
     post = (audit_anl0_post_geometry_run(run_dir)
             if spec.get('intent', {}).get('anl0_only')
             else audit_post_geometry_run(run_dir))
@@ -1115,12 +1170,7 @@ def audit_composite_run(run_dir):
         'task_statuses': statuses,
         'base': audit_current_base_run(run_dir),
         'post_geometry': post,
-        'vpt2': {
-            'review_required': vpt2.get('review_required', False),
-            'warnings': vpt2.get('warnings', []),
-            'anharmonic_correction_hartree':
-                vpt2['anharmonic_correction_hartree'],
-        },
+        'vpt2': vpt2_summary,
     }
 
 

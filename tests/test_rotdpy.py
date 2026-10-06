@@ -11,7 +11,7 @@ import pytest
 
 from kinbot.parameters import Parameters
 from kinbot.pes import _rotdpy_correction_block, create_rotdpy_inputs
-from kinbot.rotdpy import ensure_available, run
+from kinbot.rotdpy import ensure_available, main, number_of_states_file, run
 
 
 def test_generated_input_uses_configured_sampling_and_portable_scratch():
@@ -133,6 +133,45 @@ def test_executor_records_success_and_reuses_matching_result():
             'sampling complete\n')
 
 
+def test_number_of_states_selection_is_hash_verified():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        input_file = root / 'channel.py'
+        input_file.write_text('# generated input\n')
+        result_root = root / 'kb_channel'
+        surface = result_root / 'output' / 'surface_0.dat'
+        first = result_root / 'Ne_0.out'
+        final = result_root / 'Ne_1.out'
+        surface.parent.mkdir(parents=True)
+        surface.write_text('surface flux\n')
+        first.write_text('0.0 1.0\n')
+        final.write_text('0.0 2.0\n')
+        files = [first, final, surface]
+        relatives = [str(path.relative_to(root)) for path in files]
+        hashes = {
+            relative: __import__('hashlib').sha256(path.read_bytes()).hexdigest()
+            for relative, path in zip(relatives, files)
+        }
+        (root / 'channel.rotdpy.json').write_text(json.dumps({
+            'schema': 2, 'status': 'complete', 'reaction': 'channel',
+            'surface_count': 1, 'result_files': relatives,
+            'result_sha256': hashes,
+        }))
+
+        selected, provenance = number_of_states_file(input_file)
+        assert selected == final.resolve()
+        assert provenance['energy_index'] == 1
+        assert provenance['selection'] == 'highest_available_correction'
+        explicit, provenance = number_of_states_file(input_file, 0)
+        assert explicit == first.resolve()
+        assert provenance['selection'] == 'explicit'
+        with pytest.raises(RuntimeError, match='no Ne_2.out'):
+            number_of_states_file(input_file, 2)
+        final.write_text('changed\n')
+        with pytest.raises(RuntimeError, match='hash changed'):
+            number_of_states_file(input_file)
+
+
 def test_executor_fails_early_when_rotdpy_is_not_installed():
     with TemporaryDirectory() as temporary:
         input_file = Path(temporary) / 'channel.py'
@@ -171,3 +210,24 @@ def test_rotdpy_revision_must_match_pinned_submodule():
             'git_revision': 'wrong'}):
         with pytest.raises(RuntimeError, match='pinned'):
             ensure_available()
+
+
+def test_command_line_check_reports_completed_manifest(tmp_path, capsys):
+    input_file = tmp_path / 'channel.py'
+    input_file.write_text('# generated input\n')
+    surface = tmp_path / 'kb_channel' / 'output' / 'surface_0.dat'
+    number = tmp_path / 'kb_channel' / 'Ne_0.out'
+    surface.parent.mkdir(parents=True)
+    surface.write_text('surface flux\n')
+    number.write_text('0.0 1.0\n')
+    files = [number, surface]
+    relative = [str(path.relative_to(tmp_path)) for path in files]
+    hashes = {name: __import__('hashlib').sha256(path.read_bytes()).hexdigest()
+              for name, path in zip(relative, files)}
+    (tmp_path / 'channel.rotdpy.json').write_text(json.dumps({
+        'schema': 2, 'status': 'complete', 'reaction': 'channel',
+        'surface_count': 1, 'result_files': relative,
+        'result_sha256': hashes,
+    }))
+    assert main(['check', str(input_file)]) == 0
+    assert json.loads(capsys.readouterr().out)['status'] == 'complete'

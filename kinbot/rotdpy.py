@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import importlib.util
 from importlib import metadata
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -115,6 +117,54 @@ def read_result(input_file: str | Path) -> dict:
     return payload
 
 
+def number_of_states_file(input_file: str | Path, energy_index: int = -1
+                          ) -> tuple[Path, dict]:
+    """Return one hash-verified MESS ``Rotd`` number-of-states file.
+
+    ROTD_py numbers its electronic/correction surfaces as ``Ne_0.out``,
+    ``Ne_1.out``, and so on.  Index ``-1`` selects the highest available
+    index, which is the final corrected surface written by ROTD_py.  An
+    explicit nonnegative index can be used when a different surface is
+    scientifically intended.  The returned metadata is suitable for a MESS
+    provenance sidecar.
+    """
+    if isinstance(energy_index, bool) or not isinstance(energy_index, int) \
+            or energy_index < -1:
+        raise ValueError(
+            'ROTD_py MESS energy index must be -1 or a nonnegative integer.')
+    input_file = Path(input_file).resolve()
+    payload = read_result(input_file)
+    candidates = {}
+    for relative in payload['result_files']:
+        name = Path(relative).name
+        match = re.fullmatch(r'Ne_(\d+)\.out', name)
+        if match:
+            candidates[int(match.group(1))] = relative
+    if not candidates:
+        raise RuntimeError(
+            f'rotdPy result for {input_file.stem} has no MESS '
+            'number-of-states file.')
+    selected = max(candidates) if energy_index == -1 else energy_index
+    if selected not in candidates:
+        raise RuntimeError(
+            f'rotdPy result for {input_file.stem} has no Ne_{selected}.out; '
+            f'available indices are {sorted(candidates)}.')
+    relative = candidates[selected]
+    source = input_file.parent / relative
+    return source.resolve(), {
+        'schema': 1,
+        'reaction': payload.get('reaction', input_file.stem),
+        'surface_count': payload['surface_count'],
+        'energy_index': selected,
+        'selection': ('highest_available_correction'
+                      if energy_index == -1 else 'explicit'),
+        'source': str(source.resolve()),
+        'source_sha256': payload['result_sha256'][relative],
+        'result_manifest': str(result_path(input_file).resolve()),
+        'result_manifest_sha256': _sha256(result_path(input_file)),
+    }
+
+
 def run(input_file: str | Path, python: str | Path | None = None) -> dict:
     """Execute one generated input with the active KinBot interpreter.
 
@@ -182,3 +232,31 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
     if error:
         raise RuntimeError(f'{input_file.stem}: {error}')
     return record
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description='Run and verify generated KinBot ROTD_py inputs')
+    commands = parser.add_subparsers(dest='action', required=True)
+    run_parser = commands.add_parser('run')
+    run_parser.add_argument('input', type=Path)
+    check_parser = commands.add_parser('check')
+    check_parser.add_argument('input', type=Path)
+    select_parser = commands.add_parser('select')
+    select_parser.add_argument('input', type=Path)
+    select_parser.add_argument('--energy-index', type=int, default=-1)
+    args = parser.parse_args(argv)
+    if args.action == 'run':
+        result = run(args.input)
+    elif args.action == 'check':
+        result = read_result(args.input)
+    else:
+        source, provenance = number_of_states_file(
+            args.input, args.energy_index)
+        result = {'source': str(source), **provenance}
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

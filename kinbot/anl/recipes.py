@@ -18,7 +18,8 @@ def _required(key, quantity, method, basis, role='l3',
 
 
 def recipe(name: str, *, vpt2_method: str | None = None,
-           vpt2_cbs: bool = False, multiplicity: int = 1) -> CompositeRecipe:
+           vpt2_cbs: bool = False, multiplicity: int = 1,
+           atomic: bool = False) -> CompositeRecipe:
     """Return the original equation or an explicitly labeled VPT2 variant.
 
     The published ANL1 anharmonic correction uses B3LYP/cc-pVTZ. The selected
@@ -36,6 +37,8 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     if (isinstance(multiplicity, bool) or not isinstance(multiplicity, int)
             or multiplicity < 1):
         raise ValueError('multiplicity must be a positive integer.')
+    if not isinstance(atomic, bool):
+        raise ValueError('atomic must be boolean.')
     variants = []
     if name == 'ANL0-F12':
         # The 2017 article names F12b but does not specify SCALE_TRIP.
@@ -91,10 +94,12 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     common = [
         reference,
         _required('harmonic_zpe', 'zpe', 'CCSD(T)', harmonic_basis,
-                  backends=(('composite',) if name == 'ANL1' else ('molpro',)),
+                  backends=(('known_zero',) if atomic else
+                            ('composite',) if name == 'ANL1' else ('molpro',)),
                   **harmonic_settings),
         _required('vpt2_correction', 'correction', vpt2_method, vpt2_basis,
-                  role='l2', backends=vpt2_backends, **vpt2_settings),
+                  role='l2', backends=(('known_zero',) if atomic else
+                                       vpt2_backends), **vpt2_settings),
         _required('core_valence_cbs', 'correction',
                   'CCSD(T,full)-CCSD(T,frozen-core)',
                   'CBS(cc-pCVTZ,cc-pCVQZ)',

@@ -72,11 +72,18 @@ def test_open_shell_ccsdt_q_routes_to_direct_mrcc_rohf_ucc():
     _validate(task)
 
 
-def test_mrcc_rejects_unknown_method_and_uhf_reference():
+def test_mrcc_supports_explicit_open_shell_uhf_for_source_reproduction():
     with pytest.raises(ValueError, match='Unsupported MRCC'):
         mrcc_task('bad', 'CCSD(T)', 'cc-pVDZ', multiplicity=1)
-    with pytest.raises(ValueError, match='Unsupported MRCC reference'):
-        mrcc_task('paper', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=2,
+    paper = mrcc_task('paper', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=2,
+                      reference='UHF')
+    assert 'scftype=UHF' in paper['input_template']
+    assert 'rohftype=semicanonical' not in paper['input_template']
+    assert paper['result_parser']['reference'] == 'UHF'
+    assert paper['result_parser']['correlation'] == 'unrestricted'
+    _validate(paper)
+    with pytest.raises(ValueError, match='conflicts with multiplicity'):
+        mrcc_task('bad-closed', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=1,
                   reference='UHF')
     configured = mrcc_task(
         'configured', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=1,

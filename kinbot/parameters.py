@@ -446,6 +446,19 @@ class Parameters:
             # Executable and optional arguments; quote paths that contain spaces.
             'mess_command': 'mess',
             'messpf_command': 'messpf',
+            # Run and parse the standalone partition-function calculations
+            # after a CBH/ANL MESS model has staged them.
+            'run_messpf': 0,
+            # Consume a matching, hash-verified ROTD_py number-of-states file
+            # for homolytic VRC channels when it is present.  ``required``
+            # refuses a phase-space fallback; ``off`` preserves that fallback.
+            'rotdpy_mess_mode': 'auto',
+            # -1 selects ROTD_py's highest (most corrected) Ne_<n>.out file.
+            'rotdpy_mess_energy_index': -1,
+            'rotdpy_directory': 'rotdPy',
+            # Optional schema-1 file that attaches completed, hash-verified
+            # ANL/CBH records to the reconstructed KinBot network before MESS.
+            'anl_handoff_manifest': '',
             'TemperatureList': [300. + 100. * i for i in range(18)],
             'PressureList': [7.6, 76., 760., 7600., 76000.],
             'EnergyStepOverTemperature': .2,
@@ -577,6 +590,22 @@ class Parameters:
             raise ValueError('optical_population must be specified or racemic')
         if self.par['me_skip_vdW'] not in (0, 1):
             raise ValueError('me_skip_vdW must be 0 or 1')
+        if self.par['run_messpf'] not in (0, 1):
+            raise ValueError('run_messpf must be 0 or 1')
+        if self.par['run_messpf'] and self.par['me'] not in (1, 2):
+            raise ValueError('run_messpf requires me = 1 or me = 2')
+        if self.par['rotdpy_mess_mode'] not in ('auto', 'required', 'off'):
+            raise ValueError('rotdpy_mess_mode must be auto, required, or off')
+        energy_index = self.par['rotdpy_mess_energy_index']
+        if (isinstance(energy_index, bool)
+                or not isinstance(energy_index, int) or energy_index < -1):
+            raise ValueError(
+                'rotdpy_mess_energy_index must be -1 or a nonnegative integer')
+        if (not isinstance(self.par['rotdpy_directory'], str)
+                or not self.par['rotdpy_directory'].strip()):
+            raise ValueError('rotdpy_directory must be a nonempty path string')
+        if not isinstance(self.par['anl_handoff_manifest'], str):
+            raise ValueError('anl_handoff_manifest must be a path string')
         assumptions = self.par['optical_factor_assumptions']
         if not isinstance(assumptions, dict) or any(
                 not isinstance(name, str) or not name or not isinstance(value, dict)

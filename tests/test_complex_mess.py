@@ -1,6 +1,7 @@
 """Direct/PES complex selection and saddle-free dissociation output."""
 import copy
 from dataclasses import replace
+import hashlib
 import itertools
 import json
 import logging
@@ -409,6 +410,53 @@ class TestComplexMESS(unittest.TestCase):
         self.assertEqual(output.count('Core PhaseSpaceTheory'), 1)
         self.assertNotIn('Tunneling', output)
         self.assertNotIn('{blessname}', output)
+
+    def test_homolysis_can_require_a_hash_verified_rotd_surface(self):
+        parent, reactions = self.reactions(True)
+        reaction = reactions[0]
+        root = Path('rotdPy')
+        result_root = root / f'kb_{reaction.instance_name}'
+        surface = result_root / 'output' / 'surface_0.dat'
+        number = result_root / 'Ne_0.out'
+        surface.parent.mkdir(parents=True)
+        input_file = root / f'{reaction.instance_name}.py'
+        input_file.write_text('# generated ROTD_py input\n')
+        surface.write_text('surface flux\n')
+        number.write_text('0.0 1.0\n100.0 2.0\n')
+        result_files = [
+            str(number.relative_to(root)), str(surface.relative_to(root))]
+        hashes = {
+            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            for relative in result_files
+        }
+        manifest = root / f'{reaction.instance_name}.rotdpy.json'
+        manifest.write_text(json.dumps({
+            'schema': 2, 'status': 'complete',
+            'reaction': reaction.instance_name, 'surface_count': 1,
+            'result_files': result_files, 'result_sha256': hashes,
+        }))
+
+        writer = MESS(dict(self.par, rotdpy_mess_mode='required'), parent)
+        writer.write_input(None)
+        output = Path('me/mess_0000.inp').read_text()
+        self.assertIn('Core Rotd', output)
+        self.assertNotIn('Core PhaseSpaceTheory', output)
+        staged = Path('me/rotd_test_hom_sci_Ne_0.out')
+        self.assertEqual(staged.read_bytes(), number.read_bytes())
+        provenance = json.loads(Path('me/rotdpy_sources.json').read_text())
+        source = provenance['reactions'][reaction.instance_name]
+        self.assertEqual(source['source_sha256'], hashes[result_files[0]])
+        self.assertEqual(source['indistinguishability_factor'], 1)
+        self.assertEqual(
+            source['mess_symmetry_factor'],
+            writer._parent_symmetry(reaction.products[0])
+            * writer._parent_symmetry(reaction.products[1]))
+
+    def test_required_rotd_surface_refuses_phase_space_fallback(self):
+        parent, _ = self.reactions(True)
+        writer = MESS(dict(self.par, rotdpy_mess_mode='required'), parent)
+        with self.assertRaisesRegex(FileNotFoundError, 'completed ROTD_py'):
+            writer.write_input(None)
 
     def test_mc_phase_space_uses_product_combinations_and_parent_normalization(self):
         parent, reactions = self.reactions(True)

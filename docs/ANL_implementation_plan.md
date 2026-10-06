@@ -5289,3 +5289,37 @@ an accepted KinBot database record with `prepare-composite-from-smiles` or
 interface, base, higher-order, and correction provider to the existing ANL0
 assembler. Older interface/base/post commands remain available for immutable
 run directories and do not change existing KinBot input formats.
+
+---
+
+# 110. Final ANL/CBH to MESS validation path (2026-10-06)
+
+A strict, hash-verified handoff now decorates a reconstructed KinBot network
+with accepted composite energies, CBH/ATcT formation enthalpies, and optional
+reviewed VPT2 fundamentals. Stable species use exact routing keys and ordinary
+transition states use exact reaction names. The handoff refuses incomplete
+coverage, state mismatches, formula-only matching, changed native outputs,
+and unresolved VPT2 quality flags.
+
+Monatomic graphs keep their electronic and DBOC calculations and replace only
+the nonexistent harmonic and anharmonic vibrational terms with exact-zero
+records bound to state and geometry hashes. This supplies atomic H for the
+CH3 CBH-0 reaction without inventing normal modes.
+
+CBH/ANL MESS output now uses accepted 0 K formation-enthalpy differences for
+stable populations, accepted composite differences for stationary barriers,
+reviewed VPT2 frequencies, and the existing L2 hindered-rotor models. KinBot
+stages and can execute standalone MESSPF inputs, converts Hf(0 K) to
+Hf(298.15 K), and writes NASA-7 fitting records. Completed ROTD_py
+number-of-states files are hash checked and rendered as MESS `Core Rotd`;
+required mode forbids a phase-space fallback. MESS rate outputs and network
+maps are hashed for an independent methyl-recombination literature audit.
+
+The external continuation uses four two-slot workflows, so at most eight
+exclusive ANL nodes run concurrently. Pinned-geometry CH4 and CH3 graphs
+validate source higher-order values. Production CH3 and H graphs feed the
+actual CBH/MESS calculation. A separate CASPT2(2e,2o)/cc-pVDZ ROTD_py run
+with 2.3--4.6 angstrom surfaces, a 0.85 dynamical correction, and a
+five-percent flux target is the chemistry-level VRC gate. The exact staging,
+monitoring, and acceptance procedure is in
+`docs/ANL_full_HPC_validation.md`.

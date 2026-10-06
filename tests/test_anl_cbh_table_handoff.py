@@ -6,6 +6,8 @@ and KinBot-to-MESS serialization without claiming to validate a QC method.
 
 import json
 from pathlib import Path
+import shlex
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -191,6 +193,62 @@ T, K       ethane       ethane       ethane       ethane       ethane
         formation.formation_0k_kj_mol)
     assert Path('me/thermochemistry_298.json').is_file()
     assert thermo['species']['123']['nasa7']['format'] == 'NASA7'
+
+
+def test_messpf_executor_replaces_stale_output_and_records_hashes(
+        tmp_path, monkeypatch):
+    reaction = generate_cbh_reaction('CC', 0)
+    energies = _energies_for_delta(reaction, -15.345, 'ANL0-F12')
+    formation = solve_formation_enthalpy(
+        reaction, energies, _figure_references())
+    geometry = molecule('C2H6')
+    well = SimpleNamespace(
+        name='ethane', chemid=123, smiles='CC', charge=0, mult=1,
+        natom=len(geometry), atom=geometry.get_chemical_symbols(),
+        geom=geometry.positions, energy=-79., zpe=.01, mass=30.07,
+        sigma_ext=1, nopt=1, reduced_freqs=[1000.] * 18,
+        conformer_index=[], reac_obj=[], reac_ts_done=[], reac_type=[],
+        final_zero_k_energy=energies['CC'])
+    attach_formation_enthalpy(well, formation)
+    monkeypatch.chdir(tmp_path)
+    Path('me').mkdir()
+    rows = '\n'.join(
+        f'{temperature:.2f} 11.0 0.010 0.0 54.0 10.0'
+        for temperature in (200., 250., 298.15, 400., 600., 800., 1000.,
+                            1400., 1800., 2400., 3000.))
+    binary = tmp_path / 'fake messpf.py'
+    binary.write_text(
+        f'#!{sys.executable}\n'
+        'from pathlib import Path\n'
+        'import sys\n'
+        'source = Path(sys.argv[-1])\n'
+        'source.with_suffix(".dat").write_text(' + repr(
+            'Z_0 Z_1 Z_2 entropy heat_capacity other\n' + rows + '\n') + ')\n'
+        'print("fake MESSPF completed")\n')
+    binary.chmod(0o755)
+    Path('input.json').write_text(json.dumps({
+        'smiles': 'CC', 'me': 0, 'uq': 0, 'rotor_scan': 0,
+        'multi_conf_tst': 0, 'epsilon': 100., 'sigma': 3.,
+        'barrier_threshold': 100., 'high_level': 1,
+        'allow_l2_without_conf': 1,
+        'messpf_command': shlex.join([str(binary), '--fixture'])}))
+    par = Parameters('input.json', show_warnings=False).par
+    writer = MESS(par, well)
+    with patch.object(MESS, 'make_rotors', return_value=''):
+        writer.write_input(None)
+    output = Path('me/partition_functions/123.dat')
+    output.write_text('stale output must not be accepted\n')
+    thermo = writer.run_partition_functions()
+    assert thermo['species']['123']['formation_0k_kj_mol'] == pytest.approx(
+        formation.formation_0k_kj_mol)
+    execution = json.loads(
+        Path('me/partition_functions/execution.json').read_text())
+    record = execution['species']['123']
+    assert record['status'] == 'complete'
+    assert record['command'][-2:] == ['--fixture', '123.inp']
+    assert len(record['input_sha256']) == len(record['output_sha256']) == 64
+    assert Path('me/partition_functions/123.stdout').read_text() == (
+        'fake MESSPF completed\n')
 
 
 def test_direct_mess_network_accepts_per_species_ladder_fallback(tmp_path, monkeypatch):

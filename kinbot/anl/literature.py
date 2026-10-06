@@ -34,6 +34,7 @@ SOURCE = {
 BENCHMARKS = {
     'ethane-tz-2017': {
         'species': 'C2H6',
+        'smiles': 'CC',
         'geometry': 'CCSD(T)/cc-pVTZ optimized geometry',
         'worksheet': 'stable,TZ!A33:CU33',
         'molecule': {
@@ -76,6 +77,7 @@ BENCHMARKS = {
     },
     'ethane-qz-2017': {
         'species': 'C2H6',
+        'smiles': 'CC',
         'geometry': 'CCSD(T)/cc-pVQZ optimized geometry',
         'worksheet': 'Stable,QZ!A31:CF31',
         'molecule': {
@@ -116,6 +118,7 @@ BENCHMARKS = {
     },
     'methane-qz-2017': {
         'species': 'CH4',
+        'smiles': 'C',
         'geometry': 'CCSD(T)/cc-pVQZ optimized geometry',
         'worksheet': 'Stable,QZ!A22:CF22',
         'molecule': {
@@ -165,6 +168,7 @@ BENCHMARKS = {
     },
     'methyl-qz-2017': {
         'species': 'CH3',
+        'smiles': '[CH3]',
         'geometry': 'CCSD(T)/cc-pVQZ optimized geometry',
         'worksheet': 'Stable,QZ!A21:CF21',
         'reference_note': (
@@ -380,6 +384,64 @@ def compare_run(name, run_dir):
     return result
 
 
+def compare_formation(name, source, *, method='ANL0-F12',
+                      absolute_tolerance_kcal_mol=0.1):
+    """Compare one completed CBH/ANL Hf(0 K) with the pinned workbook."""
+    if name not in BENCHMARKS:
+        raise ValueError(f'Unknown literature benchmark {name!r}.')
+    if (not isinstance(absolute_tolerance_kcal_mol, (int, float))
+            or isinstance(absolute_tolerance_kcal_mol, bool)
+            or not math.isfinite(absolute_tolerance_kcal_mol)
+            or absolute_tolerance_kcal_mol < 0.):
+        raise ValueError('Formation-enthalpy tolerance must be nonnegative.')
+    path = Path(source).resolve()
+    try:
+        record = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f'{path}: invalid CBH/ANL result.') from error
+    formation = record.get('formation') if isinstance(record, dict) else None
+    if (not isinstance(record, dict) or record.get('schema') != 1
+            or record.get('status') != 'complete'
+            or not isinstance(formation, dict)):
+        raise ValueError(f'{path}: CBH/ANL result is incomplete.')
+    benchmark = BENCHMARKS[name]
+    from kinbot.anl.atct import _canonical_smiles
+    if _canonical_smiles(formation.get('target_smiles')) != _canonical_smiles(
+            benchmark['smiles']):
+        raise ValueError('CBH/ANL target does not match the benchmark species.')
+    if formation.get('method') != method:
+        raise ValueError(
+            f'CBH/ANL result uses {formation.get("method")!r}, expected {method!r}.')
+    benchmark_method = (method.split(':', 2)[1]
+                        if method.startswith('profiled:') else method)
+    try:
+        expected = float(
+            benchmark['formation_enthalpy_0k_kcal_mol'][benchmark_method])
+        observed = float(formation['formation_0k_kj_mol']) / 4.184
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError('Formation enthalpy or benchmark method is unavailable.') from error
+    if not math.isfinite(observed):
+        raise ValueError('CBH/ANL formation enthalpy is nonfinite.')
+    error = observed - expected
+    return {
+        'schema': 1,
+        'status': ('passed' if abs(error) <= absolute_tolerance_kcal_mol
+                   else 'failed'),
+        'benchmark': name, 'species': benchmark['species'],
+        'method': method, 'benchmark_method_family': benchmark_method,
+        'profiled_variant': method != benchmark_method,
+        'observed_formation_enthalpy_0k_kcal_mol': observed,
+        'expected_formation_enthalpy_0k_kcal_mol': expected,
+        'error_kcal_mol': error,
+        'absolute_tolerance_kcal_mol': float(
+            absolute_tolerance_kcal_mol),
+        'source': SOURCE, 'worksheet': benchmark['worksheet'],
+        'computed_result': str(path),
+        'note': ('The published value is an independent comparison target '
+                 'and was not inserted into the CBH/ANL result.'),
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description='Compare hash-verified ANL tasks with pinned literature')
@@ -389,6 +451,13 @@ def main(argv=None):
     compare = commands.add_parser('compare-run')
     compare.add_argument('benchmark', choices=sorted(BENCHMARKS))
     compare.add_argument('run_dir', type=Path)
+    compare_formation_parser = commands.add_parser('compare-formation')
+    compare_formation_parser.add_argument(
+        'benchmark', choices=sorted(BENCHMARKS))
+    compare_formation_parser.add_argument('result', type=Path)
+    compare_formation_parser.add_argument('--method', default='ANL0-F12')
+    compare_formation_parser.add_argument(
+        '--absolute-tolerance-kcal-mol', type=float, default=0.1)
     prepare_parser = commands.add_parser('prepare-higher-order')
     prepare_parser.add_argument(
         'benchmark', choices=tuple(
@@ -409,16 +478,30 @@ def main(argv=None):
             **BENCHMARKS[args.benchmark],
         }, indent=2, sort_keys=True))
         return 0
+    if args.action == 'compare-formation':
+        result = compare_formation(
+            args.benchmark, args.result, method=args.method,
+            absolute_tolerance_kcal_mol=
+                args.absolute_tolerance_kcal_mol)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return int(result['status'] != 'passed')
     if args.action == 'prepare-higher-order':
         from kinbot.anl.dispatch import prepare
         from kinbot.anl.validation import higher_order_validation_spec
         benchmark = BENCHMARKS[args.benchmark]
         selected = args.task_ids or (
             'ccsdt_dz', 'ccsdtq_dz', 'ccsdtqp_dz')
+        references = {
+            task_id: benchmark['tasks'][task_id]['request']['reference']
+            for task_id in selected
+            if task_id in benchmark['tasks']
+            and benchmark['tasks'][task_id].get('request', {}).get(
+                'backend') == 'mrcc'
+        }
         spec = higher_order_validation_spec(
             benchmark['molecule'], max_nodes=args.max_nodes,
             partition=args.partition, mrcc_command=args.mrcc_command,
-            task_ids=selected)
+            task_ids=selected, reference_overrides=references)
         for task in spec['tasks']:
             if task['id'] == 'ccsdtqp_dz':
                 # The small source-matched probes should finish on a day

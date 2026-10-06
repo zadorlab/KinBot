@@ -313,9 +313,17 @@ def _main():
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
 
+    if par.get('anl_handoff_manifest'):
+        from kinbot.anl.handoff import apply_handoff
+        logger.info('Applying completed ANL/CBH results to the KinBot network')
+        apply_handoff(well0, par['anl_handoff_manifest'])
+
     if par['me'] > 0:  # it will be 2 for kinbots when the mess file is needed but not run
         mess = MESS(par, well0)
         mess.write_input(qc)
+        if par.get('run_messpf'):
+            logger.info('Starting MESS partition-function calculations')
+            mess.run_partition_functions()
 
     # Preserve the completed search even if the separate rate calculation fails.
     postprocess.create_summary_file(well0, qc, par)

@@ -400,7 +400,7 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
     """Read one final total energy from a direct MRCC calculation."""
     if method not in _MRCC_METHODS:
         raise ValueError(f'Unsupported direct MRCC method {method!r}.')
-    if (reference not in ('RHF', 'ROHF')
+    if (reference not in ('RHF', 'ROHF', 'UHF')
             or correlation != 'unrestricted' or core != 'frozen'
             or program != 'mrcc'):
         raise ValueError('MRCC reference or core treatment is unsupported.')
@@ -857,7 +857,7 @@ def validate_result_parser(request, *, backend, template, outputs,
         valid = (set(request) == {'kind', 'file', 'method', 'basis',
                                   'reference', 'correlation', 'core', 'program'}
                  and backend == 'mrcc' and method in _MRCC_METHODS
-                 and reference in ('RHF', 'ROHF')
+                 and reference in ('RHF', 'ROHF', 'UHF')
                  and correlation == 'unrestricted' and core == 'frozen'
                  and program == 'mrcc'
                  and isinstance(basis, str) and bool(basis)

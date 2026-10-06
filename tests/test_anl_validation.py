@@ -272,6 +272,24 @@ def test_composite_graph_releases_every_property_after_one_l3_barrier():
     validate_spec(resolved)
 
 
+def test_atomic_composite_omits_fictitious_vibrational_jobs():
+    atom = molecule_from_smiles('[H]', charge=0, multiplicity=2)
+    spec = composite_validation_spec(
+        atom, max_nodes=8, partition='day-long-cpu', anl0_only=True)
+    tasks = {task['id']: task for task in spec['tasks']}
+    assert 'harmonic' not in tasks
+    assert 'gaussian_vpt2' not in tasks
+    assert {'l2_geometry', 'l3_geometry', 'f12_tz', 'f12_qz',
+            'cfour_dboc', 'ccsdt_dz', 'cv_ae_tz', 'cv_ae_qz',
+            'cv_fc_tz', 'cv_fc_qz', 'rel_dkh', 'rel_nonrel'} <= set(tasks)
+    assert 'ccsdtq_dz' not in tasks
+    resolved = deepcopy(spec)
+    for task in resolved['tasks']:
+        task['resources'].update(
+            cores=1, memory_mb=64000, partition='test')
+    validate_spec(resolved)
+
+
 def test_two_electron_post_graph_skips_impossible_higher_rank_job():
     hydrogen = {
         'symbols': ['H', 'H'],

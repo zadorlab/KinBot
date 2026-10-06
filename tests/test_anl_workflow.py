@@ -16,6 +16,7 @@ from kinbot.anl.model import ComponentResult, IncompleteRecipeError
 from kinbot.anl.recipes import recipe
 from kinbot.anl.results import parse_result
 from kinbot.anl.workflow import (attach_task_vpt2_frequencies,
+                                 atomic_zero_vibrational_component,
                                  cbs_task_component,
                                  core_valence_task_component,
                                  scalar_relativistic_task_component,
@@ -46,6 +47,29 @@ uccsd(t)-f12b,scale_trip=1
  PROGRAMS * TOTAL UCCSD(T) RHF-SCF INT
  Molpro calculation terminated
 """
+
+
+def test_atomic_vibrational_terms_are_exact_hash_bound_zeros():
+    molecule = {
+        'symbols': ['H'], 'positions': [[0., 0., 0.]],
+        'charge': 0, 'multiplicity': 2}
+    requirements = {item.key: item for item in recipe(
+        'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+        multiplicity=2, atomic=True).requirements}
+    harmonic = atomic_zero_vibrational_component(
+        molecule, requirements['harmonic_zpe'], state_id='H-2S',
+        geometry_sha256='1' * 64)
+    anharmonic = atomic_zero_vibrational_component(
+        molecule, requirements['vpt2_correction'], state_id='H-2S',
+        geometry_sha256='2' * 64)
+    assert harmonic.value_hartree == anharmonic.value_hartree == 0.
+    assert harmonic.backend == anharmonic.backend == 'known_zero'
+    assert harmonic.source_sha256 != anharmonic.source_sha256
+    with pytest.raises(ValueError, match='one atom'):
+        atomic_zero_vibrational_component(
+            {**molecule, 'symbols': ['H', 'H']},
+            requirements['harmonic_zpe'], state_id='H2',
+            geometry_sha256='1' * 64)
 
 
 def _electronic_component(key, energy, basis, *, core, relativistic='none'):
@@ -225,14 +249,17 @@ def _harmonic_output(basis, shift):
             'Molpro calculation terminated\n')
 
 
-def _vpt2_output(basis, correction):
+def _vpt2_output(basis, correction, *, warning=False):
     harmonic = 9800.0
     modes = [3200., 3150., 3100., 3000., 1600., 1550., 1400., 1350., 1250.]
     bands = '\n'.join(
         f'{index}(1) active {value:.3f} {value - 20.:.3f} 1.0 1.0'
         for index, value in enumerate(modes, 1))
+    warning_text = ('WARNING: Unreliable CUBIC force constant i=1,j=2,k=3\n'
+                    if warning else '')
     return (f'#p B2PLYP/{basis} Freq=Anharmonic '
             'EmpiricalDispersion=GD3BJ\n'
+            f'{warning_text}'
             'Fundamental Bands\n'
             'Mode(n) Status E(harm) E(anharm) I(harm) I(anharm)\n'
             f'{bands}\nOvertones\n'
@@ -260,6 +287,38 @@ def test_verified_vpt2_task_attaches_partition_function_frequencies():
         source = species.anl_thermochemistry_frequency_source
         assert source['task_id'] == 'vpt2_qz'
         assert len(source['source_sha256']) == 64
+
+
+def test_flagged_vpt2_frequency_handoff_requires_hash_bound_review():
+    with TemporaryDirectory() as temporary:
+        run_dir, _, _ = _completed_zpe_pair(Path(temporary), kind='vpt2')
+        workflow = json.loads((run_dir / 'workflow.json').read_text())
+        task = next(item for item in workflow['tasks']
+                    if item['id'] == 'vpt2_qz')
+        _complete_task(
+            run_dir, task,
+            _vpt2_output('cc-pVQZ', -80., warning=True))
+        species = type('Species', (), {
+            'reduced_freqs': [1250., 1350., 1400., 1550., 1600.,
+                              3000., 3100., 3150., 3200.],
+            'anl_thermochemistry_frequencies': None,
+            'anl_thermochemistry_frequency_source': None,
+        })()
+        with pytest.raises(ValueError, match='explicit quality review'):
+            attach_task_vpt2_frequencies(species, run_dir, 'vpt2_qz')
+        execution = json.loads(
+            (run_dir / 'tasks/vpt2_qz/execution.json').read_text())
+        review = Path(temporary) / 'review.json'
+        review.write_text(json.dumps({
+            'schema': 1, 'task_id': 'vpt2_qz',
+            'native_output_sha256': execution['artifacts']['vpt2_qz.log'],
+            'decision': 'accept', 'reviewer': 'Test reviewer',
+            'rationale': 'Synthetic warning reviewed for handoff test.',
+        }))
+        attach_task_vpt2_frequencies(
+            species, run_dir, 'vpt2_qz', review_file=review)
+        source = species.anl_thermochemistry_frequency_source
+        assert source['quality_review']['reviewer'] == 'Test reviewer'
 
 
 def _completed_zpe_pair(root, *, kind):

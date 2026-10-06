@@ -179,19 +179,64 @@ def rank_exact_higher_order_component(
                 f'{low.source}'), settings=settings)
 
 
-def attach_task_vpt2_frequencies(species, run_dir, task_id, **match_options):
+def atomic_zero_vibrational_component(
+        molecule, requirement: ComponentRequirement, *, state_id: str,
+        geometry_sha256: str) -> ComponentResult:
+    """Provide a rigorously zero harmonic or anharmonic atomic term."""
+    if (not isinstance(molecule, dict)
+            or len(molecule.get('symbols', ())) != 1):
+        raise ValueError('Zero vibrational components require one atom.')
+    if requirement.key not in ('harmonic_zpe', 'vpt2_correction'):
+        raise ValueError('Only atomic vibrational terms are identically zero.')
+    if (not isinstance(geometry_sha256, str)
+            or not re.fullmatch(r'[0-9a-f]{64}', geometry_sha256)):
+        raise ValueError('Atomic vibrational term needs a geometry hash.')
+    provenance = {
+        'schema': 1, 'provider': 'known_zero_atomic_vibration',
+        'symbol': molecule['symbols'][0], 'charge': molecule.get('charge', 0),
+        'multiplicity': molecule.get('multiplicity', 1),
+        'component': requirement.key, 'method': requirement.method,
+        'basis': requirement.basis, 'geometry_sha256': geometry_sha256,
+    }
+    digest = hashlib.sha256(json.dumps(
+        provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return ComponentResult(
+        key=requirement.key, value_hartree=0.,
+        quantity=requirement.quantity, method=requirement.method,
+        basis=requirement.basis, backend='known_zero', state_id=state_id,
+        charge=molecule.get('charge', 0),
+        multiplicity=molecule.get('multiplicity', 1),
+        geometry_sha256=geometry_sha256, source_sha256=digest,
+        source=('exact zero: a monatomic species has no vibrational '
+                f'{requirement.key} contribution'),
+        settings=dict(requirement.settings))
+
+
+def attach_task_vpt2_frequencies(species, run_dir, task_id, *,
+                                 review_file=None, **match_options):
     """Attach verified mode-resolved VPT2 corrections to a KinBot species."""
     from kinbot.energy import attach_anharmonic_frequencies
+    from kinbot.anl.validation import _apply_quality_review
 
     _, _, task, execution, native, parsed = _verified_task_result(run_dir, task_id)
     if parsed.get('kind') != 'gaussian_vpt2' or task['backend'].lower() != 'gaussian':
         raise ValueError(f'{task_id}: expected a Gaussian VPT2 task.')
+    component = task_component(
+        run_dir, task_id, key='vpt2_correction',
+        state_id='thermochemistry-frequency-handoff')
+    component = _apply_quality_review(component, task_id, review_file)
+    if component.review_required:
+        raise ValueError(
+            f'{task_id}: VPT2 fundamentals require explicit quality review.')
+    parsed = dict(parsed)
+    parsed['review_required'] = False
     frequencies = attach_anharmonic_frequencies(
         species, parsed, **match_options)
     species.anl_thermochemistry_frequency_source.update({
         'task_id': task_id,
         'native_output': str(native),
         'source_sha256': execution['artifacts'][task['result_parser']['file']],
+        'quality_review': component.settings.get('quality_review'),
     })
     return frequencies
 

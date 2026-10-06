@@ -135,10 +135,11 @@ def mrcc_task(ident, method, basis, *, multiplicity, reference=None,
     """Build a direct MRCC higher-order task.
 
     Direct ``dmrcc`` uses RHF for a closed shell and semicanonical ROHF for an
-    open shell.  These are the determinant analogues of the ``rhf`` step that
-    precedes Molpro ``uccsd(t)``.  One process uses OpenMP threads selected
-    from node memory and the explicit performance cap; MRCC's
-    replicated-memory MPI mode is not enabled.
+    open shell by default.  An explicit UHF determinant is supported for
+    reproducing source data whose numerical convention requires it.  The
+    correlation treatment remains unrestricted.  One process uses OpenMP
+    threads selected from node memory and the explicit performance cap;
+    MRCC's replicated-memory MPI mode is not enabled.
     """
     if method not in ('CCSDT(Q)', 'CCSDTQ(P)'):
         raise ValueError(f'Unsupported MRCC method {method!r}.')
@@ -147,10 +148,11 @@ def mrcc_task(ident, method, basis, *, multiplicity, reference=None,
         raise ValueError('MRCC multiplicity must be a positive integer.')
     if reference is None:
         reference = 'RHF' if multiplicity == 1 else 'ROHF'
-    if reference not in ('RHF', 'ROHF'):
+    if reference not in ('RHF', 'ROHF', 'UHF'):
         raise ValueError(f'Unsupported MRCC reference {reference!r}.')
     if ((reference == 'RHF' and multiplicity != 1)
-            or (reference == 'ROHF' and multiplicity == 1)):
+            or (reference == 'ROHF' and multiplicity == 1)
+            or (reference == 'UHF' and multiplicity == 1)):
         raise ValueError('MRCC reference conflicts with multiplicity.')
     if (not isinstance(command, str) or not command.strip()
             or any(character.isspace() for character in command)):

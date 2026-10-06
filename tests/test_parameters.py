@@ -47,6 +47,15 @@ class TestBackendWarnings(unittest.TestCase):
                                  backend == 'gauss')
                 self.assertEqual(warning.called, backend == 'gauss')
 
+    def test_rotdpy_mess_selection_is_validated(self):
+        for options, message in (
+                ({'rotdpy_mess_energy_index': True}, 'energy_index'),
+                ({'rotdpy_mess_energy_index': -2}, 'energy_index'),
+                ({'rotdpy_directory': ''}, 'directory')):
+            with self.subTest(options=options), self.assertRaisesRegex(
+                    ValueError, message):
+                self.read_parameters(**options)
+
 
 if __name__ == '__main__':
     unittest.main()

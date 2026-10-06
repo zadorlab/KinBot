@@ -74,6 +74,26 @@ def test_prepare_cli_builds_only_the_default_small_species_pair_plus_low(
     json.dumps(spec)
 
 
+def test_prepare_methyl_source_benchmark_uses_its_published_uhf_reference(
+        monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_prepare(spec, run_dir):
+        captured['spec'] = spec
+        return Path(run_dir)
+
+    monkeypatch.setattr('kinbot.anl.dispatch.prepare', fake_prepare)
+    assert literature.main([
+        'prepare-higher-order', 'methyl-qz-2017', str(tmp_path / 'methyl'),
+        '--task', 'ccsdt_dz', '--task', 'ccsdtq_dz']) == 0
+    tasks = {task['id']: task for task in captured['spec']['tasks']}
+    assert tasks['ccsdt_dz']['result_parser']['reference'] == 'ROHF'
+    assert tasks['ccsdtq_dz']['result_parser']['reference'] == 'UHF'
+    assert 'scftype=UHF' in tasks['ccsdtq_dz']['input_template']
+    assert 'rohftype=semicanonical' not in \
+        tasks['ccsdtq_dz']['input_template']
+
+
 def test_run_comparison_rejects_a_different_reference(monkeypatch):
     task = {
         'id': 'ccsdtqp_dz', 'backend': 'mrcc',
@@ -89,3 +109,45 @@ def test_run_comparison_rejects_a_different_reference(monkeypatch):
             'tasks': {'ccsdtqp_dz': {'status': 'complete'}}}))
     with pytest.raises(ValueError, match='does not match'):
         literature.compare_run('methane-qz-2017', '/synthetic/run')
+
+
+def test_formation_comparison_uses_computed_cbh_result(tmp_path):
+    expected = BENCHMARKS['methyl-qz-2017'][
+        'formation_enthalpy_0k_kcal_mol']['ANL0-F12']
+    result = tmp_path / 'methyl-cbh.json'
+    result.write_text(json.dumps({
+        'schema': 1, 'status': 'complete',
+        'formation': {
+            'target_smiles': '[CH3]', 'method': 'ANL0-F12',
+            'formation_0k_kj_mol': (expected + 0.02) * 4.184,
+        },
+    }))
+    comparison = literature.compare_formation(
+        'methyl-qz-2017', result, absolute_tolerance_kcal_mol=0.1)
+    assert comparison['status'] == 'passed'
+    assert comparison['error_kcal_mol'] == pytest.approx(0.02)
+    assert 'inserted' in comparison['note']
+
+    profile = 'profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ'
+    payload = json.loads(result.read_text())
+    payload['formation']['method'] = profile
+    result.write_text(json.dumps(payload))
+    comparison = literature.compare_formation(
+        'methyl-qz-2017', result, method=profile,
+        absolute_tolerance_kcal_mol=0.1)
+    assert comparison['status'] == 'passed'
+    assert comparison['benchmark_method_family'] == 'ANL0-F12'
+    assert comparison['profiled_variant'] is True
+
+
+def test_formation_comparison_rejects_wrong_species_or_method(tmp_path):
+    result = tmp_path / 'wrong-cbh.json'
+    result.write_text(json.dumps({
+        'schema': 1, 'status': 'complete',
+        'formation': {
+            'target_smiles': 'C', 'method': 'ANL0',
+            'formation_0k_kj_mol': 0.,
+        },
+    }))
+    with pytest.raises(ValueError, match='target'):
+        literature.compare_formation('methyl-qz-2017', result)

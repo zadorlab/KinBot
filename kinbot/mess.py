@@ -2,8 +2,12 @@ from kinbot.species_routing import routing_key, routing_name, mess_filename
 import os
 import re
 import shlex
+import shutil
+import subprocess
 import logging
 import json
+import math
+import hashlib
 import numpy as np
 from collections import Counter
 from itertools import product
@@ -192,6 +196,7 @@ class MESS:
         self.ts_names = {}
         self.termolec_names = {}
         self.product_complexes = {}
+        self.rotdpy_sources = {}
         self. barrierless_names = {}
         # read all templates to create mess input
         with open(f'{kb_path}/tpl/mess_header.tpl') as f:
@@ -226,6 +231,8 @@ class MESS:
             self.blbimoltpl = f.read()
         with open(f'{kb_path}/tpl/mess_pst_rrho.tpl') as f:
             self.pstrrhotpl = f.read()
+        with open(f'{kb_path}/tpl/mess_rotd_rrho.tpl') as f:
+            self.rotdrrhotpl = f.read()
         with open(f'{kb_path}/tpl/mess_barrier.tpl') as f:
             self.barriertpl = f.read()
         with open(f'{kb_path}/tpl/mess_barrier_union.tpl') as f:
@@ -499,20 +506,109 @@ class MESS:
         (directory / 'manifest.json').write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + '\n')
         runner = directory / 'run_messpf.sh'
+        default_words = shlex.split(str(
+            self.par.get('messpf_command', 'messpf')))
+        if not default_words:
+            raise ValueError('messpf_command is empty.')
+        default_array = ' '.join(shlex.quote(word) for word in default_words)
         runner.write_text(
             '#!/usr/bin/env bash\n'
             'set -euo pipefail\n'
             'cd "$(dirname "$0")"\n'
-            'messpf_command="${KINBOT_MESSPF_COMMAND:-}"\n'
-            'if [[ -z "$messpf_command" ]]; then\n'
-            f'  messpf_command={shlex.quote(str(self.par.get("messpf_command", "messpf")))}\n'
+            'if [[ -n "${KINBOT_MESSPF_COMMAND:-}" ]]; then\n'
+            '  command_words=("$KINBOT_MESSPF_COMMAND")\n'
+            'else\n'
+            f'  command_words=({default_array})\n'
             'fi\n'
-            'command -v "$messpf_command" >/dev/null\n'
+            'command -v "${command_words[0]}" >/dev/null\n'
             'for input in ./*.inp; do\n'
-            '  "$messpf_command" "$input"\n'
+            '  "${command_words[@]}" "$input"\n'
             'done\n')
         runner.chmod(runner.stat().st_mode | 0o111)
         return manifest
+
+    @staticmethod
+    def _sha256(path):
+        digest = hashlib.sha256()
+        with Path(path).open('rb') as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b''):
+                digest.update(block)
+        return digest.hexdigest()
+
+    def run_partition_functions(self):
+        """Run every staged MESSPF input and verify its native table.
+
+        Each previous output is removed before execution, so a failed command
+        cannot be mistaken for a successful older calculation.  Commands may
+        contain arguments and follow the same ``shlex`` convention as the
+        main MESS executable.
+        """
+        directory = Path('me/partition_functions').resolve()
+        manifest_path = directory / 'manifest.json'
+        if not manifest_path.is_file():
+            raise FileNotFoundError(
+                'MESSPF inputs are not staged; write the MESS input first.')
+        manifest = json.loads(manifest_path.read_text())
+        command_text = os.environ.get(
+            'KINBOT_MESSPF_COMMAND', manifest.get('command', 'messpf'))
+        try:
+            command = shlex.split(str(command_text))
+        except ValueError as error:
+            raise ValueError('Invalid MESSPF command.') from error
+        if not command:
+            raise ValueError('MESSPF command is empty.')
+        executable = shutil.which(command[0])
+        if executable is None:
+            raise FileNotFoundError(
+                f'Cannot start MESSPF: executable {command[0]!r} was not found.')
+        command[0] = executable
+
+        executions = {}
+        for ident, entry in sorted(manifest.get('species', {}).items()):
+            input_path = Path(entry['input']).resolve()
+            output_path = Path(entry['output']).resolve()
+            if input_path.parent != directory or output_path.parent != directory:
+                raise ValueError(f'{ident}: MESSPF paths leave the staging directory.')
+            if not input_path.is_file():
+                raise FileNotFoundError(f'{ident}: missing MESSPF input {input_path}.')
+            stdout_path = directory / f'{ident}.stdout'
+            stderr_path = directory / f'{ident}.stderr'
+            output_path.unlink(missing_ok=True)
+            result = subprocess.run(
+                [*command, input_path.name], cwd=directory,
+                text=True, capture_output=True, check=False)
+            stdout_path.write_text(result.stdout)
+            stderr_path.write_text(result.stderr)
+            if result.returncode:
+                raise RuntimeError(
+                    f'{ident}: MESSPF exited with status {result.returncode}; '
+                    f'inspect {stderr_path}.')
+            if not output_path.is_file() or output_path.stat().st_size == 0:
+                raise RuntimeError(
+                    f'{ident}: MESSPF did not create nonempty {output_path.name}.')
+            # Parse now, before recording a completed execution.
+            from kinbot.anl.thermochemistry import parse_messpf_output
+            parse_messpf_output(output_path)
+            executions[ident] = {
+                'status': 'complete',
+                'command': [*command, input_path.name],
+                'returncode': result.returncode,
+                'input': input_path.name,
+                'input_sha256': self._sha256(input_path),
+                'output': output_path.name,
+                'output_sha256': self._sha256(output_path),
+                'stdout': stdout_path.name,
+                'stdout_sha256': self._sha256(stdout_path),
+                'stderr': stderr_path.name,
+                'stderr_sha256': self._sha256(stderr_path),
+            }
+        record = {
+            'schema': 1, 'program': 'messpf',
+            'command': command, 'species': executions,
+        }
+        (directory / 'execution.json').write_text(
+            json.dumps(record, indent=2, sort_keys=True) + '\n')
+        return self.read_partition_function_outputs()
 
     def read_partition_function_outputs(self, outputs=None):
         """Read completed MESSPF tables and stage the NASA/PAC99 fit data."""
@@ -838,6 +934,18 @@ class MESS:
                 from kinbot.mess_networks import write_network_inputs
                 write_network_inputs(self, contents, uq_iter)
 
+        if self.rotdpy_sources:
+            destination = Path('me/rotdpy_sources.json')
+            destination.write_text(json.dumps({
+                'schema': 1,
+                'selection_policy': {
+                    'mode': self.par.get('rotdpy_mess_mode', 'auto'),
+                    'energy_index': self.par.get(
+                        'rotdpy_mess_energy_index', -1),
+                },
+                'reactions': self.rotdpy_sources,
+            }, indent=2, sort_keys=True) + '\n')
+
         if formation_metadata:
             pf_manifest = self.write_partition_function_inputs()
             barrier_metadata = {}
@@ -1147,12 +1255,19 @@ class MESS:
                             'bl_' + self.ts_names[reaction.instance_name]
                             if reaction is not None else
                             f'bl_{well_name}_{self.bimolec_names[pr_name]}')
+            rotd_model = self._rotd_model(
+                prod_list, stoich, energy, fragment_reference_shift,
+                freq_factor, pstsymm_factor, reaction)
+            model = (rotd_model if rotd_model is not None else
+                     self._phase_space_models(
+                         prod_list, stoich, energy,
+                         fragment_reference_shift, freq_factor,
+                         pstsymm_factor))
             bimol = self.blbimoltpl.format(barrier=barrier_name,
                                            reactant=('{wellname}' if self.par['pes'] else well_name),
                                            prod=('{prodname}' if self.par['pes'] else self.bimolec_names[pr_name]),
                                            chemids=name,
-                                           model=self._phase_space_models(prod_list, stoich, energy,
-                                               fragment_reference_shift, freq_factor, pstsymm_factor),
+                                           model=model,
                                            fragments=fragments,
                                            ground_energy=energy)
 
@@ -1162,6 +1277,79 @@ class MESS:
             f.write(bimol)
 
         return bimol
+
+    def _rotd_model(self, products, stoich, ground_energy, reference_shift,
+                    freq_factor, symmetry_factor, reaction):
+        """Stage a verified ROTD_py surface and render MESS ``Core Rotd``.
+
+        ``auto`` uses ROTD_py only when the matching completed manifest is
+        present.  ``required`` makes a missing or invalid result fatal.  PES
+        worker files retain their deferred phase-space model because their
+        final filesystem location is not known until network assembly.
+        """
+        mode = str(self.par.get('rotdpy_mess_mode', 'auto')).casefold()
+        if mode not in ('auto', 'required', 'off'):
+            raise ValueError('rotdpy_mess_mode must be auto, required, or off.')
+        if mode == 'off' or self.par['pes'] or reaction is None:
+            return None
+        directory = Path(self.par.get('rotdpy_directory', 'rotdPy'))
+        input_file = directory / f'{reaction.instance_name}.py'
+        manifest = input_file.with_name(
+            f'{reaction.instance_name}.rotdpy.json')
+        if not input_file.is_file() or not manifest.is_file():
+            if mode == 'required':
+                raise FileNotFoundError(
+                    f'{reaction.instance_name}: completed ROTD_py input and '
+                    f'manifest are required under {directory}.')
+            return None
+        from kinbot.rotdpy import number_of_states_file
+        try:
+            source, provenance = number_of_states_file(
+                input_file, self.par.get('rotdpy_mess_energy_index', -1))
+        except (OSError, RuntimeError, ValueError) as error:
+            if mode == 'required':
+                raise RuntimeError(
+                    f'{reaction.instance_name}: cannot use ROTD_py result: '
+                    f'{error}') from error
+            logger.warning('%s: invalid ROTD_py result; using phase-space '
+                           'fallback: %s', reaction.instance_name, error)
+            return None
+
+        safe_name = re.sub(r'[^A-Za-z0-9_.-]+', '_', reaction.instance_name)
+        destination = Path('me') / (
+            f'rotd_{safe_name}_Ne_{provenance["energy_index"]}.out')
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if not destination.is_file() or destination.read_bytes() != source.read_bytes():
+            shutil.copyfile(source, destination)
+        provenance = dict(provenance)
+        provenance['mess_file'] = destination.name
+
+        modes = []
+        rotors = []
+        for species in products:
+            modes.extend(self._stable_frequencies(species))
+            rotors.append(self.make_rotors(species, freq_factor, bless=True))
+        zero = round(float(ground_energy) - reference_shift, 2)
+        identities = Counter(routing_key(species) for species in products)
+        indistinguishability = math.prod(
+            math.factorial(count) for count in identities.values())
+        rotational_symmetry = math.prod(
+            self._parent_symmetry(species) for species in products)
+        rotd_symmetry = (rotational_symmetry * indistinguishability
+                         * symmetry_factor)
+        provenance['rotational_symmetry_product'] = rotational_symmetry
+        provenance['indistinguishability_factor'] = indistinguishability
+        provenance['uncertainty_factor'] = symmetry_factor
+        provenance['mess_symmetry_factor'] = rotd_symmetry
+        self.rotdpy_sources[reaction.instance_name] = provenance
+
+        return self.rotdrrhotpl.format(
+            stoich=stoich, file=destination.name,
+            symmetry=rotd_symmetry, nfreq=len(modes),
+            freq=self.make_freq(modes, freq_factor, 0),
+            hinderedrotor='\n'.join(rotors), mult=self.species.mult,
+            zeroenergy=zero,
+            provenance_sha256=provenance['source_sha256'])
 
     def _phase_space_models(self, products, stoich, ground_energy, reference_shift,
                             freq_factor, symmetry_factor):

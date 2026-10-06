@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 import shlex
@@ -84,6 +85,11 @@ def test_queue_waits_throttles_and_drains(tmp_path, monkeypatch, clock):
     assert execution.run_mess(obj) == 0
     assert states == {'0': 2, '1': 2, '2': 2}
     assert len(clock.sleeps) == 4
+    record = json.loads(Path('me/mess_execution.json').read_text())
+    assert record['status'] == 'complete'
+    assert sorted(record['jobs']) == ['0000', '0001', '0002']
+    assert all(len(job['output_sha256']) == 64
+               for job in record['jobs'].values())
 
 
 @pytest.mark.parametrize('status,output,message', [(134, False, 'exit code 134'),

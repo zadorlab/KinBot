@@ -1,4 +1,6 @@
 """Submit MESS calculations and distinguish completion from solver success."""
+import hashlib
+import json
 import logging
 from pathlib import Path
 import re
@@ -91,6 +93,14 @@ def _stamp(path):
     return stat.st_mtime_ns, stat.st_size
 
 
+def _sha256(path):
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def _verify(index, previous_output, exit_code=None):
     index = f'{index:04d}' if isinstance(index, int) else index
     stem = Path('me') / f'mess_{index}'
@@ -117,6 +127,10 @@ def _verify(index, previous_output, exit_code=None):
             f'MESS calculation {index} exited successfully but produced no new, '
             f'nonempty rate output at {output}.')
     logger.info('MESS calculation %s completed successfully: %s', index, output)
+    return {
+        'output': str(output), 'output_sha256': _sha256(output),
+        'output_bytes': current_output[1],
+    }
 
 
 def run_mess(writer):
@@ -155,6 +169,7 @@ def run_mess(writer):
     ended = {}
     query_failures = {}
     failures = []
+    completed = {}
     limit = max(1, int(writer.par['uq_max_runs']))
 
     def poll():
@@ -178,7 +193,7 @@ def run_mess(writer):
                     continue
                 ended[pid] = time.monotonic()
             try:
-                _verify(index, previous)
+                completed[index] = _verify(index, previous)
             except _ResultPending as error:
                 if time.monotonic() - ended[pid] < _RESULT_GRACE_SECONDS:
                     continue
@@ -202,7 +217,7 @@ def run_mess(writer):
                     raise MESSExecutionError(
                         f'Cannot start MESS calculation {index} with {solver[0]!r}: {error}. '
                         'Check mess_command and the executable in the local environment.') from error
-            _verify(index, previous, result.returncode)
+            completed[index] = _verify(index, previous, result.returncode)
         else:
             while len(active) >= limit:
                 poll()
@@ -219,4 +234,14 @@ def run_mess(writer):
         poll()
     if failures:
         raise MESSExecutionError('\n'.join(failures))
+    record = {
+        'schema': 1, 'status': 'complete', 'queue': queue,
+        'command': solver, 'jobs': dict(sorted(completed.items())),
+    }
+    networks = Path('me/mess_networks.json')
+    if networks.is_file():
+        record['network_manifest'] = str(networks)
+        record['network_manifest_sha256'] = _sha256(networks)
+    destination = Path('me/mess_execution.json')
+    destination.write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
     return 0

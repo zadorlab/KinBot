@@ -96,6 +96,14 @@ def test_direct_mrcc_higher_order_energy_uses_rohf_ucc_convention():
             _MRCC_CCSDTQP.replace('scftype=ROHF', 'scftype=UHF'),
             method='CCSDTQ(P)', basis='cc-pVDZ', reference='ROHF',
             correlation='unrestricted', core='frozen', program='mrcc')
+    uhf = _MRCC_CCSDTQP.replace(
+        'scftype=ROHF\nrohftype=semicanonical\nrohfcore=semicanonical\n',
+        'scftype=UHF\n')
+    source_result = parse_mrcc_energy(
+        uhf, method='CCSDTQ(P)', basis='cc-pVDZ', reference='UHF',
+        correlation='unrestricted', core='frozen', program='mrcc')
+    assert source_result['reference'] == 'UHF'
+    assert source_result['program_variant'] == 'UHF-UCCSDTQ(P)'
     with pytest.raises(ValueError, match='normal termination'):
         parse_mrcc_energy(
             _MRCC_CCSDTQP.replace('Normal termination of mrcc.',

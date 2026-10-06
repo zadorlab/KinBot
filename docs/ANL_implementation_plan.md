@@ -5183,3 +5183,80 @@ uses MRCC's documented `rest=1`, keeps working memory and large scratch files
 unchanged, recalculates cores from available node memory under the requested
 cap, archives the previous text evidence, and regenerates dispatcher hashes
 before resubmission.
+
+---
+
+# 108. Targeted chemistry validation policy (2026-10-05)
+
+Chemistry validation remains a release gate. Interface tests alone do not
+establish that the method, parsed quantity, composite arithmetic, CBH
+reaction, or heat of formation is correct. Every new calculation path must be
+checked at three levels:
+
+1. native input, execution, failure recovery, and method/reference echo;
+2. parsed absolute energy and the correction formed from it;
+3. the resulting 0 K ANL energy and CBH/ATcT heat of formation.
+
+The test system may be reduced after one source-matched path demonstrates all
+three levels. A week-long ethane CCSDTQ(P)/cc-pVDZ calculation is therefore
+not required to prove the direct-MRCC implementation if CH4 and CH3 reproduce
+the published closed- and open-shell component energies, exercise restart,
+and contribute to an audited higher-order difference. Published values may
+be comparison fixtures but must never be inserted into a result represented
+as newly computed.
+
+The 2017 ANL workbook is pinned by DOI
+`10.1021/acs.jpca.7b05945.s001`. `kinbot.anl.literature` records its worksheet,
+geometry convention, expected absolute energies, differences, and tolerance.
+It compares only completed tasks after the ordinary hash and native-output
+verification. The initial matrix is:
+
+| System | Purpose | Published checks |
+|---|---|---|
+| C2H6, TZ geometry | affordable end-to-end ANL0/ANL0-F12 path | harmonic ZPE, F12 TZ/QZ, UCCSD(T)/DZ, UCCSDT(Q)/DZ, DBOC, corrections, final 0 K heat of formation |
+| CH4, QZ geometry | closed-shell direct-MRCC path | UCCSDT(Q)/DZ, UCCSDTQ(P)/DZ, and their difference |
+| CH3, QZ geometry | open-shell ROHF-reference unrestricted-CC path | UCCSDT(Q)/DZ, UCCSDTQ(P)/DZ, and their difference |
+| C2H6, QZ geometry | exact ANL1 integration when resources justify it | UCCSDT(Q)/TZ and UCCSDTQ(P)/DZ increments plus final ANL1 heat of formation |
+
+The pinned formation-enthalpy targets in kcal mol-1 are C2H6 ANL0
+`-16.4584107452`, C2H6 ANL0-F12 `-16.4536624942`, C2H6 ANL1
+`-16.4863998866`, CH3 ANL0 `35.8358988626`, CH3 ANL0-F12
+`35.86931404`, and CH3 ANL1 `35.7970252759`. These are method regression
+targets, distinct from the later CBH ladder and the selected ATcT release.
+
+Higher-order validation graphs now accept repeated `--task` selections. This
+allows a CH4 or CH3 graph containing only `ccsdtq_dz` and `ccsdtqp_dz`.
+`audit-higher-order` reports every available pair difference and does not
+require unrelated jobs. For an existing combined ethane graph,
+`audit-anl0-post-geometry` requires only the DZ higher-order pair and the
+core-valence/relativistic tasks. Failed or deliberately cancelled ANL1-only
+TZ/QP probes remain visible in `other_task_statuses` but cannot invalidate a
+complete ANL0-F12 assembly.
+
+The component comparator is run as:
+
+```bash
+python -m kinbot.anl.literature show ethane-tz-2017
+python -m kinbot.anl.literature compare-run ethane-tz-2017 RUN_DIRECTORY
+```
+
+The source supplement's QZ geometries for CH4 and CH3 are included with the
+benchmark metadata, so the minimal higher-order runs do not inherit a
+different geometry convention:
+
+```bash
+python -m kinbot.anl.literature prepare-higher-order \
+  methane-qz-2017 methane_qz_higher --max-nodes 2
+python -m kinbot.anl.literature prepare-higher-order \
+  methyl-qz-2017 methyl_qz_higher --max-nodes 2
+```
+
+Each graph contains UCCSD(T)/DZ, UCCSDT(Q)/DZ, and UCCSDTQ(P)/DZ by default.
+The methane graph uses CFOUR VCC for UCCSDT(Q) and direct MRCC for
+UCCSDTQ(P); the methyl graph uses direct MRCC with a semicanonical ROHF
+determinant for both higher-order methods. `--task` can narrow the graph
+further after the corresponding lower term has already been validated.
+
+A failing comparison is evidence to inspect geometry convention, reference,
+basis, method echo, parser selection, and program version. Its tolerance must
+not be widened merely to make a mismatched calculation pass.

@@ -239,8 +239,12 @@ def current_base_validation_spec(molecule, *, max_nodes=3, partition=None):
     }
 
 
+_HIGHER_ORDER_TASK_IDS = (
+    'ccsdt_tz', 'ccsdt_dz', 'ccsdtq_tz', 'ccsdtq_dz', 'ccsdtqp_dz')
+
+
 def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
-                                 mrcc_command='dmrcc'):
+                                 mrcc_command='dmrcc', task_ids=None):
     """Build the five-job ANL1 higher-order interface probe.
 
     This graph checks native input generation, execution, parsing, and the
@@ -281,6 +285,15 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
             multiplicity=multiplicity, walltime='7-00:00:00',
             max_cores=8, command=mrcc_command, **common),
     ]
+    if task_ids is not None:
+        requested = tuple(dict.fromkeys(task_ids))
+        unknown = sorted(set(requested) - set(_HIGHER_ORDER_TASK_IDS))
+        if not requested or unknown:
+            detail = f': {unknown}' if unknown else ''
+            raise ValueError(f'Invalid higher-order task selection{detail}.')
+        tasks = [task for task in tasks if task['id'] in requested]
+    else:
+        requested = _HIGHER_ORDER_TASK_IDS
     return {
         'schema': 1, 'name': 'anl1-higher-order-interface-validation',
         'molecule': molecule, 'limits': {'max_nodes': max_nodes},
@@ -295,6 +308,7 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
                 'closed_shell_ccsdtq_p': 'direct-mrcc-rhf-unrestricted-cc',
                 'open_shell_ccsdtq_p': 'direct-mrcc-semicanonical-rohf',
             },
+            'selected_tasks': list(requested),
         },
     }
 
@@ -381,13 +395,16 @@ def post_geometry_validation_spec(molecule, *, max_nodes=3, partition=None,
 
 
 def audit_higher_order_run(run_dir):
-    """Reparse and combine a completed higher-order interface probe."""
+    """Reparse a complete full or targeted higher-order interface probe."""
     _, spec, state = _load(run_dir)
     if spec.get('name') not in ('anl1-higher-order-interface-validation',
                                  'anl-post-geometry-validation'):
         raise ValueError('Run is not an ANL1 higher-order validation graph.')
-    identifiers = ('ccsdt_tz', 'ccsdt_dz', 'ccsdtq_tz',
-                   'ccsdtq_dz', 'ccsdtqp_dz')
+    declared = {task['id'] for task in spec['tasks']}
+    identifiers = tuple(ident for ident in _HIGHER_ORDER_TASK_IDS
+                        if ident in declared)
+    if not identifiers:
+        raise ValueError('Higher-order run declares no recognized tasks.')
     statuses = {ident: state['tasks'].get(ident, {}).get('status', 'waiting')
                 for ident in identifiers}
     if any(value != 'complete' for value in statuses.values()):
@@ -397,16 +414,26 @@ def audit_higher_order_run(run_dir):
         ident: task_component(run_dir, ident, key=ident, state_id=state_id)
         for ident in identifiers
     }
-    correction = math.fsum((
-        components['ccsdtq_tz'].value_hartree,
-        -components['ccsdt_tz'].value_hartree,
-        components['ccsdtqp_dz'].value_hartree,
-        -components['ccsdtq_dz'].value_hartree,
-    ))
-    return {
-        'status': 'higher_order_interface_complete',
+    corrections = {}
+    pairs = {
+        'delta_q_dz': ('ccsdtq_dz', 'ccsdt_dz'),
+        'delta_q_tz': ('ccsdtq_tz', 'ccsdt_tz'),
+        'delta_p_dz': ('ccsdtqp_dz', 'ccsdtq_dz'),
+    }
+    for name, (high, low) in pairs.items():
+        if high in components and low in components:
+            corrections[name] = math.fsum((
+                components[high].value_hartree,
+                -components[low].value_hartree))
+    if {'delta_q_tz', 'delta_p_dz'} <= corrections.keys():
+        corrections['anl1_higher_order'] = math.fsum((
+            corrections['delta_q_tz'], corrections['delta_p_dz']))
+    result = {
+        'status': ('higher_order_interface_complete'
+                   if set(identifiers) == set(_HIGHER_ORDER_TASK_IDS)
+                   else 'targeted_higher_order_interface_complete'),
         'task_statuses': statuses,
-        'correction_hartree': correction,
+        'corrections_hartree': corrections,
         'components': {
             key: {
                 'energy_hartree': value.value_hartree,
@@ -420,6 +447,54 @@ def audit_higher_order_run(run_dir):
             } for key, value in components.items()
         },
         'claim': 'interface-validation-only',
+    }
+    if set(identifiers) == set(_HIGHER_ORDER_TASK_IDS):
+        result['correction_hartree'] = corrections['anl1_higher_order']
+    return result
+
+
+def audit_anl0_post_geometry_run(run_dir):
+    """Audit only the terms required by an ANL0 or ANL0-F12 assembly.
+
+    A combined validation graph may also contain ANL1-only CCSDT(Q)/TZ and
+    CCSDTQ(P)/DZ probes.  Their failure or deliberate cancellation must not
+    prevent an independently complete ANL0-F12 result from being audited.
+    """
+    run_dir, spec, state = _load(run_dir)
+    if spec.get('name') != 'anl-post-geometry-validation':
+        raise ValueError('Run is not a combined post-geometry validation graph.')
+    required = ('ccsdt_dz', 'ccsdtq_dz', 'cv_ae_tz', 'cv_ae_qz',
+                'cv_fc_tz', 'cv_fc_qz', 'rel_dkh', 'rel_nonrel')
+    declared = {task['id'] for task in spec['tasks']}
+    missing = sorted(set(required) - declared)
+    if missing:
+        raise RuntimeError(f'ANL0 post-geometry tasks are absent: {missing}')
+    statuses = {ident: state['tasks'].get(ident, {}).get('status', 'waiting')
+                for ident in required}
+    if any(value != 'complete' for value in statuses.values()):
+        raise RuntimeError(f'ANL0 post-geometry run is incomplete: {statuses}')
+    state_id = 'anl0-post-geometry-validation-state'
+    high = task_component(
+        run_dir, 'ccsdtq_dz', key='hoe_high', state_id=state_id)
+    low = task_component(
+        run_dir, 'ccsdt_dz', key='hoe_low', state_id=state_id)
+    corrections = audit_common_corrections_run(run_dir)
+    all_statuses = {
+        task['id']: state['tasks'].get(task['id'], {}).get('status', 'waiting')
+        for task in spec['tasks']}
+    return {
+        'status': 'anl0_post_geometry_interface_complete',
+        'task_statuses': statuses,
+        'other_task_statuses': {
+            key: value for key, value in all_statuses.items()
+            if key not in statuses},
+        'higher_order_dz_hartree': math.fsum((
+            high.value_hartree, -low.value_hartree)),
+        'higher_order_components': {
+            'ccsdtq_dz': asdict(high), 'ccsdt_dz': asdict(low)},
+        'common_corrections': corrections,
+        'geometry_sha256': spec.get('molecule', {}).get(
+            'source', {}).get('geometry_sha256'),
     }
 
 
@@ -935,6 +1010,8 @@ def main(argv=None):
     higher.add_argument('--max-nodes', type=int, default=3)
     higher.add_argument('--partition')
     higher.add_argument('--mrcc-command', default='dmrcc')
+    higher.add_argument('--task', dest='task_ids', action='append',
+                        choices=_HIGHER_ORDER_TASK_IDS)
     prepare_higher = commands.add_parser('prepare-higher-order-from-db')
     prepare_higher.add_argument('database', type=Path)
     prepare_higher.add_argument('job')
@@ -944,6 +1021,8 @@ def main(argv=None):
     prepare_higher.add_argument('--max-nodes', type=int, default=3)
     prepare_higher.add_argument('--partition')
     prepare_higher.add_argument('--mrcc-command', default='dmrcc')
+    prepare_higher.add_argument('--task', dest='task_ids', action='append',
+                                choices=_HIGHER_ORDER_TASK_IDS)
     prepare_higher_run = commands.add_parser('prepare-higher-order-from-run')
     prepare_higher_run.add_argument('source_run', type=Path)
     prepare_higher_run.add_argument('run_dir', type=Path)
@@ -951,6 +1030,8 @@ def main(argv=None):
     prepare_higher_run.add_argument('--max-nodes', type=int, default=3)
     prepare_higher_run.add_argument('--partition')
     prepare_higher_run.add_argument('--mrcc-command', default='dmrcc')
+    prepare_higher_run.add_argument('--task', dest='task_ids', action='append',
+                                    choices=_HIGHER_ORDER_TASK_IDS)
     audit_higher = commands.add_parser('audit-higher-order')
     audit_higher.add_argument('run_dir', type=Path)
     prepare_corrections = commands.add_parser(
@@ -971,6 +1052,8 @@ def main(argv=None):
     prepare_post.add_argument('--mrcc-command', default='dmrcc')
     audit_post = commands.add_parser('audit-post-geometry')
     audit_post.add_argument('run_dir', type=Path)
+    audit_anl0_post = commands.add_parser('audit-anl0-post-geometry')
+    audit_anl0_post.add_argument('run_dir', type=Path)
     assemble = commands.add_parser('assemble-anl0-f12')
     assemble.add_argument('interface_run', type=Path)
     assemble.add_argument('higher_order_run', type=Path)
@@ -1010,6 +1093,10 @@ def main(argv=None):
         return 0
     if args.action == 'audit-post-geometry':
         print(json.dumps(audit_post_geometry_run(args.run_dir), indent=2,
+                         sort_keys=True))
+        return 0
+    if args.action == 'audit-anl0-post-geometry':
+        print(json.dumps(audit_anl0_post_geometry_run(args.run_dir), indent=2,
                          sort_keys=True))
         return 0
     if args.action == 'assemble-anl0-f12':
@@ -1053,7 +1140,7 @@ def main(argv=None):
     elif is_higher:
         spec = higher_order_validation_spec(
             molecule, max_nodes=args.max_nodes, partition=args.partition,
-            mrcc_command=args.mrcc_command)
+            mrcc_command=args.mrcc_command, task_ids=args.task_ids)
     elif is_corrections:
         spec = common_corrections_validation_spec(
             molecule, max_nodes=args.max_nodes, partition=args.partition)

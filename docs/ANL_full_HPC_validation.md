@@ -695,9 +695,18 @@ independent post-geometry calculations.
 
 Leave `--partition` unset for the combined graph unless one named partition
 can satisfy every task. KinBot selects the shortest available partition that
-fits each task. In particular, the direct-MRCC `CCSDTQ(P)/cc-pVDZ` task has a
-seven-day limit and an eight-core efficiency cap, while the shorter jobs can
-use a day partition. Every job still requests its node exclusively.
+fits each task. The direct-MRCC `CCSDTQ(P)/cc-pVDZ` task has a seven-day limit
+and an eight-core efficiency cap when an exact ANL1 ethane calculation is
+requested. Every job still requests its node exclusively.
+
+The current validation phase does not require a week-long ethane
+CCSDTQ(P)/cc-pVDZ job. Chemistry validation is still mandatory: complete the
+affordable ethane ANL0-F12 graph and compare every available component and
+the final 0 K heat of formation with the 2017 source workbook. Validate the
+closed-shell and open-shell direct-MRCC paths with targeted CH4 and CH3
+CCSDT(Q)/CCSDTQ(P) pairs. This covers input generation, native method echo,
+execution, restart, parsing, correction arithmetic, and literature agreement
+without repeating the most expensive calculation on every molecule.
 
 ### Recover the 2026-10-03 higher-order ethane attempt
 
@@ -712,8 +721,9 @@ The direct-MRCC `CCSDTQ(P)/cc-pVDZ` job was killed at its one-day Slurm limit
 after writing a nonempty `fort.16`. MRCC's documented `rest=1` path can reuse
 those amplitudes. The resume command archives the old text inputs and outputs,
 keeps the large scratch/checkpoint files in place, preserves the working-memory
-value, selects cores again from node memory under the new eight-core cap, and
-requests a week partition explicitly here for Blodgett.
+value, and selects cores again from node memory. Run that seven-day retry only
+when completing the ethane ANL1 benchmark; it is not needed for ethane
+ANL0-F12.
 
 ```bash
 cd ~/KinBot
@@ -723,10 +733,6 @@ post="$PWD/ethane_profiled_hpc_run_v5/anl_post_geometry_ethane"
   "$post" ccsdtq_tz
 .venv/bin/python -m kinbot.anl.dispatch migrate-cfour-vcc \
   "$post" ccsdtq_dz
-.venv/bin/python -m kinbot.anl.dispatch resume-mrcc \
-  "$post" ccsdtqp_dz \
-  --walltime 7-00:00:00 --partition week-long-cpu --max-cores 8
-
 .venv/bin/python -m kinbot.anl.dispatch preflight "$post"
 .venv/bin/python -m kinbot.anl.dispatch status "$post"
 
@@ -737,10 +743,57 @@ echo $! > ethane_anl_post_geometry_recovery.pid
 disown
 ```
 
-The first three status values should be `staged` before the driver starts.
+If exact ethane ANL1 validation is selected, resume the QP task before
+starting the driver:
+
+```bash
+.venv/bin/python -m kinbot.anl.dispatch resume-mrcc \
+  "$post" ccsdtqp_dz \
+  --walltime 7-00:00:00 --partition week-long-cpu --max-cores 8
+```
+
+The corrected CFOUR task values should be `staged` before the driver starts.
 Completed Molpro tasks remain accepted. The pending correction jobs remain in
 the same globally throttled graph. Keep `attempts/` until the final audit has
 completed; it contains the original native outputs and recovery provenance.
+After the DZ higher-order pair and all common corrections complete, audit the
+ANL0 subset even if ANL1-only jobs were cancelled or failed:
+
+```bash
+.venv/bin/python -m kinbot.anl.validation audit-anl0-post-geometry "$post" \
+  | tee "$base/anl_post_geometry_ethane_anl0_audit.json"
+.venv/bin/python -m kinbot.anl.literature compare-run \
+  ethane-tz-2017 "$post" \
+  | tee "$base/anl_post_geometry_ethane_literature.json"
+```
+
+The literature command only compares tasks present in that run. Apply it to
+the base/interface run as well to cover harmonic, F12, and DBOC components.
+An exact source comparison requires the stated source geometry and calculation
+convention; a result from a deliberately changed production profile must be
+reported as such instead of relaxing the tolerance.
+
+Prepare the short source-matched MRCC checks from the published QZ geometries
+after the ethane correction fan-out is under control:
+
+```bash
+cd ~/KinBot
+.venv/bin/python -m kinbot.anl.literature prepare-higher-order \
+  methane-qz-2017 methane_qz_higher_2017 --max-nodes 2
+.venv/bin/python -m kinbot.anl.dispatch preflight methane_qz_higher_2017
+.venv/bin/python -m kinbot.anl.dispatch drive \
+  methane_qz_higher_2017 --interval 20
+.venv/bin/python -m kinbot.anl.validation audit-higher-order \
+  methane_qz_higher_2017 | tee methane_qz_higher_2017_audit.json
+.venv/bin/python -m kinbot.anl.literature compare-run \
+  methane-qz-2017 methane_qz_higher_2017 \
+  | tee methane_qz_higher_2017_literature.json
+```
+
+Repeat with `methyl-qz-2017` after the closed-shell path passes. The methyl
+case exercises the ROHF-reference unrestricted-CC MRCC path. Preserve one
+real interrupted MRCC attempt and successful `resume-mrcc` continuation as
+restart evidence; do not manufacture interruptions for every species.
 
 The completed ethane VPT2 parser recorded native Gaussian warnings. Assembly
 therefore stops until those warnings and the mode table are reviewed. First

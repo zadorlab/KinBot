@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import pytest
 from ase import Atoms
 from ase.db import connect
 from ase.io import read, write
@@ -17,6 +18,7 @@ from kinbot.anl.recipes import recipe
 from kinbot.anl import validation as validation_module
 from kinbot.anl.validation import (common_corrections_validation_spec,
                                    assemble_profiled_anl0_f12,
+                                   audit_anl0_post_geometry_run,
                                    audit_current_base_run,
                                    audit_higher_order_run,
                                    audit_interface_run,
@@ -174,6 +176,17 @@ def test_higher_order_probe_routes_closed_and_open_shell_without_pair_locking():
         validate_spec(resolved)
 
 
+def test_higher_order_probe_can_select_a_minimal_literature_pair():
+    spec = higher_order_validation_spec(
+        _molecule(), task_ids=('ccsdtq_dz', 'ccsdtqp_dz'))
+    assert [task['id'] for task in spec['tasks']] == [
+        'ccsdtq_dz', 'ccsdtqp_dz']
+    assert spec['intent']['selected_tasks'] == [
+        'ccsdtq_dz', 'ccsdtqp_dz']
+    with pytest.raises(ValueError, match='Invalid higher-order task'):
+        higher_order_validation_spec(_molecule(), task_ids=())
+
+
 def test_common_corrections_graph_pins_core_and_relativistic_differences():
     spec = common_corrections_validation_spec(
         _molecule(), max_nodes=4, partition='day-long-cpu')
@@ -234,6 +247,39 @@ def test_post_geometry_audit_requires_and_combines_both_groups(monkeypatch):
     assert len(result['task_statuses']) == 11
 
 
+def test_anl0_post_geometry_audit_ignores_anl1_only_failures(monkeypatch):
+    spec = post_geometry_validation_spec(_molecule())
+    spec['molecule']['source'] = {'geometry_sha256': '4' * 64}
+    state = {'tasks': {task['id']: {'status': 'complete'}
+                       for task in spec['tasks']}}
+    state['tasks']['ccsdtq_tz']['status'] = 'failed'
+    state['tasks']['ccsdtqp_dz']['status'] = 'failed'
+    monkeypatch.setattr(
+        validation_module, '_load',
+        lambda run_dir: (Path(run_dir), spec, state))
+
+    def component(run_dir, task_id, *, key, state_id):
+        value = -9.91 if task_id == 'ccsdtq_dz' else -9.90
+        return ComponentResult(
+            key=key, value_hartree=value, quantity='electronic',
+            method='CCSDT(Q)' if task_id == 'ccsdtq_dz' else 'CCSD(T)',
+            basis='cc-pVDZ', backend='cfour' if task_id == 'ccsdtq_dz'
+            else 'molpro', state_id=state_id, charge=0, multiplicity=1,
+            geometry_sha256='4' * 64,
+            source_sha256=hashlib.sha256(task_id.encode()).hexdigest(),
+            source=f'{task_id}.out')
+
+    monkeypatch.setattr(validation_module, 'task_component', component)
+    monkeypatch.setattr(
+        validation_module, 'audit_common_corrections_run',
+        lambda run_dir: {'status': 'common_corrections_interface_complete'})
+    result = audit_anl0_post_geometry_run('/synthetic/post')
+    assert result['status'] == 'anl0_post_geometry_interface_complete'
+    assert abs(result['higher_order_dz_hartree'] + 0.01) < 1e-12
+    assert result['other_task_statuses']['ccsdtq_tz'] == 'failed'
+    assert result['other_task_statuses']['ccsdtqp_dz'] == 'failed'
+
+
 def test_higher_order_audit_returns_cross_program_correction(monkeypatch):
     spec = higher_order_validation_spec(_molecule())
     state = {'tasks': {task['id']: {'status': 'complete'}
@@ -267,6 +313,41 @@ def test_higher_order_audit_returns_cross_program_correction(monkeypatch):
     assert abs(result['correction_hartree'] + 0.025) < 1e-12
     assert result['components']['ccsdtq_tz']['backend'] == 'cfour'
     assert result['components']['ccsdtqp_dz']['backend'] == 'mrcc'
+
+
+def test_targeted_higher_order_audit_returns_only_available_difference(
+        monkeypatch):
+    spec = higher_order_validation_spec(
+        _molecule(), task_ids=('ccsdtq_dz', 'ccsdtqp_dz'))
+    state = {'tasks': {task['id']: {'status': 'complete'}
+                       for task in spec['tasks']}}
+    monkeypatch.setattr(
+        validation_module, '_load',
+        lambda run_dir: (Path(run_dir), spec, state))
+    values = {'ccsdtq_dz': -40.3875184,
+              'ccsdtqp_dz': -40.387527542311}
+
+    def component(run_dir, task_id, *, key, state_id):
+        task = next(item for item in spec['tasks'] if item['id'] == task_id)
+        parser = task['result_parser']
+        return ComponentResult(
+            key=key, value_hartree=values[task_id], quantity='electronic',
+            method=parser['method'], basis=parser['basis'],
+            backend=task['backend'], state_id=state_id, charge=0,
+            multiplicity=1, geometry_sha256='3' * 64,
+            source_sha256=hashlib.sha256(task_id.encode()).hexdigest(),
+            source=f'{task_id}.out',
+            settings={name: parser[name] for name in
+                      ('reference', 'correlation', 'driver', 'program')
+                      if name in parser})
+
+    monkeypatch.setattr(validation_module, 'task_component', component)
+    result = audit_higher_order_run('/synthetic/targeted')
+    assert result['status'] == 'targeted_higher_order_interface_complete'
+    assert set(result['corrections_hartree']) == {'delta_p_dz'}
+    assert abs(result['corrections_hartree']['delta_p_dz']
+               + 0.000009142311) < 1e-12
+    assert 'correction_hartree' not in result
 
 
 def test_completed_run_geometry_export_is_hash_verified():
@@ -503,6 +584,29 @@ def test_prepare_post_geometry_cli_builds_one_shared_graph(monkeypatch):
     assert captured['spec']['limits']['max_nodes'] == 3
     assert len(captured['spec']['tasks']) == 11
     assert captured['run_dir'] == Path('/synthetic/post')
+
+
+def test_prepare_higher_order_cli_can_stage_only_the_mrcc_pair(monkeypatch):
+    molecule = deepcopy(_molecule())
+    molecule['source'] = {
+        'run_dir': '/synthetic/qz', 'task_id': 'l3_geometry',
+        'geometry_sha256': '5' * 64, 'artifact_sha256': '6' * 64}
+    captured = {}
+    monkeypatch.setattr(
+        validation_module, 'molecule_from_completed_run',
+        lambda source_run, geometry_task: molecule)
+
+    def fake_prepare(spec, run_dir):
+        captured['spec'] = spec
+        return Path(run_dir)
+
+    monkeypatch.setattr(validation_module, 'prepare', fake_prepare)
+    assert validation_main([
+        'prepare-higher-order-from-run', '/synthetic/qz',
+        '/synthetic/targeted', '--task', 'ccsdtq_dz',
+        '--task', 'ccsdtqp_dz']) == 0
+    assert [task['id'] for task in captured['spec']['tasks']] == [
+        'ccsdtq_dz', 'ccsdtqp_dz']
 
 
 def test_kinbot_gate_requires_accepted_reaction_hir_and_rotdpy():

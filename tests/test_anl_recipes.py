@@ -82,11 +82,26 @@ def test_anl1_cross_program_higher_order_pairs_and_profiled_label():
     assert result.recipe == 'profiled:ANL1:B2PLYP-D3BJ'
     assert components['hoe_tz_high'].backend == 'mrcc'
     assert components['hoe_tz_high'].settings['reference'] == 'RHF'
-    assert components['hoe_tz_high'].settings['driver'] == 'direct'
     assert components['hoe_tz_high'].settings['correlation'] == 'unrestricted'
     assert components['hoe_tz_low'].backend == 'molpro'
     assert components['hoe_dz_high'].backend == 'mrcc'
     assert components['vpt2_correction'].settings['dispersion'] == 'GD3BJ'
+
+
+def test_rank_exact_higher_order_backend_is_narrowly_allowed():
+    equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ')
+    components = components_for(equation)
+    high = components['hoe_high']
+    components['hoe_high'] = replace(
+        high, value_hartree=components['hoe_low'].value_hartree,
+        backend='known_zero', settings={
+            **high.settings,
+            'rank_exact': {'electron_count': 2,
+                           'reused_low_source_sha256': SOURCE},
+        })
+    result = evaluate(equation, components)
+    assert result.components['hoe_high'].backend == 'known_zero'
+    assert result.electronic_hartree == pytest.approx(-100.023)
 
 
 def test_optional_vpt2_cbs_remains_one_zero_point_correction():

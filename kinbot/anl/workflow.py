@@ -7,6 +7,8 @@ import hashlib
 import math
 import re
 
+from ase.data import atomic_numbers
+
 from kinbot.anl.dispatch import _load, _verify_execution, _verify_stage_files
 from kinbot.anl.extrapolation import (core_valence_correction, two_point_cbs)
 from kinbot.anl.model import (ComponentRequirement, ComponentResult,
@@ -115,6 +117,64 @@ def task_component(run_dir, task_id, *, key, state_id):
         source_sha256=execution['artifacts'][request['file']],
         source=str(native), settings=settings, review_required=review_required,
     )
+
+
+def rank_exact_higher_order_component(
+        molecule, low: ComponentResult, requirement: ComponentRequirement,
+        *, key: str) -> ComponentResult:
+    """Represent a rigorously zero higher-excitation correction.
+
+    A state containing at most two electrons cannot form triple or quadruple
+    excitations.  Its CCSD(T), CCSDT(Q), and CCSDTQ(P) total energies are
+    therefore identical within a fixed one-particle basis.  This provider is
+    deliberately restricted to that provable case; an arbitrary failed QC
+    calculation can never be converted into a zero correction.
+    """
+    if not isinstance(molecule, dict):
+        raise TypeError('molecule must be an object.')
+    symbols = molecule.get('symbols')
+    charge = molecule.get('charge', 0)
+    if (not isinstance(symbols, list) or not symbols
+            or isinstance(charge, bool) or not isinstance(charge, int)):
+        raise ValueError('Rank-exact component needs symbols and integer charge.')
+    try:
+        electrons = sum(atomic_numbers[symbol] for symbol in symbols) - charge
+    except KeyError as exc:
+        raise ValueError(f'Unknown element symbol {exc.args[0]!r}.') from exc
+    if electrons < 1 or electrons > 2:
+        raise ValueError('Higher-order rank exactness requires at most two electrons.')
+    if (low.quantity != 'electronic' or low.method != 'CCSD(T)'
+            or low.basis != requirement.basis
+            or low.charge != charge
+            or low.multiplicity != molecule.get('multiplicity', 1)
+            or requirement.method not in ('CCSDT(Q)', 'CCSDTQ(P)')):
+        raise ValueError('Low component is incompatible with rank exactness.')
+    settings = dict(requirement.settings)
+    settings['rank_exact'] = {
+        'electron_count': electrons,
+        'reason': ('triple and higher excitations are absent for a state '
+                   'containing at most two electrons'),
+        'reused_low_method': low.method,
+        'reused_low_source_sha256': low.source_sha256,
+    }
+    provenance = {
+        'schema': 1, 'provider': 'known_zero_excitation_rank',
+        'electron_count': electrons, 'high_method': requirement.method,
+        'low_method': low.method, 'basis': requirement.basis,
+        'low_source_sha256': low.source_sha256,
+        'geometry_sha256': low.geometry_sha256,
+    }
+    digest = hashlib.sha256(json.dumps(
+        provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return ComponentResult(
+        key=key, value_hartree=low.value_hartree,
+        quantity=requirement.quantity, method=requirement.method,
+        basis=requirement.basis, backend='known_zero',
+        state_id=low.state_id, charge=low.charge,
+        multiplicity=low.multiplicity,
+        geometry_sha256=low.geometry_sha256, source_sha256=digest,
+        source=('rank-exact higher-order identity derived from '
+                f'{low.source}'), settings=settings)
 
 
 def attach_task_vpt2_frequencies(species, run_dir, task_id, **match_options):

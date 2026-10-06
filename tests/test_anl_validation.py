@@ -243,6 +243,68 @@ def test_post_geometry_graph_can_limit_execution_to_anl0():
     assert 'ccsdtqp_dz' not in tasks
 
 
+def test_two_electron_post_graph_skips_impossible_higher_rank_job():
+    hydrogen = {
+        'symbols': ['H', 'H'],
+        'positions': [[0., 0., 0.], [0., 0., 0.74]],
+        'charge': 0, 'multiplicity': 1,
+    }
+    spec = post_geometry_validation_spec(
+        hydrogen, max_nodes=2, partition='day-long-cpu', anl0_only=True)
+    tasks = {task['id']: task for task in spec['tasks']}
+    assert 'ccsdt_dz' in tasks
+    assert 'ccsdtq_dz' not in tasks
+    assert spec['intent']['rank_exact_higher_order']['electron_count'] == 2
+    assert spec['intent']['rank_exact_higher_order']['correction_hartree'] == 0.
+
+
+def test_two_electron_post_audit_replaces_failed_high_job_by_rank_identity(
+        monkeypatch):
+    hydrogen = {
+        'symbols': ['H', 'H'],
+        'positions': [[0., 0., 0.], [0., 0., 0.74]],
+        'charge': 0, 'multiplicity': 1,
+        'source': {'geometry_sha256': '4' * 64},
+    }
+    spec = post_geometry_validation_spec(
+        hydrogen, anl0_only=True)
+    # Reproduce an archive prepared before rank-aware staging: the now
+    # unnecessary MRCC task is present and failed, while every required task
+    # completed.
+    obsolete_high = higher_order_validation_spec(
+        hydrogen, task_ids=('ccsdtq_dz',))['tasks'][0]
+    spec['tasks'].append(obsolete_high)
+    state = {'tasks': {task['id']: {'status': 'complete'}
+                       for task in spec['tasks']}}
+    state['tasks']['ccsdtq_dz']['status'] = 'failed'
+    monkeypatch.setattr(
+        validation_module, '_load',
+        lambda run_dir: (Path(run_dir), spec, state))
+
+    low = ComponentResult(
+        key='hoe_low', value_hartree=-1.151234,
+        quantity='electronic', method='CCSD(T)', basis='cc-pVDZ',
+        backend='molpro', state_id='anl0-post-geometry-validation-state',
+        charge=0, multiplicity=1, geometry_sha256='4' * 64,
+        source_sha256='a' * 64, source='ccsdt_dz.out',
+        settings={'reference': 'RHF', 'correlation': 'unrestricted'})
+
+    def component(run_dir, task_id, *, key, state_id):
+        assert task_id == 'ccsdt_dz'
+        return low
+
+    monkeypatch.setattr(validation_module, 'task_component', component)
+    monkeypatch.setattr(
+        validation_module, 'audit_common_corrections_run',
+        lambda run_dir: {'status': 'common_corrections_interface_complete'})
+    result = audit_anl0_post_geometry_run('/synthetic/hydrogen-post')
+    assert result['higher_order_dz_hartree'] == 0.
+    assert result['rank_exact_higher_order'] is True
+    assert result['higher_order_components']['ccsdtq_dz']['backend'] == \
+        'known_zero'
+    assert result['other_task_statuses']['ccsdtq_dz'] == 'failed'
+
+
 def test_post_geometry_audit_requires_and_combines_both_groups(monkeypatch):
     spec = post_geometry_validation_spec(_molecule())
     spec['molecule']['source'] = {'geometry_sha256': '4' * 64}

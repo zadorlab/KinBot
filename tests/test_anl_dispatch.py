@@ -20,6 +20,7 @@ from tests.anl_fixture import dispatch_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
     _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, main, prepare,
+    recover_gaussian_vpt2_symmetry,
     migrate_cfour_vcc_keyword, preflight, refresh_status, reparse_failed,
     reroute_cfour_higher_order_to_mrcc,
     resume_mrcc_failed,
@@ -542,6 +543,72 @@ def test_failed_task_can_be_archived_and_retried():
         assert (archive / 'execution.json').is_file()
         assert not (run_dir / 'tasks' / 'sample' / 'execution.json').exists()
         assert advance(run_dir)['tasks']['sample']['status'] == 'staged'
+
+
+def test_gaussian_framework_group_failure_has_narrow_same_geometry_recovery():
+    spec = dispatch_spec()
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        advance(run_dir)
+        _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
+        advance(run_dir)
+        directory = run_dir / 'tasks' / 'gaussian_vpt2'
+        original_geometry = (directory / 'geometry.xyz').read_bytes()
+        original_input = (directory / 'vpt2.com').read_text()
+        (directory / 'vpt2.log').write_text(
+            'Second-order Perturbative Anharmonic Analysis\n'
+            'ERROR: Inconsistency found in framework group definition:\n'
+            'New: C1 - Old: T\n'
+            'Error termination via Lnk1e in l717.exe\n')
+        (directory / 'execution.json').write_text(json.dumps({
+            'schema': 1, 'task_id': 'gaussian_vpt2',
+            'geometry_sha256': json.loads(
+                (directory / 'task.json').read_text())['geometry_sha256'],
+            'status': 'failed', 'error': 'Program exited with status 1.',
+        }))
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['gaussian_vpt2']['status'] = 'failed'
+        state_path.write_text(json.dumps(state))
+
+        archive = recover_gaussian_vpt2_symmetry(
+            run_dir, 'gaussian_vpt2')
+        assert (archive / 'vpt2.com').read_text() == original_input
+        assert (archive / 'vpt2.log').is_file()
+        assert (directory / 'geometry.xyz').read_bytes() == original_geometry
+        recovered = (directory / 'vpt2.com').read_text()
+        assert 'Freq=Anharmonic' in recovered
+        assert 'NoSymm' not in recovered
+        assert 'B2PLYP/cc-pVTZ' in recovered
+        workflow = json.loads((run_dir / 'workflow.json').read_text())
+        task = next(item for item in workflow['tasks']
+                    if item['id'] == 'gaussian_vpt2')
+        assert task['recovery']['geometry_changed'] is False
+        state = json.loads(state_path.read_text())
+        assert state['tasks']['gaussian_vpt2']['status'] == 'staged'
+        assert state['tasks']['gaussian_vpt2']['attempt'] == 2
+
+
+def test_gaussian_symmetry_recovery_rejects_unrelated_failure():
+    spec = dispatch_spec()
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        advance(run_dir)
+        _mock_execution(run_dir, 'l3_geometry', geometry='final.xyz')
+        advance(run_dir)
+        directory = run_dir / 'tasks' / 'gaussian_vpt2'
+        (directory / 'vpt2.log').write_text(
+            'SCF convergence failure\nError termination via Lnk1e\n')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['gaussian_vpt2']['status'] = 'failed'
+        state_path.write_text(json.dumps(state))
+        with pytest.raises(RuntimeError, match='not the framework-group'):
+            recover_gaussian_vpt2_symmetry(run_dir, 'gaussian_vpt2')
 
 
 def test_failed_task_does_not_stop_independent_work_and_blocks_only_children():

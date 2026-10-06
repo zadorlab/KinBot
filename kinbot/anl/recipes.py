@@ -113,12 +113,10 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     high_settings = {
         'correlation': 'unrestricted', 'core': 'frozen',
         'reference': 'RHF' if multiplicity == 1 else 'ROHF',
-        'program': high_backend, 'driver': 'direct',
     }
     qp_settings = {
         'correlation': 'unrestricted', 'core': 'frozen',
         'reference': 'RHF' if multiplicity == 1 else 'ROHF',
-        'program': 'mrcc', 'driver': 'direct',
     }
     if name == 'ANL1':
         higher = [
@@ -138,7 +136,7 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     else:
         higher = [
             _required('hoe_high', 'electronic', 'CCSDT(Q)', 'cc-pVDZ',
-                      backends=(high_backend,), **high_settings),
+                      backends=(high_backend, 'known_zero'), **high_settings),
             _required('hoe_low', 'electronic', 'CCSD(T)', 'cc-pVDZ',
                       backends=('molpro',), correlation='unrestricted'),
         ]

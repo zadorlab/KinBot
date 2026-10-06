@@ -845,6 +845,14 @@ mkdir -p "$refs"
 Run the independent graphs concurrently, then prepare each post-geometry
 ANL0 fan-out from its exact accepted L3 geometry:
 
+For one- and two-electron reference states, the post-geometry builder omits
+the direct-MRCC CCSDT(Q) job. Triple and quadruple excitations do not exist in
+those states, so the assembler records the exact identity
+`CCSDT(Q)/DZ = CCSD(T)/DZ` as a hash-bound `known_zero` correction. It never
+turns a general failed higher-order calculation into zero. Older H2 graphs
+that already contain a failed `ccsdtq_dz` task are accepted by
+`audit-anl0-post-geometry` only through this same electron-count proof.
+
 ```bash
 nohup bash -lc '
   set -uo pipefail
@@ -893,6 +901,26 @@ hash-bound review only when that record has `review_required: true`; an
 unflagged result must not receive a review file. Assemble each accepted
 reference with its interface run as the base and its post run as both the
 higher-order and correction provider.
+
+Gaussian 16 B.01 can abort methane VPT2 in Link 717 with
+`New: C1 - Old: T` when a legacy prepared input combines a tetrahedral
+framework with `NoSymm`. Recover only that exact failure with:
+
+```bash
+.venv/bin/python -m kinbot.anl.dispatch \
+  recover-gaussian-vpt2-symmetry \
+  "$refs/methane_interface" gaussian_vpt2
+.venv/bin/python -m kinbot.anl.dispatch preflight \
+  "$refs/methane_interface"
+.venv/bin/python -m kinbot.anl.dispatch drive \
+  "$refs/methane_interface" --interval 20
+```
+
+The recovery archives the failed attempt, preserves the exact L2 geometry,
+method, basis, dispersion, resources, and frequency-only character, and
+removes only `NoSymm` so Gaussian uses a consistent molecular framework. New
+graphs use this route directly. The migration refuses unrelated Gaussian
+failures.
 
 Once the methane and hydrogen composite JSON files exist, generate and solve
 the ethane CBH-0 reaction directly from the three records:

@@ -1032,6 +1032,98 @@ def retry_failed(run_dir, ident):
     return archive
 
 
+def recover_gaussian_vpt2_symmetry(run_dir, ident):
+    """Retry the Gaussian framework-group VPT2 failure with symmetry enabled.
+
+    Gaussian 16 can classify a nearly tetrahedral input as a spherical top
+    before an anharmonic calculation, then reclassify its Eckart-oriented
+    coordinates as C1 because ``NoSymm`` was requested. Link 717 aborts with
+    an internal framework-group inconsistency. This migration is intentionally
+    narrow: it accepts only that native error, removes only ``NoSymm``, keeps
+    the same accepted L2 geometry and method, and archives the entire failed
+    attempt before staging the retry.
+    """
+    run_dir, spec, state = _load(run_dir)
+    by_id = {task['id']: task for task in spec['tasks']}
+    task = by_id.get(ident)
+    entry = state['tasks'].get(ident)
+    if task is None or entry is None:
+        raise ValueError(f'{ident}: task is unavailable.')
+    parser = task.get('result_parser', {})
+    if (task.get('kind') != 'external'
+            or task.get('backend', '').lower() != 'gaussian'
+            or parser.get('kind') != 'gaussian_vpt2'):
+        raise ValueError(f'{ident}: recovery requires a Gaussian VPT2 task.')
+    if entry.get('status') != 'failed':
+        raise ValueError(f'{ident}: only a failed Gaussian VPT2 task can recover.')
+    if entry.get('job_id') and _job_active(entry['job_id']):
+        raise RuntimeError(f'{ident}: Slurm job is still active.')
+    if any(other != ident and other in state['tasks']
+           and state['tasks'][other].get('status') != 'blocked'
+           and ident in _task_dependencies(other_task)
+           for other, other_task in by_id.items()):
+        raise RuntimeError(f'{ident}: downstream task already exists; review run.')
+    _verify_stage_files(run_dir, task, entry)
+    directory = run_dir / 'tasks' / ident
+    native = directory / parser['file']
+    if not native.is_file():
+        raise RuntimeError(f'{ident}: native Gaussian output is missing.')
+    output = native.read_text(errors='replace')
+    required = (
+        'ERROR: Inconsistency found in framework group definition:',
+        'Error termination via Lnk1e',
+    )
+    if (not all(marker in output for marker in required)
+            or 'Normal termination of Gaussian' in output):
+        raise RuntimeError(
+            f'{ident}: native output is not the framework-group VPT2 failure.')
+    replacement = deepcopy(task)
+    template, count = re.subn(
+        r'(?i)(?<!\S)NoSymm(?!\S)', '', replacement['input_template'],
+        count=1)
+    if count != 1:
+        raise RuntimeError(f'{ident}: input has no unique NoSymm keyword.')
+    replacement['input_template'] = template
+    replacement['recovery'] = {
+        'kind': 'gaussian_vpt2_framework_group',
+        'change': 'removed NoSymm; Gaussian determines the molecular group',
+        'geometry_changed': False,
+    }
+    spec['tasks'][spec['tasks'].index(task)] = replacement
+    assign_partitions(spec)
+    validate_spec(spec)
+
+    old = directory
+    attempt = entry.get('attempt', 1)
+    archive = run_dir / 'attempts' / ident / str(attempt)
+    if archive.exists():
+        raise RuntimeError(f'{ident}: retry archive already exists.')
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    old_workflow = (run_dir / 'workflow.json').read_text()
+    old.replace(archive)
+    try:
+        _atomic_json(run_dir / 'workflow.json', spec)
+        state['spec_sha256'] = _file_hash(run_dir / 'workflow.json')
+        _stage_task(run_dir, spec, state, replacement)
+    except Exception:
+        failed_stage = run_dir / 'tasks' / ident
+        if failed_stage.exists():
+            shutil.rmtree(failed_stage)
+        archive.replace(old)
+        (run_dir / 'workflow.json').write_text(old_workflow)
+        state['spec_sha256'] = _file_hash(run_dir / 'workflow.json')
+        state['tasks'][ident] = entry
+        _atomic_json(run_dir / 'state.json', state)
+        raise
+    state['tasks'][ident]['attempt'] = attempt + 1
+    state['tasks'][ident]['previous_attempt'] = str(archive)
+    state['tasks'][ident]['migration'] = \
+        'Gaussian VPT2 framework-group recovery without NoSymm'
+    _clear_blocked_tasks(state)
+    _atomic_json(run_dir / 'state.json', state)
+    return archive
+
+
 def reroute_cfour_higher_order_to_mrcc(
         run_dir, ident, *, command='dmrcc', walltime=None,
         partition=None, max_cores=None):
@@ -1403,6 +1495,9 @@ def main(argv=None):
     retry = sub.add_parser('retry')
     retry.add_argument('run_dir')
     retry.add_argument('task_id')
+    recover_vpt2 = sub.add_parser('recover-gaussian-vpt2-symmetry')
+    recover_vpt2.add_argument('run_dir')
+    recover_vpt2.add_argument('task_id')
     migrate_cfour = sub.add_parser('migrate-cfour-vcc')
     migrate_cfour.add_argument('run_dir')
     migrate_cfour.add_argument('task_id')
@@ -1448,6 +1543,14 @@ def main(argv=None):
             except BlockingIOError as exc:
                 raise RuntimeError('Another driver is managing this run.') from exc
             print(retry_failed(run_dir, args.task_id))
+    elif args.action == 'recover-gaussian-vpt2-symmetry':
+        run_dir = Path(args.run_dir).resolve()
+        with (run_dir / 'drive.lock').open('w') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise RuntimeError('Another driver is managing this run.') from exc
+            print(recover_gaussian_vpt2_symmetry(run_dir, args.task_id))
     elif args.action == 'migrate-cfour-vcc':
         run_dir = Path(args.run_dir).resolve()
         with (run_dir / 'drive.lock').open('w') as lock:

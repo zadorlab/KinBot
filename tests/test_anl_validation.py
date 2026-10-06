@@ -30,6 +30,7 @@ from kinbot.anl.validation import (common_corrections_validation_spec,
                                    main as validation_main,
                                    molecule_from_completed_run,
                                    molecule_from_database,
+                                   molecule_from_smiles,
                                    post_geometry_validation_spec)
 from kinbot.anl import site
 from kinbot.parameters import Parameters
@@ -573,6 +574,48 @@ def test_prepare_from_database_cli_stages_general_graph(monkeypatch):
                    for task in workflow['tasks'])
         state = json.loads((run_dir / 'state.json').read_text())
         assert set(state['tasks']) == {'l2_geometry'}
+
+
+def test_smiles_initial_geometry_is_deterministic_and_state_checked():
+    first = molecule_from_smiles('C', charge=0, multiplicity=1)
+    second = molecule_from_smiles('C', charge=0, multiplicity=1)
+    assert first == second
+    assert first['symbols'].count('C') == 1
+    assert first['symbols'].count('H') == 4
+    assert first['smiles'] == 'C'
+    hydrogen = molecule_from_smiles(
+        '[H][H]', charge=0, multiplicity=1)
+    assert hydrogen['symbols'] == ['H', 'H']
+    assert hydrogen['positions'][0] != hydrogen['positions'][1]
+    hydrogen_tasks = {
+        task['id']: task for task in interface_validation_spec(hydrogen)['tasks']}
+    assert hydrogen_tasks['l2_geometry']['optimizer']['sella_kwargs'] == {
+        'internal': False}
+    assert hydrogen_tasks['l3_geometry']['optimizer']['sella_kwargs'] == {
+        'internal': False}
+    with pytest.raises(ValueError, match='formal charge'):
+        molecule_from_smiles('[NH4+]', charge=0, multiplicity=1)
+    with pytest.raises(ValueError, match='radical electrons'):
+        molecule_from_smiles('[CH3]', charge=0, multiplicity=1)
+
+
+def test_prepare_from_smiles_cli_stages_general_graph(monkeypatch):
+    captured = {}
+
+    def fake_prepare(spec, run_dir):
+        captured['spec'] = spec
+        captured['run_dir'] = Path(run_dir)
+        return Path(run_dir)
+
+    monkeypatch.setattr(validation_module, 'prepare', fake_prepare)
+    assert validation_main([
+        'prepare-from-smiles', 'C', '/synthetic/methane',
+        '--max-nodes', '2', '--partition', 'day-long-cpu']) == 0
+    assert captured['run_dir'] == Path('/synthetic/methane')
+    assert captured['spec']['molecule']['smiles'] == 'C'
+    assert captured['spec']['limits']['max_nodes'] == 2
+    assert all(task['resources']['partition'] == 'day-long-cpu'
+               for task in captured['spec']['tasks'])
 
 
 def test_prepare_post_geometry_cli_builds_one_shared_graph(monkeypatch):

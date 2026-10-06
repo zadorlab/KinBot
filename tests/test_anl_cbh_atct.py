@@ -14,7 +14,9 @@ from kinbot.anl.atct import (_fetch_reference_records, load_atct,
                              parse_atct_api, parse_atct_html)
 from kinbot.anl.cbh import (HARTREE_TO_KJ_MOL, ZeroKEnergy,
                             generate_cbh_reaction, generate_for_stationary_point,
-                            select_cbh_ladder, solve_formation_enthalpy)
+                            select_cbh_ladder, solve_composite_records,
+                            solve_formation_enthalpy,
+                            zero_k_from_composite_record)
 
 
 def _row(number, atct_id, name, formula, smiles, h0, uncertainty='0.1'):
@@ -201,6 +203,56 @@ def test_zero_k_formation_uses_accepted_energies_and_atct_references():
     energies['C'] = ZeroKEnergy('C', -40, 'ANL1', 'different-method')
     with pytest.raises(ValueError, match='same'):
         solve_formation_enthalpy(reaction, energies, table)
+
+
+def _composite_record(path, electronic, zpe=0.):
+    components = {
+        'electronic': {
+            'key': 'electronic', 'value_hartree': electronic,
+            'review_required': False, 'source_sha256': 'a' * 64,
+        },
+        'zpe': {
+            'key': 'zpe', 'value_hartree': zpe,
+            'review_required': False, 'source_sha256': 'b' * 64,
+        },
+    }
+    path.write_text(json.dumps({
+        'schema': 1, 'status': 'complete',
+        'recipe': 'profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ',
+        'recipe_version': 1, 'charge': 0, 'multiplicity': 1,
+        'components': components,
+        'electronic_terms': [{'component': 'electronic', 'coefficient': 1}],
+        'zero_point_terms': [{'component': 'zpe', 'coefficient': 1}],
+        'electronic_hartree': electronic, 'zero_point_hartree': zpe,
+        'zero_k_hartree': electronic + zpe,
+    }))
+
+
+def test_composite_record_handoff_solves_ethane_cbh0(tmp_path, monkeypatch):
+    files = {}
+    for smiles, name, value in (
+            ('CC', 'ethane.json', -79.), ('C', 'methane.json', -40.),
+            ('[H][H]', 'hydrogen.json', -1.)):
+        path = tmp_path / name
+        _composite_record(path, value)
+        files[smiles] = path
+    energy = zero_k_from_composite_record('CC', files['CC'])
+    assert energy.hartree == -79.
+    assert energy.method.startswith('profiled:ANL0-F12:')
+    assert '#sha256=' in energy.source
+    _, table = _table()
+    monkeypatch.setattr('kinbot.anl.cbh.load_atct_references',
+                        lambda *args, **kwargs: table)
+    reaction, formation = solve_composite_records(
+        'CC', 0, files, atct_version='1.222', atct_cache=tmp_path)
+    assert reaction.stoichiometry == {'C': 2, 'CC': -1, '[H][H]': -1}
+    assert formation.reaction_energy_0k_kj_mol == pytest.approx(0.)
+    assert formation.formation_0k_kj_mol == pytest.approx(2 * -66.544)
+    record = json.loads(files['CC'].read_text())
+    record['zero_k_hartree'] += .1
+    files['CC'].write_text(json.dumps(record))
+    with pytest.raises(ValueError, match='disagrees with components'):
+        zero_k_from_composite_record('CC', files['CC'])
 
 
 def test_ladder_uses_highest_complete_common_tier_for_available_rung():

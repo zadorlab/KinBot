@@ -815,6 +815,113 @@ base="$PWD/ethane_profiled_hpc_run_v5"
 cat "$base/ethane_profiled_anl0_f12_449cfbd.json"
 ```
 
+### Generate the CBH-0 reference graphs from SMILES
+
+Reference fragments do not need a pre-existing KinBot database row. The
+SMILES entry point creates a deterministic initial Cartesian structure and
+then runs the same Gaussian/Sella L2 optimization, Molpro/Sella L3
+optimization, and native component graph. The embedded coordinates are never
+used as a final energy geometry. Diatomics use Cartesian Sella coordinates.
+
+Prepare methane and hydrogen with one exclusive node available to each graph:
+
+```bash
+cd ~/KinBot
+base="$PWD/ethane_profiled_hpc_run_v5"
+refs="$base/cbh0_reference_graphs"
+mkdir -p "$refs"
+
+.venv/bin/python -m kinbot.anl.validation prepare-from-smiles \
+  C "$refs/methane_interface" \
+  --charge 0 --multiplicity 1 --max-nodes 1 --partition day-long-cpu
+.venv/bin/python -m kinbot.anl.validation prepare-from-smiles \
+  '[H][H]' "$refs/hydrogen_interface" \
+  --charge 0 --multiplicity 1 --max-nodes 1 --partition day-long-cpu
+
+.venv/bin/python -m kinbot.anl.dispatch preflight "$refs/methane_interface"
+.venv/bin/python -m kinbot.anl.dispatch preflight "$refs/hydrogen_interface"
+```
+
+Run the independent graphs concurrently, then prepare each post-geometry
+ANL0 fan-out from its exact accepted L3 geometry:
+
+```bash
+nohup bash -lc '
+  set -euo pipefail
+  cd "$HOME/KinBot"
+  base="$PWD/ethane_profiled_hpc_run_v5"
+  refs="$base/cbh0_reference_graphs"
+
+  .venv/bin/python -m kinbot.anl.dispatch drive \
+    "$refs/methane_interface" --interval 20 &
+  methane_pid=$!
+  .venv/bin/python -m kinbot.anl.dispatch drive \
+    "$refs/hydrogen_interface" --interval 20 &
+  hydrogen_pid=$!
+  wait "$methane_pid"
+  wait "$hydrogen_pid"
+
+  .venv/bin/python -m kinbot.anl.validation prepare-post-geometry-from-run \
+    "$refs/methane_interface" "$refs/methane_post" \
+    --max-nodes 1 --partition day-long-cpu --anl0-only
+  .venv/bin/python -m kinbot.anl.validation prepare-post-geometry-from-run \
+    "$refs/hydrogen_interface" "$refs/hydrogen_post" \
+    --max-nodes 1 --partition day-long-cpu --anl0-only
+  .venv/bin/python -m kinbot.anl.dispatch preflight "$refs/methane_post"
+  .venv/bin/python -m kinbot.anl.dispatch preflight "$refs/hydrogen_post"
+
+  .venv/bin/python -m kinbot.anl.dispatch drive \
+    "$refs/methane_post" --interval 20 &
+  methane_pid=$!
+  .venv/bin/python -m kinbot.anl.dispatch drive \
+    "$refs/hydrogen_post" --interval 20 &
+  hydrogen_pid=$!
+  wait "$methane_pid"
+  wait "$hydrogen_pid"
+
+  .venv/bin/python -m kinbot.anl.validation audit \
+    "$refs/methane_interface" > "$refs/methane_interface_audit.json"
+  .venv/bin/python -m kinbot.anl.validation audit \
+    "$refs/hydrogen_interface" > "$refs/hydrogen_interface_audit.json"
+  .venv/bin/python -m kinbot.anl.validation audit-anl0-post-geometry \
+    "$refs/methane_post" > "$refs/methane_post_audit.json"
+  .venv/bin/python -m kinbot.anl.validation audit-anl0-post-geometry \
+    "$refs/hydrogen_post" > "$refs/hydrogen_post_audit.json"
+' > cbh0_reference_graphs.log 2>&1 < /dev/null &
+echo $! > cbh0_reference_graphs.pid
+disown
+```
+
+Inspect each `gaussian_vpt2` parsed result after the driver exits. Supply a
+hash-bound review only when that record has `review_required: true`; an
+unflagged result must not receive a review file. Assemble each accepted
+reference with its interface run as the base and its post run as both the
+higher-order and correction provider.
+
+Once the methane and hydrogen composite JSON files exist, generate and solve
+the ethane CBH-0 reaction directly from the three records:
+
+```bash
+base="$PWD/ethane_profiled_hpc_run_v5"
+refs="$base/cbh0_reference_graphs"
+mkdir -p "$HOME/.cache/kinbot/atct"
+
+.venv/bin/python -m kinbot.anl.cbh generate CC --rung 0
+.venv/bin/python -m kinbot.anl.cbh solve-records \
+  CC "$base/ethane_cbh0_anl0_f12.json" --rung 0 \
+  --energy "CC=$base/ethane_profiled_anl0_f12_449cfbd.json" \
+  --energy "C=$refs/methane_profiled_anl0_f12.json" \
+  --energy "[H][H]=$refs/hydrogen_profiled_anl0_f12.json" \
+  --atct-version 1.220 \
+  --atct-cache "$HOME/.cache/kinbot/atct"
+cat "$base/ethane_cbh0_anl0_f12.json"
+```
+
+The solver recomputes the electronic, zero-point, and zero-K sums from every
+input component, requires the exact same recipe label and state across the
+CBH reaction, resolves only pinned 0 K gas-phase ATcT records, and stores all
+source hashes in the result.
+
 The methyl minimum can then be staged from the already accepted KinBot row,
 using `--multiplicity 2`, and sent through the same base, higher-order, and
 common-correction sequence. Before doing that, list the exact database job

@@ -10,16 +10,21 @@ extensions require additional state-aware fragment rules and fail closed.
 
 from __future__ import annotations
 
+import argparse
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from hashlib import sha256
+import json
 import math
+from pathlib import Path
+import re
 from typing import Mapping
 
 import networkx as nx
 from ase.units import Hartree, kJ, mol
 
 from kinbot.anl.atct import (ATcTRecord, ATcTTable, _canonical_smiles,
-                            _preferred_formula_atoms)
+                            _preferred_formula_atoms, load_atct_references)
 from kinbot.energy import ZeroKEnergy
 
 
@@ -29,6 +34,7 @@ _H2 = '[H][H]'
 _H = '[H]'
 DEFAULT_METHOD_LADDER = ('ANL1-F12', 'ANL1', 'ANL0-F12', 'ANL0',
                          'L3', 'L2')
+_SHA256 = re.compile(r'[0-9a-f]{64}\Z')
 
 
 @dataclass(frozen=True)
@@ -417,3 +423,186 @@ def select_cbh_ladder(
             return LadderSelection(formation, reaction, tuple(skipped))
     raise ValueError('No complete CBH reaction and energy tier is available. '
                      + '; '.join(skipped))
+
+
+def zero_k_from_composite_record(smiles: str, path: str | Path) -> ZeroKEnergy:
+    """Load one complete, internally consistent composite JSON result."""
+    path = Path(path).resolve()
+    try:
+        raw = path.read_bytes()
+        record = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f'{path}: invalid composite result.') from exc
+    if (not isinstance(record, dict) or record.get('schema') != 1
+            or record.get('status') != 'complete'
+            or not isinstance(record.get('recipe'), str)
+            or not record['recipe'].strip()
+            or isinstance(record.get('charge'), bool)
+            or not isinstance(record.get('charge'), int)
+            or isinstance(record.get('multiplicity'), bool)
+            or not isinstance(record.get('multiplicity'), int)
+            or record['multiplicity'] < 1):
+        raise ValueError(f'{path}: composite result identity is incomplete.')
+    components = record.get('components')
+    if not isinstance(components, dict) or not components:
+        raise ValueError(f'{path}: composite components are missing.')
+    for key, component in components.items():
+        if (not isinstance(key, str) or not isinstance(component, dict)
+                or component.get('key') != key
+                or component.get('review_required') is not False
+                or not isinstance(component.get('value_hartree'), (int, float))
+                or isinstance(component.get('value_hartree'), bool)
+                or not math.isfinite(component['value_hartree'])
+                or not _SHA256.fullmatch(str(component.get('source_sha256', '')))):
+            raise ValueError(f'{path}: invalid accepted component {key!r}.')
+
+    def total(terms, label):
+        if not isinstance(terms, list) or not terms:
+            raise ValueError(f'{path}: {label} expression is missing.')
+        values = []
+        seen = set()
+        for term in terms:
+            if (not isinstance(term, dict)
+                    or set(term) != {'component', 'coefficient'}
+                    or term['component'] not in components
+                    or term['component'] in seen
+                    or term['coefficient'] not in (-1, 1)):
+                raise ValueError(f'{path}: invalid {label} expression.')
+            seen.add(term['component'])
+            values.append(term['coefficient'] *
+                          components[term['component']]['value_hartree'])
+        return math.fsum(values), seen
+
+    electronic, electronic_keys = total(
+        record.get('electronic_terms'), 'electronic')
+    zero_point, zero_point_keys = total(
+        record.get('zero_point_terms'), 'zero-point')
+    if (electronic_keys & zero_point_keys
+            or electronic_keys | zero_point_keys != set(components)):
+        raise ValueError(f'{path}: expression does not use each component once.')
+    expected = {
+        'electronic_hartree': electronic,
+        'zero_point_hartree': zero_point,
+        'zero_k_hartree': math.fsum((electronic, zero_point)),
+    }
+    for key, value in expected.items():
+        stored = record.get(key)
+        if (not isinstance(stored, (int, float)) or isinstance(stored, bool)
+                or not math.isfinite(stored) or abs(stored - value) > 5e-12):
+            raise ValueError(f'{path}: stored {key} disagrees with components.')
+    source = f'{path}#sha256={sha256(raw).hexdigest()}'
+    return ZeroKEnergy(
+        smiles, expected['zero_k_hartree'], record['recipe'], source,
+        record['charge'], record['multiplicity'])
+
+
+def solve_composite_records(
+        target_smiles: str, rung: int,
+        energy_files: Mapping[str, str | Path], *, atct_version: str,
+        atct_cache: str | Path,
+        reference_ids: Mapping[str, str] | None = None,
+        refresh_atct: bool = False) -> tuple[CBHReaction, FormationEnthalpy]:
+    """Generate one CBH reaction and solve it from composite JSON records."""
+    if target_smiles not in energy_files:
+        raise ValueError('The target composite result is missing.')
+    target = zero_k_from_composite_record(
+        target_smiles, energy_files[target_smiles])
+    reaction = generate_cbh_reaction(
+        target_smiles, rung, charge=target.charge,
+        multiplicity=target.multiplicity)
+    if reaction is None:
+        raise ValueError(f'CBH-{rung} is unavailable for {target_smiles!r}.')
+    missing = sorted(set(reaction.stoichiometry) - set(energy_files))
+    extra = sorted(set(energy_files) - set(reaction.stoichiometry))
+    if missing or extra:
+        raise ValueError(f'Composite energy mapping differs from CBH-{rung}; '
+                         f'missing={missing}, extra={extra}.')
+    energies = {smiles: zero_k_from_composite_record(smiles, energy_files[smiles])
+                for smiles in reaction.stoichiometry}
+    reference_ids = dict(reference_ids or {})
+    table = load_atct_references(
+        reaction.reference_smiles, atct_version, atct_cache,
+        reference_ids=reference_ids, refresh=refresh_atct)
+    return reaction, solve_formation_enthalpy(
+        reaction, energies, table, reference_ids=reference_ids)
+
+
+def _assignments(values, label):
+    result = {}
+    for value in values:
+        if '=' not in value:
+            raise ValueError(f'{label} must use SMILES=value syntax.')
+        smiles, assigned = value.split('=', 1)
+        if not smiles or not assigned or smiles in result:
+            raise ValueError(f'Invalid or repeated {label} for {smiles!r}.')
+        result[smiles] = assigned
+    return result
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description='Generate and solve provenance-checked CBH reactions')
+    commands = parser.add_subparsers(dest='action', required=True)
+    generate = commands.add_parser('generate')
+    generate.add_argument('target_smiles')
+    generate.add_argument('--rung', type=int, required=True, choices=range(4))
+    generate.add_argument('--charge', type=int, default=0)
+    generate.add_argument('--multiplicity', type=int, default=1)
+    solve = commands.add_parser('solve-records')
+    solve.add_argument('target_smiles')
+    solve.add_argument('output', type=Path)
+    solve.add_argument('--rung', type=int, required=True, choices=range(4))
+    solve.add_argument('--energy', action='append', required=True,
+                       help='SMILES=complete_composite_result.json')
+    solve.add_argument('--reference-id', action='append', default=[],
+                       help='SMILES=ATcT_ID for an ambiguous state')
+    solve.add_argument('--atct-version', required=True)
+    solve.add_argument('--atct-cache', type=Path, required=True)
+    solve.add_argument('--refresh-atct', action='store_true')
+    args = parser.parse_args(argv)
+    if args.action == 'generate':
+        reaction = generate_cbh_reaction(
+            args.target_smiles, args.rung, charge=args.charge,
+            multiplicity=args.multiplicity)
+        if reaction is None:
+            raise ValueError(
+                f'CBH-{args.rung} is unavailable for {args.target_smiles!r}.')
+        print(json.dumps({
+            'rung': reaction.rung,
+            'target_smiles': reaction.target_smiles,
+            'stoichiometry': dict(reaction.stoichiometry),
+            'formulas': dict(reaction.formulas),
+            'states': {key: list(value)
+                       for key, value in reaction.states.items()},
+        }, indent=2, sort_keys=True))
+        return 0
+    energy_files = _assignments(args.energy, 'energy')
+    reference_ids = _assignments(args.reference_id, 'reference ID')
+    reaction, formation = solve_composite_records(
+        args.target_smiles, args.rung, energy_files,
+        atct_version=args.atct_version, atct_cache=args.atct_cache,
+        reference_ids=reference_ids, refresh_atct=args.refresh_atct)
+    payload = {
+        'schema': 1, 'status': 'complete',
+        'reaction': {
+            'rung': reaction.rung,
+            'target_smiles': reaction.target_smiles,
+            'stoichiometry': dict(reaction.stoichiometry),
+            'formulas': dict(reaction.formulas),
+            'states': {key: list(value)
+                       for key, value in reaction.states.items()},
+        },
+        'formation': {
+            **asdict(formation),
+            'formation_0k_kcal_mol': formation.formation_0k_kj_mol / 4.184,
+            'reaction_energy_0k_kcal_mol':
+                formation.reaction_energy_0k_kj_mol / 4.184,
+        },
+    }
+    args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n')
+    print(args.output.resolve())
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

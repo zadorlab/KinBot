@@ -92,6 +92,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
         'optimizer': 'sella',
     }
     reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
+    internal_coordinates = len(molecule.get('symbols', ())) > 2
     conventional = molpro_ccsdt_command(
         molecule.get('multiplicity', 1))
     f12 = 'uccsd(t)-f12b'
@@ -103,7 +104,8 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
                                     partition=partition),
             'profile': l2_profile,
             'optimizer': {'fmax': 0.0005, 'steps': 160,
-                          'sella_kwargs': {'internal': True}},
+                          'sella_kwargs': {
+                              'internal': internal_coordinates}},
         },
         {
             'id': 'l3_geometry', 'kind': 'ase_optimize',
@@ -115,7 +117,8 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
                 'basis': 'cc-pVTZ', 'command': 'molpro',
                 'optimizer': 'sella'},
             'optimizer': {'fmax': 0.03, 'steps': 100,
-                          'sella_kwargs': {'internal': True}},
+                          'sella_kwargs': {
+                              'internal': internal_coordinates}},
         },
         _molpro_task(
             'harmonic',
@@ -588,6 +591,79 @@ def molecule_from_database(database, job, *, charge, multiplicity):
             'charge': charge, 'multiplicity': multiplicity}
 
 
+def molecule_from_smiles(smiles, *, charge, multiplicity, random_seed=312):
+    """Build a deterministic initial Cartesian structure for an ANL graph.
+
+    This is an initial geometry only.  The prepared graph still performs the
+    requested L2 and L3 optimizations before using any geometry-dependent
+    energy or frequency result.
+    """
+    if not isinstance(smiles, str) or not smiles.strip():
+        raise ValueError('SMILES must be a nonempty string.')
+    if (isinstance(charge, bool) or not isinstance(charge, int)
+            or isinstance(multiplicity, bool)
+            or not isinstance(multiplicity, int) or multiplicity < 1):
+        raise ValueError('SMILES charge and multiplicity must be valid integers.')
+    if (isinstance(random_seed, bool) or not isinstance(random_seed, int)
+            or random_seed < 0 or random_seed > 0x7fffffff):
+        raise ValueError('RDKit random seed must be a nonnegative 32-bit integer.')
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    molecule = Chem.MolFromSmiles(smiles)
+    if molecule is None:
+        raise ValueError(f'RDKit could not parse SMILES {smiles!r}.')
+    molecule = Chem.AddHs(molecule)
+    if Chem.GetFormalCharge(molecule) != charge:
+        raise ValueError('SMILES formal charge disagrees with the requested charge.')
+    radical_electrons = sum(atom.GetNumRadicalElectrons()
+                            for atom in molecule.GetAtoms())
+    unpaired = multiplicity - 1
+    if radical_electrons < unpaired or (radical_electrons - unpaired) % 2:
+        raise ValueError('SMILES radical electrons disagree with multiplicity.')
+
+    if molecule.GetNumAtoms() == 1:
+        conformer = Chem.Conformer(1)
+        conformer.SetAtomPosition(0, (0., 0., 0.))
+        molecule.AddConformer(conformer, assignId=True)
+    else:
+        parameters = AllChem.ETKDGv3()
+        parameters.randomSeed = random_seed
+        status = AllChem.EmbedMolecule(molecule, parameters)
+        if status != 0:
+            molecule.RemoveAllConformers()
+            parameters.useRandomCoords = True
+            status = AllChem.EmbedMolecule(molecule, parameters)
+        if status != 0:
+            raise ValueError(f'RDKit could not embed SMILES {smiles!r}.')
+        if molecule.GetNumAtoms() > 2:
+            if AllChem.MMFFHasAllMoleculeParams(molecule):
+                AllChem.MMFFOptimizeMolecule(molecule, maxIters=2000)
+            elif AllChem.UFFHasAllMoleculeParams(molecule):
+                AllChem.UFFOptimizeMolecule(molecule, maxIters=2000)
+
+    conformer = molecule.GetConformer()
+    positions = []
+    for index in range(molecule.GetNumAtoms()):
+        point = conformer.GetAtomPosition(index)
+        positions.append([float(point.x), float(point.y), float(point.z)])
+    result = {
+        'symbols': [atom.GetSymbol() for atom in molecule.GetAtoms()],
+        'positions': positions, 'charge': charge,
+        'multiplicity': multiplicity, 'smiles': smiles,
+        'initial_geometry': {
+            'provider': ('RDKit-ETKDGv3' if molecule.GetNumAtoms() > 1
+                         else 'RDKit-origin'),
+            'random_seed': random_seed,
+        },
+    }
+    # Reuse the dispatcher's electron-count and Cartesian validation before a
+    # workflow can be written or submitted.
+    from kinbot.anl.dispatch import _atoms
+    _atoms(result)
+    return result
+
+
 def molecule_from_completed_run(run_dir, geometry_task='l3_geometry'):
     """Import one hash-verified optimized geometry from a dispatcher run."""
     run_dir, spec, state = _load(run_dir)
@@ -1003,6 +1079,22 @@ def main(argv=None):
     stage.add_argument('--multiplicity', type=int, default=1)
     stage.add_argument('--max-nodes', type=int, default=3)
     stage.add_argument('--partition')
+    smiles_build = commands.add_parser('from-smiles')
+    smiles_build.add_argument('smiles')
+    smiles_build.add_argument('spec', type=Path)
+    smiles_build.add_argument('--charge', type=int, default=0)
+    smiles_build.add_argument('--multiplicity', type=int, default=1)
+    smiles_build.add_argument('--random-seed', type=int, default=312)
+    smiles_build.add_argument('--max-nodes', type=int, default=3)
+    smiles_build.add_argument('--partition')
+    smiles_stage = commands.add_parser('prepare-from-smiles')
+    smiles_stage.add_argument('smiles')
+    smiles_stage.add_argument('run_dir', type=Path)
+    smiles_stage.add_argument('--charge', type=int, default=0)
+    smiles_stage.add_argument('--multiplicity', type=int, default=1)
+    smiles_stage.add_argument('--random-seed', type=int, default=312)
+    smiles_stage.add_argument('--max-nodes', type=int, default=3)
+    smiles_stage.add_argument('--partition')
     audit = commands.add_parser('audit')
     audit.add_argument('run_dir', type=Path)
     prepare_base = commands.add_parser('prepare-current-base-from-run')
@@ -1136,11 +1228,18 @@ def main(argv=None):
                                'prepare-higher-order-from-run',
                                'prepare-common-corrections-from-run',
                                'prepare-post-geometry-from-run')
-    molecule = (molecule_from_completed_run(
-        args.source_run, geometry_task=args.geometry_task) if from_run
-        else molecule_from_database(
+    from_smiles = args.action in ('from-smiles', 'prepare-from-smiles')
+    if from_run:
+        molecule = molecule_from_completed_run(
+            args.source_run, geometry_task=args.geometry_task)
+    elif from_smiles:
+        molecule = molecule_from_smiles(
+            args.smiles, charge=args.charge, multiplicity=args.multiplicity,
+            random_seed=args.random_seed)
+    else:
+        molecule = molecule_from_database(
             args.database, args.job, charge=args.charge,
-            multiplicity=args.multiplicity))
+            multiplicity=args.multiplicity)
     is_higher = args.action in ('higher-order-from-db',
                                 'prepare-higher-order-from-db',
                                 'prepare-higher-order-from-run')
@@ -1164,7 +1263,7 @@ def main(argv=None):
     else:
         spec = interface_validation_spec(
             molecule, max_nodes=args.max_nodes, partition=args.partition)
-    if args.action in ('from-db', 'higher-order-from-db'):
+    if args.action in ('from-db', 'from-smiles', 'higher-order-from-db'):
         args.spec.write_text(json.dumps(spec, indent=2) + '\n')
         print(args.spec.resolve())
     else:

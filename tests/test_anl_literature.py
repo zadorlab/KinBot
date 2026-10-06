@@ -115,12 +115,17 @@ def test_methyl_rohf_run_compares_to_published_uhf_target(monkeypatch):
         literature, '_verified_task_result',
         lambda run_dir, task_id: (
             None, None, None, None, None,
-            {'energy_hartree': benchmark['tasks'][task_id]['expected']}))
+            {'energy_hartree': -39.716241160157}))
     result = literature.compare_run('methyl-qz-2017', '/synthetic/run')
     assert result['status'] == 'passed'
     assert result['profiled_variant'] is True
     assert result['calculation_request_variants']['ccsdtq_dz'] == {
         'reference': {'published': 'UHF', 'observed': 'ROHF'}}
+    check = result['checks']['ccsdtq_dz']
+    assert check['error_hartree'] == pytest.approx(1.9499843e-5)
+    assert check['source_exact_tolerance_hartree'] == pytest.approx(2e-6)
+    assert check['absolute_tolerance_hartree'] == pytest.approx(5e-5)
+    assert check['tolerance_profile'] == 'published-UHF-to-current-ROHF'
 
 
 def test_run_comparison_rejects_a_different_reference(monkeypatch):

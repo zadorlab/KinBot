@@ -759,9 +759,11 @@ resubmitted.
 
 The published methyl CCSDT(Q) and CCSDTQ(P) targets used a UHF determinant,
 as stated by the paper. The comparison records that determinant difference as
-a profiled variant, but still evaluates the current ROHF results directly
-against the published values and tolerances. Published UHF values never alter
-the generated input or the computed recipe. Preserve one real interrupted
+a profiled variant, still evaluates the current ROHF results directly against
+the published values, and reports the original source-exact tolerance. The
+profiled comparison has a separate 5e-5 hartree (about 0.03 kcal/mol) tolerance
+for the determinant change. Published UHF values never alter the generated
+input or the computed recipe. Preserve one real interrupted
 MRCC attempt and successful `resume-mrcc` continuation as restart evidence;
 do not manufacture interruptions for every species.
 

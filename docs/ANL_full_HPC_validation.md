@@ -740,6 +740,12 @@ For methyl, run the normal current profile at the pinned source geometry:
 Molpro RHF/ROHF-UCCSD(T), followed by direct-MRCC semicanonical
 ROHF-UCCSDT(Q) and ROHF-UCCSDTQ(P).
 
+MRCC reports A and B ansatz totals for both open-shell perturbative methods.
+The parser must store both and select `/B`, the robust convention used for an
+unsuffixed MRCC request. A parser-only failure after native normal termination
+is recovered with `dispatch reparse`; the licensed calculation must not be
+resubmitted.
+
 ```bash
 .venv/bin/python -m kinbot.anl.literature prepare-higher-order \
   methyl-qz-2017 methyl_qz_rohf_higher_2017 --max-nodes 2

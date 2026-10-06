@@ -435,15 +435,61 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
     if not re.search(rf'^\s*core\s*=\s*{core}\s*$', output,
                      re.IGNORECASE | re.MULTILINE):
         raise ValueError(f'MRCC output does not echo core={core}.')
-    energy = _one_number(
-        output,
+    total_pattern = (
         rf'^\s*Total\s+{re.escape(method)}\s+energy\s*\[au\]\s*:\s*'
-        rf'({_NUMBER})\s*$', f'MRCC {method} total energy')
-    return {'kind': 'mrcc_energy', 'method': method, 'basis': basis,
-            'reference': reference, 'correlation': correlation, 'core': core,
-            'program': program,
-            'energy_hartree': energy, 'driver': 'direct',
-            'program_variant': f'{reference}-U{method}'}
+        rf'({_NUMBER})\s*$')
+    totals = re.findall(total_pattern, output,
+                        re.IGNORECASE | re.MULTILINE)
+    variant_pattern = (
+        rf'^\s*Total\s+{re.escape(method)}/([AB])\s+energy\s*\[au\]\s*:\s*'
+        rf'({_NUMBER})\s*$')
+    variant_matches = re.findall(
+        variant_pattern, output, re.IGNORECASE | re.MULTILINE)
+    variants = {}
+    for label, value in variant_matches:
+        label = label.upper()
+        if label in variants:
+            raise ValueError(f'MRCC repeated the {method}/{label} total energy.')
+        variants[label] = _number(value)
+
+    # General-reference perturbative CC calculations (including
+    # semicanonical ROHF) report the A and B ansatz energies rather than an
+    # unsuffixed total.  The B ansatz is the robust convention used by other
+    # MRCC interfaces for the requested unsuffixed method.  Preserve both
+    # native values so this scientifically meaningful selection is explicit.
+    selected_variant = None
+    if variants:
+        if set(variants) != {'A', 'B'}:
+            missing = sorted({'A', 'B'} - set(variants))
+            raise ValueError(
+                f'MRCC {method} output lacks perturbative variant(s): '
+                f'{", ".join(missing)}.')
+        if totals:
+            raise ValueError(
+                f'MRCC {method} output ambiguously reports both an '
+                'unsuffixed total and A/B totals.')
+        selected_variant = 'B'
+        energy = variants[selected_variant]
+    else:
+        if len(totals) != 1:
+            raise ValueError(
+                f'Expected exactly one MRCC {method} total energy; '
+                f'found {len(totals)}.')
+        energy = _number(totals[0])
+
+    result = {
+        'kind': 'mrcc_energy', 'method': method, 'basis': basis,
+        'reference': reference, 'correlation': correlation, 'core': core,
+        'program': program, 'energy_hartree': energy, 'driver': 'direct',
+        'program_variant': f'{reference}-U{method}',
+    }
+    if selected_variant is not None:
+        result.update({
+            'perturbative_variants_hartree': variants,
+            'selected_perturbative_variant': selected_variant,
+            'program_variant': f'{reference}-U{method}/{selected_variant}',
+        })
+    return result
 
 
 def parse_molpro_harmonic(output, *, basis, reference=None, legacy=False):

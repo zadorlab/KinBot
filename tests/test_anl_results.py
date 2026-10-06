@@ -38,7 +38,24 @@ scftype=ROHF
 rohftype=semicanonical
 rohfcore=semicanonical
 core=frozen
-Total CCSDTQ(P) energy [au]: -39.123456789012
+Total CCSDTQ energy [au]: -39.123400000000
+Total CCSDTQ(P)/A energy [au]: -39.123456700000
+Total CCSDTQ(P)/B energy [au]: -39.123456789012
+Normal termination of mrcc.
+"""
+
+_MRCC_METHYL_CCSDTQ = """Input file:
+basis=cc-pVDZ
+calc=CCSDT(Q)
+ccprog=mrcc
+scftype=ROHF
+rohftype=semicanonical
+rohfcore=semicanonical
+core=frozen
+Total CCSDT energy [au]: -39.716126916675
+Total CCSDT[Q] energy [au]: -39.716201539184
+Total CCSDT(Q)/A energy [au]: -39.716240924926
+Total CCSDT(Q)/B energy [au]: -39.716241160157
 Normal termination of mrcc.
 """
 
@@ -90,7 +107,12 @@ def test_direct_mrcc_higher_order_energy_uses_rohf_ucc_convention():
     assert result['energy_hartree'] == pytest.approx(-39.123456789012)
     assert result['reference'] == 'ROHF'
     assert result['correlation'] == 'unrestricted'
-    assert result['program_variant'] == 'ROHF-UCCSDTQ(P)'
+    assert result['program_variant'] == 'ROHF-UCCSDTQ(P)/B'
+    assert result['selected_perturbative_variant'] == 'B'
+    assert result['perturbative_variants_hartree'] == pytest.approx({
+        'A': -39.123456700000,
+        'B': -39.123456789012,
+    })
     with pytest.raises(ValueError, match='scftype'):
         parse_mrcc_energy(
             _MRCC_CCSDTQP.replace('scftype=ROHF', 'scftype=UHF'),
@@ -103,12 +125,43 @@ def test_direct_mrcc_higher_order_energy_uses_rohf_ucc_convention():
         uhf, method='CCSDTQ(P)', basis='cc-pVDZ', reference='UHF',
         correlation='unrestricted', core='frozen', program='mrcc')
     assert source_result['reference'] == 'UHF'
-    assert source_result['program_variant'] == 'UHF-UCCSDTQ(P)'
+    assert source_result['program_variant'] == 'UHF-UCCSDTQ(P)/B'
     with pytest.raises(ValueError, match='normal termination'):
         parse_mrcc_energy(
             _MRCC_CCSDTQP.replace('Normal termination of mrcc.',
                                   'Error at the termination of mrcc.'),
             method='CCSDTQ(P)', basis='cc-pVDZ', reference='ROHF',
+            correlation='unrestricted', core='frozen', program='mrcc')
+
+
+def test_direct_mrcc_selects_b_from_native_rohf_perturbative_pair():
+    result = parse_mrcc_energy(
+        _MRCC_METHYL_CCSDTQ, method='CCSDT(Q)', basis='cc-pVDZ',
+        reference='ROHF', correlation='unrestricted', core='frozen',
+        program='mrcc')
+    assert result['energy_hartree'] == pytest.approx(-39.716241160157)
+    assert result['selected_perturbative_variant'] == 'B'
+    assert result['perturbative_variants_hartree'] == pytest.approx({
+        'A': -39.716240924926,
+        'B': -39.716241160157,
+    })
+    assert result['program_variant'] == 'ROHF-UCCSDT(Q)/B'
+
+
+def test_direct_mrcc_requires_complete_unambiguous_variant_pair():
+    with pytest.raises(ValueError, match=r'lacks perturbative variant.*B'):
+        parse_mrcc_energy(
+            _MRCC_METHYL_CCSDTQ.replace(
+                'Total CCSDT(Q)/B energy [au]: -39.716241160157\n', ''),
+            method='CCSDT(Q)', basis='cc-pVDZ', reference='ROHF',
+            correlation='unrestricted', core='frozen', program='mrcc')
+    with pytest.raises(ValueError, match='ambiguously reports'):
+        parse_mrcc_energy(
+            _MRCC_METHYL_CCSDTQ.replace(
+                'Normal termination of mrcc.',
+                'Total CCSDT(Q) energy [au]: -39.716241160157\n'
+                'Normal termination of mrcc.'),
+            method='CCSDT(Q)', basis='cc-pVDZ', reference='ROHF',
             correlation='unrestricted', core='frozen', program='mrcc')
 
 

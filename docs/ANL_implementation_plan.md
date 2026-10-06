@@ -5008,6 +5008,14 @@ spin-orbital CC policy separately as `correlation=unrestricted`. Generated
 ANL work accepts only RHF or semicanonical ROHF determinants; it does not
 silently substitute a UHF determinant.
 
+For a general-reference perturbative calculation, direct MRCC prints the
+separate `CCSDT(Q)/A` and `CCSDT(Q)/B` energies, and analogously prints A/B
+energies for `CCSDTQ(P)`. KinBot retains both native values and selects the
+more robust B ansatz as the requested unsuffixed result. The parsed provenance
+therefore reads, for example, `ROHF-UCCSDT(Q)/B`; a missing or duplicated A/B
+line is an error. Canonical RHF output that provides the single unsuffixed
+energy continues to use that value.
+
 CFOUR remains the DBOC provider. Its fast native `CC_PROG=NCC`
 CCSDT(Q) path is a closed-shell restricted implementation, so it is excluded
 from this profile. `CC_PROG=MRCC` would be an MRCC calculation driven through

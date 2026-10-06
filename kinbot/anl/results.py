@@ -567,6 +567,35 @@ def _gaussian_declares_dispersion(text, model):
         rf'(?![A-Za-z0-9])', text, re.IGNORECASE) is not None
 
 
+def _gaussian_route(output):
+    """Reconstruct Gaussian's logical route from its dashed output box.
+
+    Gaussian prints a fixed-width route and may split either a keyword or its
+    value at the line boundary. Continuation lines have one output-formatting
+    space prepended. Removing exactly that prefix and concatenating the chunks
+    recovers the submitted logical route while retaining any real separator
+    that was present between route tokens.
+    """
+    lines = output.splitlines()
+    separator = re.compile(r'^\s*-{20,}\s*$')
+    for start, line in enumerate(lines):
+        if not separator.match(line):
+            continue
+        block = []
+        for candidate in lines[start + 1:]:
+            if separator.match(candidate):
+                logical = ''.join(
+                    item[1:] if item.startswith(' ') else item
+                    for item in block).strip()
+                if logical.startswith('#'):
+                    return logical
+                break
+            block.append(candidate)
+    # Compact synthetic/legacy fixtures can contain an unboxed one-line route.
+    match = re.search(r'^\s*(#.*)$', output[:10000], re.MULTILINE)
+    return match.group(1).strip() if match else ''
+
+
 def _gaussian_has_any_dispersion(text):
     """Whether a Gaussian input or output declares a dispersion option."""
     return re.search(
@@ -649,7 +678,7 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
     lines = output.strip().splitlines()
     if not lines or not lines[-1].lstrip().startswith('Normal termination of Gaussian'):
         raise ValueError('Gaussian output has no final normal termination.')
-    route = output[:10000]
+    route = _gaussian_route(output)
     if (not re.search(rf'\b{re.escape(method)}/{re.escape(basis)}(?![\w-])', route,
                       re.IGNORECASE)
             or not re.search(r'\bFreq\s*=\s*Anharmonic\b', route,
@@ -663,10 +692,11 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
             'Gaussian output does not confirm the requested '
             f'{framework_cap} framework.')
     requested_dispersion = dispersion.upper()
+    dispersion_evidence = route + '\n' + output
     if ((requested_dispersion and not _gaussian_declares_dispersion(
-            output, requested_dispersion))
+            dispersion_evidence, requested_dispersion))
             or (not requested_dispersion
-                and _gaussian_has_any_dispersion(output))):
+                and _gaussian_has_any_dispersion(dispersion_evidence))):
         raise ValueError('Gaussian output dispersion disagrees with the requested level.')
     marker = output.rfind('Anharmonic Zero Point Energy')
     if marker < 0:

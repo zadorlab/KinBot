@@ -298,6 +298,28 @@ def test_gaussian_vpt2_dispersion_value_may_wrap_inside_token():
             wrapped, method='B2PLYP', basis='cc-pVTZ', dispersion='GD3')
 
 
+def test_gaussian_vpt2_reconstructs_keyword_and_value_route_wraps():
+    wrapped_route = (_GAUSSIAN_VPT2
+                     .replace(
+                         '#p B3LYP/cc-pVTZ Opt=(Tight,CalcFC) '
+                         'Freq=Anharmonic NoSymm',
+                         (' ----------------------------------------------------------------------\n'
+                          ' #p B2PLYP/cc-pVTZ Freq=Anharmonic '
+                          'Symmetry=(PG=C1) EmpiricalD\n'
+                          ' ispersion=G\n'
+                          ' D3BJ Integral=UltraFine\n'
+                          ' ----------------------------------------------------------------------'))
+                     .replace(
+                         ' WARNING:',
+                         ' Framework group  C1[X(CH4)]\n WARNING:', 1))
+    result = parse_gaussian_vpt2(
+        wrapped_route, method='B2PLYP', basis='cc-pVTZ',
+        dispersion='GD3BJ')
+    assert result['dispersion'] == 'GD3BJ'
+    assert result['framework_group_cap'] == 'C1'
+    assert result['optimized_in_job'] is False
+
+
 def test_gaussian_vpt2_framework_cap_parser_is_not_group_specific():
     output = (_GAUSSIAN_VPT2
               .replace('NoSymm', 'Symmetry=(PG=C2V)')

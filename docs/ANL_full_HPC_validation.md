@@ -924,11 +924,11 @@ throughout the numerical anharmonic calculation. New graphs use this route
 directly. The migration refuses unrelated Gaussian failures and refuses to
 retry a task that already used the C1 cap.
 
-Gaussian may wrap a long route line inside an option value, including between
-the `G` and `D3BJ` of `EmpiricalDispersion=GD3BJ`. Native-output validation
-matches the exact requested alphanumeric model across Gaussian route-line
-breaks and
-does not use a molecule-specific list of dispersion models. A normally
+Gaussian may wrap a long route line inside either an option name or value,
+including within `EmpiricalDispersion=GD3BJ`. Native-output validation first
+reconstructs the logical contents of Gaussian's dashed route box, then matches
+the exact requested model. It does not use a molecule-specific list of
+dispersion models. A normally
 terminated calculation rejected by an older parser must be recovered with
 `reparse`; it must not be submitted again.
 

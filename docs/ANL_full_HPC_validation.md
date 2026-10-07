@@ -1180,3 +1180,30 @@ dependent `blocked` states, and stages the actual atomic property jobs:
 Restart a dispatcher only if its previous driver has exited. The two already
 running `ccsdtqp_dz` source-validation jobs are independent and must not be
 cancelled or resubmitted for this recovery.
+
+### One-electron F12 triples-scaling recovery
+
+For a one-electron state, doubles and triples correlation are identically
+zero. Molpro 2024 can nevertheless abort an otherwise complete
+`UCCSD(T)-F12b,SCALE_TRIP=1` calculation when both MP2 and MP2-F12 correlation
+energies are exactly zero: the triples scale factor becomes zero divided by
+zero. Whether this abort appears can depend on the signed representation of
+floating-point zero, so a larger basis may appear to succeed accidentally.
+
+New one-electron graphs use `RHF` followed by `UCCSD-F12b`. This retains the
+CABS relaxation contribution and is rank-equivalent to the requested
+UCCSD(T)-F12b energy because the missing double and triple excitations cannot
+exist. Multi-electron species retain `UCCSD(T)-F12b,SCALE_TRIP=1` unchanged.
+
+The dispatcher also repairs an already failed one-electron task without a new
+licensed calculation. It accepts the native value only after verifying the
+one-electron and zero-correlation evidence, the exact Molpro NaN signature,
+the basis and RHF/ROHF-UCC route, and unchanged staged hashes. The original
+return code and failed execution record remain in provenance. After updating
+KinBot and after the old driver exits, a normal status refresh performs this
+recovery and releases any dependent work:
+
+```bash
+.venv/bin/python -m kinbot.anl.dispatch status \
+  "$refs/atomic_h_composite"
+```

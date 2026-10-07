@@ -71,6 +71,41 @@ The final electronic energy is -79.123456789012 a.u.
 This computation required 31.93 seconds (walltime).
 """
 
+_ONE_ELECTRON_F12_NAN = """basis=cc-pVTZ-F12
+rhf
+uccsd(t)-f12b,scale_trip=1
+ PROGRAMS   *        TOTAL  UCCSD(T)   RHF-SCF       INT
+ Number of N-1 electron functions:               1
+ Number of N-2 electron functions:               0
+ New reference energy                 -0.499946213253
+ RMP2-F12 correlation energy           0.000000000000
+ Starting UCCSD calculation
+ New reference energy                 -0.499946213253
+ UCCSD-F12b singles energy            -0.000000000000
+ UCCSD-F12b pair energy                0.000000000000
+ UCCSD-F12b correlation energy        -0.000000000000
+ Scale factor for triples energy                  NaN
+ ? Error
+ ? NaN detected by ieee_is_nan
+ ? The problem occurs in is_nan
+ GLOBAL ERROR fehler on processor   0
+"""
+
+_ONE_ELECTRON_F12_SAFE = """basis=cc-pVTZ-F12
+rhf
+uccsd-f12b
+ PROGRAMS   *        TOTAL     UCCSD   RHF-SCF       INT
+ Number of N-1 electron functions:               1
+ Number of N-2 electron functions:               0
+ RMP2-F12 correlation energy           0.000000000000
+ Starting UCCSD calculation
+ UCCSD-F12b singles energy            -0.000000000000
+ UCCSD-F12b pair energy                0.000000000000
+ UCCSD-F12b correlation energy        -0.000000000000
+ !RHF-UCCSD-F12b energy               -0.499946213253
+ Molpro calculation terminated
+"""
+
 
 def test_cfour_selects_hf_dboc_without_confusing_mp1_or_final_energy():
     result = parse_cfour_dboc(_CFOUR_CH4)
@@ -413,6 +448,37 @@ def test_molpro_f12b_selects_exact_total_energy():
     with pytest.raises(ValueError, match='basis'):
         parse_molpro_energy(_MOLPRO_F12, method='CCSD(T)-F12b',
                             basis='cc-pVQZ-F12')
+
+
+def test_one_electron_f12_avoids_and_recovers_undefined_triples_scaling():
+    kwargs = {
+        'method': 'CCSD(T)-F12b', 'basis': 'cc-pVTZ-F12',
+        'reference': 'ROHF', 'rank_exact_electrons': 1,
+    }
+    safe = parse_molpro_energy(_ONE_ELECTRON_F12_SAFE, **kwargs)
+    assert safe['energy_hartree'] == pytest.approx(-0.499946213253)
+    assert safe['method'] == 'CCSD(T)-F12b'
+    assert safe['effective_program_variant'] == 'RHF-UCCSD-F12b'
+    assert safe['rank_exact']['electron_count'] == 1
+    assert safe['rank_exact']['recovered_molpro_scale_trip_nan'] is False
+
+    recovered = parse_molpro_energy(_ONE_ELECTRON_F12_NAN, **kwargs)
+    assert recovered['energy_hartree'] == pytest.approx(-0.499946213253)
+    assert recovered['rank_exact']['recovered_molpro_scale_trip_nan'] is True
+    with pytest.raises(ValueError, match='normal completion'):
+        parse_molpro_energy(
+            _ONE_ELECTRON_F12_NAN, method='CCSD(T)-F12b',
+            basis='cc-pVTZ-F12', reference='ROHF')
+
+    request = {
+        'kind': 'molpro_energy', 'file': 'f12.out',
+        'method': 'CCSD(T)-F12b', 'basis': 'cc-pVTZ-F12',
+        'reference': 'ROHF', 'rank_exact_electrons': 1,
+    }
+    validate_result_parser(
+        request, backend='molpro',
+        template='basis=cc-pVTZ-F12\nrhf\nuccsd-f12b\n',
+        outputs=['f12.out'])
 
 
 def test_legacy_molpro_records_remain_reproducible_but_lack_ucc_provenance():

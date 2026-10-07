@@ -283,6 +283,10 @@ def test_atomic_composite_omits_fictitious_vibrational_jobs():
             'cfour_dboc', 'ccsdt_dz', 'cv_ae_tz', 'cv_ae_qz',
             'cv_fc_tz', 'cv_fc_qz', 'rel_dkh', 'rel_nonrel'} <= set(tasks)
     assert 'ccsdtq_dz' not in tasks
+    for ident in ('f12_tz', 'f12_qz'):
+        assert '\nuccsd-f12b\n' in tasks[ident]['input_template'].lower()
+        assert 'scale_trip' not in tasks[ident]['input_template'].lower()
+        assert tasks[ident]['result_parser']['rank_exact_electrons'] == 1
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(

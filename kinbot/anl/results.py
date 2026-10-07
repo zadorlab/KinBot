@@ -33,6 +33,8 @@ _MOLPRO_FORCED_UHF_CCSD_T = (r'^\s*\{?\s*uccsd\(t\)[^\n]*'
                              r'\buhf_uccsd\s*=\s*1\b[^\n]*$')
 _MOLPRO_F12B = (r'^\s*\{?\s*uccsd\(t\)-f12b\b[^\n]*'
                   r'\bscale_trip\s*=\s*1\b[^\n]*$')
+_MOLPRO_ONE_ELECTRON_F12B = (
+    r'^\s*\{?\s*uccsd-f12b\b(?![^\n]*\bscale_trip\b)[^\n]*$')
 _MOLPRO_LEGACY_CCSD_T = r'^\s*ccsd\(t\)(?:\s*,[^\n]*)?\s*$'
 _MOLPRO_LEGACY_F12B = (r'^\s*ccsd\(t\)-f12b?\b[^\n]*'
                         r'\bscale_trip\s*=\s*1\b[^\n]*$')
@@ -206,9 +208,10 @@ def parse_cfour_energy(output, *, method, basis, reference, correlation, core,
     }
 
 
-def _molpro_output(output, basis):
-    if not re.search(r'^\s*Molpro calculation terminated\s*$', output,
-                     re.IGNORECASE | re.MULTILINE):
+def _molpro_output(output, basis, *, allow_rank_exact_nan=False):
+    if (not allow_rank_exact_nan
+            and not re.search(r'^\s*Molpro calculation terminated\s*$', output,
+                              re.IGNORECASE | re.MULTILINE)):
         raise ValueError('Molpro output has no normal completion line.')
     if not re.search(rf'^\s*basis\s*=\s*{re.escape(basis)}\s*$', output,
                      re.IGNORECASE | re.MULTILINE):
@@ -279,19 +282,91 @@ def _parse_legacy_molpro_energy(output, *, method, basis):
             'energy_hartree': energy}
 
 
+def _one_electron_f12_energy(output, *, allow_rank_exact_nan):
+    """Read a one-electron F12 value after proving all correlation is zero."""
+    n_minus_one = re.findall(
+        r'^\s*Number of N-1 electron functions:\s*(\d+)\s*$', output,
+        re.IGNORECASE | re.MULTILINE)
+    n_minus_two = re.findall(
+        r'^\s*Number of N-2 electron functions:\s*(\d+)\s*$', output,
+        re.IGNORECASE | re.MULTILINE)
+    if n_minus_one != ['1'] or n_minus_two != ['0']:
+        raise ValueError('Molpro output does not prove a one-electron state.')
+    if not re.search(r'^\s*Starting UCCSD calculation\s*$', output,
+                     re.IGNORECASE | re.MULTILINE):
+        raise ValueError('Molpro output lacks unrestricted CC startup.')
+    zero_patterns = {
+        'RMP2-F12 correlation':
+            rf'^\s*RMP2-F12 correlation energy\s+({_NUMBER})\s*$',
+        'UCCSD-F12b pair':
+            rf'^\s*UCCSD-F12b pair energy\s+({_NUMBER})\s*$',
+        'UCCSD-F12b correlation':
+            rf'^\s*UCCSD-F12b correlation energy\s+({_NUMBER})\s*$',
+    }
+    for label, pattern in zero_patterns.items():
+        values = re.findall(pattern, output, re.IGNORECASE | re.MULTILINE)
+        if len(values) != 1 or abs(_number(values[0])) > 5e-13:
+            raise ValueError(f'Molpro one-electron {label} is not exactly zero.')
+    restricted = (r'^\s*Starting RCCSD calculation\s*$|'
+                  r'^\s*!RCCSD(?:\(T\))?-F12(?:[ab])?\s+energy\b')
+    if re.search(restricted, output, re.IGNORECASE | re.MULTILINE):
+        raise ValueError('Molpro one-electron output contains restricted CC evidence.')
+
+    normal = re.search(r'^\s*Molpro calculation terminated\s*$', output,
+                       re.IGNORECASE | re.MULTILINE) is not None
+    if normal:
+        energies = re.findall(
+            rf'^\s*!?RHF-UCCSD-F12b energy\s+({_NUMBER})\s*$', output,
+            re.IGNORECASE | re.MULTILINE)
+        if len(energies) != 1:
+            raise ValueError('Expected one rank-exact Molpro UCCSD-F12b energy.')
+        return _number(energies[0]), False
+
+    failure_markers = (
+        r'^\s*Scale factor for triples energy\s+NaN\s*$',
+        r'^\s*\?\s*NaN detected by ieee_is_nan\s*$',
+        r'^\s*\?\s*The problem occurs in is_nan\s*$',
+        r'^\s*GLOBAL ERROR fehler on processor\s+0\s*$',
+    )
+    if (not allow_rank_exact_nan
+            or not all(re.search(marker, output,
+                                 re.IGNORECASE | re.MULTILINE)
+                       for marker in failure_markers)):
+        raise ValueError('Molpro one-electron F12 output did not terminate normally.')
+    references = [
+        _number(value) for value in re.findall(
+            rf'^\s*New reference energy\s+({_NUMBER})\s*$', output,
+            re.IGNORECASE | re.MULTILINE)
+    ]
+    if not references or max(references) - min(references) > 2e-12:
+        raise ValueError('Molpro one-electron CABS reference energy is ambiguous.')
+    return references[-1], True
+
+
 def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
-                        relativistic=None, legacy=False):
+                        relativistic=None, rank_exact_electrons=None,
+                        legacy=False):
     """Read the exact named total energy, rather than a rounded variable or F12a."""
-    _molpro_output(output, basis)
     if method not in ('CCSD(T)', 'CCSD(T)-F12b'):
         raise ValueError(f'Unsupported Molpro energy method {method!r}.')
+    if rank_exact_electrons not in (None, 1):
+        raise ValueError('Molpro rank-exact electron count must be one.')
+    if rank_exact_electrons == 1 and method != 'CCSD(T)-F12b':
+        raise ValueError('One-electron rank-exact parsing is limited to F12b.')
+    rank_exact_command = re.search(
+        _MOLPRO_ONE_ELECTRON_F12B, output,
+        re.IGNORECASE | re.MULTILINE) is not None
+    rank_exact_nan = (rank_exact_electrons == 1
+                      and 'NaN detected by ieee_is_nan' in output)
+    _molpro_output(output, basis, allow_rank_exact_nan=rank_exact_nan)
     if legacy:
         if reference is not None or core is not None or relativistic is not None:
             raise ValueError('Legacy Molpro parser cannot declare modern settings.')
         return _parse_legacy_molpro_energy(output, method=method, basis=basis)
     if method == 'CCSD(T)-F12b':
-        if not re.search(_MOLPRO_F12B,
-                         output, re.IGNORECASE | re.MULTILINE):
+        if not (re.search(_MOLPRO_F12B,
+                          output, re.IGNORECASE | re.MULTILINE)
+                or (rank_exact_electrons == 1 and rank_exact_command)):
             raise ValueError('Molpro output does not echo scaled-triples F12 input.')
     else:
         if re.search(_MOLPRO_FORCED_UHF_CCSD_T, output,
@@ -330,11 +405,36 @@ def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
         raise ValueError('Molpro output does not echo SET,DKHO=2.')
     if relativistic == 'none' and dkh2:
         raise ValueError('Molpro nonrelativistic output contains SET,DKHO=2.')
-    method_pattern = (_MOLPRO_F12B if method == 'CCSD(T)-F12b'
+    method_pattern = ((_MOLPRO_ONE_ELECTRON_F12B
+                       if rank_exact_electrons == 1 and rank_exact_command
+                       else _MOLPRO_F12B) if method == 'CCSD(T)-F12b'
                       else _MOLPRO_CCSD_T)
     if not re.search(method_pattern, output, re.IGNORECASE | re.MULTILINE):
         raise ValueError('Molpro output does not echo the requested '
                          'RHF-UCCSD(T) method.')
+    if rank_exact_electrons == 1:
+        energy, recovered_nan = _one_electron_f12_energy(
+            output, allow_rank_exact_nan=rank_exact_nan)
+        result = {
+            'kind': 'molpro_energy', 'method': method, 'basis': basis,
+            'energy_hartree': energy, 'reference': reference,
+            'program_variant': 'RHF-UCCSD(T)-F12b',
+            'effective_program_variant': 'RHF-UCCSD-F12b',
+            'correlation': 'unrestricted',
+            'rank_exact': {
+                'electron_count': 1,
+                'reason': ('double and triple excitations are absent for a '
+                           'one-electron state'),
+                'triples_scaling_bypassed': True,
+                'recovered_molpro_scale_trip_nan': recovered_nan,
+            },
+        }
+        if core is not None:
+            result['core'] = core
+        if relativistic is not None:
+            result['relativistic'] = relativistic
+        return result
+
     output_label = (r'RHF-UCCSD\(T\)-F12'
                     if method == 'CCSD(T)-F12b'
                     else r'RHF-UCCSD\(T\)')
@@ -827,7 +927,8 @@ def validate_result_parser(request, *, backend, template, outputs,
                           template, re.IGNORECASE))
     elif kind == 'molpro_energy':
         required = {'kind', 'file', 'method', 'basis'}
-        optional = {'reference', 'core', 'relativistic'}
+        optional = {'reference', 'core', 'relativistic',
+                    'rank_exact_electrons'}
         valid = (required <= set(request) <= required | optional
                  and backend == 'molpro'
                  and request.get('method') in ('CCSD(T)', 'CCSD(T)-F12b')
@@ -838,7 +939,12 @@ def validate_result_parser(request, *, backend, template, outputs,
         if valid and legacy:
             valid = set(request) == required
         if valid and 'reference' in request:
-            method_command = (_MOLPRO_F12B
+            method_command = ((_MOLPRO_ONE_ELECTRON_F12B
+                               if request.get('rank_exact_electrons') == 1
+                               and re.search(
+                                   _MOLPRO_ONE_ELECTRON_F12B, template,
+                                   re.IGNORECASE | re.MULTILINE)
+                               else _MOLPRO_F12B)
                               if request['method'] == 'CCSD(T)-F12b'
                               else _MOLPRO_CCSD_T)
             valid = (request['reference'] in ('RHF', 'ROHF')
@@ -857,7 +963,12 @@ def validate_result_parser(request, *, backend, template, outputs,
                 (_MOLPRO_LEGACY_CCSD_T if request['method'] == 'CCSD(T)'
                  else _MOLPRO_LEGACY_F12B) if legacy else
                 (_MOLPRO_CCSD_T if request['method'] == 'CCSD(T)'
-                 else _MOLPRO_F12B))
+                 else (_MOLPRO_ONE_ELECTRON_F12B
+                       if request.get('rank_exact_electrons') == 1
+                       and re.search(
+                           _MOLPRO_ONE_ELECTRON_F12B, template,
+                           re.IGNORECASE | re.MULTILINE)
+                       else _MOLPRO_F12B)))
             valid = (_declares_molpro_ccsdt(
                 template, accept_obsolete_forced=allow_obsolete)
                      if not legacy and request['method'] == 'CCSD(T)'
@@ -873,6 +984,9 @@ def validate_result_parser(request, *, backend, template, outputs,
                              re.IGNORECASE | re.MULTILINE)
             valid = (request['relativistic'] in ('none', 'DKH2')
                      and ((request['relativistic'] == 'DKH2') == bool(dkh2)))
+        if valid and 'rank_exact_electrons' in request:
+            valid = (request['rank_exact_electrons'] == 1
+                     and request['method'] == 'CCSD(T)-F12b')
     elif kind == 'molpro_harmonic':
         legacy = legacy_molpro_parser(request, template)
         valid = (set(request) in ({'kind', 'file', 'basis'},
@@ -969,6 +1083,8 @@ def parse_result(output, request):
                                    reference=request.get('reference'),
                                    core=request.get('core'),
                                    relativistic=request.get('relativistic'),
+                                   rank_exact_electrons=request.get(
+                                       'rank_exact_electrons'),
                                    legacy=legacy_molpro_parser(request, output))
     if kind == 'molpro_harmonic':
         return parse_molpro_harmonic(output, basis=request['basis'],

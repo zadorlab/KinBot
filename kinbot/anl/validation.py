@@ -98,7 +98,9 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
     internal_coordinates = len(molecule.get('symbols', ())) > 2
     conventional = molpro_ccsdt_command(
         molecule.get('multiplicity', 1))
-    f12 = 'uccsd(t)-f12b'
+    one_electron = _electron_count(molecule) == 1
+    f12 = 'uccsd-f12b' if one_electron else 'uccsd(t)-f12b,scale_trip=1'
+    f12_parser = ({'rank_exact_electrons': 1} if one_electron else {})
     tasks = [
         {
             'id': 'l2_geometry', 'kind': 'ase_optimize',
@@ -132,19 +134,21 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             partition=partition),
         _molpro_task(
             'f12_tz',
-            f'basis=cc-pVTZ-F12\nrhf\n{f12},scale_trip=1\n'
+            f'basis=cc-pVTZ-F12\nrhf\n{f12}\n'
             'kb_f12b=energy\n',
             walltime='12:00:00', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
-                    'basis': 'cc-pVTZ-F12', 'reference': reference},
+                    'basis': 'cc-pVTZ-F12', 'reference': reference,
+                    **f12_parser},
             partition=partition),
         _molpro_task(
             'f12_qz',
-            f'basis=cc-pVQZ-F12\nrhf\n{f12},scale_trip=1\n'
+            f'basis=cc-pVQZ-F12\nrhf\n{f12}\n'
             'kb_f12b=energy\n',
             walltime='24:00:00', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
-                    'basis': 'cc-pVQZ-F12', 'reference': reference},
+                    'basis': 'cc-pVQZ-F12', 'reference': reference,
+                    **f12_parser},
             partition=partition),
         _molpro_task(
             'ccsdt_dz',

@@ -753,6 +753,89 @@ def _parser_failure(task, execution):
             and 'parse_result(' in execution.get('traceback', ''))
 
 
+def _recover_one_electron_f12_nan(run_dir, spec, state, task, entry,
+                                  previous):
+    """Accept Molpro's completed one-electron F12 value before its 0/0 abort."""
+    parser = task.get('result_parser', {})
+    molecule = spec.get('molecule', {})
+    atoms = _atoms(molecule)
+    electrons = int(sum(atoms.numbers)) - molecule.get('charge', 0)
+    if (electrons != 1 or task.get('kind') != 'external'
+            or task.get('backend', '').lower() != 'molpro'
+            or parser.get('kind') != 'molpro_energy'
+            or parser.get('method') != 'CCSD(T)-F12b'
+            or entry.get('status') != 'failed'
+            or previous.get('status') != 'failed'):
+        raise ValueError('Task is not a failed one-electron Molpro F12 job.')
+    if entry.get('job_id') and _job_active(entry['job_id']):
+        raise RuntimeError(f"{task['id']}: Slurm job is still active.")
+    _verify_stage_files(run_dir, task, entry)
+    directory = run_dir / 'tasks' / task['id']
+    native = directory / parser['file']
+    if not native.is_file():
+        raise ValueError('One-electron Molpro F12 output is missing.')
+    replacement_parser = {**parser, 'rank_exact_electrons': 1}
+    from kinbot.anl.results import parse_result
+    parsed = parse_result(native.read_text(errors='replace'),
+                          replacement_parser)
+    if not parsed.get('rank_exact', {}).get(
+            'recovered_molpro_scale_trip_nan'):
+        raise ValueError('Molpro output is not the exact scale-trip NaN case.')
+
+    replacement = deepcopy(task)
+    replacement['result_parser'] = replacement_parser
+    replacement['recovery'] = {
+        'kind': 'one_electron_f12_scale_trip_nan',
+        'calculation_changed': False,
+        'reason': ('Molpro evaluated the CABS reference and exact-zero F12 '
+                   'correlation before an undefined zero-over-zero triples '
+                   'scale factor aborted the process'),
+    }
+    candidate = deepcopy(spec)
+    candidate['tasks'][candidate['tasks'].index(task)] = replacement
+    validate_spec(candidate)
+
+    previous_name = 'execution.failed.json'
+    previous_path = directory / previous_name
+    if previous_path.exists():
+        raise RuntimeError(
+            f"{task['id']}: previous failed execution archive already exists.")
+    names = {'geometry.xyz', 'task.json', task['input_name'], parser['file'],
+             task.get('stdout', 'stdout.txt'), task.get('stderr', 'stderr.txt'),
+             previous_name}
+    missing = sorted(name for name in names - {previous_name}
+                     if not (directory / name).is_file())
+    if missing:
+        raise RuntimeError(
+            f"{task['id']}: recovery artifacts are missing: {missing}")
+    _atomic_json(previous_path, previous)
+    task.clear()
+    task.update(replacement)
+    _atomic_json(run_dir / 'workflow.json', spec)
+    state['spec_sha256'] = _file_hash(run_dir / 'workflow.json')
+    result = {
+        'schema': 1, 'task_id': task['id'],
+        'geometry_sha256': entry['geometry_sha256'], 'status': 'executed',
+        'details': {
+            'command': _external_command(task),
+            'returncode': 255,
+            'returncode_source': 'preserved_molpro_scale_trip_nan',
+            'parsed_result': parsed,
+            'recovered_without_execution': True,
+            'previous_error': previous.get('error', ''),
+        },
+        'artifacts': {name: _file_hash(directory / name)
+                      for name in sorted(names)},
+    }
+    _verify_execution(run_dir, task, entry, result)
+    _atomic_json(directory / 'execution.json', result)
+    entry.update(status='complete', execution='executed',
+                 automatically_recovered_rank_exact=True)
+    entry.pop('error', None)
+    entry.pop('job_id', None)
+    return result
+
+
 def _reparse_execution(run_dir, task, entry, previous):
     """Reparse one hash-checked native success without changing state.json."""
     ident = task['id']
@@ -1554,6 +1637,12 @@ def advance(run_dir, submit=False, submit_only=None):
         outcome = run_dir / 'tasks' / ident / 'execution.json'
         previous = (json.loads(outcome.read_text())
                     if outcome.is_file() else None)
+        if (entry.get('status') == 'failed' and previous is not None):
+            try:
+                previous = _recover_one_electron_f12_nan(
+                    run_dir, spec, state, task, entry, previous)
+            except ValueError:
+                pass
         if (entry.get('status') == 'failed' and previous is not None
                 and _parser_failure(task, previous)):
             try:

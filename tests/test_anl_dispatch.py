@@ -29,6 +29,7 @@ from kinbot.anl.dispatch import (
 )
 from kinbot.anl.site import render_site_setup
 from kinbot.anl.tasks import cfour_energy_task, mrcc_task
+from kinbot.anl.validation import interface_validation_spec
 
 
 def _write_spec(directory, spec):
@@ -1015,6 +1016,86 @@ def test_failed_legacy_monatomic_geometry_is_recovered_without_qc():
         assert execution['details']['recovered_without_qc_execution'] is True
         assert json.loads(
             (directory / 'execution.failed.json').read_text()) == failed
+
+
+def test_failed_one_electron_f12_scale_nan_is_recovered_without_qc():
+    molecule = {
+        'symbols': ['H'], 'positions': [[0., 0., 0.]],
+        'charge': 0, 'multiplicity': 2,
+    }
+    generated = interface_validation_spec(molecule)
+    task = next(item for item in generated['tasks'] if item['id'] == 'f12_tz')
+    task['geometry_from'] = 'initial'
+    task['resources'] = {
+        'cores': 4, 'memory_mb': 50000, 'walltime': '04:00:00',
+        'min_stack_mw': 1024,
+    }
+    task['input_template'] = task['input_template'].replace(
+        'uccsd-f12b', 'uccsd(t)-f12b,scale_trip=1')
+    task['result_parser'].pop('rank_exact_electrons')
+    spec = {
+        'schema': 1, 'name': 'old-one-electron-f12',
+        'molecule': molecule,
+        'limits': {'max_nodes': 1, 'max_cores_per_node': 8,
+                   'max_memory_mb_per_node': 64000},
+        'tasks': [task],
+    }
+    output = """basis=cc-pVTZ-F12
+rhf
+uccsd(t)-f12b,scale_trip=1
+ PROGRAMS   *        TOTAL  UCCSD(T)   RHF-SCF       INT
+ Number of N-1 electron functions:               1
+ Number of N-2 electron functions:               0
+ New reference energy                 -0.499946213253
+ RMP2-F12 correlation energy           0.000000000000
+ Starting UCCSD calculation
+ New reference energy                 -0.499946213253
+ UCCSD-F12b singles energy            -0.000000000000
+ UCCSD-F12b pair energy                0.000000000000
+ UCCSD-F12b correlation energy        -0.000000000000
+ Scale factor for triples energy                  NaN
+ ? Error
+ ? NaN detected by ieee_is_nan
+ ? The problem occurs in is_nan
+ GLOBAL ERROR fehler on processor   0
+"""
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        directory = run_dir / 'tasks' / 'f12_tz'
+        (directory / 'f12_tz.out').write_text(output)
+        (directory / 'launcher.stdout').write_text('')
+        (directory / 'launcher.stderr').write_text('MPI abort after Molpro NaN\n')
+        failed = {
+            'schema': 1, 'task_id': 'f12_tz',
+            'geometry_sha256': json.loads(
+                (directory / 'task.json').read_text())['geometry_sha256'],
+            'status': 'failed', 'error': 'Program exited with status 255.',
+            'traceback': 'RuntimeError: Program exited with status 255.',
+        }
+        (directory / 'execution.json').write_text(json.dumps(failed))
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        state['tasks']['f12_tz'].update(
+            status='failed', execution='failed', error=failed['error'])
+        state_path.write_text(json.dumps(state))
+
+        with patch('kinbot.anl.dispatch.subprocess.run',
+                   side_effect=AssertionError('must not submit or rerun QC')):
+            recovered = advance(run_dir, submit=False)
+        assert recovered['tasks']['f12_tz']['status'] == 'complete'
+        assert recovered['tasks']['f12_tz'][
+            'automatically_recovered_rank_exact'] is True
+        execution = json.loads((directory / 'execution.json').read_text())
+        assert execution['details']['recovered_without_execution'] is True
+        assert execution['details']['returncode'] == 255
+        assert execution['details']['parsed_result']['energy_hartree'] == \
+            pytest.approx(-0.499946213253)
+        assert json.loads(
+            (directory / 'execution.failed.json').read_text()) == failed
+        workflow = json.loads((run_dir / 'workflow.json').read_text())
+        assert workflow['tasks'][0]['result_parser'][
+            'rank_exact_electrons'] == 1
 
 
 def test_failed_job_missing_from_squeue_can_be_reconciled_and_retried():

@@ -6,7 +6,11 @@ max_nodes=${2:-8}
 fairchem_model=${3:-${KINBOT_FAIRCHEM_MODEL:-uma-s-1p2}}
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd "$script_dir/../../.." && pwd)
-run_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v5}
+evidence_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v5}
+# PR 108 calculation directories carry an immutable format marker.  The
+# completed profiled smoke run predates that format and must remain read-only;
+# a production VRC continuation therefore gets its own current-format run.
+run_dir=${KINBOT_VRC_PRODUCTION_DIR:-$evidence_dir/vrc_production_run}
 python_bin=${KINBOT_PYTHON:-$repo_dir/.venv/bin/python}
 reaction=301020900180000000001_hom_sci_1_2
 
@@ -14,8 +18,8 @@ test -x "$python_bin" || {
     echo "KinBot Python is not executable: $python_bin" >&2
     exit 2
 }
-test -f "$run_dir/kinbot.db" || {
-    echo "Existing profiled KinBot database is missing: $run_dir/kinbot.db" >&2
+test -d "$evidence_dir" || {
+    echo "Profiled validation directory is missing: $evidence_dir" >&2
     exit 2
 }
 for command in sbatch squeue sinfo g16 molpro xcfour; do
@@ -25,6 +29,7 @@ for command in sbatch squeue sinfo g16 molpro xcfour; do
     }
 done
 
+mkdir -p "$run_dir"
 "$python_bin" - "$script_dir/ethane_vrc_production.json" \
     "$run_dir/ethane_vrc_production.json" "$partition" \
     "$fairchem_model" "$max_nodes" <<'PY'
@@ -43,9 +48,9 @@ data['rotdpy_max_jobs'] = int(sys.argv[5])
 target.write_text(json.dumps(data, indent=2) + '\n')
 PY
 
-# A reduced interface run has a restart database containing a different set
-# of surfaces and no correction potential. Preserve it, but never mix those
-# samples into this calculation.
+# A reduced result in this child directory has a restart database containing
+# a different set of surfaces and no correction potential. Preserve it, but
+# never mix those samples into this calculation.
 if test -d "$run_dir/rotdPy"; then
     profile=interface
     if test -f "$run_dir/rotdPy/$reaction.rotdpy.json"; then

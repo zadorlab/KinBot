@@ -53,8 +53,11 @@ and interface smoke test, not a production-converged VRC calculation.
 ## Production methyl + methyl VRC continuation
 
 After the reduced end-to-end test has completed, run
-`run_vrc_production.sh PARTITION 8 [FAIRCHEM_MODEL]` against the same run
-directory. It preserves the reduced ROTD_py directory, performs a real
+`run_vrc_production.sh PARTITION 8 [FAIRCHEM_MODEL]`. The script treats the
+completed pre-PR-108 calculation as read-only evidence and creates the fresh,
+current-format child `vrc_production_run`. This avoids copying an incompatible
+legacy database or adding a false format marker. The child is restartable and
+performs a real
 multipoint correction scan, evaluates the ROTD samples at
 CASPT2(2e,2o)/cc-pVDZ, evaluates the trusted correction at
 MRCI+Q(2e,2o)/cc-pVTZ using Molpro's Davidson-corrected `ENERGD`, and samples
@@ -72,3 +75,5 @@ run to prevent the reduced smoke result from entering a kinetics model.
 `monitor_vrc_production.sh` reports the active versioned correction graph,
 the correction levels and point count, Monte Carlo products, production gate,
 queue, and recent KinBot messages without changing the run.
+Set `KINBOT_VRC_PRODUCTION_DIR` only when a different current-format child
+location is required.

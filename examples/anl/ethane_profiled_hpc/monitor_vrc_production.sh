@@ -3,7 +3,8 @@ set -u
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd "$script_dir/../../.." && pwd)
-run_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v5}
+evidence_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v5}
+run_dir=${KINBOT_VRC_PRODUCTION_DIR:-$evidence_dir/vrc_production_run}
 python_bin=${KINBOT_PYTHON:-$repo_dir/.venv/bin/python}
 reaction=301020900180000000001_hom_sci_1_2
 

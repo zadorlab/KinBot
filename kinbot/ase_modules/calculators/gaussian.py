@@ -1,12 +1,70 @@
 import os
 import copy
+from contextlib import contextmanager
+from pathlib import Path
+import shutil
 import subprocess
+import tempfile
 from collections.abc import Iterable
 from shutil import which
 from typing import Dict, Optional
 
 from ase.calculators.calculator import FileIOCalculator
 from kinbot.ase_modules.io.formats import read, write
+
+
+@contextmanager
+def gaussian_scratch_environment():
+    """Give one Gaussian invocation a writable, collision-free scratch.
+
+    Site Gaussian profiles sometimes export a node path that is absent on a
+    different partition.  Treat environment variables as candidate roots,
+    validate them on the compute node, and fall back through scheduler/site
+    scratch and finally the user's cache or working directory.  Restore the
+    caller's environment after Gaussian exits.
+    """
+    original = os.environ.get('GAUSS_SCRDIR')
+    candidates = [
+        ('GAUSS_SCRDIR', original),
+        ('SLURM_TMPDIR', os.environ.get('SLURM_TMPDIR')),
+        ('SCRATCH', os.environ.get('SCRATCH')),
+        ('TMPDIR', os.environ.get('TMPDIR')),
+        ('HOME', str(Path.home() / '.cache' / 'kinbot' / 'gaussian')),
+        ('PWD', os.getcwd()),
+    ]
+    attempted = []
+    scratch = None
+    source = None
+    for name, value in candidates:
+        if not value:
+            continue
+        root = Path(value).expanduser()
+        if root in attempted:
+            continue
+        attempted.append(root)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            if not root.is_dir() or not os.access(root, os.W_OK | os.X_OK):
+                continue
+            scratch = Path(tempfile.mkdtemp(
+                prefix='kinbot-gaussian-', dir=root))
+        except OSError:
+            continue
+        source = name
+        break
+    if scratch is None:
+        paths = ', '.join(str(path) for path in attempted)
+        raise RuntimeError('No writable Gaussian scratch root was found. '
+                           f'Tried: {paths}')
+    os.environ['GAUSS_SCRDIR'] = str(scratch)
+    try:
+        yield scratch, source
+    finally:
+        if original is None:
+            os.environ.pop('GAUSS_SCRDIR', None)
+        else:
+            os.environ['GAUSS_SCRDIR'] = original
+        shutil.rmtree(scratch, ignore_errors=True)
 
 
 class GaussianDynamics:
@@ -111,8 +169,12 @@ class Gaussian(FileIOCalculator):
     def execute(self):
         command = self.command.replace('PREFIX', self.prefix)
         directory = getattr(self, 'directory', '.')
-        proc = subprocess.Popen(command, shell=True, cwd=directory)
-        errorcode = proc.wait()
+        with gaussian_scratch_environment() as (scratch, source):
+            self.last_scratch = {
+                'directory': str(scratch), 'source': source,
+            }
+            proc = subprocess.Popen(command, shell=True, cwd=directory)
+            errorcode = proc.wait()
         if errorcode:
             raise RuntimeError(
                 f'Gaussian exited with error code {errorcode} '

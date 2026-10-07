@@ -79,3 +79,9 @@ the correction levels and point count, Monte Carlo products, production gate,
 queue, and recent KinBot messages without changing the run.
 Set `KINBOT_VRC_PRODUCTION_DIR` only when a different current-format child
 location is required.
+
+Gaussian workers validate scratch on the compute node for every invocation.
+An inherited but unusable `GAUSS_SCRDIR` falls back in order to
+`SLURM_TMPDIR`, `SCRATCH`, `TMPDIR`, `$HOME/.cache/kinbot/gaussian`, and the
+working directory. Each invocation receives a private temporary subdirectory,
+which is removed after Gaussian exits.

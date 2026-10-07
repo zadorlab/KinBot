@@ -3,8 +3,11 @@
 import json
 import os
 from pathlib import Path
+import pickle
+import sqlite3
 import sys
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -335,3 +338,31 @@ def test_live_progress_counts_converged_surfaces_and_active_samples(tmp_path):
         {'surface': 1, 'face': 0, 'sample': 843}]
     assert progress['elapsed_seconds'] == 120
     assert progress['linear_eta_seconds'] == 240
+
+
+def test_live_progress_reports_periodic_restart_snapshot(tmp_path):
+    input_file = tmp_path / 'channel.py'
+    input_file.write_text('# generated input\n')
+    root = tmp_path / 'kb_channel'
+    (root / 'Surface_0/jobs').mkdir(parents=True)
+    face = SimpleNamespace(_acct_num=83, _fail_num=1,
+                           _close_num=20, _face_num=10)
+    flux = SimpleNamespace(flux_array=[face], selected_faces=[0],
+                           pot_max=100, converged=False)
+    database = root / 'rotdPy_restart.db'
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            'CREATE TABLE rotdpy_saved_runs '
+            '(surf_id int, multi_flux blob, sample_list blob, '
+            'flux_base blob, run_index int)')
+        connection.execute(
+            'INSERT INTO rotdpy_saved_runs VALUES (?, ?, ?, ?, ?)',
+            (0, pickle.dumps(flux), pickle.dumps([83]), b'', 1))
+
+    progress = sampling_progress(input_file)
+    snapshot = progress['restart_snapshot']
+    assert snapshot['accepted_samples'] == 83
+    assert snapshot['failed_samples'] == 1
+    assert snapshot['space_rejections'] == 30
+    assert snapshot['potential_sample_ceiling'] == 100
+    assert snapshot['accepted_samples_to_ceiling'] == 17

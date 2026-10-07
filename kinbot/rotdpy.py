@@ -7,8 +7,10 @@ import hashlib
 import importlib.util
 from importlib import metadata
 import json
+import pickle
 from pathlib import Path
 import re
+import sqlite3
 import subprocess
 import sys
 import time
@@ -71,8 +73,66 @@ def sampling_progress(input_file: str | Path) -> dict:
     elapsed = max(0., time.time() - input_file.stat().st_mtime)
     eta = (elapsed * (total - done) / done
            if 0 < done < total else 0. if done == total and total else None)
+    database = root / 'rotdPy_restart.db'
+    snapshot = None
+    if database.is_file():
+        try:
+            with sqlite3.connect(
+                    f'file:{database.resolve()}?mode=ro', uri=True,
+                    timeout=10) as connection:
+                rows = connection.execute(
+                    'SELECT surf_id, multi_flux, run_index '
+                    'FROM rotdpy_saved_runs').fetchall()
+            latest = {}
+            for surface, blob, run_index in rows:
+                surface = int(surface)
+                if (surface not in latest
+                        or run_index >= latest[surface][1]):
+                    latest[surface] = (blob, run_index)
+            accepted_by_surface = {}
+            failed = 0
+            space = 0
+            ceiling = 0
+            database_converged = 0
+            for surface, (blob, _) in latest.items():
+                flux = pickle.loads(blob)
+                faces = list(flux.flux_array)
+                accepted = sum(int(getattr(face, '_acct_num', 0))
+                               for face in faces)
+                accepted_by_surface[str(surface)] = accepted
+                failed += sum(int(getattr(face, '_fail_num', 0))
+                              for face in faces)
+                space += sum(int(getattr(face, '_close_num', 0))
+                             + int(getattr(face, '_face_num', 0))
+                             for face in faces)
+                selected = list(getattr(
+                    flux, 'selected_faces', range(len(faces))))
+                ceiling += int(getattr(flux, 'pot_max', 0)) * len(selected)
+                database_converged += bool(getattr(flux, 'converged', False))
+            accepted_values = list(accepted_by_surface.values())
+            accepted_total = sum(accepted_values)
+            snapshot = {
+                'saved_at_epoch': round(database.stat().st_mtime),
+                'surfaces_in_snapshot': len(latest),
+                'database_converged_surfaces': database_converged,
+                'accepted_samples': accepted_total,
+                'accepted_samples_per_surface_min': (
+                    min(accepted_values) if accepted_values else 0),
+                'accepted_samples_per_surface_max': (
+                    max(accepted_values) if accepted_values else 0),
+                'failed_samples': failed,
+                'space_rejections': space,
+                'potential_sample_ceiling': ceiling,
+                'accepted_samples_to_ceiling': max(
+                    0, ceiling - accepted_total),
+                'note': ('The restart snapshot is periodic and may lag '
+                         'currently running sample jobs.'),
+            }
+        except (OSError, sqlite3.Error, pickle.UnpicklingError,
+                AttributeError, EOFError, ImportError) as error:
+            snapshot = {'error': str(error)}
     manifest = result_path(input_file)
-    return {
+    result = {
         'status': ('complete' if manifest.is_file()
                    else 'running' if root.is_dir() else 'not_started'),
         'input': str(input_file),
@@ -87,6 +147,9 @@ def sampling_progress(input_file: str | Path) -> dict:
         'eta_note': ('Linear estimate from completed surfaces; adaptive Monte '
                      'Carlo convergence can vary substantially by surface.'),
     }
+    if snapshot is not None:
+        result['restart_snapshot'] = snapshot
+    return result
 
 
 def dependency_provenance() -> dict:

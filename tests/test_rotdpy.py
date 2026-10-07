@@ -12,7 +12,7 @@ import pytest
 from kinbot.parameters import Parameters
 from kinbot.pes import _rotdpy_correction_block, create_rotdpy_inputs
 from kinbot.rotdpy import (ensure_available, main, number_of_states_file,
-                           read_result, run)
+                           read_result, run, sampling_progress)
 from kinbot.molpro import _vrc_multireference_method
 
 
@@ -311,3 +311,27 @@ def test_command_line_check_reports_completed_manifest(tmp_path, capsys):
     }))
     assert main(['check', str(input_file)]) == 0
     assert json.loads(capsys.readouterr().out)['status'] == 'complete'
+
+
+def test_live_progress_counts_converged_surfaces_and_active_samples(tmp_path):
+    input_file = tmp_path / 'channel.py'
+    input_file.write_text('# generated input\n')
+    root = tmp_path / 'kb_channel'
+    for index in range(3):
+        (root / f'Surface_{index}' / 'jobs').mkdir(parents=True)
+    output = root / 'output'
+    output.mkdir()
+    (output / 'surface_0.dat').write_text('complete\n')
+    (root / 'Surface_1/jobs/surf1_face0_samp843.pkl').write_bytes(b'x')
+
+    with patch('kinbot.rotdpy.time.time',
+               return_value=input_file.stat().st_mtime + 120.):
+        progress = sampling_progress(input_file)
+    assert progress['status'] == 'running'
+    assert progress['surface_count'] == 3
+    assert progress['converged_surfaces'] == 1
+    assert progress['remaining_surfaces'] == 2
+    assert progress['active_samples'] == [
+        {'surface': 1, 'face': 0, 'sample': 843}]
+    assert progress['elapsed_seconds'] == 120
+    assert progress['linear_eta_seconds'] == 240

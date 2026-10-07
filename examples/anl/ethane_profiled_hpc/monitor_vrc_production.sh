@@ -64,6 +64,7 @@ input="$run_dir/rotdPy/$reaction.py"
 if test -f "$manifest"; then
     "$python_bin" -m kinbot.rotdpy check "$input" --profile production 2>&1
 elif test -f "$input"; then
+    "$python_bin" -m kinbot.rotdpy progress "$input" 2>&1
     find "$run_dir/rotdPy/kb_$reaction" -maxdepth 2 -type f \
         \( -name 'surface_*.dat' -o -name 'Ne_*.out' \) -print 2>/dev/null \
         | sort | tail -n 40

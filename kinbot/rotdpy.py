@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 
 
 SUPPORTED_REVISION = '245317ca46c3324da4f71a80ff7263cbe7ceeac1'
@@ -32,6 +33,60 @@ def result_path(input_file: str | Path) -> Path:
 def execution_path(input_file: str | Path) -> Path:
     input_file = Path(input_file)
     return input_file.with_name(f'{input_file.stem}.execution.json')
+
+
+def sampling_progress(input_file: str | Path) -> dict:
+    """Report live ROTD_py surface progress without opening its pickle DB.
+
+    A surface file is written atomically by ROTD_py when that dividing surface
+    converges.  Counting those files is safer during a live run than
+    unpickling the restart database while its driver is updating it.  The ETA
+    is deliberately labelled as linear because adaptive Monte Carlo surfaces
+    can require very different numbers of samples.
+    """
+    input_file = Path(input_file).resolve()
+    if not input_file.is_file():
+        raise FileNotFoundError(input_file)
+    root = input_file.with_name(f'kb_{input_file.stem}')
+    surfaces = sorted(
+        (path for path in root.glob('Surface_*') if path.is_dir()),
+        key=lambda path: int(path.name.removeprefix('Surface_')))
+    completed = sorted(
+        root.glob('output/surface_*.dat'),
+        key=lambda path: int(path.stem.removeprefix('surface_')))
+    active = []
+    pattern = re.compile(r'surf(\d+)_face(\d+)_samp(\d+)\.pkl')
+    for path in root.glob('Surface_*/jobs/*.pkl'):
+        match = pattern.fullmatch(path.name)
+        if match:
+            active.append({
+                'surface': int(match.group(1)),
+                'face': int(match.group(2)),
+                'sample': int(match.group(3)),
+            })
+    active.sort(key=lambda item: (
+        item['surface'], item['face'], item['sample']))
+    total = len(surfaces)
+    done = len(completed)
+    elapsed = max(0., time.time() - input_file.stat().st_mtime)
+    eta = (elapsed * (total - done) / done
+           if 0 < done < total else 0. if done == total and total else None)
+    manifest = result_path(input_file)
+    return {
+        'status': ('complete' if manifest.is_file()
+                   else 'running' if root.is_dir() else 'not_started'),
+        'input': str(input_file),
+        'sample_root': str(root),
+        'surface_count': total,
+        'converged_surfaces': done,
+        'remaining_surfaces': max(0, total - done),
+        'convergence_fraction': done / total if total else 0.,
+        'active_samples': active,
+        'elapsed_seconds': round(elapsed),
+        'linear_eta_seconds': round(eta) if eta is not None else None,
+        'eta_note': ('Linear estimate from completed surfaces; adaptive Monte '
+                     'Carlo convergence can vary substantially by surface.'),
+    }
 
 
 def dependency_provenance() -> dict:
@@ -322,15 +377,19 @@ def main(argv=None):
     select_parser.add_argument('input', type=Path)
     select_parser.add_argument('--energy-index', type=int, default=-1)
     select_parser.add_argument('--profile', choices=('interface', 'production'))
+    progress_parser = commands.add_parser('progress')
+    progress_parser.add_argument('input', type=Path)
     args = parser.parse_args(argv)
     if args.action == 'run':
         result = run(args.input)
     elif args.action == 'check':
         result = read_result(args.input, required_profile=args.profile)
-    else:
+    elif args.action == 'select':
         source, provenance = number_of_states_file(
             args.input, args.energy_index, required_profile=args.profile)
         result = {'source': str(source), **provenance}
+    else:
+        result = sampling_progress(args.input)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

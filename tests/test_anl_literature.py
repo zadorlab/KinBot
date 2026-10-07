@@ -132,28 +132,46 @@ def test_prepare_one_off_methyl_uhf_source_reproduction(
         validate_spec(unpinned)
 
 
-def test_methyl_rohf_run_compares_to_published_uhf_target(monkeypatch):
+def test_methyl_current_profile_compares_to_published_targets(monkeypatch):
     benchmark = BENCHMARKS['methyl-qz-2017']
-    task = {
+    tasks = [{
+        'id': 'ccsdt_dz', 'backend': 'molpro',
+        'result_parser': {
+            'method': 'CCSD(T)', 'basis': 'cc-pVDZ',
+            'reference': 'ROHF'}}, {
         'id': 'ccsdtq_dz', 'backend': 'mrcc',
         'result_parser': {
             'method': 'CCSDT(Q)', 'basis': 'cc-pVDZ',
-            'reference': 'ROHF', 'correlation': 'unrestricted'}}
+            'reference': 'ROHF', 'correlation': 'unrestricted'}}]
     monkeypatch.setattr(
         literature, '_load',
         lambda run_dir: (Path(run_dir), {
-            'molecule': benchmark['molecule'], 'tasks': [task]}, {
-            'tasks': {'ccsdtq_dz': {'status': 'complete'}}}))
+            'molecule': benchmark['molecule'], 'tasks': tasks}, {
+            'tasks': {
+                'ccsdt_dz': {'status': 'complete'},
+                'ccsdtq_dz': {'status': 'complete'},
+            }}))
     monkeypatch.setattr(
         literature, '_verified_task_result',
         lambda run_dir, task_id: (
             None, None, None, None, None,
-            {'energy_hartree': -39.716241160157}))
+            {'energy_hartree': {
+                'ccsdt_dz': -39.715724312484,
+                'ccsdtq_dz': -39.716241160157,
+            }[task_id]}))
     result = literature.compare_run('methyl-qz-2017', '/synthetic/run')
     assert result['status'] == 'passed'
     assert result['profiled_variant'] is True
+    assert result['calculation_profiles']['ccsdt_dz'] == (
+        'published-MOLPRO-2012.1-to-current-MOLPRO-RUCCSD(T)')
     assert result['calculation_request_variants']['ccsdtq_dz'] == {
         'reference': {'published': 'UHF', 'observed': 'ROHF'}}
+    low = result['checks']['ccsdt_dz']
+    assert low['error_hartree'] == pytest.approx(1.9097516e-5)
+    assert low['source_exact_tolerance_hartree'] == pytest.approx(2e-6)
+    assert low['absolute_tolerance_hartree'] == pytest.approx(5e-5)
+    assert low['tolerance_profile'] == (
+        'published-MOLPRO-2012.1-to-current-MOLPRO-RUCCSD(T)')
     check = result['checks']['ccsdtq_dz']
     assert check['error_hartree'] == pytest.approx(1.9499843e-5)
     assert check['source_exact_tolerance_hartree'] == pytest.approx(2e-6)

@@ -190,6 +190,10 @@ BENCHMARKS = {
         'tasks': {
             'ccsdt_dz': {'path': ('energy_hartree',),
                          'expected': -39.71574341, 'atol': 2e-6,
+                         'profiled_atol': 5e-5,
+                         'comparison_profile': (
+                             'published-MOLPRO-2012.1-to-current-MOLPRO-'
+                             'RUCCSD(T)'),
                          'request': {
                              'backend': 'molpro', 'method': 'CCSD(T)',
                              'basis': 'cc-pVDZ', 'reference': 'ROHF'}},
@@ -258,7 +262,8 @@ def compare_values(name, observed, *, include_absolute=True,
             continue
         value = observed[task_id]
         error = value - target['expected']
-        profiled = task_id in profiled_tasks
+        profiled = (task_id in profiled_tasks
+                    or bool(target.get('comparison_profile')))
         tolerance = (target.get('profiled_atol', target['atol'])
                      if profiled else target['atol'])
         checks[task_id] = {
@@ -271,7 +276,9 @@ def compare_values(name, observed, *, include_absolute=True,
         if profiled and tolerance != target['atol']:
             checks[task_id].update({
                 'source_exact_tolerance_hartree': target['atol'],
-                'tolerance_profile': 'published-UHF-to-current-ROHF',
+                'tolerance_profile': target.get(
+                    'comparison_profile',
+                    'published-UHF-to-current-ROHF'),
             })
     for key, target in benchmark.get('derived', {}).items():
         if target['high'] not in observed or target['low'] not in observed:
@@ -366,6 +373,7 @@ def compare_run(name, run_dir):
     exact_geometry = geometry_deviation <= 5e-5
     observed = {}
     request_variants = {}
+    comparison_profiles = {}
     for task_id, target in benchmark['tasks'].items():
         if (task_id not in tasks
                 or state['tasks'].get(task_id, {}).get('status') != 'complete'):
@@ -392,12 +400,14 @@ def compare_run(name, run_dir):
                 allowed_variants.get(key, ()))}
         if variants:
             request_variants[task_id] = variants
+        if target.get('comparison_profile'):
+            comparison_profiles[task_id] = target['comparison_profile']
         *_, parsed = _verified_task_result(run_dir, task_id)
         observed[task_id] = _nested(parsed, target['path'])
     try:
         result = compare_values(
             name, observed, include_absolute=exact_geometry,
-            profiled_tasks=request_variants)
+            profiled_tasks=set(request_variants) | set(comparison_profiles))
     except ValueError as exc:
         if exact_geometry or 'no completed components' not in str(exc):
             raise
@@ -416,7 +426,8 @@ def compare_run(name, run_dir):
     result['geometry_match'] = exact_geometry
     result['maximum_pair_distance_error_angstrom'] = geometry_deviation
     result['calculation_request_variants'] = request_variants
-    result['profiled_variant'] = bool(request_variants)
+    result['calculation_profiles'] = comparison_profiles
+    result['profiled_variant'] = bool(request_variants or comparison_profiles)
     if not exact_geometry:
         result['absolute_checks_skipped'] = sorted(
             task_id for task_id in observed if task_id in benchmark['tasks'])

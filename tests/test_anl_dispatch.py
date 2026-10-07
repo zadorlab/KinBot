@@ -883,11 +883,33 @@ def test_parser_failure_can_be_recovered_without_rerunning_native_job():
         assert reparse_failed(run_dir, 'gaussian_vpt2') == result
 
 
-def test_advance_automatically_reparses_old_successful_mrcc_output():
+@pytest.mark.parametrize(
+    ('ident', 'method', 'native_results', 'expected'),
+    (
+        (
+            'ccsdtq_dz', 'CCSDT(Q)',
+            'Total CCSDT energy [au]: -39.716126916675\n'
+            'Total CCSDT[Q] energy [au]: -39.716201539184\n'
+            'Total CCSDT(Q)/A energy [au]: -39.716240924926\n'
+            'Total CCSDT(Q)/B energy [au]: -39.716241160157\n',
+            -39.716241160157,
+        ),
+        (
+            'ccsdtqp_dz', 'CCSDTQ(P)',
+            'Total CCSDTQ energy [au]: -39.716248102779\n'
+            'Total CCSDTQ[P] energy [au]: -39.716252624143\n'
+            'Total CCSDTQ(P)/A energy [au]: -39.716252624143\n'
+            'Total CCSDTQ(P)/B energy [au]: -39.716252675414\n',
+            -39.716252675414,
+        ),
+    ),
+)
+def test_advance_automatically_reparses_old_successful_mrcc_output(
+        ident, method, native_results, expected):
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
         task = mrcc_task(
-            'ccsdtq_dz', 'CCSDT(Q)', 'cc-pVDZ', multiplicity=2,
+            ident, method, 'cc-pVDZ', multiplicity=2,
             reference='ROHF', geometry_from='initial')
         task['resources'].update(
             cores=1, memory_mb=4096, partition='test')
@@ -902,44 +924,40 @@ def test_advance_automatically_reparses_old_successful_mrcc_output():
             'limits': {'max_nodes': 1}, 'tasks': [task],
         }
         run_dir = prepare(_write_spec(root, spec), root / 'run')
-        directory = run_dir / 'tasks' / 'ccsdtq_dz'
-        output = """Input file:
+        directory = run_dir / 'tasks' / ident
+        output = f"""Input file:
 basis=cc-pVDZ
-calc=CCSDT(Q)
+calc={method}
 ccprog=mrcc
 scftype=ROHF
 rohftype=semicanonical
 rohfcore=semicanonical
 core=frozen
-Total CCSDT energy [au]: -39.716126916675
-Total CCSDT[Q] energy [au]: -39.716201539184
-Total CCSDT(Q)/A energy [au]: -39.716240924926
-Total CCSDT(Q)/B energy [au]: -39.716241160157
-Normal termination of mrcc.
+{native_results}Normal termination of mrcc.
 """
-        (directory / 'ccsdtq_dz.out').write_text(output)
-        (directory / 'ccsdtq_dz.err').write_text('')
+        (directory / f'{ident}.out').write_text(output)
+        (directory / f'{ident}.err').write_text('')
         state_path = run_dir / 'state.json'
         state = json.loads(state_path.read_text())
-        entry = state['tasks']['ccsdtq_dz']
+        entry = state['tasks'][ident]
         entry.update(status='failed', execution='failed',
                      error='old parser error')
         state_path.write_text(json.dumps(state))
         failed = {
-            'schema': 1, 'task_id': 'ccsdtq_dz',
+            'schema': 1, 'task_id': ident,
             'geometry_sha256': entry['geometry_sha256'],
             'status': 'failed',
-            'error': 'Expected exactly one MRCC CCSDT(Q) total energy; found 0.',
+            'error': f'Expected exactly one MRCC {method} total energy; found 0.',
             'traceback': 'details["parsed_result"] = parse_result(output, request)',
         }
         (directory / 'execution.json').write_text(json.dumps(failed))
 
         recovered = advance(run_dir)
-        assert recovered['tasks']['ccsdtq_dz']['status'] == 'complete'
-        assert recovered['tasks']['ccsdtq_dz']['automatically_reparsed'] is True
+        assert recovered['tasks'][ident]['status'] == 'complete'
+        assert recovered['tasks'][ident]['automatically_reparsed'] is True
         execution = json.loads((directory / 'execution.json').read_text())
         parsed = execution['details']['parsed_result']
-        assert parsed['energy_hartree'] == pytest.approx(-39.716241160157)
+        assert parsed['energy_hartree'] == pytest.approx(expected)
         assert parsed['selected_perturbative_variant'] == 'B'
         assert json.loads(
             (directory / 'execution.failed.json').read_text()) == failed

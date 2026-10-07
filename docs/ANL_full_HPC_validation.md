@@ -767,6 +767,14 @@ input or the computed recipe. Preserve one real interrupted
 MRCC attempt and successful `resume-mrcc` continuation as restart evidence;
 do not manufacture interruptions for every species.
 
+The article identifies MOLPRO 2012.1 as its program version. The pinned methyl
+comparison also records the current MOLPRO RUCCSD(T) calculation as an
+implementation profile and applies the same 5e-5 hartree comparison tolerance
+to its absolute energy while retaining the original 2e-6 hartree source-exact
+tolerance in the report. The same-geometry higher-order differences retain
+their own tighter targets. This comparison profile changes neither generated
+inputs nor any composite or CBH arithmetic.
+
 One bounded source-reference check may reproduce the published methyl
 UHF-CCSDT(Q)/cc-pVDZ value. This command is hardcoded to that benchmark and
 cannot change the RHF/ROHF policy of production ANL graphs:

@@ -1191,6 +1191,13 @@ class QuantumChemistry:
         if self.queue_job_limit > 0:
             self.limit_jobs()
 
+        # A status file belongs to one scheduler submission.  Never let a
+        # previous attempt prove success or failure for a replacement job.
+        try:
+            os.remove(f'{job}.exitcode')
+        except FileNotFoundError:
+            pass
+
         try:
             if jobtype == 'am1' and self.par['q_temp_am1']:
                 template_head_file = self.par['q_temp_am1']
@@ -1629,7 +1636,28 @@ class QuantumChemistry:
             self._completion_deadlines[key] = None
             logger.warning(f'{job}: complete result is still unavailable '
                            '60 s after the job left the queue.')
-        return status
+        # A worker that exited without publishing a normal/error calculation
+        # record is a failed job.  Returning zero here leaves Optimize polling
+        # forever and hides the scheduler failure from restart logic.
+        exit_file = f'{job}.exitcode'
+        try:
+            raw_code = open(exit_file).read().strip()
+            exit_code = int(raw_code)
+        except FileNotFoundError:
+            logger.error(f'{job}: scheduler job {key[1]} left the queue '
+                         f'without {exit_file} or a calculation result. '
+                         'Inspect its scheduler stderr; the job cannot be '
+                         'treated as complete.')
+        except (OSError, ValueError):
+            logger.error(f'{job}: invalid worker status file {exit_file}.')
+        else:
+            if exit_code:
+                logger.error(f'{job}: worker exited with status {exit_code}; '
+                             'inspect the scheduler stderr.')
+            else:
+                logger.error(f'{job}: worker exited successfully but did not '
+                             'publish a calculation result.')
+        return 'error'
 
     def _check_qc(self, job):
         '''
@@ -1698,7 +1726,18 @@ class QuantumChemistry:
         # if int(subprocess.call(command, shell=True, stdout=devnull, stderr=devnull)) == 0:
         #     return 'running'
 
-        logger.debug('Checking for job {} in db'.format(job))
+        exit_file = f'{job}.exitcode'
+        if os.path.isfile(exit_file):
+            try:
+                exit_code = int(open(exit_file).read().strip())
+            except (OSError, ValueError):
+                logger.error(f'Invalid worker status file {exit_file}.')
+                return 'error'
+            if exit_code:
+                logger.error(f'{job} exited with worker status {exit_code}.')
+                return 'error'
+
+        logger.debug('Checking for job {}'.format(job) + ' in db')
         if self.is_in_database(job):
             logger.debug('{} is in db'.format(job))
             for i in range(1):

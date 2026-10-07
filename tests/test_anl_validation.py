@@ -777,6 +777,21 @@ def test_ethane_external_example_finds_only_requested_scission():
     assert species.reac_inst == [[0, 1]]
 
 
+def test_ethane_production_vrc_does_not_repeat_validated_l2_or_rotors():
+    root = Path(__file__).resolve().parents[1]
+    source = root / 'examples/anl/ethane_profiled_hpc/ethane_vrc_production.json'
+    requested = json.loads(source.read_text())
+    assert requested['high_level'] == 0
+    assert requested['rotor_scan'] == 0
+    assert requested['reaction_search'] == 1
+    assert requested['rotdpy_validation_profile'] == 'production'
+    assert requested['rotdpy_mess_mode'] == 'production'
+    assert requested['vrc_tst_sample_method'].casefold() == 'caspt2(2,2)'
+    assert requested['vrc_tst_high_method'].casefold() == 'mrci+q(2,2)'
+    assert len(requested['vrc_tst_scan_points']) >= 4
+    assert len(requested['rotdpy_dist']) >= 3
+
+
 def test_prepare_from_database_cli_stages_general_graph(monkeypatch):
     with TemporaryDirectory() as temporary:
         root = Path(temporary)

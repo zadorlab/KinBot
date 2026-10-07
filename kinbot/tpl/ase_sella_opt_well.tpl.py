@@ -1,10 +1,10 @@
 import os
 import sys
+import pickle
 import shutil
 
 import numpy as np
 from ase import Atoms
-from ase.db import connect
 from ase.vibrations import Vibrations
 from ase.optimize import BFGS
 from ase.io import read, write
@@ -17,7 +17,6 @@ from kinbot.frequencies import calc_vibrations, get_frequencies
 
 scratch_dir = os.getcwd()
 
-db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom}, 
             positions={geom})
 
@@ -34,6 +33,19 @@ if '{Code}' == 'Gaussian':
 
 basename = os.path.basename('{label}')
 frequency_mode = '{frequency_mode}'
+pkl_file = '{label}.pkl'
+if os.path.isfile(pkl_file):
+    os.remove(pkl_file)
+
+
+def publish(data):
+    """Atomically hand one worker result to the KinBot driver."""
+    payload = {{'sym': mol.symbols, 'pos': mol.positions,
+               'calc': '{code}', 'name': '{label}', 'data': data}}
+    temporary = f'{{pkl_file}}.tmp.{{os.getpid()}}'
+    with open(temporary, 'wb') as stream:
+        pickle.dump(payload, stream)
+    os.replace(temporary, pkl_file)
 
 if os.path.isfile('{label}_sella.log'):
     os.remove('{label}_sella.log')
@@ -41,9 +53,8 @@ if os.path.isfile('{label}_sella.log'):
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
     e = mol.get_potential_energy()
-    db.write(mol, name='{label}',
-             data={{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
-                    'hess': np.zeros([3, 3]), 'status': 'normal'}})
+    data = {{'energy': e, 'frequencies': np.array([]), 'zpe': 0.0,
+            'hess': np.zeros([3, 3]), 'status': 'normal'}}
 
     if os.path.isdir(f'{{basename}}'):
         shutil.rmtree(f'{{basename}}')
@@ -51,6 +62,7 @@ if len(mol) == 1:
     with open('{label}_sella.log', 'a') as f:
         f.write('Sella optimization is not needed for atoms.\ndone\n')
 else:
+    data = {{'status': 'error'}}
     order = {order}
     sella_kwargs = {sella_kwargs}
     if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
@@ -114,7 +126,7 @@ else:
                         'status': 'normal'}}
                 if hessian is not None:
                     data['hess'] = hessian
-                db.write(mol, name='{label}', data=data)
+                pass
         except Exception as error:
             with open('{label}_sella.log', 'a') as f:
                 f.write(f'Frequency evaluation failed: '
@@ -125,7 +137,6 @@ else:
 
     if not converged:
         data = {{'status': 'error'}}
-        db.write(mol, name='{label}', data=data)
     
     if os.path.isdir(f'{{basename}}'):
         shutil.rmtree(f'{{basename}}')
@@ -135,3 +146,5 @@ else:
 
     with open('{label}_sella.log', 'a') as f:
         f.write('done\n')
+
+publish(data)

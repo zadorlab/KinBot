@@ -13,6 +13,19 @@ date
 echo "===== queue ====="
 squeue -u "$USER" -o "%.18i %.32j %.2t %.10M %.10l %R" 2>&1
 
+echo "===== production driver ====="
+pid_file="$repo_dir/ethane_vrc_production.pid"
+if test -f "$pid_file"; then
+    pid=$(cat "$pid_file")
+    if kill -0 "$pid" 2>/dev/null; then
+        echo "running: PID $pid"
+    else
+        echo "exited: PID $pid"
+    fi
+else
+    echo "PID file not found: $pid_file"
+fi
+
 pointer="$run_dir/vrctst/molpro/current_dispatch.json"
 if test -f "$pointer"; then
     dispatch=$($python_bin - "$pointer" <<'PY'
@@ -58,6 +71,13 @@ elif test -f "$input"; then
 else
     echo "input not generated"
 fi
+
+echo "===== recent worker errors ====="
+find "$run_dir/perm" -maxdepth 1 -type f -name '*.err' -size +0c \
+    -print 2>/dev/null | sort | tail -n 4 | while read -r error_file; do
+        echo "--- $error_file ---"
+        tail -n 25 "$error_file"
+    done
 
 echo "===== latest KinBot messages ====="
 tail -n 35 "$run_dir/kinbot.log" 2>/dev/null

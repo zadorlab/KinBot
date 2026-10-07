@@ -22,12 +22,30 @@ test -d "$evidence_dir" || {
     echo "Profiled validation directory is missing: $evidence_dir" >&2
     exit 2
 }
-for command in sbatch squeue sinfo g16 molpro xcfour; do
+for command in sbatch squeue sinfo g16 molpro; do
     command -v "$command" >/dev/null || {
         echo "Missing required command: $command" >&2
         exit 2
     }
 done
+
+# Fail before reaction work if a compute-node dependency or the private
+# sampler is unavailable.  Loading the predictor here also proves that the
+# supplied path names a usable checkpoint while the login-node environment is
+# still visible.
+"$python_bin" - "$fairchem_model" <<'PY'
+import sys
+
+from fairchem.core import FAIRChemCalculator
+from kinbot.fairchem_utils import load_predictor
+from kinbot.rotdpy import ensure_available
+
+model = sys.argv[1]
+FAIRChemCalculator(load_predictor(model, 'cpu'), task_name='omol')
+rotdpy = ensure_available()
+print(f'FairChem model {model!r} and rotdPy are ready')
+print(f"rotdPy revision: {rotdpy.get('git_revision')}")
+PY
 
 mkdir -p "$run_dir"
 "$python_bin" - "$script_dir/ethane_vrc_production.json" \

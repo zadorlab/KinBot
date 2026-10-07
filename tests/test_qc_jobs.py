@@ -92,6 +92,16 @@ class TestSchedulerJobs(unittest.TestCase):
         script = Path('partition_job.sbatch').read_text()
         self.assertIn('#SBATCH --partition=day-long-cpu', script)
         self.assertNotIn('#SBATCH -q ', script)
+        self.assertIn('kinbot_exit_file=partition_job.exitcode', script)
+        self.assertIn('exit "$kinbot_exit_code"', script)
+
+    def test_completed_scheduler_job_without_result_becomes_error(self):
+        qc = SimpleNamespace(queuing='slurm', job_ids={'lost': '123'})
+        with patch.object(QuantumChemistry, '_check_qc', return_value=0), \
+                patch('kinbot.qc.time.monotonic', side_effect=[0., 61.]), \
+                self.assertLogs('KinBot', 'ERROR'):
+            self.assertEqual(QuantumChemistry.check_qc(qc, 'lost'), 'running')
+            self.assertEqual(QuantumChemistry.check_qc(qc, 'lost'), 'error')
 
 
 class TestVRCJobs(unittest.TestCase):

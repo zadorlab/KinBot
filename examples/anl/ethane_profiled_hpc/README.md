@@ -57,9 +57,10 @@ After the reduced end-to-end test has completed, run
 completed pre-PR-108 calculation as read-only evidence and creates the fresh,
 current-format child `vrc_production_run`. This avoids copying an incompatible
 legacy database or adding a false format marker. The child is restartable and
-repeats only the inexpensive L1 reaction discovery needed to establish a
-current-format reaction graph; it deliberately skips the already validated
-parent L2, hindered-rotor, and ANL stages. It then performs a real
+repeats only the inexpensive L1 parent and unique-product preparation needed
+to establish a current-format reaction graph; the dedicated profile disables
+the conformer, parent L2, hindered-rotor, and ANL stages already validated by
+the broader workflow. It then performs a real
 multipoint correction scan, evaluates the ROTD samples at
 CASPT2(2e,2o)/cc-pVDZ, evaluates the trusted correction at
 MRCI+Q(2e,2o)/cc-pVTZ using Molpro's Davidson-corrected `ENERGD`, and samples

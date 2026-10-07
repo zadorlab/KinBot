@@ -66,6 +66,10 @@ data['rotdpy_max_jobs'] = int(sys.argv[5])
 target.write_text(json.dumps(data, indent=2) + '\n')
 PY
 
+# Delimit diagnostics from this invocation. The monitor must not present an
+# archived failure from an earlier input profile as a failure of this attempt.
+touch "$run_dir/.vrc_production_attempt"
+
 # A reduced result in this child directory has a restart database containing
 # a different set of surfaces and no correction potential. Preserve it, but
 # never mix those samples into this calculation.

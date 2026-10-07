@@ -73,7 +73,13 @@ else
 fi
 
 echo "===== recent worker errors ====="
+attempt_marker="$run_dir/.vrc_production_attempt"
+newer=()
+if test -f "$attempt_marker"; then
+    newer=(-newer "$attempt_marker")
+fi
 find "$run_dir/perm" -maxdepth 1 -type f -name '*.err' -size +0c \
+    "${newer[@]}" \
     -print 2>/dev/null | sort | tail -n 4 | while read -r error_file; do
         echo "--- $error_file ---"
         tail -n 25 "$error_file"

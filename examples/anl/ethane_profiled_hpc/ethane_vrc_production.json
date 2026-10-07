@@ -59,7 +59,7 @@
   },
   "rotdpy_dynamical_correction": 0.85,
   "barrier_threshold": 150.0,
-  "conformer_search": 1,
+  "conformer_search": 0,
   "conf_grid": 3,
   "rotor_scan": 0,
   "nrotation": 4,

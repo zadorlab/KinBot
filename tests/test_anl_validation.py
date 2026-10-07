@@ -781,6 +781,7 @@ def test_ethane_production_vrc_does_not_repeat_validated_l2_or_rotors():
     root = Path(__file__).resolve().parents[1]
     source = root / 'examples/anl/ethane_profiled_hpc/ethane_vrc_production.json'
     requested = json.loads(source.read_text())
+    assert requested['conformer_search'] == 0
     assert requested['high_level'] == 0
     assert requested['rotor_scan'] == 0
     assert requested['reaction_search'] == 1

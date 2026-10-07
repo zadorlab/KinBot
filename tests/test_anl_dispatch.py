@@ -1049,8 +1049,9 @@ def test_failed_one_electron_f12_scale_nan_is_recovered_without_qc():
         'min_stack_mw': 1024,
     }
     task['input_template'] = task['input_template'].replace(
-        'uccsd-f12b', 'uccsd(t)-f12b,scale_trip=1')
+        'rhf\n\n', 'rhf\nuccsd(t)-f12b,scale_trip=1\n')
     task['result_parser'].pop('rank_exact_electrons')
+    task['result_parser'].pop('effective_method')
     spec = {
         'schema': 1, 'name': 'old-one-electron-f12',
         'molecule': molecule,

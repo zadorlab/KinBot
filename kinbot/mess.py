@@ -1283,13 +1283,15 @@ class MESS:
         """Stage a verified ROTD_py surface and render MESS ``Core Rotd``.
 
         ``auto`` uses ROTD_py only when the matching completed manifest is
-        present.  ``required`` makes a missing or invalid result fatal.  PES
-        worker files retain their deferred phase-space model because their
-        final filesystem location is not known until network assembly.
+        present. ``required`` makes a missing or invalid result fatal, while
+        ``production`` also rejects reduced interface samples. PES worker
+        files retain their deferred phase-space model because their final
+        filesystem location is not known until network assembly.
         """
         mode = str(self.par.get('rotdpy_mess_mode', 'auto')).casefold()
-        if mode not in ('auto', 'required', 'off'):
-            raise ValueError('rotdpy_mess_mode must be auto, required, or off.')
+        if mode not in ('auto', 'required', 'production', 'off'):
+            raise ValueError('rotdpy_mess_mode must be auto, required, '
+                             'production, or off.')
         if mode == 'off' or self.par['pes'] or reaction is None:
             return None
         directory = Path(self.par.get('rotdpy_directory', 'rotdPy'))
@@ -1297,7 +1299,7 @@ class MESS:
         manifest = input_file.with_name(
             f'{reaction.instance_name}.rotdpy.json')
         if not input_file.is_file() or not manifest.is_file():
-            if mode == 'required':
+            if mode in ('required', 'production'):
                 raise FileNotFoundError(
                     f'{reaction.instance_name}: completed ROTD_py input and '
                     f'manifest are required under {directory}.')
@@ -1305,9 +1307,11 @@ class MESS:
         from kinbot.rotdpy import number_of_states_file
         try:
             source, provenance = number_of_states_file(
-                input_file, self.par.get('rotdpy_mess_energy_index', -1))
+                input_file, self.par.get('rotdpy_mess_energy_index', -1),
+                required_profile=('production'
+                                  if mode == 'production' else None))
         except (OSError, RuntimeError, ValueError) as error:
-            if mode == 'required':
+            if mode in ('required', 'production'):
                 raise RuntimeError(
                     f'{reaction.instance_name}: cannot use ROTD_py result: '
                     f'{error}') from error

@@ -35,6 +35,10 @@ _MOLPRO_F12B = (r'^\s*\{?\s*uccsd\(t\)-f12b\b[^\n]*'
                   r'\bscale_trip\s*=\s*1\b[^\n]*$')
 _MOLPRO_ONE_ELECTRON_F12B = (
     r'^\s*\{?\s*uccsd-f12b\b(?![^\n]*\bscale_trip\b)[^\n]*$')
+_MOLPRO_CCSD = (r'^\s*\{?\s*uccsd(?=\s*(?:,|;|}|$))'
+                 r'(?:\s*,[^\n;}]*)?(?:\s*;\s*core\s*)?}?\s*$')
+_MOLPRO_HF_ENERGY = (
+    rf'^\s*!RHF\s+STATE\s+\d+\.\d+\s+Energy\s+({_NUMBER})\s*$')
 _MOLPRO_LEGACY_CCSD_T = r'^\s*ccsd\(t\)(?:\s*,[^\n]*)?\s*$'
 _MOLPRO_LEGACY_F12B = (r'^\s*ccsd\(t\)-f12b?\b[^\n]*'
                         r'\bscale_trip\s*=\s*1\b[^\n]*$')
@@ -345,14 +349,27 @@ def _one_electron_f12_energy(output, *, allow_rank_exact_nan):
 
 def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
                         relativistic=None, rank_exact_electrons=None,
-                        legacy=False):
+                        effective_method=None, legacy=False):
     """Read the exact named total energy, rather than a rounded variable or F12a."""
     if method not in ('CCSD(T)', 'CCSD(T)-F12b'):
         raise ValueError(f'Unsupported Molpro energy method {method!r}.')
-    if rank_exact_electrons not in (None, 1):
-        raise ValueError('Molpro rank-exact electron count must be one.')
-    if rank_exact_electrons == 1 and method != 'CCSD(T)-F12b':
-        raise ValueError('One-electron rank-exact parsing is limited to F12b.')
+    if rank_exact_electrons not in (None, 1, 2):
+        raise ValueError('Molpro rank-exact electron count must be one or two.')
+    allowed_effective = {
+        (1, 'CCSD(T)-F12b'): 'HF',
+        (1, 'CCSD(T)'): 'HF',
+        (2, 'CCSD(T)-F12b'): 'CCSD-F12b',
+        (2, 'CCSD(T)'): 'CCSD',
+    }
+    if effective_method is not None and allowed_effective.get(
+            (rank_exact_electrons, method)) != effective_method:
+        raise ValueError('Molpro effective method disagrees with excitation rank.')
+    if rank_exact_electrons is not None and effective_method is None:
+        # Read immutable one-electron archives produced before effective
+        # method declarations were added.
+        if not (rank_exact_electrons == 1
+                and method == 'CCSD(T)-F12b'):
+            raise ValueError('Rank-exact Molpro parsing needs an effective method.')
     rank_exact_command = re.search(
         _MOLPRO_ONE_ELECTRON_F12B, output,
         re.IGNORECASE | re.MULTILINE) is not None
@@ -363,6 +380,63 @@ def parse_molpro_energy(output, *, method, basis, reference=None, core=None,
         if reference is not None or core is not None or relativistic is not None:
             raise ValueError('Legacy Molpro parser cannot declare modern settings.')
         return _parse_legacy_molpro_energy(output, method=method, basis=basis)
+    if effective_method is not None:
+        command_pattern = {
+            'HF': _MOLPRO_RHF,
+            'CCSD': _MOLPRO_CCSD,
+            'CCSD-F12b': _MOLPRO_ONE_ELECTRON_F12B,
+        }[effective_method]
+        if not re.search(command_pattern, output, re.IGNORECASE | re.MULTILINE):
+            raise ValueError('Molpro output does not echo the rank-exact effective method.')
+        if reference not in ('RHF', 'ROHF'):
+            raise ValueError('Rank-exact Molpro parsing needs RHF or ROHF.')
+        if (not re.search(_MOLPRO_RHF, output, re.IGNORECASE | re.MULTILINE)
+                or not re.search(r'^\s*PROGRAMS?\s+\*.*\bRHF-SCF\b.*$',
+                                 output, re.IGNORECASE | re.MULTILINE)):
+            raise ValueError('Molpro output lacks the requested HF reference.')
+        all_electron = re.search(
+            _MOLPRO_ALL_ELECTRON, output,
+            re.IGNORECASE | re.MULTILINE) is not None
+        if core == 'all-electron' and effective_method != 'HF' \
+                and not all_electron:
+            raise ValueError('Molpro output lacks the all-electron directive.')
+        if core == 'frozen' and all_electron:
+            raise ValueError('Molpro frozen-core output has an all-electron directive.')
+        dkh2 = re.search(r'^\s*set\s*,\s*dkho\s*=\s*2\s*$', output,
+                         re.IGNORECASE | re.MULTILINE) is not None
+        if ((relativistic == 'DKH2' and not dkh2)
+                or (relativistic == 'none' and dkh2)):
+            raise ValueError('Molpro relativistic setting disagrees with output.')
+        if effective_method == 'HF':
+            energy = _one_number(output, _MOLPRO_HF_ENERGY,
+                                 'Molpro RHF/ROHF energy')
+        else:
+            label = ('RHF-UCCSD-F12b' if effective_method == 'CCSD-F12b'
+                     else 'RHF-UCCSD')
+            energy = _one_number(
+                output,
+                rf'^\s*!?{re.escape(label)}(?:\s+total)?\s+energy\s+'
+                rf'({_NUMBER})\s*$', f'Molpro {effective_method} energy')
+        result = {
+            'kind': 'molpro_energy', 'method': method, 'basis': basis,
+            'energy_hartree': energy, 'reference': reference,
+            'program_variant': f'RHF-U{method}',
+            'effective_program_variant': (
+                'RHF' if effective_method == 'HF'
+                else f'RHF-U{effective_method}'),
+            'correlation': 'unrestricted',
+            'rank_exact': {
+                'electron_count': rank_exact_electrons,
+                'effective_method': effective_method,
+                'reason': ('excitation operators above the effective method '
+                           'are identically zero at this electron count'),
+            },
+        }
+        if core is not None:
+            result['core'] = core
+        if relativistic is not None:
+            result['relativistic'] = relativistic
+        return result
     if method == 'CCSD(T)-F12b':
         if not (re.search(_MOLPRO_F12B,
                           output, re.IGNORECASE | re.MULTILINE)
@@ -592,10 +666,14 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
     return result
 
 
-def parse_molpro_harmonic(output, *, basis, reference=None, legacy=False):
+def parse_molpro_harmonic(output, *, basis, reference=None,
+                          rank_exact_electrons=None, effective_method=None,
+                          legacy=False):
     """Read vibrational modes and ZPE, excluding rotations/translations."""
     _molpro_output(output, basis)
-    command = _MOLPRO_LEGACY_CCSD_T if legacy else _MOLPRO_CCSD_T
+    command = (_MOLPRO_LEGACY_CCSD_T if legacy else
+               {'HF': _MOLPRO_RHF, 'CCSD': _MOLPRO_CCSD}.get(
+                   effective_method, _MOLPRO_CCSD_T))
     if not legacy and re.search(_MOLPRO_FORCED_UHF_CCSD_T, output,
                                 re.IGNORECASE | re.MULTILINE):
         raise ValueError('Molpro harmonic input forces the UHF-UCC engine '
@@ -604,7 +682,7 @@ def parse_molpro_harmonic(output, *, basis, reference=None, legacy=False):
                      re.IGNORECASE | re.MULTILINE):
         label = ('legacy CCSD(T)' if legacy else 'RHF/ROHF-UCCSD(T)')
         raise ValueError(f'Molpro harmonic output does not echo the {label} method.')
-    if not legacy:
+    if not legacy and effective_method is None:
         validate_molpro_triples(output, scaled=False)
     if legacy and reference is not None:
         raise ValueError('Legacy Molpro harmonic parser cannot declare a reference.')
@@ -624,7 +702,9 @@ def parse_molpro_harmonic(output, *, basis, reference=None, legacy=False):
         r'^\s*PROGRAM \* FREQUENCIES \(Calculation of harmonic '
         r'vibrational spectra for (.+?)\)\s*$', output,
         re.IGNORECASE | re.MULTILINE)
-    expected_method = 'CCSD(T)' if legacy else 'UCCSD(T)'
+    expected_method = ('CCSD(T)' if legacy else
+                       'RHF' if effective_method == 'HF' else
+                       'UCCSD' if effective_method == 'CCSD' else 'UCCSD(T)')
     if len(frequency_sections) != 1 \
             or frequency_sections[0].upper() != expected_method:
         raise ValueError(f'Expected one {expected_method} Molpro frequency section.')
@@ -688,6 +768,16 @@ def parse_molpro_harmonic(output, *, basis, reference=None, legacy=False):
                     'kj_mol': kj_mol}}
     if reference is not None:
         result['reference'] = reference
+    if effective_method is not None:
+        result['program_variant'] = 'RHF-UCCSD(T)'
+        result['effective_program_variant'] = (
+            'RHF' if effective_method == 'HF'
+            else f'RHF-U{effective_method}')
+        result['correlation'] = 'unrestricted'
+        result['rank_exact'] = {
+            'electron_count': rank_exact_electrons,
+            'effective_method': effective_method,
+        }
     if not legacy:
         result['program_variant'] = 'RHF-UCCSD(T)'
         result['correlation'] = 'unrestricted'
@@ -928,7 +1018,7 @@ def validate_result_parser(request, *, backend, template, outputs,
     elif kind == 'molpro_energy':
         required = {'kind', 'file', 'method', 'basis'}
         optional = {'reference', 'core', 'relativistic',
-                    'rank_exact_electrons'}
+                    'rank_exact_electrons', 'effective_method'}
         valid = (required <= set(request) <= required | optional
                  and backend == 'molpro'
                  and request.get('method') in ('CCSD(T)', 'CCSD(T)-F12b')
@@ -938,19 +1028,39 @@ def validate_result_parser(request, *, backend, template, outputs,
         legacy = legacy_molpro_parser(request, template)
         if valid and legacy:
             valid = set(request) == required
+        effective = request.get('effective_method')
+        if valid and effective is not None:
+            expected = {
+                (1, 'CCSD(T)-F12b'): 'HF',
+                (1, 'CCSD(T)'): 'HF',
+                (2, 'CCSD(T)-F12b'): 'CCSD-F12b',
+                (2, 'CCSD(T)'): 'CCSD',
+            }.get((request.get('rank_exact_electrons'), request['method']))
+            command = {'HF': _MOLPRO_RHF, 'CCSD': _MOLPRO_CCSD,
+                       'CCSD-F12b': _MOLPRO_ONE_ELECTRON_F12B}.get(effective)
+            valid = (effective == expected and command is not None
+                     and re.search(command, template,
+                                   re.IGNORECASE | re.MULTILINE) is not None)
         if valid and 'reference' in request:
-            method_command = ((_MOLPRO_ONE_ELECTRON_F12B
-                               if request.get('rank_exact_electrons') == 1
-                               and re.search(
-                                   _MOLPRO_ONE_ELECTRON_F12B, template,
-                                   re.IGNORECASE | re.MULTILINE)
-                               else _MOLPRO_F12B)
-                              if request['method'] == 'CCSD(T)-F12b'
-                              else _MOLPRO_CCSD_T)
+            method_command = ({'HF': _MOLPRO_RHF, 'CCSD': _MOLPRO_CCSD,
+                               'CCSD-F12b': _MOLPRO_ONE_ELECTRON_F12B}.get(
+                                  effective)
+                              if effective is not None else
+                              ((_MOLPRO_ONE_ELECTRON_F12B
+                                if request.get('rank_exact_electrons') == 1
+                                and re.search(
+                                    _MOLPRO_ONE_ELECTRON_F12B, template,
+                                    re.IGNORECASE | re.MULTILINE)
+                                else _MOLPRO_F12B)
+                               if request['method'] == 'CCSD(T)-F12b'
+                               else _MOLPRO_CCSD_T))
             valid = (request['reference'] in ('RHF', 'ROHF')
                      and re.search(_MOLPRO_RHF, template,
                                    re.IGNORECASE | re.MULTILINE) is not None
-                     and ((request['method'] == 'CCSD(T)'
+                     and ((effective is not None
+                           and re.search(method_command, template,
+                                         re.IGNORECASE | re.MULTILINE))
+                          or (request['method'] == 'CCSD(T)'
                            and _declares_molpro_ccsdt(
                                template,
                                accept_obsolete_forced=allow_obsolete))
@@ -958,7 +1068,7 @@ def validate_result_parser(request, *, backend, template, outputs,
                               and re.search(
                                   method_command, template,
                                   re.IGNORECASE | re.MULTILINE) is not None)))
-        if valid:
+        if valid and effective is None:
             method_line = (
                 (_MOLPRO_LEGACY_CCSD_T if request['method'] == 'CCSD(T)'
                  else _MOLPRO_LEGACY_F12B) if legacy else
@@ -978,35 +1088,48 @@ def validate_result_parser(request, *, backend, template, outputs,
             core_line = re.search(_MOLPRO_ALL_ELECTRON, template,
                                   re.IGNORECASE | re.MULTILINE)
             valid = (request['core'] in ('frozen', 'all-electron')
-                     and ((request['core'] == 'all-electron') == bool(core_line)))
+                     and (((request['core'] == 'all-electron') == bool(core_line))
+                          or (effective == 'HF'
+                              and request['core'] == 'all-electron'
+                              and not core_line)))
         if valid and 'relativistic' in request:
             dkh2 = re.search(r'^\s*set\s*,\s*dkho\s*=\s*2\s*$', template,
                              re.IGNORECASE | re.MULTILINE)
             valid = (request['relativistic'] in ('none', 'DKH2')
                      and ((request['relativistic'] == 'DKH2') == bool(dkh2)))
         if valid and 'rank_exact_electrons' in request:
-            valid = (request['rank_exact_electrons'] == 1
-                     and request['method'] == 'CCSD(T)-F12b')
+            valid = (request['rank_exact_electrons'] in (1, 2)
+                     and (effective is not None
+                          or (request['rank_exact_electrons'] == 1
+                              and request['method'] == 'CCSD(T)-F12b')))
     elif kind == 'molpro_harmonic':
         legacy = legacy_molpro_parser(request, template)
-        valid = (set(request) in ({'kind', 'file', 'basis'},
-                                  {'kind', 'file', 'basis', 'reference'})
+        required = {'kind', 'file', 'basis'}
+        optional = {'reference', 'rank_exact_electrons', 'effective_method'}
+        effective = request.get('effective_method')
+        method_command = {'HF': _MOLPRO_RHF, 'CCSD': _MOLPRO_CCSD}.get(
+            effective, _MOLPRO_CCSD_T)
+        valid = (required <= set(request) <= required | optional
                  and backend == 'molpro' and isinstance(request.get('basis'), str)
                  and bool(request['basis'])
                  and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
                                template, re.IGNORECASE | re.MULTILINE) is not None
                  and ((re.search(_MOLPRO_LEGACY_CCSD_T, template,
                                  re.IGNORECASE | re.MULTILINE) is not None)
-                      if legacy else _declares_molpro_ccsdt(
-                          template, accept_obsolete_forced=allow_obsolete))
+                      if legacy else re.search(
+                          method_command, template,
+                          re.IGNORECASE | re.MULTILINE) is not None)
                  and bool(re.search(r'^\s*frequencies\s*,\s*numerical\s*$',
                                     template, re.IGNORECASE | re.MULTILINE)))
         if valid and 'reference' in request:
             valid = (request['reference'] in ('RHF', 'ROHF')
                      and re.search(_MOLPRO_RHF, template,
                                    re.IGNORECASE | re.MULTILINE)
-                     and _declares_molpro_ccsdt(
-                         template, accept_obsolete_forced=allow_obsolete))
+                     and re.search(method_command, template,
+                                   re.IGNORECASE | re.MULTILINE))
+        if valid and effective is not None:
+            valid = ({(1, 'HF'), (2, 'CCSD')}.__contains__((
+                request.get('rank_exact_electrons'), effective)))
     elif kind == 'mrcc_energy':
         method = request.get('method')
         basis = request.get('basis')
@@ -1085,10 +1208,16 @@ def parse_result(output, request):
                                    relativistic=request.get('relativistic'),
                                    rank_exact_electrons=request.get(
                                        'rank_exact_electrons'),
+                                   effective_method=request.get(
+                                       'effective_method'),
                                    legacy=legacy_molpro_parser(request, output))
     if kind == 'molpro_harmonic':
         return parse_molpro_harmonic(output, basis=request['basis'],
                                      reference=request.get('reference'),
+                                     rank_exact_electrons=request.get(
+                                         'rank_exact_electrons'),
+                                     effective_method=request.get(
+                                         'effective_method'),
                                      legacy=legacy_molpro_parser(request, output))
     if kind == 'mrcc_energy':
         return parse_mrcc_energy(output, method=request['method'],

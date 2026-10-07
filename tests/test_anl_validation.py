@@ -280,11 +280,13 @@ def test_atomic_composite_omits_fictitious_vibrational_jobs():
     assert 'harmonic' not in tasks
     assert 'gaussian_vpt2' not in tasks
     assert {'l2_geometry', 'l3_geometry', 'f12_tz', 'f12_qz',
-            'cfour_dboc', 'ccsdt_dz', 'cv_ae_tz', 'cv_ae_qz',
-            'cv_fc_tz', 'cv_fc_qz', 'rel_dkh', 'rel_nonrel'} <= set(tasks)
+            'cfour_dboc', 'ccsdt_dz', 'rel_dkh', 'rel_nonrel'} <= set(tasks)
+    assert not {'cv_ae_tz', 'cv_ae_qz',
+                'cv_fc_tz', 'cv_fc_qz'} & set(tasks)
     assert 'ccsdtq_dz' not in tasks
     for ident in ('f12_tz', 'f12_qz'):
-        assert '\nuccsd-f12b\n' in tasks[ident]['input_template'].lower()
+        assert '\nuccsd-f12b\n' not in tasks[ident]['input_template'].lower()
+        assert tasks[ident]['result_parser']['effective_method'] == 'HF'
         assert 'scale_trip' not in tasks[ident]['input_template'].lower()
         assert tasks[ident]['result_parser']['rank_exact_electrons'] == 1
     resolved = deepcopy(spec)
@@ -323,7 +325,7 @@ def test_two_electron_post_audit_replaces_failed_high_job_by_rank_identity(
     # unnecessary MRCC task is present and failed, while every required task
     # completed.
     obsolete_high = higher_order_validation_spec(
-        hydrogen, task_ids=('ccsdtq_dz',))['tasks'][0]
+        _molecule(), task_ids=('ccsdtq_dz',))['tasks'][0]
     spec['tasks'].append(obsolete_high)
     state = {'tasks': {task['id']: {'status': 'complete'}
                        for task in spec['tasks']}}
@@ -354,6 +356,32 @@ def test_two_electron_post_audit_replaces_failed_high_job_by_rank_identity(
     assert result['higher_order_components']['ccsdtq_dz']['backend'] == \
         'known_zero'
     assert result['other_task_statuses']['ccsdtq_dz'] == 'failed'
+
+
+def test_one_and_two_electron_graphs_stop_at_possible_excitation_rank():
+    atom = {'symbols': ['H'], 'positions': [[0., 0., 0.]],
+            'charge': 0, 'multiplicity': 2}
+    molecule = {'symbols': ['H', 'H'],
+                'positions': [[0., 0., 0.], [0., 0., .74]],
+                'charge': 0, 'multiplicity': 1}
+    for system, effective, f12_effective in (
+            (atom, 'HF', 'HF'), (molecule, 'CCSD', 'CCSD-F12b')):
+        spec = composite_validation_spec(system, anl0_only=True)
+        tasks = {task['id']: task for task in spec['tasks']}
+        assert 'ccsdtq_dz' not in tasks
+        assert not {'cv_ae_tz', 'cv_ae_qz',
+                    'cv_fc_tz', 'cv_fc_qz'} & set(tasks)
+        assert tasks['ccsdt_dz']['result_parser']['effective_method'] == effective
+        for ident in ('f12_tz', 'f12_qz'):
+            assert tasks[ident]['result_parser']['effective_method'] == \
+                f12_effective
+        assert tasks['l3_geometry']['profile']['calculator_kwargs'][
+            'effective_method'] == effective
+        for task in tasks.values():
+            template = task.get('input_template', '').lower()
+            assert 'uccsd(t)' not in template
+            assert 'ccsdt(q)' not in template
+            assert 'ccsdtq(p)' not in template
 
 
 def test_post_geometry_audit_requires_and_combines_both_groups(monkeypatch):

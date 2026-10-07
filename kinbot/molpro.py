@@ -12,6 +12,41 @@ import math
 logger = logging.getLogger('KinBot')
 
 
+def _vrc_multireference_method(method, nelectron, spin=0):
+    """Render a supported VRC active-space method and its energy variable.
+
+    KinBot uses ``CASPT2(ne,no)`` for the inexpensive ROTD sampling surface
+    and can use ``MRCI+Q(ne,no)`` for the trusted one-dimensional correction.
+    Molpro obtains the Davidson-corrected MRCI energy from ``ENERGD``; ``MRCI``
+    followed by ``energy`` would silently select the variational MRCI value.
+    """
+    match = re.fullmatch(
+        r'(caspt2|mrci\+q)\((\d+),(\d+)\)', str(method).casefold())
+    if match is None:
+        return None
+    family, electrons_text, orbitals_text = match.groups()
+    active_electrons = int(electrons_text)
+    active_orbitals = int(orbitals_text)
+    if active_electrons < 1 or active_orbitals < 1:
+        raise ValueError('VRC active electrons and orbitals must be positive.')
+    inactive_electrons = int(nelectron) - active_electrons
+    if inactive_electrons < 0 or inactive_electrons % 2:
+        raise ValueError(
+            f'{method} is incompatible with {nelectron} electrons: the '
+            'inactive electron count must be nonnegative and even.')
+    closed_orbitals = inactive_electrons // 2
+    occupied_orbitals = closed_orbitals + active_orbitals
+    multi = ('{multi,\n'
+             f'occ,{occupied_orbitals}\n'
+             f'closed,{closed_orbitals}\n'
+             f'wf,{int(nelectron)},1,{int(spin)}\n'
+             'maxit,50;}\n\n')
+    if family == 'caspt2':
+        program = 'rs2c' if int(spin) == 0 else 'rs2'
+        return multi + f'{{{program},shift=0.3}}\n', 'energy(1)'
+    return multi + '{mrci}\n', 'energd(1)'
+
+
 
 class Molpro:
     """
@@ -154,41 +189,45 @@ class Molpro:
                 l3_method = self.par["vrc_tst_high_method"]
 
             method = ''
-            match regex_in(l3_method):
-                case r'.*caspt2\([0-9]+,[0-9]+\)':
-                    active_electrons = int(l3_method.split("caspt2(")[1].split(",")[0])
-                    active_orbitals = int(l3_method.split("caspt2(")[1].split(",")[1][:-1])
-                    closed_orbitals = int(math.trunc(nelectron-active_electrons)/2)
-                    occ_obitals = closed_orbitals + active_orbitals
-                    method += f'{{multi,\nocc,{occ_obitals}\nclosed,{closed_orbitals}\nmaxit,50;}}\n\n'
-                    method += f'put, molden, {fname}.mld\n\n'
-                    method += '{rs2c, shift=0.3}\n'
-                case "uwb97xd":
-                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
-                    method += " omega=0.2    !range-separation parameter\n"
-                    method += " srx=0.222036 !short-range exchange\n"
-                    # Same as Gaussian fine grid, important for long range
-                    method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
-                    method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
-                    method += " uks,HYB_GGA_XC_WB97X_D\n"
-                case "wb97xd":
-                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
-                    method += " omega=0.2    !range-separation parameter\n"
-                    method += " srx=0.222036 !short-range exchange\n"
-                    method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
-                    method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
-                    method += " ks,HYB_GGA_XC_WB97X_D\n"
-                case "ub3lyp":
-                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
-                    method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
-                    method += " uks,HYB_GGA_XC_B3LYP\n"
-                case "b3lyp":
-                    method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
-                    method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
-                    method += " ks,HYB_GGA_XC_B3LYP\n"
-                case _:
-                    method += " rhf\n"
-                    method += " {}\n".format(l3_method)
+            energy_expression = 'energy(1)'
+            multireference = _vrc_multireference_method(
+                l3_method, nelectron, spin=spin)
+            if multireference is not None:
+                method, energy_expression = multireference
+                # Keep the orbitals used by the correction calculation for
+                # direct inspection of an external validation run.
+                first_program = method.find('\n\n')
+                method = (method[:first_program + 2]
+                          + f'put,molden,{fname}.mld\n\n'
+                          + method[first_program + 2:])
+            else:
+                match regex_in(str(l3_method).casefold()):
+                    case "uwb97xd":
+                        method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
+                        method += " omega=0.2    !range-separation parameter\n"
+                        method += " srx=0.222036 !short-range exchange\n"
+                        # Same as Gaussian fine grid, important for long range
+                        method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
+                        method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
+                        method += " uks,HYB_GGA_XC_WB97X_D\n"
+                    case "wb97xd":
+                        method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
+                        method += " omega=0.2    !range-separation parameter\n"
+                        method += " srx=0.222036 !short-range exchange\n"
+                        method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
+                        method += " {int; ERFLERFC,mu=$omega,srfac=$srx}\n"
+                        method += " ks,HYB_GGA_XC_WB97X_D\n"
+                    case "ub3lyp":
+                        method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
+                        method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
+                        method += " uks,HYB_GGA_XC_B3LYP\n"
+                    case "b3lyp":
+                        method = " {rhf;wf," + f"{nelectron},{symm},{spin},{self.species.charge}" + "}\n\n"
+                        method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
+                        method += " ks,HYB_GGA_XC_B3LYP\n"
+                    case _:
+                        method += " rhf\n"
+                        method += "{}\n".format(l3_method)
 
             with open('vrctst/molpro/' + fname + '.inp', 'w') as f:
                     f.write(tpl.format(options=options,
@@ -196,7 +235,8 @@ class Molpro:
                                        basis=basis,
                                        geometry_block=geometry_block,
                                        methods=method,
-                                       key=self.par['vrc_tst_scan_molpro_key'].upper()))
+                                       key=self.par['vrc_tst_scan_molpro_key'].upper(),
+                                       energy_expression=energy_expression))
                                        
         return 0
 

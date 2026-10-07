@@ -41,7 +41,8 @@ def check_process_count(output_path, allocated_ranks):
     return count
 
 
-def render_input(atoms, *, basis, geometry_name, charge=0, mult=1):
+def render_input(atoms, *, basis, geometry_name, charge=0, mult=1,
+                 effective_method=None):
     """Render a restricted-reference, unrestricted-CCSD(T) gradient.
 
     Molpro's RHF step supplies RHF or ROHF orbitals according to multiplicity.
@@ -58,7 +59,10 @@ def render_input(atoms, *, basis, geometry_name, charge=0, mult=1):
         raise ValueError('Molpro charge must be an integer.')
     if isinstance(mult, bool) or not isinstance(mult, int) or mult < 1:
         raise ValueError('Molpro multiplicity must be a positive integer.')
-    method = 'uccsd(t)'
+    method = {None: 'uccsd(t)', 'HF': '', 'CCSD': 'uccsd'}.get(
+        effective_method)
+    if method is None:
+        raise ValueError('Molpro effective geometry method is unsupported.')
     xyz = '\n'.join(
         f'{symbol} {x:.12f} {y:.12f} {z:.12f}'
         for symbol, (x, y, z) in zip(atoms.get_chemical_symbols(), atoms.positions)
@@ -152,12 +156,13 @@ def parse_numerical_gradient(output_path, geometry_path, atoms):
     return -gradients[order] * Hartree / Bohr
 
 
-def parse_output(path):
+def parse_output(path, *, effective_method=None):
     """Read the explicitly saved undisplaced energy and normal termination."""
     output = Path(path).read_text(errors='replace')
     if 'Molpro calculation terminated' not in output or 'ERROR EXIT' in output:
         raise ValueError('Molpro did not terminate normally.')
-    validate_molpro_triples(output, scaled=False)
+    if effective_method is None:
+        validate_molpro_triples(output, scaled=False)
     # Molpro 2024.1 prints SETTING for a user assignment, as in the supplied
     # CH4/H2O2 outputs. Use the first such line: numerical FORCE then repeats
     # the energy procedure for displaced geometries in the same invocation.
@@ -177,10 +182,12 @@ class Molpro(Calculator):
 
     def __init__(self, *, directory, label, method, basis, command='molpro',
                  charge=0, mult=1, nproc=1, stack_mw=256,
-                 scratch_min_mb=4096):
+                 scratch_min_mb=4096, effective_method=None):
         super().__init__()
         if method.upper() != 'CCSD(T)':
             raise ValueError('Molpro ASE geometry currently supports conventional CCSD(T).')
+        if effective_method not in (None, 'HF', 'CCSD'):
+            raise ValueError('Molpro effective geometry method is unsupported.')
         if isinstance(charge, bool) or not isinstance(charge, int):
             raise ValueError('Molpro charge must be an integer.')
         if isinstance(mult, bool) or not isinstance(mult, int) or mult < 1:
@@ -206,6 +213,7 @@ class Molpro(Calculator):
         self.scratch_min_mb = scratch_min_mb
         self.charge = charge
         self.mult = mult
+        self.effective_method = effective_method
         self.evaluations = 0
         self.generated_files = []
 
@@ -221,7 +229,8 @@ class Molpro(Calculator):
         stderr_name = f'{stem}.stderr'
         (self.work_directory / input_name).write_text(
             render_input(atoms, basis=self.basis, geometry_name=geometry_name,
-                         charge=self.charge, mult=self.mult))
+                         charge=self.charge, mult=self.mult,
+                         effective_method=self.effective_method))
         self.generated_files.append(input_name)
         command = [*self.command, '-g', '-n', str(self.nproc), '-m',
                    str(self.stack_mw), input_name]
@@ -249,7 +258,9 @@ class Molpro(Calculator):
         xml_name = f'{stem}.xml'
         if (self.work_directory / xml_name).is_file():
             self.generated_files.append(xml_name)
-        self.results = {'energy': parse_output(self.work_directory / output_name),
+        self.results = {'energy': parse_output(
+                            self.work_directory / output_name,
+                            effective_method=self.effective_method),
                         'forces': parse_numerical_gradient(
                             self.work_directory / output_name,
                             self.work_directory / geometry_name, atoms)}

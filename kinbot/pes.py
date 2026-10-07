@@ -16,6 +16,7 @@ import datetime
 import time
 import subprocess
 import json
+import hashlib
 import itertools
 import logging
 import re
@@ -159,6 +160,69 @@ def _rotdpy_correction_block(pp_info: dict[str, Any], noscan: bool) -> str:
     return template.format(scan_ref=pp_info['scan_ref'],
                            e_trust=trusted, r_trust=distances,
                            e_sample=sample, r_sample=distances)
+
+
+def _rotdpy_validation_metadata(par, pp_info, correction_file, noscan,
+                                 generated_surfaces):
+    """Describe and validate the calculation represented by a ROTD input."""
+    profile = str(par.get('rotdpy_validation_profile', 'interface')).casefold()
+    if profile not in ('interface', 'production'):
+        raise ValueError('rotdpy_validation_profile must be interface or '
+                         'production.')
+    levels = pp_info.get('levels')
+    expected_levels = {
+        'sampling': {
+            'method': par['vrc_tst_sample_method'],
+            'basis': par['vrc_tst_sample_basis'],
+        },
+        'trusted_correction': {
+            'method': par['vrc_tst_high_method'],
+            'basis': par['vrc_tst_high_basis'],
+        },
+    }
+    if profile == 'production':
+        if noscan:
+            raise ValueError('Production ROTD_py validation requires '
+                             'vrc_tst_scan, not vrc_tst_noscan.')
+        if levels != expected_levels:
+            raise ValueError(
+                'Production VRC correction provenance does not match the '
+                'configured sampling and trusted levels.')
+        if len(pp_info.get('dist', [])) < 4:
+            raise ValueError('Production VRC correction requires at least '
+                             'three scanned points plus the asymptote.')
+        if len(par['rotdpy_dist']) < 3 or generated_surfaces < 3:
+            raise ValueError('Production ROTD_py validation requires at '
+                             'least three dividing surfaces.')
+        required_flux = ('pot_smp_max', 'pot_smp_min', 'tot_smp_max',
+                         'tot_smp_min', 'flux_rel_err', 'smp_len')
+        flux = par['rotdpy_flux_parameters']
+        if any(key not in flux or float(flux[key]) <= 0.
+               for key in required_flux):
+            raise ValueError('Production ROTD_py flux controls must all be '
+                             'positive.')
+    return {
+        'name': profile,
+        'sampling_level': expected_levels['sampling'],
+        'trusted_correction_level': expected_levels['trusted_correction'],
+        'correction': {
+            'kind': 'none' if noscan else 'one_dimensional',
+            'point_count': len(pp_info.get('dist', [])),
+            'source': str(Path(correction_file).resolve()),
+            'source_sha256': hashlib.sha256(
+                Path(correction_file).read_bytes()).hexdigest(),
+        },
+        'dividing_surfaces': {
+            'requested_distances_angstrom': list(par['rotdpy_dist']),
+            'generated_count': generated_surfaces,
+        },
+        'grids': {
+            'temperature': list(par['rotdpy_temperature_grid']),
+            'energy': list(par['rotdpy_energy_grid']),
+            'angular_momentum': list(par['rotdpy_angular_grid']),
+        },
+        'flux_parameters': dict(par['rotdpy_flux_parameters']),
+    }
 
 
 def main():
@@ -1569,6 +1633,8 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
         # to interpolate. Its sampling asymptote is still passed below as
         # ``inf_energy``; a 1D correction is meaningful only for a real scan.
         kb_1d_correction = _rotdpy_correction_block(pp_info, noscan)
+        validation_metadata = _rotdpy_validation_metadata(
+            par, pp_info, json_file, noscan, len(surfaces))
 
         # Calc_block:
         tpl_rotdPy_calc = f'{kb_path}/tpl/rotdPy_calc.tpl'
@@ -1608,6 +1674,7 @@ def create_rotdpy_inputs(par, bless, vdW, correction_root=None) -> list[str]:
             angular_grid=repr(par['rotdpy_angular_grid']),
             flux_parameters=repr(par['rotdpy_flux_parameters']),
             dynamical_correction=repr(par['rotdpy_dynamical_correction']),
+            validation_metadata=repr(validation_metadata),
             result_file=f'{reac_name}.rotdpy.json')
 
         input_file = f"{folder}/{reac_name}.py"

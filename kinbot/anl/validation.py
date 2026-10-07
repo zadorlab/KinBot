@@ -32,6 +32,7 @@ from kinbot.anl.workflow import (_verified_task_result,
                                  atomic_zero_vibrational_component,
                                  cbs_task_component,
                                  core_valence_task_component,
+                                 rank_exact_core_valence_component,
                                  rank_exact_higher_order_component,
                                  scalar_relativistic_task_component,
                                  state_correction_component,
@@ -96,11 +97,21 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
     }
     reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
     internal_coordinates = len(molecule.get('symbols', ())) > 2
-    conventional = molpro_ccsdt_command(
-        molecule.get('multiplicity', 1))
-    one_electron = _electron_count(molecule) == 1
-    f12 = 'uccsd-f12b' if one_electron else 'uccsd(t)-f12b,scale_trip=1'
-    f12_parser = ({'rank_exact_electrons': 1} if one_electron else {})
+    conventional = molpro_ccsdt_command(molecule.get('multiplicity', 1))
+    electrons = _electron_count(molecule)
+    effective = ('HF' if electrons == 1 else
+                 'CCSD' if electrons == 2 else None)
+    conventional_command = ({'HF': '', 'CCSD': 'uccsd'}[effective]
+                            if effective else conventional)
+    f12 = ({'HF': '', 'CCSD': 'uccsd-f12b'}[effective]
+           if effective else 'uccsd(t)-f12b,scale_trip=1')
+    rank_parser = ({'rank_exact_electrons': electrons,
+                    'effective_method': effective}
+                   if effective else {})
+    f12_rank_parser = ({**rank_parser,
+                        'effective_method': ('HF' if electrons == 1
+                                             else 'CCSD-F12b')}
+                       if effective else {})
     tasks = [
         {
             'id': 'l2_geometry', 'kind': 'ase_optimize',
@@ -120,6 +131,8 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             'profile': {
                 'calculator': 'molpro', 'method': 'CCSD(T)',
                 'basis': 'cc-pVTZ', 'command': 'molpro',
+                'calculator_kwargs': ({'effective_method': effective}
+                                      if effective else {}),
                 'optimizer': 'sella'},
             'optimizer': {'fmax': 0.03, 'steps': 100,
                           'sella_kwargs': {
@@ -127,10 +140,10 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
         },
         _molpro_task(
             'harmonic',
-            f'basis=cc-pVTZ\nrhf\n{conventional}\nfrequencies,numerical\n',
+            f'basis=cc-pVTZ\nrhf\n{conventional_command}\nfrequencies,numerical\n',
             walltime='24:00:00', max_cores=8,
             parser={'kind': 'molpro_harmonic', 'basis': 'cc-pVTZ',
-                    'reference': reference},
+                    'reference': reference, **rank_parser},
             partition=partition),
         _molpro_task(
             'f12_tz',
@@ -139,7 +152,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             walltime='12:00:00', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
                     'basis': 'cc-pVTZ-F12', 'reference': reference,
-                    **f12_parser},
+                    **f12_rank_parser},
             partition=partition),
         _molpro_task(
             'f12_qz',
@@ -148,11 +161,11 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             walltime='24:00:00', max_cores=12,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)-F12b',
                     'basis': 'cc-pVQZ-F12', 'reference': reference,
-                    **f12_parser},
+                    **f12_rank_parser},
             partition=partition),
         _molpro_task(
             'ccsdt_dz',
-            f'basis=cc-pVDZ\nrhf\n{conventional}\nkb_dz_energy=energy\n',
+            f'basis=cc-pVDZ\nrhf\n{conventional_command}\nkb_dz_energy=energy\n',
             walltime='08:00:00', max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVDZ', 'reference': reference},
@@ -201,6 +214,9 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
                               'dispersion': 'GD3BJ'},
         },
     ]
+    ccsdt_parser = next(task for task in tasks
+                         if task['id'] == 'ccsdt_dz')['result_parser']
+    ccsdt_parser.update(rank_parser)
     if len(molecule.get('symbols', ())) == 1:
         # An atom has no vibrational normal modes.  Keep both electronic
         # geometry evaluations and every electronic correction, while the
@@ -284,6 +300,11 @@ def _rank_exact_higher_order(molecule):
     return _electron_count(molecule) <= 2
 
 
+def _rank_exact_core_valence(molecule):
+    """Whether the ANL frozen-core space is empty."""
+    return all(atomic_numbers[symbol] <= 2 for symbol in molecule['symbols'])
+
+
 def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
                                  mrcc_command='dmrcc', task_ids=None):
     """Build the five-job ANL1 higher-order interface probe.
@@ -329,6 +350,7 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
             walltime='7-00:00:00',
             max_cores=8, command=mrcc_command, **common),
     ]
+    all_tasks = {task['id']: task for task in tasks}
     if task_ids is not None:
         requested = tuple(dict.fromkeys(task_ids))
         unknown = sorted(set(requested) - set(_HIGHER_ORDER_TASK_IDS))
@@ -338,6 +360,22 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         tasks = [task for task in tasks if task['id'] in requested]
     else:
         requested = _HIGHER_ORDER_TASK_IDS
+    rank_exact = _rank_exact_higher_order(molecule)
+    if rank_exact:
+        scheduled = []
+        if set(requested) & {'ccsdt_tz', 'ccsdtq_tz'}:
+            scheduled.append('ccsdt_tz')
+        if set(requested) & {'ccsdt_dz', 'ccsdtq_dz', 'ccsdtqp_dz'}:
+            scheduled.append('ccsdt_dz')
+        tasks = [all_tasks[ident] for ident in scheduled]
+        electrons = _electron_count(molecule)
+        effective = 'HF' if electrons == 1 else 'CCSD'
+        for task in tasks:
+            task['input_template'] = task['input_template'].replace(
+                conventional, '' if effective == 'HF' else 'uccsd')
+            task['result_parser'].update(
+                rank_exact_electrons=electrons,
+                effective_method=effective)
     return {
         'schema': 1, 'name': 'anl1-higher-order-interface-validation',
         'molecule': molecule, 'limits': {'max_nodes': max_nodes},
@@ -353,6 +391,13 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
                 'open_shell_ccsdtq_p': 'direct-mrcc-semicanonical-rohf',
             },
             'selected_tasks': list(requested),
+            'scheduled_tasks': [task['id'] for task in tasks],
+            'rank_exact_higher_order': ({
+                'electron_count': _electron_count(molecule),
+                'correction_hartree': 0.0,
+                'omitted_tasks': sorted(set(requested) - {
+                    task['id'] for task in tasks}),
+            } if rank_exact else None),
         },
     }
 
@@ -367,16 +412,24 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
 
     def energy_task(ident, basis, *, core, relativistic='none', walltime):
         dkh = 'set,dkho=2\n' if relativistic == 'DKH2' else ''
-        command = molpro_ccsdt_command(
-            molecule.get('multiplicity', 1),
-            all_electron=(core == 'all-electron'))
+        electrons = _electron_count(molecule)
+        effective = ('HF' if electrons == 1 else
+                     'CCSD' if electrons == 2 else None)
+        command = (('' if effective == 'HF' else
+                    '{uccsd;core}' if core == 'all-electron' else 'uccsd')
+                   if effective else molpro_ccsdt_command(
+                       molecule.get('multiplicity', 1),
+                       all_electron=(core == 'all-electron')))
         body = (f'basis={basis}\n{dkh}rhf\n{command}\n'
                 f'kb_{ident}=energy\n')
         return molpro_task(
             ident, body, walltime=walltime, max_cores=8,
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': basis, 'reference': reference, 'core': core,
-                    'relativistic': relativistic}, **common)
+                    'relativistic': relativistic,
+                    **({'rank_exact_electrons': electrons,
+                        'effective_method': effective}
+                       if effective else {})}, **common)
 
     tasks = [
         energy_task('cv_ae_tz', 'cc-pCVTZ', core='all-electron',
@@ -392,6 +445,9 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
         energy_task('rel_nonrel', 'aug-cc-pCVTZ-DK', core='all-electron',
                     relativistic='none', walltime='12:00:00'),
     ]
+    core_valence_exact = _rank_exact_core_valence(molecule)
+    if core_valence_exact:
+        tasks = [task for task in tasks if not task['id'].startswith('cv_')]
     return {
         'schema': 1, 'name': 'anl-common-corrections-validation',
         'molecule': molecule, 'limits': {'max_nodes': max_nodes},
@@ -404,6 +460,10 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
             'scalar_relativistic_equation': (
                 'CCSD(T,all-electron,DKH2)/aug-cc-pCVTZ-DK - '
                 'CCSD(T,all-electron,nonrel)/aug-cc-pCVTZ-DK'),
+            'rank_exact_core_valence': ({
+                'correction_hartree': 0.0,
+                'reason': 'H/He-only species have no frozen inner-shell orbitals',
+            } if core_valence_exact else None),
         },
     }
 
@@ -536,6 +596,30 @@ def audit_higher_order_run(run_dir):
         ident: task_component(run_dir, ident, key=ident, state_id=state_id)
         for ident in identifiers
     }
+    rank_exact = _rank_exact_higher_order(spec['molecule'])
+    selected = tuple(spec.get('intent', {}).get(
+        'selected_tasks', identifiers))
+    if rank_exact:
+        anl0_requirements = {item.key: item for item in recipe(
+            'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+            multiplicity=spec['molecule'].get('multiplicity', 1)
+        ).requirements}
+        anl1_requirements = {item.key: item for item in recipe(
+            'ANL1', vpt2_method='B2PLYP-D3BJ',
+            multiplicity=spec['molecule'].get('multiplicity', 1)
+        ).requirements}
+        if 'ccsdtq_tz' in selected:
+            components['ccsdtq_tz'] = rank_exact_higher_order_component(
+                spec['molecule'], components['ccsdt_tz'],
+                anl1_requirements['hoe_tz_high'], key='ccsdtq_tz')
+        if set(selected) & {'ccsdtq_dz', 'ccsdtqp_dz'}:
+            components['ccsdtq_dz'] = rank_exact_higher_order_component(
+                spec['molecule'], components['ccsdt_dz'],
+                anl0_requirements['hoe_high'], key='ccsdtq_dz')
+        if 'ccsdtqp_dz' in selected:
+            components['ccsdtqp_dz'] = rank_exact_higher_order_component(
+                spec['molecule'], components['ccsdtq_dz'],
+                anl1_requirements['hoe_dz_high'], key='ccsdtqp_dz')
     corrections = {}
     pairs = {
         'delta_q_dz': ('ccsdtq_dz', 'ccsdt_dz'),
@@ -552,7 +636,7 @@ def audit_higher_order_run(run_dir):
             corrections['delta_q_tz'], corrections['delta_p_dz']))
     result = {
         'status': ('higher_order_interface_complete'
-                   if set(identifiers) == set(_HIGHER_ORDER_TASK_IDS)
+                   if set(selected) == set(_HIGHER_ORDER_TASK_IDS)
                    else 'targeted_higher_order_interface_complete'),
         'task_statuses': statuses,
         'corrections_hartree': corrections,
@@ -570,7 +654,7 @@ def audit_higher_order_run(run_dir):
         },
         'claim': 'interface-validation-only',
     }
-    if set(identifiers) == set(_HIGHER_ORDER_TASK_IDS):
+    if set(selected) == set(_HIGHER_ORDER_TASK_IDS):
         result['correction_hartree'] = corrections['anl1_higher_order']
     return result
 
@@ -587,10 +671,12 @@ def audit_anl0_post_geometry_run(run_dir):
                                  'anl-composite-validation'):
         raise ValueError('Run is not a combined post-geometry validation graph.')
     rank_exact = _rank_exact_higher_order(spec['molecule'])
+    core_valence_exact = _rank_exact_core_valence(spec['molecule'])
     required = (('ccsdt_dz',) if rank_exact else
                 ('ccsdt_dz', 'ccsdtq_dz')) + (
-                    'cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
-                    'rel_dkh', 'rel_nonrel')
+                    (() if core_valence_exact else
+                     ('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz'))
+                    + ('rel_dkh', 'rel_nonrel'))
     declared = {task['id'] for task in spec['tasks']}
     missing = sorted(set(required) - declared)
     if missing:
@@ -643,8 +729,11 @@ def audit_common_corrections_run(run_dir):
                                  'anl-post-geometry-validation',
                                  'anl-composite-validation'):
         raise ValueError('Run is not an ANL common-corrections graph.')
-    identifiers = ('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
-                   'rel_dkh', 'rel_nonrel')
+    molecule = spec['molecule']
+    core_valence_exact = _rank_exact_core_valence(molecule)
+    identifiers = ((() if core_valence_exact else
+                    ('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz'))
+                   + ('rel_dkh', 'rel_nonrel'))
     statuses = {ident: state['tasks'].get(ident, {}).get('status', 'waiting')
                 for ident in identifiers}
     if any(value != 'complete' for value in statuses.values()):
@@ -654,14 +743,17 @@ def audit_common_corrections_run(run_dir):
         multiplicity=spec['molecule'].get('multiplicity', 1))
     requirements = {item.key: item for item in equation.requirements}
     state_id = 'common-corrections-validation-state'
-    core_valence = core_valence_task_component(
-        run_dir, all_electron_lower='cv_ae_tz',
-        all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
-        frozen_core_upper='cv_fc_qz',
-        requirement=requirements['core_valence_cbs'], state_id=state_id)
     relativistic = scalar_relativistic_task_component(
         run_dir, 'rel_dkh', 'rel_nonrel',
         requirement=requirements['scalar_relativistic'], state_id=state_id)
+    core_valence = (rank_exact_core_valence_component(
+        molecule, requirements['core_valence_cbs'], state_id=state_id,
+        geometry_sha256=relativistic.geometry_sha256)
+        if core_valence_exact else core_valence_task_component(
+            run_dir, all_electron_lower='cv_ae_tz',
+            all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
+            frozen_core_upper='cv_fc_qz',
+            requirement=requirements['core_valence_cbs'], state_id=state_id))
     return {
         'status': 'common_corrections_interface_complete',
         'task_statuses': statuses,
@@ -992,11 +1084,16 @@ def assemble_profiled_anl0_f12(
     else:
         components['vpt2_correction'] = _apply_quality_review(
             components['vpt2_correction'], 'gaussian_vpt2', vpt2_review)
-    components['core_valence_cbs'] = core_valence_task_component(
-        corrections_run, all_electron_lower='cv_ae_tz',
-        all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
-        frozen_core_upper='cv_fc_qz',
-        requirement=required['core_valence_cbs'], state_id=state_id)
+    components['core_valence_cbs'] = (
+        rank_exact_core_valence_component(
+            molecule, required['core_valence_cbs'], state_id=state_id,
+            geometry_sha256=l3_hash)
+        if _rank_exact_core_valence(molecule) else
+        core_valence_task_component(
+            corrections_run, all_electron_lower='cv_ae_tz',
+            all_electron_upper='cv_ae_qz', frozen_core_lower='cv_fc_tz',
+            frozen_core_upper='cv_fc_qz',
+            requirement=required['core_valence_cbs'], state_id=state_id))
     components['scalar_relativistic'] = scalar_relativistic_task_component(
         corrections_run, 'rel_dkh', 'rel_nonrel',
         requirement=required['scalar_relativistic'], state_id=state_id)

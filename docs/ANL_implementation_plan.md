@@ -5341,3 +5341,37 @@ hash-checked native success that an older parser rejected, dispatcher refresh
 archives the parser failure and accepts the native result without repeating
 the electronic-structure calculation. Neither rule contains a species name,
 path, site configuration, or benchmark-specific energy.
+
+---
+
+# 111. Excitation-rank limits and production ROTD gate (2026-10-06)
+
+One- and two-electron species now stop at their highest nonzero excitation
+rank before task creation. A one-electron species uses HF wherever a nominal
+CCSD(T), F12, higher-order, core-valence, or relativistic graph would
+otherwise request an impossible correlated calculation. A two-electron
+species uses UCCSD or UCCSD-F12b and represents triples, quadruples, and
+quintuples increments as exact zero. H/He-only systems have no frozen inner
+shell, so their core-valence correction is an exact-zero component rather
+than four redundant single points. These records retain the requested recipe
+method, the effective executable method, molecular state, geometry hash, and
+the mathematical reason for the zero.
+
+ROTD_py results now distinguish an interface smoke run from a production
+calculation. Production requires a hash-identified multipoint correction
+potential, at least three generated dividing surfaces, nonempty numeric
+surface and number-of-states outputs, and converged Monte Carlo samples on
+every surface. The generated input hashes itself into the result manifest.
+`rotdpy_mess_mode=production` refuses all older one-surface/asymptote-only
+results even if their files and hashes are otherwise valid.
+
+The methyl + methyl continuation uses CASPT2(2e,2o)/cc-pVDZ for direct ROTD
+samples and MRCI+Q(2e,2o)/cc-pVTZ for the trusted correction. Molpro runs
+`MRCI` after the matching CASSCF active space and assigns the correction from
+`ENERGD(1)`, its Davidson-corrected energy. Thirteen radial correction points
+from 2.3 through 4.6 angstrom plus the 30-angstrom asymptote support 24 ROTD
+surfaces from 2.3 through 4.6 angstrom, the normal production grids, a
+five-percent flux target, and the 0.85 dynamical correction. Correction
+outputs are accepted only when a sidecar matches the exact input hash; a
+changed method or geometry creates a versioned dispatcher graph rather than
+reusing the earlier smoke output.

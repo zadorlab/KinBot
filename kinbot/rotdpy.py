@@ -77,8 +77,74 @@ def ensure_available() -> dict:
     return provenance
 
 
-def read_result(input_file: str | Path) -> dict:
+def _has_finite_numeric_data(path: Path) -> bool:
+    """Return whether a text output contains at least one finite number."""
+    try:
+        text = path.read_text(errors='replace')
+    except OSError:
+        return False
+    for token in re.findall(
+            r'(?<![A-Za-z])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?',
+            text):
+        try:
+            value = float(token)
+        except ValueError:
+            continue
+        if value == value and abs(value) != float('inf'):
+            return True
+    return False
+
+
+def _validate_production_result(input_file: Path, payload: dict,
+                                outputs: list[Path]) -> None:
+    """Reject reduced interface samples from production MESS calculations."""
+    validation = payload.get('validation')
+    if not isinstance(validation, dict) or validation.get('name') != 'production':
+        raise RuntimeError('rotdPy result is not production validated.')
+    correction = validation.get('correction')
+    if (not isinstance(correction, dict)
+            or correction.get('kind') != 'one_dimensional'
+            or not isinstance(correction.get('point_count'), int)
+            or correction['point_count'] < 4
+            or not re.fullmatch(r'[0-9a-f]{64}', str(
+                correction.get('source_sha256', '')))):
+        raise RuntimeError('Production rotdPy result lacks a multipoint, '
+                           'hash-identified correction potential.')
+    surfaces = validation.get('dividing_surfaces')
+    if (not isinstance(surfaces, dict)
+            or not isinstance(surfaces.get('requested_distances_angstrom'), list)
+            or len(surfaces['requested_distances_angstrom']) < 3
+            or surfaces.get('generated_count') != payload['surface_count']
+            or payload['surface_count'] < 3):
+        raise RuntimeError('Production rotdPy result lacks multiple verified '
+                           'dividing surfaces.')
+    levels = (validation.get('sampling_level'),
+              validation.get('trusted_correction_level'))
+    if any(not isinstance(level, dict)
+           or not str(level.get('method', '')).strip()
+           or not str(level.get('basis', '')).strip() for level in levels):
+        raise RuntimeError('Production rotdPy method provenance is incomplete.')
+    statistics = payload.get('surface_statistics')
+    if not isinstance(statistics, dict) or len(statistics) != payload['surface_count']:
+        raise RuntimeError('Production rotdPy surface statistics are incomplete.')
+    for statistic in statistics.values():
+        if (not isinstance(statistic, dict)
+                or statistic.get('converged') is not True
+                or not isinstance(statistic.get('accepted_samples'), int)
+                or statistic['accepted_samples'] < 1):
+            raise RuntimeError('Production rotdPy Monte Carlo sampling is '
+                               'not converged on every surface.')
+    if payload.get('input_sha256') != _sha256(input_file):
+        raise RuntimeError('Production rotdPy input hash changed.')
+    if any(path.stat().st_size == 0 or not _has_finite_numeric_data(path)
+           for path in outputs):
+        raise RuntimeError('Production rotdPy output lacks numeric data.')
+
+
+def read_result(input_file: str | Path,
+                required_profile: str | None = None) -> dict:
     """Read and validate the manifest written by a completed rotdPy input."""
+    input_file = Path(input_file).resolve()
     path = result_path(input_file)
     if not path.is_file():
         raise RuntimeError(f'rotdPy did not write {path.name}.')
@@ -114,10 +180,17 @@ def read_result(input_file: str | Path) -> dict:
                and output.name.startswith('surface_')
                and output.suffix == '.dat' for output in outputs):
         raise RuntimeError(f'rotdPy result {path} has no surface flux output.')
+    manifest_profile = (payload.get('validation') or {}).get('name')
+    if manifest_profile == 'production' or required_profile == 'production':
+        _validate_production_result(input_file, payload, outputs)
+    elif required_profile not in (None, 'interface'):
+        raise ValueError('required ROTD_py profile must be interface or '
+                         'production.')
     return payload
 
 
-def number_of_states_file(input_file: str | Path, energy_index: int = -1
+def number_of_states_file(input_file: str | Path, energy_index: int = -1,
+                          required_profile: str | None = None
                           ) -> tuple[Path, dict]:
     """Return one hash-verified MESS ``Rotd`` number-of-states file.
 
@@ -133,7 +206,7 @@ def number_of_states_file(input_file: str | Path, energy_index: int = -1
         raise ValueError(
             'ROTD_py MESS energy index must be -1 or a nonnegative integer.')
     input_file = Path(input_file).resolve()
-    payload = read_result(input_file)
+    payload = read_result(input_file, required_profile=required_profile)
     candidates = {}
     for relative in payload['result_files']:
         name = Path(relative).name
@@ -155,6 +228,8 @@ def number_of_states_file(input_file: str | Path, energy_index: int = -1
         'schema': 1,
         'reaction': payload.get('reaction', input_file.stem),
         'surface_count': payload['surface_count'],
+        'validation_profile': (payload.get('validation') or {}).get(
+            'name', 'interface'),
         'energy_index': selected,
         'selection': ('highest_available_correction'
                       if energy_index == -1 else 'explicit'),
@@ -242,17 +317,19 @@ def main(argv=None):
     run_parser.add_argument('input', type=Path)
     check_parser = commands.add_parser('check')
     check_parser.add_argument('input', type=Path)
+    check_parser.add_argument('--profile', choices=('interface', 'production'))
     select_parser = commands.add_parser('select')
     select_parser.add_argument('input', type=Path)
     select_parser.add_argument('--energy-index', type=int, default=-1)
+    select_parser.add_argument('--profile', choices=('interface', 'production'))
     args = parser.parse_args(argv)
     if args.action == 'run':
         result = run(args.input)
     elif args.action == 'check':
-        result = read_result(args.input)
+        result = read_result(args.input, required_profile=args.profile)
     else:
         source, provenance = number_of_states_file(
-            args.input, args.energy_index)
+            args.input, args.energy_index, required_profile=args.profile)
         result = {'source': str(source), **provenance}
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0

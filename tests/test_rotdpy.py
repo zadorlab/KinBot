@@ -11,7 +11,9 @@ import pytest
 
 from kinbot.parameters import Parameters
 from kinbot.pes import _rotdpy_correction_block, create_rotdpy_inputs
-from kinbot.rotdpy import ensure_available, main, number_of_states_file, run
+from kinbot.rotdpy import (ensure_available, main, number_of_states_file,
+                           read_result, run)
+from kinbot.molpro import _vrc_multireference_method
 
 
 def test_generated_input_uses_configured_sampling_and_portable_scratch():
@@ -95,6 +97,84 @@ def test_multipoint_vrc_scan_retains_cubic_correction_contract():
             'e_samp': [2., 1., 0.],
             'e_high': [2.5, 1.2, 0.],
         }, noscan=False)
+
+
+def test_vrc_mrci_q_uses_davidson_corrected_energy():
+    method, energy = _vrc_multireference_method('MRCI+Q(2,2)', 18)
+    assert 'occ,10' in method
+    assert 'closed,8' in method
+    assert 'wf,18,1,0' in method
+    assert '{mrci}' in method
+    assert energy == 'energd(1)'
+
+
+def test_production_result_requires_converged_numeric_multipoint_sampling(
+        tmp_path):
+    input_file = tmp_path / 'channel.py'
+    input_file.write_text('# production input\n')
+    result_root = tmp_path / 'kb_channel'
+    outputs = [result_root / 'Ne_0.out'] + [
+        result_root / 'output' / f'surface_{index}.dat'
+        for index in range(3)]
+    for output in outputs:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text('0.0 1.0\n')
+    relatives = [str(path.relative_to(tmp_path)) for path in outputs]
+    hashes = {relative: __import__('hashlib').sha256(
+        path.read_bytes()).hexdigest()
+              for relative, path in zip(relatives, outputs)}
+    validation = {
+        'name': 'production',
+        'sampling_level': {'method': 'caspt2(2,2)', 'basis': 'vdz'},
+        'trusted_correction_level': {
+            'method': 'mrci+q(2,2)', 'basis': 'vtz'},
+        'correction': {'kind': 'one_dimensional', 'point_count': 4,
+                       'source_sha256': 'a' * 64},
+        'dividing_surfaces': {
+            'requested_distances_angstrom': [3., 4., 5.],
+            'generated_count': 3},
+    }
+    statistics = {
+        str(index): {'converged': True, 'accepted_samples': 100}
+        for index in range(3)}
+    manifest = {
+        'schema': 3, 'status': 'complete', 'reaction': 'channel',
+        'surface_count': 3,
+        'input_sha256': __import__('hashlib').sha256(
+            input_file.read_bytes()).hexdigest(),
+        'validation': validation, 'surface_statistics': statistics,
+        'result_files': relatives, 'result_sha256': hashes,
+    }
+    (tmp_path / 'channel.rotdpy.json').write_text(json.dumps(manifest))
+    assert read_result(input_file, required_profile='production')[
+        'surface_count'] == 3
+
+    manifest['surface_statistics']['1']['converged'] = False
+    (tmp_path / 'channel.rotdpy.json').write_text(json.dumps(manifest))
+    with pytest.raises(RuntimeError, match='not converged'):
+        read_result(input_file, required_profile='production')
+
+
+def test_production_selection_rejects_interface_smoke_manifest(tmp_path):
+    input_file = tmp_path / 'channel.py'
+    input_file.write_text('# smoke input\n')
+    surface = tmp_path / 'kb_channel' / 'output' / 'surface_0.dat'
+    number = tmp_path / 'kb_channel' / 'Ne_0.out'
+    surface.parent.mkdir(parents=True)
+    surface.write_text('0.0 1.0\n')
+    number.write_text('0.0 1.0\n')
+    relatives = [str(number.relative_to(tmp_path)),
+                 str(surface.relative_to(tmp_path))]
+    hashes = {relative: __import__('hashlib').sha256(
+        (tmp_path / relative).read_bytes()).hexdigest()
+              for relative in relatives}
+    (tmp_path / 'channel.rotdpy.json').write_text(json.dumps({
+        'schema': 2, 'status': 'complete', 'reaction': 'channel',
+        'surface_count': 1, 'result_files': relatives,
+        'result_sha256': hashes,
+    }))
+    with pytest.raises(RuntimeError, match='not production validated'):
+        number_of_states_file(input_file, required_profile='production')
 
 
 def test_executor_records_success_and_reuses_matching_result():

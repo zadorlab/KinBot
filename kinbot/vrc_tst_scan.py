@@ -12,6 +12,7 @@ import json
 import shutil
 import subprocess
 import sys
+import hashlib
 from pathlib import Path
 
 from shutil import which
@@ -467,11 +468,12 @@ class VTS:
 
                     molp = Molpro(scan_spec, self.par)
                     molp.create_molpro_input(name=job, VTS=True, sample=sample)
-                    e_stat, e = \
-                        molp.get_molpro_energy(
+                    if self._vrc_output_matches_input(job):
+                        e_stat, e = molp.get_molpro_energy(
                             key=self.par['vrc_tst_scan_molpro_key'],
-                            name=f'{job}',
-                            VTS=True)
+                            name=f'{job}', VTS=True)
+                    else:
+                        e_stat, e = 0, -1.
                     logger.debug(f'{job}, {e_stat}, {e}')
                     if not e_stat:
                         pending[job] = scan_spec
@@ -487,7 +489,7 @@ class VTS:
                 e_stat, energy = molp.get_molpro_energy(
                     key=self.par['vrc_tst_scan_molpro_key'], name=job,
                     VTS=True)
-                if not e_stat:
+                if not e_stat or not self._vrc_output_matches_input(job):
                     raise RuntimeError(f'VRC Molpro result {job} has no '
                                        f'{self.par["vrc_tst_scan_molpro_key"]} energy.')
                 (e_samp if sample else e_high).append(energy)
@@ -539,6 +541,16 @@ class VTS:
                 'unique': self.scan_reac[reac].usym,
                 'e_inf_samp': asyms[0],
                 'e_inf_high': asyms[1],
+                'levels': {
+                    'sampling': {
+                        'method': self.par['vrc_tst_sample_method'],
+                        'basis': self.par['vrc_tst_sample_basis'],
+                    },
+                    'trusted_correction': {
+                        'method': self.par['vrc_tst_high_method'],
+                        'basis': self.par['vrc_tst_high_basis'],
+                    },
+                },
                 'frags_atom': [list(self.scan_reac[reac].products[0].atom),
                                list(self.scan_reac[reac].products[1].atom)],
                 'frags_geom': [self.scan_reac[reac].products[0].geom,
@@ -556,6 +568,19 @@ class VTS:
                 json.dump(corr, f, ensure_ascii=False, indent=4,
                           cls=NpEncoder)
         return
+
+    @staticmethod
+    def _vrc_output_matches_input(job):
+        """Require a VRC output to be bound to its exact generated input."""
+        directory = Path('vrctst/molpro')
+        input_path = directory / f'{job}.inp'
+        output_path = directory / f'{job}.out'
+        fingerprint = directory / f'{job}.input.sha256'
+        if not input_path.is_file() or not output_path.is_file() \
+                or not fingerprint.is_file():
+            return False
+        expected = hashlib.sha256(input_path.read_bytes()).hexdigest()
+        return fingerprint.read_text().strip() == expected
 
     def _dispatch_molpro_corrections(self, pending):
         """Execute missing VRC correction points with the ANL dispatcher."""
@@ -602,7 +627,8 @@ class VTS:
             'limits': {'max_nodes': self.par['vrc_tst_max_nodes']},
             'tasks': tasks,
         }
-        run_dir = Path('vrctst/molpro/dispatch').resolve()
+        base_dir = Path('vrctst/molpro').resolve()
+        run_dir = base_dir / 'dispatch'
         if not run_dir.exists():
             prepare(spec, run_dir)
         else:
@@ -611,8 +637,14 @@ class VTS:
             present = {task['id']: task['input_template']
                        for task in stored['tasks']}
             if present != wanted:
-                raise RuntimeError('Existing VRC dispatch inputs differ from '
-                                   'this run; archive the VRC dispatch directory.')
+                digest = hashlib.sha256(json.dumps(
+                    wanted, sort_keys=True).encode()).hexdigest()[:12]
+                run_dir = base_dir / f'dispatch_{digest}'
+                if not run_dir.exists():
+                    prepare(spec, run_dir)
+        (base_dir / 'current_dispatch.json').write_text(json.dumps({
+            'schema': 1, 'run_dir': str(run_dir),
+        }, indent=2) + '\n')
         preflight(run_dir)
         result = subprocess.run(
             [sys.executable, '-m', 'kinbot.anl.dispatch', 'drive',
@@ -636,7 +668,11 @@ class VTS:
                                + (f' {detail}' if detail else ''))
         for job in pending:
             source = run_dir / 'tasks' / job / f'{job}.out'
-            shutil.copyfile(source, Path('vrctst/molpro') / source.name)
+            destination = base_dir / source.name
+            shutil.copyfile(source, destination)
+            input_path = base_dir / f'{job}.inp'
+            (base_dir / f'{job}.input.sha256').write_text(
+                hashlib.sha256(input_path.read_bytes()).hexdigest() + '\n')
 
     def find_equiv(self, reactions):
         for reac in reactions:

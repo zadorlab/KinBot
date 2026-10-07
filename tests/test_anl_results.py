@@ -465,6 +465,34 @@ def test_one_electron_f12_avoids_and_recovers_undefined_triples_scaling():
     recovered = parse_molpro_energy(_ONE_ELECTRON_F12_NAN, **kwargs)
     assert recovered['energy_hartree'] == pytest.approx(-0.499946213253)
     assert recovered['rank_exact']['recovered_molpro_scale_trip_nan'] is True
+
+
+def test_rank_exact_molpro_uses_hf_for_one_and_ccsd_for_two_electrons():
+    hf = """basis=cc-pVTZ-F12
+rhf
+ PROGRAMS * TOTAL RHF-SCF INT
+ !RHF STATE 1.1 Energy                 -0.499999123456
+ Molpro calculation terminated
+"""
+    parsed_hf = parse_molpro_energy(
+        hf, method='CCSD(T)-F12b', basis='cc-pVTZ-F12',
+        reference='ROHF', rank_exact_electrons=1, effective_method='HF')
+    assert parsed_hf['energy_hartree'] == pytest.approx(-0.499999123456)
+    assert parsed_hf['rank_exact']['effective_method'] == 'HF'
+
+    ccsd = """basis=cc-pVQZ-F12
+rhf
+uccsd-f12b
+ PROGRAMS * TOTAL UCCSD RHF-SCF INT
+ !RHF-UCCSD-F12b energy                -1.174475123456
+ Molpro calculation terminated
+"""
+    parsed_ccsd = parse_molpro_energy(
+        ccsd, method='CCSD(T)-F12b', basis='cc-pVQZ-F12',
+        reference='RHF', rank_exact_electrons=2,
+        effective_method='CCSD-F12b')
+    assert parsed_ccsd['energy_hartree'] == pytest.approx(-1.174475123456)
+    assert parsed_ccsd['rank_exact']['effective_method'] == 'CCSD-F12b'
     with pytest.raises(ValueError, match='normal completion'):
         parse_molpro_energy(
             _ONE_ELECTRON_F12_NAN, method='CCSD(T)-F12b',

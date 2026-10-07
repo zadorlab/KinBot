@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -u
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+repo_dir=$(cd "$script_dir/../../.." && pwd)
+run_dir=${KINBOT_PROFILED_TEST_DIR:-$repo_dir/ethane_profiled_hpc_run_v5}
+python_bin=${KINBOT_PYTHON:-$repo_dir/.venv/bin/python}
+reaction=301020900180000000001_hom_sci_1_2
+
+echo "===== time ====="
+date
+echo "===== queue ====="
+squeue -u "$USER" -o "%.18i %.32j %.2t %.10M %.10l %R" 2>&1
+
+pointer="$run_dir/vrctst/molpro/current_dispatch.json"
+if test -f "$pointer"; then
+    dispatch=$($python_bin - "$pointer" <<'PY'
+import json
+import sys
+from pathlib import Path
+print(json.loads(Path(sys.argv[1]).read_text())['run_dir'])
+PY
+)
+    echo "===== correction dispatcher: $dispatch ====="
+    "$python_bin" -m kinbot.anl.dispatch status "$dispatch" 2>&1
+else
+    echo "===== correction dispatcher ====="
+    echo "not prepared"
+fi
+
+echo "===== correction record ====="
+if test -f "$run_dir/vrctst/corr_$reaction.json"; then
+    "$python_bin" - "$run_dir/vrctst/corr_$reaction.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+record = json.loads(Path(sys.argv[1]).read_text())
+print(json.dumps({
+    'point_count': len(record.get('dist', [])),
+    'levels': record.get('levels'),
+}, indent=2))
+PY
+else
+    echo "not complete"
+fi
+
+echo "===== ROTD_py ====="
+manifest="$run_dir/rotdPy/$reaction.rotdpy.json"
+input="$run_dir/rotdPy/$reaction.py"
+if test -f "$manifest"; then
+    "$python_bin" -m kinbot.rotdpy check "$input" --profile production 2>&1
+elif test -f "$input"; then
+    find "$run_dir/rotdPy/kb_$reaction" -maxdepth 2 -type f \
+        \( -name 'surface_*.dat' -o -name 'Ne_*.out' \) -print 2>/dev/null \
+        | sort | tail -n 40
+    tail -n 40 "$run_dir/rotdPy/$reaction.rotdpy.stderr" 2>/dev/null
+else
+    echo "input not generated"
+fi
+
+echo "===== latest KinBot messages ====="
+tail -n 35 "$run_dir/kinbot.log" 2>/dev/null

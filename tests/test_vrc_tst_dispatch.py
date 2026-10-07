@@ -48,6 +48,10 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
             parameters = {
                 'vrc_tst_scan_points': [2.5],
                 'vrc_tst_scan_molpro_key': 'MYENERGY',
+                'vrc_tst_sample_method': 'caspt2(2,2)',
+                'vrc_tst_sample_basis': 'vdz',
+                'vrc_tst_high_method': 'mrci+q(2,2)',
+                'vrc_tst_high_basis': 'vtz',
             }
             vts = VTS(well, parameters, None)
             product_a = SimpleNamespace(
@@ -65,6 +69,10 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
                 for name in pending:
                     Path(f'vrctst/molpro/{name}.out').write_text(
                         'Molpro calculation terminated\n')
+                    source = Path(f'vrctst/molpro/{name}.inp')
+                    Path(f'vrctst/molpro/{name}.input.sha256').write_text(
+                        __import__('hashlib').sha256(
+                            source.read_bytes()).hexdigest() + '\n')
 
             with patch('kinbot.vrc_tst_scan.Molpro', _FakeMolpro), \
                     patch.object(vts, '_dispatch_molpro_corrections', dispatch):
@@ -79,6 +87,8 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
             assert correction['e_high'] == [0.]
             assert correction['e_inf_samp'] == -10.
             assert correction['e_inf_high'] == -11.
+            assert correction['levels']['trusted_correction'] == {
+                'method': 'mrci+q(2,2)', 'basis': 'vtz'}
         finally:
             os.chdir(previous)
 

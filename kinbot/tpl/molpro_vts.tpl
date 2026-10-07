@@ -9,9 +9,8 @@ text, Molpro input generated automatically by KinBot
 
 {methods}
 
-{key} = energy(1)
+{key} = {energy_expression}
 
 ---
-
 
 

@@ -19,6 +19,7 @@ from kinbot.anl.workflow import (attach_task_vpt2_frequencies,
                                  atomic_zero_vibrational_component,
                                  cbs_task_component,
                                  core_valence_task_component,
+                                 rank_exact_core_valence_component,
                                  scalar_relativistic_task_component,
                                  task_component)
 from tests.anl_fixture import dispatch_spec, molpro_task
@@ -125,6 +126,22 @@ def test_common_correction_providers_apply_verified_differences(monkeypatch):
             'run', 'dkh', 'nonrel',
             requirement=requirements['scalar_relativistic'],
             state_id='state-A')
+
+
+def test_hydrogen_core_valence_is_a_provenance_bound_exact_zero():
+    requirement = next(item for item in recipe('ANL0-F12').requirements
+                       if item.key == 'core_valence_cbs')
+    component = rank_exact_core_valence_component(
+        {'symbols': ['H', 'H'], 'charge': 0, 'multiplicity': 1},
+        requirement, state_id='hydrogen-X1Sigma-g-plus',
+        geometry_sha256='4' * 64)
+    assert component.value_hartree == 0.
+    assert component.backend == 'known_zero'
+    assert component.settings['rank_exact']['atomic_numbers'] == [1, 1]
+    with pytest.raises(ValueError, match='H/He'):
+        rank_exact_core_valence_component(
+            {'symbols': ['C'], 'charge': 0, 'multiplicity': 1},
+            requirement, state_id='carbon', geometry_sha256='4' * 64)
 
 
 def _complete_task(run_dir, task, output):

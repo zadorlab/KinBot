@@ -303,6 +303,14 @@ def validate_spec(spec, *, allow_obsolete=False):
         if source != 'initial' and not by_id[source].get('geometry_output'):
             raise ValueError(f"{task['id']}: geometry source has no geometry output.")
         parser = task.get('result_parser', {})
+        if 'rank_exact_electrons' in parser:
+            atoms = _atoms(spec['molecule'])
+            electrons = int(sum(atoms.numbers)) - spec['molecule'].get(
+                'charge', 0)
+            if parser['rank_exact_electrons'] != electrons:
+                raise ValueError(
+                    f"{task['id']}: rank-exact electron count disagrees "
+                    'with the molecular state.')
         if parser.get('kind') in ('mrcc_energy',
                                   'molpro_energy') and 'reference' in parser:
             multiplicity = spec['molecule'].get('multiplicity', 1)

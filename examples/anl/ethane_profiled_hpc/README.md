@@ -49,3 +49,26 @@ eight requested samples, one Molpro sampling process, and one queued sampling
 job. Its sampling level is `caspt2(2,2)/vdz`; the asymptotic correction also
 evaluates the configured `caspt2(2,2)/avtz` high level. This is an execution
 and interface smoke test, not a production-converged VRC calculation.
+
+## Production methyl + methyl VRC continuation
+
+After the reduced end-to-end test has completed, run
+`run_vrc_production.sh PARTITION 8 [FAIRCHEM_MODEL]` against the same run
+directory. It preserves the reduced ROTD_py directory, performs a real
+multipoint correction scan, evaluates the ROTD samples at
+CASPT2(2e,2o)/cc-pVDZ, evaluates the trusted correction at
+MRCI+Q(2e,2o)/cc-pVTZ using Molpro's Davidson-corrected `ENERGD`, and samples
+24 dividing-surface constructions from 2.3 through 4.6 angstrom with the
+0.85 dynamical correction and the normal temperature, energy,
+angular-momentum, and Monte Carlo convergence grids. At most eight exclusive
+sampling jobs or eight exclusive correction jobs run concurrently.
+
+Every correction output is tied to its generated input hash, so the earlier
+CASPT2/aug-cc-pVTZ asymptote cannot be reused as the new MRCI+Q correction.
+The final `rotdpy_production_gate.json` is written only after all surfaces
+report converged Monte Carlo samples and their numeric ROTD/MESS outputs pass
+hash verification. Set `rotdpy_mess_mode` to `production` in the later MESS
+run to prevent the reduced smoke result from entering a kinetics model.
+`monitor_vrc_production.sh` reports the active versioned correction graph,
+the correction levels and point count, Monte Carlo products, production gate,
+queue, and recent KinBot messages without changing the run.

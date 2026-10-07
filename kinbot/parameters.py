@@ -341,6 +341,11 @@ class Parameters:
                 'smp_len': 1,
             },
             'rotdpy_dynamical_correction': 1.0,
+            # ``production`` requires a multipoint trusted correction,
+            # multiple dividing surfaces, and completed Monte Carlo
+            # convergence records before a ROTD result can enter MESS.
+            # ``interface`` preserves inexpensive execution smoke tests.
+            'rotdpy_validation_profile': 'interface',
             # Define the species and the reactions for which scans are requested
             # {chemid1: ["reaction_name1", "reaction_name2"], chemid2: [...]}
             'vrc_tst_scan': {},
@@ -451,7 +456,9 @@ class Parameters:
             'run_messpf': 0,
             # Consume a matching, hash-verified ROTD_py number-of-states file
             # for homolytic VRC channels when it is present.  ``required``
-            # refuses a phase-space fallback; ``off`` preserves that fallback.
+            # refuses a phase-space fallback. ``production`` additionally
+            # requires a production-validated correction and Monte Carlo run;
+            # ``off`` preserves the phase-space fallback.
             'rotdpy_mess_mode': 'auto',
             # -1 selects ROTD_py's highest (most corrected) Ne_<n>.out file.
             'rotdpy_mess_energy_index': -1,
@@ -594,8 +601,14 @@ class Parameters:
             raise ValueError('run_messpf must be 0 or 1')
         if self.par['run_messpf'] and self.par['me'] not in (1, 2):
             raise ValueError('run_messpf requires me = 1 or me = 2')
-        if self.par['rotdpy_mess_mode'] not in ('auto', 'required', 'off'):
-            raise ValueError('rotdpy_mess_mode must be auto, required, or off')
+        if self.par['rotdpy_mess_mode'] not in (
+                'auto', 'required', 'production', 'off'):
+            raise ValueError('rotdpy_mess_mode must be auto, required, '
+                             'production, or off')
+        if self.par['rotdpy_validation_profile'] not in (
+                'interface', 'production'):
+            raise ValueError('rotdpy_validation_profile must be interface '
+                             'or production')
         energy_index = self.par['rotdpy_mess_energy_index']
         if (isinstance(energy_index, bool)
                 or not isinstance(energy_index, int) or energy_index < -1):

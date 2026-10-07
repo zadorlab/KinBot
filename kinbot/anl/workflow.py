@@ -64,6 +64,11 @@ def task_component(run_dir, task_id, *, key, state_id):
             settings['reference'] = parsed['reference']
         if 'program_variant' in parsed:
             settings['program_variant'] = parsed['program_variant']
+        if 'effective_program_variant' in parsed:
+            settings['effective_program_variant'] = \
+                parsed['effective_program_variant']
+        if 'rank_exact' in parsed:
+            settings['rank_exact'] = parsed['rank_exact']
         if 'correlation' in parsed:
             settings['correlation'] = parsed['correlation']
         if kind == 'molpro_energy':
@@ -85,6 +90,11 @@ def task_component(run_dir, task_id, *, key, state_id):
             settings['reference'] = parsed['reference']
         if 'program_variant' in parsed:
             settings['program_variant'] = parsed['program_variant']
+        if 'effective_program_variant' in parsed:
+            settings['effective_program_variant'] = \
+                parsed['effective_program_variant']
+        if 'rank_exact' in parsed:
+            settings['rank_exact'] = parsed['rank_exact']
         if 'correlation' in parsed:
             settings['correlation'] = parsed['correlation']
     elif kind == 'gaussian_vpt2':
@@ -145,7 +155,11 @@ def rank_exact_higher_order_component(
         raise ValueError(f'Unknown element symbol {exc.args[0]!r}.') from exc
     if electrons < 1 or electrons > 2:
         raise ValueError('Higher-order rank exactness requires at most two electrons.')
-    if (low.quantity != 'electronic' or low.method != 'CCSD(T)'
+    expected_low = {
+        'CCSDT(Q)': 'CCSD(T)',
+        'CCSDTQ(P)': 'CCSDT(Q)',
+    }.get(requirement.method)
+    if (low.quantity != 'electronic' or low.method != expected_low
             or low.basis != requirement.basis
             or low.charge != charge
             or low.multiplicity != molecule.get('multiplicity', 1)
@@ -177,6 +191,53 @@ def rank_exact_higher_order_component(
         geometry_sha256=low.geometry_sha256, source_sha256=digest,
         source=('rank-exact higher-order identity derived from '
                 f'{low.source}'), settings=settings)
+
+
+def rank_exact_core_valence_component(
+        molecule, requirement: ComponentRequirement, *, state_id: str,
+        geometry_sha256: str) -> ComponentResult:
+    """Represent the exact-zero core-valence term for H/He-only species."""
+    if not isinstance(molecule, dict):
+        raise TypeError('molecule must be an object.')
+    symbols = molecule.get('symbols')
+    if not isinstance(symbols, list) or not symbols:
+        raise ValueError('Core-valence exactness needs molecular symbols.')
+    try:
+        numbers = [atomic_numbers[symbol] for symbol in symbols]
+    except KeyError as exc:
+        raise ValueError(f'Unknown element symbol {exc.args[0]!r}.') from exc
+    if any(number > 2 for number in numbers):
+        raise ValueError('Core-valence exactness requires only H/He atoms.')
+    if (requirement.key != 'core_valence_cbs'
+            or requirement.quantity != 'correction'):
+        raise ValueError('Invalid core-valence recipe requirement.')
+    if (not isinstance(geometry_sha256, str)
+            or not re.fullmatch(r'[0-9a-f]{64}', geometry_sha256)):
+        raise ValueError('Core-valence exactness needs a geometry hash.')
+    provenance = {
+        'schema': 1, 'provider': 'known_zero_no_frozen_core',
+        'symbols': symbols, 'charge': molecule.get('charge', 0),
+        'multiplicity': molecule.get('multiplicity', 1),
+        'component': requirement.key, 'method': requirement.method,
+        'basis': requirement.basis, 'geometry_sha256': geometry_sha256,
+    }
+    digest = hashlib.sha256(json.dumps(
+        provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    settings = dict(requirement.settings)
+    settings['rank_exact'] = {
+        'reason': ('H/He-only species have no frozen inner-shell orbitals; '
+                   'all-electron and frozen-core CBS energies are identical'),
+        'atomic_numbers': numbers,
+    }
+    return ComponentResult(
+        key=requirement.key, value_hartree=0.,
+        quantity=requirement.quantity, method=requirement.method,
+        basis=requirement.basis, backend='known_zero', state_id=state_id,
+        charge=molecule.get('charge', 0),
+        multiplicity=molecule.get('multiplicity', 1),
+        geometry_sha256=geometry_sha256, source_sha256=digest,
+        source='exact zero: no frozen inner-shell orbitals',
+        settings=settings)
 
 
 def atomic_zero_vibrational_component(

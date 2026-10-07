@@ -72,6 +72,7 @@ kb_sample = MultiSample(fragments={frag_names}, inf_energy=inf_energy,
 #smp_len: Number of valid sample asked of each subprocess
 
 flux_parameter = {flux_parameters}
+validation_metadata = {validation_metadata}
 
 flux_base = FluxBase(temp_grid=temperature,
                      energy_grid=energy,
@@ -91,6 +92,30 @@ multi.print_results(
 dynamical_correction={dynamical_correction},
 faces_weights=faces_weights)
 
+surface_statistics = {{}}
+for surface_id, surface_flux in multi.total_flux.items():
+    faces = list(getattr(surface_flux, 'flux_array', []))
+    surface_statistics[str(surface_id)] = {{
+        'face_count': len(faces),
+        'accepted_samples': sum(
+            int(getattr(face, '_acct_num', 0)) for face in faces),
+        'failed_samples': sum(
+            int(getattr(face, '_fail_num', 0)) for face in faces),
+        'fake_samples': sum(
+            int(getattr(face, '_fake_num', 0)) for face in faces),
+        'converged': bool(getattr(surface_flux, 'converged', False)),
+    }}
+if validation_metadata['name'] == 'production':
+    if corrections is None:
+        raise RuntimeError('Production ROTD_py run has no correction potential.')
+    if len(surface_statistics) < 3:
+        raise RuntimeError('Production ROTD_py run sampled fewer than three surfaces.')
+    if not all(item['converged'] for item in surface_statistics.values()):
+        raise RuntimeError('Production ROTD_py Monte Carlo sampling did not converge.')
+    if not all(item['accepted_samples'] > 0
+               for item in surface_statistics.values()):
+        raise RuntimeError('Production ROTD_py run has an unsampled surface.')
+
 # This manifest is written only after sampling and result generation finish.
 # KinBot reads and hash-checks the MESS-facing number-of-states file and the
 # native surface flux output before allowing the workflow to proceed.
@@ -108,10 +133,13 @@ result_sha256 = {{
     for path in result_paths
 }}
 Path('{result_file}').write_text(json.dumps({{
-    'schema': 2,
+    'schema': 3,
     'status': 'complete',
     'reaction': '{job_name}',
     'surface_count': len(getattr(multi, 'total_flux', {{}})),
+    'input_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'validation': validation_metadata,
+    'surface_statistics': surface_statistics,
     'result_files': result_files,
     'result_sha256': result_sha256,
 }}, indent=2) + '\n')

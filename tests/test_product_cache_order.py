@@ -56,8 +56,10 @@ def test_product_adopts_complete_cache_order_and_keeps_endpoint(tmp_path, monkey
 
 
 def test_unsupported_graph_cannot_authorize_product_reuse():
-    point = StationaryPoint('substituted allene', 0, 1, smiles='FC=C=CF')
+    point = StationaryPoint('unsupported element', 0, 1, smiles='CCO')
     point.characterize()
+    point.atom = list(point.atom)
+    point.atom[0] = 'Fe'
     assert canonical_identity(point)['status'] == 'unsupported'
     other = copy.copy(point)
     other.geom = point.geom.copy()

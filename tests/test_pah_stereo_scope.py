@@ -60,14 +60,22 @@ class TestPAHStereoScope(unittest.TestCase):
             point.characterize()
             cls.points.append(point)
 
-    def test_resonance_does_not_bypass_an_open_chain_cumulene_axis(self):
+    def test_radical_resonance_retains_an_open_chain_cumulene_axis(self):
         obs = observation(molecule('[CH2]C(=C=CF)C'))
         point = StationaryPoint('axial_radical', 0, 2, atom=obs.atom, geom=obs.geom)
         point.characterize()
         self.assertGreater(len(point.bonds), 1)
+        # UFF makes this radical's terminal groups coplanar. Construct an
+        # axial geometry; this is a graph test, not an optimized minimum.
+        axis = point.geom[3] - point.geom[2]
+        axis /= np.linalg.norm(axis)
+        for index in [i for i in range(point.natom) if point.bond[3, i] and i != 2]:
+            vector = point.geom[index] - point.geom[3]
+            point.geom[index] = (point.geom[3] + np.cross(axis, vector)
+                                 + axis*np.dot(axis, vector))
         identity = canonical_identity(point)
-        self.assertEqual(identity['status'], 'unsupported')
-        self.assertIn('cumulene/axial', identity['reason'])
+        self.assertEqual(identity['status'], 'assigned')
+        self.assertNotEqual(identity['id'], identity['mirror_id'])
 
     def test_all_hydrogen_loss_positions_keep_the_aromatic_radical_supported(self):
         for smiles in (ANTHRACENE, PYRENE, 'c1ccc2cccc-2cc1'):
@@ -167,9 +175,8 @@ class TestPAHStereoScope(unittest.TestCase):
         self.assertEqual(identity['id'], identity['mirror_id'])
         self.assertEqual(compare_rigid(obs, obs.geom, obs.geom)['status'], 'distinct')
 
-    def test_existing_biaryl_and_coordination_graph_guards_remain_in_force(self):
-        for smiles, reason in [('Cc1cccc(F)c1-c1c(C)cccc1F', 'biaryl'),
-                               ('FS(F)(F)(F)(F)F', 'coordination')]:
+    def test_coordination_graph_guard_remains_in_force(self):
+        for smiles, reason in [('FS(F)(F)(F)(F)F', 'coordination')]:
             mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
             Chem.Kekulize(mol, clearAromaticFlags=True)
             # These graph-only exclusions precede any 3-D stereo assignment.

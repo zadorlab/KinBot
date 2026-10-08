@@ -59,8 +59,9 @@ def configured_external_labels(species):
         return None
     identities = [require_supported_identity(endpoint, species.geom)
                   for endpoint in endpoints]
-    if not any(any(tag in graph for tag in ('@', '/', '\\'))
-               for item in identities for graph in item['canonical_graphs']):
+    if not any(item.get('has_configured_stereo') or any(
+            any(tag in graph for tag in ('@', '/', '\\'))
+            for graph in item['canonical_graphs']) for item in identities):
         return None
     groups = {}
     labels = list(species.atomid)

@@ -226,9 +226,11 @@ class TestStereoRouting(unittest.TestCase):
     def test_unsupported_well_is_rejected_before_writing_a_reference(self):
         db = connect('kinbot.db')
         qc = SimpleNamespace(db=db)
-        for smiles in ('FC=C=CF', 'Cc1cccc(F)c1-c1c(C)cccc1F'):
-            point = StationaryPoint('unsupported', 0, 1, smiles=smiles)
+        for element in ('Fe', 'Xe'):
+            point = StationaryPoint('unsupported', 0, 1, smiles='CCO')
             point.characterize()
+            point.atom = list(point.atom)
+            point.atom[0] = element
             self.assertEqual(canonical_identity(point)['status'], 'unsupported')
             job = f'{point.chemid}_well'
             with self.assertRaises(UnsupportedStereochemistry):

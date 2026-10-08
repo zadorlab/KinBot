@@ -10,7 +10,7 @@ from kinbot import zmatrix
 from kinbot.frequencies import skip_rotor
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.calculation import geometry_reference
-from kinbot.stereo_identity import configured_geometry_allowed, UnsupportedStereochemistry
+from kinbot.stereo_identity import rotor_geometry_allowed, UnsupportedStereochemistry
 
 logger = logging.getLogger('KinBot')
 
@@ -333,7 +333,7 @@ class HIR:
                                                atom=self.species.atom,
                                                geom=geom)
                         temp.characterize()
-                        stereo_error = self._configuration_error(geom)
+                        stereo_error = self._configuration_error(geom, rotor)
                         if stereo_error:
                             success = -1
                             reason = stereo_error
@@ -385,9 +385,9 @@ class HIR:
 
         return 0
 
-    def _configuration_error(self, geom):
+    def _configuration_error(self, geom, rotor):
         try:
-            allowed = configured_geometry_allowed(self.species, geom)
+            allowed = rotor_geometry_allowed(self.species, geom, self.species.dihed[rotor][1:3])
         except UnsupportedStereochemistry:
             return 'scan stereochemistry cannot be assigned'
         if not allowed:
@@ -449,7 +449,7 @@ class HIR:
                     else geoms[i] if i < len(geoms) else None)
             if (state == 0 and np.shape(geom) == (self.species.natom, 3)
                     and np.all(np.isfinite(geom))):
-                reason = self._configuration_error(geom)
+                reason = self._configuration_error(geom, rotor)
                 if reason:
                     return reason
         if rotor < len(self.projection_status):

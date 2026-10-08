@@ -57,7 +57,7 @@ def test_fresh_input_and_current_restart_share_one_unchanged_marker(tmp_path):
     (tmp_path / 'input.json').write_text('{"smiles": "CCO"}')
     (tmp_path / 'input.xyz').write_text('1\nstarting geometry\nH 0 0 0\n')
     expected = ensure_current_run(tmp_path, create=True)
-    assert expected['schema'] == 'kinbot.calculation.v2'
+    assert expected['schema'] == 'kinbot.calculation.v3'
     assert expected['rdkit_version'] == rdBase.rdkitVersion
     assert expected['use_legacy_stereo_perception'] is True
     assert expected['allow_nontetrahedral_chirality'] is True

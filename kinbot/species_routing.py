@@ -27,7 +27,7 @@ def routing_key(species):
         raise UnsupportedStereochemistry(
             f'{species.name}: unsupported stereochemical reference: '
             f'{identity.get("reason", "no assigned identity")}')
-    if any(
+    if identity.get('has_configured_stereo') or any(
             any(tag in graph for tag in ('@', '/', '\\'))
             for graph in identity.get('canonical_graphs', ())):
         if (identity['id'] != identity['mirror_id']

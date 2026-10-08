@@ -56,9 +56,9 @@ def test_equivalent_searches_keep_master_atom_selection_and_names(tmp_path):
         # two equivalent methyl H-C-H selections; keep only its first one.
         ('CCC', 17, 'r12_insertion_R',
          [(7, 2, 3), (4, 1, 5)], [(7, 2, 1), (4, 1, 6)]),
-        # Optional virtual labels can create unsupported axial stereochemistry.
-        # A name preference must not suppress the ordinary allene searches.
-        ('C=C=C', 11, 'intra_H_migration', [(2, 1, 4)], []),
+        # Axial virtual labels now permit the cross-terminal H2 search.
+        # Ordinary allene searches retain their representative names.
+        ('C=C=C', 12, 'intra_H_migration', [(2, 1, 4)], []),
     ]
     for smiles, count, family, retained, excluded in cases:
         geometry = peroxy(smiles)

@@ -30,6 +30,10 @@ def _check_supported_configuration(mol, physical_isotopes, aromatic_forms):
     # and their stereo strings unchanged. Aromatic bonds must not make the
     # two equivalent arms of a phenyl group appear different.
     mol = Chem.Mol(mol)
+    # Virtual substitutions compare sites; they must not turn a terminal CH2
+    # into a physical allene axis (or create a physical biaryl axis).
+    for atom, isotope in zip(mol.GetAtoms(), physical_isotopes):
+        atom.SetIsotope(int(isotope))
     Chem.SetAromaticity(mol)
     ranks = Chem.CanonicalRankAtoms(mol, breakTies=False, includeChirality=False)
     doubles = nx.Graph()
@@ -55,11 +59,6 @@ def _check_supported_configuration(mol, physical_isotopes, aromatic_forms):
         if atom.GetDegree() > 4 or (atom.GetDegree() and atom.GetAtomicNum()
                                    not in {1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53}):
             raise ValueError('non-tetrahedral/coordination configuration is outside the supported stereo scope')
-    # Test physical biaryl substituents, not isotope tags introduced to compare
-    # reaction sites. A real substituted axis remains outside this scope.
-    for atom, isotope in zip(mol.GetAtoms(), physical_isotopes):
-        atom.SetIsotope(int(isotope))
-    ranks = Chem.CanonicalRankAtoms(mol, breakTies=False, includeChirality=False)
     for bond in mol.GetBonds():
         ends = (bond.GetBeginAtom(), bond.GetEndAtom())
         if (not bond.IsInRing() and all(atom.IsInRing() for atom in ends)

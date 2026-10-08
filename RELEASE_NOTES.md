@@ -28,6 +28,9 @@ An unsupported initial reactant stops before QC. An unsupported discovered
 reaction is omitted with a warning that the network is incomplete. Its
 calculation files remain available; unrelated reactions can continue.
 
+Product checks no longer reject a terminal-CH2 allene because a temporary
+atom label makes its hydrogens different. Real isotope labels still apply.
+
 The four stereochemical H-transfer example files are valid JSON templates.
 Replace their quoted `SET_...` placeholders with local QC and queue settings
 before running them. Replace the CPU count and job limit strings with integer

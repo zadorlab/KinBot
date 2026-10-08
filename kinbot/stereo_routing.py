@@ -164,12 +164,13 @@ def _row_species(species, row, job, input_reference=None):
     return point
 
 
-def guard_well_job(qc, species, geom, job):
+def guard_well_job(qc, species, geom, job, initial_product=False):
     """Check both input-reference and completed cache geometry before job reuse.
 
-    Ordinary optimized fragments may dissociate; changed connectivity remains
-    handled by the existing product workflow. Same-chemid stereo changes must
-    not be mistaken for the requested configured species.
+    A newly formed product is named before its first optimization. Its final
+    connectivity and stereochemistry are identified by the product workflow;
+    they need not agree with that preliminary name. Other well calculations
+    retain the requested stereoisomer checks.
     """
     requested = copy.copy(species)
     requested.geom = np.asarray(geom).copy()
@@ -180,6 +181,7 @@ def guard_well_job(qc, species, geom, job):
     request = hashlib.sha256(json.dumps(_json_value({
         'input': _raw_input(requested), 'chemid': requested.chemid,
         'wellorts': getattr(requested, 'wellorts', 0),
+        'initial_product': bool(initial_product),
         **{key: getattr(requested, key, None) for key in (
             'optical_reference', 'optical_population',
             'stereo_ignored_atoms', 'stereo_ignored_bonds')}
@@ -218,8 +220,13 @@ def guard_well_job(qc, species, geom, job):
             refuse_routing(f'{job}: cached input belongs to a different configured species', [requested, previous])
     if cached is not None:
         from kinbot.species_routing import require_cache_atom_order
-        require_cache_atom_order(requested, cached, job)
-        if cached.chemid == species.chemid:
+        if initial_product:
+            if list(requested.atom) != list(cached.atom):
+                refuse_routing(f'{job}: product result changes the supplied atom order',
+                               [requested, cached])
+        else:
+            require_cache_atom_order(requested, cached, job)
+        if not initial_product and cached.chemid == species.chemid:
             require_same_configuration(requested, cached, f'{job}: completed cache')
     if reference is None:
         reference = qc.db.get(_write_reference(qc, requested, name, identity))

@@ -12,6 +12,17 @@ the final TS optimization of a reaction search) started from that earlier
 geometry. KinBot now records how many rows a job has at submission and keeps
 waiting until a newer row exists; the existing 60 s grace period applies.
 
+### Identify products after their first optimization
+
+A newly found product can change its connectivity or stereochemistry during
+its first optimization. KinBot now uses the optimized structure to name the
+product and saves its complete calculation under that name. This applies to
+products found through a TS and to homolytic scission products. It does not
+weaken the discovery IRC check: one direction must still reach the requested
+reactant. Later well and conformer calculations retain their stereoisomer
+checks. A product that splits into fragments requires separate fragment
+calculations; its original frequencies and energy are not copied to them.
+
 ## Stereochemistry and symmetry
 
 **Keep configured stereoisomers separate throughout a calculation.**

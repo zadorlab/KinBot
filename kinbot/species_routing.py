@@ -141,6 +141,56 @@ def require_cache_atom_order(requested, observed, context):
                        [requested, observed])
 
 
+def register_optimized_product(qc, requested, product, source_job):
+    """Save a first product optimization under its actual, connected identity.
+
+    The complete calculation remains available under its original job name.
+    An existing target calculation keeps its own atom order and properties.
+    Split fragments must instead receive separate optimizations: the parent
+    calculation cannot supply their energies, frequencies, or Hessians.
+    """
+    import numpy as np
+    from kinbot.stereo_routing import (
+        _chemical_context, _row_species, guard_well_job, refuse_routing)
+    source = next(qc.db.select(name=source_job, sort='-id', limit=1), None)
+    reference = next(qc.db.select(name='stereochemistry/' + source_job,
+                                 sort='-id', limit=1), None)
+    if (source is None or source.data.get('status') != 'normal'
+            or any(source.data.get(field) is None
+                   for field in ('energy', 'zpe', 'frequencies'))):
+        refuse_routing(f'{source_job}: first product optimization lacks a complete result',
+                       [requested, product])
+    observed = _row_species(requested, source, source_job, reference)
+    if (list(source.symbols) != list(requested.atom)
+            or list(source.symbols) != list(product.atom)
+            or not np.array_equal(source.positions, product.geom)
+            or not np.isfinite(source.positions).all()
+            or any(not np.isfinite(source.data[field]).all()
+                   for field in ('energy', 'zpe', 'frequencies'))
+            or (product.natom > 1 and len(source.data['frequencies']) == 0)
+            or any(item['value'] != getattr(requested, attribute)
+                   for attribute, data in observed.calculation_state_evidence.items()
+                   for item in data['observations'])):
+        refuse_routing(f'{source_job}: product result has incompatible atoms, '
+                       'electronic state, or calculation properties', [requested, observed])
+    product.optical_reference = require_supported_identity(product)
+    product.optical_population = getattr(requested, 'optical_population',
+        getattr(qc, 'par', {}).get('optical_population', 'specified'))
+    product.name = routing_name(product)
+    target = product.name + '_well'
+    target_row = next(qc.db.select(name=target, sort='-id', limit=1), None)
+    target_reference = next(qc.db.select(name='stereochemistry/' + target,
+                                        sort='-id', limit=1), None)
+    if target_row is None and target_reference is None and qc.check_qc(target) == 0:
+        qc.publish_result(source, target, chemical_context=_chemical_context(product))
+        guard_well_job(qc, product, product.geom, target)
+    else:
+        product = reusable_cached_product(qc, product)
+    # A product already identified after optimization is an ordinary well.
+    product._initial_product_complete = True
+    return product
+
+
 def apply_input_reference(species, parameters):
     """Restore the declared population even if its selected member is a mirror."""
     population = parameters.get('optical_population', 'specified')

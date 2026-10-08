@@ -18,7 +18,8 @@ class UnsupportedStereochemistry(ValueError):
     """The calculation requires an identity outside the supported scope."""
 
 
-def _check_supported_configuration(mol, physical_isotopes, aromatic_forms):
+def _check_supported_configuration(mol, physical_isotopes, aromatic_forms,
+                                   bent_vinyl_centres=lambda: set()):
     """Conservative boundary for fixed stereo outside the supported tags.
 
     This detects potential axes/frameworks; it does not infer their barriers
@@ -54,6 +55,12 @@ def _check_supported_configuration(mol, physical_isotopes, aromatic_forms):
             edges = {frozenset(edge) for edge in doubles.subgraph(component).edges()}
             if any(edges <= aromatic for aromatic in aromatic_forms()):
                 continue
+            # Bond enumeration can move a sigma-vinyl radical into an allene
+            # drawing. Only a clearly bent, acyclic carbon with a supplied
+            # vinyl-radical alternative qualifies; resonance alone is not
+            # sufficient (a real axial radical can also have several forms).
+            if len(component) == 3 and set(component) - set(ends) <= bent_vinyl_centres():
+                continue
             raise ValueError('cumulene/axial configuration is outside the supported stereo scope')
     for atom in mol.GetAtoms():
         if atom.GetDegree() > 4 or (atom.GetDegree() and atom.GetAtomicNum()
@@ -74,7 +81,7 @@ def _check_supported_configuration(mol, physical_isotopes, aromatic_forms):
 def _molecules(species, geom, tagged_atom=None):
     from rdkit import Chem
     from rdkit.Geometry import Point3D
-    from kinbot.molecular_symmetry import chemical_graph
+    from kinbot.molecular_symmetry import chemical_graph, OPTICAL_RMSD_TOLERANCE
 
     n = len(species.atom)
     bonds = list(getattr(species, 'bonds', []))
@@ -115,6 +122,42 @@ def _molecules(species, geom, tagged_atom=None):
         result.append(mol)
 
     @cache
+    def bent_vinyl_centres():
+        # A neutral doublet may have a two-coordinate sigma radical: one
+        # single and one double bond at carbon. Require a geometry within
+        # 30 degrees of trigonal (90--150 degrees), well away from a linear
+        # allene axis. Intermediate/near-linear geometries remain unsupported.
+        # This scope test does not change the supplied bond orders or hashes.
+        if getattr(species, 'charge', 0) != 0 or getattr(species, 'mult', 1) != 2:
+            return set()
+        centres = set()
+        for candidate in result:
+            for atom in candidate.GetAtoms():
+                bonds_at_atom = list(atom.GetBonds())
+                if (atom.GetAtomicNum() != 6 or atom.GetFormalCharge() != 0
+                        or atom.IsInRing() or atom.GetDegree() != 2
+                        or sorted(b.GetBondTypeAsDouble() for b in bonds_at_atom) != [1., 2.]):
+                    continue
+                i = atom.GetIdx()
+                j, k = (a.GetIdx() for a in atom.GetNeighbors())
+                u, v = np.asarray(geom[j]) - geom[i], np.asarray(geom[k]) - geom[i]
+                scale = np.linalg.norm(u) * np.linalg.norm(v)
+                if not scale or not np.cos(np.deg2rad(150.)) <= np.dot(u, v) / scale <= 0.:
+                    continue
+                # Bending alone does not exclude an axial radical. Require
+                # the local vinyl arrangement to be planar as well. A twisted
+                # pair of terminal substituent planes remains unsupported.
+                normal = np.cross(u, v)
+                normal /= np.linalg.norm(normal)
+                neighbors = {a.GetIdx() for end in (j, k)
+                             for a in candidate.GetAtomWithIdx(end).GetNeighbors()}
+                distances = [abs(np.dot(np.asarray(geom[a]) - geom[i], normal))
+                             for a in neighbors]
+                if max(distances) <= OPTICAL_RMSD_TOLERANCE:
+                    centres.add(i)
+        return centres
+
+    @cache
     def aromatic_forms():
         # Used only if a possible cumulene needs classification. RDKit
         # perceives valence radicals on disposable copies for aromaticity;
@@ -129,7 +172,8 @@ def _molecules(species, geom, tagged_atom=None):
         return forms
 
     for mol in result:
-        _check_supported_configuration(mol, physical_isotopes, aromatic_forms)
+        _check_supported_configuration(mol, physical_isotopes, aromatic_forms,
+                                       bent_vinyl_centres)
         conf = Chem.Conformer(n)
         conf.Set3D(True)
         for i, xyz in enumerate(geom):

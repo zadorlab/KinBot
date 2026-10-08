@@ -30,6 +30,12 @@ calculation files remain available; unrelated reactions can continue.
 
 Product checks no longer reject a terminal-CH2 allene because a temporary
 atom label makes its hydrogens different. Real isotope labels still apply.
+A bent, acyclic sigma-vinyl radical can remain supported when bond enumeration
+also gives an allene drawing. This exception requires a neutral doublet, a
+vinyl-radical bond arrangement, a carbon bond angle of 90--150 degrees, and
+local planarity within 0.1 angstrom. Twisted terminal groups, near-linear
+axial radicals, and cyclic cumulene axes remain unsupported. These geometric
+limits do not establish the radical's electronic orbital localization.
 
 The four stereochemical H-transfer example files are valid JSON templates.
 Replace their quoted `SET_...` placeholders with local QC and queue settings

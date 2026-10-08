@@ -36,6 +36,11 @@ vinyl-radical bond arrangement, a carbon bond angle of 90--150 degrees, and
 local planarity within 0.1 angstrom. Twisted terminal groups, near-linear
 axial radicals, and cyclic cumulene axes remain unsupported. These geometric
 limits do not establish the radical's electronic orbital localization.
+After homolytic cleavage, the first product optimization can change E/Z tags
+on newly delocalized bonds that were single in the parent. KinBot retains the
+complete result under the optimized product name. Parent double bonds and
+remaining tetrahedral stereocentres stay protected. Checks on initial reactants
+and later conformer calculations are unchanged.
 
 The four stereochemical H-transfer example files are valid JSON templates.
 Replace their quoted `SET_...` placeholders with local QC and queue settings

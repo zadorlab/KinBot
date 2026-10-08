@@ -126,6 +126,45 @@ def reusable_cached_product(qc, species):
     return saved
 
 
+def relaxed_homolytic_product(qc, species, parent_bonds):
+    """Adopt a completed first fragment relaxation under its resulting name.
+
+    The caller must verify that the parent bond indices still agree after
+    product sharing/reordering. Never replace an existing target job.
+    """
+    from kinbot.stereo_routing import guard_well_job, _chemical_context
+    from kinbot.stereo_identity import optical_scope
+    from kinbot.calculation import load_calculation_record
+    job = routing_name(species) + '_well'
+    row = next(qc.db.select(name=job, sort='-id', limit=1), None)
+    if (row is None or row.data.get('status') != 'normal'
+            or any(row.data.get(key) is None for key in ('energy', 'zpe', 'frequencies'))):
+        return species
+    relaxed = guard_well_job(qc, species, species.geom, job,
+                             product_parent_bonds=parent_bonds)
+    if relaxed is None:
+        return species
+    relaxed.characterize()
+    relaxed.__dict__.pop('optical_reference', None)
+    optical_scope(relaxed, qc.par.get('optical_population', 'specified'))
+    relaxed.name = routing_name(relaxed)
+    load_calculation_record(relaxed, qc, job)
+    target = relaxed.name + '_well'
+    if (not list(qc.db.select(name=target))
+            and not list(qc.db.select(name='stereochemistry/' + target))
+            and target not in qc.job_ids):
+        qc.publish_result(row, target, chemical_context=_chemical_context(relaxed))
+    logging.getLogger('KinBot').info(
+        '%s: initial homolytic fragment relaxed to %s. The original result is '
+        'retained; any existing target calculation keeps its normal status '
+        'and properties.', job, relaxed.name)
+    adopted = reusable_cached_product(qc, relaxed)
+    # A result can arrive during polling, without another qc_opt(target) call.
+    # PES/L3 readers still need the verified input reference for its new name.
+    guard_well_job(qc, adopted, adopted.geom, target)
+    return adopted
+
+
 def require_cache_atom_order(requested, observed, context):
     """Identity is permutation invariant; indexed cache tensors are not remapped."""
     if routing_name(requested) == str(requested.chemid):

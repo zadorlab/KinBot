@@ -1100,7 +1100,7 @@ class QuantumChemistry:
             if os.path.isfile(path):
                 os.replace(path, f'{path}.restart_{marker}')
 
-    def publish_result(self, source, target):
+    def publish_result(self, source, target, *, chemical_context=None):
         """Copy an accepted result and its native outputs to a conventional name.
 
         The normal database row is written last. An interrupted copy leaves an
@@ -1124,6 +1124,8 @@ class QuantumChemistry:
             if os.path.isfile(source.name + suffix):
                 copyfile(source.name + suffix, target + suffix)
         data = dict(source.data)
+        if chemical_context is not None:
+            data['chemical_context'] = chemical_context
         data.update(copied_from_job=source.name, copied_from_row_id=source.id)
         keys = dict(source.key_value_pairs, name=target)
         result = self.db.write(source.toatoms(), key_value_pairs=keys, data=data)

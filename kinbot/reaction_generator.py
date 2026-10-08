@@ -1,5 +1,6 @@
 from kinbot.species_routing import (routing_key, routing_name, same_species,
-                                   reusable_cached_product, matches_name)
+                                   reusable_cached_product, relaxed_homolytic_product,
+                                   matches_name)
 import os, sys
 import shutil
 import time
@@ -295,7 +296,11 @@ class ReactionGenerator:
                             # graph used to annotate the original TS coordinates.
                             obj.irc_product_reference = endpoint_snapshot(obj.irc_prod)
                             # identify bimolecular products and wells from IRC - do it once
-                            obj.products, _ = obj.irc_prod.start_multi_molecular(vary_charge=True)
+                            obj.products, product_maps = obj.irc_prod.start_multi_molecular(vary_charge=True)
+                            obj.product_parent_bonds = [
+                                (product.atom.copy(), product.geom.copy(),
+                                 [matrix[np.ix_(indices, indices)] for matrix in self.species.bonds])
+                                for product, indices in zip(obj.products, product_maps or [])]
                             self._debug_fraglist_freqs(f"{obj.instance_name}:after_start_multi_molecular", obj.products)
                             if self.species.charge == 0:
                                 logger.info(f'\tBased on the end of IRC, reaction {obj.instance_name} leads to products '
@@ -320,9 +325,24 @@ class ReactionGenerator:
                             obj.prod_done = 1
 
                         product_cache_failed = False
-                        for frag in obj.products:
+                        for frag_index, frag in enumerate(obj.products):
                             try:
-                                self.qc.qc_opt(frag, frag.geom)
+                                frag = self.relaxed_initial_product(obj, index, frag_index)
+                                try:
+                                    self.qc.qc_opt(frag, frag.geom)
+                                except StereoRoutingError:
+                                    # A native QC job can append its result
+                                    # between our read and qc_opt's guard.
+                                    completed = self.relaxed_initial_product(obj, index, frag_index)
+                                    if completed is frag:
+                                        raise
+                                    frag = completed
+                                    self.qc.qc_opt(frag, frag.geom)
+                                e, _ = self.qc.get_qc_geom(routing_name(frag) + '_well', frag.natom)
+                                if e == 0:
+                                    # Polling can ingest the completed result
+                                    # after the pre-submission cache check.
+                                    self.relaxed_initial_product(obj, index, frag_index)
                             except StereoRoutingError as error:
                                 logger.warning('%s: product calculation cannot be reused: %s. '
                                                'Omitting this channel; saved calculations retained.',
@@ -330,7 +350,6 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 product_cache_failed = True
                                 break
-                            e, _ = self.qc.get_qc_geom(routing_name(frag) + '_well', frag.natom) # check if finished without updating geom
                             if e == 1:  # it's running
                                 continue
 
@@ -857,6 +876,19 @@ class ReactionGenerator:
         else:
             stereochem = ''
         return stereochem
+
+    def relaxed_initial_product(self, reaction, index, fragment_index):
+        fragment = reaction.products[fragment_index]
+        if (self.species.reac_type[index] == 'hom_sci'
+                and len(reaction.product_parent_bonds) == len(reaction.products)):
+            atoms, geom, parent_bonds = reaction.product_parent_bonds[fragment_index]
+            # Sharing/reuse can reorder atoms. Parent constraints from a
+            # different order must never license a stereochemical change.
+            if (np.array_equal(atoms, fragment.atom)
+                    and np.array_equal(geom, fragment.geom)):
+                fragment = relaxed_homolytic_product(self.qc, fragment, parent_bonds)
+                reaction.products[fragment_index] = fragment
+        return fragment
 
     @staticmethod
     def initial_product_copies(fragments):

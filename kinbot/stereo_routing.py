@@ -164,7 +164,7 @@ def _row_species(species, row, job, input_reference=None):
     return point
 
 
-def guard_well_job(qc, species, geom, job):
+def guard_well_job(qc, species, geom, job, *, product_parent_bonds=None):
     """Check both input-reference and completed cache geometry before job reuse.
 
     Ordinary optimized fragments may dissociate; changed connectivity remains
@@ -187,7 +187,8 @@ def guard_well_job(qc, species, geom, job):
     cache = getattr(qc, '_verified_well_jobs', {})
     state = (request, _row_revision(reference), _row_revision(result))
     previous_check = cache.get(job)
-    if previous_check is not None and previous_check[0] is qc.db and previous_check[1] == state:
+    if (product_parent_bonds is None and previous_check is not None
+            and previous_check[0] is qc.db and previous_check[1] == state):
         species.stereo_routing_status = 'verified configured request'
         return
     identity = require_supported_identity(requested)
@@ -220,6 +221,13 @@ def guard_well_job(qc, species, geom, job):
         from kinbot.species_routing import require_cache_atom_order
         require_cache_atom_order(requested, cached, job)
         if cached.chemid == species.chemid:
+            if (reference is not None and product_parent_bonds is not None
+                    and np.array_equal(reference.positions, requested.geom)
+                    and relaxed_radical_configuration(requested, cached, product_parent_bonds)):
+                # Only the initial homolytic-product caller may adopt this
+                # result under its NEW identity. Do not cache approval for
+                # ordinary well reads under the old stereoisomer name.
+                return cached
             require_same_configuration(requested, cached, f'{job}: completed cache')
     if reference is None:
         reference = qc.db.get(_write_reference(qc, requested, name, identity))
@@ -228,6 +236,31 @@ def guard_well_job(qc, species, geom, job):
     cache[job] = (qc.db, (request, _row_revision(reference), _row_revision(result)))
     qc._verified_well_jobs = cache
     species.stereo_routing_status = 'verified configured request'
+
+
+def relaxed_radical_configuration(requested, observed, parent_bonds):
+    """Allow only newly delocalized double-bond tags to relax after cleavage.
+
+    Parent double bonds and every remaining tetrahedral centre stay protected.
+    This is not permission to change an established well or TS conformer.
+    """
+    if (requested.charge != 0 or requested.mult != 2
+            or not np.array_equal(requested.bond01, observed.bond01)):
+        return False
+    left, right = require_supported_identity(requested), require_supported_identity(observed)
+    if left['id'] == right['id']:
+        return False
+    matrices = np.asarray(requested.bonds)
+    varied = np.max(matrices, axis=0) != np.min(matrices, axis=0)
+    inherited = np.max(np.asarray(parent_bonds), axis=0)
+    ignored = np.argwhere(np.triu(varied & (inherited == 1), 1))
+    if not len(ignored):
+        return False
+    views = [copy.copy(point) for point in (requested, observed)]
+    for view in views:
+        view.stereo_ignored_bonds = ignored
+    identities = [require_supported_identity(view) for view in views]
+    return identities[0]['id'] == identities[1]['id']
 
 
 def _row_revision(row):

@@ -2,6 +2,17 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+### Identify products after their first optimization
+
+A newly found product can change its connectivity or stereochemistry during
+its first optimization. KinBot now uses the optimized structure to name the
+product and saves its complete calculation under that name. This applies to
+products found through a TS and to homolytic scission products. It does not
+weaken the discovery IRC check: one direction must still reach the requested
+reactant. Later well and conformer calculations retain their stereoisomer
+checks. A product that splits into fragments requires separate fragment
+calculations; its original frequencies and energy are not copied to them.
+
 ## Stereochemistry and symmetry
 
 **Keep configured stereoisomers separate throughout a calculation.**

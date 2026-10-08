@@ -61,6 +61,8 @@ class QuantumChemistry:
         self.zf = par['zf']
         self.db = connect('kinbot.db')
         self.job_ids = {}
+        # rows a job had when it was last submitted; its result must add one
+        self._rows_at_submit = {}
         self.irc_maxpoints = par['irc_maxpoints']
         self.irc_stepsize = par['irc_stepsize']
         self.irc_maxcycle = par['irc_maxcycle']
@@ -1228,6 +1230,9 @@ class QuantumChemistry:
             logger.error(msg)
             sys.exit()
         self.job_ids[job] = pid
+        if not hasattr(self, '_rows_at_submit'):
+            self._rows_at_submit = {}
+        self._rows_at_submit[job] = sum(1 for _ in self.db.select(name=job))
 
         now = datetime.now()
         logger.debug(f'SUBMITTED {job} on {now.ctime()}')
@@ -1706,7 +1711,16 @@ class QuantumChemistry:
             
                 # by deleting a log file, you allow restarting a job
                 # open the database
-                rows = self.db.select(name=job)
+                rows = list(self.db.select(name=job))
+                # The job writes its pkl before the done stamp, and the two
+                # can become visible in either order over the network. Until
+                # this submission's row is in, the last row belongs to an
+                # earlier step of the same job and must not be reported.
+                expected = getattr(self, '_rows_at_submit', {}).get(job)
+                if expected is not None and len(rows) <= expected:
+                    logger.debug(f'{job}: done stamp seen before its result '
+                                 f'row ({len(rows)} rows, {expected} at submission).')
+                    return 0
                 data = None
                 # take the last entry
                 for row in rows:

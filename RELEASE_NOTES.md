@@ -2,6 +2,16 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## Job results
+
+A finished job's `done` stamp is no longer accepted before its result row is
+in `kinbot.db`. The job writes its `.pkl` before the stamp, and over a network
+file system the driver can see the stamp first. The last row then still
+belonged to the previous step of the same job, and the next step (for example
+the final TS optimization of a reaction search) started from that earlier
+geometry. KinBot now records how many rows a job has at submission and keeps
+waiting until a newer row exists; the existing 60 s grace period applies.
+
 ## Stereochemistry and symmetry
 
 **Keep configured stereoisomers separate throughout a calculation.**

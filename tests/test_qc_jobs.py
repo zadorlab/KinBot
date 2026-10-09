@@ -45,6 +45,7 @@ class TestSchedulerJobs(unittest.TestCase):
                     check_qc=lambda job: 0, queue_job_limit=0,
                     par={'queue_template': ''}, queuing='pbs', qc='gauss',
                     queue_name='test', job_ids={},
+                    db=SimpleNamespace(select=lambda **kwargs: iter([object()])),
                 )
                 process = Mock()
                 process.communicate.return_value = (b'123.server\n', b'')
@@ -54,6 +55,7 @@ class TestSchedulerJobs(unittest.TestCase):
                 self.assertIn(f'nodes=1:ppn={expected}', script)
                 self.assertIn(f'OMP_NUM_THREADS={expected}', script)
                 self.assertEqual(qc.job_ids, {'test_job': '123'})
+                self.assertEqual(qc._rows_at_submit, {'test_job': 1})
                 self.assertEqual(result, 1)
                 self.assertEqual(submit.call_args.args[0], ['qsub', 'test_job.pbs'])
 

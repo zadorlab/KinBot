@@ -2,11 +2,45 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+### Identify products after their first optimization
+
+A newly found product can change its connectivity or stereochemistry during
+its first optimization. KinBot now uses the optimized structure to name the
+product and saves its complete calculation under that name. This applies to
+products found through a TS and to homolytic scission products. It does not
+weaken the discovery IRC check: one direction must still reach the requested
+reactant. Later well and conformer calculations retain their stereoisomer
+checks. A product that splits into fragments requires separate fragment
+calculations; its original frequencies and energy are not copied to them.
+
+### Assign axial stereochemistry from coordinates
+
+KinBot now distinguishes the two orientations of substituted cumulenes and
+potential biaryl axes. The assignment enters species names, IRC interpretation,
+reaction-site comparisons, and the existing specified/racemic optical checks.
+It supports multiple axes and terminal E/Z stereochemistry in longer cumulenes.
+The temporary graph labels do not change the atoms or masses sent to QC.
+
+This geometric assignment does not calculate a rotation barrier. A potential
+biaryl axis is treated as fixed even if its rotation barrier is low. A rotor
+scan that changes that assignment in specified mode uses the existing harmonic
+fallback; racemic mode permits its mirror. Terminal planes within five degrees
+of a coplanar arrangement receive no axial assignment. A racemic biaryl scan
+can pass through that planar geometry; other stereochemical checks remain active.
+No helical identifier is added. The identity and calculation formats have changed; start these
+calculations in new directories and keep earlier results with their old version.
+
+The existing absolute phase-space symmetry convention for `hom_sci` is unchanged.
+For a chiral parent that forms one chiral fragment, it can give different
+specified and racemic rate ratios even when the complete mirror reactions
+should have equal rates. Axial identity support does not correct that separate
+normalization limit.
+
 ## Stereochemistry and symmetry
 
 **Keep configured stereoisomers separate throughout a calculation.**
 KinBot keeps `chemid` as its connectivity identifier. A stereochemical
-identifier distinguishes configured tetrahedral centers and double bonds.
+identifier distinguishes configured tetrahedral centers, double bonds, and axes.
 Ordinary species keep their existing calculation names. Configured species use
 different names for QC jobs, saved results, reused objects, and direct/PES output.
 The same comparison checks IRC endpoints and fixed configurations during
@@ -38,8 +72,8 @@ equal when replacing the placeholders for an L1-only HIR calculation.
 Ordinary PAHs and biaryls are no longer rejected by their number of aromatic
 rings. Scope checks use an aromatic graph copy so equivalent phenyl arms do
 not appear different in one bond drawing. Aromatic radical resonance forms
-are not mistaken for cumulenes. Virtual reaction-site labels do not create
-a physical biaryl axis. The existing geometric optical calculation
+are not mistaken for cumulenes. Virtual reaction-site labels are used only
+for comparisons; they do not label the physical molecule. The geometric optical calculation
 still determines whether a harmonic, HIR or MC model includes its mirror.
 No helical stereoisomer identifier is added: selection of one fixed helical
 enantiomer and separation of helical diastereomers remain unsupported.

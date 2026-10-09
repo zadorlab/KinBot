@@ -59,7 +59,7 @@ class TestProductOptimizationReuse(unittest.TestCase):
                     qc.db.select.return_value = []
                     active_channel = [None]
 
-                    def submit(species, geom):
+                    def submit(species, geom, **kwargs):
                         # Only the first channel may advance while its
                         # optimizer is finishing in the delayed variant.
                         active_channel[0] = next(i for i, r in enumerate(reactions)

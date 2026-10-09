@@ -12,7 +12,8 @@ import networkx as nx
 from kinbot import constants
 from kinbot.molecular_symmetry import (chemical_graph, _physical_role_graphs,
                                       _preserves_resonance, OPTICAL_RMSD_TOLERANCE)
-from kinbot.stereo_identity import optical_scope, canonical_identity, configured_geometry_allowed
+from kinbot.stereo_identity import (optical_scope, canonical_identity,
+                                   rotor_geometry_allowed, biaryl_rotor)
 
 METHOD = 'anchored-parts-v1'
 # Measured scan witnesses must still identify the same calculated structure.
@@ -294,7 +295,7 @@ def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
             if g is None or np.shape(g) != geom.shape or not np.all(np.isfinite(g)):
                 missing_geometries.append(dict(rotor_index=rotor['index'], point_index=p['index']))
                 continue
-            if not configured_geometry_allowed(species, g, scope['population']):
+            if not rotor_geometry_allowed(species, g, rotor['axis'], scope['population']):
                 result.update(reason='HIR scan contains a stereoisomer or pathway outside the requested calculation.',
                               invalid_rotor_index=rotor['index'])
                 return result
@@ -357,14 +358,22 @@ def evaluate_optical(species, *, geometry=None, rotors=(), population=None,
                       measured_coverage=measured, reason='The accepted scan contains the selected structure and its mirror.')
         return result
     if rigid.get('reason') == 'Different assigned configurations.':
-        reference = canonical_identity(species, geom)
-        identities = [canonical_identity(species, g) for g in observations]
-        if all(i.get('status') == 'assigned' and i['id'] == reference['id'] for i in identities):
-            result.update(status='resolved', remaining_multiplier=2., states_covered_by_hir=1,
-                          reason='The represented torsions retain the assigned fixed configuration.')
-        else:
-            result['reason'] = 'Allowed scan configurations do not establish coverage of the selected mirror.'
-        return result
+        import copy
+        fixed = copy.copy(species)
+        fixed.stereo_planar_biaryl_axis = tuple(
+            atom for rotor in rotors if biaryl_rotor(species, rotor['axis'])
+            for atom in rotor['axis'])
+        reference = canonical_identity(fixed, geom)
+        # A represented biaryl rotation cannot supply the global mirror if
+        # another fixed axis or tetrahedral center retains its handedness.
+        if reference.get('status') == 'assigned' and reference['id'] != reference['mirror_id']:
+            identities = [canonical_identity(fixed, g) for g in observations]
+            if all(i.get('status') == 'assigned' and i['id'] == reference['id'] for i in identities):
+                result.update(status='resolved', remaining_multiplier=2., states_covered_by_hir=1,
+                              reason='The represented torsions retain the assigned fixed configuration.')
+            else:
+                result['reason'] = 'Allowed scan configurations do not establish coverage of the selected mirror.'
+            return result
     if parts is None:
         result.update(reason='The represented motions do not establish mirror coverage or retained handedness.',
                       coordinate_coverage={'status': 'unsupported',

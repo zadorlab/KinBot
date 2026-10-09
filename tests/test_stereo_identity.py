@@ -70,10 +70,11 @@ class TestStereoIdentity(unittest.TestCase):
             bond=np.zeros((7, 7), int), charge=0, mult=1)
         for i, j, order in [(0, 1, 2), (1, 2, 2), (0, 3, 1), (0, 4, 1), (2, 5, 1), (2, 6, 1)]:
             species.bond[i, j] = species.bond[j, i] = order
-        self.assertEqual(canonical_identity(species)['status'], 'unsupported')
-        self.assertIn('axial', canonical_identity(species)['reason'])
-        with self.assertRaises(UnsupportedStereochemistry):
-            optical_scope(species)
+        identity = canonical_identity(species)
+        self.assertEqual(identity['status'], 'assigned')
+        self.assertNotEqual(identity['id'], identity['mirror_id'])
+        self.assertFalse(optical_scope(species)['mirror_allowed'])
+        self.assertTrue(optical_scope(species, 'racemic')['mirror_allowed'])
 
     def test_canonical_atom_permutation_and_mirror(self):
         species = point('C[C@H](O)CC')

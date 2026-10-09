@@ -1214,6 +1214,9 @@ class QuantumChemistry:
             f_out_qu.write(job_template)
 
         command = [constants.qsubmit[self.queuing], job + constants.qext[self.queuing]]
+        # Count before launching: most backends write their row from inside
+        # the job, and a fast one can finish before the submission returns.
+        rows_before = sum(1 for _ in self.db.select(name=job))
         process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = process.communicate()
         out = out.decode()
@@ -1232,7 +1235,7 @@ class QuantumChemistry:
         self.job_ids[job] = pid
         if not hasattr(self, '_rows_at_submit'):
             self._rows_at_submit = {}
-        self._rows_at_submit[job] = sum(1 for _ in self.db.select(name=job))
+        self._rows_at_submit[job] = rows_before
 
         now = datetime.now()
         logger.debug(f'SUBMITTED {job} on {now.ctime()}')

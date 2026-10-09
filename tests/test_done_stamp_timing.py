@@ -86,6 +86,31 @@ class TestDoneStampTiming(unittest.TestCase):
         self.stamp_done()
         self.assertEqual(self.qc._check_qc(JOB), 'normal')
 
+    def test_result_written_before_submission_returns_is_accepted(self):
+        # Most backends write their row from inside the job. A fast job can
+        # do so before the submission command returns, so the count that a
+        # result must exceed is taken before launching.
+        self.qc.job_ids = {}
+        self.qc.queue_job_limit, self.qc.queue_name, self.qc.slurm_feature = 0, 'test', ''
+        self.qc.par['queue_template'] = ''
+
+        def launch(command, **kwargs):
+            process = Mock()
+            if command[0] == 'sbatch':
+                finished = result(14)
+                self.qc.db.write(Atoms(finished['sym'], finished['pos']), name=JOB, data=finished['data'])
+                process.communicate.return_value = (b'Submitted batch job 7\n', b'')
+            else:
+                process.communicate.return_value = (b'JOBID NAME\n', b'')
+            return process
+
+        with patch('kinbot.qc.subprocess.Popen', side_effect=launch):
+            self.assertEqual(QuantumChemistry.submit_qc(self.qc, JOB, 1), 1)
+            self.assertEqual(self.qc._rows_at_submit[JOB], 1)
+            self.stamp_done()
+            self.assertEqual(self.qc._check_qc(JOB), 'normal')
+            self.assertEqual(self.qc.check_qc(JOB), 'normal')
+
 
 if __name__ == '__main__':
     unittest.main()

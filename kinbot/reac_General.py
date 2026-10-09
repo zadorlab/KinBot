@@ -165,9 +165,20 @@ class GeneralReac:
 
     
     def release_dihedrals(self, release, start=0):
-        for dih in range(start, len(self.instance) - 3):  
+        for dih in range(start, len(self.instance) - 3):
             constraint = []
             for i in range(4):
                 constraint.append(self.instance[dih + i] + 1)
             release.append(constraint)
+
+    def keep_ring_pucker(self, geom, fix, pucker):
+        """Fix the first ring dihedral at `pucker` degrees, keeping its current sign.
+
+        The entry carries its value ([a, b, c, d, degrees]) so the job script
+        sets the dihedral instead of freezing whatever the geometry has.
+        """
+        idx = [self.instance[i] for i in range(4)]
+        current = geometry.calc_dihedral(*[geom[i] for i in idx])[0]
+        sign = -1. if current < 0. else 1.
+        fix.append([i + 1 for i in idx] + [sign * pucker])
 

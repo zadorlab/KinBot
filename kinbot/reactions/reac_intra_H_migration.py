@@ -6,7 +6,12 @@ class IntraHMigration(GeneralReac):
     scan = 0
     skip = 1
     dihstep = 13
-    family_name = 'intrahmigration' 
+    family_name = 'intrahmigration'
+    # Five-membered TS rings: with every bond frozen at its reactant value the
+    # flat ring is the constrained minimum, and a TS search started in a plane
+    # cannot leave it. Keep this much pucker (degrees) in the first ring
+    # dihedral through the bond-setting step; the free TS search decides.
+    ring5_pucker = 15.
 
     def get_constraints(self, step, geom):
         fix = []
@@ -86,9 +91,13 @@ class IntraHMigration(GeneralReac):
 
         elif step == self.dihstep + 1:
             self.release_angles(release)
-            self.release_dihedrals(release)
-               
-            if self.species.atom[self.instance[0]] == 'O': 
+            if len(self.instance) == 5:
+                self.keep_ring_pucker(geom, fix, self.ring5_pucker)
+                self.release_dihedrals(release, start=1)
+            else:
+                self.release_dihedrals(release)
+
+            if self.species.atom[self.instance[0]] == 'O':
                 fval = 1.2
             elif self.species.atom[self.instance[0]] == 'S': 
                 fval = 1.5

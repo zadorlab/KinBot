@@ -326,12 +326,23 @@ def plain_geometry(geom):
 def get_unique_list_of_lists(list_of_lists):
     """
     Returns a new list containing only the unique sub-lists from the input list of lists.
-    Uniqueness is determined by the content and not the order of elements within each sub-list.
+    A bond [i, j] is the same in either order. An angle or dihedral is the same
+    only when its atoms are reversed, so their order is kept. A trailing value
+    (a dihedral with a requested angle, [a, b, c, d, degrees]) is part of the
+    coordinate.
     """
-    # Sort each inner list to normalize it, then convert to a tuple to make it hashable
-    normalized_tuples = {tuple(sorted(sublist)) for sublist in list_of_lists}
-    # Convert the unique tuples back to lists
-    unique_list_of_lists = [list(t) for t in normalized_tuples]
+    unique_list_of_lists = []
+    seen = set()
+    for sublist in list_of_lists:
+        natoms = 4 if len(sublist) == 5 else len(sublist)
+        atoms = tuple(sublist[:natoms])
+        if natoms == 2:
+            key = (tuple(sorted(atoms)), tuple(sublist[natoms:]))
+        else:
+            key = (min(atoms, atoms[::-1]), tuple(sublist[natoms:]))
+        if key not in seen:
+            seen.add(key)
+            unique_list_of_lists.append(list(sublist))
     return unique_list_of_lists
 
 def too_far(geom):

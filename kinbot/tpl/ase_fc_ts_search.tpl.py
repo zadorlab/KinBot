@@ -25,16 +25,19 @@ mol.calc = FAIRChemCalculator(load_predictor('{fc_model_path}', '{fc_device}'), 
 # constraints
 const = Constraints(mol)
 #internals = Internals(mol)
-base_0_fix = [[idx - 1 for idx in fix] for fix in {fix}]
-for fix in base_0_fix:
+for fix in {fix}:
+    base_0 = [idx - 1 for idx in fix[:4]]
     if len(fix) == 2:
         #if fix not in internals:
         #    internals.add_bond(fix)
-        const.fix_bond(fix)
+        const.fix_bond(base_0)
     elif len(fix) == 3:
-        const.fix_angle(fix)
+        const.fix_angle(base_0)
     elif len(fix) == 4:
-        const.fix_dihedral(fix)
+        const.fix_dihedral(base_0)
+    elif len(fix) == 5:
+        # dihedral with a requested value in degrees
+        const.fix_dihedral(base_0, target=fix[4])
     else:
         raise ValueError(f'Unexpected length of fix: {{fix}}')
 

@@ -134,6 +134,11 @@ def carry_out_reaction(rxn, step, command, bimol=0):
                     fix_type = 'tors'
                     val = geometry.calc_dihedral(geom[fixi[0]-1], geom[fixi[1]-1], geom[fixi[2]-1],
                                                  geom[fixi[3]-1])[0]
+                elif len(fixi) == 5:
+                    # dihedral with a requested value in degrees
+                    fix_type = 'tors'
+                    val = fixi[4]
+                    fixi = fixi[:4]
                 kwargs['addsec'] += f"{fix_type} {' '.join(str(f) for f in fixi)} {val}\n"
             for chi in change:
                 dist = np.linalg.norm(geom[chi[0] - 1] - geom[chi[1] - 1])

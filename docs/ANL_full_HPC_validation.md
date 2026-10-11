@@ -1158,8 +1158,9 @@ state as a failed sample, retries it up to `rotdpy_max_retries`, and then
 returns a recorded failure instead of polling forever. Re-running
 `run_vrc_production.sh` with an interrupted production database refreshes the
 site setup and scheduler template, resumes that database directly, and only
-then returns to KinBot for the MESS stages. It does not discard accepted Monte
-Carlo samples.
+then returns to KinBot to finish the production VRC gate. It does not discard
+accepted Monte Carlo samples. This dedicated gate keeps `me=0`; the validated
+number-of-states result is consumed by the subsequent MESS validation run.
 
 After MESS consumes that production result,
 `kinbot.anl.kinetics compare-methyl-recombination` verifies the native output

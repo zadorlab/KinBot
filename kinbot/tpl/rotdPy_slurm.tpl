@@ -12,6 +12,12 @@
 set -euo pipefail
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
+export KINBOT_BACKEND=molpro
+source @SITE_SETUP@
+if ! command -v molpro >/dev/null 2>&1; then
+    echo "Molpro is unavailable after the generated KinBot site setup" >&2
+    exit 127
+fi
 # Every generated rotdPy sample is a single-node Molpro job.  Preserve a site
 # override; otherwise keep Intel MPI off unavailable PSM3/OFI network devices.
 # Double braces survive until rotdPy formats surf/face/sample placeholders.

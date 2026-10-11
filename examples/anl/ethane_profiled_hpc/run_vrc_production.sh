@@ -96,6 +96,28 @@ PY
     fi
 fi
 
+# Resume an interrupted production Monte Carlo calculation directly from its
+# ROTD_py database.  Refreshing the scheduler template first captures the QC
+# installation visible for this invocation; it does not alter saved samples.
+rotdpy_input="$run_dir/rotdPy/$reaction.py"
+rotdpy_database="$run_dir/rotdPy/kb_$reaction/rotdPy_restart.db"
+rotdpy_result="$run_dir/rotdPy/$reaction.rotdpy.json"
+if test -f "$rotdpy_input" \
+    && test -f "$rotdpy_database" \
+    && ! test -f "$rotdpy_result"; then
+    "$python_bin" - "$run_dir/ethane_vrc_production.json" \
+        "$run_dir/rotdPy" <<'PY'
+import sys
+
+from kinbot.parameters import Parameters
+from kinbot.pes import _write_rotdpy_slurm_template
+
+parameters = Parameters(sys.argv[1], show_warnings=False).par
+print(_write_rotdpy_slurm_template(parameters, sys.argv[2]))
+PY
+    "$python_bin" -m kinbot.rotdpy run "$rotdpy_input"
+fi
+
 cd "$run_dir"
 "$python_bin" -m kinbot.kb ethane_vrc_production.json
 "$python_bin" -m kinbot.rotdpy check \

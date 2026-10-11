@@ -69,6 +69,11 @@ def test_generated_input_uses_configured_sampling_and_portable_scratch():
             assert 'temperature = generate_grid(*[100.0, 50.0, 1.0, 2])' in generated
             assert "'pot_smp_min': 4" in generated
             scheduler = Path('rotdPy/qu.tpl').read_text()
+            site_setup = Path('rotdPy/site_setup.sh')
+            assert site_setup.is_file()
+            assert 'KINBOT_BACKEND=molpro' in scheduler
+            assert f'source {site_setup.resolve()}' in scheduler
+            assert 'command -v molpro' in scheduler
             assert '#SBATCH --partition=short-cpu' in scheduler
             assert '#SBATCH --ntasks={procs}' in scheduler
             assert '#SBATCH --time=01:30:00' in scheduler

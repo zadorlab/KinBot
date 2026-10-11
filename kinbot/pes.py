@@ -46,6 +46,7 @@ from kinbot.uncertaintyAnalysis import UQ
 from kinbot.config_log import config_log
 from kinbot.utils import queue_command
 from kinbot.vrc_tst_surfaces import VRC_TST_Surface 
+from kinbot.anl.site import render_site_setup
 
 
 def select_summary_reaction(reactions, candidate, stereopaths):
@@ -115,19 +116,23 @@ def _write_rotdpy_slurm_template(par, folder: str) -> str:
         raise ValueError('rotdPy Slurm partition contains unsupported characters.')
     if not re.fullmatch(r'(?:\d+-)?\d{1,2}:\d{2}:\d{2}', walltime):
         raise ValueError('rotdpy_walltime must be D-HH:MM:SS or HH:MM:SS.')
+    folder = Path(folder).resolve()
+    site_setup = folder / 'site_setup.sh'
+    site_setup.write_text(render_site_setup({'molpro': {'molpro'}}))
+    site_setup.chmod(site_setup.stat().st_mode | stat.S_IXUSR)
     template = Path(f'{kb_path}/tpl/rotdPy_slurm.tpl').read_text()
     rendered = (template
                 .replace('@PYTHON@', shlex.quote(sys.executable))
+                .replace('@SITE_SETUP@', shlex.quote(str(site_setup)))
                 .replace('@WALLTIME@', walltime)
                 .replace('@PARTITION_DIRECTIVE@',
                          f'#SBATCH --partition={partition}' if partition else '')
                 .replace('@EXCLUSIVE_DIRECTIVE@',
                          '#SBATCH --exclusive'
                          if par.get('rotdpy_exclusive') else ''))
-    path = os.path.join(folder, 'qu.tpl')
-    with open(path, 'w') as stream:
-        stream.write(rendered)
-    return path
+    path = folder / 'qu.tpl'
+    path.write_text(rendered)
+    return str(path)
 
 
 def _rotdpy_correction_block(pp_info: dict[str, Any], noscan: bool) -> str:

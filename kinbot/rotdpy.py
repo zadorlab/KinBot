@@ -16,7 +16,7 @@ import sys
 import time
 
 
-SUPPORTED_REVISION = '245317ca46c3324da4f71a80ff7263cbe7ceeac1'
+SUPPORTED_REVISION = 'aa01515774e9f39701d4447eb2b185f8480210b4'
 
 
 def _sha256(path: Path) -> str:

@@ -1150,6 +1150,17 @@ angstrom, a 0.85 dynamical correction, five-percent flux target, and
 .venv/bin/python -m kinbot.rotdpy select PATH/TO/REACTION.py
 ```
 
+KinBot writes `rotdPy/site_setup.sh` from the Molpro executable, configured
+installation root, and loaded module visible when the input is generated.
+Every sample batch script sources that file and checks `command -v molpro`
+before starting Python. ROTD_py treats every terminal or missing Slurm job
+state as a failed sample, retries it up to `rotdpy_max_retries`, and then
+returns a recorded failure instead of polling forever. Re-running
+`run_vrc_production.sh` with an interrupted production database refreshes the
+site setup and scheduler template, resumes that database directly, and only
+then returns to KinBot for the MESS stages. It does not discard accepted Monte
+Carlo samples.
+
 After MESS consumes that production result,
 `kinbot.anl.kinetics compare-methyl-recombination` verifies the native output
 hash and network mapping and compares its high-pressure 300--1700 K rates

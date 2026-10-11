@@ -73,6 +73,16 @@ else
     echo "input not generated"
 fi
 
+echo "===== recent ROTD sample errors ====="
+sample_root="$run_dir/rotdPy/kb_$reaction"
+find "$sample_root" -path '*/jobs/*.err' -type f -size +0c \
+    -printf '%T@ %p\n' 2>/dev/null \
+    | sort -nr | head -n 4 | cut -d' ' -f2- \
+    | while read -r error_file; do
+        echo "--- $error_file ---"
+        tail -n 25 "$error_file"
+    done
+
 echo "===== recent worker errors ====="
 attempt_marker="$run_dir/.vrc_production_attempt"
 newer=()

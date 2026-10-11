@@ -371,3 +371,31 @@ def test_live_progress_reports_periodic_restart_snapshot(tmp_path):
     assert snapshot['space_rejections'] == 30
     assert snapshot['potential_sample_ceiling'] == 100
     assert snapshot['accepted_samples_to_ceiling'] == 17
+
+
+def test_live_progress_reports_stalled_inactive_restart(tmp_path):
+    input_file = tmp_path / 'channel.py'
+    input_file.write_text('# generated input\n')
+    root = tmp_path / 'kb_channel'
+    (root / 'Surface_0/jobs').mkdir(parents=True)
+    face = SimpleNamespace(_acct_num=100, _fail_num=0,
+                           _close_num=0, _face_num=0)
+    flux = SimpleNamespace(flux_array=[face], selected_faces=[0],
+                           pot_max=100, converged=False)
+    database = root / 'rotdPy_restart.db'
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            'CREATE TABLE rotdpy_saved_runs '
+            '(surf_id int, multi_flux blob, sample_list blob, '
+            'flux_base blob, run_index int)')
+        connection.execute(
+            'INSERT INTO rotdpy_saved_runs VALUES (?, ?, ?, ?, ?)',
+            (0, pickle.dumps(flux), pickle.dumps([100]), b'', 1))
+    old = database.stat().st_mtime
+
+    with patch('kinbot.rotdpy.time.time', return_value=old + 301.):
+        progress = sampling_progress(input_file)
+
+    assert progress['status'] == 'stalled'
+    assert progress['restart_snapshot']['age_seconds'] == 301
+    assert 'No sample jobs are active' in progress['status_detail']

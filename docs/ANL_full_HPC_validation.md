@@ -1159,7 +1159,11 @@ returns a recorded failure instead of polling forever. Re-running
 `run_vrc_production.sh` with an interrupted production database refreshes the
 site setup and scheduler template, resumes that database directly, and only
 then returns to KinBot to finish the production VRC gate. It does not discard
-accepted Monte Carlo samples. This dedicated gate keeps `me=0`; the validated
+accepted Monte Carlo samples. Restart convergence is reevaluated through the
+full ROTD_py potential plus surface-sampling test; reaching only the potential
+sample ceiling cannot mark a surface complete. At least one follow-up job is
+queued for every unfinished surface even when there are more surfaces than
+available Slurm slots. This dedicated gate keeps `me=0`; the validated
 number-of-states result is consumed by the subsequent MESS validation run.
 
 After MESS consumes that production result,

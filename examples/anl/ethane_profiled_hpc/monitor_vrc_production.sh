@@ -73,9 +73,16 @@ else
     echo "input not generated"
 fi
 
+attempt_marker="$run_dir/.vrc_production_attempt"
+newer=()
+if test -f "$attempt_marker"; then
+    newer=(-newer "$attempt_marker")
+fi
+
 echo "===== recent ROTD sample errors ====="
 sample_root="$run_dir/rotdPy/kb_$reaction"
 find "$sample_root" -path '*/jobs/*.err' -type f -size +0c \
+    "${newer[@]}" \
     -printf '%T@ %p\n' 2>/dev/null \
     | sort -nr | head -n 4 | cut -d' ' -f2- \
     | while read -r error_file; do
@@ -84,11 +91,6 @@ find "$sample_root" -path '*/jobs/*.err' -type f -size +0c \
     done
 
 echo "===== recent worker errors ====="
-attempt_marker="$run_dir/.vrc_production_attempt"
-newer=()
-if test -f "$attempt_marker"; then
-    newer=(-newer "$attempt_marker")
-fi
 find "$run_dir/perm" -maxdepth 1 -type f -name '*.err' -size +0c \
     "${newer[@]}" \
     -print 2>/dev/null | sort | tail -n 4 | while read -r error_file; do

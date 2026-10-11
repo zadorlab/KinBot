@@ -16,7 +16,7 @@ import sys
 import time
 
 
-SUPPORTED_REVISION = 'aa01515774e9f39701d4447eb2b185f8480210b4'
+SUPPORTED_REVISION = '47e996d52f394a69493293eaee31737ae849b2b9'
 
 
 def _sha256(path: Path) -> str:
@@ -70,7 +70,8 @@ def sampling_progress(input_file: str | Path) -> dict:
         item['surface'], item['face'], item['sample']))
     total = len(surfaces)
     done = len(completed)
-    elapsed = max(0., time.time() - input_file.stat().st_mtime)
+    now = time.time()
+    elapsed = max(0., now - input_file.stat().st_mtime)
     eta = (elapsed * (total - done) / done
            if 0 < done < total else 0. if done == total and total else None)
     database = root / 'rotdPy_restart.db'
@@ -113,6 +114,8 @@ def sampling_progress(input_file: str | Path) -> dict:
             accepted_total = sum(accepted_values)
             snapshot = {
                 'saved_at_epoch': round(database.stat().st_mtime),
+                'age_seconds': round(max(
+                    0., now - database.stat().st_mtime)),
                 'surfaces_in_snapshot': len(latest),
                 'database_converged_surfaces': database_converged,
                 'accepted_samples': accepted_total,
@@ -132,9 +135,14 @@ def sampling_progress(input_file: str | Path) -> dict:
                 AttributeError, EOFError, ImportError) as error:
             snapshot = {'error': str(error)}
     manifest = result_path(input_file)
+    status = ('complete' if manifest.is_file()
+              else 'running' if root.is_dir() else 'not_started')
+    if (status == 'running' and total > done and not active
+            and snapshot is not None
+            and snapshot.get('age_seconds', 0) > 300):
+        status = 'stalled'
     result = {
-        'status': ('complete' if manifest.is_file()
-                   else 'running' if root.is_dir() else 'not_started'),
+        'status': status,
         'input': str(input_file),
         'sample_root': str(root),
         'surface_count': total,
@@ -149,6 +157,10 @@ def sampling_progress(input_file: str | Path) -> dict:
     }
     if snapshot is not None:
         result['restart_snapshot'] = snapshot
+    if status == 'stalled':
+        result['status_detail'] = (
+            'No sample jobs are active and the restart database has not '
+            'changed for more than five minutes.')
     return result
 
 

@@ -77,7 +77,9 @@ hash verification. Set `rotdpy_mess_mode` to `production` in the later MESS
 run to prevent the reduced smoke result from entering a kinetics model.
 `monitor_vrc_production.sh` reports the active versioned correction graph,
 the correction levels and point count, Monte Carlo products, production gate,
-queue, and recent KinBot messages without changing the run.
+queue, and recent KinBot messages without changing the run. It labels an
+inactive restart database as stalled after five minutes and shows sample
+errors only from the current production attempt.
 Set `KINBOT_VRC_PRODUCTION_DIR` only when a different current-format child
 location is required.
 

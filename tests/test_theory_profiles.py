@@ -256,6 +256,40 @@ class TestTheoryProfiles(unittest.TestCase):
 
 
 class TestCalculatorFactory(unittest.TestCase):
+    def test_offline_fairchem_resolves_snapshot_without_main_reference(self):
+        expected = object()
+        observed = {}
+        with TemporaryDirectory() as temporary:
+            cache = Path(temporary) / 'hub'
+            blob = cache / 'models--facebook--UMA' / 'blobs' / 'checkpoint'
+            checkpoint = (cache / 'models--facebook--UMA' / 'snapshots'
+                          / 'abc123' / 'checkpoints' / 'uma-s-1p2.pt')
+            blob.parent.mkdir(parents=True)
+            blob.write_bytes(b'checkpoint')
+            checkpoint.parent.mkdir(parents=True)
+            checkpoint.symlink_to(blob)
+
+            def load(path, *, device):
+                observed.update(path=path, device=device)
+                return expected
+
+            fairchem = ModuleType('fairchem')
+            core = ModuleType('fairchem.core')
+            units = ModuleType('fairchem.core.units')
+            mlip = ModuleType('fairchem.core.units.mlip_unit')
+            mlip.load_predict_unit = load
+            with patch.dict(sys.modules, {
+                    'fairchem': fairchem, 'fairchem.core': core,
+                    'fairchem.core.units': units,
+                    'fairchem.core.units.mlip_unit': mlip}):
+                with patch.dict(os.environ, {
+                        'HF_HUB_CACHE': str(cache),
+                        'HF_HUB_OFFLINE': '1'}, clear=True):
+                    self.assertIs(
+                        load_predictor('uma-s-1p2', 'cpu'), expected)
+        self.assertEqual(observed, {
+            'path': str(blob.resolve()), 'device': 'cpu'})
+
     def test_offline_fairchem_cache_ignores_invalid_generic_proxy(self):
         observed = {}
         expected = object()

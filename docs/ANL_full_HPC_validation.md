@@ -1162,6 +1162,11 @@ returns a recorded failure instead of polling forever. Re-running
 site setup and scheduler template and resumes that database directly. Once a
 production result exists, the script proceeds directly to the hash and
 provenance gate; it does not re-enter KinBot or repeat the reaction search.
+KinBot holds an exclusive controller lock for each generated ROTD input, so a
+second resume cannot submit a duplicate sample stream. The wrapper runs the
+controller in its own process group and forwards INT, TERM, and HUP to that
+entire group. Stopping the wrapper therefore cannot leave an orphan controller
+that continues replacing cancelled Slurm jobs.
 It does not discard accepted Monte Carlo samples. Restart convergence is reevaluated through the
 full ROTD_py potential plus surface-sampling test; reaching only the potential
 sample ceiling cannot mark a surface complete. At least one follow-up job is

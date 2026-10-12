@@ -4,9 +4,12 @@ import json
 import os
 from pathlib import Path
 import pickle
+import signal
 import sqlite3
+import subprocess
 import sys
 from tempfile import TemporaryDirectory
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -14,8 +17,9 @@ import pytest
 
 from kinbot.parameters import Parameters
 from kinbot.pes import _rotdpy_correction_block, create_rotdpy_inputs
-from kinbot.rotdpy import (ensure_available, main, number_of_states_file,
-                           read_result, run, sampling_progress)
+from kinbot.rotdpy import (_controller_lock, ensure_available, main,
+                           number_of_states_file, read_result, run,
+                           sampling_progress)
 from kinbot.molpro import _vrc_multireference_method
 
 
@@ -219,6 +223,50 @@ def test_executor_records_success_and_reuses_matching_result():
         assert reused == record
         assert (root / 'channel.rotdpy.stdout').read_text() == (
             'sampling complete\n')
+
+
+def test_executor_rejects_a_second_controller_for_the_same_input(tmp_path):
+    input_file = tmp_path / 'channel.py'
+    input_file.write_text('# generated input\n')
+
+    with _controller_lock(input_file):
+        with pytest.raises(RuntimeError, match='another ROTD_py controller'):
+            with _controller_lock(input_file):
+                pass
+
+    owner = input_file.with_name('channel.controller.lock')
+    assert owner.read_text() == ''
+
+
+def test_executor_forwards_termination_to_controller_process_group(tmp_path):
+    child = tmp_path / 'child.py'
+    child.write_text(
+        'import os\n'
+        'from pathlib import Path\n'
+        'import time\n'
+        "Path('child.pid').write_text(str(os.getpid()))\n"
+        'while True:\n'
+        '    time.sleep(1)\n')
+    wrapper = tmp_path / 'wrapper.py'
+    wrapper.write_text(
+        'from pathlib import Path\n'
+        'import sys\n'
+        'from kinbot.rotdpy import _run_controller\n'
+        f'_run_controller([sys.executable, {str(child)!r}], '
+        f'Path({str(tmp_path)!r}))\n')
+    process = subprocess.Popen([sys.executable, str(wrapper)])
+    pid_file = tmp_path / 'child.pid'
+    for _ in range(100):
+        if pid_file.is_file():
+            break
+        time.sleep(.05)
+    assert pid_file.is_file()
+    child_pid = int(pid_file.read_text())
+
+    process.send_signal(signal.SIGTERM)
+    assert process.wait(timeout=15) == 128 + signal.SIGTERM
+    with pytest.raises(ProcessLookupError):
+        os.kill(child_pid, 0)
 
 
 def test_number_of_states_selection_is_hash_verified():

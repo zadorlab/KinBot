@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import importlib.util
 from importlib import metadata
 import json
+import os
 import pickle
 from pathlib import Path
 import re
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -17,6 +21,76 @@ import time
 
 
 SUPPORTED_REVISION = 'f3352c8eea9d51d26f631d3238e24e304b5be7de'
+
+
+@contextmanager
+def _controller_lock(input_file: Path):
+    """Allow only one local controller for a generated ROTD_py input."""
+    lock_file = input_file.with_name(f'{input_file.stem}.controller.lock')
+    with lock_file.open('a+', encoding='utf-8') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            lock.seek(0)
+            owner = lock.read().strip()
+            detail = f' ({owner})' if owner else ''
+            raise RuntimeError(
+                f'{input_file.stem}: another ROTD_py controller is already '
+                f'managing this input{detail}.') from error
+        lock.seek(0)
+        lock.truncate()
+        lock.write(json.dumps({
+            'pid': os.getpid(),
+            'input': str(input_file),
+        }))
+        lock.flush()
+        try:
+            yield
+        finally:
+            lock.seek(0)
+            lock.truncate()
+
+
+def _run_controller(command: list[str], directory: Path):
+    """Run a controller and terminate its process group with this wrapper."""
+    process = subprocess.Popen(
+        command, cwd=directory, text=True, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, start_new_session=True)
+    previous_handlers = {}
+
+    def forward_signal(signum, _frame):
+        if process.poll() is None:
+            try:
+                os.killpg(process.pid, signum)
+            except (ProcessLookupError, PermissionError):
+                pass
+        raise SystemExit(128 + signum)
+
+    for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        previous_handlers[signum] = signal.getsignal(signum)
+        signal.signal(signum, forward_signal)
+    try:
+        stdout, stderr = process.communicate()
+        return subprocess.CompletedProcess(
+            command, process.returncode, stdout, stderr)
+    except BaseException:
+        if process.poll() is None:
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
+                process.wait()
+        raise
+    finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
 
 
 def _sha256(path: Path) -> str:
@@ -393,63 +467,67 @@ def run(input_file: str | Path, python: str | Path | None = None) -> dict:
     input_file = Path(input_file).resolve()
     if not input_file.is_file():
         raise FileNotFoundError(input_file)
-    provenance = ensure_available()
-    if not input_file.with_name('qu.tpl').is_file():
-        raise RuntimeError(f'{input_file.stem}: missing rotdPy Slurm qu.tpl.')
+    with _controller_lock(input_file):
+        provenance = ensure_available()
+        if not input_file.with_name('qu.tpl').is_file():
+            raise RuntimeError(
+                f'{input_file.stem}: missing rotdPy Slurm qu.tpl.')
 
-    input_hash = _sha256(input_file)
-    record_file = execution_path(input_file)
-    if record_file.is_file():
-        try:
-            previous = json.loads(record_file.read_text())
-            if (previous.get('status') == 'complete'
-                    and previous.get('input_sha256') == input_hash):
-                read_result(input_file)
-                return previous
-        except (OSError, json.JSONDecodeError, RuntimeError):
-            pass
+        input_hash = _sha256(input_file)
+        record_file = execution_path(input_file)
+        if record_file.is_file():
+            try:
+                previous = json.loads(record_file.read_text())
+                if (previous.get('status') == 'complete'
+                        and previous.get('input_sha256') == input_hash):
+                    read_result(input_file)
+                    return previous
+            except (OSError, json.JSONDecodeError, RuntimeError):
+                pass
 
-    result_file = result_path(input_file)
-    result_file.unlink(missing_ok=True)
-    stdout_file = input_file.with_name(f'{input_file.stem}.rotdpy.stdout')
-    stderr_file = input_file.with_name(f'{input_file.stem}.rotdpy.stderr')
-    command = [str(python or sys.executable), input_file.name]
-    completed = subprocess.run(
-        command, cwd=input_file.parent, text=True, capture_output=True,
-        check=False)
-    stdout_file.write_text(completed.stdout)
-    stderr_file.write_text(completed.stderr)
+        result_file = result_path(input_file)
+        result_file.unlink(missing_ok=True)
+        stdout_file = input_file.with_name(
+            f'{input_file.stem}.rotdpy.stdout')
+        stderr_file = input_file.with_name(
+            f'{input_file.stem}.rotdpy.stderr')
+        command = [str(python or sys.executable), input_file.name]
+        completed = _run_controller(command, input_file.parent)
+        stdout_file.write_text(completed.stdout)
+        stderr_file.write_text(completed.stderr)
 
-    record = {
-        'schema': 1,
-        'status': 'failed',
-        'input': input_file.name,
-        'input_sha256': input_hash,
-        'command': command,
-        'returncode': completed.returncode,
-        'stdout': stdout_file.name,
-        'stderr': stderr_file.name,
-        'rotdpy': provenance,
-    }
-    error = None
-    if completed.returncode:
-        detail = (completed.stderr.strip() or completed.stdout.strip())[-2000:]
-        suffix = f' Last output: {detail}' if detail else ''
-        error = f'rotdPy exited with status {completed.returncode}.{suffix}'
-    else:
-        try:
-            result = read_result(input_file)
-            record['result'] = result_file.name
-            record['surface_count'] = result['surface_count']
-            record['status'] = 'complete'
-        except RuntimeError as caught:
-            error = str(caught)
-    if error:
-        record['error'] = error
-    record_file.write_text(json.dumps(record, indent=2) + '\n')
-    if error:
-        raise RuntimeError(f'{input_file.stem}: {error}')
-    return record
+        record = {
+            'schema': 1,
+            'status': 'failed',
+            'input': input_file.name,
+            'input_sha256': input_hash,
+            'command': command,
+            'returncode': completed.returncode,
+            'stdout': stdout_file.name,
+            'stderr': stderr_file.name,
+            'rotdpy': provenance,
+        }
+        error = None
+        if completed.returncode:
+            detail = (
+                completed.stderr.strip() or completed.stdout.strip())[-2000:]
+            suffix = f' Last output: {detail}' if detail else ''
+            error = (
+                f'rotdPy exited with status {completed.returncode}.{suffix}')
+        else:
+            try:
+                result = read_result(input_file)
+                record['result'] = result_file.name
+                record['surface_count'] = result['surface_count']
+                record['status'] = 'complete'
+            except RuntimeError as caught:
+                error = str(caught)
+        if error:
+            record['error'] = error
+        record_file.write_text(json.dumps(record, indent=2) + '\n')
+        if error:
+            raise RuntimeError(f'{input_file.stem}: {error}')
+        return record
 
 
 def main(argv=None):

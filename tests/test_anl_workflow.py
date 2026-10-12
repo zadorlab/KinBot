@@ -15,7 +15,8 @@ from kinbot.anl.extrapolation import core_valence_correction
 from kinbot.anl.model import ComponentResult, IncompleteRecipeError
 from kinbot.anl.recipes import recipe
 from kinbot.anl.results import parse_result
-from kinbot.anl.workflow import (attach_task_vpt2_frequencies,
+from kinbot.anl.workflow import (_cbs_components,
+                                 attach_task_vpt2_frequencies,
                                  atomic_zero_vibrational_component,
                                  cbs_task_component,
                                  core_valence_task_component,
@@ -454,6 +455,62 @@ def test_verified_f12_task_pair_builds_recipe_cbs_component():
         with pytest.raises(ValueError, match='geometry level'):
             cbs_task_component(run_dir, 'f12_tz', 'f12_qz',
                                **{**kwargs, 'requirement': harmonic})
+
+
+def test_one_electron_f12_cbs_ignores_only_legacy_rank_recovery_metadata():
+    requirement = next(item for item in recipe('ANL0-F12').requirements
+                       if item.key == 'reference_cbs')
+    geometry = '1' * 64
+    common = {
+        'reference': 'ROHF',
+        'program_variant': 'RHF-UCCSD(T)-F12b',
+        'correlation': 'unrestricted',
+        'scale_trip': 1,
+    }
+
+    def component(key, basis, value, settings, source_hash):
+        return ComponentResult(
+            key=key, value_hartree=value, quantity='electronic',
+            method='CCSD(T)-F12b', basis=basis, backend='molpro',
+            state_id='hydrogen-2S-one-half', charge=0, multiplicity=2,
+            geometry_sha256=geometry, source_sha256=source_hash,
+            source=f'{key}.out', settings=settings)
+
+    lower = component(
+        'f12_tz', 'cc-pVTZ-F12', -0.49999,
+        {**common, 'effective_program_variant': 'RHF-UCCSD-F12b',
+         'rank_exact': {
+             'electron_count': 1,
+             'triples_scaling_bypassed': True,
+             'recovered_molpro_scale_trip_nan': True,
+         }}, '2' * 64)
+    upper = component(
+        'f12_qz', 'cc-pVQZ-F12', -0.5, common, '3' * 64)
+    geometry_sources = (
+        {'task_id': 'l3_geometry', 'geometry_sha256': geometry},
+        {'task_id': 'l3_geometry', 'geometry_sha256': geometry},
+    )
+    result = _cbs_components(
+        lower, upper, requirement=requirement,
+        lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12',
+        geometry_sources=geometry_sources, electron_count=1)
+    assert result.backend == 'composite'
+    assert result.settings['scale_trip'] == 1
+
+    with pytest.raises(ValueError, match='settings differ'):
+        _cbs_components(
+            lower, upper, requirement=requirement,
+            lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12',
+            geometry_sources=geometry_sources, electron_count=7)
+
+    incompatible = component(
+        'f12_qz', 'cc-pVQZ-F12', -0.5,
+        {**common, 'effective_program_variant': 'RHF'}, '4' * 64)
+    with pytest.raises(ValueError, match='settings differ'):
+        _cbs_components(
+            lower, incompatible, requirement=requirement,
+            lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12',
+            geometry_sources=geometry_sources, electron_count=1)
 
 
 def test_cbs_pair_rejects_incomplete_or_changed_native_output():

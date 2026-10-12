@@ -140,23 +140,26 @@ def _assemble_composites(base, specification):
         if assembly is not None:
             if not isinstance(assembly, dict):
                 raise ValueError(f'composites.{name}.assembly must be an object.')
-            result = assemble_profiled_anl0_f12(
-                _path(base, assembly.get('interface_run'),
-                      f'{name}.interface_run'),
-                _path(base, assembly.get('higher_order_run'),
-                      f'{name}.higher_order_run'),
-                _path(base, assembly.get('corrections_run'),
-                      f'{name}.corrections_run'),
-                state_id=assembly.get('state_id'),
-                spin_orbit_hartree=assembly.get('spin_orbit_hartree'),
-                spin_orbit_source=assembly.get('spin_orbit_source'),
-                spin_orbit_backend=assembly.get(
-                    'spin_orbit_backend', 'manual'),
-                vpt2_review=_optional_path(
-                    base, assembly.get('vpt2_review'),
-                    f'{name}.vpt2_review'),
-                base_run=_optional_path(base, assembly.get('base_run'),
-                                        f'{name}.base_run'))
+            try:
+                result = assemble_profiled_anl0_f12(
+                    _path(base, assembly.get('interface_run'),
+                          f'{name}.interface_run'),
+                    _path(base, assembly.get('higher_order_run'),
+                          f'{name}.higher_order_run'),
+                    _path(base, assembly.get('corrections_run'),
+                          f'{name}.corrections_run'),
+                    state_id=assembly.get('state_id'),
+                    spin_orbit_hartree=assembly.get('spin_orbit_hartree'),
+                    spin_orbit_source=assembly.get('spin_orbit_source'),
+                    spin_orbit_backend=assembly.get(
+                        'spin_orbit_backend', 'manual'),
+                    vpt2_review=_optional_path(
+                        base, assembly.get('vpt2_review'),
+                        f'{name}.vpt2_review'),
+                    base_run=_optional_path(base, assembly.get('base_run'),
+                                            f'{name}.base_run'))
+            except (ValueError, RuntimeError) as exc:
+                raise type(exc)(f'composites.{name}: {exc}') from exc
             _write_json(output, result)
         final = zero_k_from_composite_record(smiles, output)
         l2_geometry = None

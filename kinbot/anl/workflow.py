@@ -481,9 +481,16 @@ def cbs_task_component(run_dir, lower_task_id, upper_task_id, *,
             _verified_optimized_geometry(run_dir, tasks, state,
                                          tasks[upper_task_id], upper),
         )
-    return _cbs_components(lower, upper, requirement=requirement,
-                           lower_basis=lower_basis, upper_basis=upper_basis,
-                           geometry_sources=geometry_sources)
+    try:
+        electron_count = (sum(atomic_numbers[symbol]
+                              for symbol in spec['molecule']['symbols'])
+                          - spec['molecule'].get('charge', 0))
+    except (KeyError, TypeError) as exc:
+        raise ValueError('CBS pair lacks a valid molecular electron count.') from exc
+    return _cbs_components(
+        lower, upper, requirement=requirement,
+        lower_basis=lower_basis, upper_basis=upper_basis,
+        geometry_sources=geometry_sources, electron_count=electron_count)
 
 
 def _verified_optimized_geometry(run_dir, tasks, state, task, component, *,
@@ -526,8 +533,36 @@ def _verified_optimized_geometry(run_dir, tasks, state, task, component, *,
             'final_xyz_sha256': execution['artifacts']['final.xyz']}
 
 
+def _one_electron_f12_settings_match(lower, upper, electron_count):
+    """Ignore only legacy rank-recovery metadata for one-electron F12 pairs."""
+    if (electron_count != 1 or lower.method != 'CCSD(T)-F12b'
+            or upper.method != 'CCSD(T)-F12b'):
+        return False
+
+    def normalized(component):
+        settings = dict(component.settings)
+        rank = settings.pop('rank_exact', None)
+        effective = settings.pop('effective_program_variant', None)
+        if (rank is not None
+                and (not isinstance(rank, dict)
+                     or rank.get('electron_count') != 1)):
+            return None
+        # Older normal outputs did not record an effective variant.  The
+        # recoverable NaN path records the physically identical UCCSD-F12b
+        # one-electron limit.  Bare-HF rank-exact tasks are intentionally not
+        # mixed with those archived F12 calculations.
+        if effective not in (None, 'RHF-UCCSD-F12b'):
+            return None
+        return settings
+
+    lower_settings = normalized(lower)
+    upper_settings = normalized(upper)
+    return (lower_settings is not None
+            and lower_settings == upper_settings)
+
+
 def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis,
-                    geometry_sources=None):
+                    geometry_sources=None, electron_count=None):
     allowed = (requirement.quantity == 'electronic'
                or requirement.quantity == 'zpe'
                or (requirement.quantity == 'correction'
@@ -572,7 +607,12 @@ def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis,
             raise ValueError('CBS zero-point inputs lack basis-matched optimized geometries.')
     if lower.review_required or upper.review_required:
         raise IncompleteRecipeError('CBS input requires native quality review.')
-    if lower.settings != upper.settings:
+    settings_match = lower.settings == upper.settings
+    legacy_rank_equivalent = (
+        not settings_match
+        and _one_electron_f12_settings_match(
+            lower, upper, electron_count))
+    if not settings_match and not legacy_rank_equivalent:
         raise ValueError('CBS input calculation settings differ.')
     settings = dict(requirement.settings)
     if 'upper_cardinal' not in settings or 'extrapolation_power' not in settings:
@@ -598,6 +638,9 @@ def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis,
         'lower_basis': lower_basis, 'upper_basis': upper_basis,
         'upper_cardinal': cardinal, 'power': power,
         'geometry_sources': geometry_sources,
+        'settings_compatibility': (
+            'one-electron F12 legacy rank metadata'
+            if legacy_rank_equivalent else 'exact'),
     }
     digest = hashlib.sha256(json.dumps(provenance, sort_keys=True,
                                        separators=(',', ':')).encode()).hexdigest()

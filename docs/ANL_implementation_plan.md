@@ -154,6 +154,21 @@ ANL1-F12 -> ANL1 -> ANL0-F12 -> ANL0 -> configured L3 -> L2
 
 A node uses one exact common method for every energy in that reaction. Missing
 or inconsistent data move that node to the next tier or stop the solve.
+Different nodes do not need the same method or component inventory.  In
+particular, a target reaction may use ANL1-F12 while one of its reference
+formation enthalpies is supplied by an ANL0 or L3 reaction below it.  Only
+the species participating in the same individual reaction node must share
+one exact level label.
+
+Native runtime, memory, scheduler, or optimizer failures in an optional ANL
+component mark that component unavailable.  The dispatcher does not submit
+the explicitly related tasks that remain unsent, but it continues independent
+components.  Parser, provenance, method, and quality mismatches remain hard
+failures because treating those as missing calculations would conceal a code
+or chemistry error.  A named ANL recipe is still assembled only when every
+term in that exact recipe is present; otherwise the CBH solver selects the
+next complete composite profile (ANL0, configured L3, or L2) supplied for that
+species.  It never relabels a partial result as the failed ANL tier.
 
 ## Formation enthalpy at finite temperature
 

@@ -729,6 +729,93 @@ def test_failed_task_does_not_stop_independent_work_and_blocks_only_children():
             assert advance(run_dir)['tasks'].get('child') is None
 
 
+def test_runtime_failure_makes_optional_component_unavailable_and_skips_unsent_work():
+    def task(ident, *, skips=()):
+        record = {
+            'id': ident, 'kind': 'external', 'backend': 'fake',
+            'resources': {'cores': 1, 'memory_mb': 512,
+                          'walltime': '00:10:00'},
+            'input_name': f'{ident}.inp',
+            'input_template': '{{XYZ}}\n',
+            'command': [sys.executable, '-c', 'pass'],
+            'required_outputs': [f'{ident}.out'],
+            'failure_policy': 'skip_component',
+            'component_families': ['expensive_correction'],
+        }
+        if skips:
+            record['failure_skips'] = list(skips)
+        return record
+
+    spec = {
+        'schema': 1, 'name': 'optional-component-failure',
+        'molecule': dispatch_spec()['molecule'],
+        'limits': {'max_nodes': 2},
+        'tasks': [task('small', skips=('large',)), task('large')],
+    }
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        entry = state['tasks']['small']
+        (run_dir / 'tasks' / 'small' / 'execution.json').write_text(
+            json.dumps({
+                'schema': 1, 'task_id': 'small',
+                'geometry_sha256': entry['geometry_sha256'],
+                'status': 'failed', 'failure_phase': 'execution',
+                'error': 'Program exited with status 137.',
+            }))
+
+        state = advance(run_dir)
+        assert state['tasks']['small']['status'] == 'unavailable'
+        assert state['tasks']['small']['unavailable_reason'] == \
+            'Program exited with status 137.'
+        assert state['tasks']['large']['status'] == 'skipped'
+        assert state['tasks']['large']['resume_status'] == 'staged'
+
+        retry_failed(run_dir, 'small')
+        state = json.loads(state_path.read_text())
+        assert state['tasks']['small']['status'] == 'staged'
+        assert state['tasks']['large']['status'] == 'staged'
+
+
+def test_parser_failure_of_optional_component_remains_a_hard_failure():
+    tasks = []
+    for ident in ('first', 'second'):
+        tasks.append({
+            'id': ident, 'kind': 'external', 'backend': 'fake',
+            'resources': {'cores': 1, 'memory_mb': 512,
+                          'walltime': '00:10:00'},
+            'input_name': f'{ident}.inp',
+            'input_template': '{{XYZ}}\n',
+            'command': [sys.executable, '-c', 'pass'],
+            'required_outputs': [f'{ident}.out'],
+            'failure_policy': 'skip_component',
+            'component_families': ['correction'],
+            **({'failure_skips': ['second']} if ident == 'first' else {}),
+        })
+    spec = {
+        'schema': 1, 'name': 'optional-component-parser-failure',
+        'molecule': dispatch_spec()['molecule'],
+        'limits': {'max_nodes': 2}, 'tasks': tasks,
+    }
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        state = json.loads((run_dir / 'state.json').read_text())
+        entry = state['tasks']['first']
+        (run_dir / 'tasks' / 'first' / 'execution.json').write_text(
+            json.dumps({
+                'schema': 1, 'task_id': 'first',
+                'geometry_sha256': entry['geometry_sha256'],
+                'status': 'failed', 'failure_phase': 'validation',
+                'error': 'parsed method disagrees with request',
+            }))
+        state = advance(run_dir)
+        assert state['tasks']['first']['status'] == 'failed'
+        assert state['tasks']['second']['status'] == 'staged'
+
+
 def test_time_limited_mrcc_task_can_resume_with_saved_amplitudes():
     molecule = dispatch_spec()['molecule']
     task = mrcc_task(

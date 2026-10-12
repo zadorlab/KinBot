@@ -100,36 +100,73 @@ def _composite_value(record, key):
 
 
 def component_breakdown(reaction, energy_files):
-    """Return signed component contributions for one generated CBH reaction."""
+    """Return signed contributions from each record's actual expression.
+
+    Composite records at one CBH node share an accepted method label, but
+    they need not have identical component inventories.  Rank-exact zeros and
+    lower fallback recipes can therefore coexist without fabricating missing
+    calculations.  The CBH solver, rather than this diagnostic report,
+    enforces the one-common-level rule for the reaction.
+    """
     records = {smiles: _read_json(path, f'{smiles} composite')
                for smiles, path in energy_files.items()}
 
-    def higher_order(record):
-        if 'higher_order_correction' in record.get('components', {}):
-            return _composite_value(record, 'higher_order_correction')
-        return math.fsum((_composite_value(record, 'hoe_high'),
-                          -_composite_value(record, 'hoe_low')))
+    def category(component):
+        if component == 'vpt2_correction':
+            return 'anharmonic_zpe_correction'
+        if component == 'higher_order_correction' or component.startswith('hoe_'):
+            return 'higher_order'
+        return component
 
-    categories = {
-        'reference_cbs': lambda record: _composite_value(
-            record, 'reference_cbs'),
-        'higher_order': higher_order,
-        'core_valence_cbs': lambda record: _composite_value(
-            record, 'core_valence_cbs'),
-        'scalar_relativistic': lambda record: _composite_value(
-            record, 'scalar_relativistic'),
-        'dboc': lambda record: _composite_value(record, 'dboc'),
-        'spin_orbit': lambda record: _composite_value(record, 'spin_orbit'),
-        'harmonic_zpe': lambda record: _composite_value(
-            record, 'harmonic_zpe'),
-        'anharmonic_zpe_correction': lambda record: _composite_value(
-            record, 'vpt2_correction'),
-    }
+    def terms(record):
+        declared = record.get('electronic_terms')
+        zero_point = record.get('zero_point_terms')
+        if isinstance(declared, list) and isinstance(zero_point, list):
+            return declared + zero_point
+        # Read old completed records that predate explicit expression lists.
+        components = record.get('components', {})
+        legacy = []
+        for key in ('reference_cbs', 'core_valence_cbs',
+                    'scalar_relativistic', 'dboc', 'spin_orbit',
+                    'harmonic_zpe', 'vpt2_correction',
+                    'higher_order_correction'):
+            if key in components:
+                legacy.append({'component': key, 'coefficient': 1})
+        for key, coefficient in (
+                ('hoe_high', 1), ('hoe_low', -1),
+                ('hoe_tz_high', 1), ('hoe_tz_low', -1),
+                ('hoe_dz_high', 1), ('hoe_dz_low', -1)):
+            if key in components:
+                legacy.append({'component': key, 'coefficient': coefficient})
+        return legacy
+
+    values = {label: [] for label in (
+        'reference_cbs', 'higher_order', 'core_valence_cbs',
+        'scalar_relativistic', 'dboc', 'spin_orbit', 'harmonic_zpe',
+        'anharmonic_zpe_correction')}
+    for smiles, stoichiometric_coefficient in reaction.stoichiometry.items():
+        record = records[smiles]
+        components = record.get('components', {})
+        used = set()
+        for term in terms(record):
+            if (not isinstance(term, dict)
+                    or set(term) != {'component', 'coefficient'}
+                    or term['component'] in used
+                    or term['component'] not in components
+                    or term['coefficient'] not in (-1, 1)):
+                raise ValueError(
+                    f'{smiles}: invalid composite expression in breakdown.')
+            used.add(term['component'])
+            label = category(term['component'])
+            values.setdefault(label, []).append(
+                stoichiometric_coefficient * term['coefficient']
+                * _composite_value(record, term['component']))
+        if not used:
+            raise ValueError(f'{smiles}: composite expression is empty.')
+
     result = {}
-    for label, getter in categories.items():
-        hartree = math.fsum(
-            coefficient * getter(records[smiles])
-            for smiles, coefficient in reaction.stoichiometry.items())
+    for label, contributions in values.items():
+        hartree = math.fsum(contributions)
         result[label] = {
             'hartree': hartree,
             'kcal_mol': hartree * HARTREE_TO_KCAL_MOL,

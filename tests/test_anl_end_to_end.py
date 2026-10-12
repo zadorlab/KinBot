@@ -77,6 +77,41 @@ def test_component_breakdown_reads_direct_rank_exact_zero(tmp_path):
     assert result['total_zero_k_reaction']['hartree'] == pytest.approx(expected)
 
 
+def test_component_breakdown_accepts_different_declared_component_inventories(
+        tmp_path):
+    left_path, right_path = tmp_path / 'left.json', tmp_path / 'right.json'
+    left_path.write_text(json.dumps({
+        'components': {
+            'reference_cbs': {'value_hartree': -10.},
+            'harmonic_zpe': {'value_hartree': .1},
+        },
+        'electronic_terms': [
+            {'component': 'reference_cbs', 'coefficient': 1}],
+        'zero_point_terms': [
+            {'component': 'harmonic_zpe', 'coefficient': 1}],
+    }))
+    right_path.write_text(json.dumps({
+        'components': {
+            'reference_cbs': {'value_hartree': -9.8},
+            'dboc': {'value_hartree': .002},
+            'harmonic_zpe': {'value_hartree': .08},
+        },
+        'electronic_terms': [
+            {'component': 'reference_cbs', 'coefficient': 1},
+            {'component': 'dboc', 'coefficient': 1}],
+        'zero_point_terms': [
+            {'component': 'harmonic_zpe', 'coefficient': 1}],
+    }))
+    reaction = SimpleNamespace(stoichiometry={'left': -1, 'right': 1})
+    result = component_breakdown(
+        reaction, {'left': left_path, 'right': right_path})
+    assert result['reference_cbs']['hartree'] == pytest.approx(.2)
+    assert result['dboc']['hartree'] == pytest.approx(.002)
+    assert result['harmonic_zpe']['hartree'] == pytest.approx(-.02)
+    assert result['core_valence_cbs']['hartree'] == 0.
+    assert result['total_zero_k_reaction']['hartree'] == pytest.approx(.182)
+
+
 def test_mess_continuation_disables_new_vrc_work_and_requires_production(
         tmp_path):
     run = tmp_path / 'run'

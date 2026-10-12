@@ -226,6 +226,20 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
         # assembler supplies hash-bound exact zeros for ZPE and VPT2.
         tasks = [task for task in tasks
                  if task['id'] not in ('harmonic', 'gaussian_vpt2')]
+    by_id = {task['id']: task for task in tasks}
+    for family, identifiers in {
+            'reference_cbs_f12': ('f12_tz', 'f12_qz'),
+            'harmonic_zpe': ('harmonic',),
+            'higher_order_anl0': ('ccsdt_dz',),
+            'dboc': ('cfour_dboc',),
+            'vpt2_correction': ('gaussian_vpt2',),
+    }.items():
+        present = tuple(ident for ident in identifiers if ident in by_id)
+        for ident in present:
+            _component_fallback(
+                by_id[ident], family,
+                failure_skips=tuple(other for other in present
+                                    if other != ident))
     return {
         'schema': 1, 'name': 'anl1-f12-non-mrcc-interface-validation',
         'molecule': molecule,
@@ -280,6 +294,16 @@ def current_base_validation_spec(molecule, *, max_nodes=3, partition=None):
 
 _HIGHER_ORDER_TASK_IDS = (
     'ccsdt_tz', 'ccsdt_dz', 'ccsdtq_tz', 'ccsdtq_dz', 'ccsdtqp_dz')
+
+
+def _component_fallback(task, *families, failure_skips=()):
+    """Mark optional component work and its still-useful failure boundary."""
+    task['failure_policy'] = 'skip_component'
+    task['component_families'] = list(dict.fromkeys(
+        [*task.get('component_families', ()), *families]))
+    task['failure_skips'] = list(dict.fromkeys(
+        [*task.get('failure_skips', ()), *failure_skips]))
+    return task
 
 
 def _electron_count(molecule):
@@ -364,6 +388,29 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         tasks = [task for task in tasks if task['id'] in requested]
     else:
         requested = _HIGHER_ORDER_TASK_IDS
+    by_id = {task['id']: task for task in tasks}
+    if 'ccsdt_tz' in by_id:
+        _component_fallback(
+            by_id['ccsdt_tz'], 'higher_order_anl1_tz',
+            failure_skips=tuple(
+                ident for ident in ('ccsdtq_tz',) if ident in by_id))
+    if 'ccsdtq_tz' in by_id:
+        _component_fallback(by_id['ccsdtq_tz'], 'higher_order_anl1_tz')
+    if 'ccsdt_dz' in by_id:
+        _component_fallback(
+            by_id['ccsdt_dz'], 'higher_order_anl0',
+            failure_skips=tuple(
+                ident for ident in ('ccsdtq_dz', 'ccsdtqp_dz')
+                if ident in by_id))
+    if 'ccsdtq_dz' in by_id:
+        _component_fallback(
+            by_id['ccsdtq_dz'], 'higher_order_anl0',
+            'higher_order_anl1_dz',
+            failure_skips=tuple(
+                ident for ident in ('ccsdtqp_dz',) if ident in by_id))
+    if 'ccsdtqp_dz' in by_id:
+        _component_fallback(
+            by_id['ccsdtqp_dz'], 'higher_order_anl1_dz')
     rank_exact = _rank_exact_higher_order(molecule)
     if rank_exact:
         tasks = []
@@ -439,6 +486,19 @@ def common_corrections_validation_spec(molecule, *, max_nodes=3,
     core_valence_exact = _rank_exact_core_valence(molecule)
     if core_valence_exact:
         tasks = [task for task in tasks if not task['id'].startswith('cv_')]
+    by_id = {task['id']: task for task in tasks}
+    cv_ids = tuple(ident for ident in (
+        'cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz') if ident in by_id)
+    for ident in cv_ids:
+        _component_fallback(
+            by_id[ident], 'core_valence_cbs',
+            failure_skips=tuple(other for other in cv_ids if other != ident))
+    rel_ids = tuple(ident for ident in ('rel_dkh', 'rel_nonrel')
+                    if ident in by_id)
+    for ident in rel_ids:
+        _component_fallback(
+            by_id[ident], 'scalar_relativistic',
+            failure_skips=tuple(other for other in rel_ids if other != ident))
     return {
         'schema': 1, 'name': 'anl-common-corrections-validation',
         'molecule': molecule, 'limits': {'max_nodes': max_nodes},

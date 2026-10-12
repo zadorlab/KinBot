@@ -45,6 +45,16 @@ _RESERVED_FILES = {'geometry.xyz', 'task.json', 'job.slurm', 'execution.json',
                    'slurm.stdout', 'slurm.stderr', 'drive.lock'}
 
 
+class CalculationUnavailableError(RuntimeError):
+    """A native calculation could not be completed with its resources.
+
+    This is deliberately narrower than a result-parser or provenance error.
+    Optional ANL component work may fall back after this exception, whereas
+    malformed or scientifically inconsistent output must remain a hard
+    failure that is fixed rather than silently omitted.
+    """
+
+
 def _basename(value, label):
     if not isinstance(value, str) or not _SAFE_NAME.fullmatch(value):
         raise ValueError(f'{label} must be a safe basename.')
@@ -120,6 +130,30 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
     dependencies = task.get('depends_on', [])
     if not isinstance(dependencies, list) or any(dep not in ids for dep in dependencies):
         raise ValueError(f'{ident}: depends_on must contain task ids.')
+    failure_policy = task.get('failure_policy')
+    if failure_policy not in (None, 'skip_component'):
+        raise ValueError(f'{ident}: unsupported failure_policy.')
+    component_families = task.get('component_families', [])
+    if (not isinstance(component_families, list)
+            or any(not isinstance(value, str)
+                   or not _SAFE_NAME.fullmatch(value)
+                   for value in component_families)
+            or len(component_families) != len(set(component_families))):
+        raise ValueError(
+            f'{ident}: component_families must contain unique safe names.')
+    failure_skips = task.get('failure_skips', [])
+    if (not isinstance(failure_skips, list)
+            or any(not isinstance(value, str)
+                   or not _SAFE_NAME.fullmatch(value) or value == ident
+                   for value in failure_skips)
+            or len(failure_skips) != len(set(failure_skips))):
+        raise ValueError(f'{ident}: failure_skips must contain other task ids.')
+    if failure_policy == 'skip_component' and not component_families:
+        raise ValueError(
+            f'{ident}: skip_component requires a component family.')
+    if failure_policy is None and (component_families or failure_skips):
+        raise ValueError(
+            f'{ident}: component fallback metadata requires failure_policy.')
     resources = task.get('resources')
     if not isinstance(resources, dict):
         raise ValueError(f'{ident}: resources must be an object.')
@@ -706,9 +740,13 @@ def _run_external(directory, record):
     try:
         with (directory / task.get('stdout', 'stdout.txt')).open('wb') as stdout, \
                 (directory / task.get('stderr', 'stderr.txt')).open('wb') as stderr:
-            result = subprocess.run(command, cwd=directory, stdin=stdin,
-                                    stdout=stdout, stderr=stderr, check=False,
-                                    env=child_env)
+            try:
+                result = subprocess.run(
+                    command, cwd=directory, stdin=stdin, stdout=stdout,
+                    stderr=stderr, check=False, env=child_env)
+            except OSError as exc:
+                raise CalculationUnavailableError(
+                    f'Could not start native program: {exc}') from exc
     finally:
         if stdin:
             stdin.close()
@@ -717,7 +755,8 @@ def _run_external(directory, record):
         error_file = directory / task.get('stderr', 'stderr.txt')
         detail = error_file.read_text(errors='replace').strip()[-1200:]
         suffix = f' Last stderr: {detail}' if detail else ''
-        raise RuntimeError(f'Program exited with status {result.returncode}.{suffix}')
+        raise CalculationUnavailableError(
+            f'Program exited with status {result.returncode}.{suffix}')
     _validate_external_outputs(directory, task)
     details = {'command': command, 'returncode': result.returncode, **runtime}
     if task.get('result_parser'):
@@ -1057,8 +1096,13 @@ def run_task(task_file):
         atoms = read(directory / 'geometry.xyz')
         if _geometry_hash(atoms) != record['geometry_sha256']:
             raise RuntimeError('Staged geometry changed after preparation.')
-        details = (_run_external(directory, record) if task['kind'] == 'external'
-                   else _run_ase_optimize(directory, record))
+        if task['kind'] == 'external':
+            details = _run_external(directory, record)
+        else:
+            try:
+                details = _run_ase_optimize(directory, record)
+            except Exception as exc:
+                raise CalculationUnavailableError(str(exc)) from exc
         if task.get('geometry_output'):
             final = read(directory / task['geometry_output'])
             if (final.get_chemical_symbols() != record['molecule']['symbols']
@@ -1083,6 +1127,9 @@ def run_task(task_file):
     except Exception as exc:
         result.update(status='failed', error=str(exc),
                       traceback=traceback.format_exc())
+        result['failure_phase'] = (
+            'execution' if isinstance(exc, CalculationUnavailableError)
+            else 'validation')
     _atomic_json(outcome, result)
     if result['status'] != 'executed':
         raise RuntimeError(f"{task['id']}: {result['error']}")
@@ -1296,24 +1343,33 @@ def preflight(run_dir, _site_refresh_attempts=None):
 
 
 def _clear_blocked_tasks(state):
-    """Discard derived dependency blocks so the graph can be reevaluated."""
-    for task_id in [
-            task_id for task_id, entry in state['tasks'].items()
-            if entry.get('status') == 'blocked']:
-        state['tasks'].pop(task_id)
+    """Discard derived blocks/skips so a retried graph can be reevaluated."""
+    for task_id, entry in list(state['tasks'].items()):
+        if entry.get('status') == 'blocked':
+            state['tasks'].pop(task_id)
+        elif entry.get('status') == 'skipped':
+            if entry.get('resume_status') == 'staged':
+                entry['status'] = 'staged'
+                for key in ('resume_status', 'skipped_by', 'skip_reason',
+                            'component_families'):
+                    entry.pop(key, None)
+            else:
+                state['tasks'].pop(task_id)
 
 
 def retry_failed(run_dir, ident):
     """Archive one failed attempt and restage it without rerunning siblings."""
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
-    if ident not in by_id or state['tasks'].get(ident, {}).get('status') != 'failed':
-        raise ValueError(f'{ident}: only a failed, staged task can be retried.')
+    if (ident not in by_id or state['tasks'].get(ident, {}).get('status')
+            not in ('failed', 'unavailable')):
+        raise ValueError(
+            f'{ident}: only a failed or unavailable task can be retried.')
     entry = state['tasks'][ident]
     if entry.get('job_id') and _job_active(entry['job_id']):
         raise RuntimeError(f'{ident}: Slurm job is still active.')
     if any(other != ident and other in state['tasks']
-           and state['tasks'][other].get('status') != 'blocked'
+           and state['tasks'][other].get('status') not in ('blocked', 'skipped')
            and ident in _task_dependencies(task)
            for other, task in by_id.items()):
         raise RuntimeError(f'{ident}: downstream task already exists; review run.')
@@ -1359,12 +1415,13 @@ def recover_gaussian_vpt2_symmetry(run_dir, ident):
             or task.get('backend', '').lower() != 'gaussian'
             or parser.get('kind') != 'gaussian_vpt2'):
         raise ValueError(f'{ident}: recovery requires a Gaussian VPT2 task.')
-    if entry.get('status') != 'failed':
-        raise ValueError(f'{ident}: only a failed Gaussian VPT2 task can recover.')
+    if entry.get('status') not in ('failed', 'unavailable'):
+        raise ValueError(
+            f'{ident}: only a failed or unavailable Gaussian VPT2 task can recover.')
     if entry.get('job_id') and _job_active(entry['job_id']):
         raise RuntimeError(f'{ident}: Slurm job is still active.')
     if any(other != ident and other in state['tasks']
-           and state['tasks'][other].get('status') != 'blocked'
+           and state['tasks'][other].get('status') not in ('blocked', 'skipped')
            and ident in _task_dependencies(other_task)
            for other, other_task in by_id.items()):
         raise RuntimeError(f'{ident}: downstream task already exists; review run.')
@@ -1478,8 +1535,9 @@ def reroute_cfour_higher_order_to_mrcc(
             or parser.get('reference') != 'RHF'):
         raise ValueError(
             f'{ident}: rerouting requires a closed-shell CFOUR CCSDT(Q) task.')
-    if entry.get('status') != 'failed':
-        raise ValueError(f'{ident}: only a failed CFOUR task can be migrated.')
+    if entry.get('status') not in ('failed', 'unavailable'):
+        raise ValueError(
+            f'{ident}: only a failed or unavailable CFOUR task can be migrated.')
     if entry.get('job_id') and _job_active(entry['job_id']):
         raise RuntimeError(f'{ident}: Slurm job is still active.')
     _verify_stage_files(run_dir, task, entry)
@@ -1565,12 +1623,13 @@ def resume_mrcc_failed(run_dir, ident, *, walltime='7-00:00:00',
     if (task.get('kind') != 'external'
             or task.get('backend', '').lower() != 'mrcc'):
         raise ValueError(f'{ident}: resume-mrcc requires a direct MRCC task.')
-    if entry.get('status') != 'failed':
-        raise ValueError(f'{ident}: only a failed MRCC task can be resumed.')
+    if entry.get('status') not in ('failed', 'unavailable'):
+        raise ValueError(
+            f'{ident}: only a failed or unavailable MRCC task can be resumed.')
     if entry.get('job_id') and _job_active(entry['job_id']):
         raise RuntimeError(f'{ident}: Slurm job is still active.')
     if any(other != ident and other in state['tasks']
-           and state['tasks'][other].get('status') != 'blocked'
+           and state['tasks'][other].get('status') not in ('blocked', 'skipped')
            and ident in _task_dependencies(other_task)
            for other, other_task in by_id.items()):
         raise RuntimeError(f'{ident}: downstream task already exists; review run.')
@@ -1772,13 +1831,71 @@ def advance(run_dir, submit=False, submit_only=None):
         elif entry['status'] == 'submitted' and not _job_active(entry['job_id']):
             entry['status'] = 'failed'
             entry['error'] = 'Slurm job disappeared without execution.json.'
+            entry['failure_phase'] = 'scheduler'
+
+    # An optional component that cannot execute is unavailable at this
+    # requested level. Keep the failed native record for provenance, stop
+    # only explicitly related work that has not been submitted, and allow
+    # independent components to finish so the CBH ladder can use a lower
+    # complete composite. Parser/provenance failures remain hard failures.
+    skip_queue = []
+    for ident, entry in state['tasks'].items():
+        task = by_id[ident]
+        if (entry.get('status') != 'failed'
+                or task.get('failure_policy') != 'skip_component'):
+            continue
+        outcome = run_dir / 'tasks' / ident / 'execution.json'
+        execution = (json.loads(outcome.read_text())
+                     if outcome.is_file() else {})
+        phase = entry.get('failure_phase') or execution.get('failure_phase')
+        if phase not in ('execution', 'scheduler'):
+            continue
+        entry.update(
+            status='unavailable',
+            unavailable_reason=(execution.get('error')
+                                or entry.get('error')
+                                or 'native calculation unavailable'),
+            component_families=list(task.get('component_families', ())),
+        )
+        entry.pop('job_id', None)
+        skip_queue.extend((target, ident)
+                          for target in task.get('failure_skips', ())
+                          if target in by_id)
+
+    skipped_from = {}
+    while skip_queue:
+        target, source = skip_queue.pop(0)
+        target_task = by_id[target]
+        entry = state['tasks'].get(target)
+        if entry is not None and entry.get('status') in (
+                'submitted', 'complete', 'unavailable', 'failed'):
+            continue
+        sources = skipped_from.setdefault(target, set())
+        if source in sources:
+            continue
+        sources.add(source)
+        replacement = dict(entry or {})
+        replacement.update({
+            'status': 'skipped',
+            'geometry_from': target_task.get('geometry_from', 'initial'),
+            'skipped_by': sorted(sources),
+            'skip_reason': 'requested component is unavailable',
+            'component_families': list(
+                target_task.get('component_families', ())),
+        })
+        if entry is not None and entry.get('status') == 'staged':
+            replacement['resume_status'] = 'staged'
+        state['tasks'][target] = replacement
+        skip_queue.extend((child, target)
+                          for child in target_task.get('failure_skips', ())
+                          if child in by_id)
     for task in spec['tasks']:
         ident = task['id']
         dependencies = _task_dependencies(task)
         failed_dependencies = [
             dependency for dependency in dependencies
             if state['tasks'].get(dependency, {}).get('status') in
-            ('failed', 'blocked')]
+            ('failed', 'blocked', 'unavailable', 'skipped')]
         entry = state['tasks'].get(ident)
         if entry is not None and entry.get('status') == 'blocked':
             if failed_dependencies:
@@ -1792,10 +1909,14 @@ def advance(run_dir, submit=False, submit_only=None):
         if entry is not None:
             continue
         if failed_dependencies:
+            soft = all(state['tasks'][dependency].get('status') in
+                       ('unavailable', 'skipped')
+                       for dependency in failed_dependencies)
             state['tasks'][ident] = {
-                'status': 'blocked',
+                'status': 'skipped' if soft else 'blocked',
                 'geometry_from': task.get('geometry_from', 'initial'),
-                'blocked_by': failed_dependencies,
+                ('skipped_by' if soft else 'blocked_by'): failed_dependencies,
+                **({'skip_reason': 'dependency is unavailable'} if soft else {}),
             }
         elif all(state['tasks'].get(dep, {}).get('status') == 'complete'
                  for dep in dependencies):
@@ -1987,10 +2108,12 @@ def main(argv=None):
                 _, spec, _ = _load(run_dir)
                 summary = _summary(spec, state)
                 print(json.dumps(summary, sort_keys=True), flush=True)
-                terminal = {'complete', 'failed', 'blocked'}
+                terminal = {
+                    'complete', 'failed', 'blocked', 'unavailable', 'skipped'}
                 if all(value in terminal for value in summary.values()):
-                    return 0 if all(value == 'complete'
-                                    for value in summary.values()) else 1
+                    return 0 if all(value in (
+                        'complete', 'unavailable', 'skipped')
+                        for value in summary.values()) else 1
                 if args.once:
                     return int(any(value in ('failed', 'blocked')
                                    for value in summary.values()))

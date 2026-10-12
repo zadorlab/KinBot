@@ -19,7 +19,8 @@ import pytest
 from tests.anl_fixture import dispatch_spec
 from kinbot.ase_modules.calculators.factory import build_calculator
 from kinbot.anl.dispatch import (
-    _geometry_hash, _molpro_stack_mw, _molpro_total_mw, _runtime_profile, advance, main, prepare,
+    _geometry_hash, _mark_preflight_unavailable, _molpro_stack_mw,
+    _molpro_total_mw, _runtime_profile, advance, main, prepare,
     recover_gaussian_vpt2_symmetry,
     migrate_cfour_vcc_keyword, preflight, refresh_status, reparse_failed,
     reroute_cfour_higher_order_to_mrcc,
@@ -157,6 +158,48 @@ def test_general_graph_stages_geometry_then_all_independent_jobs():
         assert 'Freq=Anharmonic' in gaussian
         assert 'Opt=' not in gaussian
         assert '\n0 1\n' in gaussian
+
+
+def _fallback_dispatch_spec():
+    source = dispatch_spec()
+    primary = json.loads(json.dumps(source['tasks'][0]))
+    primary['failure_policy'] = 'skip_component'
+    primary['component_families'] = ['primary_geometry']
+    fallback = json.loads(json.dumps(source['tasks'][1]))
+    fallback['id'] = 'fallback_geometry'
+    fallback['geometry_from'] = 'initial'
+    fallback.pop('depends_on', None)
+    fallback['fallback_on'] = [primary['id']]
+    fallback['failure_policy'] = 'skip_component'
+    fallback['component_families'] = ['fallback_geometry']
+    return {
+        'schema': 1, 'name': 'conditional-fallback',
+        'molecule': source['molecule'], 'limits': {'max_nodes': 2},
+        'tasks': [primary, fallback],
+    }
+
+
+def test_conditional_fallback_is_not_staged_when_primary_completes(tmp_path):
+    run_dir = prepare(_fallback_dispatch_spec(), tmp_path / 'run')
+    assert not (run_dir / 'tasks' / 'fallback_geometry').exists()
+    _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+    state = advance(run_dir)
+    assert state['tasks']['l2_geometry']['status'] == 'complete'
+    assert state['tasks']['fallback_geometry']['status'] == 'skipped'
+    assert state['tasks']['fallback_geometry']['skip_reason'] == \
+        'higher tier completed; fallback not needed'
+
+
+def test_conditional_fallback_stages_after_primary_is_unavailable(tmp_path):
+    run_dir = prepare(_fallback_dispatch_spec(), tmp_path / 'run')
+    state_path = run_dir / 'state.json'
+    state = json.loads(state_path.read_text())
+    state['tasks']['l2_geometry']['status'] = 'unavailable'
+    state['tasks']['l2_geometry']['unavailable_reason'] = 'resource ceiling'
+    state_path.write_text(json.dumps(state))
+    state = advance(run_dir)
+    assert state['tasks']['fallback_geometry']['status'] == 'staged'
+    assert (run_dir / 'tasks' / 'fallback_geometry' / 'job.slurm').is_file()
 
 
 def test_frequency_only_vpt2_requires_matching_l2_geometry_surface():
@@ -779,6 +822,59 @@ def test_runtime_failure_makes_optional_component_unavailable_and_skips_unsent_w
         assert state['tasks']['large']['status'] == 'staged'
 
 
+def test_failed_l3_geometry_stages_single_points_on_l2_and_skips_only_frequency():
+    spec = interface_validation_spec(dispatch_spec()['molecule'])
+    for task in spec['tasks']:
+        task['resources'].update(
+            cores=4, memory_mb=64000, partition='test')
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        state = advance(run_dir)
+        l2_hash = state['tasks']['l2_geometry']['final_geometry_sha256']
+        l3 = state['tasks']['l3_geometry']
+        (run_dir / 'tasks' / 'l3_geometry' / 'execution.json').write_text(
+            json.dumps({
+                'schema': 1, 'task_id': 'l3_geometry',
+                'geometry_sha256': l3['geometry_sha256'],
+                'status': 'failed', 'failure_phase': 'execution',
+                'error': 'optimizer exhausted its step limit',
+            }))
+
+        state = advance(run_dir)
+        assert state['tasks']['l3_geometry']['status'] == 'unavailable'
+        assert state['tasks']['harmonic']['status'] == 'skipped'
+        for ident in ('f12_tz', 'f12_qz', 'cfour_dboc'):
+            assert state['tasks'][ident]['status'] == 'staged'
+            assert state['tasks'][ident]['geometry_from'] == 'l2_geometry'
+            assert state['tasks'][ident]['geometry_sha256'] == l2_hash
+
+
+def test_l3_preflight_failure_uses_the_same_l2_single_point_fallback():
+    spec = interface_validation_spec(dispatch_spec()['molecule'])
+    for task in spec['tasks']:
+        task['resources'].update(
+            cores=4, memory_mb=64000, partition='test')
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        _mock_execution(run_dir, 'l2_geometry', geometry='final.xyz')
+        state = advance(run_dir)
+        l2_hash = state['tasks']['l2_geometry']['final_geometry_sha256']
+        _mark_preflight_unavailable(
+            spec, state, 'l3_geometry', 'calculator unavailable')
+        (run_dir / 'state.json').write_text(json.dumps(state))
+
+        state = advance(run_dir)
+        assert state['tasks']['l3_geometry']['status'] == 'unavailable'
+        assert state['tasks']['harmonic']['status'] == 'skipped'
+        for ident in ('f12_tz', 'f12_qz', 'cfour_dboc'):
+            assert state['tasks'][ident]['status'] == 'staged'
+            assert state['tasks'][ident]['geometry_from'] == 'l2_geometry'
+            assert state['tasks'][ident]['geometry_sha256'] == l2_hash
+
+
 def test_parser_failure_of_optional_component_remains_a_hard_failure():
     tasks = []
     for ident in ('first', 'second'):
@@ -1244,6 +1340,7 @@ def test_failed_one_electron_f12_scale_nan_is_recovered_without_qc():
     generated = interface_validation_spec(molecule)
     task = next(item for item in generated['tasks'] if item['id'] == 'f12_tz')
     task['geometry_from'] = 'initial'
+    task.pop('geometry_fallback', None)
     task['resources'] = {
         'cores': 4, 'memory_mb': 50000, 'walltime': '04:00:00',
         'min_stack_mw': 1024,

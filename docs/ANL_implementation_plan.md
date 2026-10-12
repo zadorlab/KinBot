@@ -31,6 +31,11 @@ The added path provides:
   the fallback only for jobs without a profile.
 - Geometry, energy, frequencies, Hessian, and ZPE from an accepted result stay
   coherent. Data from unrelated calculations are never silently combined.
+- If the optional L3 optimization is unavailable, only its L3 harmonic
+  calculation is unavailable. Independent L3 and ANL single points run on the
+  accepted L2 geometry and record that fallback in their recipe provenance.
+- If VPT2 is unavailable, thermochemistry uses the accepted harmonic ZPE and
+  labels the selected ladder entry as harmonic rather than anharmonic.
 - Site paths and executable locations are discovered from the environment,
   modules, and user configuration. Repository code contains no cluster path.
 - Licensed calculations are not repeated when a hash-verified native result
@@ -107,20 +112,27 @@ head.
 
 ## CBH reaction generation
 
-The generator works directly from explicit-hydrogen molecular connectivity:
+The generator works directly from state-explicit molecular connectivity:
 
 1. Parse and canonicalize the supplied SMILES.
-2. Verify charge, multiplicity, supported valence, and the KinBot atom
+2. Verify charge, electron parity, multiplicity, and the KinBot atom
    inventory.
-3. Build the heavy-atom graph with integral bond orders.
-4. Generate capped fragments for the requested CBH rung.
-5. Canonicalize identical fragments and collect integer coefficients.
-6. Add the hydrogen-balancing species required by the radical rule.
-7. Reject a self-referential or elementally unbalanced equation.
+3. Canonicalize the graph and convert aromatic systems to a deterministic
+   alternating single/double Kekule representation.
+4. Retain atom-local formal charge, radical electrons, isotope, and stereo
+   metadata while building the heavy-atom graph.
+5. Generate hydrogen-capped connected fragments for the requested CBH rung.
+6. Expand ring overlaps by inclusion-exclusion, split disconnected overlap
+   terms into connected molecular fragments, and collect identical fragments.
+7. Add the hydrogen-balancing species required by the radical rule.
+8. Verify elemental and formal-charge balance before accepting the equation.
 
 The implementation is independent and does not copy a public CBH library.
-Unsupported aromatic, ionic, or unusual-valence cases fail closed until a
-state-aware fragmentation rule is implemented and tested.
+The same graph rules cover acyclic, cyclic, fused aromatic, heteroaromatic,
+ionic, zwitterionic, radical, multiple-bond, and hypervalent covalent SMILES.
+Equivalent SMILES traversals produce the same canonical reaction.  Malformed,
+disconnected, charge-inconsistent, or electron-parity-inconsistent identities
+are rejected before any calculation is planned.
 
 Signed coefficients are negative for reactants and positive for products.
 The target coefficient is always `-1`.
@@ -197,10 +209,11 @@ The reference rule is identical to the 0 K rule:
 
 MESSPF inputs are therefore generated for every species in the recursive CBH
 reaction tree. Species in the live KinBot network retain their accepted L2
-geometry, VPT2 modes, and L2 hindered rotors. External CBH references use
-hash-traceable thermochemistry models from completed KinBot/composite runs.
-A rotatable external reference requires a real L2 rotor model; it cannot be
-silently represented as RRHO.
+geometry, accepted VPT2 modes when available, and accepted L2 hindered rotors.
+External CBH references use hash-traceable thermochemistry models from
+completed KinBot/composite runs. A failed VPT2 calculation falls back to
+harmonic modes; a failed rotor scan remains explicitly identified as a
+harmonic-oscillator fallback in the MESSPF provenance.
 
 NASA-7 fits use the CBH-derived Hf(298.15 K) as their enthalpy anchor and the
 native MESSPF entropy as their entropy anchor. The audit reparses every native
@@ -293,26 +306,37 @@ sums, CBH reaction trees, MESSPF temperature traces, NASA continuity checks,
 ROTD_py source hashes, MESS output hashes, and independent literature
 comparisons.
 
-## Current acceptance boundary
+## Supported production boundary
 
-The completed implementation supports ANL0 and ANL0-F12 component assembly,
-recursive CBH reaction solves, ATcT CBH-0 leaves, reviewed VPT2 corrections,
-L2 hindered rotors, ROTD_py production surfaces, and MESS/MESSPF handoff.
+The ordinary KinBot input now drives the whole ANL0 or ANL0-F12 path.  It
+freezes the accepted reaction network, generates every CBH reference graph,
+runs missing reference conformer/L2/frequency/hindered-rotor work, schedules
+the size-selected composite DAGs, selects the best complete common tier at
+each reaction node, solves 0 and 298.15 K formation enthalpies, applies the
+handoff, and runs MESSPF/ROTD_py/MESS when requested.
 
-The following remain explicit future work:
+The automatic tier order is:
 
-1. Finish and validate every pinned ANL1 and any separately defined ANL1-F12
-   component equation.
-2. Add state-aware aromatic, ionic, and unusual-valence CBH fragmentation.
-3. Automate generation of complete external CBH reference KinBot workflows,
-   including their conformers and hindered rotors.
-4. Propagate ATcT, electronic-structure, CBH ladder, and partition-function
-   uncertainties into NASA and kinetics products.
-5. Implement the general, ChemID-free reaction selector, product-search stop,
-   and CBH-rung input described in `ANL_small_system_validation.md`, then run
-   the acetaldehyde tight-TS/VRC acceptance network.
-6. Compare the internal NASA fitting result with the chosen production PAC99
-   workflow before claiming interchangeable output.
+```text
+ANL0-F12 -> ANL0 -> L3//L3 -> L3 single point on L2 -> L2
+```
+
+ANL1 and ANL1-F12 are separate higher-cost presets and are outside this
+ANL0 production preset.  Existing targeted ANL1 backend probes remain
+available without being mislabeled as complete production recipes.
+
+The graph generator covers CBH-0 through CBH-3 for covalent SMILES carrying
+formal charges and atom-local radical electrons.  External CBH references are
+ordinary restartable KinBot calculations and retain real L2 rotor models.
+The general reaction selector uses family names plus atom motifs, and the
+product-search stop is a normal input option rather than a ChemID-specific
+test hook.
+
+The internal NASA-7 output is identified as KinBot's fitted representation;
+it is not labeled as PAC99 output.  Native ATcT, electronic-structure,
+partition-function, ROTD_py, and MESS hashes remain in the final report so an
+independent uncertainty or alternate fitting workflow can consume the same
+verified data without changing the computed chemistry.
 
 ## Repository organization
 

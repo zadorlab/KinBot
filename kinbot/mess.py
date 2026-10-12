@@ -253,8 +253,7 @@ class MESS:
 
     def _cbh_anl_mode(self):
         """CBH/ANL requests use formation enthalpies as the MESS energy axis."""
-        return bool(self.par.get('composite_method')
-                    or getattr(self.species, 'formation_enthalpy_0k', None))
+        return getattr(self.species, 'formation_enthalpy_0k', None) is not None
 
     def _stable_species(self):
         result = [self.species]
@@ -478,6 +477,70 @@ class MESS:
         destination.write_text(text)
         return destination
 
+    def thermochemistry_model(self, species):
+        """Export the accepted L2 RRHO/HR model for an external CBH state."""
+        from kinbot.anl.atct import _canonical_smiles
+        from kinbot.anl.dispatch import _geometry_hash
+        from ase import Atoms
+        if species.natom > 1 and (not hasattr(species, 'sigma_ext')
+                                  or not hasattr(species, 'nopt')):
+            from kinbot.symmetry import calculate_symmetry
+            calculate_symmetry(species)
+        frequencies = ([] if species.natom == 1
+                       else list(map(float, self._stable_frequencies(species))))
+        rotor_blocks = ('' if species.natom == 1
+                        else self.make_rotors(species, 1.))
+        symbols = list(map(str, species.atom))
+        positions = np.asarray(species.geom, dtype=float)
+        source = {
+            'provider': 'kinbot-accepted-l2',
+            'source_job': getattr(species, 'source_job', None),
+            'source_row_id': getattr(species, 'source_row_id', None),
+            'electronic_energy_hartree': float(species.energy),
+            'harmonic_zpe_hartree': float(species.zpe),
+            'geometry_sha256': _geometry_hash(Atoms(
+                symbols=symbols, positions=positions)),
+        }
+        source['record_sha256'] = hashlib.sha256(json.dumps(
+            source, sort_keys=True,
+            separators=(',', ':')).encode()).hexdigest()
+        return {
+            'smiles': _canonical_smiles(species.smiles),
+            'name': routing_name(species),
+            'charge': int(species.charge),
+            'multiplicity': int(species.mult),
+            'symbols': symbols,
+            'positions': positions.tolist(),
+            'symmetry_factor': (1. if species.natom == 1 else
+                                float(species.sigma_ext)
+                                / float(species.nopt)),
+            'frequencies_cm_inverse': frequencies,
+            'hindered_rotor_blocks': rotor_blocks,
+            'hindered_rotor_source': self._hindered_rotor_source(
+                species, rotor_blocks),
+            'source': source,
+        }
+
+    @staticmethod
+    def _hindered_rotor_source(species, rotor_blocks):
+        """Describe the torsional model actually written to MESS/MESSPF."""
+        if re.search(r'^\s*Rotor\s+(?:Hindered|Free)\b',
+                     rotor_blocks, flags=re.MULTILINE):
+            return 'kinbot_l2'
+        if not getattr(species, 'dihed', None):
+            return 'none-no-rotatable-bonds'
+        return 'harmonic_fallback'
+
+    def write_thermochemistry_model(self, species, destination):
+        """Write one schema-1 model library consumed by MESSPF."""
+        model = self.thermochemistry_model(species)
+        destination = Path(destination).expanduser().resolve()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps({
+            'schema': 1, 'species': {model['smiles']: model}},
+            indent=2, sort_keys=True) + '\n')
+        return destination
+
     def _partition_function_temperatures(self):
         return sorted(set(float(value) for value in
                           (*self.par['TemperatureList'], 298.15)))
@@ -593,7 +656,8 @@ class MESS:
                     is not None else 'kinbot_l2'),
                 'frequency_provenance': getattr(
                     species, 'anl_thermochemistry_frequency_source', None),
-                'hindered_rotor_source': 'kinbot_l2',
+                'hindered_rotor_source': self._hindered_rotor_source(
+                    species, path.read_text()),
                 'role': 'network',
             }
         required_smiles = set()

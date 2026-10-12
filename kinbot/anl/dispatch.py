@@ -127,9 +127,23 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
     source = task.get('geometry_from', 'initial')
     if source != 'initial' and source not in ids:
         raise ValueError(f'{ident}: unknown geometry source {source!r}.')
+    fallback = task.get('geometry_fallback')
+    if fallback is not None:
+        if (source == 'initial' or fallback == source
+                or (fallback != 'initial' and fallback not in ids)):
+            raise ValueError(f'{ident}: invalid geometry_fallback {fallback!r}.')
     dependencies = task.get('depends_on', [])
     if not isinstance(dependencies, list) or any(dep not in ids for dep in dependencies):
         raise ValueError(f'{ident}: depends_on must contain task ids.')
+    fallback_on = task.get('fallback_on', [])
+    if ('fallback_on' in task
+            and (not isinstance(fallback_on, list) or not fallback_on)):
+        raise ValueError(f'{ident}: fallback_on must contain task ids.')
+    if (any(dep not in ids or dep == ident for dep in fallback_on)
+            or len(fallback_on) != len(set(fallback_on))
+            or set(fallback_on) & set(dependencies)):
+        raise ValueError(
+            f'{ident}: fallback_on must contain distinct alternative task ids.')
     failure_policy = task.get('failure_policy')
     if failure_policy not in (None, 'skip_component'):
         raise ValueError(f'{ident}: unsupported failure_policy.')
@@ -192,7 +206,7 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
             raise ValueError(f'{ident}: selected ASE calculator has no force capability.')
         options = task.get('optimizer', {})
         if (not isinstance(options, dict) or
-                set(options) - {'fmax', 'steps', 'sella_kwargs'}):
+                set(options) - {'fmax', 'steps', 'sella_kwargs', 'order'}):
             raise ValueError(f'{ident}: invalid optimizer options.')
         if ('sella_kwargs' in options and not isinstance(options['sella_kwargs'], dict)):
             raise ValueError(f'{ident}: sella_kwargs must be an object.')
@@ -203,6 +217,11 @@ def _validate_task(task, ids, limits, *, allow_obsolete=False):
             raise ValueError(f'{ident}: fmax must be a positive finite number.')
         if 'steps' in options:
             _positive_integer(options['steps'], f'{ident} steps')
+        if (isinstance(options.get('order', 0), bool)
+                or options.get('order', 0) not in (0, 1)):
+            raise ValueError(f'{ident}: optimizer order must be 0 or 1.')
+        if options.get('order', 0) and profile.optimizer != 'sella':
+            raise ValueError(f'{ident}: a saddle optimization requires Sella.')
     else:
         _basename(task.get('backend'), f'{ident} backend')
         _basename(task.get('input_name'), f'{ident} input_name')
@@ -430,10 +449,27 @@ def _load(run_dir):
     return run_dir, spec, state
 
 
-def _task_dependencies(task):
+def _geometry_source(task, state=None):
+    """Return the primary or declared fallback geometry source.
+
+    The choice becomes deterministic only after the primary geometry task is
+    terminal. It is recorded in the staged state, so retries and provenance
+    checks never infer a different geometry later.
+    """
+    source = task.get('geometry_from', 'initial')
+    fallback = task.get('geometry_fallback')
+    if (state is not None and fallback is not None and source != 'initial'
+            and state['tasks'].get(source, {}).get('status') in
+            ('unavailable', 'skipped')):
+        return fallback
+    return source
+
+
+def _task_dependencies(task, state=None):
     dependencies = set(task.get('depends_on', []))
-    if task.get('geometry_from', 'initial') != 'initial':
-        dependencies.add(task['geometry_from'])
+    source = _geometry_source(task, state)
+    if source != 'initial':
+        dependencies.add(source)
     return dependencies
 
 
@@ -556,7 +592,7 @@ def _stage_task(run_dir, spec, state, task):
     directory = run_dir / 'tasks' / ident
     if directory.exists():
         raise RuntimeError(f'{ident}: existing task directory needs manual review.')
-    source = task.get('geometry_from', 'initial')
+    source = _geometry_source(task, state)
     if source == 'initial':
         atoms = _atoms(spec['molecule'])
     else:
@@ -638,7 +674,7 @@ def prepare(spec_path, run_dir):
              'spec_sha256': hashlib.sha256((run_dir / 'workflow.json').read_bytes()).hexdigest(),
              'tasks': {}}
     for task in spec['tasks']:
-        if not _task_dependencies(task):
+        if not _task_dependencies(task) and not task.get('fallback_on'):
             _stage_task(run_dir, spec, state, task)
     _atomic_json(run_dir / 'state.json', state)
     return run_dir
@@ -1062,7 +1098,7 @@ def _run_ase_optimize(directory, record):
     common = {'trajectory': str(directory / 'optimization.traj'),
               'logfile': str(directory / 'optimization.log')}
     if len(atoms) > 2 and profile.optimizer == 'sella':
-        optimizer = Sella(atoms, order=0,
+        optimizer = Sella(atoms, order=options.get('order', 0),
                           **common, **options.get('sella_kwargs', {}))
     else:
         optimizer = BFGS(atoms, **common)
@@ -1074,6 +1110,7 @@ def _run_ase_optimize(directory, record):
     write(directory / 'final.xyz', atoms)
     return {'energy_ev': energy_ev, 'energy_hartree': energy_ev / Hartree,
             'optimizer': profile.optimizer if len(atoms) > 2 else 'bfgs_or_atom',
+            'order': options.get('order', 0),
             'generated_files': getattr(atoms.calc, 'generated_files', [])}
 
 
@@ -1243,7 +1280,71 @@ def _refresh_generated_site_setup(run_dir, backend, programs):
     return True
 
 
-def preflight(run_dir, _site_refresh_attempts=None):
+def _mark_preflight_unavailable(spec, state, ident, reason):
+    """Record one optional environment failure and its unsent dependants."""
+    by_id = {task['id']: task for task in spec['tasks']}
+    task = by_id[ident]
+    if task.get('failure_policy') != 'skip_component':
+        raise ValueError(f'{ident}: preflight failure is not optional.')
+    entry = dict(state['tasks'].get(ident, {}))
+    if entry.get('status') in ('submitted', 'complete'):
+        raise RuntimeError(
+            f'{ident}: cannot make a submitted or complete task unavailable.')
+    entry.update({
+        'status': 'unavailable', 'failure_phase': 'preflight',
+        'unavailable_reason': reason,
+        'component_families': list(task.get('component_families', ())),
+    })
+    entry.pop('job_id', None)
+    state['tasks'][ident] = entry
+
+    queue = [(target, ident) for target in task.get('failure_skips', ())]
+    while queue:
+        target, source = queue.pop(0)
+        if target not in by_id:
+            continue
+        current = state['tasks'].get(target)
+        if current is not None and current.get('status') in (
+                'submitted', 'complete', 'unavailable', 'failed'):
+            continue
+        target_task = by_id[target]
+        state['tasks'][target] = {
+            'status': 'skipped',
+            'geometry_from': target_task.get('geometry_from', 'initial'),
+            'skipped_by': [source],
+            'skip_reason': 'requested component is unavailable',
+            'component_families': list(
+                target_task.get('component_families', ())),
+        }
+        queue.extend((child, target)
+                     for child in target_task.get('failure_skips', ()))
+
+    changed = True
+    while changed:
+        changed = False
+        for dependent in spec['tasks']:
+            target = dependent['id']
+            current = state['tasks'].get(target)
+            if current is not None and current.get('status') in (
+                    'submitted', 'complete', 'unavailable', 'failed', 'skipped'):
+                continue
+            unavailable = [
+                dependency for dependency in _task_dependencies(
+                    dependent, state)
+                if state['tasks'].get(dependency, {}).get('status') in
+                ('unavailable', 'skipped')]
+            if not unavailable:
+                continue
+            state['tasks'][target] = {
+                'status': 'skipped',
+                'geometry_from': dependent.get('geometry_from', 'initial'),
+                'skipped_by': unavailable,
+                'skip_reason': 'dependency is unavailable',
+            }
+            changed = True
+
+
+def preflight(run_dir, _site_refresh_attempts=None, *, skip_optional=False):
     """Check login-node tools and the same site setup sourced by batch jobs."""
     run_dir, spec, state = _load(run_dir)
     refresh_attempts = (set() if _site_refresh_attempts is None
@@ -1255,6 +1356,8 @@ def preflight(run_dir, _site_refresh_attempts=None):
     env_files = set()
     for task in spec['tasks']:
         entry = state['tasks'].get(task['id'])
+        if entry and entry.get('status') in ('unavailable', 'skipped'):
+            continue
         if entry and entry['status'] in ('staged', 'submitted', 'complete'):
             _verify_stage_files(run_dir, task, entry)
             script = (run_dir / 'tasks' / task['id'] / 'job.slurm').read_text()
@@ -1320,9 +1423,16 @@ def preflight(run_dir, _site_refresh_attempts=None):
                 if _refresh_generated_site_setup(
                         run_dir, refresh_key[0], refresh_key[1]):
                     refreshed = preflight(
-                        run_dir, _site_refresh_attempts=refresh_attempts)
+                        run_dir, _site_refresh_attempts=refresh_attempts,
+                        skip_optional=skip_optional)
                     refreshed['site_setup_refreshed'] = True
                     return refreshed
+            if (skip_optional
+                    and task.get('failure_policy') == 'skip_component'):
+                _mark_preflight_unavailable(
+                    spec, state, task['id'], detail)
+                _atomic_json(run_dir / 'state.json', state)
+                continue
             raise RuntimeError(f"{task['id']}: preflight failed after site setup: "
                                + detail)
     checked = 0
@@ -1334,8 +1444,15 @@ def preflight(run_dir, _site_refresh_attempts=None):
                                 cwd=run_dir / 'tasks' / task['id'],
                                 capture_output=True, text=True, check=False)
         if result.returncode:
+            detail = result.stderr.strip() or result.stdout.strip()
+            if (skip_optional
+                    and task.get('failure_policy') == 'skip_component'):
+                _mark_preflight_unavailable(
+                    spec, state, task['id'], detail)
+                _atomic_json(run_dir / 'state.json', state)
+                continue
             raise RuntimeError(f"{task['id']}: Slurm rejected test-only batch script: "
-                               + (result.stderr.strip() or result.stdout.strip()))
+                               + detail)
         checked += 1
     return {'programs': sorted(programs), 'file_variables': sorted(env_files),
             'exclusive_jobs_checked': len(state['tasks']),
@@ -1891,7 +2008,7 @@ def advance(run_dir, submit=False, submit_only=None):
                           if child in by_id)
     for task in spec['tasks']:
         ident = task['id']
-        dependencies = _task_dependencies(task)
+        dependencies = _task_dependencies(task, state)
         failed_dependencies = [
             dependency for dependency in dependencies
             if state['tasks'].get(dependency, {}).get('status') in
@@ -1908,6 +2025,24 @@ def advance(run_dir, submit=False, submit_only=None):
             entry = None
         if entry is not None:
             continue
+        fallback_on = task.get('fallback_on', ())
+        if fallback_on:
+            fallback_states = {
+                dependency: state['tasks'].get(dependency, {}).get('status')
+                for dependency in fallback_on}
+            if any(value == 'complete' for value in fallback_states.values()):
+                state['tasks'][ident] = {
+                    'status': 'skipped',
+                    'geometry_from': task.get('geometry_from', 'initial'),
+                    'skip_reason': 'higher tier completed; fallback not needed',
+                    'fallback_on': list(fallback_on),
+                }
+                continue
+            if not all(value in ('unavailable', 'skipped')
+                       for value in fallback_states.values()):
+                # A pending trigger must finish before fallback is decided.
+                # A hard failed/blocked trigger remains visible to the caller.
+                continue
         if failed_dependencies:
             soft = all(state['tasks'][dependency].get('status') in
                        ('unavailable', 'skipped')

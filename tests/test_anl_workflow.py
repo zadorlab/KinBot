@@ -585,6 +585,39 @@ def test_one_electron_f12_cbs_ignores_only_legacy_rank_recovery_metadata():
             geometry_sources=geometry_sources, electron_count=1)
 
 
+def test_conventional_anl0_cbs_pins_native_aug_prime_pair():
+    requirement = next(item for item in recipe('ANL0').requirements
+                       if item.key == 'reference_cbs')
+    lower_basis, upper_basis = requirement.settings['native_basis_pair']
+    geometry = '5' * 64
+    settings = {
+        'reference': 'RHF', 'correlation': 'unrestricted',
+        'program_variant': 'RHF-UCCSD(T)',
+    }
+
+    def component(key, basis, value, digest):
+        return ComponentResult(
+            key=key, value_hartree=value, quantity='electronic',
+            method='CCSD(T)', basis=basis, backend='molpro',
+            state_id='state-A', charge=0, multiplicity=1,
+            geometry_sha256=geometry, source_sha256=digest,
+            source=f'{key}.out', settings=settings)
+
+    sources = (
+        {'task_id': 'l3_geometry', 'geometry_sha256': geometry},
+        {'task_id': 'l3_geometry', 'geometry_sha256': geometry},
+    )
+    result = _cbs_components(
+        component('anl0_qz', lower_basis, -40.0, '6' * 64),
+        component('anl0_5z', upper_basis, -40.1, '7' * 64),
+        requirement=requirement, lower_basis=lower_basis,
+        upper_basis=upper_basis, geometry_sources=sources,
+        electron_count=10)
+    assert result.basis == "CBS(a'QZ,a'5Z)//cc-pVTZ"
+    assert result.settings['native_basis_pair'] == (
+        lower_basis, upper_basis)
+
+
 def test_cbs_pair_rejects_incomplete_or_changed_native_output():
     with TemporaryDirectory() as temporary:
         run_dir = _completed_f12_pair(Path(temporary))

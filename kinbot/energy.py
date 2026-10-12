@@ -192,14 +192,22 @@ def formation_enthalpy_0k_kj_mol(species) -> float:
 def attach_zero_k_barrier(reaction, reactant, transition_state=None) -> ZeroKBarrier:
     """Freeze a same-method ANL E0 difference on a KinBot reaction."""
     transition_state = transition_state or reaction.ts
-    reactant_energy = getattr(reactant, 'final_zero_k_energy', None)
-    transition_energy = getattr(transition_state, 'final_zero_k_energy', None)
+    reactant_energy = (getattr(reactant, 'barrier_zero_k_energy', None)
+                       or getattr(reactant, 'final_zero_k_energy', None))
+    transition_energy = (
+        getattr(transition_state, 'barrier_zero_k_energy', None)
+        or getattr(transition_state, 'final_zero_k_energy', None))
     if not isinstance(reactant_energy, ZeroKEnergy) or not isinstance(
             transition_energy, ZeroKEnergy):
         raise ValueError('A CBH/ANL transition-state barrier needs accepted 0 K '
                          'energies for the reactant and transition state.')
-    species_zero_k_hartree(reactant)
-    species_zero_k_hartree(transition_state)
+    for point, energy in ((reactant, reactant_energy),
+                          (transition_state, transition_energy)):
+        identity = getattr(point, 'anl_identity_smiles', None) or point.smiles
+        if ((energy.charge, energy.multiplicity) !=
+                (point.charge, point.mult) or energy.smiles != identity
+                or not math.isfinite(energy.hartree) or not energy.source):
+            raise ValueError('A CBH/ANL barrier energy has invalid identity.')
     if reactant_energy.method != transition_energy.method:
         raise ValueError('A CBH/ANL transition-state barrier must use one accepted '
                          'method for the reactant and transition state.')
@@ -219,8 +227,11 @@ def reaction_barrier_0k_kj_mol(reaction, reactant) -> float:
         barrier = attach_zero_k_barrier(reaction, reactant)
     if not isinstance(barrier, ZeroKBarrier) or not math.isfinite(barrier.barrier_0k_kj_mol):
         raise ValueError(f'{reaction.instance_name}: invalid 0 K barrier.')
-    reactant_energy = getattr(reactant, 'final_zero_k_energy', None)
-    transition_energy = getattr(reaction.ts, 'final_zero_k_energy', None)
+    reactant_energy = (getattr(reactant, 'barrier_zero_k_energy', None)
+                       or getattr(reactant, 'final_zero_k_energy', None))
+    transition_energy = (
+        getattr(reaction.ts, 'barrier_zero_k_energy', None)
+        or getattr(reaction.ts, 'final_zero_k_energy', None))
     if (not isinstance(reactant_energy, ZeroKEnergy)
             or not isinstance(transition_energy, ZeroKEnergy)
             or barrier.reactant_smiles != reactant_energy.smiles

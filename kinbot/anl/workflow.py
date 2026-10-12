@@ -552,7 +552,37 @@ def cbs_task_component(run_dir, lower_task_id, upper_task_id, *,
 
 def _verified_optimized_geometry(run_dir, tasks, state, task, component, *,
                                  expected_method=None, expected_basis=None):
-    source_id = task.get('geometry_from', 'initial')
+    source_id = state['tasks'].get(task['id'], {}).get(
+        'geometry_from', task.get('geometry_from', 'initial'))
+    if source_id == 'initial':
+        # Automatic post-L2 graphs bind their initial geometry to the exact
+        # accepted KinBot record and its resolved theory.  This is the only
+        # valid optimized-geometry substitute for an unavailable L3 point.
+        try:
+            _, specification, _ = _load(run_dir)
+            spec_source = specification['molecule']['source']
+            theory = spec_source['l2_theory']
+        except (KeyError, TypeError):
+            spec_source = None
+            theory = None
+        method = expected_method or component.method.removesuffix('-D3BJ')
+        basis = expected_basis or component.basis
+        if (not isinstance(spec_source, dict)
+                or not isinstance(theory, dict)
+                or not re.fullmatch(
+                    r'[0-9a-f]{64}', str(spec_source.get('record_sha256')))
+                or theory.get('calculator') != 'gaussian'
+                or theory.get('method', '').casefold() != method.casefold()
+                or theory.get('basis', '').casefold() != basis.casefold()
+                or spec_source.get('geometry_sha256') !=
+                   component.geometry_sha256):
+            raise ValueError(
+                f"{task['id']}: accepted L2 geometry provenance differs.")
+        return {
+            'task_id': 'initial',
+            'geometry_sha256': component.geometry_sha256,
+            'record_sha256': spec_source.get('record_sha256'),
+        }
     source_task = tasks.get(source_id)
     if source_task is None or source_task.get('kind') != 'ase_optimize':
         raise ValueError(f"{task['id']}: CBS input needs an optimized geometry.")
@@ -627,9 +657,15 @@ def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis,
     if not allowed or 'composite' not in requirement.backends:
         raise ValueError('Recipe requirement is not a supported CBS term.')
     basis_pair = f'CBS({lower_basis},{upper_basis})'
+    native_pair = requirement.settings.get('native_basis_pair')
+    if native_pair is not None:
+        if (not isinstance(native_pair, (tuple, list))
+                or tuple(native_pair) != (lower_basis, upper_basis)):
+            raise ValueError('CBS native basis pair disagrees with the recipe.')
     if (not lower_basis or not upper_basis or lower_basis == upper_basis
-            or not (requirement.basis == basis_pair
-                    or requirement.basis.startswith(basis_pair + '//'))):
+            or (native_pair is None
+                and not (requirement.basis == basis_pair
+                         or requirement.basis.startswith(basis_pair + '//')))):
         raise ValueError('CBS basis pair disagrees with the recipe.')
     if (lower.basis, upper.basis) != (lower_basis, upper_basis):
         raise ValueError('CBS native basis order differs from the recipe.')
@@ -676,7 +712,8 @@ def _cbs_components(lower, upper, *, requirement, lower_basis, upper_basis,
         raise ValueError('CBS recipe lacks cardinal number or exponent.')
     for key, value in settings.items():
         if key not in ('extrapolation_power', 'upper_cardinal', 'geometry_mode',
-                       'geometry_method', 'geometry_basis') \
+                       'geometry_method', 'geometry_basis',
+                       'native_basis_pair') \
                 and lower.settings.get(key) != value:
             raise ValueError(f'CBS input {key} setting differs from the recipe.')
     for item in (lower, upper):

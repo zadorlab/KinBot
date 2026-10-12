@@ -53,6 +53,14 @@ class StationaryPoint:
         self.zpe = 0.
         # Set only after a complete, provenance-checked composite evaluation.
         self.final_zero_k_energy = None
+        # Optional same-recipe harmonic-ZPE energy used only for tight
+        # transition-state barriers.  Stable-species thermochemistry keeps
+        # ``final_zero_k_energy`` with its accepted anharmonic correction.
+        self.barrier_zero_k_energy = None
+        # Tight transition states do not have a unique equilibrium SMILES.
+        # ANL handoff records the explicit reactant-connectivity anchor used
+        # to identify their energy without changing ``self.smiles``.
+        self.anl_identity_smiles = None
         self.formation_enthalpy_0k = None
         # Optional harmonic frequencies plus an accepted VPT2 correction.
         # MESS kinetics and MESSPF must consume this same array.

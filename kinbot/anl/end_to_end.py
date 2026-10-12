@@ -325,6 +325,14 @@ def _write_handoff(base, specification, composites, solved):
             raise ValueError(
                 f'handoff species {routing} has unknown record '
                 f'{error.args[0]!r}.') from error
+        if entry.get('barrier_composite') is not None:
+            try:
+                record['barrier_composite'] = str(
+                    composites[entry['barrier_composite']]['path'])
+            except KeyError as error:
+                raise ValueError(
+                    f'handoff species {routing} has unknown barrier '
+                    f'composite {error.args[0]!r}.') from error
         vpt2 = _vpt2_entry(base, entry.get('vpt2'),
                            f'handoff.species.{routing}.vpt2')
         if vpt2 is not None:
@@ -647,6 +655,15 @@ def _audit_handoff(base, data, run_dir):
                 files[key] = {
                     'path': str(path), 'sha256': expected_hash,
                 }
+            if record.get('barrier_composite') is not None:
+                path = Path(record['barrier_composite']).expanduser().resolve()
+                expected_hash = record.get('barrier_composite_sha256')
+                if not path.is_file() or expected_hash != _sha256(path):
+                    raise ValueError(
+                        f'{ident}: applied barrier composite failed hash '
+                        'verification.')
+                files['barrier_composite'] = {
+                    'path': str(path), 'sha256': expected_hash}
             group_records[ident] = {
                 'method': record.get('method'),
                 'zero_k_hartree': record.get('zero_k_hartree'),

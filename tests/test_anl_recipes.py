@@ -72,6 +72,9 @@ def test_complete_anl0_expressions_include_zpe_once(name):
         assert components['reference_cbs'].settings['scale_trip'] == 1
     else:
         assert components['reference_cbs'].method == 'CCSD(T)'
+        assert components['reference_cbs'].settings['native_basis_pair'] == (
+            'aug-cc-pVQZ,h=cc-pVQZ',
+            'aug-cc-pV5Z,h=cc-pV5Z')
 
 
 def test_anl1_cross_program_higher_order_pairs_and_profiled_label():
@@ -128,6 +131,23 @@ def test_optional_vpt2_cbs_remains_one_zero_point_correction():
     assert result.zero_point_hartree == pytest.approx(0.09)
     assert components['vpt2_correction'].basis == 'CBS(cc-pVTZ,cc-pVQZ)'
     assert components['vpt2_correction'].backend == 'composite'
+
+
+def test_l2_geometry_and_harmonic_fallbacks_are_explicit_recipe_variants():
+    equation = recipe(
+        'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+        fallback_geometry_method='B2PLYP',
+        fallback_harmonic_method='B2PLYP-D3BJ',
+        fallback_basis='cc-pVTZ')
+    requirements = {item.key: item for item in equation.requirements}
+    assert requirements['reference_cbs'].settings['geometry_method'] == 'B2PLYP'
+    assert requirements['harmonic_zpe'].method == 'B2PLYP-D3BJ'
+    assert requirements['harmonic_zpe'].geometry_role == 'l2'
+    assert requirements['harmonic_zpe'].backends == ('kinbot',)
+    assert 'B2PLYP/cc-pVTZ-geometry' in equation.name
+    assert 'B2PLYP-D3BJ/cc-pVTZ-ZPE' in equation.name
+    components = components_for(equation)
+    assert evaluate(equation, components).recipe == equation.name
 
 
 def test_incomplete_or_unreviewed_components_cannot_be_called_anl():

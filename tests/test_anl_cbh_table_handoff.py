@@ -149,11 +149,11 @@ def test_perfluoroalkane_cbh2_and_cbh3_table_reactions():
         c2f6.target_smiles: -1, 'CC': -1, 'CC(F)(F)F': 2}
     c3f8 = generate_cbh_reaction('FC(F)(F)C(F)(F)C(F)(F)F', 3)
     assert c3f8.stoichiometry == {
-        c3f8.target_smiles: -1, 'CC(F)(F)C': -1,
-        'FC(C(F)(F)C)(F)F': 2}
+        c3f8.target_smiles: -1, 'CC(C)(F)F': -1,
+        'CC(F)(F)C(F)(F)F': 2}
 
 
-def test_methyl_radical_table_reaction_requires_explicit_spin_state():
+def test_methyl_radical_table_reaction_resolves_unique_radical_smiles():
     reaction = generate_cbh_reaction('[CH3]', 0, multiplicity=2)
     assert reaction.stoichiometry == {
         '[CH3]': -1, '[H][H]': -1, 'C': 1, '[H]': 1}
@@ -168,11 +168,8 @@ def test_methyl_radical_table_reaction_requires_explicit_spin_state():
         'ANL0-F12', f'{smiles}:output', 0,
         2 if smiles in ('[CH3]', '[H]') else 1)
         for smiles in reaction.stoichiometry}
-    with pytest.raises(ValueError, match='explicit ID'):
-        solve_formation_enthalpy(reaction, energies, _figure_references())
     result = solve_formation_enthalpy(
-        reaction, energies, _figure_references(),
-        reference_ids={'[H]': '12385-13-6*0'})
+        reaction, energies, _figure_references())
     assert result.reaction_energy_0k_kj_mol / KCAL_TO_KJ == pytest.approx(-.096)
     assert result.formation_0k_kj_mol / KCAL_TO_KJ == pytest.approx(35.826)
 
@@ -243,6 +240,8 @@ T, K       ethane       ethane       ethane       ethane       ethane
 ''' + rows + '\n')
     manifest = json.loads(
         Path('me/partition_functions/manifest.json').read_text())
+    assert manifest['species']['123']['hindered_rotor_source'] == \
+        'none-no-rotatable-bonds'
     for ident, entry in manifest['species'].items():
         if ident != '123':
             Path(entry['output']).write_text(
@@ -252,6 +251,27 @@ T, K       ethane       ethane       ethane       ethane       ethane
         formation.formation_0k_kj_mol)
     assert Path('me/thermochemistry_298.json').is_file()
     assert thermo['species']['123']['nasa7']['format'] == 'NASA7'
+
+
+def test_hindered_rotor_provenance_reports_the_model_actually_written():
+    rigid = SimpleNamespace(dihed=[])
+    flexible = SimpleNamespace(dihed=[[0, 1, 2, 3]])
+    assert MESS._hindered_rotor_source(rigid, '') == \
+        'none-no-rotatable-bonds'
+    assert MESS._hindered_rotor_source(
+        flexible, '      ! invalid rotor retained as vibration') == \
+        'harmonic_fallback'
+    assert MESS._hindered_rotor_source(
+        flexible, '      Rotor Hindered\n      End ! Rotor') == 'kinbot_l2'
+
+
+def test_cbh_mess_energy_axis_requires_an_attached_formation_record():
+    writer = object.__new__(MESS)
+    writer.par = {'composite_method': 'ANL0-F12'}
+    writer.species = SimpleNamespace(formation_enthalpy_0k=None)
+    assert writer._cbh_anl_mode() is False
+    writer.species.formation_enthalpy_0k = object()
+    assert writer._cbh_anl_mode() is True
 
 
 def test_messpf_executor_replaces_stale_output_and_records_hashes(

@@ -127,12 +127,11 @@ own 30-angstrom asymptote.  The MEP geometries remain those produced by the
 configured KinBot VRC relaxed scan; the stored provenance distinguishes this
 from the CASPT2-F12-relaxed MEP used in the published perfluoroalkyl work.
 
-`selected_reactions`, `stop_product_reaction_search`, and `cbh_rung` describe
-the required general interface.  They must be implemented as ordinary KinBot
-parameters before this input is advertised as runnable.  The selector uses
-the atom order generated from the input SMILES and avoids a hard-coded
-connectivity ID.  Program paths, module names, memory per node, and executable
-locations remain site configuration rather than molecular input.
+`selected_reactions`, `stop_product_reaction_search`, and `cbh_rung` are
+ordinary KinBot parameters.  The selector uses the atom order generated from
+the input SMILES and avoids a hard-coded connectivity ID.  Program paths,
+module names, memory per node, and executable locations remain site
+configuration rather than molecular input.
 
 ## Resource boundary
 
@@ -141,8 +140,10 @@ locations remain site configuration rather than molecular input.
 - L1 uses the configured FairChem model.
 - L2 geometry, frequencies, VPT2, and hindered rotors use the selected
   B2PLYP-D3(BJ)/cc-pVTZ profile.
-- L3 and post-geometry ANL components start together once their common
-  geometry is available.
+- L3 and post-geometry ANL components start together once their preferred
+  geometry is available. If L3 optimization becomes unavailable, only the L3
+  harmonic calculation is skipped; every independent single point stages on
+  the accepted L2 geometry.
 - A component that exhausts its declared restart/resource policy is marked
   unavailable.  Unstarted tasks in the same correction family are skipped,
   and recipe selection falls to the best complete level shared within that

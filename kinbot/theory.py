@@ -9,6 +9,59 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 
+ANL_AUTOMATIC_METHODS = frozenset(('ANL0', 'ANL0-F12'))
+
+DEFAULT_ANL_SIZE_POLICY = {
+    'full_anl0_f12': {
+        'max_atoms': 16, 'max_heavy_atoms': 4, 'max_heavy_bonds': 4},
+    'l3_geometry': {
+        'max_atoms': 30, 'max_heavy_atoms': 8, 'max_heavy_bonds': 8},
+    'l3_single_point': {
+        'max_atoms': 50, 'max_heavy_atoms': 12, 'max_heavy_bonds': 12},
+}
+
+
+def automatic_cbh_anl_requested(parameters):
+    """Return whether an ordinary input requests the production solver.
+
+    A generated reference calculation retains the parent's composite theory
+    profile so its L1/L2 routing is identical, but it writes a standalone
+    thermochemistry model and must never recursively start another CBH graph.
+    Existing handoff consumers likewise already have a completed graph.
+    """
+    method = str(parameters.get('composite_method', '')).upper()
+    return (method in ANL_AUTOMATIC_METHODS
+            and not parameters.get('anl_handoff_manifest')
+            and not parameters.get('thermochemistry_model_output'))
+
+
+def validate_anl_size_policy(policy):
+    """Validate the monotone connectivity limits used by automatic ANL."""
+    if (not isinstance(policy, dict)
+            or set(policy) != set(DEFAULT_ANL_SIZE_POLICY)):
+        raise ValueError(
+            'anl_size_policy must define full_anl0_f12, l3_geometry, and '
+            'l3_single_point.')
+    normalized = {}
+    previous = None
+    keys = ('max_atoms', 'max_heavy_atoms', 'max_heavy_bonds')
+    for tier in DEFAULT_ANL_SIZE_POLICY:
+        entry = policy[tier]
+        if not isinstance(entry, dict) or set(entry) != set(keys):
+            raise ValueError(f'anl_size_policy.{tier} has invalid limits.')
+        if any(isinstance(value, bool) or not isinstance(value, int)
+               or value < 1 for value in entry.values()):
+            raise ValueError(
+                f'anl_size_policy.{tier} limits must be positive integers.')
+        normalized[tier] = dict(entry)
+        if previous is not None and any(
+                normalized[tier][key] < previous[key] for key in keys):
+            raise ValueError(
+                'ANL size tiers must be monotonically nondecreasing.')
+        previous = normalized[tier]
+    return normalized
+
+
 @dataclass(frozen=True)
 class TheoryProfile:
     name: str

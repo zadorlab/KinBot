@@ -71,6 +71,27 @@ class TestBackendWarnings(unittest.TestCase):
                     'triplet_reference': {
                         'basis': ['avdz-f12', 'avqz-f12']}})
 
+    def test_automatic_cbh_and_reaction_selection_parameters(self):
+        parameters = self.read_parameters(
+            composite_method='ANL0-F12', cbh_rung=1,
+            fc_model_path='/cached/uma-s-1p2.pt',
+            stop_product_reaction_search=1,
+            selected_reactions={
+                'initial': {'hom_sci': [[0, 1]],
+                            'h2_elim': [[3, 0, 1, 6]]}})
+        self.assertEqual(parameters['cbh_rung'], 1)
+        self.assertEqual(parameters['stop_product_reaction_search'], 1)
+
+    def test_reaction_selection_fails_closed_on_invalid_input(self):
+        for selected in ([], {'initial': {}},
+                         {'initial': {'hom_sci': []}},
+                         {'initial': {'hom_sci': [[0, True]]}},
+                         {'initial': {'hom_sci': [[0, 1], [0, 1]]}}):
+            with self.subTest(selected=selected), self.assertRaises(ValueError):
+                self.read_parameters(selected_reactions=selected)
+        with self.assertRaisesRegex(ValueError, 'requires composite_method'):
+            self.read_parameters(cbh_rung=1)
+
 
 if __name__ == '__main__':
     unittest.main()

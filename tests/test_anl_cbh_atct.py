@@ -160,19 +160,51 @@ def test_original_cbh_rungs_from_smiles_connectivity():
         'CCCCC': -1, 'CCC': -1, 'CCCC': 2}
     assert generate_cbh_reaction('CCO', 1).stoichiometry == {
         'CCO': -1, 'C': -1, 'CC': 1, 'CO': 1}
-    assert generate_cbh_reaction('C1CCCCC1', 3) is None
+    assert generate_cbh_reaction('C1CCCCC1', 3).stoichiometry == {
+        'C1CCCCC1': -1, 'CCC': -6, 'CCCC': 6}
 
 
-def test_cbh_generates_validated_neutral_doublet_cbh0_and_rejects_other_states():
+def test_cbh_preserves_radicals_aromatic_bonds_ions_and_unusual_valence():
+    # A one-fragment radical uses the literature CBH-0 parent-hydride/H
+    # terminal. A larger radical retains its center in each capped fragment.
     methyl = generate_cbh_reaction('[CH3]', 0, multiplicity=2)
     assert methyl.stoichiometry == {
         '[CH3]': -1, '[H][H]': -1, 'C': 1, '[H]': 1}
     assert methyl.states == {'[CH3]': (0, 2), '[H]': (0, 2)}
-    assert generate_cbh_reaction('[CH3]', 1, multiplicity=2) is None
-    with pytest.raises(NotImplementedError, match='nonaromatic'):
-        generate_cbh_reaction('c1ccccc1', 0)
-    with pytest.raises(NotImplementedError, match='unusual-valence'):
-        generate_cbh_reaction('[CH3]', 0)
+    ethyl = generate_cbh_reaction('C[CH2]', 0, multiplicity=2)
+    assert ethyl.stoichiometry == {
+        'C': 1, '[CH2]C': -1, '[CH3]': 1, '[H][H]': -1}
+    assert ethyl.states == {
+        '[CH2]C': (0, 2), '[CH3]': (0, 2)}
+
+    benzene = generate_cbh_reaction('c1ccccc1', 1)
+    assert benzene.stoichiometry == {
+        'C': -6, 'C=C': 3, 'CC': 3, 'c1ccccc1': -1}
+    phenyl = generate_cbh_reaction('[c]1ccccc1', 1, multiplicity=2)
+    assert phenyl.states['[c]1ccccc1'] == (0, 2)
+    assert all(phenyl.states[fragment] == (0, 2)
+               for fragment in ('[CH]=C', '[CH2]C', '[CH3]'))
+
+    formate = generate_cbh_reaction('[O-]C=O', 1, charge=-1)
+    assert formate.stoichiometry == {
+        'C': -1, 'C=O': 1, 'C[O-]': 1, 'O=C[O-]': -1}
+    assert formate.states == {
+        'O=C[O-]': (-1, 1), 'C[O-]': (-1, 1)}
+    zwitterion = generate_cbh_reaction('[NH3+]CC(=O)[O-]', 1)
+    assert zwitterion.states['C[NH3+]'] == (1, 1)
+    assert zwitterion.states['C[O-]'] == (-1, 1)
+
+    sulfone = generate_cbh_reaction('CS(=O)(=O)C', 1)
+    assert sulfone.stoichiometry == {
+        'CS': 2, 'CS(C)(=O)=O': -1, 'O=S': 2, 'S': -3,
+        '[H][H]': 2}
+    nitro = generate_cbh_reaction('C[N+](=O)[O-]', 1)
+    assert nitro.states['[NH4+]'] == (1, 1)
+
+    with pytest.raises(ValueError, match='formal charge'):
+        generate_cbh_reaction('[NH4+]', 0, charge=0)
+    with pytest.raises(ValueError, match='explicitly identify radical'):
+        generate_cbh_reaction('O=O', 0, multiplicity=3)
     species = SimpleNamespace(smiles='CCC', charge=0, mult=1, wellorts=0,
                               atom=['C'] * 3 + ['H'] * 8)
     assert generate_for_stationary_point(species)[1].rung == 1
@@ -182,6 +214,41 @@ def test_cbh_generates_validated_neutral_doublet_cbh0_and_rejects_other_states()
     species.wellorts = 1
     with pytest.raises(ValueError, match='transition state'):
         generate_for_stationary_point(species)
+
+
+@pytest.mark.parametrize('left,right,charge,multiplicity', [
+    ('c1ccc2ccccc2c1', 'c1cccc2ccccc12', 0, 1),
+    ('n1ccccc1', 'c1ccncc1', 0, 1),
+    ('C[N+](=O)[O-]', '[O-][N+](=O)C', 0, 1),
+    ('[NH3+]CC(=O)[O-]', '[O-]C(=O)C[NH3+]', 0, 1),
+    ('[CH2]c1ccccc1', 'c1ccccc1[CH2]', 0, 2),
+])
+def test_cbh_is_invariant_to_equivalent_smiles_traversal(
+        left, right, charge, multiplicity):
+    for rung in range(4):
+        assert generate_cbh_reaction(
+            left, rung, charge=charge, multiplicity=multiplicity) == \
+            generate_cbh_reaction(
+                right, rung, charge=charge, multiplicity=multiplicity)
+
+
+@pytest.mark.parametrize('smiles,charge,multiplicity,rung', [
+    ('c1occc1', 0, 1, 2),
+    ('c1sccc1', 0, 1, 2),
+    ('O=S(=O)([O-])[O-]', -2, 1, 1),
+    ('O=P([O-])([O-])[O-]', -3, 1, 1),
+    ('FS(F)(F)(F)(F)F', 0, 1, 1),
+    ('ClP(Cl)(Cl)(Cl)Cl', 0, 1, 1),
+    ('C=C=C', 0, 1, 1),
+    ('[O][O]', 0, 3, 0),
+    ('[N]=O', 0, 2, 0),
+])
+def test_cbh_balances_heteroaromatic_ionic_hypervalent_and_radical_corpus(
+        smiles, charge, multiplicity, rung):
+    reaction = generate_cbh_reaction(
+        smiles, rung, charge=charge, multiplicity=multiplicity)
+    assert reaction is not None
+    assert reaction.stoichiometry[reaction.target_smiles] == -1
 
 
 def test_zero_k_formation_uses_accepted_energies_and_atct_references():

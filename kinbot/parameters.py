@@ -10,10 +10,9 @@ import json
 import logging
 import numpy as np
 from ase import units
-from kinbot import kb_path
 from kinbot import pp_tables
-from kinbot import constants
-from kinbot.theory import profiled_requested, resolve_profiles
+from kinbot.theory import (profiled_requested, resolve_profiles,
+                           validate_anl_size_policy)
 
 logger = logging.getLogger('KinBot')
 
@@ -63,6 +62,13 @@ class Parameters:
             'reaction_search': 1,
             # Which reaction families to include in the search
             'families': ['all'],
+            # Optional per-species reaction-family/motif selection.  The
+            # special key ``initial`` addresses the input well without
+            # depending on its generated connectivity identifier.
+            'selected_reactions': {},
+            # In PES mode, retain and optimize products but do not launch a
+            # recursive reaction search from newly discovered product wells.
+            'stop_product_reaction_search': 0,
             # Restrict certain families to just the more likely cases
             'family_restrict': 0, 
             # Which reaction families to include in the search bimolecular reactions
@@ -212,6 +218,25 @@ class Parameters:
             'l1_profile': {},
             'l2_profile': {},
             'composite_method': '',
+            # Highest connectivity-derived CBH rung requested for automatic
+            # ANL thermochemistry.  Zero retains the CBH-0/ATcT boundary.
+            'cbh_rung': 0,
+            # Automatic composite-cost ceilings.  The values are ordinary
+            # user policy, not molecule-specific exceptions; each CBH state
+            # records the metrics and selected tier.
+            'anl_size_policy': {
+                'full_anl0_f12': {
+                    'max_atoms': 16, 'max_heavy_atoms': 4,
+                    'max_heavy_bonds': 4},
+                'l3_geometry': {
+                    'max_atoms': 30, 'max_heavy_atoms': 8,
+                    'max_heavy_bonds': 8},
+                'l3_single_point': {
+                    'max_atoms': 50, 'max_heavy_atoms': 12,
+                    'max_heavy_bonds': 12},
+            },
+            'atct_version': '1.220',
+            'atct_cache': '~/.cache/kinbot/atct',
             'l3_overrides': {},
             'l3_resource_overrides': {},
             # Persistent profiled-theory job routing. Separate continuation
@@ -475,6 +500,13 @@ class Parameters:
             # Optional schema-1 RRHO/HR model library for CBH reference
             # species that are not part of the active reaction network.
             'cbh_thermochemistry_models': '',
+            # Optional output used by automatic CBH reference calculations.
+            # It exports the accepted L2 geometry, modes, symmetry, and HIR
+            # model without changing an ordinary KinBot run.
+            'thermochemistry_model_output': '',
+            # Restartable automatic CBH/ANL graph, relative to the active
+            # KinBot calculation directory unless an absolute path is given.
+            'anl_automatic_directory': 'anl_automatic',
             # Consume a matching, hash-verified ROTD_py number-of-states file
             # for homolytic VRC channels when it is present.  ``required``
             # refuses a phase-space fallback. ``production`` additionally
@@ -562,6 +594,52 @@ class Parameters:
         if self.par['families'] != ['all'] and self.par['skip_families'] != ['none']:
             err = 'Only one of the "families" or "skip_families" parameters can be defined.'
 
+        selected = self.par['selected_reactions']
+        if not isinstance(selected, dict):
+            raise ValueError('selected_reactions must be an object.')
+        for species_key, families in selected.items():
+            if (not isinstance(species_key, str) or not species_key.strip()
+                    or not isinstance(families, dict) or not families):
+                raise ValueError(
+                    'selected_reactions entries must map a species name to '
+                    'a nonempty family object.')
+            for family, motifs in families.items():
+                if (not isinstance(family, str) or not family.strip()
+                        or not isinstance(motifs, list) or not motifs):
+                    raise ValueError(
+                        'selected_reactions family entries must contain a '
+                        'nonempty list of atom motifs.')
+                normalized = []
+                for motif in motifs:
+                    if (not isinstance(motif, list) or not motif
+                            or any(isinstance(atom, bool)
+                                   or not isinstance(atom, int) or atom < 0
+                                   for atom in motif)):
+                        raise ValueError(
+                            'selected_reactions motifs must be nonempty '
+                            'zero-based lists of nonnegative integers.')
+                    value = tuple(motif)
+                    if value in normalized:
+                        raise ValueError(
+                            'selected_reactions contains a duplicate motif.')
+                    normalized.append(value)
+        if (isinstance(self.par['stop_product_reaction_search'], bool)
+                or self.par['stop_product_reaction_search'] not in (0, 1)):
+            raise ValueError('stop_product_reaction_search must be 0 or 1.')
+        if (isinstance(self.par['cbh_rung'], bool)
+                or self.par['cbh_rung'] not in range(4)):
+            raise ValueError('cbh_rung must be 0, 1, 2, or 3.')
+        if self.par['cbh_rung'] and not self.par['composite_method']:
+            raise ValueError('cbh_rung above zero requires composite_method.')
+        self.par['anl_size_policy'] = validate_anl_size_policy(
+            self.par['anl_size_policy'])
+        if (not isinstance(self.par['atct_version'], str)
+                or not self.par['atct_version'].strip()):
+            raise ValueError('atct_version must be a nonempty string.')
+        if (not isinstance(self.par['atct_cache'], str)
+                or not self.par['atct_cache'].strip()):
+            raise ValueError('atct_cache must be a nonempty path string.')
+
         if self.par['pes'] and self.par['specific_reaction']:
             err = 'Specific reaction cannot be searched in PES mode.'
 
@@ -646,6 +724,11 @@ class Parameters:
             raise ValueError('rotdpy_directory must be a nonempty path string')
         if not isinstance(self.par['anl_handoff_manifest'], str):
             raise ValueError('anl_handoff_manifest must be a path string')
+        if not isinstance(self.par['thermochemistry_model_output'], str):
+            raise ValueError('thermochemistry_model_output must be a path string')
+        if (not isinstance(self.par['anl_automatic_directory'], str)
+                or not self.par['anl_automatic_directory'].strip()):
+            raise ValueError('anl_automatic_directory must be a nonempty path string')
         assumptions = self.par['optical_factor_assumptions']
         if not isinstance(assumptions, dict) or any(
                 not isinstance(name, str) or not name or not isinstance(value, dict)

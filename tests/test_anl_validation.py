@@ -17,6 +17,7 @@ from kinbot.anl.model import ComponentResult
 from kinbot.anl.recipes import recipe
 from kinbot.anl import validation as validation_module
 from kinbot.anl.validation import (common_corrections_validation_spec,
+                                   assemble_profiled_anl0,
                                    assemble_profiled_anl0_f12,
                                    audit_anl0_post_geometry_run,
                                    audit_composite_run,
@@ -26,6 +27,7 @@ from kinbot.anl.validation import (common_corrections_validation_spec,
                                    audit_post_geometry_run,
                                    current_base_validation_spec,
                                    composite_validation_spec,
+                                   automatic_composite_spec,
                                    interface_validation_spec,
                                    higher_order_validation_spec,
                                    audit_kinbot_run,
@@ -59,7 +61,8 @@ def test_non_mrcc_graph_has_geometry_barrier_and_parallel_fanout():
                   'cfour_dboc'):
         assert tasks[ident]['geometry_from'] == 'l3_geometry'
     assert tasks['gaussian_vpt2']['geometry_from'] == 'l2_geometry'
-    assert tasks['gaussian_vpt2']['depends_on'] == ['l3_geometry']
+    assert 'depends_on' not in tasks['gaussian_vpt2']
+    assert tasks['l3_sp_l2']['geometry_from'] == 'l2_geometry'
     assert spec['intent']['mrcc_enabled'] is False
     assert spec['intent']['claim'] == 'interface-validation-only'
     assert all(task['resources']['cores'] == 'auto' for task in spec['tasks'])
@@ -112,6 +115,7 @@ def test_legacy_interface_audit_is_readable_but_recipe_incompatible(monkeypatch)
         'f12_tz': {'kind': 'molpro_energy', 'energy_hartree': -10.0},
         'f12_qz': {'kind': 'molpro_energy', 'energy_hartree': -10.1},
         'ccsdt_dz': {'kind': 'molpro_energy', 'energy_hartree': -9.9},
+        'l3_sp_l2': {'kind': 'molpro_energy', 'energy_hartree': -9.8},
         'cfour_dboc': {'kind': 'cfour_dboc'},
         'gaussian_vpt2': {'kind': 'gaussian_vpt2'},
     }
@@ -125,7 +129,7 @@ def test_legacy_interface_audit_is_readable_but_recipe_incompatible(monkeypatch)
     result = audit_interface_run('/legacy/interface')
     assert result['status'] == 'interface_complete_legacy_recipe_incompatible'
     assert set(result['legacy_molpro_tasks']) == {
-        'harmonic', 'f12_tz', 'f12_qz', 'ccsdt_dz'}
+        'harmonic', 'f12_tz', 'f12_qz', 'ccsdt_dz', 'l3_sp_l2'}
     assert 'verified_f12_cbs_hartree' not in result
 
 
@@ -242,7 +246,7 @@ def test_post_geometry_graph_can_limit_execution_to_anl0():
     assert 'ccsdtqp_dz' not in tasks
 
 
-def test_composite_graph_releases_every_property_after_one_l3_barrier():
+def test_composite_graph_keeps_l2_fallbacks_independent_of_l3_barrier():
     spec = composite_validation_spec(
         _molecule(), max_nodes=4, partition='day-long-cpu', anl0_only=True)
     assert spec['name'] == 'anl-composite-validation'
@@ -252,21 +256,52 @@ def test_composite_graph_releases_every_property_after_one_l3_barrier():
         'l2_geometry', 'l3_geometry', 'harmonic', 'f12_tz', 'f12_qz',
         'cfour_dboc', 'gaussian_vpt2', 'ccsdt_dz', 'ccsdtq_dz',
         'cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz',
-        'rel_dkh', 'rel_nonrel'}
+        'rel_dkh', 'rel_nonrel', 'l3_sp_l2'}
     assert tasks['l2_geometry']['geometry_from'] == 'initial'
     assert tasks['l3_geometry']['geometry_from'] == 'l2_geometry'
     assert tasks['gaussian_vpt2']['geometry_from'] == 'l2_geometry'
-    assert tasks['gaussian_vpt2']['depends_on'] == ['l3_geometry']
+    assert 'depends_on' not in tasks['gaussian_vpt2']
+    assert tasks['l3_sp_l2']['geometry_from'] == 'l2_geometry'
     property_ids = set(tasks) - {'l2_geometry', 'l3_geometry',
-                                 'gaussian_vpt2'}
+                                 'gaussian_vpt2', 'l3_sp_l2'}
     assert all(tasks[ident]['geometry_from'] == 'l3_geometry'
                for ident in property_ids)
+    assert set(tasks['l3_geometry']['failure_skips']) == {'harmonic'}
+    for ident in property_ids - {'harmonic'}:
+        assert tasks[ident]['geometry_fallback'] == 'l2_geometry'
     assert spec['intent']['anl0_only'] is True
     resolved = deepcopy(spec)
     for task in resolved['tasks']:
         task['resources'].update(cores=4, memory_mb=64000,
                                  partition='test')
     validate_spec(resolved)
+
+
+def test_automatic_post_l2_graph_never_repeats_l2_and_prunes_by_tier():
+    molecule = deepcopy(_molecule())
+    molecule['source'] = {
+        'geometry_sha256': '1' * 64, 'record_sha256': '2' * 64,
+        'energy_hartree': -40.0,
+    }
+    full = automatic_composite_spec(
+        molecule, highest_tier='ANL0-F12', max_nodes=8,
+        partition='day-long-cpu')
+    identifiers = {task['id'] for task in full['tasks']}
+    assert 'l2_geometry' not in identifiers
+    assert {'l3_geometry', 'l3_sp_l2', 'gaussian_vpt2'} <= identifiers
+    by_id = {task['id']: task for task in full['tasks']}
+    assert by_id['l3_geometry']['geometry_from'] == 'initial'
+    assert by_id['l3_sp_l2']['geometry_from'] == 'initial'
+    assert by_id['gaussian_vpt2']['geometry_from'] == 'initial'
+    assert set(by_id['l3_geometry']['failure_skips']) == {'harmonic'}
+    for task_id, task in by_id.items():
+        if (task.get('geometry_from') == 'l3_geometry'
+                and task_id != 'harmonic'):
+            assert task['geometry_fallback'] == 'initial'
+
+    reduced = automatic_composite_spec(molecule, highest_tier='L3-SP@L2')
+    assert {task['id'] for task in reduced['tasks']} == {
+        'l3_sp_l2', 'gaussian_vpt2'}
 
 
 def test_atomic_composite_omits_fictitious_vibrational_jobs():
@@ -572,7 +607,12 @@ def test_completed_run_geometry_export_is_hash_verified():
             raise AssertionError('Changed optimized geometry was accepted.')
 
 
-def test_profiled_anl0_f12_assembler_uses_all_required_components(monkeypatch):
+@pytest.mark.parametrize('recipe_name,assembler,reference_tasks', [
+    ('ANL0-F12', assemble_profiled_anl0_f12, ('f12_tz', 'f12_qz')),
+    ('ANL0', assemble_profiled_anl0, ('anl0_qz', 'anl0_5z')),
+])
+def test_profiled_anl0_assemblers_use_all_required_components(
+        monkeypatch, recipe_name, assembler, reference_tasks):
     interface = Path('/synthetic/interface').resolve()
     base = Path('/synthetic/current-base').resolve()
     interface_spec = {
@@ -597,7 +637,7 @@ def test_profiled_anl0_f12_assembler_uses_all_required_components(monkeypatch):
     monkeypatch.setattr(
         validation_module, '_same_imported_l3_geometry',
         lambda *args: None)
-    equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ')
+    equation = recipe(recipe_name, vpt2_method='B2PLYP-D3BJ')
     values = {item.key: (index + 1) / 1000
               for index, item in enumerate(equation.requirements)}
     components = {}
@@ -612,9 +652,13 @@ def test_profiled_anl0_f12_assembler_uses_all_required_components(monkeypatch):
             multiplicity=1, geometry_sha256=geometry,
             source_sha256=hashlib.sha256(item.key.encode()).hexdigest(),
             source=f'{item.key}.out', settings=dict(item.settings))
-    monkeypatch.setattr(
-        validation_module, 'cbs_task_component',
-        lambda *args, **kwargs: components['reference_cbs'])
+    observed_reference_tasks = []
+
+    def cbs(*args, **kwargs):
+        observed_reference_tasks.append(tuple(args[1:3]))
+        return components['reference_cbs']
+
+    monkeypatch.setattr(validation_module, 'cbs_task_component', cbs)
     monkeypatch.setattr(
         validation_module, 'task_component',
         lambda run_dir, task_id, *, key, state_id: components[key])
@@ -624,12 +668,15 @@ def test_profiled_anl0_f12_assembler_uses_all_required_components(monkeypatch):
     monkeypatch.setattr(
         validation_module, 'scalar_relativistic_task_component',
         lambda *args, **kwargs: components['scalar_relativistic'])
-    result = assemble_profiled_anl0_f12(
+    result = assembler(
         interface, 'higher', 'corrections', state_id='ethane-singlet',
         spin_orbit_hartree=0.002, spin_orbit_source='test datum',
         base_run=base)
     assert result['status'] == 'complete'
-    assert result['recipe'].startswith('profiled:ANL0-F12:')
+    assert result['recipe'].startswith(
+        'profiled:' + recipe_name + ':' if recipe_name == 'ANL0-F12'
+        else 'profiled:ANL0:')
+    assert observed_reference_tasks == [reference_tasks]
     assert set(result['components']) == {
         item.key for item in equation.requirements}
     expected_electronic = sum(
@@ -703,6 +750,70 @@ def test_profiled_anl0_f12_assembler_accepts_one_full_run(
         base_run=run if explicit_base else None)
     assert result['status'] == 'complete'
     assert result['geometry_sha256'] == {'l2': l2_hash, 'l3': l3_hash}
+
+
+def test_profiled_anl0_keeps_all_single_points_when_l3_geometry_fails(
+        monkeypatch):
+    run = Path('/synthetic/automatic').resolve()
+    l2_hash = '2' * 64
+    molecule = _molecule()
+    molecule['source'] = {
+        'geometry_sha256': l2_hash,
+        'record_sha256': '4' * 64,
+        'l2_theory': {
+            'calculator': 'gaussian', 'method': 'B2PLYP',
+            'basis': 'cc-pVTZ', 'composite_method': 'B2PLYP-D3BJ'},
+    }
+    spec = {'name': 'anl-automatic-post-l2',
+            'molecule': molecule, 'tasks': []}
+    state = {'tasks': {
+        'l3_geometry': {'status': 'unavailable'},
+        'harmonic': {'status': 'skipped'},
+    }}
+    monkeypatch.setattr(
+        validation_module, '_load', lambda run_dir: (run, spec, state))
+    equation = recipe(
+        'ANL0-F12', vpt2_method='B2PLYP-D3BJ', harmonic_only=True,
+        fallback_geometry_method='B2PLYP',
+        fallback_harmonic_method='B2PLYP-D3BJ',
+        fallback_basis='cc-pVTZ')
+    components = {}
+    for index, item in enumerate(equation.requirements, 1):
+        if item.key == 'spin_orbit':
+            continue
+        components[item.key] = ComponentResult(
+            key=item.key, value_hartree=index / 1000,
+            quantity=item.quantity, method=item.method, basis=item.basis,
+            backend=item.backends[0], state_id='methane-singlet', charge=0,
+            multiplicity=1, geometry_sha256=(
+                l2_hash if item.geometry_role in ('l2', 'l3') else None),
+            source_sha256=hashlib.sha256(item.key.encode()).hexdigest(),
+            source=f'{item.key}.out', settings=dict(item.settings))
+    monkeypatch.setattr(
+        validation_module, 'cbs_task_component',
+        lambda *args, **kwargs: components['reference_cbs'])
+    monkeypatch.setattr(
+        validation_module, 'task_component',
+        lambda run_dir, task_id, *, key, state_id: components[key])
+    monkeypatch.setattr(
+        validation_module, 'core_valence_task_component',
+        lambda *args, **kwargs: components['core_valence_cbs'])
+    monkeypatch.setattr(
+        validation_module, 'scalar_relativistic_task_component',
+        lambda *args, **kwargs: components['scalar_relativistic'])
+
+    result = assemble_profiled_anl0_f12(
+        run, run, run, state_id='methane-singlet',
+        spin_orbit_hartree=0., spin_orbit_source='closed-shell test',
+        spin_orbit_backend='known_zero', harmonic_only=True,
+        vpt2_method='B2PLYP-D3BJ',
+        l2_geometry_fallback=components['harmonic_zpe'])
+    assert result['geometry_sha256'] == {'l2': l2_hash, 'l3': l2_hash}
+    assert result['geometry_provenance'] == {
+        'electronic_single_points': 'accepted_l2_fallback',
+        'harmonic_zpe': 'accepted_l2_fallback'}
+    assert 'B2PLYP/cc-pVTZ-geometry' in result['recipe']
+    assert 'B2PLYP-D3BJ/cc-pVTZ-ZPE' in result['recipe']
 
 
 def test_quality_review_is_bound_to_exact_flagged_native_output(tmp_path):

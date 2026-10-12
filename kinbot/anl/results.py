@@ -711,8 +711,10 @@ def parse_mrcc_energy(output, *, method, basis, reference, correlation, core,
 
 def parse_molpro_harmonic(output, *, basis, reference=None,
                           rank_exact_electrons=None, effective_method=None,
-                          legacy=False):
+                          stationary_point='minimum', legacy=False):
     """Read vibrational modes and ZPE, excluding rotations/translations."""
+    if stationary_point not in ('minimum', 'transition_state'):
+        raise ValueError('stationary_point must be minimum or transition_state.')
     _molpro_output(output, basis)
     command = (_MOLPRO_LEGACY_CCSD_T if legacy else
                {'HF': _MOLPRO_RHF, 'CCSD': _MOLPRO_CCSD}.get(
@@ -763,11 +765,12 @@ def parse_molpro_harmonic(output, *, basis, reference=None,
                     break
                 continue
             try:
-                low_modes.append(_number(match.group(2)))
+                token = match.group(2)
+                value = (-abs(_number(token[:-1]))
+                         if token.lower().endswith('i') else _number(token))
+                low_modes.append(value)
             except ValueError as exc:
                 raise ValueError('Molpro reports a nonreal low mode.') from exc
-        if any(value < -1.0 for value in low_modes):
-            raise ValueError('Molpro reports an imaginary low mode.')
     heading = re.search(r'^\s*Vibration\s+Wavenumber\s*$', section,
                         re.IGNORECASE | re.MULTILINE)
     if heading is None:
@@ -782,13 +785,22 @@ def parse_molpro_harmonic(output, *, basis, reference=None,
         if int(match.group(1)) != len(modes) + 1:
             raise ValueError('Molpro vibrational mode numbers are not consecutive.')
         try:
-            value = _number(match.group(2))
+            token = match.group(2)
+            value = (-abs(_number(token[:-1]))
+                     if token.lower().endswith('i') else _number(token))
         except ValueError as exc:
             raise ValueError('Molpro reports a nonreal vibrational mode.') from exc
-        if value <= 0:
-            raise ValueError('Molpro reports a nonpositive vibrational mode.')
         modes.append(value)
-    if not modes:
+    if not modes or any(value == 0 for value in modes):
+        raise ValueError('Molpro has no positive vibrational modes.')
+    imaginary = [value for value in (*low_modes, *modes) if value < -1.0]
+    if stationary_point == 'minimum' and imaginary:
+        raise ValueError('Molpro reports an imaginary mode for a minimum.')
+    if stationary_point == 'transition_state' and len(imaginary) != 1:
+        raise ValueError(
+            'Molpro transition state must contain exactly one imaginary mode.')
+    positive_modes = [value for value in modes if value > 0.]
+    if not positive_modes:
         raise ValueError('Molpro has no positive vibrational modes.')
     zpe = re.findall(
         rf'^\s*Zero point energy:\s*({_NUMBER})\s*\[H\]\s*'
@@ -799,14 +811,17 @@ def parse_molpro_harmonic(output, *, basis, reference=None,
     hartree, cm_inverse, kj_mol = map(_number, zpe[0])
     if abs(hartree * Hartree / invcm - cm_inverse) > 0.02:
         raise ValueError('Molpro harmonic ZPE units disagree.')
-    if abs(0.5 * sum(modes) - cm_inverse) > 0.02:
+    if abs(0.5 * sum(positive_modes) - cm_inverse) > 0.02:
         raise ValueError('Molpro harmonic modes disagree with ZPE.')
     if abs(hartree * Hartree * mol / kJ - kj_mol) > 0.02:
         raise ValueError('Molpro harmonic ZPE kJ/mol disagrees.')
     result = {'kind': 'molpro_harmonic', 'method': 'CCSD(T)', 'basis': basis,
-            'wavenumbers_cm_inverse': modes,
+            'wavenumbers_cm_inverse': positive_modes,
             'low_modes_cm_inverse': low_modes,
-            'review_required': any(abs(value) > 1.0 for value in low_modes),
+            'imaginary_wavenumbers_cm_inverse': imaginary,
+            'stationary_point': stationary_point,
+            'review_required': (any(abs(value) > 1.0 for value in low_modes)
+                                and stationary_point == 'minimum'),
             'zpe': {'hartree': hartree, 'cm_inverse': cm_inverse,
                     'kj_mol': kj_mol}}
     if reference is not None:
@@ -1163,7 +1178,8 @@ def validate_result_parser(request, *, backend, template, outputs,
     elif kind == 'molpro_harmonic':
         legacy = legacy_molpro_parser(request, template)
         required = {'kind', 'file', 'basis'}
-        optional = {'reference', 'rank_exact_electrons', 'effective_method'}
+        optional = {'reference', 'rank_exact_electrons', 'effective_method',
+                    'stationary_point'}
         effective = request.get('effective_method')
         method_command = {'HF': _MOLPRO_RHF, 'CCSD': _MOLPRO_CCSD}.get(
             effective, _MOLPRO_CCSD_T)
@@ -1184,6 +1200,9 @@ def validate_result_parser(request, *, backend, template, outputs,
                  and method_declared
                  and bool(re.search(r'^\s*frequencies\s*,\s*numerical\s*$',
                                     template, re.IGNORECASE | re.MULTILINE)))
+        if valid:
+            valid = request.get('stationary_point', 'minimum') in (
+                'minimum', 'transition_state')
         if valid and 'reference' in request:
             valid = (request['reference'] in ('RHF', 'ROHF')
                      and re.search(_MOLPRO_RHF, template,
@@ -1280,6 +1299,8 @@ def parse_result(output, request):
                                          'rank_exact_electrons'),
                                      effective_method=request.get(
                                          'effective_method'),
+                                     stationary_point=request.get(
+                                         'stationary_point', 'minimum'),
                                      legacy=legacy_molpro_parser(request, output))
     if kind == 'mrcc_energy':
         return parse_mrcc_energy(output, method=request['method'],

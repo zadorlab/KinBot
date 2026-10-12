@@ -450,6 +450,15 @@ def test_molpro_f12b_selects_exact_total_energy():
                             basis='cc-pVQZ-F12')
 
 
+def test_molpro_conventional_anl0_accepts_explicit_aug_prime_basis():
+    basis = 'aug-cc-pVQZ,h=cc-pVQZ'
+    output = _MOLPRO_OPEN_CCSD_T.replace('basis=cc-pVDZ', f'basis={basis}')
+    result = parse_molpro_energy(
+        output, method='CCSD(T)', basis=basis, reference='ROHF')
+    assert result['basis'] == basis
+    assert result['program_variant'] == 'RHF-UCCSD(T)'
+
+
 def test_one_electron_f12_avoids_and_recovers_undefined_triples_scaling():
     kwargs = {
         'method': 'CCSD(T)-F12b', 'basis': 'cc-pVTZ-F12',
@@ -668,10 +677,10 @@ def test_molpro_harmonic_ignores_zero_modes_and_crosschecks_zpe():
     with pytest.raises(ValueError, match='modes disagree'):
         parse_molpro_harmonic(_MOLPRO_HARMONIC.replace('3153.44', '3253.44'),
                               basis='cc-pVTZ')
-    with pytest.raises(ValueError, match='nonreal'):
+    with pytest.raises(ValueError, match='imaginary mode for a minimum'):
         parse_molpro_harmonic(_MOLPRO_HARMONIC.replace('1343.29', '1343.29i'),
                               basis='cc-pVTZ')
-    with pytest.raises(ValueError, match='imaginary low mode'):
+    with pytest.raises(ValueError, match='imaginary mode for a minimum'):
         parse_molpro_harmonic(_MOLPRO_HARMONIC.replace(
             '1                0.00', '1              -20.00'),
             basis='cc-pVTZ')
@@ -684,6 +693,21 @@ def test_molpro_harmonic_ignores_zero_modes_and_crosschecks_zpe():
             _MOLPRO_HARMONIC.replace(
                 'uccsd(t)', 'uccsd(t),uhf_uccsd=1'),
             basis='cc-pVTZ', reference='RHF')
+
+
+def test_molpro_harmonic_accepts_exactly_one_transition_state_mode():
+    saddle = _MOLPRO_HARMONIC.replace(
+        '1             1343.29', '1              500.00i').replace(
+        '0.04479801 [H]     9832.03 [1/CM]      117.62 [KJ/MOL]',
+        '0.0417377851 [H]     9160.385 [1/CM]      109.58 [KJ/MOL]')
+    parsed = parse_molpro_harmonic(
+        saddle, basis='cc-pVTZ', reference='RHF',
+        stationary_point='transition_state')
+    assert parsed['stationary_point'] == 'transition_state'
+    assert parsed['imaginary_wavenumbers_cm_inverse'] == [-500.0]
+    assert len(parsed['wavenumbers_cm_inverse']) == 8
+    with pytest.raises(ValueError, match='minimum'):
+        parse_molpro_harmonic(saddle, basis='cc-pVTZ', reference='RHF')
 
 
 def test_gaussian_vpt2_named_zpe_and_warnings():

@@ -17,7 +17,6 @@ from kinbot import reac_family
 from kinbot import cheminfo
 from kinbot.irc import IRC
 from kinbot.optimize import Optimize
-from kinbot.reac_General import GeneralReac
 from kinbot.stationary_pt import StationaryPoint
 from kinbot.stereo_identity import (canonical_identity, require_supported_identity,
                                    UnsupportedStereochemistry)
@@ -684,7 +683,9 @@ class ReactionGenerator:
                                 self.species.reac_ts_done[index] = -999
                                 continue
                         # continue to PES search in case a new well was found
-                        if self.par['pes']:
+                        if (self.par['pes']
+                                and not self.par.get(
+                                    'stop_product_reaction_search', 0)):
                             # verify if product is monomolecular, and if it is new
                             if len(obj.products) == 1:
                                 st_pt = obj.prod_opt[0].species

@@ -4,8 +4,6 @@ import datetime
 import copy
 import logging
 
-from os.path import isfile
-
 from kinbot import license_message
 from kinbot import postprocess
 from kinbot.parameters import Parameters
@@ -22,6 +20,7 @@ from kinbot.config_log import config_log
 from kinbot.run_format import ensure_current_run
 from kinbot.stereo_identity import require_supported_identity, log_input_stereochemistry, UnsupportedStereochemistry
 from kinbot.stereo_routing import StereoRoutingError
+from kinbot.theory import automatic_cbh_anl_requested
 
 
 def main():
@@ -53,6 +52,10 @@ def _main():
     masterpar = Parameters(input_file, show_warnings=True)
     par = masterpar.par
     input_file = masterpar.input_file
+    automatic_run_requested = automatic_cbh_anl_requested(par)
+    if automatic_run_requested:
+        from kinbot.anl.automatic import validate_automatic_environment
+        validate_automatic_environment(par)
     # set up the logging environment
     if par['verbose']:
         logger = config_log('KinBot', level='debug')
@@ -216,6 +219,21 @@ def _main():
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
+            if (par.get('rotdpy_run') and not par['vrc_tst_scan']
+                    and not par['vrc_tst_noscan']):
+                selected_vrc = [
+                    reaction.instance_name
+                    for index, reaction in enumerate(well0.reac_obj)
+                    if well0.reac_ts_done[index] == -1
+                    and (getattr(reaction, 'family_name', None)
+                         or well0.reac_type[index]) == 'hom_sci'
+                    and len(reaction.products) == 2]
+                if selected_vrc:
+                    par['vrc_tst_scan'] = {
+                        routing_name(well0): selected_vrc}
+                    logger.info(
+                        'Automatically selected accepted homolytic channel(s) '
+                        'for VRC-TST: %s', ', '.join(selected_vrc))
 
         if par['vrc_tst_scan'] or par['vrc_tst_noscan']:
             logger.info('Setting up scans for VRC-TST...')
@@ -317,6 +335,23 @@ def _main():
             rg = ReactionGenerator(well0, par, qc, input_file)
             rg.generate()
 
+    automatic = None
+    if automatic_run_requested:
+        from kinbot.anl.automatic import run_automatic_cbh_anl
+        logger.info('Building and executing the automatic CBH/ANL network')
+        automatic = run_automatic_cbh_anl(
+            well0, par, input_file, directory=par['anl_automatic_directory'])
+        par['anl_handoff_manifest'] = automatic['handoff_manifest']
+        par['cbh_thermochemistry_models'] = automatic[
+            'thermochemistry_models']
+        logger.info('Automatic CBH/ANL network is complete')
+
+    if par.get('thermochemistry_model_output'):
+        model_writer = MESS(par, well0)
+        output = model_writer.write_thermochemistry_model(
+            well0, par['thermochemistry_model_output'])
+        logger.info('Wrote accepted L2 thermochemistry model to %s', output)
+
     if par.get('anl_handoff_manifest'):
         from kinbot.anl.handoff import apply_handoff
         logger.info('Applying completed ANL/CBH results to the KinBot network')
@@ -337,6 +372,11 @@ def _main():
     if par['me'] == 1 and par['me_code'] == 'mess':
         logger.info('Starting Master Equation calculations')
         mess.run()
+
+    if automatic is not None:
+        from kinbot.anl.automatic import finalize_automatic_run
+        report = finalize_automatic_run(automatic, par)
+        logger.info('Wrote automatic CBH/ANL final report to %s', report)
 
     clean_files(diagnostic=True, qc=par['qc'])
     logger.info('KinBot finished.')

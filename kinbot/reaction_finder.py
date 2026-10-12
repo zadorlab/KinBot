@@ -1,4 +1,5 @@
-from kinbot.species_routing import configured_selection
+from kinbot.species_routing import (configured_selection,
+                                    configured_reaction_selection)
 from kinbot.species_routing import routing_name
 import numpy as np
 import sys
@@ -240,6 +241,8 @@ class ReactionFinder:
                             except UnsupportedStereochemistry as error:
                                 self._unsupported_search(rn, error)
 
+        self._apply_configured_reaction_selection()
+
         for name in self.reactions:
             self.reaction_matrix(self.reactions[name], name) 
 
@@ -255,6 +258,41 @@ class ReactionFinder:
             logger.info('\t\t{}'.format(rxn))
         
         return 0  
+
+    def _apply_configured_reaction_selection(self):
+        """Keep only explicitly requested family/motif pairs for this well.
+
+        Selection happens after normal family discovery, so it cannot create
+        a reaction that did not pass KinBot's chemistry and stereochemistry
+        filters.  A miss is an input error rather than a silent empty network.
+        """
+        selected = configured_reaction_selection(
+            self.par.get('selected_reactions', {}), self.species)
+        if selected is None:
+            return
+        if not isinstance(selected, dict) or not selected:
+            raise ValueError(
+                f'{self.species.name}: configured reaction selection is empty.')
+        retained = {}
+        for family, motifs in selected.items():
+            available = self.reactions.get(family, ())
+            available_by_motif = {
+                tuple(map(int, motif)): motif for motif in available}
+            missing = []
+            chosen = []
+            for motif in motifs:
+                key = tuple(map(int, motif))
+                if key not in available_by_motif:
+                    missing.append(list(key))
+                elif key not in {tuple(map(int, item)) for item in chosen}:
+                    chosen.append(available_by_motif[key])
+            if missing:
+                raise ValueError(
+                    f'{self.species.name}: requested {family} motif(s) were '
+                    f'not discovered: {missing}; available motifs are '
+                    f'{[list(map(int, item)) for item in available]}.')
+            retained[family] = chosen
+        self.reactions = retained
 
     def _name_distinct_motifs(self):
         """Separate retained motifs whose old names omit reacting atoms or ring arms.

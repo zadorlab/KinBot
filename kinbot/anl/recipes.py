@@ -1,14 +1,24 @@
 """Declarative ANL expressions over independently validated components.
 
 CBS, core-valence, and scalar-relativistic components are named inputs here.
-Verified Molpro task pairs can provide CBS references; the remaining native
-QC providers still require implementation.
+Every requirement is assembled only from hash-verified native results or an
+explicit exact-zero/state datum.  The recipe layer contains no program path,
+scheduler, or molecule-specific value.
 """
 
 from __future__ import annotations
 
 from kinbot.anl.extrapolation import ORIGINAL_ANL_POWER
 from kinbot.anl.model import ComponentRequirement, CompositeRecipe, ExpressionTerm
+
+
+# The prime in the published a'VnZ notation means aug-cc-pVnZ on every
+# non-hydrogen atom and cc-pVnZ on hydrogen.  Keep the executable Molpro spellings
+# beside the declarative recipe so generation and assembly cannot drift apart.
+ANL0_NATIVE_REFERENCE_BASES = (
+    'aug-cc-pVQZ,h=cc-pVQZ',
+    'aug-cc-pV5Z,h=cc-pV5Z',
+)
 
 
 def _required(key, quantity, method, basis, role='l3',
@@ -20,7 +30,11 @@ def _required(key, quantity, method, basis, role='l3',
 def recipe(name: str, *, vpt2_method: str | None = None,
            vpt2_cbs: bool = False, multiplicity: int = 1,
            atomic: bool = False,
-           rank_exact_higher_order: bool = False) -> CompositeRecipe:
+           rank_exact_higher_order: bool = False,
+           harmonic_only: bool = False,
+           fallback_geometry_method: str | None = None,
+           fallback_harmonic_method: str | None = None,
+           fallback_basis: str = 'cc-pVTZ') -> CompositeRecipe:
     """Return the original equation or an explicitly labeled VPT2 variant.
 
     The published ANL1 anharmonic correction uses B3LYP/cc-pVTZ. The selected
@@ -42,15 +56,31 @@ def recipe(name: str, *, vpt2_method: str | None = None,
         raise ValueError('atomic must be boolean.')
     if not isinstance(rank_exact_higher_order, bool):
         raise ValueError('rank_exact_higher_order must be boolean.')
+    if not isinstance(harmonic_only, bool):
+        raise ValueError('harmonic_only must be boolean.')
+    geometry_fallback = fallback_geometry_method is not None
+    harmonic_fallback = fallback_harmonic_method is not None
+    if ((geometry_fallback and not fallback_geometry_method)
+            or (harmonic_fallback and not fallback_harmonic_method)
+            or ((geometry_fallback or harmonic_fallback)
+                and not fallback_basis)):
+        raise ValueError('Invalid L2 geometry or harmonic fallback identity.')
     variants = []
     if name == 'ANL0-F12':
         # The 2017 article names F12b but does not specify SCALE_TRIP.
         # Our explicit SCALE_TRIP=1 must not be labeled an exact reproduction.
         variants.append('scaled-triples')
-    if vpt2_method == 'B2PLYP-D3BJ':
+    if vpt2_method == 'B2PLYP-D3BJ' and not harmonic_only:
         variants.append('B2PLYP-D3BJ')
-    if vpt2_cbs:
+    if vpt2_cbs and not harmonic_only:
         variants.append('VPT2-CBS')
+    if harmonic_only:
+        variants.append('harmonic-ZPE')
+    if geometry_fallback:
+        variants.append(f'{fallback_geometry_method}/{fallback_basis}-geometry')
+    if harmonic_fallback:
+        variants.append(
+            f'{fallback_harmonic_method}/{fallback_basis}-ZPE')
     label = (f'profiled:{name}:' + ':'.join(variants)) if variants else name
 
     if name == 'ANL0-F12':
@@ -59,33 +89,46 @@ def recipe(name: str, *, vpt2_method: str | None = None,
                               correlation='unrestricted',
                               extrapolation_power=ORIGINAL_ANL_POWER,
                               upper_cardinal=4,
-                              geometry_method='CCSD(T)',
-                              geometry_basis='cc-pVTZ')
+                              geometry_method=(fallback_geometry_method
+                                               or 'CCSD(T)'),
+                              geometry_basis=(fallback_basis if geometry_fallback
+                                              else 'cc-pVTZ'))
     elif name == 'ANL1':
         reference = _required('reference_cbs', 'electronic', 'CCSD(T)',
                               "CBS(a'5Z,a'6Z)//cc-pVQZ",
                               correlation='unrestricted',
                               extrapolation_power=ORIGINAL_ANL_POWER,
                               upper_cardinal=6,
-                              geometry_method='CCSD(T)',
-                              geometry_basis='cc-pVQZ')
+                              geometry_method=(fallback_geometry_method
+                                               or 'CCSD(T)'),
+                              geometry_basis=(fallback_basis if geometry_fallback
+                                              else 'cc-pVQZ'))
     else:
         reference = _required('reference_cbs', 'electronic', 'CCSD(T)',
                               "CBS(a'QZ,a'5Z)//cc-pVTZ",
                               correlation='unrestricted',
                               extrapolation_power=ORIGINAL_ANL_POWER,
                               upper_cardinal=5,
-                              geometry_method='CCSD(T)',
-                              geometry_basis='cc-pVTZ')
+                              native_basis_pair=ANL0_NATIVE_REFERENCE_BASES,
+                              geometry_method=(fallback_geometry_method
+                                               or 'CCSD(T)'),
+                              geometry_basis=(fallback_basis if geometry_fallback
+                                              else 'cc-pVTZ'))
 
-    harmonic_basis = ('CBS(cc-pVTZ,cc-pVQZ)' if name == 'ANL1'
-                      else 'cc-pVTZ')
-    harmonic_settings = ({'extrapolation_power': ORIGINAL_ANL_POWER,
-                          'upper_cardinal': 4,
-                          'geometry_mode': 'basis_optimized',
-                          'correlation': 'unrestricted'}
-                         if name == 'ANL1'
-                         else {'correlation': 'unrestricted'})
+    harmonic_basis = (fallback_basis if harmonic_fallback else
+                      ('CBS(cc-pVTZ,cc-pVQZ)' if name == 'ANL1'
+                       else 'cc-pVTZ'))
+    harmonic_method = fallback_harmonic_method or 'CCSD(T)'
+    harmonic_backends = (('kinbot',) if harmonic_fallback else
+                         (('known_zero',) if atomic else
+                          ('composite',) if name == 'ANL1' else ('molpro',)))
+    harmonic_settings = ({} if harmonic_fallback else
+                         ({'extrapolation_power': ORIGINAL_ANL_POWER,
+                           'upper_cardinal': 4,
+                           'geometry_mode': 'basis_optimized',
+                           'correlation': 'unrestricted'}
+                          if name == 'ANL1'
+                          else {'correlation': 'unrestricted'}))
     vpt2_settings = ({'dispersion': 'GD3BJ'} if vpt2_method == 'B2PLYP-D3BJ'
                      else {'dispersion': ''})
     if vpt2_cbs:
@@ -96,13 +139,10 @@ def recipe(name: str, *, vpt2_method: str | None = None,
     vpt2_backends = ('composite',) if vpt2_cbs else ('gaussian',)
     common = [
         reference,
-        _required('harmonic_zpe', 'zpe', 'CCSD(T)', harmonic_basis,
-                  backends=(('known_zero',) if atomic else
-                            ('composite',) if name == 'ANL1' else ('molpro',)),
+        _required('harmonic_zpe', 'zpe', harmonic_method, harmonic_basis,
+                  role=('l2' if harmonic_fallback else 'l3'),
+                  backends=harmonic_backends,
                   **harmonic_settings),
-        _required('vpt2_correction', 'correction', vpt2_method, vpt2_basis,
-                  role='l2', backends=(('known_zero',) if atomic else
-                                       vpt2_backends), **vpt2_settings),
         _required('core_valence_cbs', 'correction',
                   'CCSD(T,full)-CCSD(T,frozen-core)',
                   'CBS(cc-pCVTZ,cc-pCVQZ)',
@@ -118,6 +158,11 @@ def recipe(name: str, *, vpt2_method: str | None = None,
                   role='state', backends=('known_zero', 'table',
                                           'calculated', 'manual')),
     ]
+    if not harmonic_only:
+        common.insert(2, _required(
+            'vpt2_correction', 'correction', vpt2_method, vpt2_basis,
+            role='l2', backends=(('known_zero',) if atomic else
+                                  vpt2_backends), **vpt2_settings))
     high_backend = 'mrcc'
     high_settings = {
         'correlation': 'unrestricted', 'core': 'frozen',
@@ -167,7 +212,9 @@ def recipe(name: str, *, vpt2_method: str | None = None,
                   ExpressionTerm('core_valence_cbs'),
                   ExpressionTerm('scalar_relativistic'),
                   ExpressionTerm('dboc'), ExpressionTerm('spin_orbit'))
-    zero_point = (ExpressionTerm('harmonic_zpe'),
-                  ExpressionTerm('vpt2_correction'))
+    zero_point = ((ExpressionTerm('harmonic_zpe'),)
+                  if harmonic_only else
+                  (ExpressionTerm('harmonic_zpe'),
+                   ExpressionTerm('vpt2_correction')))
     return CompositeRecipe(label, 1, tuple(common + higher),
                            electronic, zero_point)

@@ -10,8 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from kinbot.anl.atct import _canonical_smiles
-from kinbot.anl.cbh import (CBHReaction, FormationEnthalpy,
-                            formation_from_dict,
+from kinbot.anl.cbh import (CBHReaction, formation_from_dict,
                             zero_k_from_composite_record)
 from kinbot.anl.workflow import attach_task_vpt2_frequencies
 from kinbot.energy import attach_formation_enthalpy
@@ -228,6 +227,21 @@ def apply_handoff(root, manifest_file, *, report_file='me/anl_handoff.json'):
                 formation_0k_kj_mol=formation.formation_0k_kj_mol)
         elif entry.get('formation') is not None:
             raise ValueError(f'{key}: formation is only valid in cbh-anl mode.')
+        if entry.get('barrier_composite') is not None:
+            barrier_path = _path(
+                base, entry['barrier_composite'],
+                f'{key}.barrier_composite')
+            barrier = zero_k_from_composite_record(point.smiles, barrier_path)
+            if (barrier.charge, barrier.multiplicity) != (
+                    point.charge, point.mult):
+                raise ValueError(
+                    f'{key}: barrier composite electronic state disagrees.')
+            point.barrier_zero_k_energy = barrier
+            record.update(
+                barrier_composite=str(barrier_path),
+                barrier_composite_sha256=_digest(barrier_path),
+                barrier_method=barrier.method,
+                barrier_zero_k_hartree=barrier.hartree)
         vpt2 = _attach_vpt2(point, entry.get('vpt2'), base, key)
         if vpt2 is not None:
             record['vpt2'] = vpt2
@@ -239,14 +253,17 @@ def apply_handoff(root, manifest_file, *, report_file='me/anl_handoff.json'):
         point = transition_states[reaction_name]
         composite_path = _path(
             base, entry.get('composite'), f'{reaction_name}.composite')
-        if not point.smiles:
+        identity_smiles = entry.get('identity_smiles', point.smiles)
+        if not isinstance(identity_smiles, str) or not identity_smiles:
             raise ValueError(
-                f'{reaction_name}: transition state has no SMILES identity.')
-        final = zero_k_from_composite_record(point.smiles, composite_path)
+                f'{reaction_name}: transition state has no energy identity.')
+        final = zero_k_from_composite_record(identity_smiles, composite_path)
         if (final.charge, final.multiplicity) != (point.charge, point.mult):
             raise ValueError(
                 f'{reaction_name}: composite state disagrees with KinBot TS.')
         point.final_zero_k_energy = final
+        point.barrier_zero_k_energy = final
+        point.anl_identity_smiles = identity_smiles
         record = {
             'composite': str(composite_path),
             'composite_sha256': _digest(composite_path),

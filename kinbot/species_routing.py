@@ -75,6 +75,29 @@ def configured_selection(mapping, species, default=None):
     return mapping[key] if key in mapping else mapping.get(str(species.chemid), default)
 
 
+def configured_reaction_selection(mapping, species):
+    """Return an exact reaction selector for this species, if configured.
+
+    ``initial`` is a stable input name for the first unimolecular well.  It
+    avoids exposing KinBot's generated connectivity identifiers in ordinary
+    user input.  Explicit routing and connectivity keys retain precedence so
+    PES continuations can still target an individual configured species.
+    """
+    if not mapping:
+        return None
+    # Reaction discovery runs after the species name has been assigned from
+    # its routing identity.  Prefer that public name and the legacy ChemID
+    # directly; this also keeps the selector independent of recomputing a
+    # potentially expensive stereochemical identity.
+    for key in (str(getattr(species, 'name', '')),
+                str(getattr(species, 'chemid', ''))):
+        if key in mapping:
+            return mapping[key]
+    if getattr(species, 'short_name', None) == 'w1':
+        return mapping.get('initial')
+    return None
+
+
 def same_species(first, second, context='species reuse'):
     """Distinct supported configurations are independent objects, not errors."""
     if first.chemid != second.chemid:

@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 
 from ase.db import connect
 from ase.data import atomic_numbers
@@ -23,8 +24,8 @@ from ase.io import read
 from kinbot.anl.dispatch import (_load, _verify_execution, _verify_stage_files,
                                  prepare)
 from kinbot.anl.extrapolation import two_point_cbs
-from kinbot.anl.model import ComponentResult
-from kinbot.anl.recipes import recipe
+from kinbot.anl.model import ComponentResult, IncompleteRecipeError
+from kinbot.anl.recipes import ANL0_NATIVE_REFERENCE_BASES, recipe
 from kinbot.anl.results import legacy_molpro_parser
 from kinbot.anl.tasks import (higher_order_task, molpro_ccsdt_command,
                               molpro_task)
@@ -84,10 +85,15 @@ def _molpro_task(ident, body, *, geometry_from='l3_geometry',
     return task
 
 
-def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
+def interface_validation_spec(molecule, *, max_nodes=3, partition=None,
+                              stationary_point='minimum'):
     """Return a molecule-independent Gaussian/Molpro/CFOUR task graph."""
     if not isinstance(molecule, dict):
         raise TypeError('molecule must be an object.')
+    if stationary_point not in ('minimum', 'transition_state'):
+        raise ValueError(
+            'stationary_point must be minimum or transition_state.')
+    saddle_order = 1 if stationary_point == 'transition_state' else 0
     l2_profile = {
         'calculator': 'gaussian', 'method': 'B2PLYP',
         'basis': 'cc-pVTZ', 'command': 'g16',
@@ -121,6 +127,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
                                     partition=partition),
             'profile': l2_profile,
             'optimizer': {'fmax': 0.0005, 'steps': 160,
+                          'order': saddle_order,
                           'sella_kwargs': {
                               'internal': internal_coordinates}},
         },
@@ -136,6 +143,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
                                       if effective else {}),
                 'optimizer': 'sella'},
             'optimizer': {'fmax': 0.03, 'steps': 100,
+                          'order': saddle_order,
                           'sella_kwargs': {
                               'internal': internal_coordinates}},
         },
@@ -144,7 +152,8 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             f'basis=cc-pVTZ\nrhf\n{conventional_command}\nfrequencies,numerical\n',
             walltime='24:00:00', max_cores=8,
             parser={'kind': 'molpro_harmonic', 'basis': 'cc-pVTZ',
-                    'reference': reference, **rank_parser},
+                    'reference': reference,
+                    'stationary_point': stationary_point, **rank_parser},
             partition=partition),
         _molpro_task(
             'f12_tz',
@@ -171,6 +180,16 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
                     'basis': 'cc-pVDZ', 'reference': reference},
             partition=partition),
+        _molpro_task(
+            'l3_sp_l2',
+            f'basis=cc-pVTZ\nrhf\n{conventional_command}\n'
+            'kb_l3_sp_l2=energy\n',
+            walltime='12:00:00', max_cores=12,
+            parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
+                    'basis': 'cc-pVTZ', 'reference': reference,
+                    **rank_parser},
+            geometry_from='l2_geometry',
+            partition=partition),
         {
             'id': 'cfour_dboc', 'kind': 'external', 'backend': 'cfour',
             'geometry_from': 'l3_geometry',
@@ -195,7 +214,6 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
         {
             'id': 'gaussian_vpt2', 'kind': 'external',
             'backend': 'gaussian', 'geometry_from': 'l2_geometry',
-            'depends_on': ['l3_geometry'],
             'resources': _resources('24:00:00', max_cores=8,
                                     partition=partition),
             'input_name': 'vpt2.com',
@@ -226,13 +244,34 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
         # assembler supplies hash-bound exact zeros for ZPE and VPT2.
         tasks = [task for task in tasks
                  if task['id'] not in ('harmonic', 'gaussian_vpt2')]
+    if stationary_point == 'transition_state':
+        # VPT2 is a minimum thermochemistry correction.  A tight saddle uses
+        # its one-imaginary-mode harmonic ZPE, paired with a harmonic-ZPE
+        # reactant record from the same electronic recipe.
+        tasks = [task for task in tasks if task['id'] != 'gaussian_vpt2']
+    # Every electronic correction is a single point and can use the accepted
+    # L2 geometry when the optional L3 optimization is unavailable. Only the
+    # L3 harmonic calculation intrinsically belongs to the failed L3
+    # structure; the accepted L2 frequencies remain available separately.
+    for task in tasks:
+        if (task.get('geometry_from') == 'l3_geometry'
+                and task['id'] != 'harmonic'):
+            task['geometry_fallback'] = 'l2_geometry'
     by_id = {task['id']: task for task in tasks}
+    if 'l3_geometry' in by_id:
+        _component_fallback(
+            by_id['l3_geometry'], 'l3_optimized_geometry',
+            failure_skips=tuple(
+                task['id'] for task in tasks
+                if (task.get('geometry_from') == 'l3_geometry'
+                    and 'geometry_fallback' not in task)))
     for family, identifiers in {
             'reference_cbs_f12': ('f12_tz', 'f12_qz'),
             'harmonic_zpe': ('harmonic',),
             'higher_order_anl0': ('ccsdt_dz',),
             'dboc': ('cfour_dboc',),
             'vpt2_correction': ('gaussian_vpt2',),
+            'l3_single_point_l2_geometry': ('l3_sp_l2',),
     }.items():
         present = tuple(ident for ident in identifiers if ident in by_id)
         for ident in present:
@@ -249,6 +288,7 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
             'requested_ladder_head': 'ANL1-F12',
             'mrcc_enabled': False,
             'claim': 'interface-validation-only',
+            'stationary_point': stationary_point,
             'unavailable_components': [
                 'ANL1-F12 pinned electronic equation',
                 'CCSDTQ(P)/cc-pVDZ (MRCC)',
@@ -277,6 +317,8 @@ def current_base_validation_spec(molecule, *, max_nodes=3, partition=None):
     for task in tasks:
         if task['id'] == 'l3_geometry':
             task['geometry_from'] = 'initial'
+        if task.get('geometry_fallback') == 'l2_geometry':
+            task['geometry_fallback'] = 'initial'
     return {
         'schema': 1, 'name': 'anl-current-base-validation',
         'molecule': molecule, 'limits': {'max_nodes': max_nodes},
@@ -330,6 +372,42 @@ def _rank_exact_higher_order(molecule):
 def _rank_exact_core_valence(molecule):
     """Whether the ANL frozen-core space is empty."""
     return all(atomic_numbers[symbol] <= 2 for symbol in molecule['symbols'])
+
+
+def _anl0_reference_tasks(molecule, *, partition=None,
+                          geometry_from='l3_geometry'):
+    """Build the conventional a'QZ/a'5Z reference pair for ANL0.
+
+    Published a'VnZ uses aug-cc-pVnZ on non-hydrogen atoms and cc-pVnZ on
+    hydrogen.  Molpro's element override is explicit in the native input and
+    the same spellings are pinned in the recipe requirement.
+    """
+    reference = 'RHF' if molecule.get('multiplicity', 1) == 1 else 'ROHF'
+    electrons = _electron_count(molecule)
+    effective = 'HF' if electrons == 1 else 'CCSD' if electrons == 2 else None
+    command = ({'HF': '', 'CCSD': 'uccsd'}[effective]
+               if effective else molpro_ccsdt_command(
+                   molecule.get('multiplicity', 1)))
+    rank_parser = ({'rank_exact_electrons': electrons,
+                    'effective_method': effective}
+                   if effective else {})
+    tasks = []
+    for ident, basis, walltime, cores in (
+            ('anl0_qz', ANL0_NATIVE_REFERENCE_BASES[0], '24:00:00', 12),
+            ('anl0_5z', ANL0_NATIVE_REFERENCE_BASES[1], '24:00:00', 12)):
+        task = _molpro_task(
+            ident, f'basis={basis}\nrhf\n{command}\nkb_{ident}=energy\n',
+            geometry_from=geometry_from, walltime=walltime, max_cores=cores,
+            parser={'kind': 'molpro_energy', 'method': 'CCSD(T)',
+                    'basis': basis, 'reference': reference, **rank_parser},
+            partition=partition)
+        tasks.append(task)
+    for task in tasks:
+        _component_fallback(
+            task, 'reference_cbs_anl0',
+            failure_skips=tuple(other['id'] for other in tasks
+                                if other is not task))
+    return tasks
 
 
 def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
@@ -567,14 +645,14 @@ def post_geometry_validation_spec(molecule, *, max_nodes=3, partition=None,
 
 
 def composite_validation_spec(molecule, *, max_nodes=3, partition=None,
-                              mrcc_command='dmrcc', anl0_only=False):
+                              mrcc_command='dmrcc', anl0_only=False,
+                              stationary_point='minimum'):
     """Build one L2 -> L3 -> parallel ANL validation graph.
 
     Every electronic, harmonic, anharmonic, DBOC, core-valence, and
-    scalar-relativistic task that consumes the accepted L3 geometry belongs
-    to this graph.  Gaussian VPT2 consumes the accepted L2 geometry, but is
-    held behind the same L3 completion barrier so all property jobs fan out
-    together under one global ``max_nodes`` limit.
+    scalar-relativistic task belongs to this graph. Gaussian VPT2 and the
+    L3 single point on L2 geometry branch directly from the accepted L2
+    geometry. They therefore remain usable if L3 optimization is unavailable.
 
     The older interface/base/post builders remain available for reading and
     continuing immutable validation runs.  New end-to-end runs should use
@@ -582,7 +660,8 @@ def composite_validation_spec(molecule, *, max_nodes=3, partition=None,
     dispatcher directory.
     """
     interface = interface_validation_spec(
-        molecule, max_nodes=max_nodes, partition=partition)
+        molecule, max_nodes=max_nodes, partition=partition,
+        stationary_point=stationary_point)
     post = post_geometry_validation_spec(
         molecule, max_nodes=max_nodes, partition=partition,
         mrcc_command=mrcc_command, anl0_only=anl0_only)
@@ -595,10 +674,17 @@ def composite_validation_spec(molecule, *, max_nodes=3, partition=None,
     for task in post['tasks']:
         task = deepcopy(task)
         task['geometry_from'] = 'l3_geometry'
+        task['geometry_fallback'] = 'l2_geometry'
         tasks.append(task)
     identifiers = [task['id'] for task in tasks]
     if len(identifiers) != len(set(identifiers)):
         raise RuntimeError('Composite validation task identifiers overlap.')
+    by_id = {task['id']: task for task in tasks}
+    if 'l3_geometry' in by_id:
+        by_id['l3_geometry']['failure_skips'] = [
+            task['id'] for task in tasks
+            if (task.get('geometry_from') == 'l3_geometry'
+                and 'geometry_fallback' not in task)]
 
     return {
         'schema': 1, 'name': 'anl-composite-validation',
@@ -609,6 +695,7 @@ def composite_validation_spec(molecule, *, max_nodes=3, partition=None,
             'requested_ladder_head': ('ANL0-F12' if anl0_only
                                       else 'ANL1-F12'),
             'anl0_only': anl0_only,
+            'stationary_point': stationary_point,
             'higher_order_equation': post['intent']['higher_order_equation'],
             'backend_policy': post['intent']['backend_policy'],
             'selected_higher_order_tasks':
@@ -619,8 +706,127 @@ def composite_validation_spec(molecule, *, max_nodes=3, partition=None,
             'scalar_relativistic_equation':
                 post['intent']['scalar_relativistic_equation'],
             'scheduling': (
-                'L2 geometry, then L3 geometry, then one globally throttled '
-                'parallel fan-out of every independent property task'),
+                'L2 geometry, then independent VPT2, L3-on-L2 single-point, '
+                'and L3-optimization branches; L3 properties fan out only '
+                'after the optimized geometry is accepted'),
+        },
+    }
+
+
+def automatic_composite_spec(molecule, *, highest_tier='ANL0-F12',
+                             max_nodes=3, partition=None,
+                             mrcc_command='dmrcc',
+                             stationary_point='minimum',
+                             vpt2_method='B2PLYP',
+                             vpt2_basis='cc-pVTZ',
+                             vpt2_dispersion='GD3BJ'):
+    """Build the automatic post-L2 graph for one stable point or tight TS.
+
+    The caller supplies the already accepted L2 geometry and its provenance
+    in ``molecule.source``. No L1 or L2 optimization is repeated. The graph
+    contains only work that can contribute to the requested highest tier or
+    one of its declared fallbacks.
+    """
+    allowed = ('ANL0-F12', 'ANL0', 'L3', 'L3-SP@L2', 'L2')
+    if highest_tier not in allowed:
+        raise ValueError(f'highest_tier must be one of {allowed}.')
+    source = molecule.get('source') if isinstance(molecule, dict) else None
+    if (not isinstance(source, dict)
+            or not re.fullmatch(r'[0-9a-f]{64}', str(
+                source.get('geometry_sha256', '')))
+            or not re.fullmatch(r'[0-9a-f]{64}', str(
+                source.get('record_sha256', '')))
+            or not isinstance(source.get('energy_hartree'), (int, float))
+            or isinstance(source.get('energy_hartree'), bool)
+            or not math.isfinite(source['energy_hartree'])):
+        raise ValueError(
+            'Automatic composite input needs a hash-bound accepted L2 source.')
+    full = composite_validation_spec(
+        molecule, max_nodes=max_nodes, partition=partition,
+        mrcc_command=mrcc_command, anl0_only=True,
+        stationary_point=stationary_point)
+    if (vpt2_method not in ('B3LYP', 'B2PLYP')
+            or vpt2_basis.casefold() != 'cc-pvtz'
+            or vpt2_dispersion not in ('', 'GD3BJ')
+            or (vpt2_method == 'B2PLYP') != (vpt2_dispersion == 'GD3BJ')):
+        raise ValueError('Unsupported automatic L2/VPT2 profile.')
+    tasks = []
+    for original in full['tasks']:
+        if original['id'] == 'l2_geometry':
+            continue
+        task = deepcopy(original)
+        if task['id'] == 'gaussian_vpt2':
+            dispersion = (f' EmpiricalDispersion={vpt2_dispersion}'
+                          if vpt2_dispersion else '')
+            task['input_template'] = (
+                '%nprocshared={{CORES}}\n%mem={{WORK_MEMORY_MB}}MB\n'
+                f'#p {vpt2_method}/{vpt2_basis} Freq=Anharmonic '
+                f'Symmetry=(PG=C1) SCF=XQC{dispersion} Integral=UltraFine\n\n'
+                'KinBot frequency-only VPT2 automatic calculation\n\n'
+                '{{CHARGE}} {{MULT}}\n{{CARTESIAN}}\n\n')
+            task['result_parser'] = {
+                'kind': 'gaussian_vpt2', 'file': 'vpt2.log',
+                'method': vpt2_method, 'basis': vpt2_basis,
+                'dispersion': vpt2_dispersion}
+        if task.get('geometry_from') == 'l2_geometry':
+            task['geometry_from'] = 'initial'
+        if task.get('geometry_fallback') == 'l2_geometry':
+            task['geometry_fallback'] = 'initial'
+        task['depends_on'] = [
+            dependency for dependency in task.get('depends_on', ())
+            if dependency != 'l2_geometry']
+        if not task['depends_on']:
+            task.pop('depends_on', None)
+        tasks.append(task)
+    tasks.extend(_anl0_reference_tasks(
+        molecule, partition=partition, geometry_from='l3_geometry'))
+    for task in tasks:
+        if (task.get('geometry_from') == 'l3_geometry'
+                and task['id'] != 'harmonic'):
+            task['geometry_fallback'] = 'initial'
+
+    keep = {
+        'ANL0-F12': {task['id'] for task in tasks},
+        'ANL0': ({task['id'] for task in tasks}
+                 - {'f12_tz', 'f12_qz'}),
+        'L3': {'l3_geometry', 'harmonic', 'gaussian_vpt2', 'l3_sp_l2'},
+        'L3-SP@L2': {'gaussian_vpt2', 'l3_sp_l2'},
+        'L2': {'gaussian_vpt2'},
+    }[highest_tier]
+    if stationary_point == 'transition_state' and highest_tier == 'L2':
+        # The accepted KinBot L2 TS record already contains its harmonic ZPE.
+        keep = set()
+    tasks = [task for task in tasks if task['id'] in keep]
+    identifiers = {task['id'] for task in tasks}
+    if 'l3_sp_l2' in identifiers and 'l3_geometry' in identifiers:
+        by_id = {task['id']: task for task in tasks}
+        by_id['l3_sp_l2']['fallback_on'] = ['l3_geometry']
+    for task in tasks:
+        task['depends_on'] = [dependency for dependency in
+                              task.get('depends_on', ())
+                              if dependency in identifiers]
+        if not task['depends_on']:
+            task.pop('depends_on', None)
+        task['failure_skips'] = [target for target in
+                                 task.get('failure_skips', ())
+                                 if target in identifiers]
+    by_id = {task['id']: task for task in tasks}
+    if 'l3_geometry' in by_id:
+        by_id['l3_geometry']['failure_skips'] = [
+            task['id'] for task in tasks
+            if (task.get('geometry_from') == 'l3_geometry'
+                and 'geometry_fallback' not in task)]
+    return {
+        'schema': 1, 'name': 'anl-automatic-post-l2',
+        'molecule': molecule, 'limits': {'max_nodes': max_nodes},
+        'tasks': tasks,
+        'intent': {
+            'claim': 'automatic-cbh-anl-production',
+            'highest_tier': highest_tier,
+            'fallback_ladder': list(allowed[allowed.index(highest_tier):]),
+            'stationary_point': stationary_point,
+            'source_geometry_role': 'accepted-l2',
+            'anl0_only': True,
         },
     }
 
@@ -1079,11 +1285,12 @@ def _apply_quality_review(component, task_id, review_file):
         review_required=False)
 
 
-def assemble_profiled_anl0_f12(
-        interface_run, higher_order_run, corrections_run, *, state_id,
+def _assemble_profiled_anl0(
+        recipe_name, interface_run, higher_order_run, corrections_run, *, state_id,
         spin_orbit_hartree, spin_orbit_source, spin_orbit_backend='manual',
-        vpt2_review=None, base_run=None):
-    """Assemble one provenance-checked profiled ANL0-F12 0 K energy.
+        vpt2_review=None, base_run=None, harmonic_only=False,
+        vpt2_method='B2PLYP-D3BJ', l2_geometry_fallback=None):
+    """Assemble one provenance-checked ANL0 or ANL0-F12 0 K energy.
 
     Every geometry-dependent term must trace to the accepted L2 geometry in
     ``interface_run`` and the accepted current L3 geometry in ``base_run``.
@@ -1091,18 +1298,26 @@ def assemble_profiled_anl0_f12(
     for both roles. Higher-order and correction graphs must identify the same
     completed L3 result.
     """
-    interface_run, interface_spec, _ = _load(interface_run)
+    if recipe_name not in ('ANL0', 'ANL0-F12'):
+        raise ValueError('Profiled ANL0 assembly needs ANL0 or ANL0-F12.')
+    interface_run, interface_spec, interface_state = _load(interface_run)
     if interface_spec.get('name') not in (
             'anl1-f12-non-mrcc-interface-validation',
-            'anl-composite-validation'):
+            'anl-composite-validation', 'anl-automatic-post-l2'):
         raise ValueError('Interface run has the wrong workflow type.')
     if not isinstance(state_id, str) or not state_id.strip():
         raise ValueError('state_id must be a nonempty string.')
     molecule = interface_spec['molecule']
     charge = molecule.get('charge', 0)
     multiplicity = molecule.get('multiplicity', 1)
-    l2 = molecule_from_completed_run(interface_run, 'l2_geometry')
-    l2_hash = l2['source']['geometry_sha256']
+    if interface_spec.get('name') == 'anl-automatic-post-l2':
+        l2 = molecule
+        l2_hash = molecule.get('source', {}).get('geometry_sha256')
+        if not re.fullmatch(r'[0-9a-f]{64}', str(l2_hash)):
+            raise ValueError('Automatic run lacks its accepted L2 geometry hash.')
+    else:
+        l2 = molecule_from_completed_run(interface_run, 'l2_geometry')
+        l2_hash = l2['source']['geometry_sha256']
     requested_base = (None if base_run is None else Path(base_run).resolve())
     if requested_base is None or requested_base == interface_run:
         # Supplying the interface explicitly is equivalent to omitting the
@@ -1110,32 +1325,78 @@ def assemble_profiled_anl0_f12(
         # whose workflow type is valid for both roles but is intentionally
         # distinct from a split current-base graph.
         base_run = interface_run
+        base_spec, base_state = interface_spec, interface_state
     else:
-        base_run, base_spec, _ = _load(requested_base)
+        base_run, base_spec, base_state = _load(requested_base)
         if base_spec.get('name') not in ('anl-current-base-validation',
-                                         'anl-composite-validation'):
+                                         'anl-composite-validation',
+                                         'anl-automatic-post-l2'):
             raise ValueError('Base run has the wrong workflow type.')
-        _same_imported_geometry(
-            interface_run, base_run, l2_hash, 'L2', 'l2_geometry')
-    l3 = molecule_from_completed_run(base_run, 'l3_geometry')
-    l3_hash = l3['source']['geometry_sha256']
-    if Path(higher_order_run).resolve() != base_run:
-        _same_imported_l3_geometry(base_run, higher_order_run, l3_hash)
-    if Path(corrections_run).resolve() != base_run:
-        _same_imported_l3_geometry(base_run, corrections_run, l3_hash)
+        if interface_spec.get('name') == 'anl-automatic-post-l2':
+            if (base_spec.get('molecule', {}).get('source', {}).get(
+                    'geometry_sha256') != l2_hash):
+                raise ValueError('Automatic base run uses a different L2 geometry.')
+        else:
+            _same_imported_geometry(
+                interface_run, base_run, l2_hash, 'L2', 'l2_geometry')
+    l3_status = base_state['tasks'].get('l3_geometry', {}).get('status')
+    geometry_fallback = l3_status in ('unavailable', 'skipped')
+    harmonic_status = base_state['tasks'].get('harmonic', {}).get('status')
+    harmonic_fallback = (len(molecule.get('symbols', ())) > 1
+                         and harmonic_status in ('unavailable', 'skipped'))
+    if geometry_fallback:
+        harmonic_fallback = True
+    needs_l2_fallback = geometry_fallback or harmonic_fallback
+    if (needs_l2_fallback
+            and (interface_spec.get('name') != 'anl-automatic-post-l2'
+                 or not isinstance(l2_geometry_fallback, ComponentResult)
+                 or l2_geometry_fallback.geometry_sha256 != l2_hash)):
+        raise IncompleteRecipeError(
+            'An accepted-L2 geometry/frequency fallback is required.')
+    if geometry_fallback:
+        if (Path(higher_order_run).resolve() != base_run
+                or Path(corrections_run).resolve() != base_run):
+            raise IncompleteRecipeError(
+                'L3 geometry is unavailable and no complete accepted-L2 '
+                'geometry/frequency fallback was supplied.')
+        l3_hash = l2_hash
+        l2_theory = molecule.get('source', {}).get('l2_theory', {})
+        fallback_geometry_method = l2_theory.get('method')
+        fallback_basis = l2_theory.get('basis')
+        if not fallback_geometry_method or not fallback_basis:
+            raise ValueError('Accepted L2 fallback provenance is incomplete.')
+    else:
+        l3 = molecule_from_completed_run(base_run, 'l3_geometry')
+        l3_hash = l3['source']['geometry_sha256']
+        fallback_geometry_method = fallback_basis = None
+        if Path(higher_order_run).resolve() != base_run:
+            _same_imported_l3_geometry(base_run, higher_order_run, l3_hash)
+        if Path(corrections_run).resolve() != base_run:
+            _same_imported_l3_geometry(base_run, corrections_run, l3_hash)
 
     atomic = len(molecule.get('symbols', ())) == 1
     rank_exact = _rank_exact_higher_order(molecule)
     equation = recipe(
-        'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+        recipe_name, vpt2_method=vpt2_method,
         multiplicity=multiplicity, atomic=atomic,
-        rank_exact_higher_order=rank_exact)
+        rank_exact_higher_order=rank_exact,
+        harmonic_only=harmonic_only,
+        fallback_geometry_method=fallback_geometry_method,
+        fallback_harmonic_method=(l2_geometry_fallback.method
+                                  if harmonic_fallback else None),
+        fallback_basis=((l2_geometry_fallback.basis
+                         if harmonic_fallback else fallback_basis)
+                        or 'cc-pVTZ'))
     required = {item.key: item for item in equation.requirements}
+    reference_tasks, reference_bases = (
+        (('f12_tz', 'f12_qz'), ('cc-pVTZ-F12', 'cc-pVQZ-F12'))
+        if recipe_name == 'ANL0-F12' else
+        (('anl0_qz', 'anl0_5z'), ANL0_NATIVE_REFERENCE_BASES))
     components = {
         'reference_cbs': cbs_task_component(
-            base_run, 'f12_tz', 'f12_qz',
+            base_run, *reference_tasks,
             requirement=required['reference_cbs'], state_id=state_id,
-            lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12'),
+            lower_basis=reference_bases[0], upper_basis=reference_bases[1]),
         'dboc': task_component(
             base_run, 'cfour_dboc', key='dboc', state_id=state_id),
     }
@@ -1143,15 +1404,23 @@ def assemble_profiled_anl0_f12(
         components['harmonic_zpe'] = atomic_zero_vibrational_component(
             molecule, required['harmonic_zpe'], state_id=state_id,
             geometry_sha256=l3_hash)
-        components['vpt2_correction'] = atomic_zero_vibrational_component(
-            molecule, required['vpt2_correction'], state_id=state_id,
-            geometry_sha256=l2_hash)
+        if not harmonic_only:
+            components['vpt2_correction'] = atomic_zero_vibrational_component(
+                molecule, required['vpt2_correction'], state_id=state_id,
+                geometry_sha256=l2_hash)
+    elif harmonic_fallback:
+        components['harmonic_zpe'] = l2_geometry_fallback
+        if not harmonic_only:
+            components['vpt2_correction'] = task_component(
+                interface_run, 'gaussian_vpt2', key='vpt2_correction',
+                state_id=state_id)
     else:
         components['harmonic_zpe'] = task_component(
             base_run, 'harmonic', key='harmonic_zpe', state_id=state_id)
-        components['vpt2_correction'] = task_component(
-            interface_run, 'gaussian_vpt2', key='vpt2_correction',
-            state_id=state_id)
+        if not harmonic_only:
+            components['vpt2_correction'] = task_component(
+                interface_run, 'gaussian_vpt2', key='vpt2_correction',
+                state_id=state_id)
     if rank_exact:
         components['higher_order_correction'] = \
             rank_exact_higher_order_correction(
@@ -1163,7 +1432,11 @@ def assemble_profiled_anl0_f12(
         components['hoe_high'] = task_component(
             higher_order_run, 'ccsdtq_dz', key='hoe_high',
             state_id=state_id)
-    if atomic:
+    if harmonic_only:
+        if vpt2_review is not None:
+            raise ValueError(
+                'A harmonic-only energy must not receive a VPT2 review.')
+    elif atomic:
         if vpt2_review is not None:
             raise ValueError('A monatomic species must not receive a VPT2 review.')
     else:
@@ -1198,11 +1471,34 @@ def assemble_profiled_anl0_f12(
         'zero_point_hartree': result.zero_point_hartree,
         'zero_k_hartree': result.zero_k_hartree,
         'geometry_sha256': {'l2': l2_hash, 'l3': l3_hash},
+        'geometry_provenance': {
+            'electronic_single_points': (
+                'accepted_l2_fallback' if geometry_fallback else
+                'accepted_l3_optimization'),
+            'harmonic_zpe': (
+                'accepted_l2_fallback' if harmonic_fallback else
+                'l3_harmonic'),
+        },
         'components': {key: asdict(value)
                        for key, value in result.components.items()},
         'electronic_terms': [asdict(term) for term in result.electronic_terms],
         'zero_point_terms': [asdict(term) for term in result.zero_point_terms],
     }
+
+
+def assemble_profiled_anl0_f12(
+        interface_run, higher_order_run, corrections_run, **kwargs):
+    """Assemble the explicitly correlated profiled ANL0 variant."""
+    return _assemble_profiled_anl0(
+        'ANL0-F12', interface_run, higher_order_run, corrections_run,
+        **kwargs)
+
+
+def assemble_profiled_anl0(
+        interface_run, higher_order_run, corrections_run, **kwargs):
+    """Assemble conventional ANL0 with the published a'QZ/a'5Z reference."""
+    return _assemble_profiled_anl0(
+        'ANL0', interface_run, higher_order_run, corrections_run, **kwargs)
 
 
 def audit_interface_run(run_dir):
@@ -1321,7 +1617,14 @@ def audit_composite_run(run_dir):
     if any(value != 'complete' for value in statuses.values()):
         raise RuntimeError(f'Composite ANL run is incomplete: {statuses}')
     atomic = len(spec['molecule'].get('symbols', ())) == 1
-    if atomic:
+    stationary_point = spec.get('intent', {}).get(
+        'stationary_point', 'minimum')
+    if stationary_point == 'transition_state':
+        vpt2_summary = {
+            'review_required': False, 'warnings': [],
+            'provider': 'not-applicable-transition-state-harmonic-zpe',
+        }
+    elif atomic:
         vpt2_summary = {
             'review_required': False, 'warnings': [],
             'anharmonic_correction_hartree': 0.,

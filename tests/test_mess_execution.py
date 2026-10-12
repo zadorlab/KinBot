@@ -87,7 +87,8 @@ def test_queue_waits_throttles_and_drains(tmp_path, monkeypatch, clock):
     assert len(clock.sleeps) == 4
     record = json.loads(Path('me/mess_execution.json').read_text())
     assert record['status'] == 'complete'
-    assert sorted(record['jobs']) == ['0000', '0001', '0002']
+    assert sorted(record['jobs']) == [
+        'mess_0000', 'mess_0001', 'mess_0002']
     assert all(len(job['output_sha256']) == 64
                for job in record['jobs'].values())
 

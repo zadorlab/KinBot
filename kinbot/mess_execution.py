@@ -236,7 +236,11 @@ def run_mess(writer):
         raise MESSExecutionError('\n'.join(failures))
     record = {
         'schema': 1, 'status': 'complete', 'queue': queue,
-        'command': solver, 'jobs': dict(sorted(completed.items())),
+        'command': solver,
+        'jobs': {
+            f'mess_{index}': details
+            for index, details in sorted(completed.items())
+        },
     }
     networks = Path('me/mess_networks.json')
     if networks.is_file():

@@ -171,9 +171,14 @@ def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=3.):
     if execution.get('status') != 'complete':
         raise ValueError('MESS execution record is not complete.')
     jobs = execution.get('jobs', {})
-    if job not in jobs:
+    execution_job = job
+    if execution_job not in jobs and job.startswith('mess_'):
+        legacy_job = job.removeprefix('mess_')
+        if legacy_job in jobs:
+            execution_job = legacy_job
+    if execution_job not in jobs:
         raise ValueError(f'{job}: missing from MESS execution record.')
-    expected_hash = jobs[job].get('output_sha256')
+    expected_hash = jobs[execution_job].get('output_sha256')
     observed_hash = _sha256(output_path)
     if expected_hash != observed_hash:
         raise ValueError(f'{job}: MESS output hash disagrees with execution record.')
@@ -222,6 +227,7 @@ def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=3.):
         'status': ('passed' if monotone and all(
             item['within_factor'] for item in compared) else 'failed'),
         'job': job,
+        'execution_job_key': execution_job,
         'output': str(output_path),
         'output_sha256': observed_hash,
         'reaction': f'{reactant}->{product}',

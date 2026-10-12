@@ -65,6 +65,29 @@ def test_methyl_recombination_audit_uses_hash_and_network(tmp_path):
         audit_methyl_recombination(tmp_path)
 
 
+def test_methyl_recombination_audit_reads_legacy_bare_execution_key(tmp_path):
+    directory = tmp_path / 'me'
+    directory.mkdir()
+    rates = [(temperature, methyl_recombination_experimental_fit(temperature))
+             for temperature in (300., 1000., 1700.)]
+    native = directory / 'mess_0000.out'
+    native.write_text(output(rates))
+    digest = hashlib.sha256(native.read_bytes()).hexdigest()
+    (directory / 'mess_execution.json').write_text(json.dumps({
+        'schema': 1, 'status': 'complete',
+        'jobs': {'0000': {'output_sha256': digest}},
+    }))
+    (directory / 'mess_networks.json').write_text(json.dumps([{
+        'stem': 'mess_0000', 'wells': ['w_1'], 'products': ['b_1'],
+    }]))
+
+    audit = audit_methyl_recombination(tmp_path)
+
+    assert audit['status'] == 'passed'
+    assert audit['job'] == 'mess_0000'
+    assert audit['execution_job_key'] == '0000'
+
+
 def test_methyl_recombination_retains_rates_outside_fit_range(tmp_path):
     directory = tmp_path / 'me'
     directory.mkdir()

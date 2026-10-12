@@ -77,7 +77,7 @@ env -u LD_LIBRARY_PATH -u LD_PRELOAD \
 .venv/bin/python -m pip install -e . \
   --no-build-isolation --no-deps
 
-.venv/bin/python -m pytest -q \
+PYTHONPATH=tests .venv/bin/python -m pytest -q \
   tests/test_anl_cbh_atct.py \
   tests/test_anl_cbh_table_handoff.py \
   tests/test_anl_mess_thermochemistry.py \

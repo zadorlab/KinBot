@@ -56,6 +56,21 @@ class TestBackendWarnings(unittest.TestCase):
                     ValueError, message):
                 self.read_parameters(**options)
 
+    def test_spin_splitting_is_additive_and_defaults_to_tz_qz_cbs(self):
+        direct = self.read_parameters()
+        self.assertEqual(direct['vrc_tst_correction_model'], 'direct')
+        spin = self.read_parameters(
+            vrc_tst_correction_model='spin_splitting')
+        self.assertEqual(spin['vrc_tst_correction_model'], 'spin_splitting')
+
+    def test_invalid_spin_splitting_override_fails_during_input_read(self):
+        with self.assertRaisesRegex(ValueError, 'adjacent'):
+            self.read_parameters(
+                vrc_tst_correction_model='spin_splitting',
+                vrc_tst_spin_splitting={
+                    'triplet_reference': {
+                        'basis': ['avdz-f12', 'avqz-f12']}})
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -193,6 +193,24 @@ def test_production_result_requires_converged_numeric_multipoint_sampling(
     assert provenance['dynamical_correction'] == pytest.approx(0.85)
     assert provenance['dynamical_correction_source'] == 'validation_metadata'
 
+    validation['trusted_correction_level'] = {
+        'model': 'spin_splitting',
+        'triplet_reference': {
+            'method': 'uccsd(t)-f12b',
+            'basis': ['avtz-f12', 'avqz-f12'],
+        },
+        'singlet_triplet_gaps': [
+            {'label': 'caspt2_f12', 'method': 'caspt2-f12(2,2)',
+             'basis': ['avtz-f12', 'avqz-f12']},
+            {'label': 'mrci_f12_q', 'method': 'mrci-f12+q(2,2)',
+             'basis': ['avtz-f12', 'avqz-f12']},
+        ],
+        'weighting': {'model': 'distance_switch'},
+    }
+    (tmp_path / 'channel.rotdpy.json').write_text(json.dumps(manifest))
+    assert read_result(input_file, required_profile='production')[
+        'surface_count'] == 3
+
     # Completed production calculations from before the metadata field was
     # added remain auditable from their immutable generated Python input.
     validation.pop('dynamical_correction')

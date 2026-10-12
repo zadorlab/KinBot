@@ -175,16 +175,8 @@ def _rotdpy_validation_metadata(par, pp_info, correction_file, noscan,
         raise ValueError('rotdpy_validation_profile must be interface or '
                          'production.')
     levels = pp_info.get('levels')
-    expected_levels = {
-        'sampling': {
-            'method': par['vrc_tst_sample_method'],
-            'basis': par['vrc_tst_sample_basis'],
-        },
-        'trusted_correction': {
-            'method': par['vrc_tst_high_method'],
-            'basis': par['vrc_tst_high_basis'],
-        },
-    }
+    from kinbot.vrc_correction import expected_levels as vrc_expected_levels
+    expected_levels = vrc_expected_levels(par)
     dynamical_correction = float(par['rotdpy_dynamical_correction'])
     if (not np.isfinite(dynamical_correction)
             or not 0. < dynamical_correction <= 1.):

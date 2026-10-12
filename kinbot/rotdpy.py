@@ -365,11 +365,9 @@ def _validate_production_result(input_file: Path, payload: dict,
             or payload['surface_count'] < 3):
         raise RuntimeError('Production rotdPy result lacks multiple verified '
                            'dividing surfaces.')
-    levels = (validation.get('sampling_level'),
-              validation.get('trusted_correction_level'))
-    if any(not isinstance(level, dict)
-           or not str(level.get('method', '')).strip()
-           or not str(level.get('basis', '')).strip() for level in levels):
+    if (not _valid_vrc_level(validation.get('sampling_level'))
+            or not _valid_trusted_correction(
+                validation.get('trusted_correction_level'))):
         raise RuntimeError('Production rotdPy method provenance is incomplete.')
     _result_dynamical_correction(input_file, payload, required=True)
     statistics = payload.get('surface_statistics')
@@ -387,6 +385,43 @@ def _validate_production_result(input_file: Path, payload: dict,
     if any(path.stat().st_size == 0 or not _has_finite_numeric_data(path)
            for path in outputs):
         raise RuntimeError('Production rotdPy output lacks numeric data.')
+
+
+def _valid_vrc_level(level):
+    """Return whether a stored VRC method/basis declaration is complete."""
+    if not isinstance(level, dict):
+        return False
+    method = level.get('method')
+    basis = level.get('basis')
+    return (isinstance(method, str) and bool(method.strip())
+            and ((isinstance(basis, str) and bool(basis.strip()))
+                 or (isinstance(basis, list) and len(basis) == 2
+                     and all(isinstance(item, str) and item.strip()
+                             for item in basis))))
+
+
+def _valid_trusted_correction(level):
+    """Accept direct levels and the explicit spin-splitting provenance."""
+    if _valid_vrc_level(level):
+        return True
+    if (not isinstance(level, dict)
+            or level.get('model') != 'spin_splitting'
+            or not _valid_vrc_level(level.get('triplet_reference'))):
+        return False
+    gaps = level.get('singlet_triplet_gaps')
+    labels = []
+    if not isinstance(gaps, list) or len(gaps) != 2:
+        return False
+    for gap in gaps:
+        if (not _valid_vrc_level(gap)
+                or not isinstance(gap.get('label'), str)
+                or not gap['label'].strip()):
+            return False
+        labels.append(gap['label'])
+    weighting = level.get('weighting')
+    return (len(set(labels)) == 2 and isinstance(weighting, dict)
+            and weighting.get('model') in ('distance_switch',
+                                            'arithmetic_mean'))
 
 
 def read_result(input_file: str | Path,

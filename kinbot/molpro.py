@@ -12,7 +12,8 @@ import math
 logger = logging.getLogger('KinBot')
 
 
-def _vrc_multireference_method(method, nelectron, spin=0):
+def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
+                               ipea=None):
     """Render a supported VRC active-space method and its energy variable.
 
     KinBot uses ``CASPT2(ne,no)`` for the inexpensive ROTD sampling surface
@@ -21,7 +22,8 @@ def _vrc_multireference_method(method, nelectron, spin=0):
     followed by ``energy`` would silently select the variational MRCI value.
     """
     match = re.fullmatch(
-        r'(caspt2|mrci\+q)\((\d+),(\d+)\)', str(method).casefold())
+        r'(caspt2(?:-f12)?|mrci(?:-f12)?\+q)\((\d+),(\d+)\)',
+        str(method).casefold())
     if match is None:
         return None
     family, electrons_text, orbitals_text = match.groups()
@@ -41,10 +43,20 @@ def _vrc_multireference_method(method, nelectron, spin=0):
              f'closed,{closed_orbitals}\n'
              f'wf,{int(nelectron)},1,{int(spin)}\n'
              'maxit,50;}\n\n')
-    if family == 'caspt2':
-        program = 'rs2c' if int(spin) == 0 else 'rs2'
-        return multi + f'{{{program},shift=0.3}}\n', 'energy(1)'
-    return multi + '{mrci}\n', 'energd(1)'
+    if family.startswith('caspt2'):
+        program = ('rs2-f12' if '-f12' in family
+                   else ('rs2c' if int(spin) == 0 else 'rs2'))
+        options = []
+        if shift is None:
+            shift = 0.3
+        if shift is not None:
+            options.append(f'shift={float(shift):g}')
+        if ipea is not None:
+            options.append(f'ipea={float(ipea):g}')
+        command = ','.join([program, *options])
+        return multi + f'{{{command}}}\n', 'energy(1)'
+    program = 'mrci-f12' if '-f12' in family else 'mrci'
+    return multi + f'{{{program}}}\n', 'energd(1)'
 
 
 
@@ -56,7 +68,9 @@ class Molpro:
         self.species = species
         self.par = par
 
-    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None, do_vdW=False, VTS=False, sample=False):
+    def create_molpro_input(self, bls=0, name='', shift_vec=None, natom1=None,
+                            do_vdW=False, VTS=False, sample=False,
+                            vrc_level=None):
         """
         Create the input for molpro based on the template,
         which is either the one in the system, or provided
@@ -100,6 +114,18 @@ class Molpro:
         nelectron -= self.species.charge
         symm = self.molpro_symm()
         spin = self.species.mult - 1
+        if vrc_level is not None:
+            multiplicity = vrc_level.get('multiplicity', self.species.mult)
+            if multiplicity is None:
+                multiplicity = self.species.mult
+            if (isinstance(multiplicity, bool)
+                    or not isinstance(multiplicity, int)
+                    or multiplicity < 1):
+                raise ValueError('VRC multiplicity must be a positive integer.')
+            spin = multiplicity - 1
+            if spin > nelectron or (nelectron - spin) % 2:
+                raise ValueError('VRC multiplicity is incompatible with the '
+                                 'molecular electron count.')
 
         if not bls and not VTS:
             with open('molpro/' + fname + '.inp', 'w') as outf:
@@ -177,21 +203,21 @@ class Molpro:
                       'orient,noorient\n' \
                       'nosym'
 
-            if sample:
-                basis = f"basis = {self.par['vrc_tst_sample_basis']}"
-            else:
-                basis = f"basis = {self.par['vrc_tst_high_basis']}"
-            
-
-            if sample:
-                l3_method = self.par["vrc_tst_sample_method"]
-            else:
-                l3_method = self.par["vrc_tst_high_method"]
+            if vrc_level is None:
+                vrc_level = {
+                    'method': (self.par['vrc_tst_sample_method'] if sample
+                               else self.par['vrc_tst_high_method']),
+                    'basis': (self.par['vrc_tst_sample_basis'] if sample
+                              else self.par['vrc_tst_high_basis']),
+                }
+            basis = f"basis = {vrc_level['basis']}"
+            l3_method = vrc_level['method']
 
             method = ''
             energy_expression = 'energy(1)'
             multireference = _vrc_multireference_method(
-                l3_method, nelectron, spin=spin)
+                l3_method, nelectron, spin=spin,
+                shift=vrc_level.get('shift'), ipea=vrc_level.get('ipea'))
             if multireference is not None:
                 method, energy_expression = multireference
                 # Keep the orbitals used by the correction calculation for
@@ -226,8 +252,10 @@ class Molpro:
                         method += " {grid,wcut=1d-30,min_nr=[175,250,250,250],max_nr=[175,250,250,250],min_L=[974,974,974,974],max_L=[974,974,974,974]}\n"
                         method += " ks,HYB_GGA_XC_B3LYP\n"
                     case _:
-                        method += " rhf\n"
+                        method += (" {rhf;wf," +
+                                   f"{nelectron},{symm},{spin}" + "}\n")
                         method += "{}\n".format(l3_method)
+                        energy_expression = 'energy'
 
             with open('vrctst/molpro/' + fname + '.inp', 'w') as f:
                     f.write(tpl.format(options=options,

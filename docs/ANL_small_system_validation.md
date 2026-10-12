@@ -60,6 +60,8 @@ an ordinary KinBot PES input:
   "theory_preset": "uma-b2plyp-anl",
   "composite_method": "ANL0-F12",
   "cbh_rung": 1,
+  "vrc_tst_correction_model": "spin_splitting",
+  "vrc_tst_scan_points": [2.5, 3.125, 3.75, 4.375, 5.0, 7.0, 10.0],
   "rotdpy_run": 1,
   "run_messpf": 1,
   "me": 1,
@@ -69,6 +71,50 @@ an ordinary KinBot PES input:
   "queue_job_limit": 8
 }
 ```
+
+The spin-splitting preset keeps the original direct VRC correction as the
+global compatibility default; selecting it is one extra scientific choice in
+this validation input.  For this test its three reference branches all use
+TZ/QZ two-point CBS values:
+
+- RHF-UCCSD(T)-F12b/aug-cc-pV{T,Q}Z-F12 for the triplet interaction;
+- CASPT2-F12(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies, with
+  real shift 0.20 and IPEA shift 0.25; and
+- MRCI-F12+Q(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies.
+
+Every lower/upper pair uses the same ANL extrapolation:
+
+```text
+E_CBS = E_n + alpha_n (E_n - E_(n-1))
+alpha_n = (n-1)^3.7 / (n^3.7 - (n-1)^3.7)
+```
+
+Thus `alpha_4 = 0.5265464668174269` for the requested TZ/QZ pairs.  The code
+also accepts adjacent DZ/TZ, QZ/5Z, 5Z/6Z, or higher pairs and records the
+power, coefficient, raw energies, and extrapolated energy in the correction
+record.
+
+At each separation the reference singlet energy is reconstructed as
+
+```text
+E_S(R) = E_T,CC,CBS(R)
+       + w_CAS(R) [E_S,CAS,CBS(R) - E_T,CAS,CBS(R)]
+       + w_MRCI(R)[E_S,MRCI,CBS(R) - E_T,MRCI,CBS(R)].
+```
+
+The default distance switch uses CASPT2/MRCI weights `0.2/0.8`, `0.4/0.6`,
+`0.5/0.5`, `0.6/0.4`, and `0.8/0.2` at 2.5, 3.125, 3.75, 4.375, and 5.0
+angstrom, with endpoint weights held outside that range.  This gives the more
+complete CI gap greater weight at short range and the size-consistent CASPT2
+gap greater weight at long range.  Linear interpolation avoids a discontinuity.
+Setting the weighting model to `arithmetic_mean` reproduces the equal average
+used by Ram et al.
+
+The correction is the reconstructed relaxed-path interaction minus the rigid
+CASPT2/cc-pVDZ sampling interaction, after each curve is referenced to its
+own 30-angstrom asymptote.  The MEP geometries remain those produced by the
+configured KinBot VRC relaxed scan; the stored provenance distinguishes this
+from the CASPT2-F12-relaxed MEP used in the published perfluoroalkyl work.
 
 `selected_reactions`, `stop_product_reaction_search`, and `cbh_rung` describe
 the required general interface.  They must be implemented as ordinary KinBot
@@ -133,5 +179,12 @@ outputs.
 - L. B. Harding, Y. Georgievskii, and S. J. Klippenstein, *J. Phys. Chem. A*
   2010, 114, 765-777, DOI `10.1021/jp906919w`: pressure-dependent branching
   on the acetaldehyde decomposition surface.
+- H. Ram et al., *J. Phys. Chem. A* 2025, DOI `10.1021/acs.jpca.4c07388`:
+  RHF-UCCSD(T)-F12b plus CASPT2-F12 and MRCI-F12+Q spin splitting,
+  multireference correction potentials, and VRC-TST statistical factors.
+- The Molpro manual sections on explicitly correlated methods, multireference
+  perturbation theory, and MRCI define the RHF-reference UCCSD(T)-F12,
+  RS2-F12 `SHIFT`/`IPEA`, and Davidson-corrected `ENERGD` conventions used by
+  the generated inputs.
 - ATcT acetaldehyde record `75-07-0*0`: an independent thermochemical
   comparison, not a CBH1 input reference.

@@ -21,6 +21,10 @@ from kinbot.utils import reorder_coord
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
 from kinbot.molpro import Molpro
+from kinbot.vrc_correction import (
+    assemble_spin_splitting_reference, correction_components,
+    correction_model, expected_levels, spin_splitting_settings,
+)
 from kinbot.utils import create_matplotlib_graph, NpEncoder
 from kinbot import constants
 
@@ -437,25 +441,29 @@ class VTS:
         db = connect('kinbot.db')
         records = {}
         pending = {}
+        model = correction_model(self.par)
+        components = correction_components(self.par)
         for reac in reactions:
+            if model == 'spin_splitting':
+                reaction = self.scan_reac[reac]
+                fragment_mults = [int(product.mult)
+                                  for product in reaction.products]
+                parent_mult = int(reaction.species.mult)
+                if fragment_mults != [2, 2] or parent_mult != 1:
+                    raise ValueError(
+                        'The spin-splitting VRC correction requires a '
+                        'singlet association of two doublet fragments.')
             records[reac] = []
             ndist = 1 if noscan else len(self.par['vrc_tst_scan_points']) + 1
             for step in range(ndist):
-                for sample in [True, False]:
-                    if sample:
-                        if step < ndist - 1:
-                            job = f'{reac}_vts_pt{str(step).zfill(2)}_fr'
-                        else:
-                            job = f'{reac}_vts_pt_asymptote_fr'
-                    else:
-                        if step < ndist - 1:
-                            job = f'{reac}_vts_pt{str(step).zfill(2)}'
-                        else:
-                            # Both theories use the frozen asymptotic geometry,
-                            # but need distinct inputs and native outputs.
-                            job = f'{reac}_vts_pt_asymptote'
-                    geometry_job = (job if sample or not job.endswith(
-                        '_asymptote') else job + '_fr')
+                base = (f'{reac}_vts_pt{str(step).zfill(2)}'
+                        if step < ndist - 1
+                        else f'{reac}_vts_pt_asymptote')
+                for component in components:
+                    job = base + component['suffix']
+                    geometry_job = (base + '_fr'
+                                    if (component['geometry'] == 'frozen'
+                                        or step == ndist - 1) else base)
                     rows = list(db.select(name=f'vrctst/{geometry_job}',
                                           sort='-id', limit=1))
                     if not rows:
@@ -467,7 +475,10 @@ class VTS:
                     scan_spec.characterize()
 
                     molp = Molpro(scan_spec, self.par)
-                    molp.create_molpro_input(name=job, VTS=True, sample=sample)
+                    molp.create_molpro_input(
+                        name=job, VTS=True,
+                        sample=component['role'] == 'sampling',
+                        vrc_level=component)
                     if self._vrc_output_matches_input(job):
                         e_stat, e = molp.get_molpro_energy(
                             key=self.par['vrc_tst_scan_molpro_key'],
@@ -477,32 +488,49 @@ class VTS:
                     logger.debug(f'{job}, {e_stat}, {e}')
                     if not e_stat:
                         pending[job] = scan_spec
-                    records[reac].append((sample, job, molp))
+                    records[reac].append((component['role'], job, molp))
 
         if pending:
             self._dispatch_molpro_corrections(pending)
 
         for reac in reactions:
-            e_samp = []
-            e_high = []
-            for sample, job, molp in records[reac]:
+            energies = {component['role']: [] for component in components}
+            native_components = {component['role']: []
+                                 for component in components}
+            for role, job, molp in records[reac]:
                 e_stat, energy = molp.get_molpro_energy(
                     key=self.par['vrc_tst_scan_molpro_key'], name=job,
                     VTS=True)
                 if not e_stat or not self._vrc_output_matches_input(job):
                     raise RuntimeError(f'VRC Molpro result {job} has no '
                                        f'{self.par["vrc_tst_scan_molpro_key"]} energy.')
-                (e_samp if sample else e_high).append(energy)
+                energies[role].append(energy)
+                directory = Path('vrctst/molpro')
+                native_components[role].append({
+                    'job': job,
+                    'input_sha256': hashlib.sha256(
+                        (directory / f'{job}.inp').read_bytes()).hexdigest(),
+                    'output_sha256': hashlib.sha256(
+                        (directory / f'{job}.out').read_bytes()).hexdigest(),
+                    'energy_hartree': energy,
+                })
 
             dist = ([30] if noscan
                     else self.par['vrc_tst_scan_points'] + [30])
+            e_samp = energies['sampling']
+            spin_splitting = None
+            if model == 'direct':
+                e_high = energies['trusted']
+            else:
+                e_high, spin_splitting = assemble_spin_splitting_reference(
+                    dist, energies, spin_splitting_settings(self.par))
             ens = []  # energies for sample and high in kcal/mol
             asyms = []  # asymptotic energies in hartree
-            for energies in (e_samp, e_high):
-                if len(energies) != len(dist):
+            for curve in (e_samp, e_high):
+                if len(curve) != len(dist):
                     raise RuntimeError(f'Incomplete VRC energy series for {reac}.')
-                asyms.append(energies[-1])
-                ens.append(list((np.array(energies) - energies[-1])
+                asyms.append(curve[-1])
+                ens.append(list((np.array(curve) - curve[-1])
                                 * constants.AUtoKCAL))
 
             # Create scan references between all equivalent atoms:
@@ -541,16 +569,9 @@ class VTS:
                 'unique': self.scan_reac[reac].usym,
                 'e_inf_samp': asyms[0],
                 'e_inf_high': asyms[1],
-                'levels': {
-                    'sampling': {
-                        'method': self.par['vrc_tst_sample_method'],
-                        'basis': self.par['vrc_tst_sample_basis'],
-                    },
-                    'trusted_correction': {
-                        'method': self.par['vrc_tst_high_method'],
-                        'basis': self.par['vrc_tst_high_basis'],
-                    },
-                },
+                'correction_model': model,
+                'levels': expected_levels(self.par),
+                'native_components': native_components,
                 'frags_atom': [list(self.scan_reac[reac].products[0].atom),
                                list(self.scan_reac[reac].products[1].atom)],
                 'frags_geom': [self.scan_reac[reac].products[0].geom,
@@ -562,6 +583,8 @@ class VTS:
                                   for index, product in enumerate(
                                       self.scan_reac[reac].products)]
                 }
+            if spin_splitting is not None:
+                corr['spin_splitting'] = spin_splitting
 
             with open(f'vrctst/corr_{reac}.json', 'w',
                       encoding='utf-8') as f:

@@ -381,6 +381,12 @@ class Parameters:
             'vrc_tst_high_method': 'caspt2(2,2)',
             'vrc_tst_sample_basis': 'vdz',
             'vrc_tst_high_basis': 'avtz',
+            # ``direct`` preserves the original single trusted calculation.
+            # ``spin_splitting`` reconstructs the singlet from a
+            # RHF-UCCSD(T)-F12b triplet and two multireference S-T gaps.
+            'vrc_tst_correction_model': 'direct',
+            # Optional overrides to the documented spin-splitting preset.
+            'vrc_tst_spin_splitting': None,
             # Parameters for the vrc_tst scan
             'vrc_tst_scan_points': list(np.arange(2.5, 20.0, 0.2)),
             'vrc_tst_scan_molpro_key': 'MYENERGY',
@@ -625,6 +631,10 @@ class Parameters:
                 'interface', 'production'):
             raise ValueError('rotdpy_validation_profile must be interface '
                              'or production')
+        from kinbot.vrc_correction import (correction_model,
+                                           spin_splitting_settings)
+        if correction_model(self.par) == 'spin_splitting':
+            spin_splitting_settings(self.par)
         energy_index = self.par['rotdpy_mess_energy_index']
         if (isinstance(energy_index, bool)
                 or not isinstance(energy_index, int) or energy_index < -1):

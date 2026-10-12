@@ -19,10 +19,11 @@ class _FakeMolpro:
     def __init__(self, species, parameters):
         self.species = species
 
-    def create_molpro_input(self, name='', VTS=False, sample=False):
+    def create_molpro_input(self, name='', VTS=False, sample=False,
+                            vrc_level=None):
         assert VTS
         Path(f'vrctst/molpro/{name}.inp').write_text(
-            f'***,{name}\n! sample={sample}\n')
+            f'***,{name}\n! sample={sample}\n! level={vrc_level}\n')
 
     def get_molpro_energy(self, key, name='', VTS=False):
         assert key == 'MYENERGY'
@@ -61,7 +62,8 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
             vts.scan_reac['r'] = SimpleNamespace(
                 usym=[[[0]], [[0]]], equiv=[[0], [1]],
                 maps=[np.asarray([0]), np.asarray([1])],
-                products=[product_a, product_b])
+                products=[product_a, product_b],
+                species=SimpleNamespace(mult=1))
             observed = set()
 
             def dispatch(pending):
@@ -89,6 +91,71 @@ def test_noscan_uses_distinct_sampling_and_high_level_asymptotes():
             assert correction['e_inf_high'] == -11.
             assert correction['levels']['trusted_correction'] == {
                 'method': 'mrci+q(2,2)', 'basis': 'vtz'}
+        finally:
+            os.chdir(previous)
+
+
+def test_spin_splitting_dispatches_all_cbs_components_and_records_provenance():
+    with TemporaryDirectory() as temporary:
+        previous = Path.cwd()
+        os.chdir(temporary)
+        try:
+            Path('vrctst/molpro').mkdir(parents=True)
+            atoms = Atoms('H2', positions=[[0., 0., 0.], [0., 0., 30.]])
+            connect('kinbot.db').write(
+                atoms, name='vrctst/r_vts_pt_asymptote_fr',
+                data={'status': 'normal'})
+            well = SimpleNamespace(
+                chemid='parent', geom=np.asarray([[0., 0., 0.],
+                                                   [0., 0., .74]]))
+            parameters = {
+                'vrc_tst_scan_points': [2.5],
+                'vrc_tst_scan_molpro_key': 'MYENERGY',
+                'vrc_tst_sample_method': 'caspt2(2,2)',
+                'vrc_tst_sample_basis': 'vdz',
+                'vrc_tst_high_method': 'mrci+q(2,2)',
+                'vrc_tst_high_basis': 'vtz',
+                'vrc_tst_correction_model': 'spin_splitting',
+                'vrc_tst_spin_splitting': None,
+            }
+            vts = VTS(well, parameters, None)
+            product_a = SimpleNamespace(
+                atom=['H'], geom=[[0., 0., 0.]], mult=2)
+            product_b = SimpleNamespace(
+                atom=['H'], geom=[[0., 0., 30.]], mult=2)
+            vts.scan_reac['r'] = SimpleNamespace(
+                usym=[[[0]], [[0]]], equiv=[[0], [1]],
+                maps=[np.asarray([0]), np.asarray([1])],
+                products=[product_a, product_b],
+                species=SimpleNamespace(mult=1))
+            observed = set()
+
+            def dispatch(pending):
+                observed.update(pending)
+                for name in pending:
+                    Path(f'vrctst/molpro/{name}.out').write_text(
+                        'Molpro calculation terminated\n')
+                    source = Path(f'vrctst/molpro/{name}.inp')
+                    Path(f'vrctst/molpro/{name}.input.sha256').write_text(
+                        __import__('hashlib').sha256(
+                            source.read_bytes()).hexdigest() + '\n')
+
+            with patch('kinbot.vrc_tst_scan.Molpro', _FakeMolpro), \
+                    patch.object(vts, '_dispatch_molpro_corrections', dispatch):
+                vts.energies(['r'], noscan=True)
+
+            assert len(observed) == 11
+            assert 'r_vts_pt_asymptote_fr' in observed
+            assert 'r_vts_pt_asymptote_ss_triplet_cc_1' in observed
+            assert 'r_vts_pt_asymptote_ss_mrci_f12_q_triplet_1' in observed
+            correction = json.loads(
+                Path('vrctst/corr_r.json').read_text())
+            assert correction['correction_model'] == 'spin_splitting'
+            assert correction['levels']['trusted_correction']['model'] == \
+                'spin_splitting'
+            assert correction['spin_splitting']['triplet_cbs']['power'] == \
+                pytest.approx(3.7)
+            assert len(correction['native_components']) == 11
         finally:
             os.chdir(previous)
 

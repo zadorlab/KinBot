@@ -2,6 +2,17 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## VRC correction potentials
+
+The existing direct correction remains the default.  An optional
+`spin_splitting` model now reconstructs a singlet association potential from
+an RHF-UCCSD(T)-F12b triplet and CASPT2-F12 and MRCI-F12+Q singlet-triplet
+gaps.  Each branch supports adjacent-basis ANL two-point CBS extrapolation.
+The preset uses TZ/QZ and a continuous distance-dependent CASPT2/MRCI blend;
+an equal average reproduces the Ram et al. convention.  Native inputs,
+outputs, energies, hashes, CBS arithmetic, and weights are retained in the
+correction record.  Existing VRC inputs require no changes.
+
 ## Stereochemistry and symmetry
 
 **Keep configured stereoisomers separate throughout a calculation.**

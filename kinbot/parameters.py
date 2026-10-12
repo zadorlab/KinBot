@@ -214,6 +214,14 @@ class Parameters:
             'composite_method': '',
             'l3_overrides': {},
             'l3_resource_overrides': {},
+            # Persistent profiled-theory job routing. Separate continuation
+            # phases can select another ledger without deleting the original
+            # run's provenance.
+            'profiled_route_file': '.kinbot_theory_jobs.json',
+            # A continuation may reconstruct a completed L1 reaction network
+            # while permitting new L2/HIR work. Missing L1 jobs then fail
+            # locally instead of being submitted again.
+            'profiled_l1_reuse_only': 0,
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code

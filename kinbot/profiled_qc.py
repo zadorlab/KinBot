@@ -96,6 +96,14 @@ class ProfiledQuantumChemistry:
         from kinbot.qc import QuantumChemistry
 
         self.par = par
+        route_file = par.get('profiled_route_file', str(_ROUTE_FILE))
+        if not isinstance(route_file, str) or not route_file.strip():
+            raise ValueError('profiled_route_file must be a nonempty path.')
+        self.route_file = Path(route_file).expanduser()
+        reuse_only = par.get('profiled_l1_reuse_only', 0)
+        if reuse_only not in (0, 1, False, True):
+            raise ValueError('profiled_l1_reuse_only must be 0 or 1.')
+        self.l1_reuse_only = bool(reuse_only)
         self.profiles = resolve_profiles(par)
         if set(self.profiles) != {'l1', 'l2'}:
             raise ValueError('Profiled theory requires resolved L1 and L2 profiles.')
@@ -120,6 +128,14 @@ class ProfiledQuantumChemistry:
 
             def tracked(job, nproc, singlejob=1, jobtype=None, *,
                         _level=level, _submit=original):
+                if _level == 'l1' and self.l1_reuse_only:
+                    status = self.backends[_level].check_qc(job)
+                    if status == 0:
+                        raise FileNotFoundError(
+                            f'{job}: completed L1 result is required by the '
+                            'reuse-only continuation; no replacement job was '
+                            'submitted.')
+                    return 0
                 result = _submit(job, nproc, singlejob=singlejob,
                                  jobtype=jobtype)
                 job_id = self.backends[_level].job_ids.get(job)
@@ -134,17 +150,17 @@ class ProfiledQuantumChemistry:
         return getattr(self.l1, name)
 
     def _load_routes(self):
-        if not _ROUTE_FILE.exists():
+        if not self.route_file.exists():
             return {}
         try:
-            payload = json.loads(_ROUTE_FILE.read_text())
+            payload = json.loads(self.route_file.read_text())
         except (OSError, ValueError) as exc:
-            raise ValueError(f'Cannot read {_ROUTE_FILE}.') from exc
+            raise ValueError(f'Cannot read {self.route_file}.') from exc
         if (payload.get('schema') != 1
                 or payload.get('profile_sha256') != self._fingerprint
                 or not isinstance(payload.get('jobs'), dict)):
             raise ValueError('Theory profiles changed since jobs were submitted; '
-                             f'archive or remove {_ROUTE_FILE} before a new run.')
+                             f'archive or remove {self.route_file} before a new run.')
         routes = payload['jobs']
         for job, record in routes.items():
             if (not isinstance(job, str) or not isinstance(record, dict)
@@ -159,9 +175,10 @@ class ProfiledQuantumChemistry:
                    'profiles': {key: _profile_payload(value)
                                 for key, value in self.profiles.items()},
                    'jobs': self._routes}
-        temporary = _ROUTE_FILE.with_suffix(_ROUTE_FILE.suffix + '.tmp')
+        self.route_file.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.route_file.with_suffix(self.route_file.suffix + '.tmp')
         temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n')
-        os.replace(temporary, _ROUTE_FILE)
+        os.replace(temporary, self.route_file)
 
     def _record(self, job, level, job_id=None):
         previous = self._routes.get(job, {})

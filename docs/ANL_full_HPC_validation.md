@@ -1227,7 +1227,11 @@ every declared source-geometry higher-order comparison and both Hf(0 K)
 comparisons to pass before any hindered-rotor job can be submitted.
 
 The MESS pass sets `rotdpy_run=0`, disables new VRC scans, and consumes the
-existing production result. The current-format child performs the small
+existing production result. It reconstructs the completed reaction graph in
+L1 reuse-only mode: any missing L1 result is an error and cannot submit a new
+job. A phase-specific `.kinbot_theory_jobs.full_verification.json` ledger
+preserves the production route history while allowing the continuation's L2
+profile. The current-format child performs the small
 B2PLYP-D3(BJ)/cc-pVTZ L2 refinement and ethane hindered-rotor scan needed by
 its MESS model; an orientation-independent geometry check requires agreement
 with the accepted L2 composite structure. No ANL single points, correction

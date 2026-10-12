@@ -5418,6 +5418,13 @@ also declares the standard CHEMKIN/GRI-Mech C2H6 Lennard-Jones parameters,
 epsilon/kB = 252.3 K and sigma = 4.302 angstrom, with helium as collider;
 the primary kinetics gate remains the high-pressure rate coefficient.
 
+The final continuation uses a phase-specific profiled-theory route ledger.
+It rebuilds the previously completed reaction graph in L1 reuse-only mode,
+which permits cached L1 reads but raises before any missing L1 calculation can
+be submitted. New L2 refinement and hindered-rotor jobs remain schedulable.
+This preserves the production route ledger and prevents the MESS phase from
+repeating exploratory electronic-structure work.
+
 The literature gate compares source-geometry CH4 and CH3 higher-order jobs,
 the geometry-independent ethane CCSDT(Q)-CCSD(T) increment, the calculated
 ethane and methyl Hf(0 K) values, and the CH3 + CH3 high-pressure rate table.

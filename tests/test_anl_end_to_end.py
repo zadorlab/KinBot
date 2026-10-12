@@ -7,8 +7,10 @@ from types import SimpleNamespace
 
 import pytest
 
+import kinbot.anl.end_to_end as end_to_end
 from kinbot.anl.end_to_end import (_audit_handoff, _literature_checks,
-                                   _write_mess_input, component_breakdown)
+                                   _write_mess_input, component_breakdown,
+                                   run)
 
 
 def _composite(path, offset):
@@ -105,6 +107,10 @@ def test_mess_continuation_disables_new_vrc_work_and_requires_production(
     assert generated['rotdpy_run'] == 0
     assert generated['vrc_tst_scan'] == 0
     assert generated['vrc_tst_noscan'] == 0
+    assert generated['reaction_search'] == 1
+    assert generated['profiled_l1_reuse_only'] == 1
+    assert generated['profiled_route_file'] == (
+        '.kinbot_theory_jobs.full_verification.json')
     assert generated['high_level'] == 1
     assert generated['allow_l2_without_conf'] == 1
     assert generated['rotor_scan'] == 1
@@ -113,6 +119,24 @@ def test_mess_continuation_disables_new_vrc_work_and_requires_production(
     assert generated['epsilon_unit'] == 'K'
     assert generated['sigma'] == 4.302
     assert generated['queue_job_limit'] == 8
+
+
+def test_failed_continuation_reports_current_kinbot_log_tail(
+        tmp_path, monkeypatch):
+    run_dir = tmp_path / 'run'
+    run_dir.mkdir()
+    (run_dir / 'kinbot.log').write_text('setup\nuseful native failure\n')
+    monkeypatch.setattr(end_to_end, 'prepare', lambda source: {
+        'kinbot_input': str(run_dir / 'input.json'),
+        'run_dir': str(run_dir),
+    })
+    monkeypatch.setattr(end_to_end, '_read_json', lambda *args: {
+        'mess_command': 'mess', 'messpf_command': 'messpf'})
+    monkeypatch.setattr(end_to_end, '_command_available', lambda *args: None)
+    monkeypatch.setattr(end_to_end.subprocess, 'run', lambda *args, **kwargs:
+                        SimpleNamespace(returncode=1))
+    with pytest.raises(RuntimeError, match='useful native failure'):
+        run(tmp_path / 'manifest.json')
 
 
 def test_production_restart_script_does_not_reenter_completed_kinbot():

@@ -225,6 +225,37 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertNotIn('a_well_high', final.job_ids)
         self.assertNotIn('a_well_high', final.l2.job_ids)
 
+    def test_profiled_continuation_uses_an_independent_route_ledger(self):
+        original = self.parameters(theory_preset='uma-b2plyp-anl',
+                                   fc_model_path='uma-s-1p2')
+        qc = QuantumChemistry(original.par)
+        qc._record('old_well_high', 'l2', '123')
+        original_payload = Path('.kinbot_theory_jobs.json').read_text()
+
+        continuation = self.parameters(
+            theory_preset='uma-b2plyp-anl', fc_model_path='uma-s-1p2',
+            l2_profile={'basis': 'cc-pVQZ'},
+            profiled_route_file='.kinbot_theory_jobs.continuation.json')
+        resumed = QuantumChemistry(continuation.par)
+        self.assertNotEqual(qc._fingerprint, resumed._fingerprint)
+        resumed._record('new_well_high', 'l2', '456')
+        self.assertEqual(Path('.kinbot_theory_jobs.json').read_text(),
+                         original_payload)
+        self.assertTrue(
+            Path('.kinbot_theory_jobs.continuation.json').is_file())
+
+    def test_profiled_l1_reuse_only_refuses_a_missing_job(self):
+        parameters = self.parameters(
+            theory_preset='uma-b2plyp-anl', fc_model_path='uma-s-1p2',
+            profiled_l1_reuse_only=1)
+        qc = QuantumChemistry(parameters.par)
+        with patch.object(qc.l1, 'check_qc', return_value=0):
+            with self.assertRaisesRegex(
+                    FileNotFoundError, 'no replacement job was submitted'):
+                qc.l1.submit_qc('missing_reaction_job', 1)
+        with patch.object(qc.l1, 'check_qc', return_value='normal'):
+            self.assertEqual(qc.l1.submit_qc('completed_reaction_job', 1), 0)
+
     def test_profiled_vrc_jobs_use_gaussian_context(self):
         parameters = self.parameters(theory_preset='uma-b2plyp-anl',
                                      fc_model_path='/site/uma.pt',

@@ -316,6 +316,13 @@ def _write_mess_input(base, manifest, handoff, rotdpy_input):
         'rotdpy_run': 0,
         'vrc_tst_scan': 0,
         'vrc_tst_noscan': 0,
+        # ReactionFinder must recreate the in-memory reaction objects that
+        # MESS consumes. The profiled router makes this a read-only replay:
+        # every L1 calculation must already exist, while new L2/HIR jobs are
+        # still permitted.
+        'reaction_search': 1,
+        'profiled_l1_reuse_only': 1,
+        'profiled_route_file': '.kinbot_theory_jobs.full_verification.json',
         # Reconstruct the stable species on their matching L2 surface and
         # generate the HIR data MESS needs. These inexpensive jobs are the
         # only electronic-structure work in this continuation.
@@ -584,8 +591,14 @@ def run(source):
         [sys.executable, '-m', 'kinbot.kb', Path(
             prepared['kinbot_input']).name], cwd=run_dir, check=False)
     if result.returncode:
+        log = run_dir / 'kinbot.log'
+        detail = ''
+        if log.is_file():
+            lines = log.read_text(errors='replace').splitlines()
+            detail = '\nLatest KinBot log entries:\n' + '\n'.join(lines[-40:])
         raise RuntimeError(
-            f'KinBot/MESS continuation exited with status {result.returncode}.')
+            f'KinBot/MESS continuation exited with status '
+            f'{result.returncode}.{detail}')
     return audit(source)
 
 

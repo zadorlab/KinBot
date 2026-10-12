@@ -207,7 +207,11 @@ def _main():
             return
 
         if par['reaction_search'] == 1:
-            logger.info('Starting reaction search...')
+            if par.get('profiled_l1_reuse_only'):
+                logger.info('Reconstructing completed reaction network in '
+                            'L1 reuse-only mode...')
+            else:
+                logger.info('Starting reaction search...')
             rf = ReactionFinder(well0, par, qc)
             rf.find_reactions()
             rg = ReactionGenerator(well0, par, qc, input_file)

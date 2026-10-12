@@ -215,9 +215,10 @@ class Optimize:
                          _, self.semi_emp_valid) = \
                             self.species.semi_emp_confs.check_conformers(wait=self.wait)
                         if status == 1:
-                            logger.info("\tL0 lowest-energy "
-                                        f"conformer for species {self.name}"
-                                        f" is number {lowest_conf}")
+                            if lowest_conf is not None:
+                                logger.info("\tL0 lowest-energy "
+                                            f"conformer for species {self.name}"
+                                            f" is number {lowest_conf}")
                             self.ssemi_empconf = 1
                 else:
                     self.ssemi_empconf = 1
@@ -248,7 +249,7 @@ class Optimize:
                                 # Seeding L1 with the ring conformers alone would
                                 # skip the dihedral search entirely. Run the
                                 # regular search instead.
-                                logger.warning('No valid semi-empirical conformers for %s; '
+                                logger.warning('No valid L0 conformers for %s; '
                                                'falling back to the standard conformer search.', self.name)
                                 print_warning = True
                                 for geom in self.species.confs.cyc_conf_geoms:

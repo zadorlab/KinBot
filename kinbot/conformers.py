@@ -458,7 +458,7 @@ class Conformers:
                 totenergies = []
                 frequencies = []
 
-                if all(status):  # if all conformers are invalid, 1 (different) or fail (-1)
+                if all(status) and not self.semi_emp:
                     if not parent_allowed:
                         from kinbot.stereo_routing import StereoRoutingError
                         raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
@@ -520,6 +520,8 @@ class Conformers:
                         if not configured_geometry_allowed(self.species, geom, self.optical_population):
                             # Keep the observation for find_unique's inventory,
                             # but never make it the selected configured parent.
+                            if self.semi_emp:
+                                status[ci] = 1
                             continue
                         if not self.semi_emp and self.species.natom > 1:
                             values = np.asarray(freq)
@@ -551,7 +553,7 @@ class Conformers:
                                 else:
                                     logger.warning("Conformer {} failed due to empty freq array".format(ci))
                                     err = -1
-                            if err == 0:
+                            if err == 0 and not self.semi_emp:
                                 lowest_energy = energy
                                 lowest_zpe = zpe
                         if energy + zpe <= lowest_energy + lowest_zpe:
@@ -591,6 +593,15 @@ class Conformers:
                             frequencies.append(np.zeros(self.species.natom * 3 - 6))
 
                 self.write_profile(status, final_geoms, totenergies)
+
+                if self.semi_emp:
+                    # L0 energies cannot be compared with the L1 parent.
+                    # With no valid L0 result, Optimize runs its ordinary
+                    # conformer search instead of promoting the L1 parent.
+                    self.selected_job = lowest_job if np.isfinite(lowest_energy) else None
+                    self.selected_conf = lowest_conf if self.selected_job else None
+                    return 1, self.selected_conf, lowest_e_geom, lowest_energy, \
+                           final_geoms, totenergies, frequencies, status
 
                 # Check if at least one conformer has the same enrgy as the L1 parent structure
                 if self.species.wellorts:

@@ -22,6 +22,24 @@ class TestSchedulerJobs(unittest.TestCase):
         self.addCleanup(os.chdir, Path.cwd())
         os.chdir(temporary.name)
 
+    def test_queue_limit_counts_jobs_instead_of_empty_lines(self):
+        for queue in ('slurm', 'pbs'):
+            for empty in (b'', b'\n', b'  \n\n'):
+                with self.subTest(queue=queue, empty=empty):
+                    qc = SimpleNamespace(queuing=queue, username='guest', queue_job_limit=1)
+                    with patch('kinbot.qc.subprocess.check_output', return_value=empty), \
+                            patch('kinbot.qc.time.sleep') as sleep:
+                        self.assertEqual(QuantumChemistry.limit_jobs(qc), 0)
+                    sleep.assert_not_called()
+            for limit, occupied in ((1, b'123 job\n'), (1, b'123 job'),
+                                    (2, b'123 job\n456 job\n')):
+                with self.subTest(queue=queue, limit=limit, occupied=occupied):
+                    qc = SimpleNamespace(queuing=queue, username='guest', queue_job_limit=limit)
+                    with patch('kinbot.qc.subprocess.check_output', side_effect=[occupied, b'']), \
+                            patch('kinbot.qc.time.sleep') as sleep:
+                        self.assertEqual(QuantumChemistry.limit_jobs(qc), 0)
+                    sleep.assert_called_once_with(1)
+
     def test_ts_refinement_uses_the_requested_level_in_the_actual_job(self):
         Path('input.json').write_text(json.dumps({'barrier_threshold': 100.,
             'method': 'HF', 'basis': 'sto-3g',

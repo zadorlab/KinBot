@@ -1813,9 +1813,10 @@ class QuantumChemistry:
                 command = ['qselect', '-u', '{}'.format(self.username)]
             elif self.queuing == 'local':
                 command = command = ['echo', '']
-            jobs = subprocess.check_output(command)
+            jobs = [job for job in subprocess.check_output(command).splitlines()
+                    if job.strip()]
 
-            if len(jobs.split(b'\n')) < self.queue_job_limit:
+            if len(jobs) < self.queue_job_limit:
                 return 0
             time.sleep(1)
 

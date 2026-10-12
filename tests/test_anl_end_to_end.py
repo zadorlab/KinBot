@@ -49,6 +49,28 @@ def test_component_breakdown_uses_each_anl_term_once(tmp_path):
     assert result['total_zero_k_reaction']['hartree'] == pytest.approx(expected)
 
 
+def test_component_breakdown_reads_direct_rank_exact_zero(tmp_path):
+    left_path, right_path = tmp_path / 'left.json', tmp_path / 'right.json'
+    left = _composite(left_path, 0.)
+    right = _composite(right_path, .001)
+    for path in (left_path, right_path):
+        record = json.loads(path.read_text())
+        record['components'].pop('hoe_high')
+        record['components'].pop('hoe_low')
+        record['components']['higher_order_correction'] = {
+            'value_hartree': 0.}
+        path.write_text(json.dumps(record))
+    reaction = SimpleNamespace(stoichiometry={'left': -1, 'right': 1})
+    result = component_breakdown(
+        reaction, {'left': left_path, 'right': right_path})
+    assert result['higher_order']['hartree'] == 0.
+    expected = ((right['reference_cbs'] - left['reference_cbs'])
+                + sum(right[key] - left[key] for key in (
+                    'core_valence_cbs', 'scalar_relativistic', 'dboc',
+                    'spin_orbit', 'harmonic_zpe', 'vpt2_correction')))
+    assert result['total_zero_k_reaction']['hartree'] == pytest.approx(expected)
+
+
 def test_mess_continuation_disables_new_vrc_work_and_requires_production(
         tmp_path):
     run = tmp_path / 'run'

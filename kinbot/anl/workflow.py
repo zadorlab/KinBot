@@ -193,6 +193,62 @@ def rank_exact_higher_order_component(
                 f'{low.source}'), settings=settings)
 
 
+def rank_exact_higher_order_correction(
+        molecule, requirement: ComponentRequirement, *, state_id: str,
+        geometry_sha256: str) -> ComponentResult:
+    """Return the exact-zero post-CCSD increment without scheduling QC.
+
+    One- and two-electron states cannot contain triple or higher excitation
+    amplitudes.  The ANL higher-order difference is therefore zero by rank,
+    and neither side of the otherwise cancelling subtraction needs to run.
+    """
+    if not isinstance(molecule, dict):
+        raise TypeError('molecule must be an object.')
+    symbols = molecule.get('symbols')
+    charge = molecule.get('charge', 0)
+    if (not isinstance(symbols, list) or not symbols
+            or isinstance(charge, bool) or not isinstance(charge, int)):
+        raise ValueError('Rank-exact correction needs symbols and integer charge.')
+    try:
+        electrons = sum(atomic_numbers[symbol] for symbol in symbols) - charge
+    except KeyError as exc:
+        raise ValueError(f'Unknown element symbol {exc.args[0]!r}.') from exc
+    if electrons < 1 or electrons > 2:
+        raise ValueError('Higher-order rank exactness requires at most two electrons.')
+    if (requirement.key != 'higher_order_correction'
+            or requirement.quantity != 'correction'
+            or requirement.backends != ('known_zero',)
+            or requirement.settings.get('rank_exact_electron_maximum') != 2):
+        raise ValueError('Invalid rank-exact higher-order requirement.')
+    if (not isinstance(geometry_sha256, str)
+            or not re.fullmatch(r'[0-9a-f]{64}', geometry_sha256)):
+        raise ValueError('Rank-exact correction needs a geometry hash.')
+    provenance = {
+        'schema': 1, 'provider': 'known_zero_excitation_rank',
+        'symbols': symbols, 'charge': charge,
+        'multiplicity': molecule.get('multiplicity', 1),
+        'electron_count': electrons, 'component': requirement.key,
+        'method': requirement.method, 'basis': requirement.basis,
+        'geometry_sha256': geometry_sha256,
+    }
+    digest = hashlib.sha256(json.dumps(
+        provenance, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    settings = dict(requirement.settings)
+    settings['rank_exact'] = {
+        'electron_count': electrons,
+        'reason': ('triple and higher excitations are absent for a state '
+                   'containing at most two electrons'),
+    }
+    return ComponentResult(
+        key=requirement.key, value_hartree=0.,
+        quantity=requirement.quantity, method=requirement.method,
+        basis=requirement.basis, backend='known_zero', state_id=state_id,
+        charge=charge, multiplicity=molecule.get('multiplicity', 1),
+        geometry_sha256=geometry_sha256, source_sha256=digest,
+        source='exact zero: triple and higher excitation ranks are absent',
+        settings=settings)
+
+
 def rank_exact_core_valence_component(
         molecule, requirement: ComponentRequirement, *, state_id: str,
         geometry_sha256: str) -> ComponentResult:

@@ -21,6 +21,7 @@ from kinbot.anl.workflow import (_cbs_components,
                                  cbs_task_component,
                                  core_valence_task_component,
                                  rank_exact_core_valence_component,
+                                 rank_exact_higher_order_correction,
                                  scalar_relativistic_task_component,
                                  task_component)
 from tests.anl_fixture import dispatch_spec, molpro_task
@@ -72,6 +73,40 @@ def test_atomic_vibrational_terms_are_exact_hash_bound_zeros():
             {**molecule, 'symbols': ['H', 'H']},
             requirements['harmonic_zpe'], state_id='H2',
             geometry_sha256='1' * 64)
+
+
+@pytest.mark.parametrize('molecule', [
+    {'symbols': ['H'], 'positions': [[0., 0., 0.]],
+     'charge': 0, 'multiplicity': 2},
+    {'symbols': ['H', 'H'], 'positions': [[0., 0., 0.], [0., 0., .74]],
+     'charge': 0, 'multiplicity': 1},
+])
+def test_rank_exact_higher_order_correction_needs_no_qc_result(molecule):
+    requirement = next(item for item in recipe(
+        'ANL0-F12', multiplicity=molecule['multiplicity'],
+        rank_exact_higher_order=True).requirements
+        if item.key == 'higher_order_correction')
+    component = rank_exact_higher_order_correction(
+        molecule, requirement, state_id='rank-exact-state',
+        geometry_sha256='3' * 64)
+    assert component.value_hartree == 0.
+    assert component.backend == 'known_zero'
+    assert component.settings['rank_exact']['electron_count'] in (1, 2)
+    assert len(component.source_sha256) == 64
+
+
+def test_rank_exact_higher_order_correction_rejects_three_electrons():
+    molecule = {'symbols': ['He', 'H'],
+                'positions': [[0., 0., 0.], [0., 0., 1.]],
+                'charge': 0, 'multiplicity': 2}
+    requirement = next(item for item in recipe(
+        'ANL0-F12', multiplicity=2,
+        rank_exact_higher_order=True).requirements
+        if item.key == 'higher_order_correction')
+    with pytest.raises(ValueError, match='at most two electrons'):
+        rank_exact_higher_order_correction(
+            molecule, requirement, state_id='not-rank-exact',
+            geometry_sha256='3' * 64)
 
 
 def _electronic_component(key, energy, basis, *, core, relativistic='none'):

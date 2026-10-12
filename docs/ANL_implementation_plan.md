@@ -5357,6 +5357,15 @@ than four redundant single points. These records retain the requested recipe
 method, the effective executable method, molecular state, geometry hash, and
 the mathematical reason for the zero.
 
+The exact-zero higher-order increment is now a single derived recipe
+component. No nominal `CCSD(T)`, `CCSDT(Q)`, or `CCSDTQ(P)` task is created
+for a one- or two-electron state, including the former low side of a
+cancelling subtraction. At every basis that supplies a real reference or
+correction, a one-electron calculation runs HF once and a two-electron
+calculation runs CCSD (or CCSD-F12b) once. Geometry gradients and Hessians use
+the same rank-reduced method, while remaining distinct because they supply
+different derivatives.
+
 ROTD_py results now distinguish an interface smoke run from a production
 calculation. Production requires a hash-identified multipoint correction
 potential, at least three generated dividing surfaces, nonempty numeric

@@ -915,12 +915,14 @@ layout. Finish those with the following legacy continuation procedure. New
 runs should use the composite commands above.
 
 For one- and two-electron reference states, the post-geometry builder omits
-the direct-MRCC CCSDT(Q) job. Triple and quadruple excitations do not exist in
-those states, so the assembler records the exact identity
-`CCSDT(Q)/DZ = CCSD(T)/DZ` as a hash-bound `known_zero` correction. It never
-turns a general failed higher-order calculation into zero. Older H2 graphs
-that already contain a failed `ccsdtq_dz` task are accepted by
-`audit-anl0-post-geometry` only through this same electron-count proof.
+every nominal `CCSD(T)`, `CCSDT(Q)`, and `CCSDTQ(P)` higher-order job. Triple
+and higher excitations do not exist in those states, so the assembler records
+the complete higher-order increment directly as a hash-bound `known_zero`
+correction. It does not run the low side merely to construct a cancelling
+subtraction, and it never turns a general failed higher-order calculation
+into zero. Older H2 graphs that already contain failed or completed
+higher-order tasks are ignored by `audit-anl0-post-geometry` only through
+this same electron-count proof.
 
 ```bash
 nohup bash -lc '
@@ -1295,10 +1297,10 @@ energies are exactly zero: the triples scale factor becomes zero divided by
 zero. Whether this abort appears can depend on the signed representation of
 floating-point zero, so a larger basis may appear to succeed accidentally.
 
-New one-electron graphs use `RHF` followed by `UCCSD-F12b`. This retains the
-CABS relaxation contribution and is rank-equivalent to the requested
-UCCSD(T)-F12b energy because the missing double and triple excitations cannot
-exist. Multi-electron species retain `UCCSD(T)-F12b,SCALE_TRIP=1` unchanged.
+New one-electron graphs use the RHF energy at each required basis. Two-electron
+graphs use `UCCSD` or `UCCSD-F12b`, because doubles are their highest possible
+excitation rank. Systems with more than two electrons retain
+`UCCSD(T)-F12b,SCALE_TRIP=1` unchanged.
 
 The dispatcher also repairs an already failed one-electron task without a new
 licensed calculation. It accepts the native value only after verifying the

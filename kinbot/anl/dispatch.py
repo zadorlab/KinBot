@@ -290,8 +290,16 @@ def validate_spec(spec, *, allow_obsolete=False):
         if key in limits:
             _positive_integer(limits[key], key)
     tasks = spec.get('tasks')
-    if not isinstance(tasks, list) or not tasks:
-        raise ValueError('tasks must be a nonempty list.')
+    if not isinstance(tasks, list):
+        raise ValueError('tasks must be a list.')
+    if not tasks:
+        rank_exact = spec.get('intent', {}).get('rank_exact_higher_order')
+        if (spec.get('name') != 'anl1-higher-order-interface-validation'
+                or not isinstance(rank_exact, dict)
+                or rank_exact.get('electron_count') not in (1, 2)
+                or rank_exact.get('correction_hartree') != 0.):
+            raise ValueError('tasks may be empty only for a rank-exact '
+                             'higher-order workflow.')
     ids = [_basename(task.get('id') if isinstance(task, dict) else None, 'Task id')
            for task in tasks]
     if len(ids) != len(set(ids)):

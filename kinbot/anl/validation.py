@@ -33,6 +33,7 @@ from kinbot.anl.workflow import (_verified_task_result,
                                  cbs_task_component,
                                  core_valence_task_component,
                                  rank_exact_core_valence_component,
+                                 rank_exact_higher_order_correction,
                                  rank_exact_higher_order_component,
                                  scalar_relativistic_task_component,
                                  state_correction_component,
@@ -214,9 +215,11 @@ def interface_validation_spec(molecule, *, max_nodes=3, partition=None):
                               'dispersion': 'GD3BJ'},
         },
     ]
-    ccsdt_parser = next(task for task in tasks
-                         if task['id'] == 'ccsdt_dz')['result_parser']
-    ccsdt_parser.update(rank_parser)
+    if effective:
+        # CCSD(T)-and-higher increments are identically zero for one- and
+        # two-electron states.  Reference, geometry, frequency, DBOC, and
+        # relativistic work remain independent physical contributions.
+        tasks = [task for task in tasks if task['id'] != 'ccsdt_dz']
     if len(molecule.get('symbols', ())) == 1:
         # An atom has no vibrational normal modes.  Keep both electronic
         # geometry evaluations and every electronic correction, while the
@@ -307,11 +310,13 @@ def _rank_exact_core_valence(molecule):
 
 def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
                                  mrcc_command='dmrcc', task_ids=None):
-    """Build the five-job ANL1 higher-order interface probe.
+    """Build the ANL1 higher-order interface probe when ranks exist.
 
     This graph checks native input generation, execution, parsing, and the
     cross-program correction arithmetic on one supplied geometry.  It is a
     focused backend test and does not claim a complete composite energy.
+    One- and two-electron states return a valid calculation-free graph because
+    every requested triple-and-higher increment is exactly zero.
     """
     if not isinstance(molecule, dict):
         raise TypeError('molecule must be an object.')
@@ -350,7 +355,6 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
             walltime='7-00:00:00',
             max_cores=8, command=mrcc_command, **common),
     ]
-    all_tasks = {task['id']: task for task in tasks}
     if task_ids is not None:
         requested = tuple(dict.fromkeys(task_ids))
         unknown = sorted(set(requested) - set(_HIGHER_ORDER_TASK_IDS))
@@ -362,20 +366,7 @@ def higher_order_validation_spec(molecule, *, max_nodes=3, partition=None,
         requested = _HIGHER_ORDER_TASK_IDS
     rank_exact = _rank_exact_higher_order(molecule)
     if rank_exact:
-        scheduled = []
-        if set(requested) & {'ccsdt_tz', 'ccsdtq_tz'}:
-            scheduled.append('ccsdt_tz')
-        if set(requested) & {'ccsdt_dz', 'ccsdtq_dz', 'ccsdtqp_dz'}:
-            scheduled.append('ccsdt_dz')
-        tasks = [all_tasks[ident] for ident in scheduled]
-        electrons = _electron_count(molecule)
-        effective = 'HF' if electrons == 1 else 'CCSD'
-        for task in tasks:
-            task['input_template'] = task['input_template'].replace(
-                conventional, '' if effective == 'HF' else 'uccsd')
-            task['result_parser'].update(
-                rank_exact_electrons=electrons,
-                effective_method=effective)
+        tasks = []
     return {
         'schema': 1, 'name': 'anl1-higher-order-interface-validation',
         'molecule': molecule, 'limits': {'max_nodes': max_nodes},
@@ -478,9 +469,8 @@ def post_geometry_validation_spec(molecule, *, max_nodes=3, partition=None,
     the week-long CCSDTQ(P) task.
     """
     rank_exact = _rank_exact_higher_order(molecule)
-    higher_task_ids = (('ccsdt_dz',)
-                       if anl0_only and rank_exact else
-                       ('ccsdt_dz', 'ccsdtq_dz') if anl0_only else None)
+    higher_task_ids = (('ccsdt_dz', 'ccsdtq_dz')
+                       if anl0_only else None)
     higher = higher_order_validation_spec(
         molecule, max_nodes=max_nodes, partition=partition,
         mrcc_command=mrcc_command, task_ids=higher_task_ids)
@@ -585,6 +575,28 @@ def audit_higher_order_run(run_dir):
     declared = {task['id'] for task in spec['tasks']}
     identifiers = tuple(ident for ident in _HIGHER_ORDER_TASK_IDS
                         if ident in declared)
+    rank_exact = _rank_exact_higher_order(spec['molecule'])
+    selected = tuple(spec.get('intent', {}).get(
+        'selected_tasks', identifiers))
+    if not identifiers and rank_exact:
+        corrections = {}
+        if set(selected) & {'ccsdt_dz', 'ccsdtq_dz'}:
+            corrections['delta_q_dz'] = 0.
+        if set(selected) & {'ccsdt_tz', 'ccsdtq_tz'}:
+            corrections['delta_q_tz'] = 0.
+        if set(selected) & {'ccsdtq_dz', 'ccsdtqp_dz'}:
+            corrections['delta_p_dz'] = 0.
+        if {'delta_q_tz', 'delta_p_dz'} <= corrections.keys():
+            corrections['anl1_higher_order'] = 0.
+        return {
+            'status': 'rank_exact_higher_order_not_scheduled',
+            'task_statuses': {}, 'corrections_hartree': corrections,
+            'components': {}, 'claim': 'interface-validation-only',
+            'rank_exact_higher_order': {
+                'electron_count': _electron_count(spec['molecule']),
+                'correction_hartree': 0.,
+            },
+        }
     if not identifiers:
         raise ValueError('Higher-order run declares no recognized tasks.')
     statuses = {ident: state['tasks'].get(ident, {}).get('status', 'waiting')
@@ -596,9 +608,6 @@ def audit_higher_order_run(run_dir):
         ident: task_component(run_dir, ident, key=ident, state_id=state_id)
         for ident in identifiers
     }
-    rank_exact = _rank_exact_higher_order(spec['molecule'])
-    selected = tuple(spec.get('intent', {}).get(
-        'selected_tasks', identifiers))
     if rank_exact:
         anl0_requirements = {item.key: item for item in recipe(
             'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
@@ -672,8 +681,7 @@ def audit_anl0_post_geometry_run(run_dir):
         raise ValueError('Run is not a combined post-geometry validation graph.')
     rank_exact = _rank_exact_higher_order(spec['molecule'])
     core_valence_exact = _rank_exact_core_valence(spec['molecule'])
-    required = (('ccsdt_dz',) if rank_exact else
-                ('ccsdt_dz', 'ccsdtq_dz')) + (
+    required = (() if rank_exact else ('ccsdt_dz', 'ccsdtq_dz')) + (
                     (() if core_valence_exact else
                      ('cv_ae_tz', 'cv_ae_qz', 'cv_fc_tz', 'cv_fc_qz'))
                     + ('rel_dkh', 'rel_nonrel'))
@@ -686,19 +694,30 @@ def audit_anl0_post_geometry_run(run_dir):
     if any(value != 'complete' for value in statuses.values()):
         raise RuntimeError(f'ANL0 post-geometry run is incomplete: {statuses}')
     state_id = 'anl0-post-geometry-validation-state'
-    low = task_component(
-        run_dir, 'ccsdt_dz', key='hoe_low', state_id=state_id)
     if rank_exact:
         requirement = next(
             item for item in recipe(
                 'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
-                multiplicity=spec['molecule'].get('multiplicity', 1)
-            ).requirements if item.key == 'hoe_high')
-        high = rank_exact_higher_order_component(
-            spec['molecule'], low, requirement, key='hoe_high')
+                multiplicity=spec['molecule'].get('multiplicity', 1),
+                rank_exact_higher_order=True
+            ).requirements if item.key == 'higher_order_correction')
+        geometry_hash = (
+            spec.get('molecule', {}).get('source', {}).get('geometry_sha256')
+            or state['tasks'].get('l3_geometry', {}).get(
+                'final_geometry_sha256'))
+        correction = rank_exact_higher_order_correction(
+            spec['molecule'], requirement, state_id=state_id,
+            geometry_sha256=geometry_hash)
+        higher_components = {'higher_order_correction': asdict(correction)}
+        higher_value = correction.value_hartree
     else:
+        low = task_component(
+            run_dir, 'ccsdt_dz', key='hoe_low', state_id=state_id)
         high = task_component(
             run_dir, 'ccsdtq_dz', key='hoe_high', state_id=state_id)
+        higher_components = {
+            'ccsdtq_dz': asdict(high), 'ccsdt_dz': asdict(low)}
+        higher_value = math.fsum((high.value_hartree, -low.value_hartree))
     corrections = audit_common_corrections_run(run_dir)
     all_statuses = {
         task['id']: state['tasks'].get(task['id'], {}).get('status', 'waiting')
@@ -709,10 +728,8 @@ def audit_anl0_post_geometry_run(run_dir):
         'other_task_statuses': {
             key: value for key, value in all_statuses.items()
             if key not in statuses},
-        'higher_order_dz_hartree': math.fsum((
-            high.value_hartree, -low.value_hartree)),
-        'higher_order_components': {
-            'ccsdtq_dz': asdict(high), 'ccsdt_dz': asdict(low)},
+        'higher_order_dz_hartree': higher_value,
+        'higher_order_components': higher_components,
         'rank_exact_higher_order': rank_exact,
         'common_corrections': corrections,
         'geometry_sha256': (
@@ -1044,8 +1061,11 @@ def assemble_profiled_anl0_f12(
         _same_imported_l3_geometry(base_run, corrections_run, l3_hash)
 
     atomic = len(molecule.get('symbols', ())) == 1
-    equation = recipe('ANL0-F12', vpt2_method='B2PLYP-D3BJ',
-                      multiplicity=multiplicity, atomic=atomic)
+    rank_exact = _rank_exact_higher_order(molecule)
+    equation = recipe(
+        'ANL0-F12', vpt2_method='B2PLYP-D3BJ',
+        multiplicity=multiplicity, atomic=atomic,
+        rank_exact_higher_order=rank_exact)
     required = {item.key: item for item in equation.requirements}
     components = {
         'reference_cbs': cbs_task_component(
@@ -1054,8 +1074,6 @@ def assemble_profiled_anl0_f12(
             lower_basis='cc-pVTZ-F12', upper_basis='cc-pVQZ-F12'),
         'dboc': task_component(
             base_run, 'cfour_dboc', key='dboc', state_id=state_id),
-        'hoe_low': task_component(
-            higher_order_run, 'ccsdt_dz', key='hoe_low', state_id=state_id),
     }
     if atomic:
         components['harmonic_zpe'] = atomic_zero_vibrational_component(
@@ -1070,11 +1088,14 @@ def assemble_profiled_anl0_f12(
         components['vpt2_correction'] = task_component(
             interface_run, 'gaussian_vpt2', key='vpt2_correction',
             state_id=state_id)
-    if _rank_exact_higher_order(molecule):
-        components['hoe_high'] = rank_exact_higher_order_component(
-            molecule, components['hoe_low'], required['hoe_high'],
-            key='hoe_high')
+    if rank_exact:
+        components['higher_order_correction'] = \
+            rank_exact_higher_order_correction(
+                molecule, required['higher_order_correction'],
+                state_id=state_id, geometry_sha256=l3_hash)
     else:
+        components['hoe_low'] = task_component(
+            higher_order_run, 'ccsdt_dz', key='hoe_low', state_id=state_id)
         components['hoe_high'] = task_component(
             higher_order_run, 'ccsdtq_dz', key='hoe_high',
             state_id=state_id)

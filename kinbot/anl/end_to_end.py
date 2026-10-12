@@ -95,12 +95,17 @@ def component_breakdown(reaction, energy_files):
     """Return signed component contributions for one generated CBH reaction."""
     records = {smiles: _read_json(path, f'{smiles} composite')
                for smiles, path in energy_files.items()}
+
+    def higher_order(record):
+        if 'higher_order_correction' in record.get('components', {}):
+            return _composite_value(record, 'higher_order_correction')
+        return math.fsum((_composite_value(record, 'hoe_high'),
+                          -_composite_value(record, 'hoe_low')))
+
     categories = {
         'reference_cbs': lambda record: _composite_value(
             record, 'reference_cbs'),
-        'higher_order': lambda record: math.fsum((
-            _composite_value(record, 'hoe_high'),
-            -_composite_value(record, 'hoe_low'))),
+        'higher_order': higher_order,
         'core_valence_cbs': lambda record: _composite_value(
             record, 'core_valence_cbs'),
         'scalar_relativistic': lambda record: _composite_value(

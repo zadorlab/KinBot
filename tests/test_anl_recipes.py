@@ -24,6 +24,7 @@ def components_for(equation, *, multiplicity=1):
         'hoe_tz_low': -99.7,
         'hoe_dz_high': -99.9,
         'hoe_dz_low': -99.85,
+        'higher_order_correction': 0.0,
         'core_valence_cbs': -0.02,
         'scalar_relativistic': -0.005,
         'dboc': 0.002,
@@ -102,6 +103,21 @@ def test_rank_exact_higher_order_backend_is_narrowly_allowed():
     result = evaluate(equation, components)
     assert result.components['hoe_high'].backend == 'known_zero'
     assert result.electronic_hartree == pytest.approx(-100.023)
+
+
+@pytest.mark.parametrize('name', ['ANL0', 'ANL0-F12', 'ANL1'])
+def test_rank_exact_recipe_has_one_zero_correction_not_cancelling_energies(name):
+    equation = recipe(name, rank_exact_higher_order=True)
+    keys = {item.key for item in equation.requirements}
+    assert 'higher_order_correction' in keys
+    assert not keys & {
+        'hoe_high', 'hoe_low', 'hoe_tz_high', 'hoe_tz_low',
+        'hoe_dz_high', 'hoe_dz_low'}
+    requirement = next(item for item in equation.requirements
+                       if item.key == 'higher_order_correction')
+    assert requirement.quantity == 'correction'
+    assert requirement.backends == ('known_zero',)
+    assert components_for(equation)['higher_order_correction'].value_hartree == 0.
 
 
 def test_optional_vpt2_cbs_remains_one_zero_point_correction():

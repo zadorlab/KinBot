@@ -19,7 +19,8 @@ def _required(key, quantity, method, basis, role='l3',
 
 def recipe(name: str, *, vpt2_method: str | None = None,
            vpt2_cbs: bool = False, multiplicity: int = 1,
-           atomic: bool = False) -> CompositeRecipe:
+           atomic: bool = False,
+           rank_exact_higher_order: bool = False) -> CompositeRecipe:
     """Return the original equation or an explicitly labeled VPT2 variant.
 
     The published ANL1 anharmonic correction uses B3LYP/cc-pVTZ. The selected
@@ -39,6 +40,8 @@ def recipe(name: str, *, vpt2_method: str | None = None,
         raise ValueError('multiplicity must be a positive integer.')
     if not isinstance(atomic, bool):
         raise ValueError('atomic must be boolean.')
+    if not isinstance(rank_exact_higher_order, bool):
+        raise ValueError('rank_exact_higher_order must be boolean.')
     variants = []
     if name == 'ANL0-F12':
         # The 2017 article names F12b but does not specify SCALE_TRIP.
@@ -124,7 +127,20 @@ def recipe(name: str, *, vpt2_method: str | None = None,
         'correlation': 'unrestricted', 'core': 'frozen',
         'reference': 'RHF' if multiplicity == 1 else 'ROHF',
     }
-    if name == 'ANL1':
+    if rank_exact_higher_order:
+        method = (('CCSDT(Q)-CCSD(T)@cc-pVTZ + '
+                   'CCSDTQ(P)-CCSDT(Q)@cc-pVDZ')
+                  if name == 'ANL1' else
+                  'CCSDT(Q)-CCSD(T)@cc-pVDZ')
+        basis = 'cc-pVTZ/cc-pVDZ' if name == 'ANL1' else 'cc-pVDZ'
+        higher = [
+            _required(
+                'higher_order_correction', 'correction', method, basis,
+                backends=('known_zero',),
+                rank_exact_electron_maximum=2),
+        ]
+        hoe_terms = (ExpressionTerm('higher_order_correction'),)
+    elif name == 'ANL1':
         higher = [
             _required('hoe_tz_high', 'electronic', 'CCSDT(Q)', 'cc-pVTZ',
                       backends=(high_backend, 'known_zero'), **high_settings),

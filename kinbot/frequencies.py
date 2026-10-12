@@ -451,3 +451,28 @@ def calc_vibrations(mol, label):
         return None, None, None
     finally:
         os.chdir(init_dir)
+
+
+def profile_vibrations(mol, label, mode='auto'):
+    """Evaluate frequencies on the same calculator as the optimization.
+
+    Gaussian can provide a native Hessian after Sella; other force-based
+    calculations retain KinBot's existing finite-difference implementation.
+    The native Hessian is read from the checkpoint by QuantumChemistry later.
+    """
+    if mode != 'native_hessian':
+        return calc_vibrations(mol, os.path.basename(label))
+    from kinbot.ase_modules.calculators.gaussian import Gaussian
+    from kinbot import reader_gauss
+    from kinbot.utils import iowait
+    if not isinstance(mol.calc, Gaussian):
+        raise ValueError('Native Hessians after Sella require Gaussian.')
+    kwargs = dict(mol.calc.parameters)
+    for key in ('force', 'opt', 'guess', 'geom'):
+        kwargs.pop(key, None)
+    kwargs.update(freq='', chk=os.path.basename(label))
+    mol.calc = Gaussian(label=label, command=mol.calc.command, **kwargs)
+    mol.get_potential_energy()
+    iowait(label + '.log', 'gauss')
+    return (reader_gauss.read_freq(label + '.log', mol.get_chemical_symbols()),
+            reader_gauss.read_zpe(label + '.log'), None)

@@ -13,7 +13,7 @@ from sella import Sella
 from kinbot.constants import EVtoHARTREE
 from kinbot.ase_modules.calculators.{code} import {Code}
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.frequencies import calc_vibrations, get_frequencies
+from kinbot.frequencies import profile_vibrations, calc_vibrations, get_frequencies
 
 scratch_dir = os.getcwd()
 
@@ -33,9 +33,10 @@ if '{Code}' == 'Gaussian':
     mol.calc = {Code}(**kwargs)
 
 basename = os.path.basename('{label}')
+output_label = '{label}' if {profiled} else basename
 
-if os.path.isfile(f'{{basename}}_sella.log'):
-    os.remove(f'{{basename}}_sella.log')
+if os.path.isfile(f'{{output_label}}_sella.log'):
+    os.remove(f'{{output_label}}_sella.log')
 
 # For monoatomic wells, just calculate the energy and exit. 
 if len(mol) == 1:
@@ -47,7 +48,7 @@ if len(mol) == 1:
     if os.path.isdir(f'{{basename}}'):
         shutil.rmtree(f'{{basename}}')
 
-    with open(f'{{basename}}_sella.log', 'a') as f:
+    with open(f'{{output_label}}_sella.log', 'a') as f:
         f.write('Sella optimization is not needed for atoms.\ndone\n')
 else:
     order = {order}
@@ -55,28 +56,28 @@ else:
     if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
         sella_kwargs['internal'] = False
 
-    if len(mol.symbols) > 2:
+    if len(mol.symbols) > 2 and not ('{optimizer}' == 'bfgs' and order == 0):
         opt = Sella(mol, 
                     order=order, 
-                    trajectory=f'{{basename}}.traj', 
-                    logfile=f'{{basename}}_sella.log',
+                    trajectory=f'{{output_label}}.traj',
+                    logfile=f'{{output_label}}_sella.log',
                     **sella_kwargs)
     else:
         opt = BFGS(mol,
-                   trajectory=f'{{basename}}.traj',
-                   logfile=f'{{basename}}_sella.log')
+                   trajectory=f'{{output_label}}.traj',
+                   logfile=f'{{output_label}}_sella.log')
     freqs = []
     mol.calc.label = '{label}'
     converged = False
     try:
         converged = opt.run(fmax={fmax}, steps={steps})
-        traj = read(f'{{basename}}.traj', index=':')
-        write(f'{{basename}}.xyz', traj, format='xyz')
+        traj = read(f'{{output_label}}.traj', index=':')
+        write(f'{{output_label}}.xyz', traj, format='xyz')
     except:
         converged = False
     if converged:
         try:
-            freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
+            freqs, zpe, hessian = profile_vibrations(mol, '{label}', '{frequency_mode}')
             if freqs is None:
                 converged = False
             elif order == 0 and (np.count_nonzero(np.array(freqs) < 0) > 1
@@ -103,8 +104,10 @@ else:
     if os.path.isdir(f'{{basename}}'):
         shutil.rmtree(f'{{basename}}')
 
+    if {profiled} and os.path.exists(f'{{basename}}_vib/vib.xyz'):
+        shutil.copy2(f'{{basename}}_vib/vib.xyz', f'{{output_label}}_vib.xyz')
     if os.path.isdir(f'{{basename}}_vib'):
         shutil.rmtree(f'{{basename}}_vib')
 
-    with open(f'{{basename}}_sella.log', 'a') as f:
+    with open(f'{{output_label}}_sella.log', 'a') as f:
         f.write('done\n')

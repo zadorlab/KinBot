@@ -26,6 +26,7 @@ class TestIRCStereoIdentity(unittest.TestCase):
     def interpret(self, reactant, other, population='specified'):
         qc = SimpleNamespace(get_qc_geom=lambda name, *a, **kw:
             (0, reactant.geom if '_F_' in name else other.geom))
+        qc.for_level = lambda level: qc
         reaction = SimpleNamespace(species=reactant, instance_name='test', qc=qc)
         return IRC(reaction, {'bimol': 0, 'optical_population': population}).irc2stationary_pt()
 

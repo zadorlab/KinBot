@@ -203,6 +203,22 @@ class Parameters:
             # CALCULATION PARAMETERS
             # Which quantum chemistry code to use
             'qc': 'gauss',  # or nwchem or nn_pes
+            # Rishi's opt-in theory profiles, extended to preliminary L0 jobs.
+            'l0_qc': '',
+            'l0_basis': '',
+            'l0_qc_command': '',
+            'l0_calc_kwargs': {},
+            'profiled_theory': 0,
+            # Previously written inputs include this empty field. Named
+            # presets are unsupported; methods belong in explicit profiles.
+            'theory_preset': '',
+            'l0': '',
+            'l1': '',
+            'l2': '',
+            'l0_profile': {},
+            'l1_profile': {},
+            'l2_profile': {},
+            'profiled_route_file': '.kinbot_theory_jobs.json',
             # nwchem-specific parameter
             'methodclass': 'dft',  # or scf or mp2
             # Command for the quantum chemistry code
@@ -448,6 +464,9 @@ class Parameters:
         if self.input_file is not None:
             self.read_user_input()
 
+        from kinbot.theory import resolve_profiles
+        self.theory_profiles = resolve_profiles(self.par)
+
         err = None
         if self.par['me'] == 1:
             if self.par['calc_aie'] and not self.par['conformer_search']:
@@ -484,7 +503,8 @@ class Parameters:
                                'lowest conformer.')
 
         if (self.par['high_level'] == 0 and self.par['rotor_scan'] == 1
-                and self.par['qc'].lower() != 'fc'):
+                and self.par['qc'].lower() != 'fc'
+                and not self.theory_profiles):
             if show_warnings:
                 logger.warning('L1 level of theory (here set to '
                                f'{self.par["method"].upper()}/{self.par["basis"].upper()}) is '
@@ -497,7 +517,8 @@ class Parameters:
                       'must be the same as "method" and "high_level_basis" ' \
                       'must be the same as "basis".'
         
-        if self.par['qc'] == 'fc' and not self.par['fc_model_path']:
+        if (not self.theory_profiles and self.par['qc'] == 'fc'
+                and not self.par['fc_model_path']):
             err = 'fc_model_path must be set when using qc = "fc".'
 
         if (self.par['use_sella'] == 1 or self.par['qc'] == 'fc' or self.par['qc'] == 'orca'):
@@ -511,8 +532,11 @@ class Parameters:
         if self.par['uq'] == 0:
             self.par['uq_n'] = 1
 
-        if (self.par['bimol'] == 1 and self.par['method'] == 'b3lyp'
-                and self.par['qc'].lower() != 'fc'):
+        l1 = self.theory_profiles.get('l1')
+        l1_method = l1.method if l1 else self.par['method']
+        l1_qc = l1.calculator if l1 else self.par['qc'].lower()
+        if (self.par['bimol'] == 1 and l1_method.lower() == 'b3lyp'
+                and l1_qc not in ('fc', 'fairchem')):
             logger.warning('B3LYP is not recommended as L1 for bimolecular reactions.')
             logger.warning('Choose for instance M06-2X or wB97XD.')
             print('B3LYP is not recommended as L1 for bimolecular reactions.')

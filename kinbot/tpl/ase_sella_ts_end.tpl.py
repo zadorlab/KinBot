@@ -11,7 +11,7 @@ from sella import Sella
 from kinbot.constants import EVtoHARTREE
 from kinbot.ase_modules.calculators.{code} import {Code}
 from kinbot.stationary_pt import StationaryPoint
-from kinbot.frequencies import calc_vibrations, get_frequencies
+from kinbot.frequencies import profile_vibrations, calc_vibrations, get_frequencies
 
 db = connect('{working_dir}/kinbot.db')
 mol = Atoms(symbols={atom},
@@ -29,16 +29,17 @@ if '{Code}' == 'Gaussian':
     mol.calc = {Code}(**kwargs)
 
 basename = os.path.basename('{label}')
+output_label = '{label}' if {profiled} else basename
 
-if os.path.isfile(f'{{basename}}_sella.log'):
-    os.remove(f'{{basename}}_sella.log')
+if os.path.isfile(f'{{output_label}}_sella.log'):
+    os.remove(f'{{output_label}}_sella.log')
 
 sella_kwargs = {sella_kwargs}
 if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
     sella_kwargs['internal'] = False
 opt = Sella(mol, order=1, 
-            trajectory=f'{{basename}}.traj',
-            logfile=f'{{basename}}_sella.log',
+            trajectory=f'{{output_label}}.traj',
+            logfile=f'{{output_label}}_sella.log',
             **sella_kwargs)
 freqs = []
 
@@ -49,13 +50,13 @@ mol.calc.label = '{label}'
 converged = False
 try:
     converged = opt.run(fmax=fmax, steps=steps)
-    traj = read(f'{{basename}}.traj', index=':')
-    write(f'{{basename}}.xyz', traj, format='xyz')
+    traj = read(f'{{output_label}}.traj', index=':')
+    write(f'{{output_label}}.xyz', traj, format='xyz')
 except:
     pass
 if converged:
     try:
-        freqs, zpe, hessian = calc_vibrations(mol, f'{{basename}}')
+        freqs, zpe, hessian = profile_vibrations(mol, '{label}', '{frequency_mode}')
         if freqs is None:
             converged = False
         elif (np.count_nonzero(np.array(freqs) < 0) > 2  # More than two imag frequencies
@@ -84,8 +85,8 @@ if os.path.isdir(f'{{basename}}'):
 if os.path.isdir(f'{{basename}}_vib'):
     if os.path.exists(os.path.join(f'{{basename}}_vib', 'vib.xyz')):
         shutil.copy2(os.path.join(f'{{basename}}_vib', 'vib.xyz'), 
-                     os.path.join(os.getcwd(), f'{{basename}}_vib.xyz'))
+                     os.path.join(os.getcwd(), f'{{output_label}}_vib.xyz'))
     shutil.rmtree(f'{{basename}}_vib')
 
-with open(f'{{basename}}_sella.log', 'a') as f:
+with open(f'{{output_label}}_sella.log', 'a') as f:
     f.write('done\n')

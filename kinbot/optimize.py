@@ -145,7 +145,7 @@ class Optimize:
         self.species.hess = hess.tolist()
         self.species.hessian_source_job = job
         reference = geometry_reference(self.species)
-        weighted = self.qc.hessian_is_massweighted()
+        weighted = self.qc.hessian_is_massweighted(job)
         reference.update(hessian_source_job=job, hessian_sha256=array_fingerprint(hess),
                          hessian_massweighted=weighted,
                          hessian_unit=('hartree / (bohr^2 * amu)' if weighted else 'hartree / bohr^2'))
@@ -168,6 +168,7 @@ class Optimize:
         while 1:
             # do the conformational search
             if self.par['conformer_search'] == 1:
+                # L0 pre-screening is for wells; saddle conformers use L1.
                 l0_conformer_search = (self.par['l0_conformer_search'] == 1
                                        and not self.species.wellorts)
                 if self.scycconf == -1 and self.sconf == -1:
@@ -194,10 +195,10 @@ class Optimize:
                     if status:
                         # ring conf search is finished
                         self.scycconf = 1
-                # first do an semi empirical optimization if requested by the user
+                # First pre-screen well conformers at L0 if requested.
                 if l0_conformer_search:
                     if self.ssemi_empconf == -1 and self.scycconf == 1:
-                        logger.info('\tSemi-empirical conformer search is starting '
+                        logger.info('\tL0 conformer search is starting '
                                     f'for {self.name}')
                         # semi empirical part has not started yet
                         self.species.semi_emp_confs = Conformers(self.species, self.par, self.qc, semi_emp=1)
@@ -214,7 +215,7 @@ class Optimize:
                          _, self.semi_emp_valid) = \
                             self.species.semi_emp_confs.check_conformers(wait=self.wait)
                         if status == 1:
-                            logger.info("\tSemi-empirical lowest energy "
+                            logger.info("\tL0 lowest-energy "
                                         f"conformer for species {self.name}"
                                         f" is number {lowest_conf}")
                             self.ssemi_empconf = 1
@@ -241,7 +242,7 @@ class Optimize:
                                 self.species.confs.nconfs = 1
                                 for geom in seeds:
                                     self.species.confs.generate_conformers(-999, geom)
-                                logger.info("\tThere are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
+                                logger.info("\tThere are {} structures below the {} kcal/mol threshold for species {} in the L0 search.". \
                                              format(len(seeds), self.par['l0_conformer_threshold'], self.name))
                             else:
                                 # Seeding L1 with the ring conformers alone would
@@ -507,7 +508,7 @@ class Optimize:
                         hess = (self.species.hess
                                 if getattr(self, '_projection_source', None) == fr_file
                                 else self.qc.read_qc_hess(fr_file, self.species.natom))
-                        massweighted = self.qc.hessian_is_massweighted()
+                        massweighted = self.qc.hessian_is_massweighted(fr_file)
                         self.species.hessian_source_job = fr_file
                         self.species.kinbot_freqs, self.species.reduced_freqs = frequencies.get_frequencies(
                             self.species, hess, self.species.geom, massweighted=massweighted)
@@ -668,17 +669,8 @@ class Optimize:
             else:
                 l1_file = 'conf/{}_low'.format(self.log_name(0))
             l2_file = job
-            if self.qc.qc == 'fc' or self.qc.use_sella:
-                imagmode = reader_sella.read_imag_mode(l1_file, self.species.natom)
-                imagmode_high = reader_sella.read_imag_mode(l2_file, self.species.natom)
-            elif self.qc.qc == 'gauss':
-                imagmode = reader_gauss.read_imag_mode(l1_file, self.species.natom)
-                imagmode_high = reader_gauss.read_imag_mode(l2_file, self.species.natom)
-            elif self.qc.qc == 'qchem':
-                imagmode = reader_qchem.read_imag_mode(l1_file, self.species.natom)
-                imagmode_high = reader_qchem.read_imag_mode(l2_file, self.species.natom)
-            else:
-                logger.warning('L2 not supported with current qc')
+            imagmode = self.qc.read_imag_mode(l1_file, self.species.natom)
+            imagmode_high = self.qc.read_imag_mode(l2_file, self.species.natom)
             # either geom is roughly same with closely matching imaginary modes, or geometry is very close
             # maybe we need to do IRC at the high level as well...
             same_geom = ((geometry.matrix_corr(imagmode, imagmode_high) > 0.9) and \

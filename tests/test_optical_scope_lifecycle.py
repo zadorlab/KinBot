@@ -48,6 +48,7 @@ class TestOpticalScopeLifecycle(unittest.TestCase):
             get_qc_energy=lambda job, **kw: (0, latest(job).data['energy'] * constants.EVtoHARTREE),
             get_qc_zpe=lambda job, **kw: (0, latest(job).data['zpe']),
             get_qc_freq=lambda job, n, **kw: (0, latest(job).data['frequencies']))
+        self.qc.for_job = lambda job: self.qc
 
     def write(self, job, geom, energy):
         self.db.write(Atoms(self.species.atom, positions=geom), name=job,

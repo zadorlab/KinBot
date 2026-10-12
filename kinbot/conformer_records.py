@@ -50,7 +50,7 @@ def hessian_record(qc, job, geometry, atoms, *, row=None):
         # KinBot stores calc_vibrations Cartesian Hessians in database rows.
         # Native Q-Chem's weighted matrix comes from its output parser instead;
         # the current backend setting must not relabel a stored Sella matrix.
-        weighted = False if stored_only else qc.hessian_is_massweighted()
+        weighted = False if stored_only else qc.hessian_is_massweighted(job)
         if not isinstance(weighted, (bool, np.bool_)):
             return {}
         reference = dict(source_job=job, source_row_id=row.id,

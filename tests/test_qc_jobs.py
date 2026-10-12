@@ -69,6 +69,11 @@ class TestVRCJobs(unittest.TestCase):
         Path('vrctst').mkdir()
         self.qc = QuantumChemistry.__new__(QuantumChemistry)
         self.qc.qc, self.qc.qc_command, self.qc.ppn = 'gauss', 'g16', 8
+        self.qc.theory_level = None
+        self.qc.frequency_mode = 'auto'
+        self.qc.optimizer = 'native'
+        self.qc.profile_explicit = False
+        self.qc.use_sella = False
         self.qc.par = {'calc_kwargs': {}, 'vrc_tst_scan_sella': False,
                        'vrc_tst_scan_deviation': 0.1, 'vts_ang_dev': 10,
                        'sella_kwargs': {}}

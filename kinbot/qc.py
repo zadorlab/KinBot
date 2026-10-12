@@ -32,7 +32,16 @@ class QuantumChemistry:
     the jobs for success or failure
     '''
 
-    def __init__(self, par):
+    def __new__(cls, par=None, *, profile_backend=False):
+        from kinbot.theory import profiled_requested
+        if cls is QuantumChemistry and par is not None and not profile_backend:
+            from kinbot.profiled_qc import ProfiledQuantumChemistry, validate_theory_restart
+            if profiled_requested(par):
+                return ProfiledQuantumChemistry(par)
+            validate_theory_restart(par)
+        return super().__new__(cls)
+
+    def __init__(self, par, *, profile_backend=False):
         ensure_current_run(create=True)
         self.par = par
         self.qc = par['qc'].lower()
@@ -67,6 +76,7 @@ class QuantumChemistry:
         self.irc_stepsize = par['irc_stepsize']
         self.irc_maxcycle = par['irc_maxcycle']
         self.qc_command = par['qc_command']
+        self.l0_method = par['l0_method']
         if par['slurm_feature'] == '':
             self.slurm_feature = ''
         else:
@@ -74,6 +84,10 @@ class QuantumChemistry:
         self.queue_job_limit = par['queue_job_limit']
         self.username = par['username']
         self.use_sella = par['use_sella']
+        self.frequency_mode = par.get('frequency_mode', 'auto')
+        self.optimizer = 'sella' if self.use_sella else 'native'
+        self.profile_explicit = False
+        self.theory_level = None
         if not self.use_sella and self.qc.lower() == 'nn_pes':
             logger.warning('NNPES needs Sella optimizer. Turning "use_sella" on.')
             self.use_sella = True
@@ -88,6 +102,22 @@ class QuantumChemistry:
         if not getattr(species, 'wellorts', 0):
             species.optical_population = getattr(self, 'par', {}).get('optical_population', 'specified')
             optical_scope(species, species.optical_population)
+
+    def for_level(self, level):
+        """Legacy inputs use the same backend at every calculation level."""
+        return self
+
+    def for_job(self, job):
+        return self
+
+    def read_imag_mode(self, job, natom):
+        from kinbot import reader_gauss, reader_qchem, reader_sella
+        if self.qc == 'fc' or (self.use_sella and self.frequency_mode != 'native_hessian'):
+            return reader_sella.read_imag_mode(job, natom)
+        reader = {'gauss': reader_gauss, 'qchem': reader_qchem}.get(self.qc)
+        if reader is None:
+            raise NotImplementedError(f'Imaginary modes are unavailable for {self.qc}.')
+        return reader.read_imag_mode(job, natom)
 
     def get_qc_arguments(self, job, mult, charge, nel, ts=0, step=0, max_step=0,
                          irc=None, scan=0, high_level=0, hir=0,
@@ -127,8 +157,8 @@ class QuantumChemistry:
                 kwargs['guess'] = 'Mix,Always'
             if ts:
                 # arguments for transition state searches
-                kwargs['method'] = 'am1'
-                kwargs['basis'] = ''
+                kwargs['method'] = self.method if self.profile_explicit else 'am1'
+                kwargs['basis'] = self.basis if self.profile_explicit else ''
 
                 if step == 0:
                     if not self.par['bimol']:
@@ -168,11 +198,11 @@ class QuantumChemistry:
             else:
                 kwargs['freq'] = 'freq'  # ? 
             if (scan or 'R_Addition_MultipleBond' in job) and not vts:
-                kwargs['method'] = self.scan_method 
-                kwargs['basis'] = self.scan_basis
+                kwargs['method'] = (self.method if self.profile_explicit else self.scan_method)
+                kwargs['basis'] = (self.basis if self.profile_explicit else self.scan_basis)
             if 'barrierless_saddle' in job or 'bls' in job:
-                kwargs['method'] = self.bls_method
-                kwargs['basis'] = self.bls_basis
+                kwargs['method'] = (self.method if self.profile_explicit else self.bls_method)
+                kwargs['basis'] = (self.basis if self.profile_explicit else self.bls_basis)
             if irc is not None:
                 # arguments for the irc calculations
                 if start_from_geom == 0:
@@ -209,8 +239,8 @@ class QuantumChemistry:
                 if len(self.integral) > 0:
                     kwargs['integral'] = self.integral
                 if 'barrierless_saddle' in job:  # completely overwrite normal settings
-                    kwargs['method'] = self.bls_high_level_method
-                    kwargs['basis'] = self.bls_high_level_basis
+                    kwargs['method'] = (self.high_level_method if self.profile_explicit else self.bls_high_level_method)
+                    kwargs['basis'] = (self.high_level_basis if self.profile_explicit else self.bls_high_level_basis)
                     kwargs['opt'] = 'NoFreeze,TS,CalcAll,NoEigentest,MaxCycle=999'  # to overwrite possible CalcAll
                     kwargs.pop('freq', None)
             if hir:
@@ -305,19 +335,19 @@ class QuantumChemistry:
                 if step >= max_step:
                     kwargs['jobtype'] = 'ts'
                 elif not scan and 'R_Addition_MultipleBond' not in job:
-                        kwargs['method'] = 'b3lyp'
-                        kwargs['basis'] = 'sto-3g'
+                        kwargs['method'] = self.method if self.profile_explicit else 'b3lyp'
+                        kwargs['basis'] = self.basis if self.profile_explicit else 'sto-3g'
                         kwargs['scf_convergence'] = '4'
                         kwargs['geom_opt_tol_gradient'] = '1500'
                         kwargs['geom_opt_tol_displacement'] = '6000'
                         kwargs['geom_opt_tol_energy'] = '500'
 
             if scan or 'R_Addition_MultipleBond' in job:
-                kwargs['method'] = self.scan_method
-                kwargs['basis'] = self.scan_basis
+                kwargs['method'] = (self.method if self.profile_explicit else self.scan_method)
+                kwargs['basis'] = (self.basis if self.profile_explicit else self.scan_basis)
             if 'barrierless_saddle' in job or 'bls' in job:
-                kwargs['method'] = self.bls_method
-                kwargs['basis'] = self.bls_basis
+                kwargs['method'] = (self.method if self.profile_explicit else self.bls_method)
+                kwargs['basis'] = (self.basis if self.profile_explicit else self.bls_basis)
             if vts:
                 kwargs['method'] = self.vts_method
                 kwargs['basis'] = self.vts_basis
@@ -430,14 +460,17 @@ class QuantumChemistry:
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         if self.use_sella:
-            kwargs.pop('chk', None)
+            if self.theory_level is None:
+                kwargs.pop('chk', None)
             kwargs.pop('opt', None)
             kwargs.pop('freq', None)
             template_file = f'{kb_path}/tpl/ase_sella_hir.tpl.py'
         else:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_hir.tpl.py'
         template = open(template_file, 'r').read()
-        template = template.format(label=job,
+        template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   optimizer=self.optimizer,
+                                   profiled=self.theory_level is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -541,8 +574,9 @@ class QuantumChemistry:
             kwargs = self.merge_kwargs(kwargs)
         kwargs.pop('opt', None)
         kwargs.pop('chk', None)
-        kwargs['method'] = 'am1'
-        kwargs['basis'] = ''
+        if self.theory_level is None:
+            kwargs['method'] = 'am1'
+            kwargs['basis'] = ''
 
         if self.qc == 'gauss':
             code = 'gaussian'
@@ -573,7 +607,9 @@ class QuantumChemistry:
         skw = self.par['sella_kwargs'].copy()
         skw['internal'] = False
         template = open(template_file, 'r').read()
-        template = template.format(label=job,
+        template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   optimizer=self.optimizer,
+                                   profiled=self.theory_level is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -632,7 +668,8 @@ class QuantumChemistry:
             Code = 'Gaussian'
             # Native MC conformers need their own existing Hessian for the
             # optical check. Sella already stores it in the database.
-            if not (self.par.get('multi_conf_tst') and not self.use_sella and not semi_emp):
+            if not ((self.theory_level is not None and self.use_sella)
+                    or (self.par.get('multi_conf_tst') and not self.use_sella and not semi_emp)):
                 kwargs.pop('chk', None)
         elif self.qc == 'qchem':
             code = 'qchem'
@@ -652,8 +689,8 @@ class QuantumChemistry:
         else:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
-        if semi_emp:
-            kwargs['method'] = self.par['l0_method']
+        if semi_emp and self.theory_level is None:
+            kwargs['method'] = self.l0_method
             kwargs['basis'] = ''
         if species.natom < 3:
             kwargs.pop('Symm', None)
@@ -666,7 +703,9 @@ class QuantumChemistry:
         else:        
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
-        template = template.format(label=job,
+        template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   optimizer=self.optimizer,
+                                   profiled=self.theory_level is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -697,7 +736,8 @@ class QuantumChemistry:
         Native jobs can lack a checkpoint or printed Hessian. Keep their
         records intact and use a separate, same-level frequency calculation.
         """
-        if self.use_sella or self.qc not in ('gauss', 'qchem'):
+        if ((self.use_sella and self.frequency_mode != 'native_hessian')
+                or self.qc not in ('gauss', 'qchem')):
             raise ValueError(f'Missing stored Hessian for {source_job} ({self.qc}).')
         rows = list(self.db.select(name=source_job))
         source_id = rows[-1].id
@@ -844,8 +884,8 @@ class QuantumChemistry:
             raise ValueError(f'Unexpected value for qc parameter: {self.qc}')
         
         if mp2:
-            kwargs['method'] = self.scan_method
-            kwargs['basis'] = self.scan_basis
+            kwargs['method'] = (self.method if self.profile_explicit else self.scan_method)
+            kwargs['basis'] = (self.basis if self.profile_explicit else self.scan_basis)
         if high_level and self.qc == 'gauss' and self.opt:
             kwargs['opt'] = 'CalcFC, {}'.format(self.opt)
         if species.natom < 3:
@@ -861,7 +901,9 @@ class QuantumChemistry:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         
         template = open(template_file, 'r').read()
-        template = template.format(label=job,
+        template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   optimizer=self.optimizer,
+                                   profiled=self.theory_level is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -935,7 +977,9 @@ class QuantumChemistry:
         else:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_ts_end.tpl.py'
         template = open(template_file, 'r').read()
-        template = template.format(label=job,
+        template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   optimizer=self.optimizer,
+                                   profiled=self.theory_level is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(species.atom),
                                    geom=plain_geometry(geom),
@@ -981,7 +1025,9 @@ class QuantumChemistry:
 
         template_file = f'{kb_path}/tpl/ase_{self.qc}_opt_well.tpl.py'
         template = open(template_file, 'r').read()
-        template = template.format(label=job,
+        template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   optimizer=self.optimizer,
+                                   profiled=self.theory_level is not None,
                                    kwargs=kwargs,
                                    atom=plain_symbols(frag.atom),
                                    geom=plain_geometry(frag.geom),
@@ -1027,7 +1073,9 @@ class QuantumChemistry:
                 raise ValueError(f'Currently only Gaussian is supported: {self.qc}')
             template_file = f'{kb_path}/tpl/ase_sella_vts.tpl.py'
             template = open(template_file, 'r').read()
-            template = template.format(label=job,
+            template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   optimizer=self.optimizer,
+                                   profiled=self.theory_level is not None,
                                        scan_coo=reac.scan_coo,
                                        bonds=reac.irc_prod.bondlist,
                                        kwargs=kwargs,
@@ -1055,7 +1103,9 @@ class QuantumChemistry:
         else:
             template_file = f'{kb_path}/tpl/ase_{self.qc}_vts.tpl.py'
             template = open(template_file, 'r').read()
-            template = template.format(label=job,
+            template = template.format(label=job, frequency_mode=self.frequency_mode,
+                                   optimizer=self.optimizer,
+                                   profiled=self.theory_level is not None,
                                        scan_coo=reac.scan_coo,
                                        bonds=reac.irc_prod.bondlist,
                                        kwargs=kwargs,
@@ -1434,7 +1484,7 @@ class QuantumChemistry:
 
         return 0, zpe
 
-    def hessian_is_massweighted(self):
+    def hessian_is_massweighted(self, job=None):
         """Native QChem Hessians are weighted; ASE/Sella Hessians are not."""
         return self.qc == 'qchem' and not self.use_sella
 
@@ -1452,7 +1502,7 @@ class QuantumChemistry:
                 and rows and rows[-1].data.get('hess') is not None):
             return np.asarray(rows[-1].data['hess'])
 
-        if self.use_sella or self.qc == 'fc':
+        if (self.use_sella and self.frequency_mode != 'native_hessian') or self.qc == 'fc':
             #db = connect('kinbot.db')
             for row in self.db.select(name=job):
                 last_row = row
@@ -1684,6 +1734,9 @@ class QuantumChemistry:
                     log_file_exists = False
                 else:
                     raise ValueError('Unknown code')
+                if (self.theory_level is not None and self.use_sella
+                        and '_freq_recovery_' not in job and not job.startswith('vrctst/')):
+                    log_file = job + '_sella.log'
                 if self.qc != 'nn_pes':
                     log_file_exists = os.path.exists(log_file)
                 if log_file_exists:

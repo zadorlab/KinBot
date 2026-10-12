@@ -31,6 +31,11 @@ class TestPklStereoIntegration(unittest.TestCase):
         self.qc = QuantumChemistry.__new__(QuantumChemistry)
         self.qc.db = connect('kinbot.db')
         self.qc.qc, self.qc.queuing, self.qc.job_ids = 'fc', 'local', {}
+        self.qc.theory_level = None
+        self.qc.frequency_mode = 'auto'
+        self.qc.optimizer = 'sella'
+        self.qc.profile_explicit = False
+        self.qc.use_sella = False  # FairChem uses its dedicated Sella workers.
         self.qc.par = {'error_missing_local': False, 'optical_population': 'specified'}
 
     def write_result(self, point, energy):

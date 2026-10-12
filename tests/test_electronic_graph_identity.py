@@ -69,6 +69,7 @@ class TestElectronicGraphIdentity(unittest.TestCase):
                 self.assertEqual(canonical_identity(product, tagged_atom=hydrogen)['status'], 'assigned')
                 qc = SimpleNamespace(get_qc_geom=lambda job, *a, **kw:
                     (0, product.geom if '_F_' in job else reactant.geom))
+                qc.for_level = lambda level: qc
                 reaction = SimpleNamespace(species=reactant, qc=qc, instance_name='saved')
                 observed = IRC(reaction, {'bimol': 0, 'optical_population': 'specified'}).irc2stationary_pt()
                 self.assertIsInstance(observed, StationaryPoint)

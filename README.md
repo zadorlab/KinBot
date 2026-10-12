@@ -153,6 +153,88 @@ The previous `L0_conformer_search` spelling is also accepted. Old names emit a
 deprecation warning. Conflicting values for an alias and its replacement are
 rejected, including the historically misspelled `semi_emp_confomer_threshold`.
 
+### Independent L0, L1 and L2 methods
+
+`l0_profile`, `l1_profile` and `l2_profile` select the calculator separately
+for each level. These reuse the profile names and fields from Hrishikesh Ram's
+`composite` branch. For example, this input uses a small UMA model for preliminary
+exploration, a larger UMA model for discovery, and Gaussian for refinement:
+
+```json
+{
+  "l0_profile": {
+    "calculator": "fairchem", "model_path": "uma-s-1p1",
+    "task_name": "omol", "device": "cuda"
+  },
+  "l1_profile": {
+    "calculator": "fairchem", "model_path": "uma-m-1p1",
+    "task_name": "omol", "device": "cuda"
+  },
+  "l2_profile": {
+    "calculator": "gaussian", "method": "M062X", "basis": "6-31G(d)",
+    "command": "g16", "optimizer": "native",
+    "calculator_kwargs": {"integral": "UltraFine"}
+  },
+  "conformer_search": 1, "l0_conformer_search": 1, "high_level": 1
+}
+```
+
+This is a configuration fragment to combine with the molecule's usual input.
+`model_path` accepts a local checkpoint or a supported pretrained model name.
+For Gaussian AM1 exploration use `l0_profile` with `calculator: "gaussian"`,
+`method: "AM1"`, `basis: ""` and the desired Gaussian `command`.
+
+L0 covers preliminary conformers and ring preparation.
+L1 covers ordinary well/conformer optimization, reaction discovery and its IRC.
+L2 is enabled by `high_level: 1`; it refines stationary points. Hindered rotors
+use the selected stationary point's level. The preliminary conformer switch
+remains restricted to wells.
+
+Explicit profile fields override the corresponding legacy settings.
+`l0`, `l1` and `l2` also accept calculator aliases such as `gauss`, `fc` and `uma`.
+Ordinary inputs without profiles retain their previous settings, including the
+Gaussian command used by preliminary searches. Flat `l0_qc`,
+`l0_qc_command`, `l0_basis` and `l0_calc_kwargs` inputs remain accepted;
+`l0_method` is a fallback beneath `l0_profile.method`.
+
+`optimizer` can be `native` for a backend's own optimizer or `sella`; `bfgs`
+selects BFGS for wells, while saddles and constrained searches continue to use
+Sella. FairChem uses its existing Sella/BFGS workers. `frequency_mode: "auto"`
+retains the backend's usual frequency calculation, and `ase_forces` uses finite
+differences with Sella/BFGS. Gaussian also supports `native_hessian` after Sella;
+Q-Chem profiles require `optimizer: "native"` and support native Hessians.
+Sella/BFGS with Q-Chem is rejected because those workers do not yet request
+force-only calculations. Ordinary inputs without profiles are unchanged.
+NWChem profiles are rejected because their calculation workers are not supported.
+Q-Chem can optimize ordinary conformers, but it cannot prepare ring conformers.
+For calculations that need ring preparation, select Gaussian or FairChem at L0;
+Q-Chem can still supply L1 or L2. An attempted Q-Chem ring preparation stops with
+this explanation before KinBot writes or submits the ring job.
+
+MESS and PES describe the resolved settings. An explicit profile `label` is
+retained. ANL presets and composite-recipe selection are not included; specify
+the methods in the profiles themselves. An empty `theory_preset` field remains
+accepted for previously written inputs, but a named preset is rejected.
+`frequency_mode` selects how harmonic frequencies are calculated; it does not
+request vibrational perturbation theory or anharmonic corrections.
+
+Each generated worker uses its assigned model, command and calculator keywords.
+The profile route file, `.kinbot_theory_jobs.json`, records the methods before
+the first job and records each job's level for reading results and restarting.
+KinBot refuses to add profiles to existing calculations without a matching
+theory record. It also refuses to restart a profiled calculation after profiles
+are removed. The existing `.kinbot_run.json` also remembers profile use, so
+removing a custom `profiled_route_file` setting cannot hide it. Calculations
+started before this flag was introduced receive it when restarted with their
+original profiles and route-file setting; keep those settings for that restart.
+PES checks the same theory records before replacing species inputs or reading
+results, including with `no-kinbot`. These checks compare profile settings;
+they do not add method tracking to older calculations made without profiles.
+Keep profiles and the route-file location fixed when resuming a run; use a fresh
+directory when changing the methods or models. CPU, memory and queue limits
+remain the existing global settings. L3 retains its existing settings.
+
+
 ## Documentation
 See the [wiki](https://github.com/zadorlab/KinBot/wiki) for keywords, and our [tutorial](https://hackmd.io/@jzador/ry1DSsEyyx#/) for a more hands-on introduction to the code.
 

@@ -34,7 +34,7 @@ class Conformers:
         """
         species: instance of StationaryPoint
         qc: instance of QuantumChemistry
-        semi_emp: is this search at low level (e.g. am1) or at the L1 level. The latter is the default.
+        semi_emp: is this search at L0 or at L1. The latter is the default.
         """
         self.species = species
         self.optical_population = par.get('optical_population', 'specified')
@@ -462,16 +462,19 @@ class Conformers:
                     if not parent_allowed:
                         from kinbot.stereo_routing import StereoRoutingError
                         raise StereoRoutingError(f'No valid conformer or compatible parent for {name}.')
-                    if self.qc.qc == 'gauss':
+                    backend = self.qc.for_job(lowest_job)
+                    if getattr(backend, 'theory_level', None) and backend.use_sella:
+                        ext = '_sella.log'
+                    elif backend.qc == 'gauss':
                         ext = '.log'
-                    elif self.qc.qc == 'qchem':
+                    elif backend.qc == 'qchem':
                         ext = '.out'
-                    elif self.qc.qc == 'nn_pes':
+                    elif backend.qc == 'nn_pes':
                         ext = '.log'
-                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
+                    elif backend.qc == 'fc' or backend.qc == 'orca':
                         ext = '_sella.log'
                     else:
-                        raise NotImplementedError(f'Code {self.qc.qc} not available.')
+                        raise NotImplementedError(f'Code {backend.qc} not available.')
                     copyfile(f'{lowest_job}{ext}', f'conf/{name}_low{ext}')
                     mol = Atoms(symbols=last_row.symbols, positions=last_row.positions)
                     data = {'energy': last_row.data.get('energy'),
@@ -619,16 +622,19 @@ class Conformers:
                 for lrow in low_rows:
                     low_row = lrow
                 try:
-                    if self.qc.qc == 'gauss':
+                    backend = self.qc.for_job(lowest_job)
+                    if getattr(backend, 'theory_level', None) and backend.use_sella:
+                        copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
+                    elif backend.qc == 'gauss':
                         copyfile(f'{lowest_job}.log', f'conf/{name}_low.log')
-                    elif self.qc.qc == 'qchem':
+                    elif backend.qc == 'qchem':
                         copyfile(f'{lowest_job}.out', f'conf/{name}_low.out')
-                    elif self.qc.qc == 'nn_pes' or self.qc.qc == 'fc':
+                    elif backend.qc == 'nn_pes' or backend.qc == 'fc':
                         pass
-                    elif self.qc.qc == 'fc' or self.qc.qc == 'orca':
+                    elif backend.qc == 'fc' or backend.qc == 'orca':
                         copyfile(f'{lowest_job}_sella.log', f'conf/{name}_low_sella.log')
                     else:
-                        raise NotImplementedError(f'Code {self.qc.qc} not available.')
+                        raise NotImplementedError(f'Code {backend.qc} not available.')
                     rows = self.db.select(name='{}'.format(lowest_job))
                     logger.debug(f'Looking at {name} in conformers')
                     for row in rows:

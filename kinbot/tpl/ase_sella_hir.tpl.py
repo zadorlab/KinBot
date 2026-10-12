@@ -29,9 +29,10 @@ if '{Code}' == 'Gaussian':
     mol.calc = {Code}(**kwargs)
 
 basename = os.path.basename('{label}')
+output_label = '{label}' if {profiled} else basename
 
-if os.path.isfile(f'{{basename}}_sella.log'):
-    os.remove(f'{{basename}}_sella.log')
+if os.path.isfile(f'{{output_label}}_sella.log'):
+    os.remove(f'{{output_label}}_sella.log')
 
 sella_kwargs = {sella_kwargs}
 if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
@@ -39,16 +40,16 @@ if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
 opt = Sella(mol, 
             order={order}, 
             constraints=const,
-            trajectory=f'{{basename}}.traj', 
-            logfile=f'{{basename}}_sella.log',
+            trajectory=f'{{output_label}}.traj',
+            logfile=f'{{output_label}}_sella.log',
             **sella_kwargs)
 
 try:
     converged = opt.run(fmax={fmax}, steps={steps})
 except:
     converged = False
-traj = read(f'{{basename}}.traj', index=':')
-write(f'{{basename}}.xyz', traj, format='xyz')
+traj = read(f'{{output_label}}.traj', index=':')
+write(f'{{output_label}}.xyz', traj, format='xyz')
 if converged:
     e = mol.get_potential_energy()
     db.write(mol, name='{label}', data={{'energy': e, 'status': 'normal'}})
@@ -59,5 +60,5 @@ else:
 if os.path.isdir(f'{{basename}}'):
     shutil.rmtree(f'{{basename}}')
 
-with open(f'{{basename}}_sella.log', 'a') as f:
+with open(f'{{output_label}}_sella.log', 'a') as f:
     f.write('done\n')

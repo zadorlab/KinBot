@@ -16,8 +16,10 @@ _SPECIES = re.compile(r'^\d+(?:-s(?:[0-9a-f]{16}|[0-9a-f]{64}))?$')
 _JOB = re.compile(r'^\d+(?:-s(?:[0-9a-f]{16}|[0-9a-f]{64}))?_')
 
 
-def _existing_results(directory):
+def _existing_results(directory, *, ignore_startup=False):
     for path in directory.iterdir():
+        if ignore_startup and path.name in ('kinbot.log', 'pes.log'):
+            continue
         if path.name in ('kinbot.db', 'kinbot.db-journal', 'kinbot.db-wal',
                          'chemids', 'kinbot.log', 'pes.log'):
             return path
@@ -28,12 +30,16 @@ def _existing_results(directory):
             return path
         if path.is_dir() and path.name in ('conf', 'hir', 'hir_profiles', 'me',
                                            'perm', 'vrctst', 'aie', 'molpro', 'orca'):
-            if any(path.iterdir()):
+            # Theory checks run after make_dirs, which creates empty trees
+            # such as perm/conf. Those directories are not calculations.
+            if (any(child.is_file() for child in path.rglob('*')) if ignore_startup
+                    else any(path.iterdir())):
                 return path
         if path.is_dir() and _SPECIES.fullmatch(path.name):
             # PES workers can already contain results before the parent has
             # written a database. Never authorize them as a fresh run.
-            if path.is_symlink() or (path / MARKER).exists() or _existing_results(path) is not None:
+            if (path.is_symlink() or (path / MARKER).exists()
+                    or _existing_results(path, ignore_startup=ignore_startup) is not None):
                 return path
     return None
 
@@ -55,7 +61,9 @@ def ensure_current_run(directory='.', *, create=False):
             recorded = json.loads(marker.read_text())
         except (OSError, ValueError) as error:
             raise ValueError(f'{marker}: invalid calculation-format record; use a fresh directory.') from error
-        if recorded != expected:
+        runtime = dict(recorded) if isinstance(recorded, dict) else {}
+        profiled = runtime.pop('profiled_theory', True)
+        if runtime != expected or profiled is not True:
             raise ValueError(f'{marker}: incompatible calculation format or RDKit settings. '
                              f'Found {recorded}; required {expected}. Use the original environment '
                              'for a current-format restart, or start in a fresh directory.')
@@ -86,3 +94,21 @@ def ensure_current_run(directory='.', *, create=False):
     finally:
         os.unlink(temporary)
     return expected
+
+
+def record_profiled_run(directory='.'):
+    """Remember profile use even if its custom record path is removed from input."""
+    recorded = ensure_current_run(directory, create=True)
+    if recorded.get('profiled_theory') is True:
+        return
+    recorded['profiled_theory'] = True
+    directory = Path(directory)
+    fd, temporary = tempfile.mkstemp(prefix='.kinbot_run_', dir=directory)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            json.dump(recorded, stream, indent=2, sort_keys=True)
+            stream.write('\n')
+        os.replace(temporary, directory / MARKER)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)

@@ -115,7 +115,7 @@ def test_backend_hessian_units_and_geometry_are_saved_with_the_record(tmp_path, 
     db = connect(str(tmp_path/'kinbot.db'))
     row_id = db.write(Atoms(p.atom, positions=p.geom), name='conf/test', data={'status': 'normal'})
     qc = SimpleNamespace(db=db, read_qc_hess=Mock(return_value=np.eye(3*p.natom)),
-                         hessian_is_massweighted=lambda: weighted)
+                         hessian_is_massweighted=lambda job=None: weighted)
     data = hessian_record(qc, 'conf/test', p.geom, p.atom)
     assert data['hessian_reference']['source_row_id'] == row_id
     assert data['hessian_reference']['hessian_massweighted'] is weighted

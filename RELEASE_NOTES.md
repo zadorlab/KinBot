@@ -2,6 +2,39 @@
 
 Each KinBot and PES run starts its log with the KinBot and RDKit versions.
 
+## Independent calculation levels
+
+- Reuse the L1/L2 theory profiles from Hrishikesh Ram's composite branch and
+  extend the same interface to `l0_profile`. Each level can select its own
+  calculator, method, basis, command or FairChem model/task/device.
+- Use assigned profile settings in TS and IRC workers as well as well workers.
+  Read results and Hessians through their recorded level. Global submission
+  resources and L3 remain unchanged.
+- Standardize preliminary conformer controls on lowercase `l0_*`, retaining
+  all previous input aliases, including `semi_emp_confomer_threshold`.
+  Ordinary inputs without profiles keep their existing calculator and command.
+- Changed-profile restarts now request a fresh calculation directory, rather
+  than suggesting removal of the route file while old results remain.
+- Record profiles before the first job. Refuse to add profiles to calculations
+  without a matching theory record, or to remove profiles on restart. This
+  prevents results from an old method from being read as results from a new one.
+- Remember profile use in `.kinbot_run.json`, including when profiles and a
+  custom route-file setting are both removed from the input. Existing profiled
+  runs receive this flag when restarted with their original settings.
+- Apply the same theory checks to PES before species-input replacement and
+  result reading, including `pes ... no-kinbot`, without creating calculators.
+- Reject NWChem profiles during input validation. Refuse Q-Chem ring preparation
+  before writing or submitting that job; use Gaussian or FairChem at L0 for
+  ring preparation. Q-Chem remains available for ordinary conformer optimization
+  and for L1/L2 calculations.
+- Q-Chem profiles require native optimization. Switching a profile to Q-Chem
+  defaults to native; Sella/BFGS is rejected before a worker can request an
+  internal Q-Chem optimization in place of a force evaluation.
+- PES and MESS describe the selected L1/L2 settings and retain explicit labels.
+- Keep ANL presets and composite-recipe selection out of theory management.
+  Previously written inputs can retain an empty `theory_preset` field; named
+  presets are rejected. Frequency modes control harmonic calculations only.
+
 ## Job results
 
 A finished job's `done` stamp is no longer accepted before its result row is

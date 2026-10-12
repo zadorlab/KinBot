@@ -1,7 +1,7 @@
-"""Persistent L1/L2 routing for KinBot's existing QC interface.
+"""Persistent L0/L1/L2 routing for KinBot's existing QC interface.
 
-Reaction discovery and conformer sampling use L1. Accepted stationary points
-and hindered rotors use L2.  The router delegates to the mature legacy job
+Preliminary searches use L0; discovery and ordinary conformers use L1.
+Refinement uses L2 when enabled, and rotors follow that selected level.  The router delegates to the mature legacy job
 writers and records every job's backend so result polling remains correct
 after restarting KinBot.
 """
@@ -12,6 +12,7 @@ from copy import deepcopy
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
 from kinbot.theory import resolve_profiles
@@ -32,6 +33,63 @@ _DEFAULT_COMMANDS = {
     'nwchem': 'nwchem',
     'orca': 'orca',
 }
+
+
+def _route_file(par):
+    filename = par.get('profiled_route_file', str(_ROUTE_FILE))
+    if not isinstance(filename, str) or not filename.strip():
+        raise ValueError('profiled_route_file must be a nonempty path.')
+    return Path(filename).expanduser()
+
+
+def validate_theory_restart(par, directory='.', *, profiles=None):
+    """Check recorded theory without opening calculators or changing results."""
+    from kinbot.run_format import MARKER, _existing_results, ensure_current_run
+
+    directory = Path(directory)
+    marker = directory / MARKER
+    recorded = ensure_current_run(directory) if marker.exists() else {}
+    if profiles is None:
+        profiles = resolve_profiles(par)
+    route_file = directory / _route_file(par)
+    if not profiles:
+        paths = {directory / _ROUTE_FILE, route_file}
+        if recorded.get('profiled_theory') is True:
+            paths.add(marker)
+        for path in paths:
+            if path.exists():
+                raise ValueError(f'Theory profiles were removed, but {path} still '
+                                 'records the previous use of profiles. Restore '
+                                 'the profiles or start in a fresh directory; keep '
+                                 'the theory record with the existing results.')
+        return {}
+    if not route_file.exists():
+        existing = _existing_results(directory, ignore_startup=True)
+        if existing is not None or recorded.get('profiled_theory') is True:
+            raise ValueError(f'Cannot verify the theory used for {existing or directory}: '
+                             f'{route_file} is missing. Start the profiled '
+                             'calculation in a fresh directory; keep the '
+                             'existing calculation files unchanged.')
+        return {}
+    try:
+        payload = json.loads(route_file.read_text())
+    except (OSError, ValueError) as exc:
+        raise ValueError(f'Cannot read {route_file}.') from exc
+    if (not isinstance(payload, dict) or payload.get('schema') != 1
+            or payload.get('profile_sha256') != _fingerprint(profiles)
+            or not isinstance(payload.get('jobs'), dict)):
+        raise ValueError('Theory profiles changed since jobs were submitted; '
+                         'start a new calculation in a fresh directory. '
+                         f'Keep {route_file} with the existing results; '
+                         'removing it does not remove calculations made with the old profiles.')
+    routes = payload['jobs']
+    for job, record in routes.items():
+        if (not isinstance(job, str) or not isinstance(record, dict)
+                or record.get('level') not in profiles
+                or (record.get('job_id') is not None
+                    and not isinstance(record.get('job_id'), str))):
+            raise ValueError(f'Invalid profiled job route for {job!r}.')
+    return routes
 
 
 def _profile_payload(profile):
@@ -60,7 +118,8 @@ def _backend_parameters(par, profile):
     """Translate one resolved profile into the existing backend settings."""
     values = deepcopy(par)
     for key, empty in (
-            ('profiled_theory', 0), ('l1', ''),
+            ('profiled_theory', 0), ('l0', ''),
+            ('l0_profile', {}), ('l1', ''),
             ('l2', ''), ('l1_profile', {}), ('l2_profile', {})):
         values[key] = empty
     calculator = profile.calculator.lower()
@@ -74,7 +133,7 @@ def _backend_parameters(par, profile):
     values['high_level_method'] = profile.method
     values['high_level_basis'] = profile.basis
     values['calc_kwargs'] = dict(profile.calculator_kwargs)
-    values['use_sella'] = profile.optimizer == 'sella'
+    values['use_sella'] = profile.optimizer in ('sella', 'bfgs')
     values['frequency_mode'] = profile.frequency_mode
     if calculator == 'fairchem':
         values['fc_model_path'] = profile.model_path
@@ -84,6 +143,12 @@ def _backend_parameters(par, profile):
     else:
         values['qc_command'] = (profile.command
                                 or _DEFAULT_COMMANDS.get(calculator, ''))
+    # Generic Sella templates instantiate calculators directly. Supply the
+    # executable to the instance so model and command follow the same profile.
+    if calculator == 'gaussian':
+        values['calc_kwargs']['command'] = values['qc_command'] + ' < PREFIX.com > PREFIX.log'
+    elif calculator == 'qchem':
+        values['calc_kwargs']['command'] = values['qc_command']
     return values
 
 
@@ -92,24 +157,41 @@ class ProfiledQuantumChemistry:
 
     def __init__(self, par):
         from kinbot.qc import QuantumChemistry
+        from kinbot.run_format import ensure_current_run, record_profiled_run
 
         self.par = par
-        route_file = par.get('profiled_route_file', str(_ROUTE_FILE))
-        if not isinstance(route_file, str) or not route_file.strip():
-            raise ValueError('profiled_route_file must be a nonempty path.')
-        self.route_file = Path(route_file).expanduser()
+        self.route_file = _route_file(par)
         reuse_only = par.get('profiled_l1_reuse_only', 0)
         if reuse_only not in (0, 1, False, True):
             raise ValueError('profiled_l1_reuse_only must be 0 or 1.')
         self.l1_reuse_only = bool(reuse_only)
         self.profiles = resolve_profiles(par)
-        if set(self.profiles) != {'l1', 'l2'}:
-            raise ValueError('Profiled theory requires resolved L1 and L2 profiles.')
+        if set(self.profiles) != {'l0', 'l1', 'l2'}:
+            raise ValueError('Profiled theory requires resolved L0, L1 and L2 profiles.')
         self._fingerprint = _fingerprint(self.profiles)
+        self._routes = validate_theory_restart(par, profiles=self.profiles)
+        ensure_current_run(create=True)
+        # Save the methods before marking profile use or opening calculators,
+        # so a failed initialization still has the record needed for a restart.
+        if not self.route_file.exists():
+            self._save_routes()
+        record_profiled_run()
         self.backends = {
-            level: QuantumChemistry(_backend_parameters(par, profile))
+            level: QuantumChemistry(_backend_parameters(par, profile), profile_backend=True)
             for level, profile in self.profiles.items()
         }
+        # L3 and AIE retain their ordinary global settings.
+        self.legacy = QuantumChemistry(par, profile_backend=True)
+        for level, backend in self.backends.items():
+            backend.theory_level = level
+            backend.optimizer = self.profiles[level].optimizer
+            backend.profile_explicit = bool(par.get(level) or par.get(f'{level}_profile')
+                                            or par.get('profiled_theory'))
+            if backend.use_sella or backend.qc == 'fc':
+                backend.par['sella_kwargs'].setdefault('internal', True)
+                if backend.par['calcall_ts']:
+                    backend.par['sella_kwargs'].setdefault('gamma', 0.)
+        self.l0 = self.backends['l0']
         self.l1 = self.backends['l1']
         self.l2 = self.backends['l2']
         # Existing reaction code inspects these attributes directly. Reaction
@@ -120,7 +202,6 @@ class ProfiledQuantumChemistry:
         self.ppn = self.l1.ppn
         self.db = self.l1.db
         self.job_ids = {}
-        self._routes = self._load_routes()
         for level, backend in self.backends.items():
             original = backend.submit_qc
 
@@ -138,6 +219,8 @@ class ProfiledQuantumChemistry:
                                  jobtype=jobtype)
                 job_id = self.backends[_level].job_ids.get(job)
                 self._record(job, _level, job_id)
+                if re.search(r'_IRC_[FR]$', job):
+                    self._record(job + '_prod', _level)
                 return result
 
             backend.submit_qc = tracked
@@ -146,27 +229,6 @@ class ProfiledQuantumChemistry:
     def __getattr__(self, name):
         # Unclassified operations (reaction scans, IRC, VTS, conformers) are L1.
         return getattr(self.l1, name)
-
-    def _load_routes(self):
-        if not self.route_file.exists():
-            return {}
-        try:
-            payload = json.loads(self.route_file.read_text())
-        except (OSError, ValueError) as exc:
-            raise ValueError(f'Cannot read {self.route_file}.') from exc
-        if (payload.get('schema') != 1
-                or payload.get('profile_sha256') != self._fingerprint
-                or not isinstance(payload.get('jobs'), dict)):
-            raise ValueError('Theory profiles changed since jobs were submitted; '
-                             f'archive or remove {self.route_file} before a new run.')
-        routes = payload['jobs']
-        for job, record in routes.items():
-            if (not isinstance(job, str) or not isinstance(record, dict)
-                    or record.get('level') not in self.backends
-                    or (record.get('job_id') is not None
-                        and not isinstance(record.get('job_id'), str))):
-                raise ValueError(f'Invalid profiled job route for {job!r}.')
-        return routes
 
     def _save_routes(self):
         payload = {'schema': 1, 'profile_sha256': self._fingerprint,
@@ -207,17 +269,43 @@ class ProfiledQuantumChemistry:
         record = self._routes.get(job)
         if record:
             return record['level']
-        # This also lets a newly introduced router resume conventional KinBot
-        # names produced by the same two-level input before a route file existed.
-        if '/hir_' in job or job.startswith('hir/') or job.endswith('_high') \
+        # A worker can finish before its job entry is saved. The profile record
+        # already fixes the theory; conventional names identify its level.
+        if '_semi_emp_' in job or (job.startswith('conf/')
+                and re.search(r'_r\d+_\d+$', job)):
+            return 'l0'
+        if '/hir_' in job or job.startswith('hir/'):
+            return 'l2' if self.par['high_level'] else 'l1'
+        if job.endswith('_high') \
                 or '_high_freq_recovery_' in job:
             return 'l2'
         return 'l1'
 
-    def _backend_for(self, job):
+    def for_level(self, level):
+        return self.backends[level]
+
+    def for_job(self, job):
         return self.backends[self._level_for(job)]
 
+    _backend_for = for_job
+
+    def qc_ring_conf(self, *args, **kwargs):
+        if self.l0.qc == 'qchem':
+            raise ValueError('Q-Chem cannot prepare ring conformers in KinBot. '
+                             'Select Gaussian or FairChem in l0_profile for '
+                             'ring preparation; Q-Chem can still be used at L1/L2.')
+        return self.l0.qc_ring_conf(*args, **kwargs)
+
+    def qc_conf(self, species, geom, index, semi_emp=0):
+        backend = self.l0 if semi_emp else self.l1
+        return backend.qc_conf(species, geom, index, semi_emp=semi_emp)
+
+    def qc_aie(self, *args, **kwargs):
+        return self.legacy.qc_aie(*args, **kwargs)
+
     def get_qc_arguments(self, *args, **kwargs):
+        if kwargs.get('L3') or (len(args) > 14 and args[14]):
+            return self.legacy.get_qc_arguments(*args, **kwargs)
         high_level = (args[9] if len(args) > 9 else kwargs.get('high_level'))
         level = 'l2' if high_level else 'l1'
         return self.backends[level].get_qc_arguments(*args, **kwargs)
@@ -237,8 +325,8 @@ class ProfiledQuantumChemistry:
         return self.backends[level].qc_opt_ts(*args, **kwargs)
 
     def qc_hir(self, *args, **kwargs):
-        # Hindered rotors are evaluated on the accepted L2 surface.
-        return self.l2.qc_hir(*args, **kwargs)
+        level = 'l2' if self.par['high_level'] else 'l1'
+        return self.backends[level].qc_hir(*args, **kwargs)
 
     def qc_vts_frag(self, frag):
         """Run VRC fragment preparation on its Gaussian theory context."""
@@ -259,12 +347,15 @@ class ProfiledQuantumChemistry:
         return job
 
     def qc_freq(self, species, source_job, high_level=0):
-        level = 'l2' if high_level else self._level_for(source_job)
+        level = self._level_for(source_job)
         result = self.backends[level].qc_freq(
             species, source_job, high_level=int(level == 'l2'))
         self._record(result, level,
                      self.backends[level].job_ids.get(result))
         return result
+
+    def read_imag_mode(self, job, natom):
+        return self.for_job(job).read_imag_mode(job, natom)
 
     def check_qc(self, job):
         return self._backend_for(job).check_qc(job)
@@ -287,8 +378,8 @@ class ProfiledQuantumChemistry:
     def read_qc_hess(self, job, *args, **kwargs):
         return self._backend_for(job).read_qc_hess(job, *args, **kwargs)
 
-    def hessian_is_massweighted(self):
-        level = 'l2' if self.par.get('high_level') else 'l1'
+    def hessian_is_massweighted(self, job=None):
+        level = self._level_for(job) if job else ('l2' if self.par.get('high_level') else 'l1')
         return self.backends[level].hessian_is_massweighted()
 
     def invalidate_qc(self, job):

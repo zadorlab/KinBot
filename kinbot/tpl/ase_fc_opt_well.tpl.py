@@ -57,7 +57,7 @@ if len(mol) == 1:
 sella_kwargs = {sella_kwargs}
 fmax = {fmax}
 steps = {steps}
-if len(mol.symbols) > 2:
+if len(mol.symbols) > 2 and not ('{optimizer}' == 'bfgs' and {order} == 0):
     if sella_kwargs['internal'] == True and len(mol.symbols) < 5:
         sella_kwargs['internal'] = False
     opt = Sella(mol, 
@@ -92,7 +92,7 @@ if converged:
         with open('{label}_sella.log', 'a') as f:
             f.write('Converged but frequency check failed (order={order}); frequencies (cm-1):\n')
             f.write(str(list(freqs)) + '\n')
-elif len(mol.symbols) > 2 and (not converged):
+elif len(mol.symbols) > 2 and (not converged) and '{optimizer}' != 'bfgs':
     mol.positions = {geom}
     sella_kwargs['internal'] = 1 - sella_kwargs['internal']
     opt = Sella(mol,

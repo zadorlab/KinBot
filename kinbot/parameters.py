@@ -132,9 +132,9 @@ class Parameters:
             'difference_threshold': 0.1,
             # The angular grid for dihedrals, angle = 360 / grid
             'conf_grid': 3,
-            # Do a semi empirical conformational search and select the lowest conformers
+            # For wells, do an L0 search and select the lowest conformers
             # for the L1 conformer search
-            'semi_emp_conformer_search': 0,
+            'l0_conformer_search': 0,
             # Do a hindered rotor scan
             'rotor_scan': 0,
             # Energy threshold for free rotor in kcal/mol
@@ -156,14 +156,14 @@ class Parameters:
             # Dihedral angle to consider a section of a ring flat
             'flat_ring_dih_angle': 5.,
             # Maximum number of diherals for which exhaustive
-            # comformation searches are done at semi empirical level
-            'max_dihed_semi_emp': 5,
+            # conformation searches are done at L0
+            'l0_max_dihed': 5,
             # Number of random conformers in case no exhaustive search is done
-            # at semi empirical level
-            'random_conf_semi_emp': 500,
-            # threshold of conformers at semi empirical level to take to the L1 level
+            # at L0
+            'l0_random_conf': 500,
+            # threshold of L0 conformers to take to the L1 level
             # in kcal/mol
-            'semi_emp_confomer_threshold': 5,
+            'l0_conformer_threshold': 5,
             # multi conformer TST
             'multi_conf_tst': 0,
             # Fixed stereoisomers are the default; racemic means the global mirror pair.
@@ -229,8 +229,8 @@ class Parameters:
             'high_level_method': 'M062X',
             # Basis set to use for high-level
             'high_level_basis': '6-311++G(d,p)',
-            # method for semi empirical conformer search
-            'semi_emp_method': 'am1',
+            # method for L0 conformer search
+            'l0_method': 'am1',
             # Integral grid for Gaussian, only for the high-level calculations
             'integral': '',
             # Optimization threshold
@@ -658,6 +658,22 @@ class Parameters:
         except IOError:
             msg = 'Input file {} does not exist'.format(self.input_file)
             raise IOError(msg)
+        aliases = {
+            'semi_emp_conformer_search': 'l0_conformer_search',
+            'semi_emp_method': 'l0_method',
+            'L0_conformer_search': 'l0_conformer_search',
+            'max_dihed_semi_emp': 'l0_max_dihed',
+            'random_conf_semi_emp': 'l0_random_conf',
+            'semi_emp_confomer_threshold': 'l0_conformer_threshold',
+        }
+        for old, new in aliases.items():
+            if old not in user_data:
+                continue
+            if new in user_data and user_data[new] != user_data[old]:
+                raise IOError(
+                    f'KinBot options {old} and {new} specify different values.')
+            logger.warning('Input option %s is deprecated; use %s.', old, new)
+            user_data[new] = user_data.pop(old)
         for key in user_data:
             if key in self.par:
                 self.par[key] = user_data[key]

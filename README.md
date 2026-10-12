@@ -128,6 +128,31 @@ energies; it does not raise an inner TS merely because it lies below the
 separated fragments. This option does not add support for a MESS barrier
 between two sets of separated reactants and products.
 
+### Preliminary conformer searches (L0)
+
+For wells, `l0_conformer_search: 1` enables a preliminary, inexpensive
+conformer search before L1 when `conformer_search: 1` is enabled. It remains
+disabled by default and does not enable preliminary transition-state conformer
+searches. The existing QC backend, command, calculation filenames and defaults
+remain unchanged.
+
+| Input | Default | Previous name (still accepted) |
+| --- | --- | --- |
+| `l0_conformer_search` | `0` | `semi_emp_conformer_search` |
+| `l0_method` | `am1` | `semi_emp_method` |
+| `l0_max_dihed` | `5` | `max_dihed_semi_emp` |
+| `l0_random_conf` | `500` | `random_conf_semi_emp` |
+| `l0_conformer_threshold` | `5` kcal/mol | `semi_emp_confomer_threshold` |
+
+`l0_max_dihed` sets the maximum number of dihedral angles for exhaustive
+sampling. Beyond that number, `l0_random_conf` sets the number of randomly
+sampled conformers. `l0_conformer_threshold` is the energy window above the
+lowest L0 conformer for retaining seeds for L1.
+
+The previous `L0_conformer_search` spelling is also accepted. Old names emit a
+deprecation warning. Conflicting values for an alias and its replacement are
+rejected, including the historically misspelled `semi_emp_confomer_threshold`.
+
 ## Documentation
 See the [wiki](https://github.com/zadorlab/KinBot/wiki) for keywords, and our [tutorial](https://hackmd.io/@jzador/ry1DSsEyyx#/) for a more hands-on introduction to the code.
 

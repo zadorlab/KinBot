@@ -91,10 +91,10 @@ class Conformers:
         if semi_emp:
             # Maximum number of diherals for which exhaustive
             # conformation searches are done
-            self.max_dihed = par['max_dihed_semi_emp']
+            self.max_dihed = par['l0_max_dihed']
             # Number of random conformers in case no
             # exhaustive search is done
-            self.nconfs = par['random_conf_semi_emp']
+            self.nconfs = par['l0_random_conf']
 
         # db to be used for skipping conf generation
         self.db = connect('kinbot.db')

@@ -222,7 +222,7 @@ class TestSemiEmpiricalConformers(unittest.TestCase):
         os.chdir(temporary.name)
         Path('input.json').write_text(json.dumps({
             'barrier_threshold': 50., 'conformer_search': 1,
-            'semi_emp_conformer_search': 1, 'semi_emp_confomer_threshold': 5.,
+            'l0_conformer_search': 1, 'l0_conformer_threshold': 5.,
         }))
         self.par = Parameters('input.json', show_warnings=False).par
         atoms = molecule('CH4')

@@ -168,7 +168,7 @@ class Optimize:
         while 1:
             # do the conformational search
             if self.par['conformer_search'] == 1:
-                l0_conformer_search = (self.par['semi_emp_conformer_search'] == 1
+                l0_conformer_search = (self.par['l0_conformer_search'] == 1
                                        and not self.species.wellorts)
                 if self.scycconf == -1 and self.sconf == -1:
                     logger.info('\tStarting conformational search of '
@@ -235,14 +235,14 @@ class Optimize:
                                 minimum = min(energy for _, energy in valid)
                                 seeds = [geom for geom, energy in valid
                                          if (energy - minimum) * constants.AUtoKCAL
-                                         < self.par['semi_emp_confomer_threshold']]
+                                         < self.par['l0_conformer_threshold']]
                                 # The dihedrals were already sampled semi-empirically,
                                 # so each surviving geometry is optimized as given.
                                 self.species.confs.nconfs = 1
                                 for geom in seeds:
                                     self.species.confs.generate_conformers(-999, geom)
                                 logger.info("\tThere are {} structures below the {} kcal/mol threshold for species {} in the semiempirical search.". \
-                                             format(len(seeds), self.par['semi_emp_confomer_threshold'], self.name))
+                                             format(len(seeds), self.par['l0_conformer_threshold'], self.name))
                             else:
                                 # Seeding L1 with the ring conformers alone would
                                 # skip the dihedral search entirely. Run the

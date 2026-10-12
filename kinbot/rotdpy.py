@@ -16,7 +16,7 @@ import sys
 import time
 
 
-SUPPORTED_REVISION = '47e996d52f394a69493293eaee31737ae849b2b9'
+SUPPORTED_REVISION = 'f3352c8eea9d51d26f631d3238e24e304b5be7de'
 
 
 def _sha256(path: Path) -> str:
@@ -92,8 +92,10 @@ def sampling_progress(input_file: str | Path) -> dict:
                     latest[surface] = (blob, run_index)
             accepted_by_surface = {}
             failed = 0
+            fake = 0
             space = 0
             ceiling = 0
+            total_ceiling = 0
             database_converged = 0
             for surface, (blob, _) in latest.items():
                 flux = pickle.loads(blob)
@@ -103,15 +105,19 @@ def sampling_progress(input_file: str | Path) -> dict:
                 accepted_by_surface[str(surface)] = accepted
                 failed += sum(int(getattr(face, '_fail_num', 0))
                               for face in faces)
+                fake += sum(int(getattr(face, '_fake_num', 0))
+                            for face in faces)
                 space += sum(int(getattr(face, '_close_num', 0))
                              + int(getattr(face, '_face_num', 0))
                              for face in faces)
                 selected = list(getattr(
                     flux, 'selected_faces', range(len(faces))))
                 ceiling += int(getattr(flux, 'pot_max', 0)) * len(selected)
+                total_ceiling += int(getattr(flux, 'tot_max', 0))
                 database_converged += bool(getattr(flux, 'converged', False))
             accepted_values = list(accepted_by_surface.values())
             accepted_total = sum(accepted_values)
+            total_draws = accepted_total + failed + fake + space
             snapshot = {
                 'saved_at_epoch': round(database.stat().st_mtime),
                 'age_seconds': round(max(
@@ -124,12 +130,19 @@ def sampling_progress(input_file: str | Path) -> dict:
                 'accepted_samples_per_surface_max': (
                     max(accepted_values) if accepted_values else 0),
                 'failed_samples': failed,
+                'potential_free_samples': fake,
                 'space_rejections': space,
                 'potential_sample_ceiling': ceiling,
                 'accepted_samples_to_ceiling': max(
                     0, ceiling - accepted_total),
+                'total_configuration_draws': total_draws,
+                'total_sample_ceiling': total_ceiling,
+                'configuration_draws_to_ceiling': max(
+                    0, total_ceiling - total_draws),
                 'note': ('The restart snapshot is periodic and may lag '
-                         'currently running sample jobs.'),
+                         'currently running sample jobs. The total-sample '
+                         'ceiling is an upper bound; statistical convergence '
+                         'may stop earlier.'),
             }
         except (OSError, sqlite3.Error, pickle.UnpicklingError,
                 AttributeError, EOFError, ImportError) as error:

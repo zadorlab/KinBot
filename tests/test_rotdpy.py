@@ -353,7 +353,7 @@ def test_live_progress_reports_periodic_restart_snapshot(tmp_path):
     face = SimpleNamespace(_acct_num=83, _fail_num=1,
                            _close_num=20, _face_num=10)
     flux = SimpleNamespace(flux_array=[face], selected_faces=[0],
-                           pot_max=100, converged=False)
+                           pot_max=100, tot_max=1000, converged=False)
     database = root / 'rotdPy_restart.db'
     with sqlite3.connect(database) as connection:
         connection.execute(
@@ -371,6 +371,9 @@ def test_live_progress_reports_periodic_restart_snapshot(tmp_path):
     assert snapshot['space_rejections'] == 30
     assert snapshot['potential_sample_ceiling'] == 100
     assert snapshot['accepted_samples_to_ceiling'] == 17
+    assert snapshot['total_configuration_draws'] == 114
+    assert snapshot['total_sample_ceiling'] == 1000
+    assert snapshot['configuration_draws_to_ceiling'] == 886
 
 
 def test_live_progress_reports_stalled_inactive_restart(tmp_path):
@@ -381,7 +384,7 @@ def test_live_progress_reports_stalled_inactive_restart(tmp_path):
     face = SimpleNamespace(_acct_num=100, _fail_num=0,
                            _close_num=0, _face_num=0)
     flux = SimpleNamespace(flux_array=[face], selected_faces=[0],
-                           pot_max=100, converged=False)
+                           pot_max=100, tot_max=1000, converged=False)
     database = root / 'rotdPy_restart.db'
     with sqlite3.connect(database) as connection:
         connection.execute(

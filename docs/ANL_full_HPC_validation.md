@@ -1249,12 +1249,15 @@ The terminal result is
 
 Two reference-batch outcomes are reconciled by the dispatcher itself after
 updating KinBot. A native calculation that terminated successfully but was
-rejected by an older result parser is reparsed from its hash-checked output;
-the failed parser record is archived and the QC executable is not called
-again. A monatomic L2 or L3 geometry node is completed as an exact identity
-operation because an atom has no geometry coordinate to optimize. No ASE
-calculator or Slurm job is used for that node, and a failed legacy atomic
-geometry attempt is retained as `execution.failed.json`.
+rejected by an older result parser, or was misclassified because its site
+launcher reported a nonzero status, is accepted only after checking the
+unchanged staged input and geometry, required files, native success and
+failure markers, and the current method-aware parser. The failed record is
+archived, every accepted artifact is hashed, and the QC executable is not
+called again. A monatomic L2 or L3 geometry node is completed as an exact
+identity operation because an atom has no geometry coordinate to optimize.
+No ASE calculator or Slurm job is used for that node, and a failed legacy
+atomic geometry attempt is retained as `execution.failed.json`.
 
 Consequently, after pulling the fix, an ordinary status refresh repairs the
 old methyl parser result and the old atomic-H geometry result, clears their
@@ -1265,6 +1268,18 @@ dependent `blocked` states, and stages the actual atomic property jobs:
   "$refs/methyl_composite"
 .venv/bin/python -m kinbot.anl.dispatch status \
   "$refs/atomic_h_composite"
+```
+
+The completed methyl source-geometry `CCSDTQ(P)` output may have the same
+native-success/site-launcher classification. Recover that saved result
+explicitly, without a new MRCC calculation, and rerun its literature check:
+
+```bash
+.venv/bin/python -m kinbot.anl.dispatch reparse \
+  "$refs/methyl_source_qz" ccsdtqp_dz
+.venv/bin/python -m kinbot.anl.literature compare-run \
+  methyl-qz-2017 "$refs/methyl_source_qz" \
+  | tee "$refs/methyl_source_qz_literature.json"
 ```
 
 Restart a dispatcher only if its previous driver has exited. The two already

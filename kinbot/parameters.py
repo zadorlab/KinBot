@@ -383,7 +383,8 @@ class Parameters:
             'vrc_tst_high_basis': 'avtz',
             # ``direct`` preserves the original single trusted calculation.
             # ``spin_splitting`` reconstructs the singlet from a
-            # RHF-UCCSD(T)-F12b triplet and two multireference S-T gaps.
+            # RHF-UCCSD(T)-F12b triplet and explicitly selected F12b
+            # CASPT2 and Davidson-corrected MRCI singlet-triplet gaps.
             'vrc_tst_correction_model': 'direct',
             # Optional overrides to the documented spin-splitting preset.
             'vrc_tst_spin_splitting': None,

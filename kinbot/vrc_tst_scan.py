@@ -20,7 +20,7 @@ from subprocess import Popen, PIPE
 from kinbot.utils import reorder_coord
 from kinbot.stationary_pt import StationaryPoint
 from kinbot import geometry
-from kinbot.molpro import Molpro
+from kinbot.molpro import Molpro, vrc_multireference_energy_contract
 from kinbot.vrc_correction import (
     assemble_spin_splitting_reference, correction_components,
     correction_model, expected_levels, spin_splitting_settings,
@@ -513,6 +513,10 @@ class VTS:
                     'output_sha256': hashlib.sha256(
                         (directory / f'{job}.out').read_bytes()).hexdigest(),
                     'energy_hartree': energy,
+                    'energy_contract':
+                        vrc_multireference_energy_contract(
+                            next(item['method'] for item in components
+                                 if item['role'] == role)),
                 })
 
             dist = ([30] if noscan

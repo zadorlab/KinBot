@@ -78,9 +78,20 @@ this validation input.  For this test its three reference branches all use
 TZ/QZ two-point CBS values:
 
 - RHF-UCCSD(T)-F12b/aug-cc-pV{T,Q}Z-F12 for the triplet interaction;
-- CASPT2-F12(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies, with
+- CASPT2-F12b(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies, with
   real shift 0.20 and IPEA shift 0.25; and
-- MRCI-F12+Q(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies.
+- MRCI-F12b+Q(2e,2o)/aug-cc-pV{T,Q}Z-F12 singlet and triplet energies.
+
+The explicit `b` labels remove a Molpro output ambiguity.  An unqualified
+F12 command computes both variants: `ENERGY(1)`/`ENERGD(1)` are F12A and
+`ENERGY(2)`/`ENERGD(2)` are F12B.  KinBot therefore selects `ENERGY(2)` for
+CASPT2-F12b and `ENERGD(2)` for MRCI-F12b+Q.  The latter is generated with
+`OPTION,CLUSTER=0`, so `+Q` is the relaxed-reference Davidson correction;
+the F12 CABS-singles correction remains included.  The generated input binds
+that value to `KBVRCSEL`, and the reader verifies that the public energy key
+matches it.  Explicit `f12a` method names remain available, while the older
+unqualified `caspt2-f12` and `mrci-f12+q` spellings are compatible aliases for
+the documented F12b convention.
 
 Every lower/upper pair uses the same ANL extrapolation:
 
@@ -182,6 +193,8 @@ outputs.
 - H. Ram et al., *J. Phys. Chem. A* 2025, DOI `10.1021/acs.jpca.4c07388`:
   RHF-UCCSD(T)-F12b plus CASPT2-F12 and MRCI-F12+Q spin splitting,
   multireference correction potentials, and VRC-TST statistical factors.
+  KinBot makes the underlying F12b array selection explicit as documented
+  above.
 - The Molpro manual sections on explicitly correlated methods, multireference
   perturbation theory, and MRCI define the RHF-reference UCCSD(T)-F12,
   RS2-F12 `SHIFT`/`IPEA`, and Davidson-corrected `ENERGD` conventions used by

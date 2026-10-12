@@ -118,8 +118,10 @@ def test_vrc_mrci_q_uses_davidson_corrected_energy():
     assert 'occ,10' in method
     assert 'closed,8' in method
     assert 'wf,18,1,0' in method
-    assert '{mrci}' in method
-    assert energy == 'energd(1)'
+    assert '{mrci;option,cluster=0;}' in method
+    assert 'KBVRCVAR=energy(1)' in method
+    assert 'KBVRCSEL=energd(1)' in method
+    assert energy == 'KBVRCSEL'
 
 
 def test_mess_staging_adds_zero_flux_origin_without_changing_native(tmp_path):

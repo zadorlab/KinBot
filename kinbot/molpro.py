@@ -12,6 +12,52 @@ import math
 logger = logging.getLogger('KinBot')
 
 
+_VRC_MULTIREFERENCE = re.compile(
+    r'(caspt2|mrci)(?:-f12([ab])?)?(\+q)?\((\d+),(\d+)\)')
+
+
+def vrc_multireference_energy_contract(method):
+    """Return the exact Molpro energy selected for a VRC MR method.
+
+    Molpro stores the F12A and F12B results of an unqualified F12 command in
+    indices 1 and 2, respectively.  The literature shorthand ``CASPT2-F12``
+    and ``MRCI-F12+Q`` is interpreted as F12B here; users can request F12A
+    explicitly.  MRCI ``+Q`` always means the relaxed-reference Davidson
+    correction (``OPTION,CLUSTER=0``), including the default CABS-singles
+    correction in an F12 calculation.
+    """
+    source = str(method).strip().casefold()
+    match = _VRC_MULTIREFERENCE.fullmatch(source)
+    if match is None:
+        return None
+    family, variant, correction, electrons_text, orbitals_text = \
+        match.groups()
+    if family == 'caspt2' and correction is not None:
+        return None
+    if family == 'mrci' and correction != '+q':
+        return None
+    f12 = '-f12' in source
+    variant = variant.upper() if f12 and variant else ('B' if f12 else None)
+    index = 2 if variant == 'B' else 1
+    root = 'CASPT2' if family == 'caspt2' else 'MRCI'
+    label = root + (f'-F12{variant}' if f12 else '')
+    if family == 'mrci':
+        label += '+Q'
+    return {
+        'method': label,
+        'active_electrons': int(electrons_text),
+        'active_orbitals': int(orbitals_text),
+        'f12_variant': variant,
+        'energy_variable': (f'ENERGD({index})' if family == 'mrci'
+                            else f'ENERGY({index})'),
+        'cabs_singles_included': (
+            True if f12 and family == 'mrci' else (False if not f12 else None)),
+        'davidson_correction': (
+            'relaxed_reference' if family == 'mrci' else None),
+        'molpro_cluster_option': 0 if family == 'mrci' else None,
+    }
+
+
 def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
                                ipea=None):
     """Render a supported VRC active-space method and its energy variable.
@@ -21,14 +67,12 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
     Molpro obtains the Davidson-corrected MRCI energy from ``ENERGD``; ``MRCI``
     followed by ``energy`` would silently select the variational MRCI value.
     """
-    match = re.fullmatch(
-        r'(caspt2(?:-f12)?|mrci(?:-f12)?\+q)\((\d+),(\d+)\)',
-        str(method).casefold())
-    if match is None:
+    contract = vrc_multireference_energy_contract(method)
+    if contract is None:
         return None
-    family, electrons_text, orbitals_text = match.groups()
-    active_electrons = int(electrons_text)
-    active_orbitals = int(orbitals_text)
+    family = 'caspt2' if contract['method'].startswith('CASPT2') else 'mrci'
+    active_electrons = contract['active_electrons']
+    active_orbitals = contract['active_orbitals']
     if active_electrons < 1 or active_orbitals < 1:
         raise ValueError('VRC active electrons and orbitals must be positive.')
     inactive_electrons = int(nelectron) - active_electrons
@@ -43,8 +87,10 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
              f'closed,{closed_orbitals}\n'
              f'wf,{int(nelectron)},1,{int(spin)}\n'
              'maxit,50;}\n\n')
-    if family.startswith('caspt2'):
-        program = ('rs2-f12' if '-f12' in family
+    f12 = contract['f12_variant'] is not None
+    selected = contract['energy_variable'].casefold()
+    if family == 'caspt2':
+        program = ('rs2-f12' if f12
                    else ('rs2c' if int(spin) == 0 else 'rs2'))
         options = []
         if shift is None:
@@ -54,9 +100,18 @@ def _vrc_multireference_method(method, nelectron, spin=0, *, shift=None,
         if ipea is not None:
             options.append(f'ipea={float(ipea):g}')
         command = ','.join([program, *options])
-        return multi + f'{{{command}}}\n', 'energy(1)'
-    program = 'mrci-f12' if '-f12' in family else 'mrci'
-    return multi + f'{{{program}}}\n', 'energd(1)'
+        audit = (f'! KinBot energy contract: {contract["method"]} = '
+                 f'{contract["energy_variable"]}\n'
+                 f'KBVRCSEL={selected}\n')
+        return multi + f'{{{command}}}\n' + audit, 'KBVRCSEL'
+    program = ('mrci-f12,scalf12=1,cabs_singles=1' if f12 else 'mrci')
+    variant_index = 2 if contract['f12_variant'] == 'B' else 1
+    audit = (f'! KinBot energy contract: {contract["method"]} = '
+             f'{contract["energy_variable"]}; Davidson relaxed reference\n'
+             f'KBVRCVAR=energy({variant_index})\n'
+             f'KBVRCSEL={selected}\n')
+    return (multi + f'{{{program};option,cluster=0;}}\n' + audit,
+            'KBVRCSEL')
 
 
 
@@ -297,9 +352,32 @@ class Molpro:
         if status:
             with open(f"{molpro_dir}{fname}.out") as f:
                 lines = f.readlines()
-            for line in reversed(lines):
-                if ('SETTING ' + key) in line:
-                    return 1, float(line.split()[3])
+            def setting(name):
+                pattern = re.compile(
+                    rf'^\s*SETTING\s+{re.escape(name)}\s*=\s*'
+                    r'([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[DEde][-+]?\d+)?)')
+                for line in reversed(lines):
+                    found = pattern.search(line)
+                    if found:
+                        return float(found.group(1).replace('D', 'E')
+                                     .replace('d', 'e'))
+                return None
+
+            energy = setting(key)
+            if energy is not None:
+                # Generated multireference inputs bind the selected
+                # ENERGY/ENERGD array element to this audit variable first.
+                # Reject a result if the public key does not reproduce it.
+                input_path = f"{molpro_dir}{fname}.inp"
+                if os.path.isfile(input_path):
+                    with open(input_path, encoding='utf-8') as source:
+                        audited = 'KBVRCSEL' in source.read()
+                    if audited:
+                        selected = setting('KBVRCSEL')
+                        if (selected is None or not np.isclose(
+                                energy, selected, rtol=0., atol=1.e-10)):
+                            return 0, -1
+                return 1, energy
         return 0, -1
 
     def create_molpro_submit(self, name='', do_vdW=False, VTS=False):

@@ -22,7 +22,7 @@ _SPIN_SPLITTING_DEFAULTS = {
     'gap_levels': [
         {
             'label': 'caspt2_f12',
-            'method': 'caspt2-f12(2,2)',
+            'method': 'caspt2-f12b(2,2)',
             'basis': ['avtz-f12', 'avqz-f12'],
             'extrapolation_power': ORIGINAL_ANL_POWER,
             'shift': 0.2,
@@ -30,7 +30,7 @@ _SPIN_SPLITTING_DEFAULTS = {
         },
         {
             'label': 'mrci_f12_q',
-            'method': 'mrci-f12+q(2,2)',
+            'method': 'mrci-f12b+q(2,2)',
             'basis': ['avtz-f12', 'avqz-f12'],
             'extrapolation_power': ORIGINAL_ANL_POWER,
         },

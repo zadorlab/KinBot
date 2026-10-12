@@ -156,6 +156,14 @@ def test_spin_splitting_dispatches_all_cbs_components_and_records_provenance():
             assert correction['spin_splitting']['triplet_cbs']['power'] == \
                 pytest.approx(3.7)
             assert len(correction['native_components']) == 11
+            mrci_native = correction['native_components'][
+                'gap:mrci_f12_q:singlet:1'][0]
+            assert mrci_native['energy_contract']['method'] == \
+                'MRCI-F12B+Q'
+            assert mrci_native['energy_contract']['energy_variable'] == \
+                'ENERGD(2)'
+            assert mrci_native['energy_contract'][
+                'davidson_correction'] == 'relaxed_reference'
         finally:
             os.chdir(previous)
 

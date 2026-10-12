@@ -50,10 +50,10 @@ def main(argv=None):
     ethane_interface = base / 'anl_interface'
     ethane_base = (args.ethane_base.expanduser().resolve()
                    if args.ethane_base else
-                   base / 'anl_current_base_ethane_fb3eab2')
+                   base / 'anl_current_base_ethane_449cfbd')
     ethane_post = (args.ethane_post.expanduser().resolve()
                    if args.ethane_post else
-                   base / 'anl_post_geometry_ethane')
+                   base / 'anl_post_geometry_ethane_449cfbd')
     methane_interface, methane_post = (
         refs / 'methane_interface', refs / 'methane_post')
     hydrogen_interface, hydrogen_post = (

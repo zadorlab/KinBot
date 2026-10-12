@@ -122,6 +122,15 @@ def test_production_restart_script_does_not_reenter_completed_kinbot():
     assert '"$python_bin" -m kinbot.kb ethane_vrc_production.json\nfi' in script
 
 
+def test_final_manifest_defaults_exclude_superseded_ethane_graphs():
+    root = Path(__file__).resolve().parents[1]
+    script = (root / 'examples/anl/ethane_profiled_hpc/'
+              'full_verification_manifest.py').read_text()
+    assert "base / 'anl_current_base_ethane_449cfbd'" in script
+    assert "base / 'anl_post_geometry_ethane_449cfbd'" in script
+    assert 'anl_current_base_ethane_fb3eab2' not in script
+
+
 def test_applied_handoff_audit_verifies_every_source_hash(tmp_path):
     run = tmp_path / 'run'
     (run / 'me').mkdir(parents=True)

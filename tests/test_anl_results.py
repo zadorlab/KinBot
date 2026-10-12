@@ -613,6 +613,21 @@ def test_old_forced_ucc_workflow_can_load_but_result_is_rejected():
         parse_result(forced, request)
 
 
+def test_old_forced_ucc_harmonic_workflow_can_load_only_as_obsolete():
+    request = {'kind': 'molpro_harmonic', 'file': 'harmonic.out',
+               'basis': 'cc-pVTZ', 'reference': 'RHF'}
+    old_template = (
+        'basis=cc-pVTZ\nrhf\nuccsd(t),uhf_uccsd=1\n'
+        'frequencies,numerical\n')
+    with pytest.raises(ValueError, match='invalid result_parser'):
+        validate_result_parser(
+            request, backend='molpro', template=old_template,
+            outputs=['harmonic.out'])
+    validate_result_parser(
+        request, backend='molpro', template=old_template,
+        outputs=['harmonic.out'], allow_obsolete=True)
+
+
 def test_molpro_energy_pins_all_electron_and_dkh2_settings():
     result = parse_molpro_energy(
         _MOLPRO_ALL_ELECTRON_DKH, method='CCSD(T)',

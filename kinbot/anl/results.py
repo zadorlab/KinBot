@@ -1109,24 +1109,28 @@ def validate_result_parser(request, *, backend, template, outputs,
         effective = request.get('effective_method')
         method_command = {'HF': _MOLPRO_RHF, 'CCSD': _MOLPRO_CCSD}.get(
             effective, _MOLPRO_CCSD_T)
+        method_declared = (
+            re.search(_MOLPRO_LEGACY_CCSD_T, template,
+                      re.IGNORECASE | re.MULTILINE) is not None
+            if legacy else
+            (_declares_molpro_ccsdt(
+                template, accept_obsolete_forced=allow_obsolete)
+             if effective is None else
+             re.search(method_command, template,
+                       re.IGNORECASE | re.MULTILINE) is not None))
         valid = (required <= set(request) <= required | optional
                  and backend == 'molpro' and isinstance(request.get('basis'), str)
                  and bool(request['basis'])
                  and re.search(rf'^\s*basis\s*=\s*{re.escape(request["basis"])}\s*$',
                                template, re.IGNORECASE | re.MULTILINE) is not None
-                 and ((re.search(_MOLPRO_LEGACY_CCSD_T, template,
-                                 re.IGNORECASE | re.MULTILINE) is not None)
-                      if legacy else re.search(
-                          method_command, template,
-                          re.IGNORECASE | re.MULTILINE) is not None)
+                 and method_declared
                  and bool(re.search(r'^\s*frequencies\s*,\s*numerical\s*$',
                                     template, re.IGNORECASE | re.MULTILINE)))
         if valid and 'reference' in request:
             valid = (request['reference'] in ('RHF', 'ROHF')
                      and re.search(_MOLPRO_RHF, template,
                                    re.IGNORECASE | re.MULTILINE)
-                     and re.search(method_command, template,
-                                   re.IGNORECASE | re.MULTILINE))
+                     and method_declared)
         if valid and effective is not None:
             valid = ({(1, 'HF'), (2, 'CCSD')}.__contains__((
                 request.get('rank_exact_electrons'), effective)))

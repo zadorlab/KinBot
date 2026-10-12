@@ -169,6 +169,14 @@ def test_rounded_ethane_formation_is_handed_to_fake_mess(tmp_path, monkeypatch):
     assert '298.15' in partition_input
     assert 'ZeroEnergy[kcal/mol]               0.0' in partition_input
     assert '! L2 HIR fixture' in partition_input
+    assert '    +++\n' in partition_input
+    assert partition_input.rstrip().endswith('  End')
+    assert not any(line == 'End' for line in partition_input.splitlines())
+    atomic_input = writer.write_partition_function_input(
+        SimpleNamespace(natom=1, name='hydrogen', atom=['H'], mult=2),
+        Path('me/partition_functions/H.inp')).read_text()
+    assert atomic_input.rstrip().endswith('  End')
+    assert not any(line == 'End' for line in atomic_input.splitlines())
     runner = Path('me/partition_functions/run_messpf.sh')
     assert runner.stat().st_mode & 0o111
     assert 'KINBOT_MESSPF_COMMAND' in runner.read_text()
@@ -253,6 +261,21 @@ def test_messpf_executor_replaces_stale_output_and_records_hashes(
     audit = audit_messpf_run(tmp_path)
     assert audit['status'] == 'passed'
     assert audit['species']['123']['output_sha256'] == record['output_sha256']
+
+    binary.write_text(
+        f'#!{sys.executable}\n'
+        'from pathlib import Path\n'
+        'import sys\n'
+        'source = Path(sys.argv[-1])\n'
+        'source.with_suffix(".log").write_text("native parser detail\\n")\n'
+        'print("native stderr detail", file=sys.stderr)\n'
+        'raise SystemExit(6)\n')
+    with pytest.raises(RuntimeError) as caught:
+        writer.run_partition_functions()
+    message = str(caught.value)
+    assert 'native parser detail' in message
+    assert 'native stderr detail' in message
+    assert '123.log (last 40 lines)' in message
 
 
 def test_direct_mess_network_accepts_per_species_ladder_fallback(tmp_path, monkeypatch):

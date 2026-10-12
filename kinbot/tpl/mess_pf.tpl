@@ -6,6 +6,7 @@ Species {name}
   RRHO
     Geometry[angstrom]                 {natom}
 {geom}
+    +++
     Core RigidRotor
       SymmetryFactor                   {symm}
 {rotconst}
@@ -17,4 +18,3 @@ Species {name}
       0.0 {mult}
     ZeroEnergy[kcal/mol]               0.0
   End
-End

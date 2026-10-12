@@ -463,8 +463,7 @@ class MESS:
                 f'    Name {species.atom[0]}\n'
                 '    ElectronicLevels[1/cm] 1\n'
                 f'      0.0 {species.mult}\n'
-                '  End\n'
-                'End\n')
+                '  End\n')
         else:
             stable_freqs = self._stable_frequencies(species)
             text = self.pftpl.format(
@@ -573,16 +572,32 @@ class MESS:
                 raise FileNotFoundError(f'{ident}: missing MESSPF input {input_path}.')
             stdout_path = directory / f'{ident}.stdout'
             stderr_path = directory / f'{ident}.stderr'
+            log_path = input_path.with_suffix('.log')
+            aux_path = input_path.with_suffix('.aux')
             output_path.unlink(missing_ok=True)
+            log_path.unlink(missing_ok=True)
+            aux_path.unlink(missing_ok=True)
             result = subprocess.run(
                 [*command, input_path.name], cwd=directory,
                 text=True, capture_output=True, check=False)
             stdout_path.write_text(result.stdout)
             stderr_path.write_text(result.stderr)
             if result.returncode:
+                diagnostics = []
+                if log_path.is_file():
+                    lines = log_path.read_text(errors='replace').splitlines()
+                    diagnostics.append(
+                        f'{log_path.name} (last 40 lines):\n' +
+                        '\n'.join(lines[-40:]))
+                if result.stderr.strip():
+                    diagnostics.append('stderr:\n' + result.stderr.strip())
+                if result.stdout.strip():
+                    diagnostics.append('stdout:\n' + result.stdout.strip())
+                detail = ('\n' + '\n'.join(diagnostics)) if diagnostics else ''
                 raise RuntimeError(
                     f'{ident}: MESSPF exited with status {result.returncode}; '
-                    f'inspect {stderr_path}.')
+                    f'inspect {log_path}, {stderr_path}, and {stdout_path}.'
+                    f'{detail}')
             if not output_path.is_file() or output_path.stat().st_size == 0:
                 raise RuntimeError(
                     f'{ident}: MESSPF did not create nonempty {output_path.name}.')

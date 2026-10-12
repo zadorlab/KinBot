@@ -426,6 +426,18 @@ def calc_vibrations(mol, label):
     mol.calc.label = f'{label}_vib'
     if 'chk' in mol.calc.parameters:
         del mol.calc.parameters['chk']
+    from kinbot.ase_modules.calculators.gaussian import Gaussian
+    if isinstance(mol.calc, Gaussian):
+        # Displacements run without the optimization checkpoint. Keep
+        # other guess options, but do not ask Gaussian to read that file.
+        guess = mol.calc.parameters.get('guess')
+        if isinstance(guess, str):
+            options = [option.strip() for option in guess.strip('()').split(',')
+                       if option.strip().lower() != 'read']
+            if options:
+                mol.calc.parameters['guess'] = ','.join(options)
+            else:
+                mol.calc.parameters.pop('guess', None)
     # Compute frequencies in a separate temporary directory to avoid
     # conflicts accessing the cache in parallel calculations.
     if not os.path.isdir(f'{label}_vib'):

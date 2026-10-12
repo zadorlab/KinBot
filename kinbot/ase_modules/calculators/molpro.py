@@ -1,8 +1,8 @@
 """ASE energy/force calculator for a Molpro CCSD(T) geometry step.
 
 Molpro evaluates one geometry per invocation. ASE/Sella, never Molpro OPTG,
-chooses the next geometry. See docs/composite_qc_validation.md for the
-documented numerical FORCE and PUT,XYZ formats and the offsite acceptance gate.
+chooses the next geometry. Each step preserves its native input and output and
+validates the requested unrestricted coupled-cluster result before reuse.
 """
 
 from pathlib import Path

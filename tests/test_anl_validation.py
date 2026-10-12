@@ -35,9 +35,6 @@ from kinbot.anl.validation import (common_corrections_validation_spec,
                                    molecule_from_smiles,
                                    post_geometry_validation_spec)
 from kinbot.anl import site
-from kinbot.parameters import Parameters
-from kinbot.reaction_finder import ReactionFinder
-from kinbot.stationary_pt import StationaryPoint
 
 
 def _molecule():
@@ -759,38 +756,6 @@ def test_database_export_requires_one_complete_accepted_l2_record():
             assert 'not normal' in str(error)
         else:
             raise AssertionError('An incomplete L2 result was exported.')
-
-
-def test_ethane_external_example_finds_only_requested_scission():
-    root = Path(__file__).resolve().parents[1]
-    parameters = Parameters(
-        root / 'examples/anl/ethane_profiled_hpc/ethane.json',
-        show_warnings=False).par
-    species = StationaryPoint(
-        'well0', parameters['charge'], parameters['mult'],
-        smiles=parameters['smiles'], structure=parameters['structure'])
-    species.characterize()
-    assert str(species.chemid) == '301020900180000000001'
-    species.name = str(species.chemid)
-    ReactionFinder(species, parameters, None).find_reactions()
-    assert species.reac_type == ['hom_sci']
-    assert species.reac_inst == [[0, 1]]
-
-
-def test_ethane_production_vrc_does_not_repeat_validated_l2_or_rotors():
-    root = Path(__file__).resolve().parents[1]
-    source = root / 'examples/anl/ethane_profiled_hpc/ethane_vrc_production.json'
-    requested = json.loads(source.read_text())
-    assert requested['conformer_search'] == 0
-    assert requested['high_level'] == 0
-    assert requested['rotor_scan'] == 0
-    assert requested['reaction_search'] == 1
-    assert requested['rotdpy_validation_profile'] == 'production'
-    assert requested['rotdpy_mess_mode'] == 'production'
-    assert requested['vrc_tst_sample_method'].casefold() == 'caspt2(2,2)'
-    assert requested['vrc_tst_high_method'].casefold() == 'mrci+q(2,2)'
-    assert len(requested['vrc_tst_scan_points']) >= 4
-    assert len(requested['rotdpy_dist']) >= 3
 
 
 def test_prepare_from_database_cli_stages_general_graph(monkeypatch):

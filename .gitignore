@@ -1,4 +1,7 @@
 *pyc
+__pycache__/
+.DS_Store
+tmp/
 build
 .idea
 *egg*

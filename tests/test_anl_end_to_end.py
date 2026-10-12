@@ -1,9 +1,7 @@
 """Final CBH/ANL, ROTD_py, MESSPF, and MESS orchestration checks."""
 
 import json
-import importlib.util
 from dataclasses import asdict
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -292,85 +290,6 @@ def test_failed_continuation_reports_current_kinbot_log_tail(
                         SimpleNamespace(returncode=1))
     with pytest.raises(RuntimeError, match='useful native failure'):
         run(tmp_path / 'manifest.json')
-
-
-def test_production_restart_script_does_not_reenter_completed_kinbot():
-    root = Path(__file__).resolve().parents[1]
-    script = (root / 'examples/anl/ethane_profiled_hpc/'
-              'run_vrc_production.sh').read_text()
-    assert 'if ! test -f "$rotdpy_result"; then\n' in script
-    assert '"$python_bin" -m kinbot.kb ethane_vrc_production.json\nfi' in script
-
-
-def test_final_manifest_defaults_exclude_superseded_ethane_graphs():
-    root = Path(__file__).resolve().parents[1]
-    script = (root / 'examples/anl/ethane_profiled_hpc/'
-              'full_verification_manifest.py').read_text()
-    assert "base / 'anl_current_base_ethane_449cfbd'" in script
-    assert "base / 'anl_post_geometry_ethane_449cfbd'" in script
-    assert 'anl_current_base_ethane_fb3eab2' not in script
-    assert 'base=methane_interface' not in script
-    assert 'base=hydrogen_interface' not in script
-
-
-def test_final_manifest_assigns_each_completed_graph_to_a_valid_role(tmp_path):
-    root = Path(__file__).resolve().parents[1]
-    source = (root / 'examples/anl/ethane_profiled_hpc/'
-              'full_verification_manifest.py')
-    spec = importlib.util.spec_from_file_location(
-        'kinbot_full_verification_manifest_test', source)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    base = tmp_path / 'completed'
-    refs = base / 'cbh0_reference_graphs'
-    run = base / 'vrc_production_run'
-    (run / 'rotdPy').mkdir(parents=True)
-    (run / 'ethane_vrc_production.json').write_text('{}\n')
-    (run / 'rotdPy' / f'{module.REACTION}.py').write_text('# completed\n')
-    workflows = {
-        base / 'anl_interface':
-            'anl1-f12-non-mrcc-interface-validation',
-        base / 'anl_current_base_ethane_449cfbd':
-            'anl-current-base-validation',
-        base / 'anl_post_geometry_ethane_449cfbd':
-            'anl-post-geometry-validation',
-        refs / 'methane_interface':
-            'anl1-f12-non-mrcc-interface-validation',
-        refs / 'methane_post': 'anl-post-geometry-validation',
-        refs / 'hydrogen_interface':
-            'anl1-f12-non-mrcc-interface-validation',
-        refs / 'hydrogen_post': 'anl-post-geometry-validation',
-        refs / 'methyl_composite': 'anl-composite-validation',
-        refs / 'atomic_h_composite': 'anl-composite-validation',
-        refs / 'methane_source_qz':
-            'anl1-higher-order-interface-validation',
-        refs / 'methyl_source_qz':
-            'anl1-higher-order-interface-validation',
-    }
-    for directory, name in workflows.items():
-        directory.mkdir(parents=True, exist_ok=True)
-        (directory / 'workflow.json').write_text(json.dumps({
-            'schema': 1, 'name': name,
-        }))
-    output = base / 'manifest.json'
-    module.main([str(base), '--output', str(output)])
-    generated = json.loads(output.read_text())
-    assert generated['composites']['ethane']['assembly'][
-        'base_run'].endswith('anl_current_base_ethane_449cfbd')
-    assert 'base_run' not in generated['composites']['methane']['assembly']
-    assert 'base_run' not in generated['composites']['hydrogen']['assembly']
-    assert generated['mess']['dynamical_correction'] == 0.85
-    assert generated['mess'][
-        'expected_fragment_rotational_symmetries'] == [6., 6.]
-    assert generated['mess']['expected_fragment_multiplicities'] == [2, 2]
-    assert generated['mess']['expected_electronic_statistical_ratio'] == .25
-    assert generated['mess']['expected_indistinguishability_factor'] == 2
-    assert generated['mess']['expected_uncertainty_factor'] == 1.
-    assert generated['mess']['expected_mess_symmetry_factor'] == 72.
-    assert generated['mess'][
-        'expected_raw_flux_equivalent_mess_symmetry_factor'] == \
-        pytest.approx(72. / 0.85)
 
 
 def test_applied_handoff_audit_verifies_every_source_hash(tmp_path):

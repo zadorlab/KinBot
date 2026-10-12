@@ -1,9 +1,9 @@
 # KinBot profiled theory, CBH-ANL, ROTD_py, and MESS plan
 
 This document records the current design and remaining work. Historical
-external-site transcripts and one-off recovery commands were removed; they
-remain available in Git history. The executable validation procedure is in
-[`ANL_full_HPC_validation.md`](ANL_full_HPC_validation.md).
+external-site transcripts, one-off recovery commands, and completed HPC smoke
+harnesses were removed; they remain available in Git history. Reusable
+validation belongs in ordinary inputs and general orchestration code.
 
 ## Scope
 
@@ -233,7 +233,7 @@ does not switch to an atomization or elemental-reference equation.
 
 ## ROTD_py production path
 
-The production methyl recombination validation uses:
+The completed production methyl recombination validation used:
 
 ```text
 sampling:    CASPT2(2e,2o)/cc-pVDZ
@@ -308,8 +308,9 @@ The following remain explicit future work:
    including their conformers and hindered rotors.
 4. Propagate ATcT, electronic-structure, CBH ladder, and partition-function
    uncertainties into NASA and kinetics products.
-5. Validate a conventional stationary transition state, IRC, and restart path
-   in addition to the barrierless methyl recombination case.
+5. Implement the general, ChemID-free reaction selector, product-search stop,
+   and CBH-rung input described in `ANL_small_system_validation.md`, then run
+   the acetaldehyde tight-TS/VRC acceptance network.
 6. Compare the internal NASA fitting result with the chosen production PAC99
    workflow before claiming interchangeable output.
 
@@ -331,6 +332,6 @@ kinbot/rotdpy.py               ROTD_py execution and provenance
 kinbot/mess.py                 MESS/MESSPF serialization and execution
 ```
 
-The external-site commands and current acceptance checklist are maintained in
-`docs/ANL_full_HPC_validation.md`; implementation history belongs in Git, not
-in this plan.
+The next compact external-site acceptance network and its scientific checks
+are defined in `docs/ANL_small_system_validation.md`; implementation history
+belongs in Git, not in this plan.

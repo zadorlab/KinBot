@@ -12,6 +12,19 @@ from pathlib import Path
 REACTION = '301020900180000000001_hom_sci_1_2'
 
 
+def _require_workflow(path, label, allowed):
+    try:
+        workflow = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise SystemExit(f'{label} is not a readable workflow: {path}') from error
+    name = workflow.get('name') if isinstance(workflow, dict) else None
+    if (not isinstance(workflow, dict) or workflow.get('schema') != 1
+            or name not in allowed):
+        expected = ', '.join(sorted(allowed))
+        raise SystemExit(
+            f'{label} has workflow type {name!r}; expected one of: {expected}.')
+
+
 def _review(path):
     return str(path) if path.is_file() else None
 
@@ -82,6 +95,30 @@ def main(argv=None):
     if missing:
         raise SystemExit('Missing completed-run prerequisite(s):\n  '
                          + '\n  '.join(missing))
+    interface_types = {
+        'anl1-f12-non-mrcc-interface-validation',
+        'anl-composite-validation',
+    }
+    base_types = {'anl-current-base-validation',
+                  'anl-composite-validation'}
+    post_types = {'anl-post-geometry-validation',
+                  'anl-composite-validation'}
+    _require_workflow(ethane_interface / 'workflow.json',
+                      'ethane interface', interface_types)
+    _require_workflow(ethane_base / 'workflow.json',
+                      'ethane current base', base_types)
+    _require_workflow(ethane_post / 'workflow.json',
+                      'ethane post geometry', post_types)
+    for label, interface, post in (
+            ('methane', methane_interface, methane_post),
+            ('hydrogen', hydrogen_interface, hydrogen_post)):
+        _require_workflow(interface / 'workflow.json',
+                          f'{label} interface', interface_types)
+        _require_workflow(post / 'workflow.json',
+                          f'{label} post geometry', post_types)
+    for label, composite in (('methyl', methyl), ('atomic H', atomic_h)):
+        _require_workflow(composite / 'workflow.json', f'{label} composite',
+                          {'anl-composite-validation'})
     output = (args.output.expanduser().resolve() if args.output else
               base / 'full_verification_manifest.json')
     literature = [
@@ -140,7 +177,6 @@ def main(argv=None):
                     methane_interface, methane_post, methane_post,
                     'methane-X1A1',
                     'zero for nondegenerate closed-shell methane ground state',
-                    base=methane_interface,
                     review=_review(refs / 'methane_vpt2_review.json')),
             },
             'hydrogen': {
@@ -150,7 +186,6 @@ def main(argv=None):
                     hydrogen_interface, hydrogen_post, hydrogen_post,
                     'hydrogen-X1Sigma-g-plus',
                     'zero for the H2 X1Sigma-g-plus ground state',
-                    base=hydrogen_interface,
                     review=_review(refs / 'hydrogen_vpt2_review.json')),
             },
             'methyl': {

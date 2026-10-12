@@ -646,9 +646,14 @@ def test_profiled_anl0_f12_assembler_uses_all_required_components(monkeypatch):
     assert result['zero_k_hartree'] == expected_electronic + expected_zpe
 
 
-def test_profiled_anl0_f12_assembler_accepts_one_composite_run(monkeypatch):
+@pytest.mark.parametrize('workflow_name,explicit_base', [
+    ('anl-composite-validation', False),
+    ('anl1-f12-non-mrcc-interface-validation', True),
+])
+def test_profiled_anl0_f12_assembler_accepts_one_full_run(
+        monkeypatch, workflow_name, explicit_base):
     run = Path('/synthetic/composite').resolve()
-    spec = {'name': 'anl-composite-validation',
+    spec = {'name': workflow_name,
             'molecule': _molecule(), 'tasks': []}
     monkeypatch.setattr(
         validation_module, '_load',
@@ -697,7 +702,8 @@ def test_profiled_anl0_f12_assembler_accepts_one_composite_run(monkeypatch):
     result = assemble_profiled_anl0_f12(
         run, run, run, state_id='methane-singlet',
         spin_orbit_hartree=0., spin_orbit_source='closed-shell test',
-        spin_orbit_backend='known_zero')
+        spin_orbit_backend='known_zero',
+        base_run=run if explicit_base else None)
     assert result['status'] == 'complete'
     assert result['geometry_sha256'] == {'l2': l2_hash, 'l3': l3_hash}
 

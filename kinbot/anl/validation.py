@@ -1043,16 +1043,20 @@ def assemble_profiled_anl0_f12(
     multiplicity = molecule.get('multiplicity', 1)
     l2 = molecule_from_completed_run(interface_run, 'l2_geometry')
     l2_hash = l2['source']['geometry_sha256']
-    if base_run is None:
+    requested_base = (None if base_run is None else Path(base_run).resolve())
+    if requested_base is None or requested_base == interface_run:
+        # Supplying the interface explicitly is equivalent to omitting the
+        # optional base. This matters for completed full-interface graphs,
+        # whose workflow type is valid for both roles but is intentionally
+        # distinct from a split current-base graph.
         base_run = interface_run
     else:
-        base_run, base_spec, _ = _load(base_run)
+        base_run, base_spec, _ = _load(requested_base)
         if base_spec.get('name') not in ('anl-current-base-validation',
                                          'anl-composite-validation'):
             raise ValueError('Base run has the wrong workflow type.')
-        if base_run != interface_run:
-            _same_imported_geometry(
-                interface_run, base_run, l2_hash, 'L2', 'l2_geometry')
+        _same_imported_geometry(
+            interface_run, base_run, l2_hash, 'L2', 'l2_geometry')
     l3 = molecule_from_completed_run(base_run, 'l3_geometry')
     l3_hash = l3['source']['geometry_sha256']
     if Path(higher_order_run).resolve() != base_run:

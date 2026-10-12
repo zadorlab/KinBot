@@ -32,6 +32,31 @@ from tests.test_mess_conformers import point
 KCAL_TO_KJ = 4.184
 
 
+def _reference_model_library(path):
+    ch4 = molecule('CH4')
+    h2 = molecule('H2')
+    models = {
+        'C': {
+            'name': 'methane', 'smiles': 'C',
+            'symbols': ch4.get_chemical_symbols(),
+            'positions': ch4.get_positions().tolist(),
+            'charge': 0, 'multiplicity': 1, 'symmetry_factor': 12.,
+            'frequencies_cm_inverse': [1300.] * 9,
+            'source': {'kind': 'test-fixture'},
+        },
+        '[H][H]': {
+            'name': 'hydrogen', 'smiles': '[H][H]',
+            'symbols': h2.get_chemical_symbols(),
+            'positions': h2.get_positions().tolist(),
+            'charge': 0, 'multiplicity': 1, 'symmetry_factor': 2.,
+            'frequencies_cm_inverse': [4400.],
+            'source': {'kind': 'test-fixture'},
+        },
+    }
+    path.write_text(json.dumps({'schema': 1, 'species': models}))
+    return path
+
+
 def _figure_references():
     # The paper table uses ATcT 1.202 and prints only rounded kcal/mol values.
     raw = ('ATcT enthalpies of formation based on version 1.202 of the '
@@ -39,6 +64,8 @@ def _figure_references():
            _row(1, '1333-74-0*0', 'Dihydrogen', 'H2 (g)', '[H][H]', '0', 'exact') +
            _row(2, '74-82-8*0', 'Methane', 'CH4 (g)', 'C',
                 str(-15.903 * KCAL_TO_KJ)) +
+           _row(6, '7664-39-3*0', 'Hydrogen fluoride', 'HF (g)', 'F',
+                str(-65.172 * KCAL_TO_KJ)) +
            _row(3, '74-84-0*0', 'Ethane', 'C2H6 (g)', 'CC',
                 str(-16.461 * KCAL_TO_KJ)) +
            _row(4, '593-53-3*0', 'Fluoromethane', 'CH3F (g)', 'CF',
@@ -50,7 +77,14 @@ def _figure_references():
 
 def _energies_for_delta(reaction, delta_kcal, method):
     """Choose one target E0 that makes the signed reaction delta exact."""
-    reference_energies = {'C': -40., '[H][H]': -1., 'CC': -79., 'CF': -139.}
+    carbon, hydrogen, fluorine = -40., -1., -100.
+    ethane_delta = -15.345 * KCAL_TO_KJ / HARTREE_TO_KJ_MOL
+    fluoromethane_delta = -26.729 * KCAL_TO_KJ / HARTREE_TO_KJ_MOL
+    reference_energies = {
+        'C': carbon, '[H][H]': hydrogen, 'F': fluorine,
+        'CC': 2 * carbon - hydrogen - ethane_delta,
+        'CF': carbon + fluorine - hydrogen - fluoromethane_delta,
+    }
     reference_sum = sum(coefficient * reference_energies[smiles]
                         for smiles, coefficient in reaction.stoichiometry.items()
                         if smiles != reaction.target_smiles)
@@ -87,6 +121,12 @@ def test_fluorinated_cbh1_table_reaction_and_full_fallback_ladder():
     pools = {}
     for label in labels:
         energies = _energies_for_delta(reaction, 44.938, label)
+        for child in (generate_cbh_reaction('CC', 0),
+                      generate_cbh_reaction('CF', 0)):
+            child_energies = _energies_for_delta(
+                child, -15.345 if child.target_smiles == 'CC' else -26.729,
+                label)
+            energies.update(child_energies)
         for smiles, energy in energies.items():
             pools.setdefault(smiles, {})[label] = energy
     # A single missing accepted reference energy steps the entire reaction down.
@@ -97,8 +137,9 @@ def test_fluorinated_cbh1_table_reaction_and_full_fallback_ladder():
         assert selected.formation.formation_0k_kj_mol / KCAL_TO_KJ == pytest.approx(
             -176.728)
         del pools['CF'][label]
-    with pytest.raises(ValueError, match='No complete CBH reaction'):
-        select_cbh_ladder(species, pools, table, max_rung=1)
+    selected = select_cbh_ladder(species, pools, table, max_rung=1)
+    assert selected.reaction.rung == 0
+    assert any('CBH-1' in reason for reason in selected.skipped)
 
 
 def test_perfluoroalkane_cbh2_and_cbh3_table_reactions():
@@ -154,7 +195,9 @@ def test_rounded_ethane_formation_is_handed_to_fake_mess(tmp_path, monkeypatch):
         'smiles': 'CC', 'me': 0, 'uq': 0, 'rotor_scan': 1,
         'multi_conf_tst': 0, 'epsilon': 100., 'sigma': 3.,
         'barrier_threshold': 100., 'high_level': 1,
-        'allow_l2_without_conf': 1}))
+        'allow_l2_without_conf': 1,
+        'cbh_thermochemistry_models': str(
+            _reference_model_library(tmp_path / 'cbh_models.json'))}))
     par = Parameters('input.json', show_warnings=False).par
     writer = MESS(par, well)
     with patch.object(MESS, 'make_rotors', return_value='! L2 HIR fixture') as rotors:
@@ -197,6 +240,12 @@ Natural log of the partition function, its derivatives, entropy, and thermal cap
 T, K       ethane       ethane       ethane       ethane       ethane
                    Z_0          Z_1          Z_2 S, cal/mol/K C, cal/mol/K
 ''' + rows + '\n')
+    manifest = json.loads(
+        Path('me/partition_functions/manifest.json').read_text())
+    for ident, entry in manifest['species'].items():
+        if ident != '123':
+            Path(entry['output']).write_text(
+                'Z_0 Z_1 Z_2 S, cal/mol/K C, cal/mol/K\n' + rows + '\n')
     thermo = writer.read_partition_function_outputs()
     assert thermo['species']['123']['formation_0k_kj_mol'] == pytest.approx(
         formation.formation_0k_kj_mol)
@@ -240,7 +289,9 @@ def test_messpf_executor_replaces_stale_output_and_records_hashes(
         'multi_conf_tst': 0, 'epsilon': 100., 'sigma': 3.,
         'barrier_threshold': 100., 'high_level': 1,
         'allow_l2_without_conf': 1,
-        'messpf_command': shlex.join([str(binary), '--fixture'])}))
+        'messpf_command': shlex.join([str(binary), '--fixture']),
+        'cbh_thermochemistry_models': str(
+            _reference_model_library(tmp_path / 'cbh_models.json'))}))
     par = Parameters('input.json', show_warnings=False).par
     writer = MESS(par, well)
     with patch.object(MESS, 'make_rotors', return_value=''):

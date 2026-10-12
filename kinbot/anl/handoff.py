@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import fields
 from hashlib import sha256
 import json
 import math
@@ -10,8 +9,10 @@ from pathlib import Path
 
 import numpy as np
 
-from kinbot.anl.atct import ATcTRecord, _canonical_smiles
-from kinbot.anl.cbh import FormationEnthalpy, zero_k_from_composite_record
+from kinbot.anl.atct import _canonical_smiles
+from kinbot.anl.cbh import (CBHReaction, FormationEnthalpy,
+                            formation_from_dict,
+                            zero_k_from_composite_record)
 from kinbot.anl.workflow import attach_task_vpt2_frequencies
 from kinbot.energy import attach_formation_enthalpy
 from kinbot.species_routing import routing_name
@@ -60,29 +61,23 @@ def _formation(path, final):
             or record.get('status') != 'complete'
             or not isinstance(record.get('formation'), dict)):
         raise ValueError(f'{path}: CBH result is incomplete.')
-    raw = record['formation']
-    required = {
-        'target_smiles', 'rung', 'method', 'reaction_energy_0k_kj_mol',
-        'formation_0k_kj_mol', 'references', 'atct_version',
-        'atct_source_sha256', 'energy_sources'}
-    if not required <= set(raw):
-        raise ValueError(f'{path}: CBH formation fields are incomplete.')
-    reference_fields = {field.name for field in fields(ATcTRecord)}
-    references = {}
-    if not isinstance(raw['references'], dict):
-        raise ValueError(f'{path}: CBH references must be an object.')
-    for smiles, value in raw['references'].items():
-        if not isinstance(value, dict) or set(value) != reference_fields:
-            raise ValueError(f'{path}: invalid ATcT record for {smiles!r}.')
-        references[smiles] = ATcTRecord(**value)
-    formation = FormationEnthalpy(
-        target_smiles=raw['target_smiles'], rung=raw['rung'],
-        method=raw['method'],
-        reaction_energy_0k_kj_mol=raw['reaction_energy_0k_kj_mol'],
-        formation_0k_kj_mol=raw['formation_0k_kj_mol'],
-        references=references, atct_version=raw['atct_version'],
-        atct_source_sha256=raw['atct_source_sha256'],
-        energy_sources=raw['energy_sources'])
+    reaction_raw = record.get('reaction')
+    reaction = None
+    if isinstance(reaction_raw, dict):
+        try:
+            reaction = CBHReaction(
+                rung=reaction_raw['rung'],
+                target_smiles=reaction_raw['target_smiles'],
+                stoichiometry=reaction_raw['stoichiometry'],
+                formulas=reaction_raw['formulas'],
+                states={key: tuple(value) for key, value in
+                        reaction_raw.get('states', {}).items()})
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(f'{path}: invalid CBH reaction record.') from error
+    try:
+        formation = formation_from_dict(record['formation'], reaction=reaction)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f'{path}: invalid CBH formation record: {error}') from error
     if (isinstance(formation.rung, bool)
             or formation.rung not in range(4)
             or not all(math.isfinite(value) for value in (

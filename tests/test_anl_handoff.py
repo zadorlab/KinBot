@@ -37,10 +37,19 @@ def _formation(path, final):
         'schema': 1, 'status': 'complete',
         'formation': {
             'target_smiles': final.smiles, 'rung': 0,
-            'method': final.method, 'reaction_energy_0k_kj_mol': 1.0,
-            'formation_0k_kj_mol': -2.0, 'references': {},
+            'method': final.method, 'reaction_energy_0k_kj_mol': 0.0,
+            'formation_0k_kj_mol': -2.0,
+            'references': {final.smiles: {
+                'atct_id': 'fixture*0', 'name': 'fixture',
+                'preferred_formula': 'CH4 (g)', 'phase': 'g',
+                'smiles': final.smiles, 'formation_0k_kj_mol': -2.0,
+                'formation_298k_kj_mol': -3.0,
+                'uncertainty_kj_mol': 0.1, 'exact': False,
+                'version': 'fixture', 'source_sha256': '3' * 64,
+            }},
             'atct_version': 'fixture', 'atct_source_sha256': '3' * 64,
             'energy_sources': {final.smiles: final.source},
+            'stoichiometry': {},
         },
     }))
 

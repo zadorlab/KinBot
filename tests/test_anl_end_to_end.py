@@ -2,15 +2,18 @@
 
 import json
 import importlib.util
+from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import kinbot.anl.end_to_end as end_to_end
+from kinbot.anl.atct import ATcTRecord
+from kinbot.anl.cbh import FormationEnthalpy
 from kinbot.anl.end_to_end import (_audit_handoff, _literature_checks,
-                                   _write_mess_input, component_breakdown,
-                                   run)
+                                   _write_cbh_thermochemistry_models,
+                                   _write_mess_input, component_breakdown, run)
 
 
 def _composite(path, offset):
@@ -119,6 +122,78 @@ def test_mess_continuation_disables_new_vrc_work_and_requires_production(
     assert generated['epsilon_unit'] == 'K'
     assert generated['sigma'] == 4.302
     assert generated['queue_job_limit'] == 8
+
+
+def test_external_cbh_reference_models_come_from_completed_composites(
+        tmp_path, monkeypatch):
+    methane = ATcTRecord(
+        'methane*0', 'methane', 'CH4 (g)', 'g', 'C', -66., -75., .01,
+        False, '1.220', 'a' * 64)
+    hydrogen = ATcTRecord(
+        'hydrogen*0', 'hydrogen', 'H2 (g)', 'g', '[H][H]', 0., 0., .0,
+        True, '1.220', 'a' * 64)
+    formation = FormationEnthalpy(
+        'CC', 0, 'ANL0-F12', -60., -72.,
+        {'C': methane, '[H][H]': hydrogen}, '1.220', 'a' * 64,
+        {'CC': 'ethane', 'C': 'methane', '[H][H]': 'hydrogen'},
+        {'CC': -1, 'C': 2, '[H][H]': -1},
+        {'CC': {'C': 2, 'H': 6}, 'C': {'C': 1, 'H': 4},
+         '[H][H]': {'H': 2}})
+    solved = {'ethane': {'formation': asdict(formation)}}
+    composite_files = {}
+    for name in ('ethane', 'methane', 'hydrogen'):
+        path = tmp_path / f'{name}.json'
+        path.write_text('{}\n')
+        composite_files[name] = path
+    composites = {
+        'ethane': {'smiles': 'CC', 'path': composite_files['ethane']},
+        'methane': {
+            'smiles': 'C', 'path': composite_files['methane'], 'charge': 0,
+            'multiplicity': 1, 'l2_geometry': {
+                'symbols': ['C', 'H', 'H', 'H', 'H'],
+                'positions': [[0., 0., 0.]] * 5, 'source': 'methane.xyz'}},
+        'hydrogen': {
+            'smiles': '[H][H]', 'path': composite_files['hydrogen'],
+            'charge': 0, 'multiplicity': 1, 'l2_geometry': {
+                'symbols': ['H', 'H'], 'positions': [[0., 0., 0.],
+                                                    [0., 0., .74]],
+                'source': 'hydrogen.xyz'}},
+    }
+    specification = {
+        name: {'assembly': {'interface_run': str(tmp_path / name)}}
+        for name in composites}
+    handoff = {'species': {'ethane': {'composite': 'ethane'}}}
+
+    class Point:
+        def __init__(self, **values):
+            self.__dict__.update(values)
+            self.dihed = []
+            self.sigma_ext = 1.
+
+        def characterize(self):
+            return None
+
+    monkeypatch.setattr(end_to_end, 'StationaryPoint', Point)
+    monkeypatch.setattr(end_to_end, 'calculate_symmetry', lambda point: None)
+    monkeypatch.setattr(end_to_end, '_verified_task_result',
+                        lambda *args: (None, None,
+                            {'result_parser': {'file': 'vpt2.log'}},
+                            {'artifacts': {'vpt2.log': 'b' * 64}},
+                            tmp_path / 'vpt2.log',
+                            {'harmonic_fundamentals_cm_inverse': [1000.]}))
+
+    def attach(point, *args, **kwargs):
+        point.anl_thermochemistry_frequency_source = {'kind': 'vpt2'}
+        return [950.]
+
+    monkeypatch.setattr(end_to_end, 'attach_task_vpt2_frequencies', attach)
+    output = _write_cbh_thermochemistry_models(
+        tmp_path, specification, composites, solved, handoff)
+    models = json.loads(output.read_text())['species']
+    assert set(models) == {'C', '[H][H]'}
+    assert models['C']['frequencies_cm_inverse'] == [950.]
+    assert models['[H][H]']['source']['composite_sha256'] == \
+        end_to_end._sha256(composite_files['hydrogen'])
 
 
 def test_failed_continuation_reports_current_kinbot_log_tail(

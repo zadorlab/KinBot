@@ -20,14 +20,22 @@ import shutil
 import subprocess
 import sys
 
-from kinbot.anl.cbh import (HARTREE_TO_KJ_MOL, solve_composite_records,
+import numpy as np
+
+from kinbot.anl.atct import _canonical_smiles
+from kinbot.anl.cbh import (HARTREE_TO_KJ_MOL, formation_from_dict,
+                            formation_species, solve_composite_records,
                             zero_k_from_composite_record)
 from kinbot.anl.kinetics import audit_methyl_recombination
 from kinbot.anl.literature import compare_formation, compare_run
 from kinbot.anl.thermochemistry import audit_messpf_run
 from kinbot.anl.validation import (assemble_profiled_anl0_f12,
                                    molecule_from_completed_run)
+from kinbot.anl.workflow import (_verified_task_result,
+                                 attach_task_vpt2_frequencies)
 from kinbot.rotdpy import number_of_states_file, read_result
+from kinbot.stationary_pt import StationaryPoint
+from kinbot.symmetry import calculate_symmetry
 
 
 HARTREE_TO_KCAL_MOL = HARTREE_TO_KJ_MOL / 4.184
@@ -192,9 +200,18 @@ def _solve_cbh(base, specification, composites, atct):
         if not isinstance(mapping, dict) or not mapping:
             raise ValueError(f'cbh.{name}.energies must be a nonempty object.')
         try:
-            energy_files = {
-                smiles: composites[record]['path']
-                for smiles, record in mapping.items()}
+            energy_files = {}
+            for smiles, selected in mapping.items():
+                if isinstance(selected, str):
+                    energy_files[smiles] = composites[selected]['path']
+                elif isinstance(selected, dict) and selected:
+                    energy_files[smiles] = {
+                        method: composites[record]['path']
+                        for method, record in selected.items()}
+                else:
+                    raise ValueError(
+                        f'cbh.{name}.energies.{smiles} must name one composite '
+                        'or a method-to-composite mapping.')
         except KeyError as error:
             raise ValueError(
                 f'cbh.{name} names unknown composite {error.args[0]!r}.') from error
@@ -222,8 +239,11 @@ def _solve_cbh(base, specification, composites, atct):
                 'reaction_energy_0k_kcal_mol':
                     formation.reaction_energy_0k_kj_mol / 4.184,
             },
-            'component_breakdown': component_breakdown(
-                reaction, energy_files),
+            'component_breakdown': component_breakdown(reaction, {
+                smiles: (paths[formation.method]
+                         if isinstance(paths, dict) else paths)
+                for smiles, paths in energy_files.items()
+                if smiles in reaction.stoichiometry}),
         }
         calculated = payload['component_breakdown'][
             'total_zero_k_reaction']['kcal_mol']
@@ -298,7 +318,114 @@ def _write_handoff(base, specification, composites, solved):
     return output, payload
 
 
-def _write_mess_input(base, manifest, handoff, rotdpy_input):
+def _write_cbh_thermochemistry_models(base, specification, composites,
+                                      solved, handoff_specification):
+    """Build hash-traceable RRHO models for CBH references outside the PES.
+
+    Species present in the live KinBot network retain their normal L2
+    geometry, accepted VPT2 frequencies, and L2 hindered rotors.  This file
+    supplies only the other species required by the recursive CBH reaction
+    trees.  A rotatable external reference fails closed because its HIR model
+    cannot be inferred from a geometry/frequency calculation alone.
+    """
+    required = set()
+    for entry in solved.values():
+        # Current formation records contain the full recursive reaction tree.
+        # Decoding it here also validates every 0 K formation identity before
+        # any finite-temperature reference model is staged.
+        required.update(formation_species(
+            formation_from_dict(entry['formation'])))
+    network = set()
+    for entry in (handoff_specification.get('species') or {}).values():
+        if isinstance(entry, dict) and entry.get('composite') in composites:
+            network.add(_canonical_smiles(
+                composites[entry['composite']]['smiles']))
+    external = {_canonical_smiles(smiles) for smiles in required} - network
+    by_smiles = {}
+    for name, record in composites.items():
+        canonical = _canonical_smiles(record['smiles'])
+        if canonical in by_smiles:
+            raise ValueError(
+                f'Duplicate composite thermochemistry identity {canonical!r}.')
+        by_smiles[canonical] = (name, record)
+    missing = sorted(smiles for smiles in external if smiles not in by_smiles)
+    if missing:
+        raise ValueError(
+            'CBH reference thermochemistry lacks composite models for: '
+            + ', '.join(missing))
+
+    models = {}
+    for canonical in sorted(external):
+        name, record = by_smiles[canonical]
+        geometry = record.get('l2_geometry')
+        if not isinstance(geometry, dict):
+            raise ValueError(
+                f'{name}: an external CBH reference needs an accepted L2 geometry.')
+        symbols = list(geometry.get('symbols', ()))
+        positions = geometry.get('positions')
+        point = StationaryPoint(
+            name=name, charge=record['charge'], mult=record['multiplicity'],
+            smiles=record['smiles'], natom=len(symbols), atom=symbols,
+            geom=np.asarray(positions, dtype=float))
+        point.characterize()
+        calculate_symmetry(point)
+        if point.dihed:
+            raise ValueError(
+                f'{name}: external CBH reference has rotors; provide it as a '
+                'KinBot network species so its L2 hindered rotors are retained.')
+        assembly = specification[name].get('assembly')
+        if not isinstance(assembly, dict):
+            raise ValueError(
+                f'{name}: external CBH reference lacks assembly provenance.')
+        frequency_source = {
+            'kind': 'atomic_exact_zero',
+            'geometry': geometry['source'],
+        }
+        frequencies = []
+        if len(symbols) > 1:
+            interface = _path(
+                base, assembly.get('interface_run'), f'{name}.interface_run')
+            _, _, task, execution, native, parsed = _verified_task_result(
+                interface, 'gaussian_vpt2')
+            harmonic = parsed.get('harmonic_fundamentals_cm_inverse')
+            if (not isinstance(harmonic, list) or not harmonic
+                    or any(not isinstance(value, (int, float))
+                           or not math.isfinite(value) or value <= 0.
+                           for value in harmonic)):
+                raise ValueError(
+                    f'{name}: accepted VPT2 task lacks positive harmonic modes.')
+            point.reduced_freqs = list(harmonic)
+            review = _optional_path(
+                base, assembly.get('vpt2_review'), f'{name}.vpt2_review')
+            frequencies = list(attach_task_vpt2_frequencies(
+                point, interface, 'gaussian_vpt2', review_file=review))
+            frequency_source = dict(
+                point.anl_thermochemistry_frequency_source)
+            frequency_source['native_output'] = str(native)
+            frequency_source['native_output_sha256'] = execution[
+                'artifacts'][task['result_parser']['file']]
+        models[record['smiles']] = {
+            'name': name, 'smiles': record['smiles'], 'symbols': symbols,
+            'positions': positions, 'charge': record['charge'],
+            'multiplicity': record['multiplicity'],
+            'symmetry_factor': float(point.sigma_ext),
+            'frequencies_cm_inverse': frequencies,
+            'hindered_rotor_source': 'none-no-rotatable-bonds',
+            'source': {
+                'composite': str(record['path']),
+                'composite_sha256': _sha256(record['path']),
+                'geometry': geometry['source'],
+                'frequencies': frequency_source,
+            },
+        }
+    output = base / 'cbh_thermochemistry_models.json'
+    return _write_json(output, {
+        'schema': 1, 'temperature_model': 'RRHO-with-accepted-VPT2-modes',
+        'species': models})
+
+
+def _write_mess_input(base, manifest, handoff, rotdpy_input,
+                      thermochemistry_models=None):
     run_dir = _path(base, manifest.get('run_dir'), 'run_dir')
     source = _path(base, manifest.get('kinbot_input'), 'kinbot_input')
     parameters = _read_json(source, 'KinBot MESS source input')
@@ -331,6 +458,9 @@ def _write_mess_input(base, manifest, handoff, rotdpy_input):
         'rotor_scan': 1,
         'do_clean': False,
     })
+    if thermochemistry_models is not None:
+        parameters['cbh_thermochemistry_models'] = str(
+            thermochemistry_models)
     for key in ('mess_command', 'messpf_command', 'queue_name', 'ppn',
                 'queue_job_limit', 'uq_max_runs', 'collider', 'epsilon',
                 'epsilon_unit', 'sigma'):
@@ -359,8 +489,10 @@ def prepare(source):
     solved = _solve_cbh(base, data['cbh'], composites, atct)
     handoff, handoff_payload = _write_handoff(
         base, data['handoff'], composites, solved)
+    thermochemistry_models = _write_cbh_thermochemistry_models(
+        base, data['composites'], composites, solved, data['handoff'])
     run_dir, kinbot_input = _write_mess_input(
-        base, data, handoff, rotdpy_input)
+        base, data, handoff, rotdpy_input, thermochemistry_models)
     literature = _literature_checks(base, data.get('literature'))
     failed_literature = [
         result.get('benchmark', '<unknown>') for result in literature
@@ -389,6 +521,7 @@ def prepare(source):
                 'component_breakdown': value['component_breakdown'],
             } for key, value in solved.items()},
         'handoff': str(handoff),
+        'cbh_thermochemistry_models': str(thermochemistry_models),
         'handoff_species': sorted(handoff_payload['species']),
         'literature': literature,
     }

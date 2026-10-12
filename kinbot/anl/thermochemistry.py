@@ -1,4 +1,4 @@
-"""MESS partition functions and the 0 K to 298.15 K formation conversion."""
+"""MESS partition functions and CBH formation enthalpies at temperature."""
 
 from __future__ import annotations
 
@@ -10,8 +10,6 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Mapping
-
 import numpy as np
 
 from kinbot.energy import formation_enthalpy_0k_kj_mol
@@ -20,27 +18,6 @@ from kinbot.energy import formation_enthalpy_0k_kj_mol
 R_KJ_MOL_K = 0.00831446261815324
 R_J_MOL_K = R_KJ_MOL_K * 1000.
 CAL_TO_J = 4.184
-
-# H(298.15 K) - H(0 K), per mole of atoms in the elemental reference state.
-# Values are from the pinned NIST-JANAF reference-state tables. Molecular
-# reference values are divided by two. Carbon is the graphite reference state.
-ELEMENT_REFERENCE_HEAT_CONTENT_298_KJ_MOL_ATOM = {
-    'H': 8.467 / 2.,
-    'C': 1.051,
-    'N': 8.670 / 2.,
-    'O': 8.683 / 2.,
-    'F': 8.825 / 2.,
-    'Cl': 9.181 / 2.,
-}
-ELEMENT_REFERENCE_SOURCE = {
-    'H': 'https://janaf.nist.gov/tables/H-050.html',
-    'C': 'https://janaf.nist.gov/tables/C-002.html',
-    'N': 'https://janaf.nist.gov/tables/N-023.html',
-    'O': 'https://janaf.nist.gov/tables/O-029.html',
-    'F': 'https://janaf.nist.gov/tables/F-054.html',
-    'Cl': 'https://janaf.nist.gov/tables/Cl-073.html',
-}
-
 
 @dataclass(frozen=True)
 class PartitionFunctionPoint:
@@ -100,25 +77,97 @@ def point_at_temperature(points, temperature_k=298.15, tolerance_k=0.02):
     return matches[0]
 
 
-def formation_enthalpy_298_kj_mol(formation_0k_kj_mol: float,
-                                  species_heat_content_kj_mol: float,
-                                  atoms,
-                                  elemental_heat_content: Mapping[str, float] | None = None):
-    """Convert Hf(0 K) to Hf(298.15 K) using elemental reference states."""
-    elemental = (ELEMENT_REFERENCE_HEAT_CONTENT_298_KJ_MOL_ATOM
-                 if elemental_heat_content is None else elemental_heat_content)
-    counts = Counter(atoms)
-    missing = sorted(set(counts) - set(elemental))
-    if missing:
-        raise ValueError('No 298.15 K elemental reference heat content for: '
-                         + ', '.join(missing))
-    values = (formation_0k_kj_mol, species_heat_content_kj_mol,
-              *(count * elemental[element] for element, count in counts.items()))
-    if not all(math.isfinite(value) for value in values):
-        raise ValueError('Formation-enthalpy conversion contains a nonfinite value.')
-    element_increment = math.fsum(
-        count * elemental[element] for element, count in counts.items())
-    return formation_0k_kj_mol + species_heat_content_kj_mol - element_increment
+def cbh_formation_enthalpy_at_temperature(formation, heat_contents):
+    """Propagate a CBH formation tree to one common temperature.
+
+    ``heat_contents`` maps every species in the tree to its calculated
+    ideal-gas ``H(T)-H(0)``.  CBH-0 terminates in pinned ATcT values at that
+    temperature.  Higher rungs recurse through lower CBH results, so no
+    elemental reference-state increment enters the calculation.
+    """
+    from kinbot.anl.atct import ATcTRecord, _canonical_smiles
+    from kinbot.anl.cbh import FormationEnthalpy
+
+    if not isinstance(formation, FormationEnthalpy):
+        raise TypeError('Expected a CBH formation record.')
+    canonical = {}
+    for smiles, value in heat_contents.items():
+        key = _canonical_smiles(smiles)
+        if key is None or key in canonical:
+            raise ValueError('CBH heat-content identities are invalid or repeated.')
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError(f'{smiles}: nonfinite heat content.')
+        canonical[key] = number
+
+    def heat(smiles):
+        try:
+            return canonical[_canonical_smiles(smiles)]
+        except KeyError as error:
+            raise ValueError(
+                f'{smiles}: missing MESSPF heat content for the CBH reaction.') from error
+
+    def solve(node):
+        if not node.stoichiometry:
+            reference = node.references.get(node.target_smiles)
+            if (len(node.references) != 1
+                    or not isinstance(reference, ATcTRecord)
+                    or reference.formation_298k_kj_mol is None
+                    or not math.isfinite(reference.formation_298k_kj_mol)):
+                raise ValueError('Terminal CBH-0 reference lacks ATcT Hf(298 K).')
+            value = float(reference.formation_298k_kj_mol)
+            return value, {
+                'target_smiles': node.target_smiles, 'rung': 0,
+                'kind': 'atct_terminal', 'atct_id': reference.atct_id,
+                'formation_temperature_kj_mol': value,
+            }
+        if node.stoichiometry.get(node.target_smiles) != -1:
+            raise ValueError('CBH target coefficient must be -1.')
+        if set(node.references) != set(node.stoichiometry) - {node.target_smiles}:
+            raise ValueError('CBH references disagree with the stored reaction.')
+        reference_values = {}
+        reference_trace = {}
+        for smiles, reference in node.references.items():
+            if isinstance(reference, ATcTRecord):
+                if node.rung != 0:
+                    raise ValueError('Only CBH-0 may use a direct ATcT reference.')
+                value = reference.formation_298k_kj_mol
+                if value is None or not math.isfinite(value):
+                    raise ValueError(f'{smiles}: ATcT reference lacks Hf(298 K).')
+                reference_values[smiles] = float(value)
+                reference_trace[smiles] = {
+                    'kind': 'atct', 'atct_id': reference.atct_id,
+                    'formation_temperature_kj_mol': float(value)}
+            elif isinstance(reference, FormationEnthalpy):
+                value, trace = solve(reference)
+                reference_values[smiles] = value
+                reference_trace[smiles] = trace
+            else:
+                raise ValueError(f'{smiles}: invalid CBH formation reference.')
+        thermal_reaction = math.fsum(
+            coefficient * heat(smiles)
+            for smiles, coefficient in node.stoichiometry.items())
+        reaction_temperature = math.fsum((
+            node.reaction_energy_0k_kj_mol, thermal_reaction))
+        reference_sum = math.fsum(
+            node.stoichiometry[smiles] * value
+            for smiles, value in reference_values.items())
+        result = reference_sum - reaction_temperature
+        if not math.isfinite(result):
+            raise ValueError('CBH finite-temperature formation result is nonfinite.')
+        return result, {
+            'target_smiles': node.target_smiles, 'rung': node.rung,
+            'kind': 'cbh_reaction',
+            'stoichiometry': dict(node.stoichiometry),
+            'reaction_energy_0k_kj_mol': node.reaction_energy_0k_kj_mol,
+            'thermal_reaction_correction_kj_mol': thermal_reaction,
+            'reaction_enthalpy_temperature_kj_mol': reaction_temperature,
+            'reference_formation_sum_temperature_kj_mol': reference_sum,
+            'formation_temperature_kj_mol': result,
+            'references': reference_trace,
+        }
+
+    return solve(formation)
 
 
 def nasa7_heat_capacity_j_mol_k(coefficients, temperature_k):
@@ -236,14 +285,18 @@ def fit_nasa7(points, formation_298_kj_mol, *, reference_temperature_k=298.15,
     }
 
 
-def messpf_thermochemistry_record(species, output, temperature_k=298.15):
-    """Build the auditable datum needed to anchor a NASA/PAC99 fit."""
+def messpf_thermochemistry_record(species, output, heat_contents,
+                                  temperature_k=298.15):
+    """Build a CBH-reaction thermochemistry and NASA/PAC99 record."""
+    from dataclasses import asdict as dataclass_dict
+
     points = parse_messpf_output(output)
     point = point_at_temperature(points, temperature_k)
     formation_0k = formation_enthalpy_0k_kj_mol(species)
-    formation_298 = formation_enthalpy_298_kj_mol(
-        formation_0k, point.heat_content_0k_kj_mol, species.atom)
-    nasa7 = fit_nasa7(points, formation_298,
+    formation = species.formation_enthalpy_0k
+    formation_temperature, cbh_trace = cbh_formation_enthalpy_at_temperature(
+        formation, heat_contents)
+    nasa7 = fit_nasa7(points, formation_temperature,
                       reference_temperature_k=temperature_k)
     return {
         'schema': 1,
@@ -252,18 +305,20 @@ def messpf_thermochemistry_record(species, output, temperature_k=298.15):
         'temperature_k': point.temperature_k,
         'formation_0k_kj_mol': formation_0k,
         'species_heat_content_0_to_t_kj_mol': point.heat_content_0k_kj_mol,
-        'element_reference_heat_content_0_to_298_15_kj_mol_atom':
-            dict(ELEMENT_REFERENCE_HEAT_CONTENT_298_KJ_MOL_ATOM),
-        'element_reference_sources': dict(ELEMENT_REFERENCE_SOURCE),
-        'formation_298k_kj_mol': formation_298,
+        'formation_298k_kj_mol': formation_temperature,
+        'formation_temperature_method': 'cbh_reaction',
+        'cbh_formation': dataclass_dict(formation),
+        'cbh_temperature_trace': cbh_trace,
         'messpf': asdict(point),
         'messpf_temperature_grid': [asdict(item) for item in points],
         'nasa7': nasa7,
     }
 
 
-def write_thermochemistry_record(species, output, destination, temperature_k=298.15):
-    record = messpf_thermochemistry_record(species, output, temperature_k)
+def write_thermochemistry_record(species, output, destination, heat_contents,
+                                 temperature_k=298.15):
+    record = messpf_thermochemistry_record(
+        species, output, heat_contents, temperature_k)
     Path(destination).write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
     return record
 
@@ -282,7 +337,10 @@ def audit_messpf_run(run_dir):
     This audit is intentionally independent of the live KinBot objects used
     to write the inputs.  It binds every input and output to the execution
     record, reparses the native table, and checks the Hf(0)->Hf(298.15) and
-    NASA-7 anchor identities stored by :class:`kinbot.mess.MESS`.
+    NASA-7 anchor identities stored by :class:`kinbot.mess.MESS`.  The
+    finite-temperature formation enthalpy is independently reconstructed
+    through the stored CBH reaction tree; elemental reference-state thermal
+    increments are neither accepted nor used.
     """
     root = Path(run_dir).resolve()
     me = root if root.name == 'me' else root / 'me'
@@ -308,13 +366,30 @@ def audit_messpf_run(run_dir):
     thermo_species = thermo.get('species')
     if (not isinstance(manifest_species, dict) or not manifest_species
             or set(manifest_species) != set(executions or {})
-            or set(manifest_species) != set(thermo_species or {})):
+            or not isinstance(thermo_species, dict)):
         raise ValueError('MESSPF species coverage differs across its records.')
 
+    network_ids = {
+        ident for ident, entry in manifest_species.items()
+        if entry.get('role', 'network') == 'network'}
+    if set(thermo_species) != network_ids:
+        raise ValueError(
+            'Derived thermochemistry must cover exactly the network species.')
+    model_library = manifest.get('reference_model_library')
+    if model_library is not None:
+        if (not isinstance(model_library, dict)
+                or set(model_library) != {'path', 'sha256'}):
+            raise ValueError('Invalid CBH reference-model provenance.')
+        model_path = Path(model_library['path']).expanduser().resolve()
+        if (not model_path.is_file()
+                or _sha256(model_path) != model_library['sha256']):
+            raise ValueError('CBH reference-model library hash differs.')
+
     checks = {}
+    parsed_outputs = {}
+    heat_contents = {}
     for ident, declared in sorted(manifest_species.items()):
         native = executions[ident]
-        record = thermo_species[ident]
         if native.get('status') != 'complete' or native.get('returncode') != 0:
             raise ValueError(f'{ident}: MESSPF execution is not complete.')
         input_path = directory / native.get('input', '')
@@ -326,6 +401,27 @@ def audit_messpf_run(run_dir):
         hindered_rotor_blocks = input_path.read_text().count('HinderedRotor')
         points = parse_messpf_output(output_path)
         point = point_at_temperature(points)
+        smiles = declared.get('smiles')
+        if not isinstance(smiles, str) or not smiles:
+            raise ValueError(f'{ident}: MESSPF SMILES identity is missing.')
+        from kinbot.anl.atct import _canonical_smiles
+        canonical = _canonical_smiles(smiles)
+        if canonical is None:
+            raise ValueError(f'{ident}: invalid MESSPF SMILES identity.')
+        previous = heat_contents.get(canonical)
+        if (previous is not None
+                and not math.isclose(previous, point.heat_content_0k_kj_mol,
+                                     rel_tol=0., abs_tol=1e-10)):
+            raise ValueError(f'{smiles}: conflicting MESSPF heat contents.')
+        heat_contents[canonical] = point.heat_content_0k_kj_mol
+        parsed_outputs[ident] = (points, point, hindered_rotor_blocks,
+                                 native, declared)
+
+    from kinbot.anl.cbh import formation_from_dict
+    for ident in sorted(network_ids):
+        points, point, hindered_rotor_blocks, native, declared = \
+            parsed_outputs[ident]
+        record = thermo_species[ident]
         stored_point = record.get('messpf', {})
         for key, value in asdict(point).items():
             try:
@@ -338,24 +434,31 @@ def audit_messpf_run(run_dir):
                     f'{ident}: stored MESSPF point differs from native output.')
         try:
             formation_0k = float(record['formation_0k_kj_mol'])
-            formation_298 = float(record['formation_298k_kj_mol'])
+            formation_temperature = float(record['formation_298k_kj_mol'])
             heat_content = float(record[
                 'species_heat_content_0_to_t_kj_mol'])
-            atoms = record['species']['atoms']
-            elemental = record[
-                'element_reference_heat_content_0_to_298_15_kj_mol_atom']
+            formation = formation_from_dict(record['cbh_formation'])
         except (KeyError, TypeError, ValueError) as error:
             raise ValueError(
                 f'{ident}: thermochemistry identity is incomplete.') from error
-        if not isinstance(atoms, dict) or not atoms:
-            raise ValueError(f'{ident}: atomic composition is missing.')
-        expected_298 = formation_0k + heat_content - math.fsum(
-            int(count) * float(elemental[element])
-            for element, count in atoms.items())
-        if not math.isclose(formation_298, expected_298,
+        if (record.get('formation_temperature_method') != 'cbh_reaction'
+                or not math.isclose(
+                    formation_0k, formation.formation_0k_kj_mol,
+                    rel_tol=0., abs_tol=1e-9)
+                or not math.isclose(
+                    heat_content, point.heat_content_0k_kj_mol,
+                    rel_tol=0., abs_tol=1e-10)):
+            raise ValueError(f'{ident}: stored CBH thermochemistry differs.')
+        expected_temperature, expected_trace = \
+            cbh_formation_enthalpy_at_temperature(
+                formation, heat_contents)
+        if not math.isclose(formation_temperature, expected_temperature,
                             rel_tol=0., abs_tol=1e-9):
             raise ValueError(
-                f'{ident}: Hf(298.15 K) differs from the MESSPF identity.')
+                f'{ident}: Hf(298.15 K) differs from the CBH reaction.')
+        if record.get('cbh_temperature_trace') != expected_trace:
+            raise ValueError(
+                f'{ident}: stored finite-temperature CBH trace differs.')
         nasa = record.get('nasa7', {})
         low = nasa.get('low_coefficients')
         high = nasa.get('high_coefficients')
@@ -367,7 +470,7 @@ def audit_messpf_run(run_dir):
             raise ValueError(f'{ident}: NASA-7 fit is incomplete.')
         if not math.isclose(
                 nasa7_enthalpy_kj_mol(low, point.temperature_k),
-                formation_298, rel_tol=0., abs_tol=1e-8):
+                formation_temperature, rel_tol=0., abs_tol=1e-8):
             raise ValueError(f'{ident}: NASA-7 enthalpy anchor differs.')
         if not math.isclose(
                 nasa7_entropy_j_mol_k(low, point.temperature_k),
@@ -387,15 +490,31 @@ def audit_messpf_run(run_dir):
             'output_sha256': native['output_sha256'],
             'temperature_points': len(points),
             'formation_0k_kj_mol': formation_0k,
-            'formation_298k_kj_mol': formation_298,
+            'formation_298k_kj_mol': formation_temperature,
             'heat_content_0_to_298_15_kj_mol': heat_content,
             'hindered_rotor_blocks': hindered_rotor_blocks,
             'nasa7_low_cp_rmse_j_mol_k': nasa.get('low_cp_rmse_j_mol_k'),
             'nasa7_high_cp_rmse_j_mol_k': nasa.get('high_cp_rmse_j_mol_k'),
+            'cbh_rung': formation.rung,
+        }
+    reference_checks = {}
+    for ident in sorted(set(manifest_species) - network_ids):
+        points, point, hindered_rotor_blocks, native, declared = \
+            parsed_outputs[ident]
+        reference_checks[ident] = {
+            'name': declared.get('name'), 'smiles': declared.get('smiles'),
+            'input_sha256': native['input_sha256'],
+            'output_sha256': native['output_sha256'],
+            'temperature_points': len(points),
+            'heat_content_0_to_298_15_kj_mol':
+                point.heat_content_0k_kj_mol,
+            'hindered_rotor_blocks': hindered_rotor_blocks,
         }
     return {
         'schema': 1, 'status': 'passed', 'program': 'messpf',
         'directory': str(directory), 'species': checks,
+        'cbh_reference_species': reference_checks,
+        'reference_model_library': model_library,
     }
 
 

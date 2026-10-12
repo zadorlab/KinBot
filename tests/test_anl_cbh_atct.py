@@ -1,5 +1,6 @@
 """CBH generation, ATcT ingestion, and 0 K thermochemistry workflow tests."""
 
+from dataclasses import asdict
 from io import BytesIO
 from pathlib import Path
 import json
@@ -13,6 +14,7 @@ from kinbot.anl.atct import (_fetch_reference_records, load_atct,
                              load_atct_references,
                              parse_atct_api, parse_atct_html)
 from kinbot.anl.cbh import (HARTREE_TO_KJ_MOL, ZeroKEnergy,
+                            formation_from_dict,
                             generate_cbh_reaction, generate_for_stationary_point,
                             select_cbh_ladder, solve_composite_records,
                             solve_formation_enthalpy,
@@ -205,7 +207,8 @@ def test_zero_k_formation_uses_accepted_energies_and_atct_references():
         solve_formation_enthalpy(reaction, energies, table)
 
 
-def _composite_record(path, electronic, zpe=0.):
+def _composite_record(path, electronic, zpe=0., *,
+                      recipe='profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ'):
     components = {
         'electronic': {
             'key': 'electronic', 'value_hartree': electronic,
@@ -218,7 +221,7 @@ def _composite_record(path, electronic, zpe=0.):
     }
     path.write_text(json.dumps({
         'schema': 1, 'status': 'complete',
-        'recipe': 'profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ',
+        'recipe': recipe,
         'recipe_version': 1, 'charge': 0, 'multiplicity': 1,
         'components': components,
         'electronic_terms': [{'component': 'electronic', 'coefficient': 1}],
@@ -262,7 +265,8 @@ def test_ladder_uses_highest_complete_common_tier_for_available_rung():
     energies = {
         smiles: {tier: ZeroKEnergy(smiles, value, tier, smiles + tier)
                  for tier in ('ANL0', 'L2')}
-        for smiles, value in [('CCC', -118.), ('CC', -79.), ('C', -40.)]
+        for smiles, value in [('CCC', -118.), ('CC', -79.), ('C', -40.),
+                              ('[H][H]', -1.)]
     }
     selected = select_cbh_ladder(species, energies, table)
     assert selected.reaction.rung == 1
@@ -271,3 +275,56 @@ def test_ladder_uses_highest_complete_common_tier_for_available_rung():
     selected = select_cbh_ladder(species, energies, table)
     assert selected.formation.method == 'L2'
     assert any('ANL0' in reason for reason in selected.skipped)
+
+
+def test_higher_rung_uses_computed_lower_rung_formation_from_its_own_tier():
+    _, table = _table()
+    species = SimpleNamespace(smiles='CCC', charge=0, mult=1, wellorts=0,
+                              atom=['C'] * 3 + ['H'] * 8)
+    energies = {
+        'CCC': {'F12': ZeroKEnergy('CCC', -118., 'F12', 'propane-f12')},
+        'CC': {
+            'F12': ZeroKEnergy('CC', -79., 'F12', 'ethane-f12'),
+            'ANL0': ZeroKEnergy('CC', -79.1, 'ANL0', 'ethane-anl0'),
+        },
+        'C': {
+            'F12': ZeroKEnergy('C', -40., 'F12', 'methane-f12'),
+            'ANL0': ZeroKEnergy('C', -40.1, 'ANL0', 'methane-anl0'),
+        },
+        '[H][H]': {
+            'ANL0': ZeroKEnergy('[H][H]', -1., 'ANL0', 'hydrogen-anl0')},
+    }
+    selected = select_cbh_ladder(
+        species, energies, table, max_rung=1,
+        method_ladder=('F12', 'ANL0'))
+    assert selected.formation.method == 'F12'
+    assert selected.formation.references['CC'].method == 'ANL0'
+
+    saved = asdict(selected.formation)
+    assert formation_from_dict(saved) == selected.formation
+    saved['formulas']['CCC']['H'] = 7
+    with pytest.raises(ValueError, match='not element balanced'):
+        formation_from_dict(saved)
+
+
+def test_composite_file_profiles_expose_independent_rung_laddering(
+        tmp_path, monkeypatch):
+    files = {}
+    for smiles, name, value, method in (
+            ('CCC', 'propane-f12.json', -118., 'F12'),
+            ('CC', 'ethane-f12.json', -79., 'F12'),
+            ('C', 'methane-f12.json', -40., 'F12'),
+            ('CC', 'ethane-anl0.json', -79.1, 'ANL0'),
+            ('C', 'methane-anl0.json', -40.1, 'ANL0'),
+            ('[H][H]', 'hydrogen-anl0.json', -1., 'ANL0')):
+        path = tmp_path / name
+        _composite_record(path, value, recipe=method)
+        files.setdefault(smiles, {})[method] = path
+    _, table = _table()
+    monkeypatch.setattr('kinbot.anl.cbh.load_atct_references',
+                        lambda *args, **kwargs: table)
+    reaction, formation = solve_composite_records(
+        'CCC', 1, files, atct_version='1.222', atct_cache=tmp_path)
+    assert reaction.rung == 1
+    assert formation.method == 'F12'
+    assert formation.references['CC'].method == 'ANL0'

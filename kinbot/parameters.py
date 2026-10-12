@@ -462,6 +462,9 @@ class Parameters:
             # Run and parse the standalone partition-function calculations
             # after a CBH/ANL MESS model has staged them.
             'run_messpf': 0,
+            # Optional schema-1 RRHO/HR model library for CBH reference
+            # species that are not part of the active reaction network.
+            'cbh_thermochemistry_models': '',
             # Consume a matching, hash-verified ROTD_py number-of-states file
             # for homolytic VRC channels when it is present.  ``required``
             # refuses a phase-space fallback. ``production`` additionally
@@ -609,6 +612,8 @@ class Parameters:
             raise ValueError('run_messpf must be 0 or 1')
         if self.par['run_messpf'] and self.par['me'] not in (1, 2):
             raise ValueError('run_messpf requires me = 1 or me = 2')
+        if not isinstance(self.par['cbh_thermochemistry_models'], str):
+            raise ValueError('cbh_thermochemistry_models must be a path string')
         if self.par['rotdpy_mess_mode'] not in (
                 'auto', 'required', 'production', 'off'):
             raise ValueError('rotdpy_mess_mode must be auto, required, '

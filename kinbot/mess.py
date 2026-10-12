@@ -418,6 +418,17 @@ class MESS:
             return {}
         species = self._stable_species()
         records = {}
+
+        def atct_ids(formation):
+            from kinbot.anl.atct import ATcTRecord
+            result = {}
+            for smiles, reference in formation.references.items():
+                if isinstance(reference, ATcTRecord):
+                    result[smiles] = reference.atct_id
+                else:
+                    result.update(atct_ids(reference))
+            return result
+
         for item in species:
             formation = getattr(item, 'formation_enthalpy_0k', None)
             if formation is None:
@@ -438,8 +449,8 @@ class MESS:
                       'atct_version': formation.atct_version,
                       'atct_source_sha256': formation.atct_source_sha256,
                       'energy_sources': dict(formation.energy_sources),
-                      'reference_ids': {smiles: reference.atct_id for smiles, reference
-                                        in formation.references.items()}}
+                      'reaction_stoichiometry': dict(formation.stoichiometry),
+                      'reference_ids': atct_ids(formation)}
             if key in records and records[key] != record:
                 raise ValueError(f'{key}: conflicting 0 K formation enthalpies.')
             records[key] = record
@@ -447,23 +458,12 @@ class MESS:
 
     def write_partition_function_input(self, species, destination):
         """Write the same stable-species model as a standalone MESSPF input."""
-        temperatures = sorted(set(float(value) for value in
-                                  (*self.par['TemperatureList'], 298.15)))
+        temperatures = self._partition_function_temperatures()
         destination = Path(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
         if species.natom == 1:
-            text = (
-                '! KinBot standalone MESS partition-function input.\n'
-                f'TemperatureList[K]                     '
-                f'{" ".join(f"{value:g}" for value in temperatures)}\n'
-                'RelativeTemperatureIncrement           0.001\n'
-                'AtomDistanceMin[angstrom]              0.32\n'
-                f'Species {species.name}\n'
-                '  Atom\n'
-                f'    Name {species.atom[0]}\n'
-                '    ElectronicLevels[1/cm] 1\n'
-                f'      0.0 {species.mult}\n'
-                '  End\n')
+            text = self._atomic_partition_function_input(
+                species.name, species.atom[0], species.mult, temperatures)
         else:
             stable_freqs = self._stable_frequencies(species)
             text = self.pftpl.format(
@@ -478,11 +478,108 @@ class MESS:
         destination.write_text(text)
         return destination
 
+    def _partition_function_temperatures(self):
+        return sorted(set(float(value) for value in
+                          (*self.par['TemperatureList'], 298.15)))
+
+    @staticmethod
+    def _atomic_partition_function_input(name, symbol, multiplicity,
+                                         temperatures):
+        """Return the single-block atomic grammar consumed by MESSPF."""
+        return (
+            '! KinBot standalone MESS partition-function input.\n'
+            f'TemperatureList[K]                     '
+            f'{" ".join(f"{value:g}" for value in temperatures)}\n'
+            'RelativeTemperatureIncrement           0.001\n'
+            'AtomDistanceMin[angstrom]              0.32\n'
+            f'Species {name}\n'
+            '  Atom\n'
+            f'    Name {symbol}\n'
+            '    ElectronicLevels[1/cm] 1\n'
+            f'      0.0 {multiplicity}\n'
+            '  End\n')
+
+    def write_partition_function_model(self, model, destination):
+        """Write a reviewed external CBH-reference RRHO/HR model."""
+        temperatures = self._partition_function_temperatures()
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        required = {'smiles', 'name', 'charge', 'multiplicity', 'symbols',
+                    'positions', 'symmetry_factor', 'frequencies_cm_inverse',
+                    'source'}
+        if (not isinstance(model, dict) or not required <= set(model)
+                or isinstance(model['charge'], bool)
+                or not isinstance(model['charge'], int)
+                or isinstance(model['multiplicity'], bool)
+                or not isinstance(model['multiplicity'], int)
+                or model['multiplicity'] < 1):
+            raise ValueError('Invalid external CBH thermochemistry model.')
+        symbols = [str(value) for value in model['symbols']]
+        positions = np.asarray(model['positions'], dtype=float)
+        frequencies_cm = [float(value)
+                          for value in model['frequencies_cm_inverse']]
+        symmetry_factor = float(model['symmetry_factor'])
+        if (not symbols or positions.shape != (len(symbols), 3)
+                or not np.isfinite(positions).all()
+                or not math.isfinite(symmetry_factor)
+                or symmetry_factor <= 0.
+                or any(not math.isfinite(value) or value <= 0.
+                       for value in frequencies_cm)):
+            raise ValueError('Invalid external CBH thermochemistry geometry or modes.')
+        if len(symbols) == 1:
+            if frequencies_cm:
+                raise ValueError('An atomic CBH model cannot have vibrations.')
+            text = self._atomic_partition_function_input(
+                model['name'], symbols[0], model['multiplicity'], temperatures)
+        else:
+            rotor_blocks = model.get('hindered_rotor_blocks', '')
+            if not isinstance(rotor_blocks, str):
+                raise ValueError('External hindered-rotor blocks must be text.')
+            text = self.pftpl.format(
+                temperatures=' '.join(f'{value:g}' for value in temperatures),
+                name=model['name'], natom=len(symbols),
+                geom=self.make_geom(positions, symbols),
+                symm=symmetry_factor, rotconst='',
+                nfreq=len(frequencies_cm),
+                freq=self.make_freq(frequencies_cm, 1., 0),
+                hinderedrotor=rotor_blocks,
+                mult=model['multiplicity'])
+        destination.write_text(text)
+        return destination
+
+    def _cbh_reference_models(self):
+        path = str(self.par.get('cbh_thermochemistry_models', '')).strip()
+        if not path:
+            return {}, None
+        source = Path(path).expanduser().resolve()
+        try:
+            data = json.loads(source.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(
+                f'Invalid CBH thermochemistry model library: {source}.') from error
+        models = data.get('species') if isinstance(data, dict) else None
+        if (not isinstance(data, dict) or data.get('schema') != 1
+                or not isinstance(models, dict)):
+            raise ValueError('CBH thermochemistry model library needs schema 1.')
+        return models, {'path': str(source), 'sha256': self._sha256(source)}
+
     def write_partition_function_inputs(self):
         """Stage all stable species for RRHO+1DHR thermochemistry."""
+        from kinbot.anl.atct import _canonical_smiles
+        from kinbot.anl.cbh import formation_species
+
         directory = Path('me/partition_functions')
         records = {}
-        for species in self._stable_species():
+        stable_species = self._stable_species()
+        network_smiles = {}
+        for species in stable_species:
+            canonical = _canonical_smiles(species.smiles)
+            previous = network_smiles.setdefault(canonical, species)
+            if ((previous.charge, previous.mult) !=
+                    (species.charge, species.mult)):
+                raise ValueError(
+                    f'{species.smiles}: conflicting network electronic states.')
+        for species in stable_species:
             ident = str(species.chemid)
             path = self.write_partition_function_input(
                 species, directory / f'{ident}.inp')
@@ -497,10 +594,53 @@ class MESS:
                 'frequency_provenance': getattr(
                     species, 'anl_thermochemistry_frequency_source', None),
                 'hindered_rotor_source': 'kinbot_l2',
+                'role': 'network',
             }
+        required_smiles = set()
+        for species in stable_species:
+            formation = getattr(species, 'formation_enthalpy_0k', None)
+            if formation is not None:
+                required_smiles.update(formation_species(formation))
+        models, model_source = self._cbh_reference_models()
+        canonical_models = {}
+        for smiles, model in models.items():
+            canonical = _canonical_smiles(smiles)
+            if canonical is None or canonical in canonical_models:
+                raise ValueError('CBH thermochemistry model identities are invalid.')
+            if _canonical_smiles(model.get('smiles', '')) != canonical:
+                raise ValueError(f'{smiles}: CBH thermochemistry model identity differs.')
+            canonical_models[canonical] = model
+        missing_models = []
+        for smiles in sorted(required_smiles):
+            canonical = _canonical_smiles(smiles)
+            if canonical in network_smiles:
+                continue
+            model = canonical_models.get(canonical)
+            if model is None:
+                missing_models.append(smiles)
+                continue
+            ident = 'reference_' + hashlib.sha256(
+                canonical.encode()).hexdigest()[:16]
+            path = self.write_partition_function_model(
+                model, directory / f'{ident}.inp')
+            records[ident] = {
+                'name': model['name'], 'smiles': smiles,
+                'input': str(path), 'output': str(path.with_suffix('.dat')),
+                'zero_energy_kcal_mol': 0.,
+                'frequency_source': 'cbh_reference_model',
+                'frequency_provenance': model['source'],
+                'hindered_rotor_source': model.get(
+                    'hindered_rotor_source', 'none'),
+                'role': 'cbh_reference',
+            }
+        if missing_models:
+            raise ValueError(
+                'Missing CBH reference thermochemistry models for: '
+                + ', '.join(missing_models))
         manifest = {'schema': 1, 'program': 'messpf',
                     'command': self.par.get('messpf_command', 'messpf'),
-                    'temperature_anchor_k': 298.15, 'species': records}
+                    'temperature_anchor_k': 298.15, 'species': records,
+                    'reference_model_library': model_source}
         directory.mkdir(parents=True, exist_ok=True)
         (directory / 'manifest.json').write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + '\n')
@@ -627,24 +767,60 @@ class MESS:
 
     def read_partition_function_outputs(self, outputs=None):
         """Read completed MESSPF tables and stage the NASA/PAC99 fit data."""
-        from kinbot.anl.thermochemistry import messpf_thermochemistry_record
+        from kinbot.anl.atct import _canonical_smiles
+        from kinbot.anl.thermochemistry import (
+            messpf_thermochemistry_record, parse_messpf_output,
+            point_at_temperature)
 
         outputs = {} if outputs is None else outputs
+        directory = Path('me/partition_functions')
+        manifest_path = directory / 'manifest.json'
+        if not manifest_path.is_file():
+            raise FileNotFoundError('MESSPF manifest is missing.')
+        manifest = json.loads(manifest_path.read_text())
+        entries = manifest.get('species')
+        if not isinstance(entries, dict) or not entries:
+            raise ValueError('MESSPF manifest has no species.')
+        paths = {}
+        heat_contents = {}
+        heat_sources = {}
+        for ident, entry in sorted(entries.items()):
+            output = outputs.get(ident, directory / f'{ident}.dat')
+            path = Path(output)
+            if not path.is_file():
+                raise FileNotFoundError(
+                    f'{entry.get("name", ident)}: missing MESSPF output {path}.')
+            point = point_at_temperature(parse_messpf_output(path))
+            canonical = _canonical_smiles(entry.get('smiles', ''))
+            if canonical is None:
+                raise ValueError(f'{ident}: invalid MESSPF SMILES identity.')
+            value = point.heat_content_0k_kj_mol
+            if (canonical in heat_contents
+                    and not math.isclose(heat_contents[canonical], value,
+                                         rel_tol=0., abs_tol=1e-10)):
+                raise ValueError(
+                    f'{entry["smiles"]}: conflicting MESSPF heat contents.')
+            heat_contents[canonical] = value
+            heat_sources[canonical] = {
+                'smiles': entry['smiles'], 'identifier': ident,
+                'output': str(path), 'heat_content_0_to_298_15_kj_mol': value,
+                'role': entry.get('role')}
+            paths[ident] = path
         records = {}
         for species in self._stable_species():
             ident = str(species.chemid)
-            output = outputs.get(ident, outputs.get(
-                species.chemid,
-                Path('me/partition_functions') / f'{ident}.dat'))
-            if not Path(output).is_file():
+            output = paths.get(ident)
+            if output is None:
                 raise FileNotFoundError(
-                    f'{species.name}: missing MESSPF output {output}.')
-            records[ident] = messpf_thermochemistry_record(species, output)
+                    f'{species.name}: network MESSPF output is missing.')
+            records[ident] = messpf_thermochemistry_record(
+                species, output, heat_contents)
             records[ident]['messpf_output'] = str(output)
         result = {
             'schema': 1,
-            'fit_contract': 'NASA7/PAC99-compatible Hf298, S(T), and Cp(T)',
-            'species': records,
+            'fit_contract': ('CBH-reaction Hf298 plus NASA7/PAC99-compatible '
+                             'S(T) and Cp(T)'),
+            'heat_content_sources': heat_sources, 'species': records,
         }
         destination = Path('me/thermochemistry_298.json')
         destination.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')

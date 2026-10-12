@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from hashlib import sha256
 import json
 import math
@@ -61,10 +61,18 @@ class FormationEnthalpy:
     method: str
     reaction_energy_0k_kj_mol: float
     formation_0k_kj_mol: float
-    references: Mapping[str, ATcTRecord]
+    # Immediate reference values.  CBH-0 terminates in pinned ATcT records;
+    # higher rungs contain formation enthalpies solved from lower CBH rungs.
+    references: Mapping[str, ATcTRecord | 'FormationEnthalpy']
     atct_version: str
     atct_source_sha256: str
     energy_sources: Mapping[str, str]
+    # Preserve the actual reaction used for both the 0 K and finite-
+    # temperature solves.  Older CBH-0 records are upgraded from their
+    # top-level ``reaction`` object by the handoff reader.
+    stoichiometry: Mapping[str, int] = field(default_factory=dict)
+    formulas: Mapping[str, Mapping[str, int]] = field(default_factory=dict)
+    states: Mapping[str, tuple[int, int]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -72,6 +80,134 @@ class LadderSelection:
     formation: FormationEnthalpy
     reaction: CBHReaction
     skipped: tuple[str, ...]
+
+
+def formation_from_dict(value, reaction=None) -> FormationEnthalpy:
+    """Reconstruct and validate a recursive CBH formation record."""
+    if not isinstance(value, dict):
+        raise ValueError('CBH formation record must be an object.')
+    required = {
+        'target_smiles', 'rung', 'method', 'reaction_energy_0k_kj_mol',
+        'formation_0k_kj_mol', 'references', 'atct_version',
+        'atct_source_sha256', 'energy_sources'}
+    if not required <= set(value) or not isinstance(value['references'], dict):
+        raise ValueError('CBH formation record is incomplete.')
+    atct_fields = {item.name for item in fields(ATcTRecord)}
+    references = {}
+    for smiles, reference in value['references'].items():
+        if not isinstance(reference, dict):
+            raise ValueError(f'{smiles}: invalid CBH reference record.')
+        if set(reference) == atct_fields:
+            references[smiles] = ATcTRecord(**reference)
+        else:
+            references[smiles] = formation_from_dict(reference)
+    stoichiometry = value.get('stoichiometry')
+    formulas = value.get('formulas')
+    states = value.get('states')
+    if reaction is not None:
+        stoichiometry = (reaction.stoichiometry if stoichiometry is None
+                         else stoichiometry)
+        formulas = reaction.formulas if formulas is None else formulas
+        states = reaction.states if states is None else states
+    stoichiometry = dict(stoichiometry or {})
+    formulas = {smiles: dict(formula)
+                for smiles, formula in (formulas or {}).items()}
+    states = {smiles: tuple(state)
+              for smiles, state in (states or {}).items()}
+    result = FormationEnthalpy(
+        target_smiles=value['target_smiles'], rung=value['rung'],
+        method=value['method'],
+        reaction_energy_0k_kj_mol=value['reaction_energy_0k_kj_mol'],
+        formation_0k_kj_mol=value['formation_0k_kj_mol'],
+        references=references, atct_version=value['atct_version'],
+        atct_source_sha256=value['atct_source_sha256'],
+        energy_sources=dict(value['energy_sources']),
+        stoichiometry=stoichiometry, formulas=formulas, states=states)
+    if (isinstance(result.rung, bool) or result.rung not in range(4)
+            or not isinstance(result.method, str) or not result.method
+            or not isinstance(result.atct_version, str)
+            or not result.atct_version
+            or not _SHA256.fullmatch(result.atct_source_sha256)
+            or any(not isinstance(source, str) or not source
+                   for source in result.energy_sources.values())
+            or not all(math.isfinite(number) for number in (
+                result.reaction_energy_0k_kj_mol,
+                result.formation_0k_kj_mol))):
+        raise ValueError('CBH formation identity or values are invalid.')
+    state_species = (set(result.stoichiometry) if result.stoichiometry
+                     else {result.target_smiles})
+    for smiles, state in result.states.items():
+        if (smiles not in state_species
+                or len(state) != 2
+                or any(isinstance(number, bool) or not isinstance(number, int)
+                       for number in state)
+                or state[1] < 1):
+            raise ValueError('CBH electronic-state metadata are invalid.')
+    if not result.stoichiometry:
+        # A terminal wrapper is allowed only around the matching pinned ATcT
+        # species.  It exists so higher rungs retain an explicit CBH-0 leaf.
+        reference = result.references.get(result.target_smiles)
+        if (len(result.references) != 1
+                or not isinstance(reference, ATcTRecord)
+                or result.rung != 0
+                or reference.version != result.atct_version
+                or reference.source_sha256 != result.atct_source_sha256
+                or reference.phase != 'g'
+                or _canonical_smiles(reference.smiles) !=
+                   _canonical_smiles(result.target_smiles)
+                or reference.formation_0k_kj_mol is None
+                or reference.formation_298k_kj_mol is None
+                or not math.isclose(
+                    result.formation_0k_kj_mol,
+                    reference.formation_0k_kj_mol,
+                    rel_tol=0., abs_tol=1e-10)):
+            raise ValueError('Invalid terminal CBH-0/ATcT reference.')
+        return result
+    if result.stoichiometry.get(result.target_smiles) != -1:
+        raise ValueError('CBH formation target coefficient must be -1.')
+    if (set(result.formulas) != set(result.stoichiometry)
+            or set(result.energy_sources) != set(result.stoichiometry)):
+        raise ValueError('CBH formation provenance differs from its reaction.')
+    _check_balance(result.stoichiometry, result.formulas)
+    expected_references = set(result.stoichiometry) - {result.target_smiles}
+    if set(result.references) != expected_references:
+        raise ValueError('CBH formation references disagree with its reaction.')
+    for smiles, reference in result.references.items():
+        if _canonical_smiles(reference.smiles if isinstance(reference, ATcTRecord)
+                             else reference.target_smiles) != \
+                _canonical_smiles(smiles):
+            raise ValueError(f'{smiles}: CBH reference identity differs.')
+        if isinstance(reference, ATcTRecord):
+            if (result.rung != 0
+                    or reference.version != result.atct_version
+                    or reference.source_sha256 != result.atct_source_sha256
+                    or reference.phase != 'g'
+                    or reference.formation_0k_kj_mol is None
+                    or reference.formation_298k_kj_mol is None):
+                raise ValueError(f'{smiles}: invalid direct ATcT reference.')
+        elif (result.rung == 0 or reference.rung >= result.rung
+              or reference.atct_version != result.atct_version
+              or reference.atct_source_sha256 != result.atct_source_sha256):
+            raise ValueError(f'{smiles}: invalid lower-rung CBH reference.')
+    reference_sum = math.fsum(
+        result.stoichiometry[smiles] * reference.formation_0k_kj_mol
+        for smiles, reference in result.references.items())
+    expected = reference_sum - result.reaction_energy_0k_kj_mol
+    if not math.isclose(result.formation_0k_kj_mol, expected,
+                        rel_tol=0., abs_tol=1e-8):
+        raise ValueError('CBH formation 0 K identity is inconsistent.')
+    return result
+
+
+def formation_species(formation: FormationEnthalpy) -> tuple[str, ...]:
+    """List every calculated species required by a stored CBH tree."""
+    if not isinstance(formation, FormationEnthalpy):
+        raise TypeError('Expected a CBH formation record.')
+    result = set(formation.stoichiometry)
+    for reference in formation.references.values():
+        if isinstance(reference, FormationEnthalpy):
+            result.update(formation_species(reference))
+    return tuple(sorted(result))
 
 
 def _graph_from_smiles(smiles: str, charge: int, multiplicity: int):
@@ -305,12 +441,20 @@ def generate_for_stationary_point(species, *, max_rung: int = 3
             for rung in range(max_rung + 1)}
 
 
-def solve_formation_enthalpy(reaction: CBHReaction,
-                             energies: Mapping[str, ZeroKEnergy],
-                             atct: ATcTTable, *,
-                             reference_ids: Mapping[str, str] | None = None
-                             ) -> FormationEnthalpy:
-    """Apply the signed CBH reaction to ANL electronic-plus-ZPE 0 K energies."""
+def solve_formation_enthalpy(
+        reaction: CBHReaction,
+        energies: Mapping[str, ZeroKEnergy],
+        atct: ATcTTable | None = None, *,
+        reference_ids: Mapping[str, str] | None = None,
+        reference_formations: Mapping[str, FormationEnthalpy] | None = None,
+        ) -> FormationEnthalpy:
+    """Apply one signed CBH reaction at 0 K.
+
+    CBH-0 is the only rung allowed to terminate in ATcT values.  A higher
+    rung must be supplied formation enthalpies that were solved from lower
+    CBH rungs.  This prevents a nominal CBH-1/2/3 result from silently using
+    direct ATcT values for its immediate fragments.
+    """
     if reaction.stoichiometry.get(reaction.target_smiles) != -1:
         raise ValueError('CBH target must have stoichiometric coefficient -1.')
     _check_balance(reaction.stoichiometry, reaction.formulas)
@@ -330,35 +474,234 @@ def solve_formation_enthalpy(reaction: CBHReaction,
     if len(methods) != 1:
         raise ValueError('All species in one CBH reaction require the same '
                          '0 K electronic-structure method.')
-    references = {}
+    references: dict[str, ATcTRecord | FormationEnthalpy] = {}
     reference_ids = reference_ids or {}
-    for smiles in reaction.reference_smiles:
-        if reaction.states.get(smiles, (0, 1)) != (0, 1) and smiles not in reference_ids:
-            raise ValueError(f'{smiles}: a non-singlet ATcT reference needs an explicit ID.')
-        record = (atct.by_id(reference_ids[smiles]) if smiles in reference_ids
-                  else atct.gas_by_smiles(smiles, formula=reaction.formulas[smiles]))
-        if (record.phase != 'g' or record.formation_0k_kj_mol is None
-                or record.version != atct.version
-                or record.source_sha256 != atct.source_sha256
-                or not record.atct_id.endswith('*0')
-                or not record.preferred_formula.endswith('(g)')
-                or _canonical_smiles(record.smiles) != _canonical_smiles(smiles)
-                or _preferred_formula_atoms(record.preferred_formula)
-                    != reaction.formulas[smiles]):
-            raise ValueError(f'{smiles}: ATcT reference is not a pinned 0 K gas value.')
-        references[smiles] = record
+    if reaction.rung == 0:
+        if atct is None:
+            raise ValueError('CBH-0 requires a pinned ATcT table.')
+        if reference_formations:
+            raise ValueError('CBH-0 must terminate in ATcT references.')
+        for smiles in reaction.reference_smiles:
+            references[smiles] = _atct_reference(
+                smiles, reaction.formulas[smiles],
+                reaction.states.get(smiles, (0, 1)), atct, reference_ids)
+        atct_version = atct.version
+        atct_source_sha256 = atct.source_sha256
+    else:
+        supplied = dict(reference_formations or {})
+        if set(supplied) != set(reaction.reference_smiles):
+            missing = sorted(set(reaction.reference_smiles) - set(supplied))
+            extra = sorted(set(supplied) - set(reaction.reference_smiles))
+            raise ValueError(
+                f'CBH-{reaction.rung} lower-rung references differ; '
+                f'missing={missing}, extra={extra}.')
+        for smiles in reaction.reference_smiles:
+            value = supplied[smiles]
+            if (not isinstance(value, FormationEnthalpy)
+                    or _canonical_smiles(value.target_smiles) !=
+                       _canonical_smiles(smiles)
+                    or value.rung >= reaction.rung
+                    or not math.isfinite(value.formation_0k_kj_mol)):
+                raise ValueError(
+                    f'{smiles}: invalid lower-rung CBH formation reference.')
+            references[smiles] = value
+        versions = {value.atct_version for value in supplied.values()}
+        hashes = {value.atct_source_sha256 for value in supplied.values()}
+        if len(versions) != 1 or len(hashes) != 1:
+            raise ValueError('Lower-rung CBH references use different ATcT releases.')
+        atct_version = versions.pop()
+        atct_source_sha256 = hashes.pop()
     delta = math.fsum(coefficient * energies[smiles].hartree
                       for smiles, coefficient in reaction.stoichiometry.items())
     delta *= HARTREE_TO_KJ_MOL
-    reference_sum = math.fsum(reaction.stoichiometry[smiles] *
-                              record.formation_0k_kj_mol
-                              for smiles, record in references.items())
+    reference_sum = math.fsum(
+        reaction.stoichiometry[smiles] * record.formation_0k_kj_mol
+        for smiles, record in references.items())
     # delta_r H(0) = sum(nu_i Hf_i(0)); nu_target is -1.
     target_hf = reference_sum - delta
     return FormationEnthalpy(
         reaction.target_smiles, reaction.rung, methods.pop(), delta,
-        target_hf, references, atct.version, atct.source_sha256,
-        {smiles: energies[smiles].source for smiles in reaction.stoichiometry})
+        target_hf, references, atct_version, atct_source_sha256,
+        {smiles: energies[smiles].source for smiles in reaction.stoichiometry},
+        dict(reaction.stoichiometry),
+        {smiles: dict(formula) for smiles, formula in reaction.formulas.items()},
+        dict(reaction.states))
+
+
+def _lower_reaction(smiles: str, max_rung: int, *, charge: int,
+                    multiplicity: int):
+    """Return the highest structurally available lower-rung reaction."""
+    for rung in range(max_rung, -1, -1):
+        try:
+            reaction = generate_cbh_reaction(
+                smiles, rung, charge=charge, multiplicity=multiplicity)
+        except NotImplementedError:
+            return None
+        if reaction is not None:
+            return reaction
+    return None
+
+
+def _atct_reference(smiles, formula, state, atct, reference_ids):
+    """Return one pinned gas-phase CBH-0 reference at 0 and 298 K."""
+    if state != (0, 1) and smiles not in reference_ids:
+        raise ValueError(
+            f'{smiles}: a non-singlet ATcT reference needs an explicit ID.')
+    record = (atct.by_id(reference_ids[smiles]) if smiles in reference_ids
+              else atct.gas_by_smiles(smiles, formula=formula))
+    if (record.phase != 'g' or record.formation_0k_kj_mol is None
+            or record.formation_298k_kj_mol is None
+            or record.version != atct.version
+            or record.source_sha256 != atct.source_sha256
+            or not record.atct_id.endswith('*0')
+            or not record.preferred_formula.endswith('(g)')
+            or _canonical_smiles(record.smiles) != _canonical_smiles(smiles)
+            or _preferred_formula_atoms(record.preferred_formula) != formula):
+        raise ValueError(
+            f'{smiles}: ATcT reference is not a pinned 0/298 K gas value.')
+    return record
+
+
+def solve_cbh_network(reaction: CBHReaction,
+                      energies: Mapping[str, ZeroKEnergy | Mapping[str, ZeroKEnergy]],
+                      atct: ATcTTable, *,
+                      reference_ids: Mapping[str, str] | None = None,
+                      method_ladder: tuple[str, ...] = DEFAULT_METHOD_LADDER,
+                      root_method: str | None = None,
+                      ) -> FormationEnthalpy:
+    """Solve a CBH reaction through lower rungs to verified CBH-0 leaves.
+
+    Each reaction node selects one common electronic-structure method for all
+    species in that reaction.  A lower-rung reference node selects its method
+    independently, which is the defining ladder behavior: for example, a
+    large target reaction may use F12 energies while its smaller reference
+    species carry ANL0 formation enthalpies.
+    """
+    reference_ids = dict(reference_ids or {})
+    if len(method_ladder) != len(set(method_ladder)) or not method_ladder:
+        raise ValueError('CBH method ladder needs unique, ordered tiers.')
+    profiles = {}
+    for smiles, value in energies.items():
+        if isinstance(value, ZeroKEnergy):
+            profiles[smiles] = {value.method: value}
+        elif isinstance(value, Mapping):
+            profiles[smiles] = dict(value)
+            if any(not isinstance(item, ZeroKEnergy)
+                   or label != item.method
+                   for label, item in profiles[smiles].items()):
+                raise ValueError(f'{smiles}: invalid CBH energy profile.')
+        else:
+            raise ValueError(f'{smiles}: invalid CBH energy profile.')
+    cache: dict[tuple[str, int, str], FormationEnthalpy] = {}
+
+    def candidates(node, forced=None):
+        missing = sorted(set(node.stoichiometry) - set(profiles))
+        if missing:
+            raise ValueError('Missing 0 K energies for: ' + ', '.join(missing))
+        common = set.intersection(*(
+            set(profiles[smiles]) for smiles in node.stoichiometry))
+        if forced is not None:
+            return [forced] if forced in common else []
+        ordered = []
+        for tier in method_ladder:
+            matched = sorted(label for label in common
+                             if label == tier or _method_family(label) == tier)
+            if len(matched) > 1:
+                raise ValueError(
+                    f'CBH-{node.rung}: multiple accepted {tier} profiles; '
+                    'select one exact method label.')
+            ordered.extend(matched)
+        ordered.extend(sorted(common - set(ordered)))
+        return ordered
+
+    def solve_node(node: CBHReaction, forced=None) -> FormationEnthalpy:
+        labels = candidates(node, forced)
+        if not labels:
+            detail = f' at {forced}' if forced is not None else ''
+            raise ValueError(
+                f'CBH-{node.rung} has no common 0 K energy method{detail}.')
+        failures = []
+        for label in labels:
+            try:
+                return solve_label(node, label)
+            except (LookupError, ValueError, NotImplementedError) as error:
+                failures.append(f'{label}: {error}')
+        raise ValueError(
+            f'CBH-{node.rung} has no complete energy/reference tier: '
+            + '; '.join(failures))
+
+    def solve_label(node: CBHReaction, label: str) -> FormationEnthalpy:
+        key = (node.target_smiles, node.rung, label)
+        if key in cache:
+            return cache[key]
+        selected = {smiles: profiles[smiles][label]
+                    for smiles in node.stoichiometry}
+        if node.rung == 0:
+            result = solve_formation_enthalpy(
+                node, selected, atct, reference_ids=reference_ids)
+        else:
+            lower = {}
+            for smiles in node.reference_smiles:
+                state = node.states.get(smiles, (0, 1))
+                child = _lower_reaction(
+                    smiles, node.rung - 1, charge=state[0],
+                    multiplicity=state[1])
+                if child is None:
+                    # Wrap a terminal CBH-0 datum in a zero-reaction node so
+                    # every higher-rung input demonstrably descends through
+                    # the CBH-0/ATcT boundary.
+                    record = _atct_reference(
+                        smiles, node.formulas[smiles], state, atct,
+                        reference_ids)
+                    lower[smiles] = FormationEnthalpy(
+                        target_smiles=smiles, rung=0, method=label,
+                        reaction_energy_0k_kj_mol=0.,
+                        formation_0k_kj_mol=record.formation_0k_kj_mol,
+                        references={smiles: record},
+                        atct_version=atct.version,
+                        atct_source_sha256=atct.source_sha256,
+                        energy_sources={},
+                        stoichiometry={},
+                        formulas={smiles: dict(node.formulas[smiles])},
+                        states={smiles: state})
+                else:
+                    lower[smiles] = solve_node(child)
+            result = solve_formation_enthalpy(
+                node, selected, reference_formations=lower)
+        cache[key] = result
+        return result
+
+    return solve_node(reaction, root_method)
+
+
+def cbh_network_requirements(reaction: CBHReaction):
+    """Return all calculated species and terminal ATcT leaves in a CBH tree."""
+    calculated = set()
+    terminals = {}
+    visiting = set()
+
+    def visit(node):
+        key = (node.target_smiles, node.rung)
+        if key in visiting:
+            raise ValueError('CBH reference network contains a cycle.')
+        visiting.add(key)
+        calculated.update(node.stoichiometry)
+        for smiles in node.reference_smiles:
+            state = node.states.get(smiles, (0, 1))
+            if node.rung == 0:
+                terminals[smiles] = (dict(node.formulas[smiles]), state)
+                continue
+            child = _lower_reaction(
+                smiles, node.rung - 1, charge=state[0],
+                multiplicity=state[1])
+            if child is None:
+                terminals[smiles] = (dict(node.formulas[smiles]), state)
+            else:
+                visit(child)
+        visiting.remove(key)
+
+    visit(reaction)
+    return calculated, terminals
 
 
 def _method_family(label: str) -> str:
@@ -391,23 +734,10 @@ def select_cbh_ladder(
         if reaction is None:
             skipped.append(f'CBH-{rung}: self-referential or unavailable graph fragments')
             continue
-        references = {}
-        try:
-            for smiles in reaction.reference_smiles:
-                references[smiles] = (
-                    atct.by_id(reference_ids[smiles])
-                    if reference_ids is not None and smiles in reference_ids
-                    else atct.gas_by_smiles(smiles, formula=reaction.formulas[smiles]))
-        except LookupError as exc:
-            if reference_ids is not None and smiles in reference_ids:
-                raise
-            skipped.append(f'CBH-{rung}: {exc}')
-            continue
-        needed = set(reaction.stoichiometry)
-        common = set.intersection(*(set(energies_by_smiles.get(smiles, {}))
-                                    for smiles in needed))
         for tier in method_ladder:
-            candidates = sorted(label for label in common
+            candidates = sorted(
+                label for label in energies_by_smiles.get(
+                    reaction.target_smiles, {})
                                 if label == tier or _method_family(label) == tier)
             if len(candidates) > 1:
                 raise ValueError(f'CBH-{rung}: multiple accepted {tier} profiles; '
@@ -416,10 +746,14 @@ def select_cbh_ladder(
                 skipped.append(f'CBH-{rung} {tier}: missing accepted 0 K energy')
                 continue
             label = candidates[0]
-            selected = {smiles: energies_by_smiles[smiles][label]
-                        for smiles in needed}
-            formation = solve_formation_enthalpy(
-                reaction, selected, atct, reference_ids=reference_ids)
+            try:
+                formation = solve_cbh_network(
+                    reaction, energies_by_smiles, atct,
+                    reference_ids=reference_ids, method_ladder=method_ladder,
+                    root_method=label)
+            except (LookupError, ValueError) as exc:
+                skipped.append(f'CBH-{rung} {tier}: {exc}')
+                continue
             return LadderSelection(formation, reaction, tuple(skipped))
     raise ValueError('No complete CBH reaction and energy tier is available. '
                      + '; '.join(skipped))
@@ -498,32 +832,61 @@ def zero_k_from_composite_record(smiles: str, path: str | Path) -> ZeroKEnergy:
 
 def solve_composite_records(
         target_smiles: str, rung: int,
-        energy_files: Mapping[str, str | Path], *, atct_version: str,
+        energy_files: Mapping[
+            str, str | Path | Mapping[str, str | Path]], *, atct_version: str,
         atct_cache: str | Path,
         reference_ids: Mapping[str, str] | None = None,
         refresh_atct: bool = False) -> tuple[CBHReaction, FormationEnthalpy]:
-    """Generate one CBH reaction and solve it from composite JSON records."""
+    """Generate and solve a CBH network from composite JSON records.
+
+    A species value may be one composite path or a ``method: path`` mapping.
+    The latter lets each rung select its own highest complete method while
+    keeping one common method within each individual reaction.
+    """
     if target_smiles not in energy_files:
         raise ValueError('The target composite result is missing.')
-    target = zero_k_from_composite_record(
-        target_smiles, energy_files[target_smiles])
+
+    def load_profile(smiles, value):
+        if isinstance(value, Mapping):
+            if not value:
+                raise ValueError(f'{smiles}: composite energy profile is empty.')
+            profile = {}
+            for declared, path in value.items():
+                energy = zero_k_from_composite_record(smiles, path)
+                if declared != energy.method or declared in profile:
+                    raise ValueError(
+                        f'{smiles}: composite profile label differs from its recipe.')
+                profile[declared] = energy
+            return profile
+        energy = zero_k_from_composite_record(smiles, value)
+        return {energy.method: energy}
+
+    target_profile = load_profile(target_smiles, energy_files[target_smiles])
+    target = next(iter(target_profile.values()))
+    if any((item.charge, item.multiplicity) !=
+           (target.charge, target.multiplicity)
+           for item in target_profile.values()):
+        raise ValueError('Target composite profiles use different states.')
     reaction = generate_cbh_reaction(
         target_smiles, rung, charge=target.charge,
         multiplicity=target.multiplicity)
     if reaction is None:
         raise ValueError(f'CBH-{rung} is unavailable for {target_smiles!r}.')
-    missing = sorted(set(reaction.stoichiometry) - set(energy_files))
-    extra = sorted(set(energy_files) - set(reaction.stoichiometry))
+    required, terminals = cbh_network_requirements(reaction)
+    missing = sorted(required - set(energy_files))
+    extra = sorted(set(energy_files) - required)
     if missing or extra:
-        raise ValueError(f'Composite energy mapping differs from CBH-{rung}; '
+        raise ValueError(f'Composite energy mapping differs from the CBH-{rung} '
+                         f'reference network; '
                          f'missing={missing}, extra={extra}.')
-    energies = {smiles: zero_k_from_composite_record(smiles, energy_files[smiles])
-                for smiles in reaction.stoichiometry}
+    energies = {smiles: (target_profile if smiles == target_smiles else
+                         load_profile(smiles, energy_files[smiles]))
+                for smiles in required}
     reference_ids = dict(reference_ids or {})
     table = load_atct_references(
-        reaction.reference_smiles, atct_version, atct_cache,
+        terminals, atct_version, atct_cache,
         reference_ids=reference_ids, refresh=refresh_atct)
-    return reaction, solve_formation_enthalpy(
+    return reaction, solve_cbh_network(
         reaction, energies, table, reference_ids=reference_ids)
 
 

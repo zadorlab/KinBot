@@ -963,6 +963,119 @@ core=frozen
             (directory / 'execution.failed.json').read_text()) == failed
 
 
+def test_reparse_recovers_native_mrcc_success_misclassified_as_execution_failure():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        ident = 'ccsdtqp_dz'
+        task = mrcc_task(
+            ident, 'CCSDTQ(P)', 'cc-pVDZ', multiplicity=2,
+            reference='ROHF', geometry_from='initial')
+        task['resources'].update(
+            cores=1, memory_mb=4096, partition='test')
+        spec = {
+            'schema': 1, 'name': 'native-success-recovery',
+            'molecule': {
+                'symbols': ['C', 'H', 'H', 'H'],
+                'positions': [[0., 0., 0.], [0., 0., 1.],
+                              [0.94, 0., -0.33], [-0.47, 0.81, -0.33]],
+                'charge': 0, 'multiplicity': 2,
+            },
+            'limits': {'max_nodes': 1}, 'tasks': [task],
+        }
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        directory = run_dir / 'tasks' / ident
+        (directory / f'{ident}.out').write_text(
+            'Input file:\n'
+            'basis=cc-pVDZ\ncalc=CCSDTQ(P)\nccprog=mrcc\n'
+            'scftype=ROHF\nrohftype=semicanonical\n'
+            'rohfcore=semicanonical\ncore=frozen\n'
+            'Total CCSDTQ energy [au]: -39.716248102779\n'
+            'Total CCSDTQ(P)/A energy [au]: -39.716252624143\n'
+            'Total CCSDTQ(P)/B energy [au]: -39.716252675414\n'
+            'Normal termination of mrcc.\n')
+        (directory / f'{ident}.err').write_text('')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        entry = state['tasks'][ident]
+        entry.update(status='failed', execution='failed',
+                     error='Program exited with status 1.')
+        state_path.write_text(json.dumps(state))
+        failed = {
+            'schema': 1, 'task_id': ident,
+            'geometry_sha256': entry['geometry_sha256'],
+            'status': 'failed',
+            'error': 'Program exited with status 1.',
+            'traceback': ('Traceback: _run_external raised RuntimeError after '
+                          'the site launcher returned nonzero.'),
+        }
+        (directory / 'execution.json').write_text(json.dumps(failed))
+
+        with patch('kinbot.anl.dispatch.subprocess.run',
+                   side_effect=AssertionError('native program must not rerun')):
+            result = reparse_failed(run_dir, ident)
+        assert result['status'] == 'executed'
+        assert result['details']['returncode'] == 1
+        assert result['details']['returncode_source'] == \
+            'preserved_dispatch_failure_and_native_success_marker'
+        assert result['details']['native_success_recovered'] is True
+        assert result['details']['parsed_result']['energy_hartree'] == \
+            pytest.approx(-39.716252675414)
+        assert result['details']['parsed_result'][
+            'selected_perturbative_variant'] == 'B'
+        assert json.loads(
+            (directory / 'execution.failed.json').read_text()) == failed
+
+        with (directory / f'{ident}.out').open('a') as output:
+            output.write('changed after recovery\n')
+        with pytest.raises(RuntimeError, match='artifact .* changed'):
+            reparse_failed(run_dir, ident)
+
+
+def test_native_success_recovery_rejects_changed_staged_input():
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        ident = 'ccsdtq_dz'
+        task = mrcc_task(
+            ident, 'CCSDT(Q)', 'cc-pVDZ', multiplicity=1,
+            reference='RHF', geometry_from='initial')
+        task['resources'].update(
+            cores=1, memory_mb=4096, partition='test')
+        spec = {
+            'schema': 1, 'name': 'reject-changed-input',
+            'molecule': {
+                'symbols': ['H', 'H'],
+                'positions': [[0., 0., 0.], [0., 0., 0.74]],
+                'charge': 0, 'multiplicity': 1,
+            },
+            'limits': {'max_nodes': 1}, 'tasks': [task],
+        }
+        run_dir = prepare(_write_spec(root, spec), root / 'run')
+        directory = run_dir / 'tasks' / ident
+        (directory / f'{ident}.out').write_text(
+            'Input file:\n'
+            'basis=cc-pVDZ\ncalc=CCSDT(Q)\nccprog=mrcc\n'
+            'scftype=RHF\ncore=frozen\n'
+            'Total CCSDT(Q)/B energy [au]: -1.0\n'
+            'Normal termination of mrcc.\n')
+        (directory / f'{ident}.err').write_text('')
+        state_path = run_dir / 'state.json'
+        state = json.loads(state_path.read_text())
+        entry = state['tasks'][ident]
+        entry.update(status='failed', execution='failed', error='old failure')
+        state_path.write_text(json.dumps(state))
+        (directory / 'execution.json').write_text(json.dumps({
+            'schema': 1, 'task_id': ident,
+            'geometry_sha256': entry['geometry_sha256'],
+            'status': 'failed', 'error': 'old failure',
+        }))
+        with (directory / 'MINP').open('a') as inp:
+            inp.write('edited=true\n')
+
+        with pytest.raises(RuntimeError, match='staged MINP changed'):
+            reparse_failed(run_dir, ident)
+        assert not (directory / 'execution.failed.json').exists()
+
+
 def _monatomic_geometry_spec():
     source = dispatch_spec()
     task = next(item for item in source['tasks']

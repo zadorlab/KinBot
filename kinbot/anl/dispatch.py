@@ -752,13 +752,48 @@ def _validate_external_outputs(directory, task):
                                f"{marker['contains']}")
 
 
-def _parser_failure(task, execution):
-    """Whether a failed record is eligible for a no-execution reparse."""
+def _native_success_recovery_candidate(task, execution):
+    """Whether a failed task can be checked for native-output recovery.
+
+    Eligibility deliberately does not depend on where the old Python stack
+    classified the failure.  Some site launchers return a nonzero status even
+    though the native program has written its unambiguous normal-termination
+    marker and complete result.  The recovery itself still verifies the
+    staged input and geometry, required output files, native success and
+    failure markers, and the current result parser before accepting anything.
+    """
     return (task.get('kind') == 'external'
             and bool(task.get('result_parser'))
             and bool(task.get('success_marker'))
-            and execution.get('status') == 'failed'
-            and 'parse_result(' in execution.get('traceback', ''))
+            and execution.get('status') == 'failed')
+
+
+def _native_success_present(directory, task):
+    """Cheaply identify a native normal termination before full validation."""
+    marker = task.get('success_marker')
+    if not marker:
+        return False
+    output = directory / marker['file']
+    if not output.is_file() or not output.stat().st_size:
+        return False
+    text_by_file = {marker['file']: output.read_text(errors='replace')}
+    if marker['contains'] not in text_by_file[marker['file']]:
+        return False
+    for failure in task.get('failure_markers', []):
+        name = failure['file']
+        path = directory / name
+        if name not in text_by_file and path.is_file():
+            text_by_file[name] = path.read_text(errors='replace')
+        if failure['contains'] in text_by_file.get(name, ''):
+            return False
+    return True
+
+
+def _recorded_failed_returncode(execution):
+    """Recover a subprocess status from an old failed execution, if present."""
+    match = re.search(r'Program exited with status\s+(\d+)',
+                      execution.get('error', ''))
+    return int(match.group(1)) if match else None
 
 
 def _recover_one_electron_f12_nan(run_dir, spec, state, task, entry,
@@ -845,12 +880,13 @@ def _recover_one_electron_f12_nan(run_dir, spec, state, task, entry,
 
 
 def _reparse_execution(run_dir, task, entry, previous):
-    """Reparse one hash-checked native success without changing state.json."""
+    """Accept one fully checked native success without executing QC again."""
     ident = task['id']
     directory = run_dir / 'tasks' / ident
     outcome = directory / 'execution.json'
-    if not _parser_failure(task, previous):
-        raise ValueError(f'{ident}: failure did not occur during result parsing.')
+    if not _native_success_recovery_candidate(task, previous):
+        raise ValueError(
+            f'{ident}: task is not eligible for native-success recovery.')
     _verify_execution(run_dir, task, entry, previous)
     _verify_stage_files(run_dir, task, entry)
     record = json.loads((directory / 'task.json').read_text())
@@ -873,12 +909,18 @@ def _reparse_execution(run_dir, task, entry, previous):
     parsed = parse_result(
         (directory / requested['file']).read_text(errors='replace'), requested)
     _atomic_json(previous_path, previous)
+    failed_returncode = _recorded_failed_returncode(previous)
+    parser_failure = 'parse_result(' in previous.get('traceback', '')
     details = {
         'command': _external_command(task),
-        'returncode': 0,
-        'returncode_source': 'original_parser_path_and_native_success_marker',
+        'returncode': (0 if parser_failure else failed_returncode),
+        'returncode_source': (
+            'original_parser_path_and_native_success_marker'
+            if parser_failure else
+            'preserved_dispatch_failure_and_native_success_marker'),
         'parsed_result': parsed,
         'reparsed_without_execution': True,
+        'native_success_recovered': True,
         'previous_error': previous.get('error', ''),
     }
     names.add(previous_name)
@@ -897,7 +939,7 @@ def _reparse_execution(run_dir, task, entry, previous):
 
 
 def reparse_failed(run_dir, ident):
-    """Recover a successful external calculation rejected only by its parser."""
+    """Recover a verified native success without executing QC again."""
     run_dir, spec, state = _load(run_dir)
     by_id = {task['id']: task for task in spec['tasks']}
     task = by_id.get(ident)
@@ -1637,9 +1679,10 @@ def advance(run_dir, submit=False, submit_only=None):
 
     # Reconcile two deterministic non-QC cases before dependency handling.
     # First, a newer parser may accept a native calculation that an older
-    # installed KinBot rejected.  Second, an atom has no geometry coordinate
-    # to optimize, so its geometry nodes are exact identity operations and do
-    # not belong in the scheduler at all.
+    # KinBot rejected, or a site launcher may have reported nonzero after the
+    # native program recorded normal termination.  Second, an atom has no
+    # geometry coordinate to optimize, so its geometry nodes are exact
+    # identity operations and do not belong in the scheduler at all.
     for ident, entry in state['tasks'].items():
         task = by_id[ident]
         outcome = run_dir / 'tasks' / ident / 'execution.json'
@@ -1652,7 +1695,9 @@ def advance(run_dir, submit=False, submit_only=None):
             except ValueError:
                 pass
         if (entry.get('status') == 'failed' and previous is not None
-                and _parser_failure(task, previous)):
+                and _native_success_recovery_candidate(task, previous)
+                and _native_success_present(
+                    run_dir / 'tasks' / ident, task)):
             try:
                 recovered, actual_hash = _reparse_execution(
                     run_dir, task, entry, previous)
@@ -1699,7 +1744,9 @@ def advance(run_dir, submit=False, submit_only=None):
             execution = json.loads(outcome.read_text())
             if entry['status'] == 'submitted' and _job_active(entry['job_id']):
                 continue
-            if _parser_failure(task, execution):
+            if (_native_success_recovery_candidate(task, execution)
+                    and _native_success_present(
+                        run_dir / 'tasks' / ident, task)):
                 try:
                     execution, _ = _reparse_execution(
                         run_dir, task, entry, execution)

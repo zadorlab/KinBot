@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import shlex
 import shutil
 import subprocess
@@ -680,6 +681,65 @@ def _chemistry_report(base, data):
     return report
 
 
+def _mess_rotd_statistical_factors(path, staged_name):
+    """Read the statistical factors from the rendered methyl MESS input."""
+    path = Path(path)
+    text = path.read_text(errors='replace')
+    number = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?'
+    top = r'(?=^[ \t]*(?:Well|Bimolecular|Barrier)\s|\Z)'
+    barriers = re.findall(r'(?ms)^[ \t]*Barrier\s+.*?' + top, text)
+    barriers = [block for block in barriers
+                if re.search(rf'(?m)^\s*File\s+{re.escape(staged_name)}\s*$',
+                             block)]
+    if len(barriers) != 1:
+        raise ValueError(
+            'Expected one MESS ROTD barrier using the staged surface.')
+    barrier = barriers[0]
+    core = re.search(
+        rf'(?ms)Core\s+Rotd\b.*?SymmetryFactor\s+({number}).*?'
+        r'End(?:\s*!\s*Core)?', barrier)
+    barrier_electronic = re.search(
+        rf'(?ms)ElectronicLevels\[1/cm\]\s+\d+\s*\n\s*'
+        rf'{number}\s+(\d+)', barrier)
+    if core is None or barrier_electronic is None:
+        raise ValueError('MESS ROTD barrier statistical factors are incomplete.')
+
+    bimolecular = re.findall(
+        r'(?ms)^[ \t]*Bimolecular\s+.*?' + top, text)
+    candidates = []
+    for block in bimolecular:
+        fragments = re.findall(
+            r'(?ms)^[ \t]*Fragment\s+.*?'
+            r'(?=^[ \t]*(?:Fragment\s|GroundEnergy\b))', block)
+        if len(fragments) == 2:
+            candidates.append(fragments)
+    if len(candidates) != 1:
+        raise ValueError(
+            'Expected one two-fragment MESS bimolecular model.')
+    symmetries = []
+    multiplicities = []
+    for fragment in candidates[0]:
+        symmetry = re.search(
+            rf'(?ms)Core\s+RigidRotor\b.*?SymmetryFactor\s+({number})',
+            fragment)
+        fragment_electronic = re.search(
+            rf'(?ms)ElectronicLevels\[1/cm\]\s+\d+\s*\n\s*'
+            rf'{number}\s+(\d+)', fragment)
+        if symmetry is None or fragment_electronic is None:
+            raise ValueError(
+                'MESS bimolecular fragment statistical factors are incomplete.')
+        symmetries.append(float(symmetry.group(1)))
+        multiplicities.append(int(fragment_electronic.group(1)))
+    return {
+        'mess_input': str(path.resolve()),
+        'mess_input_sha256': _sha256(path),
+        'fragment_rotational_symmetries': symmetries,
+        'fragment_multiplicities': multiplicities,
+        'reactive_surface_multiplicity': int(barrier_electronic.group(1)),
+        'mess_symmetry_factor': float(core.group(1)),
+    }
+
+
 def audit(source):
     manifest_path, data = _manifest(source)
     base = manifest_path.parent
@@ -702,7 +762,7 @@ def audit(source):
     chemistry = _chemistry_report(base, data)
     kinetics = audit_methyl_recombination(
         run_dir, job=data['mess'].get('job', 'mess_0000'),
-        max_factor=float(data['mess'].get('maximum_rate_factor', 3.)))
+        max_factor=float(data['mess'].get('maximum_rate_factor', 1.5)))
     sources_path = run_dir / 'me' / 'rotdpy_sources.json'
     sources = _read_json(sources_path, 'MESS ROTD_py provenance')
     reaction = data['rotdpy'].get('reaction')
@@ -735,6 +795,78 @@ def audit(source):
     if not explicit_origin:
         raise ValueError(
             'MESS-facing ROTD_py surface lacks an explicit zero-flux origin.')
+    job = data['mess'].get('job', 'mess_0000')
+    mess_input = run_dir / 'me' / f'{job}.inp'
+    rendered_factors = _mess_rotd_statistical_factors(
+        mess_input, staged.name)
+    selected_correction = selected_provenance.get('dynamical_correction')
+    if selected_correction is None:
+        raise ValueError(
+            'Selected production ROTD_py surface lacks dynamical correction '
+            'provenance.')
+    statistical_factors = {
+        **rendered_factors,
+        'dynamical_correction': selected_correction,
+        'dynamical_correction_application': selected_provenance.get(
+            'dynamical_correction_application'),
+        'rotational_symmetry_product': math.prod(
+            rendered_factors['fragment_rotational_symmetries']),
+        'indistinguishability_factor': consumed.get(
+            'indistinguishability_factor'),
+        'uncertainty_factor': consumed.get('uncertainty_factor'),
+    }
+    statistical_factors['raw_flux_equivalent_mess_symmetry_factor'] = (
+        statistical_factors['mess_symmetry_factor'] / selected_correction)
+    statistical_factors['electronic_statistical_ratio'] = (
+        statistical_factors['reactive_surface_multiplicity'] /
+        math.prod(statistical_factors['fragment_multiplicities']))
+    for key in ('rotational_symmetry_product', 'mess_symmetry_factor'):
+        if key in consumed and not math.isclose(
+                float(consumed[key]), float(statistical_factors[key]),
+                rel_tol=1.e-12, abs_tol=1.e-12):
+            raise ValueError(
+                f'MESS ROTD_py provenance disagrees with rendered {key}.')
+    for key in ('fragment_multiplicities',
+                'reactive_surface_multiplicity'):
+        if key in consumed and consumed[key] != statistical_factors[key]:
+            raise ValueError(
+                f'MESS ROTD_py provenance disagrees with rendered {key}.')
+    statistical_expectations = {
+        'dynamical_correction': 'dynamical_correction',
+        'expected_fragment_rotational_symmetries': (
+            'fragment_rotational_symmetries'),
+        'expected_fragment_multiplicities': 'fragment_multiplicities',
+        'expected_reactive_surface_multiplicity': (
+            'reactive_surface_multiplicity'),
+        'expected_electronic_statistical_ratio': (
+            'electronic_statistical_ratio'),
+        'expected_rotational_symmetry_product': (
+            'rotational_symmetry_product'),
+        'expected_indistinguishability_factor': (
+            'indistinguishability_factor'),
+        'expected_uncertainty_factor': 'uncertainty_factor',
+        'expected_mess_symmetry_factor': 'mess_symmetry_factor',
+        'expected_raw_flux_equivalent_mess_symmetry_factor': (
+            'raw_flux_equivalent_mess_symmetry_factor'),
+    }
+    for manifest_key, provenance_key in statistical_expectations.items():
+        if manifest_key not in data['mess']:
+            continue
+        expected = data['mess'][manifest_key]
+        observed = statistical_factors.get(provenance_key)
+        if isinstance(expected, (int, float)) and not isinstance(expected, bool):
+            try:
+                matches = math.isclose(
+                    float(observed), float(expected), rel_tol=1.e-12,
+                    abs_tol=1.e-12)
+            except (TypeError, ValueError):
+                matches = False
+        else:
+            matches = observed == expected
+        if not matches:
+            raise ValueError(
+                f'MESS ROTD_py {provenance_key} is {observed!r}; expected '
+                f'{expected!r}.')
     literature = _literature_checks(base, data.get('literature'))
     statuses = [kinetics['status'], *(item['status'] for item in literature)]
     status = 'passed' if all(value == 'passed' for value in statuses) else 'failed'
@@ -750,6 +882,7 @@ def audit(source):
             'mess_sha256': consumed['mess_file_sha256'],
             'mess_preprocessing': preprocessing,
             'mess_source_record': str(sources_path),
+            'statistical_factors': statistical_factors,
         },
         'handoff': handoff, 'chemistry': chemistry,
         'messpf': messpf, 'kinetics': kinetics,

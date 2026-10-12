@@ -19,6 +19,8 @@ ROTD_py calculations. It verifies:
 - MESSPF partition functions for every live and CBH-reference species;
 - CBH-reaction Hf(298.15 K), NASA-7 anchors, and continuity;
 - a MESS `Core Rotd` source hash matching the selected ROTD_py result;
+- the CH3 + CH3 rotational, identical-fragment, electronic, and dynamical
+  factors used by that `Core Rotd` model;
 - the CH3 + CH3 high-pressure rate table against the configured literature
   envelope.
 
@@ -51,6 +53,22 @@ Hf_target(T) = sum_(j != target) nu_j Hf_j(T) - Delta_r H(T)
 Only CBH-0 may read direct pinned ATcT values. Higher rungs recursively use
 computed lower-rung formation enthalpies at both 0 and 298.15 K. Elemental
 thermal increments are not used.
+
+For the methyl self-combination gate, each CH3 fragment has rotational
+symmetry 6 and electronic degeneracy 2. The reactive ethane surface is a
+singlet, giving the explicit electronic ratio `1 / (2 * 2) = 1/4`, and
+identical reactants contribute a factor of 2. KinBot applies the
+default local recrossing coefficient `kappa = 0.85` directly to the ROTD_py
+number-of-states flux, so the MESS `Core Rotd` symmetry is
+`6 * 6 * 2 = 72`. This is algebraically identical to leaving the flux
+uncorrected and using `72 / 0.85 = 84.7058823529`, the convention visible in
+the Ram et al. MESS inputs. The provenance record contains both values and
+the final audit checks them, which prevents applying `kappa` twice.
+
+The rate audit uses the 2015 recommended high-pressure expression
+`5.76e-11 * (T / 298 K)^-0.34 cm3 molecule-1 s-1` from 300 to 2000 K. It also
+reports the 2006 VRC-TST expression and the superseded 1996 global fit for
+context; neither published expression enters input generation.
 
 ## Prerequisites
 

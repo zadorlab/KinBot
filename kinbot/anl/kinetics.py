@@ -12,18 +12,31 @@ import re
 
 
 METHYL_RECOMBINATION_SOURCE = {
+    'doi': '10.1021/acs.jpca.5b01002',
+    'title': ('Reanalysis of Rate Data for the Reaction CH3 + CH3 -> C2H6 '
+              'Using Revised Cross Sections and a Linearized Second-Order '
+              'Master Equation'),
+    'fit': '5.76e-11 * (T/298 K)^-0.34 cm^3 molecule^-1 s^-1',
+    'temperature_range_k': [300.0, 2000.0],
+    'uncertainty': 'about +/-10% at 300 K, increasing to +/-20% at 2000 K',
+}
+
+METHYL_RECOMBINATION_LEGACY_SOURCE = {
     'doi': '10.1021/jp951218o',
     'title': 'Recombination of Methyl Radicals. 2. Global Fits of the Rate Coefficient',
     'fit': '8.78e-11 * exp(-T/723) cm^3 s^-1',
     'temperature_range_k': [300.0, 1750.0],
+    'relationship': ('Historical comparison only. The 2015 reanalysis found '
+                     'that this expression has an excessively strong negative '
+                     'temperature dependence.'),
 }
 
 METHYL_RECOMBINATION_THEORY_CONTEXT = {
     'doi': '10.1039/B515914H',
-    'title': ('Theoretical kinetics of the reaction of methyl radicals with '
-              'molecular oxygen and methyl radical recombination'),
+    'title': 'Predictive theory for the combination kinetics of two alkyl radicals',
     'method': ('VRC-TST with direct CASPT2/cc-pVDZ sampling and a '
                'one-dimensional CAS+1+2/aug-cc-pVTZ correction'),
+    'fit': '1.57e-9 * T^-0.538 * exp(-68 K/T) cm^3 molecule^-1 s^-1',
     'relationship': ('Independent method context; the current validation '
                      'uses its declared MRCI+Q/cc-pVTZ correction instead.'),
 }
@@ -135,7 +148,23 @@ def rate_series(points, reactant, product):
 
 
 def methyl_recombination_experimental_fit(temperature_k):
-    """1996 global experimental high-pressure fit, in cm^3 s^-1."""
+    """2015 recommended experimental high-pressure fit, in cm^3 s^-1."""
+    temperature = float(temperature_k)
+    if not math.isfinite(temperature) or temperature <= 0.:
+        raise ValueError('Temperature must be finite and positive.')
+    return 5.76e-11 * (temperature / 298.) ** -0.34
+
+
+def methyl_recombination_theory_fit(temperature_k):
+    """2006 corrected VRC-TST high-pressure fit, in cm^3 s^-1."""
+    temperature = float(temperature_k)
+    if not math.isfinite(temperature) or temperature <= 0.:
+        raise ValueError('Temperature must be finite and positive.')
+    return 1.57e-9 * temperature ** -0.538 * math.exp(-68. / temperature)
+
+
+def methyl_recombination_legacy_fit(temperature_k):
+    """1996 global high-pressure fit retained for historical context."""
     temperature = float(temperature_k)
     if not math.isfinite(temperature) or temperature <= 0.:
         raise ValueError('Temperature must be finite and positive.')
@@ -150,7 +179,7 @@ def _sha256(path):
     return digest.hexdigest()
 
 
-def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=3.):
+def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=1.5):
     """Audit a completed CH3 + CH3 MESS result against a published fit.
 
     Network metadata determines the separated bimolecular reactant and bound
@@ -204,12 +233,22 @@ def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=3.):
         if row['compared_to_experiment']:
             reference = methyl_recombination_experimental_fit(
                 point.temperature_k)
+            theory = methyl_recombination_theory_fit(point.temperature_k)
+            legacy = methyl_recombination_legacy_fit(point.temperature_k)
             factor = (max(point.rate, reference) / min(point.rate, reference)
                       if point.rate > 0. else math.inf)
             row.update({
                 'reference_rate': reference,
                 'factor_difference': factor,
                 'within_factor': factor <= max_factor,
+                'similar_vrc_theory_rate': theory,
+                'similar_vrc_theory_factor_difference': (
+                    max(point.rate, theory) / min(point.rate, theory)
+                    if point.rate > 0. else math.inf),
+                'legacy_1996_rate': legacy,
+                'legacy_1996_factor_difference': (
+                    max(point.rate, legacy) / min(point.rate, legacy)
+                    if point.rate > 0. else math.inf),
             })
         comparison.append(row)
     compared = [row for row in comparison if row['compared_to_experiment']]
@@ -235,6 +274,7 @@ def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=3.):
         'maximum_accepted_factor': float(max_factor),
         'monotonically_nonincreasing_with_temperature': monotone,
         'source': METHYL_RECOMBINATION_SOURCE,
+        'legacy_source': METHYL_RECOMBINATION_LEGACY_SOURCE,
         'similar_vrc_theory_context': METHYL_RECOMBINATION_THEORY_CONTEXT,
         'rates': comparison,
         'note': ('The literature fit is an independent diagnostic target and '
@@ -251,7 +291,7 @@ def main(argv=None):
     compare = commands.add_parser('compare-methyl-recombination')
     compare.add_argument('run_dir', type=Path)
     compare.add_argument('--job', default='mess_0000')
-    compare.add_argument('--max-factor', type=float, default=3.)
+    compare.add_argument('--max-factor', type=float, default=1.5)
     args = parser.parse_args(argv)
     if args.action == 'parse-high-pressure':
         print(json.dumps([asdict(point) for point in

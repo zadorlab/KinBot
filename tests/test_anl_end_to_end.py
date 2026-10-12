@@ -12,8 +12,53 @@ import kinbot.anl.end_to_end as end_to_end
 from kinbot.anl.atct import ATcTRecord
 from kinbot.anl.cbh import FormationEnthalpy
 from kinbot.anl.end_to_end import (_audit_handoff, _literature_checks,
+                                   _mess_rotd_statistical_factors,
                                    _write_cbh_thermochemistry_models,
                                    _write_mess_input, component_breakdown, run)
+
+
+def test_rendered_mess_rotd_statistical_factors_are_read_separately(tmp_path):
+    source = tmp_path / 'mess_0000.inp'
+    source.write_text('''Bimolecular b_1
+  Fragment f1
+    RRHO
+      Core RigidRotor
+        SymmetryFactor 6.0
+      End ! Core
+      ElectronicLevels[1/cm] 1
+        0.0 2
+    End
+  Fragment f2
+    RRHO
+      Core RigidRotor
+        SymmetryFactor 6.0
+      End ! Core
+      ElectronicLevels[1/cm] 1
+        0.0 2
+    End
+  GroundEnergy[kcal/mol] 0.0
+End
+Barrier vrc b_1 w_1
+  Variational
+    RRHO
+      Core Rotd
+        File rotd_channel_Ne_0.out
+        SymmetryFactor 72.0
+      End ! Core
+      ElectronicLevels[1/cm] 1
+        0.0 1
+    End ! RRHO
+  End
+End
+''')
+
+    factors = _mess_rotd_statistical_factors(
+        source, 'rotd_channel_Ne_0.out')
+
+    assert factors['fragment_rotational_symmetries'] == [6., 6.]
+    assert factors['fragment_multiplicities'] == [2, 2]
+    assert factors['reactive_surface_multiplicity'] == 1
+    assert factors['mess_symmetry_factor'] == 72.
 
 
 def _composite(path, offset):
@@ -315,6 +360,17 @@ def test_final_manifest_assigns_each_completed_graph_to_a_valid_role(tmp_path):
         'base_run'].endswith('anl_current_base_ethane_449cfbd')
     assert 'base_run' not in generated['composites']['methane']['assembly']
     assert 'base_run' not in generated['composites']['hydrogen']['assembly']
+    assert generated['mess']['dynamical_correction'] == 0.85
+    assert generated['mess'][
+        'expected_fragment_rotational_symmetries'] == [6., 6.]
+    assert generated['mess']['expected_fragment_multiplicities'] == [2, 2]
+    assert generated['mess']['expected_electronic_statistical_ratio'] == .25
+    assert generated['mess']['expected_indistinguishability_factor'] == 2
+    assert generated['mess']['expected_uncertainty_factor'] == 1.
+    assert generated['mess']['expected_mess_symmetry_factor'] == 72.
+    assert generated['mess'][
+        'expected_raw_flux_equivalent_mess_symmetry_factor'] == \
+        pytest.approx(72. / 0.85)
 
 
 def test_applied_handoff_audit_verifies_every_source_hash(tmp_path):

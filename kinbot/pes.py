@@ -185,6 +185,11 @@ def _rotdpy_validation_metadata(par, pp_info, correction_file, noscan,
             'basis': par['vrc_tst_high_basis'],
         },
     }
+    dynamical_correction = float(par['rotdpy_dynamical_correction'])
+    if (not np.isfinite(dynamical_correction)
+            or not 0. < dynamical_correction <= 1.):
+        raise ValueError('rotdpy_dynamical_correction must be finite and in '
+                         'the interval (0, 1].')
     if profile == 'production':
         if noscan:
             raise ValueError('Production ROTD_py validation requires '
@@ -227,6 +232,8 @@ def _rotdpy_validation_metadata(par, pp_info, correction_file, noscan,
             'angular_momentum': list(par['rotdpy_angular_grid']),
         },
         'flux_parameters': dict(par['rotdpy_flux_parameters']),
+        'dynamical_correction': dynamical_correction,
+        'dynamical_correction_application': 'number_of_states_flux',
     }
 
 

@@ -1538,6 +1538,17 @@ class MESS:
         provenance['indistinguishability_factor'] = indistinguishability
         provenance['uncertainty_factor'] = symmetry_factor
         provenance['mess_symmetry_factor'] = rotd_symmetry
+        provenance['fragment_multiplicities'] = [
+            int(species.mult) for species in products]
+        provenance['reactive_surface_multiplicity'] = int(self.species.mult)
+        # ROTD_py has already multiplied Ne(E) by kappa. Ram et al. leave the
+        # flux raw and divide the MESS symmetry factor by kappa instead. Store
+        # that algebraically equivalent value for review without applying the
+        # correction a second time.
+        dynamical_correction = provenance.get('dynamical_correction')
+        if dynamical_correction is not None:
+            provenance['raw_flux_equivalent_mess_symmetry_factor'] = (
+                rotd_symmetry / dynamical_correction)
         self.rotdpy_sources[reaction.instance_name] = provenance
 
         return self.rotdrrhotpl.format(

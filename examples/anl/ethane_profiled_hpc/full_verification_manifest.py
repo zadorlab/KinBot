@@ -266,7 +266,26 @@ def main(argv=None):
             'uq_max_runs': 1, 'job': 'mess_0000',
             'required_hindered_rotor_species': [
                 '301020900180000000001'],
-            'maximum_rate_factor': 3.0,
+            # CH3 + CH3 normalization. ROTD_py applies kappa to Ne(E), so the
+            # MESS factor remains 6*6*2 = 72. The equivalent Ram raw-flux
+            # convention is 72/0.85 = 84.7058823529.
+            'dynamical_correction': 0.85,
+            'expected_fragment_rotational_symmetries': [6.0, 6.0],
+            'expected_fragment_multiplicities': [2, 2],
+            'expected_reactive_surface_multiplicity': 1,
+            'expected_electronic_statistical_ratio': 0.25,
+            'expected_rotational_symmetry_product': 36.0,
+            'expected_indistinguishability_factor': 2,
+            'expected_uncertainty_factor': 1.0,
+            'expected_mess_symmetry_factor': 72.0,
+            'expected_raw_flux_equivalent_mess_symmetry_factor': (
+                84.70588235294117),
+            # The production-style smoke calculation intentionally uses the
+            # cheaper declared MRCI+Q correction rather than the published
+            # CAS+1+2 correction. Require agreement within a factor of 1.5
+            # with the 2015 reanalysis. Retain every point and both older
+            # literature comparisons in the audit report.
+            'maximum_rate_factor': 1.5,
         },
         'literature': literature,
     }

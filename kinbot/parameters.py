@@ -348,7 +348,10 @@ class Parameters:
                 'flux_rel_err': 5,
                 'smp_len': 1,
             },
-            'rotdpy_dynamical_correction': 1.0,
+            # Standard local recrossing correction used by VRC-TST. ROTD_py
+            # applies it directly to the sampled flux, so MESS must not also
+            # divide its Rotd symmetry factor by this value.
+            'rotdpy_dynamical_correction': 0.85,
             # ``production`` requires a multipoint trusted correction,
             # multiple dividing surfaces, and completed Monte Carlo
             # convergence records before a ROTD result can enter MESS.

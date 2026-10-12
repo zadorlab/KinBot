@@ -433,6 +433,9 @@ class TestComplexMESS(unittest.TestCase):
         manifest.write_text(json.dumps({
             'schema': 2, 'status': 'complete',
             'reaction': reaction.instance_name, 'surface_count': 1,
+            'validation': {
+                'name': 'interface', 'dynamical_correction': 0.85,
+                'dynamical_correction_application': 'number_of_states_flux'},
             'result_files': result_files, 'result_sha256': hashes,
         }))
 
@@ -457,10 +460,65 @@ class TestComplexMESS(unittest.TestCase):
             'positive_flux_origin_shift_cm_inverse': 0.01,
         })
         self.assertEqual(source['indistinguishability_factor'], 1)
+        self.assertEqual(source['fragment_multiplicities'], [2, 2])
+        self.assertEqual(source['reactive_surface_multiplicity'], 1)
+        self.assertEqual(source['dynamical_correction'], 0.85)
         self.assertEqual(
             source['mess_symmetry_factor'],
             writer._parent_symmetry(reaction.products[0])
             * writer._parent_symmetry(reaction.products[1]))
+        self.assertAlmostEqual(
+            source['raw_flux_equivalent_mess_symmetry_factor'],
+            source['mess_symmetry_factor'] / 0.85)
+
+    def test_rotd_self_combination_includes_identical_fragment_factor(self):
+        parent, reactions = self.reactions(True)
+        reaction = reactions[0]
+        fragment = reaction.products[0]
+        reaction.products = [fragment, copy.deepcopy(fragment)]
+        root = Path('rotdPy')
+        result_root = root / f'kb_{reaction.instance_name}'
+        surface = result_root / 'output' / 'surface_0.dat'
+        number = result_root / 'Ne_0.out'
+        surface.parent.mkdir(parents=True)
+        input_file = root / f'{reaction.instance_name}.py'
+        input_file.write_text('# generated ROTD_py input\n')
+        surface.write_text('surface flux\n')
+        number.write_text('0.0 1.0\n100.0 2.0\n')
+        result_files = [
+            str(number.relative_to(root)), str(surface.relative_to(root))]
+        hashes = {
+            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            for relative in result_files
+        }
+        (root / f'{reaction.instance_name}.rotdpy.json').write_text(
+            json.dumps({
+                'schema': 3, 'status': 'complete',
+                'reaction': reaction.instance_name, 'surface_count': 1,
+                'validation': {
+                    'name': 'interface', 'dynamical_correction': 0.85,
+                    'dynamical_correction_application': (
+                        'number_of_states_flux')},
+                'result_files': result_files, 'result_sha256': hashes,
+            }))
+
+        writer = MESS(dict(self.par, rotdpy_mess_mode='required'), parent)
+        block = writer._rotd_model(
+            reaction.products, 'C2H6', 0., 0., 1., 1., reaction)
+        source = writer.rotdpy_sources[reaction.instance_name]
+        fragment_symmetry = writer._parent_symmetry(fragment)
+
+        self.assertIn('Core Rotd', block)
+        self.assertEqual(source['rotational_symmetry_product'],
+                         fragment_symmetry ** 2)
+        self.assertEqual(source['indistinguishability_factor'], 2)
+        self.assertEqual(source['fragment_multiplicities'], [2, 2])
+        self.assertEqual(source['reactive_surface_multiplicity'], 1)
+        self.assertEqual(source['mess_symmetry_factor'],
+                         fragment_symmetry ** 2 * 2)
+        self.assertAlmostEqual(
+            source['raw_flux_equivalent_mess_symmetry_factor'],
+            fragment_symmetry ** 2 * 2 / 0.85)
 
     def test_required_rotd_surface_refuses_phase_space_fallback(self):
         parent, _ = self.reactions(True)

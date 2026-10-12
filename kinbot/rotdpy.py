@@ -313,6 +313,35 @@ def _has_finite_numeric_data(path: Path) -> bool:
     return False
 
 
+def _result_dynamical_correction(input_file: Path, payload: dict,
+                                 *, required: bool = False):
+    """Recover kappa from result metadata or an immutable generated input."""
+    validation = payload.get('validation') or {}
+    value = validation.get('dynamical_correction')
+    source = 'validation_metadata'
+    if value is None:
+        match = re.search(
+            r'(?m)^\s*dynamical_correction\s*=\s*'
+            r'([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?)\s*,?\s*$',
+            input_file.read_text(errors='replace'))
+        if match is not None:
+            value = match.group(1)
+            source = 'generated_input'
+    if value is None:
+        if required:
+            raise RuntimeError(
+                'Production rotdPy result lacks a dynamical correction.')
+        return None, None
+    try:
+        correction = float(value)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError('Invalid rotdPy dynamical correction.') from error
+    if not math.isfinite(correction) or not 0. < correction <= 1.:
+        raise RuntimeError(
+            'rotdPy dynamical correction must be finite and in (0, 1].')
+    return correction, source
+
+
 def _validate_production_result(input_file: Path, payload: dict,
                                 outputs: list[Path]) -> None:
     """Reject reduced interface samples from production MESS calculations."""
@@ -342,6 +371,7 @@ def _validate_production_result(input_file: Path, payload: dict,
            or not str(level.get('method', '')).strip()
            or not str(level.get('basis', '')).strip() for level in levels):
         raise RuntimeError('Production rotdPy method provenance is incomplete.')
+    _result_dynamical_correction(input_file, payload, required=True)
     statistics = payload.get('surface_statistics')
     if not isinstance(statistics, dict) or len(statistics) != payload['surface_count']:
         raise RuntimeError('Production rotdPy surface statistics are incomplete.')
@@ -442,7 +472,11 @@ def number_of_states_file(input_file: str | Path, energy_index: int = -1,
             f'available indices are {sorted(candidates)}.')
     relative = candidates[selected]
     source = input_file.parent / relative
-    return source.resolve(), {
+    correction, correction_source = _result_dynamical_correction(
+        input_file, payload,
+        required=((payload.get('validation') or {}).get('name') == 'production'
+                  or required_profile == 'production'))
+    provenance = {
         'schema': 1,
         'reaction': payload.get('reaction', input_file.stem),
         'surface_count': payload['surface_count'],
@@ -456,6 +490,13 @@ def number_of_states_file(input_file: str | Path, energy_index: int = -1,
         'result_manifest': str(result_path(input_file).resolve()),
         'result_manifest_sha256': _sha256(result_path(input_file)),
     }
+    if correction is not None:
+        provenance.update({
+            'dynamical_correction': correction,
+            'dynamical_correction_source': correction_source,
+            'dynamical_correction_application': 'number_of_states_flux',
+        })
+    return source.resolve(), provenance
 
 
 def stage_number_of_states_file(source: str | Path,

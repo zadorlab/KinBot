@@ -73,6 +73,7 @@ def test_generated_input_uses_configured_sampling_and_portable_scratch():
             assert "'KinBot 1D scan'" not in generated
             assert 'temperature = generate_grid(*[100.0, 50.0, 1.0, 2])' in generated
             assert "'pot_smp_min': 4" in generated
+            assert 'dynamical_correction=0.85' in generated
             scheduler = Path('rotdPy/qu.tpl').read_text()
             site_setup = Path('rotdPy/site_setup.sh')
             assert site_setup.is_file()
@@ -170,6 +171,8 @@ def test_production_result_requires_converged_numeric_multipoint_sampling(
         'dividing_surfaces': {
             'requested_distances_angstrom': [3., 4., 5.],
             'generated_count': 3},
+        'dynamical_correction': 0.85,
+        'dynamical_correction_application': 'number_of_states_flux',
     }
     statistics = {
         str(index): {'converged': True, 'accepted_samples': 100}
@@ -185,6 +188,27 @@ def test_production_result_requires_converged_numeric_multipoint_sampling(
     (tmp_path / 'channel.rotdpy.json').write_text(json.dumps(manifest))
     assert read_result(input_file, required_profile='production')[
         'surface_count'] == 3
+    _, provenance = number_of_states_file(
+        input_file, required_profile='production')
+    assert provenance['dynamical_correction'] == pytest.approx(0.85)
+    assert provenance['dynamical_correction_source'] == 'validation_metadata'
+
+    # Completed production calculations from before the metadata field was
+    # added remain auditable from their immutable generated Python input.
+    validation.pop('dynamical_correction')
+    validation.pop('dynamical_correction_application')
+    input_file.write_text(
+        '# production input\n'
+        'multi.print_results(\n'
+        'dynamical_correction=0.85,\n'
+        ')\n')
+    manifest['input_sha256'] = __import__('hashlib').sha256(
+        input_file.read_bytes()).hexdigest()
+    (tmp_path / 'channel.rotdpy.json').write_text(json.dumps(manifest))
+    _, provenance = number_of_states_file(
+        input_file, required_profile='production')
+    assert provenance['dynamical_correction'] == pytest.approx(0.85)
+    assert provenance['dynamical_correction_source'] == 'generated_input'
 
     manifest['surface_statistics']['1']['converged'] = False
     (tmp_path / 'channel.rotdpy.json').write_text(json.dumps(manifest))

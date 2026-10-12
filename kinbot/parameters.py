@@ -11,8 +11,8 @@ import logging
 import numpy as np
 from ase import units
 from kinbot import pp_tables
-from kinbot.theory import (profiled_requested, resolve_profiles,
-                           validate_anl_size_policy)
+from kinbot.theory import (automatic_cbh_anl_requested, profiled_requested,
+                           resolve_profiles, validate_anl_size_policy)
 
 logger = logging.getLogger('KinBot')
 
@@ -29,6 +29,10 @@ class Parameters:
         """
         # user input file
         self.input_file = inpfile
+        # Keep explicit user choices separate from defaults.  Automatic ANL
+        # can then derive subsystem limits from the ordinary KinBot queue cap
+        # without overwriting an expert override.
+        self.user_keys = set()
 
         self.par = {
             # User should not set this
@@ -218,9 +222,11 @@ class Parameters:
             'l1_profile': {},
             'l2_profile': {},
             'composite_method': '',
-            # Highest connectivity-derived CBH rung requested for automatic
-            # ANL thermochemistry.  Zero retains the CBH-0/ATcT boundary.
-            'cbh_rung': 0,
+            # Automatic CBH planning chooses the highest structurally valid
+            # rung (up to CBH-3), then falls down by rung and common ANL tier
+            # as required.  An integer remains accepted for reproducible
+            # legacy/diagnostic runs, but ordinary users do not select it.
+            'cbh_rung': 'auto',
             # Automatic composite-cost ceilings.  The values are ordinary
             # user policy, not molecule-specific exceptions; each CBH state
             # records the metrics and selected tier.
@@ -336,7 +342,7 @@ class Parameters:
             # List of files containing the parameters for the NN model.
             'nn_model': None,
             # FairChem MLIP model configuration (used when qc = 'fc')
-            # Path to local checkpoint file, e.g. /path/to/uma-s-1p2.pt
+            # Local checkpoint path or FairChem pretrained model name.
             'fc_model_path': '',
             # Task name for FAIRChemCalculator: omol, omat, oc20, oc22, odac, omc
             'fc_task_name': 'omol',
@@ -572,6 +578,19 @@ class Parameters:
         self.par['profiled_theory'] = int(profiled_requested(self.par))
         self.theory_profiles = resolve_profiles(self.par)
 
+        # One queue limit controls the complete automatic calculation.  This
+        # includes KinBot QC jobs, VRC correction jobs, ROTD_py samples, and
+        # the composite DAG.  Existing nonautomatic inputs and explicit
+        # subsystem overrides retain their historical behavior.
+        queue_limit = self.par['queue_job_limit']
+        if (automatic_cbh_anl_requested(self.par)
+                and not isinstance(queue_limit, bool)
+                and isinstance(queue_limit, int) and queue_limit > 0):
+            if 'vrc_tst_max_nodes' not in self.user_keys:
+                self.par['vrc_tst_max_nodes'] = queue_limit
+            if 'rotdpy_max_jobs' not in self.user_keys:
+                self.par['rotdpy_max_jobs'] = queue_limit
+
         err = None
         if self.par['me'] == 1:
             if self.par['calc_aie'] and not self.par['conformer_search']:
@@ -626,11 +645,14 @@ class Parameters:
         if (isinstance(self.par['stop_product_reaction_search'], bool)
                 or self.par['stop_product_reaction_search'] not in (0, 1)):
             raise ValueError('stop_product_reaction_search must be 0 or 1.')
-        if (isinstance(self.par['cbh_rung'], bool)
-                or self.par['cbh_rung'] not in range(4)):
-            raise ValueError('cbh_rung must be 0, 1, 2, or 3.')
-        if self.par['cbh_rung'] and not self.par['composite_method']:
-            raise ValueError('cbh_rung above zero requires composite_method.')
+        cbh_rung = self.par['cbh_rung']
+        if not (cbh_rung == 'auto'
+                or (not isinstance(cbh_rung, bool)
+                    and isinstance(cbh_rung, int) and cbh_rung in range(4))):
+            raise ValueError('cbh_rung must be auto, 0, 1, 2, or 3.')
+        if cbh_rung != 'auto' and cbh_rung and not self.par['composite_method']:
+            raise ValueError('an explicit CBH rung above zero requires '
+                             'composite_method.')
         self.par['anl_size_policy'] = validate_anl_size_policy(
             self.par['anl_size_policy'])
         if (not isinstance(self.par['atct_version'], str)
@@ -868,6 +890,7 @@ class Parameters:
             else:
                 msg = f'KinBot does not recognize option {key} with value {user_data[key]}'
                 raise IOError(msg)
+        self.user_keys = set(user_data)
 
         return
 

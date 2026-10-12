@@ -21,6 +21,13 @@ def clock(monkeypatch):
     return clock
 
 
+def test_mess_command_honors_environment(monkeypatch):
+    monkeypatch.setenv('KINBOT_MESS_COMMAND',
+                       '/site/mess/bin/mess --scratch local')
+    assert execution.mess_command({'mess_command': 'missing'}) == [
+        '/site/mess/bin/mess', '--scratch', 'local']
+
+
 def test_pes_writes_all_uq_inputs_before_starting_mess(tmp_path, monkeypatch):
     import json
     import logging

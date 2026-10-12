@@ -14,6 +14,7 @@ from dataclasses import asdict
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 import shlex
@@ -929,8 +930,12 @@ def _command_available(value, label):
 def run(source):
     prepared = prepare(source)
     parameters = _read_json(prepared['kinbot_input'], 'generated KinBot input')
-    _command_available(parameters['mess_command'], 'mess_command')
-    _command_available(parameters['messpf_command'], 'messpf_command')
+    _command_available(
+        os.environ.get('KINBOT_MESS_COMMAND', '').strip()
+        or parameters['mess_command'], 'mess_command')
+    _command_available(
+        os.environ.get('KINBOT_MESSPF_COMMAND', '').strip()
+        or parameters['messpf_command'], 'messpf_command')
     run_dir = Path(prepared['run_dir'])
     result = subprocess.run(
         [sys.executable, '-m', 'kinbot.kb', Path(

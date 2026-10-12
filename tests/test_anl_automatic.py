@@ -44,7 +44,7 @@ def test_network_request_generates_recursive_cbh_states_without_user_species():
     acetaldehyde.reac_type = ['hom_sci']
 
     request = build_network_request(acetaldehyde, {
-        'composite_method': 'ANL0-F12', 'cbh_rung': 1,
+        'composite_method': 'ANL0-F12',
         'anl_size_policy': DEFAULT_SIZE_POLICY,
         'queue_name': 'day-long-cpu', 'ppn': 8, 'queue_job_limit': 8,
         'atct_version': '1.220',
@@ -56,7 +56,10 @@ def test_network_request_generates_recursive_cbh_states_without_user_species():
     assert set(request['cbh']['targets']) == {
         'acetaldehyde', 'methyl', 'formyl'}
     acetaldehyde_target = request['cbh']['targets']['acetaldehyde']
+    assert request['requested_cbh_rung'] == 'auto'
+    assert acetaldehyde_target['rung_policy'] == 'auto'
     assert acetaldehyde_target['selected_structural_rung'] == 1
+    assert acetaldehyde_target['available_structural_rungs'] == [1, 0]
     assert acetaldehyde_target['reaction']['stoichiometry'] == {
         'C': -1, 'C=O': 1, 'CC': 1, 'CC=O': -1}
     calculated = {entry['smiles'] for entry in
@@ -155,6 +158,24 @@ def test_automatic_environment_checks_final_solvers_before_qc(monkeypatch):
     assert checked['mess_command'] == '/opt/mess/bin/mess'
     assert checked['messpf_command'] == '/opt/mess/bin/messpf'
     assert checked['sbatch'] == '/usr/bin/sbatch'
+
+
+def test_automatic_environment_honors_solver_environment(monkeypatch):
+    found = {
+        '/site/mess/bin/mess': '/site/mess/bin/mess',
+        '/site/mess/bin/messpf': '/site/mess/bin/messpf'}
+    monkeypatch.setenv('KINBOT_MESS_COMMAND', '/site/mess/bin/mess')
+    monkeypatch.setenv('KINBOT_MESSPF_COMMAND', '/site/mess/bin/messpf')
+    monkeypatch.setattr(
+        'kinbot.anl.automatic.shutil.which', lambda value: found.get(value))
+    checked = validate_automatic_environment({
+        'composite_method': 'ANL0-F12', 'me': 1, 'run_me': 1,
+        'run_messpf': 1, 'mess_command': 'missing-mess',
+        'messpf_command': 'missing-messpf', 'queuing': 'local'})
+    assert checked == {
+        'mess_command': '/site/mess/bin/mess',
+        'messpf_command': '/site/mess/bin/messpf',
+        'atct_client': 'available'}
 
 
 def test_automatic_environment_checks_rotdpy_before_qc(monkeypatch):

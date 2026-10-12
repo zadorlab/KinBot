@@ -2,6 +2,7 @@
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import shlex
@@ -26,7 +27,8 @@ class _ResultPending(MESSExecutionError):
 
 def mess_command(parameters):
     """Read an executable and optional arguments, without shell expansion."""
-    value = parameters.get('mess_command', 'mess')
+    value = (os.environ.get('KINBOT_MESS_COMMAND', '').strip()
+             or parameters.get('mess_command', 'mess'))
     if not isinstance(value, str) or not value.strip():
         raise MESSExecutionError('mess_command must specify an executable and optional arguments.')
     try:

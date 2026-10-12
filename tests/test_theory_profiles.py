@@ -104,12 +104,15 @@ class TestTheoryProfiles(unittest.TestCase):
         self.assertEqual(l2.calculator_kwargs, {})
         self.assertEqual(l2.command, '')
 
-    def test_composite_method_selects_preset_and_requires_checkpoint(self):
-        with self.assertRaisesRegex(ValueError, 'model_path'):
-            self.parameters(composite_method='ANL0-F12')
+    def test_composite_method_selects_portable_preset_checkpoint(self):
+        default = self.parameters(composite_method='ANL0-F12')
+        self.assertEqual(default.theory_profiles['l1'].model_path,
+                         'uma-s-1p2')
         parameters = self.parameters(composite_method='ANL0-F12',
                                      fc_model_path='/site/uma.pt')
         self.assertEqual(parameters.theory_profiles['l1'].calculator, 'fairchem')
+        self.assertEqual(parameters.theory_profiles['l1'].model_path,
+                         '/site/uma.pt')
         self.assertEqual(parameters.theory_profiles['l2'].method, 'B3LYP')
 
     def test_invalid_profile_and_preset_fail_during_input_parsing(self):

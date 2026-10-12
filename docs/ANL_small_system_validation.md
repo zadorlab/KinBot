@@ -43,7 +43,7 @@ an ordinary KinBot PES input:
 
 ```json
 {
-  "title": "acetaldehyde_cbh1_anl0_f12",
+  "title": "acetaldehyde_anl0_f12",
   "smiles": "CC=O",
   "charge": 0,
   "mult": 1,
@@ -57,14 +57,24 @@ an ordinary KinBot PES input:
     }
   },
   "stop_product_reaction_search": 1,
+  "barrier_threshold": 100.0,
+  "conformer_search": 1,
+  "high_level": 1,
+  "rotor_scan": 1,
   "theory_preset": "uma-b2plyp-anl",
   "composite_method": "ANL0-F12",
-  "cbh_rung": 1,
   "vrc_tst_correction_model": "spin_splitting",
   "vrc_tst_scan_points": [2.5, 3.125, 3.75, 4.375, 5.0, 7.0, 10.0],
   "rotdpy_run": 1,
+  "rotdpy_validation_profile": "production",
+  "rotdpy_mess_mode": "production",
   "run_messpf": 1,
   "me": 1,
+  "run_me": 1,
+  "collider": "He",
+  "epsilon": 300.0,
+  "epsilon_unit": "K",
+  "sigma": 4.5,
   "queuing": "slurm",
   "queue_name": "day-long-cpu",
   "ppn": 8,
@@ -127,11 +137,63 @@ own 30-angstrom asymptote.  The MEP geometries remain those produced by the
 configured KinBot VRC relaxed scan; the stored provenance distinguishes this
 from the CASPT2-F12-relaxed MEP used in the published perfluoroalkyl work.
 
-`selected_reactions`, `stop_product_reaction_search`, and `cbh_rung` are
-ordinary KinBot parameters.  The selector uses the atom order generated from
+`selected_reactions` and `stop_product_reaction_search` are ordinary KinBot
+parameters.  The selector uses the atom order generated from
 the input SMILES and avoids a hard-coded connectivity ID.  Program paths,
 module names, memory per node, and executable locations remain site
 configuration rather than molecular input.
+
+The user does not select a CBH rung. KinBot starts from the highest
+structurally valid rung through CBH-3 for each connectivity, plans all lower
+reference reactions needed to terminate at CBH-0/ATcT, and then selects the
+highest rung having one common completed energy label within that reaction.
+Species in different ladder reactions may use different ANL fallback tiers.
+The checked input is
+`examples/anl/acetaldehyde_cbh_anl0_f12/acetaldehyde.json`.
+
+`selected_reactions` limits this deliberately small validation PES to three
+published channels. It has no role in CBH balancing or rung selection.
+
+## Automatic feasibility and fallback policy
+
+`composite_method` is the requested electronic ceiling. For `ANL0-F12`, each
+generated molecular state is assigned the highest tier allowed by its
+connectivity metrics:
+
+1. full ANL0-F12 for at most 16 atoms, 4 heavy atoms, and 4 heavy bonds;
+2. L3 geometry and harmonic frequencies for at most 30 atoms, 8 heavy atoms,
+   and 8 heavy bonds;
+3. an L3 single point on the accepted L2 geometry for at most 50 atoms,
+   12 heavy atoms, and 12 heavy bonds; or
+4. the accepted L2 energy, geometry, and modes otherwise.
+
+Every assigned state retains the ordered fallback chain
+`ANL0-F12 -> ANL0 -> L3 -> L3-SP@L2 -> L2`, beginning at its allowed tier.
+All structurally valid CBH reactions from CBH-3 down through CBH-0 and all
+their lower-rung reference states are planned before licensed calculations
+start. Assembly considers the highest structural rung first and requires one
+exact completed method label for every species in that reaction. It lowers
+the electronic tier within that rung before trying the next lower structural
+rung. A lower-rung reference reaction independently selects its own best
+common tier. Only the terminal CBH-0 boundary reads pinned ATcT formation
+enthalpies.
+
+If L3 geometry fails, only its dependent L3 harmonic calculation is removed;
+independent single points use the accepted L2 geometry. Rejected or failed
+VPT2 falls back to the same-level harmonic ZPE. Exhausting a declared retry
+policy marks that component family unavailable and prevents its unstarted
+partner jobs, after which assembly continues down the same ordered ladder.
+
+## Implementation provenance
+
+`kinbot/anl/cbh.py` is a direct RDKit/networkx graph implementation of the
+generalized CBH definitions in Ramabhadran and Raghavachari, JCTC 2011,
+DOI `10.1021/ct200279q`, with the radical-state extension tested against the
+same atom, bond, charge, and radical invariants. KinBot does not import or
+vendor AutoCBH, TCIT, or another public CBH reaction-generator library.
+Repository history attributes this implementation and its tests to the
+KinBot composite branch commits; public packages are not dependencies of the
+module.
 
 ## Resource boundary
 

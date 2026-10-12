@@ -66,7 +66,14 @@ def validate_automatic_environment(parameters):
     def require_command(key, needed):
         if not needed:
             return
-        value = parameters.get(key, key.removesuffix('_command'))
+        environment_key = {
+            'mess_command': 'KINBOT_MESS_COMMAND',
+            'messpf_command': 'KINBOT_MESSPF_COMMAND',
+        }.get(key)
+        value = (os.environ.get(environment_key, '').strip()
+                 if environment_key else '')
+        if not value:
+            value = parameters.get(key, key.removesuffix('_command'))
         try:
             command = shlex.split(str(value))
         except ValueError as error:
@@ -261,9 +268,15 @@ def build_network_request(root, parameters):
     if requested not in ('ANL0', 'ANL0-F12'):
         raise ValueError(
             'Automatic production supports composite_method ANL0 or ANL0-F12.')
-    rung = parameters.get('cbh_rung')
-    if isinstance(rung, bool) or rung not in range(4):
-        raise ValueError('Automatic CBH rung must be 0, 1, 2, or 3.')
+    rung_policy = parameters.get('cbh_rung', 'auto')
+    if rung_policy == 'auto':
+        max_rung = 3
+    elif (not isinstance(rung_policy, bool)
+          and isinstance(rung_policy, int) and rung_policy in range(4)):
+        max_rung = rung_policy
+    else:
+        raise ValueError(
+            'Automatic CBH rung policy must be auto, 0, 1, 2, or 3.')
     policy = _validate_policy(parameters.get(
         'anl_size_policy', DEFAULT_SIZE_POLICY))
     l2_theory = _resolved_l2_theory(parameters)
@@ -336,7 +349,7 @@ def build_network_request(root, parameters):
     for record in stable.values():
         molecule = record['molecule']
         reaction = _highest_reaction(
-            record['smiles'], rung, molecule['charge'],
+            record['smiles'], max_rung, molecule['charge'],
             molecule['multiplicity'])
         if reaction is None:
             calculated_states.setdefault(
@@ -348,27 +361,44 @@ def build_network_request(root, parameters):
                 'state': [molecule['charge'], molecule['multiplicity']]})
             cbh_targets[routing_name_from_record(record)] = {
                 'target_smiles': record['smiles'],
-                'requested_rung': rung, 'selected_structural_rung': None,
+                'requested_rung': 0, 'selected_structural_rung': None,
+                'rung_policy': rung_policy,
                 'terminal_atct': True,
             }
             continue
-        calculated, leaves = cbh_network_requirements(reaction)
-        states = cbh_network_states(reaction)
-        if set(calculated) != set(states):
-            raise RuntimeError('CBH calculated-species/state expansion disagrees.')
-        for smiles, state in states.items():
-            previous = calculated_states.setdefault(smiles, list(state))
-            if previous != list(state):
-                raise ValueError(
-                    f'{smiles}: combined CBH trees require conflicting states.')
-        for smiles, (formula, state) in leaves.items():
-            value = {'formula': formula, 'state': list(state)}
-            previous = terminals.setdefault(smiles, value)
-            if previous != value:
-                raise ValueError(f'{smiles}: conflicting terminal CBH identity.')
+        # Plan every structurally valid rung through the selected maximum.
+        # Runtime failures can therefore lower the rung without discovering
+        # an unplanned reference species after licensed work has begun.
+        available_rungs = []
+        for candidate in range(reaction.rung, -1, -1):
+            candidate_reaction = generate_cbh_reaction(
+                record['smiles'], candidate, charge=molecule['charge'],
+                multiplicity=molecule['multiplicity'])
+            if candidate_reaction is None:
+                continue
+            available_rungs.append(candidate)
+            calculated, leaves = cbh_network_requirements(candidate_reaction)
+            states = cbh_network_states(candidate_reaction)
+            if set(calculated) != set(states):
+                raise RuntimeError(
+                    'CBH calculated-species/state expansion disagrees.')
+            for smiles, state in states.items():
+                previous = calculated_states.setdefault(smiles, list(state))
+                if previous != list(state):
+                    raise ValueError(
+                        f'{smiles}: combined CBH trees require conflicting states.')
+            for smiles, (formula, state) in leaves.items():
+                value = {'formula': formula, 'state': list(state)}
+                previous = terminals.setdefault(smiles, value)
+                if previous != value:
+                    raise ValueError(
+                        f'{smiles}: conflicting terminal CBH identity.')
         cbh_targets[routing_name_from_record(record)] = {
             'target_smiles': reaction.target_smiles,
-            'requested_rung': rung, 'selected_structural_rung': reaction.rung,
+            'requested_rung': reaction.rung,
+            'selected_structural_rung': reaction.rung,
+            'available_structural_rungs': available_rungs,
+            'rung_policy': rung_policy,
             'reaction': asdict(reaction),
         }
 
@@ -426,7 +456,8 @@ def build_network_request(root, parameters):
         max_jobs = 1
     return {
         'schema': 1, 'status': 'planned',
-        'requested_method': requested, 'requested_cbh_rung': rung,
+        'requested_method': requested,
+        'requested_cbh_rung': rung_policy,
         'l2_theory': l2_theory,
         'atct_version': str(parameters.get('atct_version', '1.220')),
         'resources': {

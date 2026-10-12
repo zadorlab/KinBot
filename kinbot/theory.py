@@ -102,6 +102,10 @@ THEORY_PRESETS = {
     'uma-b2plyp-anl': {
         'l1': {
             'calculator': 'fairchem',
+            # A model name is portable across installations. The FairChem
+            # loader resolves an existing Hugging Face cache snapshot before
+            # attempting network access, so users never paste cache paths.
+            'model_path': 'uma-s-1p2',
             'task_name': 'omol',
             'frequency_mode': 'ase_forces',
         },
@@ -123,6 +127,7 @@ THEORY_PRESETS = {
     'uma-b3lyp-anl-low': {
         'l1': {
             'calculator': 'fairchem',
+            'model_path': 'uma-s-1p2',
             'task_name': 'omol',
             'frequency_mode': 'ase_forces',
         },
@@ -246,7 +251,13 @@ def resolve_profiles(par):
         values['calculator'] = _ALIASES.get(values['calculator'].lower(),
                                             values['calculator'].lower())
         if values['calculator'] == 'fairchem':
-            values['model_path'] = values.get('model_path') or par.get('fc_model_path', '')
+            # Explicit profile > legacy/global option > portable preset.
+            # Keeping this precedence preserves existing site-local inputs
+            # while allowing a hands-off named model in the preset.
+            values['model_path'] = (
+                override.get('model_path')
+                or par.get('fc_model_path', '')
+                or values.get('model_path', ''))
             values['task_name'] = values.get('task_name') or par.get('fc_task_name', 'omol')
             values['device'] = values.get('device') or par.get('fc_device', 'cpu')
             if not values['model_path']:

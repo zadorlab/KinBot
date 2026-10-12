@@ -5,6 +5,10 @@ formal charge, radical electrons, and heavy-atom bond order are retained; cut
 valences are saturated with hydrogen.  Aromatic graphs are first converted to a
 deterministic Kekule graph because CBH counts integral single and multiple
 bonds.  Every generated reaction is checked for elemental and charge balance.
+
+This is an independent KinBot graph implementation of the hierarchy described
+by Ramabhadran and Raghavachari (JCTC 2011, DOI 10.1021/ct200279q).  It neither
+imports nor vendors a public CBH reaction-generator library.
 """
 
 from __future__ import annotations

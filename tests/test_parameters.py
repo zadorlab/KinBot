@@ -82,6 +82,34 @@ class TestBackendWarnings(unittest.TestCase):
         self.assertEqual(parameters['cbh_rung'], 1)
         self.assertEqual(parameters['stop_product_reaction_search'], 1)
 
+    def test_automatic_cbh_defaults_are_hands_off_and_share_queue_cap(self):
+        parameters = self.read_parameters(
+            composite_method='ANL0-F12', theory_preset='uma-b2plyp-anl',
+            queue_job_limit=8)
+        self.assertEqual(parameters['cbh_rung'], 'auto')
+        self.assertEqual(parameters['vrc_tst_max_nodes'], 8)
+        self.assertEqual(parameters['rotdpy_max_jobs'], 8)
+
+        with TemporaryDirectory() as directory:
+            input_file = Path(directory) / 'input.json'
+            input_file.write_text(json.dumps({
+                'barrier_threshold': 50.,
+                'sella_kwargs': {'internal': True, 'gamma': 0.},
+                'composite_method': 'ANL0-F12',
+                'theory_preset': 'uma-b2plyp-anl',
+                'queue_job_limit': 8,
+            }))
+            parsed = Parameters(str(input_file), show_warnings=False)
+        self.assertEqual(parsed.theory_profiles['l1'].model_path,
+                         'uma-s-1p2')
+
+    def test_automatic_queue_subsystem_overrides_are_preserved(self):
+        parameters = self.read_parameters(
+            composite_method='ANL0-F12', theory_preset='uma-b2plyp-anl',
+            queue_job_limit=8, vrc_tst_max_nodes=3, rotdpy_max_jobs=5)
+        self.assertEqual(parameters['vrc_tst_max_nodes'], 3)
+        self.assertEqual(parameters['rotdpy_max_jobs'], 5)
+
     def test_reaction_selection_fails_closed_on_invalid_input(self):
         for selected in ([], {'initial': {}},
                          {'initial': {'hom_sci': []}},

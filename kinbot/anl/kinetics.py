@@ -15,6 +15,17 @@ METHYL_RECOMBINATION_SOURCE = {
     'doi': '10.1021/jp951218o',
     'title': 'Recombination of Methyl Radicals. 2. Global Fits of the Rate Coefficient',
     'fit': '8.78e-11 * exp(-T/723) cm^3 s^-1',
+    'temperature_range_k': [300.0, 1750.0],
+}
+
+METHYL_RECOMBINATION_THEORY_CONTEXT = {
+    'doi': '10.1039/B515914H',
+    'title': ('Theoretical kinetics of the reaction of methyl radicals with '
+              'molecular oxygen and methyl radical recombination'),
+    'method': ('VRC-TST with direct CASPT2/cc-pVDZ sampling and a '
+               'one-dimensional CAS+1+2/aug-cc-pVTZ correction'),
+    'relationship': ('Independent method context; the current validation '
+                     'uses its declared MRCI+Q/cc-pVTZ correction instead.'),
 }
 
 
@@ -179,23 +190,37 @@ def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=3.):
     product = network['wells'][0]
     series = rate_series(
         parse_high_pressure_rates(output_path), reactant, product)
+    minimum_temperature, maximum_temperature = (
+        METHYL_RECOMBINATION_SOURCE['temperature_range_k'])
     comparison = []
     for point in series:
-        reference = methyl_recombination_experimental_fit(point.temperature_k)
-        factor = (max(point.rate, reference) / min(point.rate, reference)
-                  if point.rate > 0. else math.inf)
-        comparison.append({
-            **asdict(point), 'reference_rate': reference,
-            'factor_difference': factor,
-            'within_factor': factor <= max_factor,
-        })
+        row = {**asdict(point), 'compared_to_experiment': (
+            minimum_temperature <= point.temperature_k <= maximum_temperature)}
+        if row['compared_to_experiment']:
+            reference = methyl_recombination_experimental_fit(
+                point.temperature_k)
+            factor = (max(point.rate, reference) / min(point.rate, reference)
+                      if point.rate > 0. else math.inf)
+            row.update({
+                'reference_rate': reference,
+                'factor_difference': factor,
+                'within_factor': factor <= max_factor,
+            })
+        comparison.append(row)
+    compared = [row for row in comparison if row['compared_to_experiment']]
+    if len(compared) < 2:
+        raise ValueError(
+            'MESS has fewer than two rates in the experimental fit range.')
     monotone = all(
         right.rate <= left.rate
-        for left, right in zip(series, series[1:]))
+        for left, right in zip(series, series[1:])
+        if (minimum_temperature <= left.temperature_k <= maximum_temperature
+            and minimum_temperature <= right.temperature_k
+            <= maximum_temperature))
     return {
         'schema': 1,
         'status': ('passed' if monotone and all(
-            item['within_factor'] for item in comparison) else 'failed'),
+            item['within_factor'] for item in compared) else 'failed'),
         'job': job,
         'output': str(output_path),
         'output_sha256': observed_hash,
@@ -204,6 +229,7 @@ def audit_methyl_recombination(run_dir, *, job='mess_0000', max_factor=3.):
         'maximum_accepted_factor': float(max_factor),
         'monotonically_nonincreasing_with_temperature': monotone,
         'source': METHYL_RECOMBINATION_SOURCE,
+        'similar_vrc_theory_context': METHYL_RECOMBINATION_THEORY_CONTEXT,
         'rates': comparison,
         'note': ('The literature fit is an independent diagnostic target and '
                  'was not used to generate the ROTD_py surface or MESS input.'),

@@ -83,6 +83,14 @@ errors only from the current production attempt.
 Set `KINBOT_VRC_PRODUCTION_DIR` only when a different current-format child
 location is required.
 
+Once all production surfaces are converged, `run_full_verification.sh` reuses
+that result to assemble the completed ANL records, solve the ethane and methyl
+CBH-0 formation enthalpies, run MESSPF and MESS, and write one literature and
+provenance report. The wrapper reads `KINBOT_PROFILED_TEST_DIR`,
+`KINBOT_MESS_COMMAND`, and `KINBOT_MESSPF_COMMAND` for site-specific paths and
+commands. Its positional arguments are scheduler partition, maximum concurrent
+KinBot jobs, and cores per job.
+
 Gaussian workers validate scratch on the compute node for every invocation.
 An inherited but unusable `GAUSS_SCRDIR` falls back in order to
 `SLURM_TMPDIR`, `SCRATCH`, `TMPDIR`, `$HOME/.cache/kinbot/gaussian`, and the

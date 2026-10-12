@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from kinbot.anl.cbh import zero_k_from_composite_record
-from kinbot.anl.handoff import apply_handoff
+from kinbot.anl.handoff import _verify_geometry, apply_handoff
 
 
 def _composite(path, *, charge=0, multiplicity=1):
@@ -84,6 +84,24 @@ def test_handoff_fails_closed_on_missing_network_species(tmp_path, monkeypatch):
         'transition_states': {}}))
     with pytest.raises(ValueError, match='complete network'):
         apply_handoff(root, manifest, report_file=tmp_path / 'report.json')
+
+
+def test_geometry_gate_is_orientation_and_like_atom_permutation_invariant():
+    point = SimpleNamespace(
+        atom=['C', 'H', 'H'],
+        geom=[[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]],
+        charge=0, mult=1)
+    # Rotate the structure and exchange the two indistinguishable hydrogens.
+    expected = {
+        'symbols': ['H', 'C', 'H'],
+        'positions': [[0., 0., -1.], [0., 0., 0.], [1., 0., 0.]],
+        'charge': 0, 'multiplicity': 1, 'source': {'task': 'l2'},
+    }
+    result = _verify_geometry(point, expected, 'fixture')
+    assert result['status'] == 'matched'
+    expected['positions'][0][2] = -1.01
+    with pytest.raises(ValueError, match='differs from the accepted structure'):
+        _verify_geometry(point, expected, 'fixture')
 
 
 def test_handoff_can_attach_vpt2_to_transition_state(tmp_path, monkeypatch):

@@ -1157,9 +1157,10 @@ before starting Python. ROTD_py treats every terminal or missing Slurm job
 state as a failed sample, retries it up to `rotdpy_max_retries`, and then
 returns a recorded failure instead of polling forever. Re-running
 `run_vrc_production.sh` with an interrupted production database refreshes the
-site setup and scheduler template, resumes that database directly, and only
-then returns to KinBot to finish the production VRC gate. It does not discard
-accepted Monte Carlo samples. Restart convergence is reevaluated through the
+site setup and scheduler template and resumes that database directly. Once a
+production result exists, the script proceeds directly to the hash and
+provenance gate; it does not re-enter KinBot or repeat the reaction search.
+It does not discard accepted Monte Carlo samples. Restart convergence is reevaluated through the
 full ROTD_py potential plus surface-sampling test; reaching only the potential
 sample ceiling cannot mark a surface complete. At least one follow-up job is
 queued for every unfinished surface even when there are more surfaces than
@@ -1180,6 +1181,69 @@ ethane C--C homolysis, CBH-0/ATcT, MESSPF thermochemistry, and direct VRC
 kinetics. Stationary saddle/IRC kinetics, ions, other elements, and strongly
 multireference stationary points remain separate coverage classes; one small
 system cannot establish correctness for every possible molecule.
+
+## One-command final CBH/ANL, MESSPF, and MESS gate
+
+After the production ROTD progress command reports `status: complete`,
+`converged_surfaces: 24`, and `remaining_surfaces: 0`, no more ROTD sampling
+is needed. The final continuation reuses the completed native QC graphs and
+ROTD database:
+
+```bash
+cd ~/KinBot
+export KINBOT_PROFILED_TEST_DIR="$PWD/ethane_profiled_hpc_run_v5"
+
+# Override these only when the installed executables use other command names.
+export KINBOT_MESS_COMMAND="${KINBOT_MESS_COMMAND:-mess}"
+export KINBOT_MESSPF_COMMAND="${KINBOT_MESSPF_COMMAND:-messpf}"
+
+nohup bash examples/anl/ethane_profiled_hpc/run_full_verification.sh \
+  day-long-cpu 8 8 \
+  > ethane_full_verification.log 2>&1 < /dev/null &
+echo $! > ethane_full_verification.pid
+```
+
+The three wrapper arguments are partition, maximum concurrent KinBot jobs,
+and cores per job. The command above caps the remaining L2/HIR work at eight
+jobs with eight cores per job.
+
+The generated schema-1 manifest is data, not site code. Paths, scheduler
+partition, processors, and MESS command names remain configurable. Preparation
+reparses every completed native QC result, assembles the five common
+profiled-ANL0-F12 records, reports a signed component breakdown for both CBH-0
+reactions, resolves the pinned ATcT 1.220 references, and writes a strict
+handoff for the exact ethane and methyl routing identities. It also requires
+every declared source-geometry higher-order comparison and both Hf(0 K)
+comparisons to pass before any hindered-rotor job can be submitted.
+
+The MESS pass sets `rotdpy_run=0`, disables new VRC scans, and consumes the
+existing production result. The current-format child performs the small
+B2PLYP-D3(BJ)/cc-pVTZ L2 refinement and ethane hindered-rotor scan needed by
+its MESS model; an orientation-independent geometry check requires agreement
+with the accepted L2 composite structure. No ANL single points, correction
+potentials, or ROTD surfaces are rerun. It then runs standalone MESSPF tables
+for both stable species, converts Hf(0 K) to Hf(298.15 K), fits NASA-7
+polynomials, and runs the direct MESS network. The test manifest declares He
+as collider and the standard CHEMKIN/GRI-Mech ethane transport parameters
+epsilon/kB = 252.3 K and sigma = 4.302 angstrom; the high-pressure rate
+comparison does not depend on collisional falloff. The final audit requires
+all of the following:
+
+* exact source-geometry QC comparisons for methane and methyl;
+* ethane and methyl CBH/ANL Hf(0 K) comparisons with the 2017 workbook;
+* input/output hashes and the native 298.15 K row for every MESSPF job;
+* at least one accepted ethane hindered-rotor block at the matching L2 level;
+* the Hf(0 K) to Hf(298.15 K) elemental-reference identity;
+* NASA-7 H/S anchors and range continuity;
+* a MESS `Core Rotd` source hash equal to the selected production `Ne` file;
+* a native high-pressure CH3 + CH3 rate table within the declared factor-three
+  envelope of the independent 1996 experimental global fit.
+
+If Gaussian marked an exact VPT2 output for review, preparation stops before
+MESS and names the missing hash-bound review file. A review file accepts only
+that native output hash; the workflow never accepts warnings automatically.
+The terminal result is
+`ethane_profiled_hpc_run_v5/full_verification_report.json`.
 
 ### Dispatcher recovery for the reference batch
 

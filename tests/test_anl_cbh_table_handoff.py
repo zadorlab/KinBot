@@ -20,6 +20,7 @@ from kinbot.anl.cbh import (CBHReaction, DEFAULT_METHOD_LADDER, FormationEnthalp
                             HARTREE_TO_KJ_MOL,
                             generate_cbh_reaction, select_cbh_ladder,
                             solve_formation_enthalpy)
+from kinbot.anl.thermochemistry import audit_messpf_run
 from kinbot.energy import ZeroKEnergy, attach_formation_enthalpy
 from kinbot.mess import MESS
 from kinbot.parameters import Parameters
@@ -249,6 +250,9 @@ def test_messpf_executor_replaces_stale_output_and_records_hashes(
     assert len(record['input_sha256']) == len(record['output_sha256']) == 64
     assert Path('me/partition_functions/123.stdout').read_text() == (
         'fake MESSPF completed\n')
+    audit = audit_messpf_run(tmp_path)
+    assert audit['status'] == 'passed'
+    assert audit['species']['123']['output_sha256'] == record['output_sha256']
 
 
 def test_direct_mess_network_accepts_per_species_ladder_fallback(tmp_path, monkeypatch):

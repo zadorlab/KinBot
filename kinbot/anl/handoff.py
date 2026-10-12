@@ -8,6 +8,8 @@ import json
 import math
 from pathlib import Path
 
+import numpy as np
+
 from kinbot.anl.atct import ATcTRecord, _canonical_smiles
 from kinbot.anl.cbh import FormationEnthalpy, zero_k_from_composite_record
 from kinbot.anl.workflow import attach_task_vpt2_frequencies
@@ -102,6 +104,47 @@ def _entry_map(value, label):
     return value
 
 
+def _distance_signature(symbols, positions):
+    coordinates = np.asarray(positions, dtype=float)
+    if (coordinates.shape != (len(symbols), 3)
+            or not np.isfinite(coordinates).all()):
+        raise ValueError('Geometry handoff coordinates are invalid.')
+    groups = {}
+    for left in range(len(symbols)):
+        for right in range(left + 1, len(symbols)):
+            key = tuple(sorted((str(symbols[left]), str(symbols[right]))))
+            groups.setdefault(key, []).append(float(np.linalg.norm(
+                coordinates[left] - coordinates[right])))
+    return {key: sorted(values) for key, values in groups.items()}
+
+
+def _verify_geometry(point, expected, label, tolerance=2e-4):
+    """Verify an L2 structure independent of orientation and like-atom order."""
+    if (not isinstance(expected, dict)
+            or expected.get('charge', 0) != point.charge
+            or expected.get('multiplicity', 1) != point.mult):
+        raise ValueError(f'{label}: accepted L2 geometry state disagrees.')
+    observed = _distance_signature(point.atom, point.geom)
+    target = _distance_signature(
+        expected.get('symbols', ()), expected.get('positions', ()))
+    if observed.keys() != target.keys() or any(
+            len(observed[key]) != len(target[key]) for key in observed):
+        raise ValueError(f'{label}: accepted L2 geometry composition disagrees.')
+    maximum = max((abs(value - target[key][index])
+                   for key, values in observed.items()
+                   for index, value in enumerate(values)), default=0.)
+    if maximum > tolerance:
+        raise ValueError(
+            f'{label}: live L2 geometry differs from the accepted structure '
+            f'by {maximum:.6g} angstrom in pair distances.')
+    return {
+        'status': 'matched',
+        'maximum_pair_distance_error_angstrom': maximum,
+        'tolerance_angstrom': tolerance,
+        'source': expected.get('source'),
+    }
+
+
 def _attach_vpt2(point, value, base, label):
     """Attach one explicitly accepted, mode-resolved VPT2 result."""
     if value is None:
@@ -163,6 +206,10 @@ def apply_handoff(root, manifest_file, *, report_file='me/anl_handoff.json'):
     applied = {'species': {}, 'transition_states': {}}
     for key, entry in species_entries.items():
         point = stable[key]
+        geometry = None
+        if entry.get('geometry') is not None:
+            geometry = _verify_geometry(
+                point, entry['geometry'], f'{key}.geometry')
         composite_path = _path(base, entry.get('composite'),
                                f'{key}.composite')
         final = zero_k_from_composite_record(point.smiles, composite_path)
@@ -189,6 +236,8 @@ def apply_handoff(root, manifest_file, *, report_file='me/anl_handoff.json'):
         vpt2 = _attach_vpt2(point, entry.get('vpt2'), base, key)
         if vpt2 is not None:
             record['vpt2'] = vpt2
+        if geometry is not None:
+            record['geometry'] = geometry
         applied['species'][key] = record
 
     for reaction_name, entry in ts_entries.items():

@@ -63,3 +63,26 @@ def test_methyl_recombination_audit_uses_hash_and_network(tmp_path):
     native.write_text(native.read_text() + '\nchanged\n')
     with pytest.raises(ValueError, match='hash'):
         audit_methyl_recombination(tmp_path)
+
+
+def test_methyl_recombination_retains_rates_outside_fit_range(tmp_path):
+    directory = tmp_path / 'me'
+    directory.mkdir()
+    rates = [(temperature, methyl_recombination_experimental_fit(temperature))
+             for temperature in (300., 1000., 1800., 2000.)]
+    native = directory / 'mess_0000.out'
+    native.write_text(output(rates))
+    digest = hashlib.sha256(native.read_bytes()).hexdigest()
+    (directory / 'mess_execution.json').write_text(json.dumps({
+        'schema': 1, 'status': 'complete',
+        'jobs': {'mess_0000': {'output_sha256': digest}},
+    }))
+    (directory / 'mess_networks.json').write_text(json.dumps([{
+        'stem': 'mess_0000', 'wells': ['w_1'], 'products': ['b_1'],
+    }]))
+    audit = audit_methyl_recombination(tmp_path)
+    assert audit['status'] == 'passed'
+    assert len(audit['rates']) == 4
+    assert [row['compared_to_experiment'] for row in audit['rates']] == [
+        True, True, False, False]
+    assert 'reference_rate' not in audit['rates'][-1]

@@ -118,8 +118,15 @@ PY
     "$python_bin" -m kinbot.rotdpy run "$rotdpy_input"
 fi
 
+# A completed production result means the interrupted KinBot invocation had
+# already reached the ROTD_py handoff.  Re-entering KinBot here would repeat
+# the well/reaction work and can leave a healthy restart looking as though it
+# is still finalizing.  New runs still enter KinBot normally; completed and
+# directly resumed runs proceed immediately to the hash/provenance gate.
 cd "$run_dir"
-"$python_bin" -m kinbot.kb ethane_vrc_production.json
+if ! test -f "$rotdpy_result"; then
+    "$python_bin" -m kinbot.kb ethane_vrc_production.json
+fi
 "$python_bin" -m kinbot.rotdpy check \
     "rotdPy/$reaction.py" --profile production \
     | tee rotdpy_production_gate.json

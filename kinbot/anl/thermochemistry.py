@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import asdict, dataclass
+import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -264,3 +266,148 @@ def write_thermochemistry_record(species, output, destination, temperature_k=298
     record = messpf_thermochemistry_record(species, output, temperature_k)
     Path(destination).write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
     return record
+
+
+def _sha256(path):
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def audit_messpf_run(run_dir):
+    """Verify native MESSPF outputs and the derived thermochemistry record.
+
+    This audit is intentionally independent of the live KinBot objects used
+    to write the inputs.  It binds every input and output to the execution
+    record, reparses the native table, and checks the Hf(0)->Hf(298.15) and
+    NASA-7 anchor identities stored by :class:`kinbot.mess.MESS`.
+    """
+    root = Path(run_dir).resolve()
+    me = root if root.name == 'me' else root / 'me'
+    directory = me / 'partition_functions'
+    manifest_path = directory / 'manifest.json'
+    execution_path = directory / 'execution.json'
+    thermo_path = me / 'thermochemistry_298.json'
+    for path in (manifest_path, execution_path, thermo_path):
+        if not path.is_file():
+            raise FileNotFoundError(path)
+    try:
+        manifest = json.loads(manifest_path.read_text())
+        execution = json.loads(execution_path.read_text())
+        thermo = json.loads(thermo_path.read_text())
+    except json.JSONDecodeError as error:
+        raise ValueError('MESSPF audit record is not valid JSON.') from error
+    if (manifest.get('schema') != 1 or execution.get('schema') != 1
+            or execution.get('program') != 'messpf'
+            or thermo.get('schema') != 1):
+        raise ValueError('MESSPF audit records use an unsupported schema.')
+    manifest_species = manifest.get('species')
+    executions = execution.get('species')
+    thermo_species = thermo.get('species')
+    if (not isinstance(manifest_species, dict) or not manifest_species
+            or set(manifest_species) != set(executions or {})
+            or set(manifest_species) != set(thermo_species or {})):
+        raise ValueError('MESSPF species coverage differs across its records.')
+
+    checks = {}
+    for ident, declared in sorted(manifest_species.items()):
+        native = executions[ident]
+        record = thermo_species[ident]
+        if native.get('status') != 'complete' or native.get('returncode') != 0:
+            raise ValueError(f'{ident}: MESSPF execution is not complete.')
+        input_path = directory / native.get('input', '')
+        output_path = directory / native.get('output', '')
+        for path, key in ((input_path, 'input_sha256'),
+                          (output_path, 'output_sha256')):
+            if (not path.is_file() or native.get(key) != _sha256(path)):
+                raise ValueError(f'{ident}: MESSPF {key} verification failed.')
+        hindered_rotor_blocks = input_path.read_text().count('HinderedRotor')
+        points = parse_messpf_output(output_path)
+        point = point_at_temperature(points)
+        stored_point = record.get('messpf', {})
+        for key, value in asdict(point).items():
+            try:
+                stored = float(stored_point[key])
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError(
+                    f'{ident}: stored MESSPF point is incomplete.') from error
+            if not math.isclose(stored, value, rel_tol=0., abs_tol=1e-10):
+                raise ValueError(
+                    f'{ident}: stored MESSPF point differs from native output.')
+        try:
+            formation_0k = float(record['formation_0k_kj_mol'])
+            formation_298 = float(record['formation_298k_kj_mol'])
+            heat_content = float(record[
+                'species_heat_content_0_to_t_kj_mol'])
+            atoms = record['species']['atoms']
+            elemental = record[
+                'element_reference_heat_content_0_to_298_15_kj_mol_atom']
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(
+                f'{ident}: thermochemistry identity is incomplete.') from error
+        if not isinstance(atoms, dict) or not atoms:
+            raise ValueError(f'{ident}: atomic composition is missing.')
+        expected_298 = formation_0k + heat_content - math.fsum(
+            int(count) * float(elemental[element])
+            for element, count in atoms.items())
+        if not math.isclose(formation_298, expected_298,
+                            rel_tol=0., abs_tol=1e-9):
+            raise ValueError(
+                f'{ident}: Hf(298.15 K) differs from the MESSPF identity.')
+        nasa = record.get('nasa7', {})
+        low = nasa.get('low_coefficients')
+        high = nasa.get('high_coefficients')
+        middle = float(nasa.get('temperature_mid_k', 0.))
+        if (nasa.get('format') != 'NASA7'
+                or not isinstance(low, list) or len(low) != 7
+                or not isinstance(high, list) or len(high) != 7
+                or middle <= 0.):
+            raise ValueError(f'{ident}: NASA-7 fit is incomplete.')
+        if not math.isclose(
+                nasa7_enthalpy_kj_mol(low, point.temperature_k),
+                formation_298, rel_tol=0., abs_tol=1e-8):
+            raise ValueError(f'{ident}: NASA-7 enthalpy anchor differs.')
+        if not math.isclose(
+                nasa7_entropy_j_mol_k(low, point.temperature_k),
+                point.entropy_cal_mol_k * CAL_TO_J,
+                rel_tol=0., abs_tol=1e-8):
+            raise ValueError(f'{ident}: NASA-7 entropy anchor differs.')
+        if (not math.isclose(nasa7_enthalpy_kj_mol(low, middle),
+                             nasa7_enthalpy_kj_mol(high, middle),
+                             rel_tol=0., abs_tol=1e-7)
+                or not math.isclose(nasa7_entropy_j_mol_k(low, middle),
+                                    nasa7_entropy_j_mol_k(high, middle),
+                                    rel_tol=0., abs_tol=1e-7)):
+            raise ValueError(f'{ident}: NASA-7 ranges are not H/S continuous.')
+        checks[ident] = {
+            'name': declared.get('name'),
+            'input_sha256': native['input_sha256'],
+            'output_sha256': native['output_sha256'],
+            'temperature_points': len(points),
+            'formation_0k_kj_mol': formation_0k,
+            'formation_298k_kj_mol': formation_298,
+            'heat_content_0_to_298_15_kj_mol': heat_content,
+            'hindered_rotor_blocks': hindered_rotor_blocks,
+            'nasa7_low_cp_rmse_j_mol_k': nasa.get('low_cp_rmse_j_mol_k'),
+            'nasa7_high_cp_rmse_j_mol_k': nasa.get('high_cp_rmse_j_mol_k'),
+        }
+    return {
+        'schema': 1, 'status': 'passed', 'program': 'messpf',
+        'directory': str(directory), 'species': checks,
+    }
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description='Audit native MESSPF thermochemistry and NASA fits')
+    parser.add_argument('run_dir', type=Path)
+    args = parser.parse_args(argv)
+    print(json.dumps(audit_messpf_run(args.run_dir), indent=2,
+                     sort_keys=True))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

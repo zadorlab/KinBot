@@ -5375,3 +5375,44 @@ five-percent flux target, and the 0.85 dynamical correction. Correction
 outputs are accepted only when a sidecar matches the exact input hash; a
 changed method or geometry creates a versioned dispatcher graph rather than
 reusing the earlier smoke output.
+
+---
+
+# 112. Completed-production continuation and final verification report (2026-10-11)
+
+The production continuation no longer re-enters the KinBot reaction search
+after a hash-verified ROTD_py result already exists. Interrupted production
+databases still resume in place, while a completed 24-surface result proceeds
+directly to the production-profile gate. This removes the misleading
+``finalizing`` state and prevents a completed Monte Carlo calculation from
+repeating the well and reaction stages.
+
+`kinbot.anl.end_to_end` joins the previously independent validation layers
+through a declarative manifest. It reparses the completed native QC records,
+assembles the profiled ANL0-F12 energies, solves the ethane and methyl CBH-0
+reactions against the pinned ATcT cache, writes and applies a strict KinBot
+handoff, consumes the completed ROTD_py number-of-states surface, executes
+MESSPF and MESS, and produces one final JSON report. The report includes the
+signed ANL component contributions, CBH reactions and 0 K formation
+enthalpies, exact hashes of every applied energy record, MESSPF 0-to-298.15 K
+identities and NASA-7 continuity checks, native MESS rate hashes, and
+independent paper comparisons.
+
+The fresh current-format continuation repeats only the inexpensive
+B2PLYP-D3(BJ)/cc-pVTZ L2 refinement and ethane hindered-rotor scan needed for
+the MESS partition function. Pair-distance signatures require that live L2
+geometry to match the accepted composite geometry without depending on
+orientation or permutations of like atoms. The MESSPF audit requires a real
+hindered-rotor block for ethane. ANL single points, correction potentials,
+and completed ROTD surface samples are not repeated. The validation manifest
+also declares the standard CHEMKIN/GRI-Mech C2H6 Lennard-Jones parameters,
+epsilon/kB = 252.3 K and sigma = 4.302 angstrom, with helium as collider;
+the primary kinetics gate remains the high-pressure rate coefficient.
+
+The literature gate compares source-geometry CH4 and CH3 higher-order jobs,
+the geometry-independent ethane CCSDT(Q)-CCSD(T) increment, the calculated
+ethane and methyl Hf(0 K) values, and the CH3 + CH3 high-pressure rate table.
+The current executed recipe remains explicitly labeled
+`profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ`; the report does not relabel it
+as the paper's full ANL1 expression or insert published numbers into computed
+components. Exact ANL1 reproduction remains a separate higher-tier graph.

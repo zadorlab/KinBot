@@ -5445,3 +5445,17 @@ warning-policy identifier. Completed archives created by the earlier parser
 are accepted only when reparsing the unchanged native output reproduces the
 exact saved warning list and classifies every item as nonblocking. No Gaussian
 calculation or execution record is rewritten during that migration.
+
+---
+
+# 114. Native execution evidence in literature checks (2026-10-11)
+
+Literature request checks now verify and parse the native calculation before
+comparing request metadata. A field explicitly present in the staged task or
+result-parser declaration remains authoritative. If a benchmark field is
+absent there, the comparator may fill it only from the verified native parsed
+result. This is required for MRCC's `driver=direct`: the parser declaration
+does not contain that field, while the native MRCC parser records it after
+checking the completed output. The literature report identifies every field
+supplied by native evidence. Missing or contradictory evidence remains a hard
+failure.

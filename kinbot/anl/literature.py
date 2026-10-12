@@ -373,6 +373,7 @@ def compare_run(name, run_dir):
     exact_geometry = geometry_deviation <= 5e-5
     observed = {}
     request_variants = {}
+    native_request_evidence = {}
     comparison_profiles = {}
     for task_id, target in benchmark['tasks'].items():
         if (task_id not in tasks
@@ -380,7 +381,19 @@ def compare_run(name, run_dir):
             continue
         task = tasks[task_id]
         parser = task.get('result_parser', {})
+        *_, parsed = _verified_task_result(run_dir, task_id)
         actual_request = {'backend': task.get('backend'), **parser}
+        # Some execution properties are established only by the verified
+        # native result.  In particular, MRCC parser declarations identify
+        # the program and method but the parser records ``driver=direct``
+        # after checking the native output.  Use native evidence only for a
+        # benchmark field absent from the staged declaration; an explicit
+        # declaration remains authoritative and conflicts still fail.
+        for key in target.get('request', {}):
+            if actual_request.get(key) is None and parsed.get(key) is not None:
+                actual_request[key] = parsed[key]
+                native_request_evidence.setdefault(task_id, {})[key] = \
+                    parsed[key]
         allowed_variants = target.get('comparison_variants', {})
         mismatch = {
             key: {'expected': value, 'observed': actual_request.get(key)}
@@ -402,7 +415,6 @@ def compare_run(name, run_dir):
             request_variants[task_id] = variants
         if target.get('comparison_profile'):
             comparison_profiles[task_id] = target['comparison_profile']
-        *_, parsed = _verified_task_result(run_dir, task_id)
         observed[task_id] = _nested(parsed, target['path'])
     try:
         result = compare_values(
@@ -426,6 +438,7 @@ def compare_run(name, run_dir):
     result['geometry_match'] = exact_geometry
     result['maximum_pair_distance_error_angstrom'] = geometry_deviation
     result['calculation_request_variants'] = request_variants
+    result['calculation_request_native_evidence'] = native_request_evidence
     result['calculation_profiles'] = comparison_profiles
     result['profiled_variant'] = bool(request_variants or comparison_profiles)
     if not exact_geometry:

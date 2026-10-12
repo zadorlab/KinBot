@@ -192,7 +192,57 @@ def test_run_comparison_rejects_a_different_reference(monkeypatch):
                 literature.BENCHMARKS['methane-qz-2017']['molecule'],
             'tasks': [task]}, {
             'tasks': {'ccsdtqp_dz': {'status': 'complete'}}}))
+    monkeypatch.setattr(
+        literature, '_verified_task_result',
+        lambda run_dir, task_id: (
+            None, None, None, None, None,
+            {'energy_hartree': -40.387527542311}))
     with pytest.raises(ValueError, match='does not match'):
+        literature.compare_run('methane-qz-2017', '/synthetic/run')
+
+
+def test_run_comparison_uses_verified_native_driver_evidence(monkeypatch):
+    benchmark = BENCHMARKS['methane-qz-2017']
+    task = {
+        'id': 'ccsdtq_dz', 'backend': 'mrcc',
+        'result_parser': {
+            'method': 'CCSDT(Q)', 'basis': 'cc-pVDZ',
+            'reference': 'RHF', 'correlation': 'unrestricted'}}
+    monkeypatch.setattr(
+        literature, '_load',
+        lambda run_dir: (Path(run_dir), {
+            'molecule': benchmark['molecule'], 'tasks': [task]}, {
+            'tasks': {'ccsdtq_dz': {'status': 'complete'}}}))
+    monkeypatch.setattr(
+        literature, '_verified_task_result',
+        lambda run_dir, task_id: (
+            None, None, None, None, None, {
+                'energy_hartree': benchmark['tasks']['ccsdtq_dz']['expected'],
+                'driver': 'direct'}))
+    result = literature.compare_run('methane-qz-2017', '/synthetic/run')
+    assert result['status'] == 'passed'
+    assert result['calculation_request_native_evidence'] == {
+        'ccsdtq_dz': {'driver': 'direct'}}
+
+
+def test_run_comparison_does_not_invent_missing_driver(monkeypatch):
+    benchmark = BENCHMARKS['methane-qz-2017']
+    task = {
+        'id': 'ccsdtq_dz', 'backend': 'mrcc',
+        'result_parser': {
+            'method': 'CCSDT(Q)', 'basis': 'cc-pVDZ',
+            'reference': 'RHF', 'correlation': 'unrestricted'}}
+    monkeypatch.setattr(
+        literature, '_load',
+        lambda run_dir: (Path(run_dir), {
+            'molecule': benchmark['molecule'], 'tasks': [task]}, {
+            'tasks': {'ccsdtq_dz': {'status': 'complete'}}}))
+    monkeypatch.setattr(
+        literature, '_verified_task_result',
+        lambda run_dir, task_id: (
+            None, None, None, None, None, {
+                'energy_hartree': benchmark['tasks']['ccsdtq_dz']['expected']}))
+    with pytest.raises(ValueError, match="'observed': None"):
         literature.compare_run('methane-qz-2017', '/synthetic/run')
 
 

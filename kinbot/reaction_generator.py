@@ -225,7 +225,7 @@ class ReactionGenerator:
                         if status == 'running':
                             continue
                         elif status == 'error':
-                            logger.info('\tRxn search failed (gaussian error) for {}'
+                            logger.info('\tRxn search failed (QC calculation error) for {}'
                                          .format(obj.instance_name))
                             self.species.reac_ts_done[index] = -999
                         else:

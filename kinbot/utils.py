@@ -174,8 +174,8 @@ def clean_files(diagnostic=False, qc=None):
                     else:
                         logger.info(f'All coordinates of file {ll} are 0.')
     if diagnostic:
-        logger.info(f'If empty or stuck files were detected, check the /perm directory for failed jobs on the HPC.')
-        logger.info(f'You will need to resubmit KinBot to ensure the correctness of the results.')
+        logger.info('If problems were reported above, check the /perm directory, '
+                    'resolve the failed calculations and then resubmit KinBot.')
     return
 
 def create_matplotlib_graph(x=[0., 1.],

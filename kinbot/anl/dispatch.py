@@ -969,11 +969,12 @@ def reparse_failed(run_dir, ident):
         if previous.get('status') != 'executed':
             raise RuntimeError(f'{ident}: complete task has no executed result.')
         requested = task['result_parser']
-        from kinbot.anl.results import parse_result
+        from kinbot.anl.results import parse_result, parsed_result_extends
         parsed = parse_result(
             (directory / requested['file']).read_text(errors='replace'),
             requested)
-        if parsed != previous.get('details', {}).get('parsed_result'):
+        if not parsed_result_extends(
+                previous.get('details', {}).get('parsed_result'), parsed):
             raise RuntimeError(f'{ident}: saved parsed result differs from native output.')
         return previous
     if entry.get('status') != 'failed':

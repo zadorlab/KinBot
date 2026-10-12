@@ -436,6 +436,26 @@ def test_read_completed_f12_component_reparses_and_checks_artifacts():
         assert result.source_sha256 == hashlib.sha256(
             (directory / 'f12_tz.out').read_bytes()).hexdigest()
 
+        # Parser upgrades may add derived metadata without invalidating the
+        # immutable native calculation or its older execution record.
+        execution_path = directory / 'execution.json'
+        execution = json.loads(execution_path.read_text())
+        execution['details']['parsed_result'].pop('program_variant')
+        execution_path.write_text(json.dumps(execution))
+        upgraded = task_component(run_dir, 'f12_tz', key='f12_tz',
+                                  state_id='state-A')
+        assert upgraded.settings['program_variant'] == 'RHF-UCCSD(T)-F12b'
+
+        execution = json.loads(execution_path.read_text())
+        execution['details']['parsed_result']['energy_hartree'] += 0.001
+        execution_path.write_text(json.dumps(execution))
+        with pytest.raises(ValueError, match='differs from native'):
+            task_component(run_dir, 'f12_tz', key='f12_tz',
+                           state_id='state-A')
+
+        execution['details']['parsed_result']['energy_hartree'] -= 0.001
+        execution_path.write_text(json.dumps(execution))
+
         (directory / 'f12_tz.out').write_text(_F12.replace('-40.454906199189',
                                                           '-40.454000000000'))
         with pytest.raises(RuntimeError, match='artifact'):

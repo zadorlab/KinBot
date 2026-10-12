@@ -13,7 +13,7 @@ from kinbot.anl.dispatch import _load, _verify_execution, _verify_stage_files
 from kinbot.anl.extrapolation import (core_valence_correction, two_point_cbs)
 from kinbot.anl.model import (ComponentRequirement, ComponentResult,
                               IncompleteRecipeError)
-from kinbot.anl.results import parse_result
+from kinbot.anl.results import parse_result, parsed_result_extends
 
 
 def _verified_task_result(run_dir, task_id):
@@ -37,7 +37,8 @@ def _verified_task_result(run_dir, task_id):
         raise IncompleteRecipeError(f'{task_id}: QC execution failed.')
     native = directory / request['file']
     parsed = parse_result(native.read_text(errors='replace'), request)
-    if parsed != execution.get('details', {}).get('parsed_result'):
+    if not parsed_result_extends(
+            execution.get('details', {}).get('parsed_result'), parsed):
         raise ValueError(f'{task_id}: saved parsed result differs from native output.')
     return run_dir, spec, task, execution, native, parsed
 

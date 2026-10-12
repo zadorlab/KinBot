@@ -47,6 +47,31 @@ _MOLPRO_ALL_ELECTRON = r'(?:^|;)\s*core\s*}'
 _MRCC_METHODS = ('CCSDT(Q)', 'CCSDTQ(P)')
 
 
+def parsed_result_extends(saved, current):
+    """Return whether a current parse preserves every saved result field.
+
+    Native output hashes remain the immutable provenance boundary. Parser
+    releases may derive additional metadata from that same file, but may not
+    remove or change any value that an earlier parser recorded.
+    """
+    if not isinstance(saved, dict) or not saved.get('kind') \
+            or not isinstance(current, dict):
+        return False
+
+    def preserved(old, new):
+        if isinstance(old, dict):
+            return (isinstance(new, dict)
+                    and all(key in new and preserved(value, new[key])
+                            for key, value in old.items()))
+        if isinstance(old, list):
+            return (isinstance(new, list) and len(old) == len(new)
+                    and all(preserved(left, right)
+                            for left, right in zip(old, new)))
+        return old == new
+
+    return preserved(saved, current)
+
+
 def _declares_molpro_ccsdt(text, *, accept_obsolete_forced=False):
     if re.search(_MOLPRO_CCSD_T, text, re.IGNORECASE | re.MULTILINE):
         return True

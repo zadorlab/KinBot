@@ -442,10 +442,20 @@ class TestComplexMESS(unittest.TestCase):
         self.assertIn('Core Rotd', output)
         self.assertNotIn('Core PhaseSpaceTheory', output)
         staged = Path('me/rotd_test_hom_sci_Ne_0.out')
-        self.assertEqual(staged.read_bytes(), number.read_bytes())
+        self.assertEqual(
+            staged.read_text(), '0 0\n0.01 1.0\n100.0 2.0\n')
+        self.assertEqual(number.read_text(), '0.0 1.0\n100.0 2.0\n')
         provenance = json.loads(Path('me/rotdpy_sources.json').read_text())
         source = provenance['reactions'][reaction.instance_name]
         self.assertEqual(source['source_sha256'], hashes[result_files[0]])
+        self.assertEqual(source['mess_file_sha256'], hashlib.sha256(
+            staged.read_bytes()).hexdigest())
+        self.assertEqual(source['mess_preprocessing'], {
+            'name': 'explicit_zero_flux_origin',
+            'applied': True,
+            'row': [0., 0.],
+            'positive_flux_origin_shift_cm_inverse': 0.01,
+        })
         self.assertEqual(source['indistinguishability_factor'], 1)
         self.assertEqual(
             source['mess_symmetry_factor'],

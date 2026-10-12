@@ -19,6 +19,13 @@ R_KJ_MOL_K = 0.00831446261815324
 R_J_MOL_K = R_KJ_MOL_K * 1000.
 CAL_TO_J = 4.184
 
+
+def _count_hindered_rotor_blocks(text: str) -> int:
+    """Count MESS ``Rotor Hindered`` blocks in a rendered species model."""
+    return len(re.findall(
+        r'^\s*Rotor\s+Hindered(?:\s|$)', text,
+        flags=re.IGNORECASE | re.MULTILINE))
+
 @dataclass(frozen=True)
 class PartitionFunctionPoint:
     temperature_k: float
@@ -398,7 +405,8 @@ def audit_messpf_run(run_dir):
                           (output_path, 'output_sha256')):
             if (not path.is_file() or native.get(key) != _sha256(path)):
                 raise ValueError(f'{ident}: MESSPF {key} verification failed.')
-        hindered_rotor_blocks = input_path.read_text().count('HinderedRotor')
+        input_text = input_path.read_text()
+        hindered_rotor_blocks = _count_hindered_rotor_blocks(input_text)
         points = parse_messpf_output(output_path)
         point = point_at_temperature(points)
         smiles = declared.get('smiles')

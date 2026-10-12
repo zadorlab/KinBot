@@ -19,7 +19,8 @@ from kinbot.parameters import Parameters
 from kinbot.pes import _rotdpy_correction_block, create_rotdpy_inputs
 from kinbot.rotdpy import (_controller_lock, ensure_available, main,
                            number_of_states_file, read_result, run,
-                           sampling_progress)
+                           sampling_progress,
+                           stage_number_of_states_file)
 from kinbot.molpro import _vrc_multireference_method
 
 
@@ -118,6 +119,30 @@ def test_vrc_mrci_q_uses_davidson_corrected_energy():
     assert 'wf,18,1,0' in method
     assert '{mrci}' in method
     assert energy == 'energd(1)'
+
+
+def test_mess_staging_adds_zero_flux_origin_without_changing_native(tmp_path):
+    source = tmp_path / 'Ne_1.out'
+    destination = tmp_path / 'me' / 'Ne_1.out'
+    source.write_text('0.0000e+00 2.5000e+00\n6.9503e+00 3.0000e+00\n')
+
+    provenance = stage_number_of_states_file(source, destination)
+
+    assert source.read_text() == (
+        '0.0000e+00 2.5000e+00\n6.9503e+00 3.0000e+00\n')
+    assert destination.read_text() == (
+        '0 0\n0.01 2.5000e+00\n6.9503e+00 3.0000e+00\n')
+    assert provenance['name'] == 'explicit_zero_flux_origin'
+    assert provenance['applied'] is True
+    assert provenance['positive_flux_origin_shift_cm_inverse'] == 0.01
+    assert provenance['mess_file_sha256'] == __import__('hashlib').sha256(
+        destination.read_bytes()).hexdigest()
+
+    provenance = stage_number_of_states_file(destination,
+                                              tmp_path / 'already.out')
+    assert provenance['applied'] is False
+    assert provenance['positive_flux_origin_shift_cm_inverse'] is None
+    assert (tmp_path / 'already.out').read_text() == destination.read_text()
 
 
 def test_production_result_requires_converged_numeric_multipoint_sampling(

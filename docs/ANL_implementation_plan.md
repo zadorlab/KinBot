@@ -222,6 +222,12 @@ differences. Barrierless channels consume the selected, hash-verified ROTD_py
 number-of-states surface through MESS `Core Rotd`. The traditional KinBot
 energy path remains active when CBH-ANL is not requested.
 
+KinBot preserves the hash-verified native ROTD_py number-of-states table and
+stages a separate MESS copy with the conventional zero-flux origin.  When the
+native zero-energy row has positive flux, the staged table follows the
+published MESS convention: `0 0`, then that positive-flux row at 0.01 cm-1.
+Both hashes and the transformation are recorded in `rotdpy_sources.json`.
+
 Thermochemistry fitting uses the same CBH reaction network at 298.15 K. It
 does not switch to an atomization or elemental-reference equation.
 

@@ -713,6 +713,28 @@ def audit(source):
     if (consumed.get('source_sha256') != selected_provenance['source_sha256']
             or Path(consumed.get('source', '')).resolve() != selected.resolve()):
         raise ValueError('MESS did not consume the selected production ROTD_py surface.')
+    staged_name = consumed.get('mess_file')
+    staged = run_dir / 'me' / str(staged_name)
+    preprocessing = consumed.get('mess_preprocessing')
+    if (not isinstance(staged_name, str)
+            or Path(staged_name).name != staged_name
+            or not staged.is_file()
+            or consumed.get('mess_file_sha256') != _sha256(staged)
+            or not isinstance(preprocessing, dict)
+            or preprocessing.get('name') != 'explicit_zero_flux_origin'
+            or preprocessing.get('row') != [0., 0.]):
+        raise ValueError(
+            'MESS-facing ROTD_py surface provenance is incomplete.')
+    first_row = next((line.split() for line in staged.read_text().splitlines()
+                      if line.split()), None)
+    try:
+        explicit_origin = ([float(value) for value in first_row]
+                           == [0., 0.])
+    except (TypeError, ValueError):
+        explicit_origin = False
+    if not explicit_origin:
+        raise ValueError(
+            'MESS-facing ROTD_py surface lacks an explicit zero-flux origin.')
     literature = _literature_checks(base, data.get('literature'))
     statuses = [kinetics['status'], *(item['status'] for item in literature)]
     status = 'passed' if all(value == 'passed' for value in statuses) else 'failed'
@@ -724,6 +746,9 @@ def audit(source):
             'surface_count': rotdpy_result['surface_count'],
             'selected_number_of_states': str(selected),
             'selected_sha256': selected_provenance['source_sha256'],
+            'mess_number_of_states': str(staged),
+            'mess_sha256': consumed['mess_file_sha256'],
+            'mess_preprocessing': preprocessing,
             'mess_source_record': str(sources_path),
         },
         'handoff': handoff, 'chemistry': chemistry,

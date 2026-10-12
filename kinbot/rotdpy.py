@@ -9,6 +9,7 @@ import hashlib
 import importlib.util
 from importlib import metadata
 import json
+import math
 import os
 import pickle
 from pathlib import Path
@@ -454,6 +455,89 @@ def number_of_states_file(input_file: str | Path, energy_index: int = -1,
         'source_sha256': payload['result_sha256'][relative],
         'result_manifest': str(result_path(input_file).resolve()),
         'result_manifest_sha256': _sha256(result_path(input_file)),
+    }
+
+
+def stage_number_of_states_file(source: str | Path,
+                                destination: str | Path) -> dict:
+    """Write the MESS-facing copy of a native ROTD_py ``Ne`` table.
+
+    MESS ``Core Rotd`` requires an explicit zero-flux origin.  ROTD_py writes
+    the sampled energy grid and may omit that boundary row.  Preserve the
+    hash-verified native result and add ``0 0`` only to the derived copy that
+    MESS reads.
+    """
+    source = Path(source).resolve()
+    destination = Path(destination)
+    try:
+        native = source.read_text(encoding='utf-8')
+    except (OSError, UnicodeError) as error:
+        raise RuntimeError(
+            f'Cannot read ROTD_py number-of-states file {source}: {error}') \
+            from error
+
+    rows = []
+    lines = native.splitlines()
+    for line_number, line in enumerate(lines, start=1):
+        words = line.split()
+        if not words:
+            continue
+        if len(words) != 2:
+            raise ValueError(
+                f'{source}: line {line_number} is not a two-column '
+                'number-of-states row.')
+        try:
+            row = tuple(float(word) for word in words)
+        except ValueError as error:
+            raise ValueError(
+                f'{source}: line {line_number} is not numeric.') from error
+        if not all(math.isfinite(value) for value in row):
+            raise ValueError(
+                f'{source}: line {line_number} is not finite.')
+        rows.append((line_number - 1, row))
+    if not rows:
+        raise ValueError(f'{source}: number-of-states table is empty.')
+    values = [row for _, row in rows]
+    if (any(energy < 0. or states < 0. for energy, states in values)
+            or any(left[0] >= right[0]
+                   for left, right in zip(values, values[1:]))):
+        raise ValueError(
+            f'{source}: number-of-states rows must have nonnegative values '
+            'and strictly increasing energies.')
+
+    has_origin = values[0] == (0., 0.)
+    shifted_to = None
+    if has_origin:
+        staged = native
+    else:
+        if values[0][0] == 0.:
+            # Published MESS/ROTD tables retain the positive threshold flux
+            # at 0.01 cm^-1, immediately after the required zero-flux origin.
+            shifted_to = 0.01
+            if len(values) > 1 and values[1][0] <= shifted_to:
+                shifted_to = values[1][0] / 2.
+            if shifted_to <= 0.:
+                raise ValueError(
+                    f'{source}: cannot place positive threshold flux above '
+                    'the zero-flux origin.')
+            index = rows[0][0]
+            match = re.fullmatch(r'(\s*)\S+(\s+)(\S+)(\s*)', lines[index])
+            if match is None:
+                raise ValueError(f'{source}: invalid first data row.')
+            lines[index] = (f'{match.group(1)}{shifted_to:g}'
+                            f'{match.group(2)}{match.group(3)}'
+                            f'{match.group(4)}')
+        staged = '0 0\n' + '\n'.join(lines)
+    if staged and not staged.endswith('\n'):
+        staged += '\n'
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(staged, encoding='utf-8')
+    return {
+        'name': 'explicit_zero_flux_origin',
+        'applied': not has_origin,
+        'row': [0., 0.],
+        'positive_flux_origin_shift_cm_inverse': shifted_to,
+        'mess_file_sha256': _sha256(destination),
     }
 
 

@@ -20,7 +20,8 @@ from kinbot.anl.cbh import (CBHReaction, DEFAULT_METHOD_LADDER, FormationEnthalp
                             HARTREE_TO_KJ_MOL,
                             generate_cbh_reaction, select_cbh_ladder,
                             solve_formation_enthalpy)
-from kinbot.anl.thermochemistry import audit_messpf_run
+from kinbot.anl.thermochemistry import (_count_hindered_rotor_blocks,
+                                        audit_messpf_run)
 from kinbot.energy import ZeroKEnergy, attach_formation_enthalpy
 from kinbot.mess import MESS
 from kinbot.parameters import Parameters
@@ -327,6 +328,17 @@ def test_messpf_executor_replaces_stale_output_and_records_hashes(
     assert 'native parser detail' in message
     assert 'native stderr detail' in message
     assert '123.log (last 40 lines)' in message
+
+
+def test_messpf_audit_recognizes_native_hindered_rotor_grammar():
+    text = '''
+      Rotor     Hindered
+        Group 3 4 5
+      End ! Rotor
+      Rotor Free
+      End ! Rotor
+    '''
+    assert _count_hindered_rotor_blocks(text) == 1
 
 
 def test_direct_mess_network_accepts_per_species_ladder_fallback(tmp_path, monkeypatch):

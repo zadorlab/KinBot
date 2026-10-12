@@ -1495,7 +1495,8 @@ class MESS:
                     f'{reaction.instance_name}: completed ROTD_py input and '
                     f'manifest are required under {directory}.')
             return None
-        from kinbot.rotdpy import number_of_states_file
+        from kinbot.rotdpy import (number_of_states_file,
+                                   stage_number_of_states_file)
         try:
             source, provenance = number_of_states_file(
                 input_file, self.par.get('rotdpy_mess_energy_index', -1),
@@ -1513,11 +1514,12 @@ class MESS:
         safe_name = re.sub(r'[^A-Za-z0-9_.-]+', '_', reaction.instance_name)
         destination = Path('me') / (
             f'rotd_{safe_name}_Ne_{provenance["energy_index"]}.out')
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if not destination.is_file() or destination.read_bytes() != source.read_bytes():
-            shutil.copyfile(source, destination)
+        preprocessing = stage_number_of_states_file(source, destination)
         provenance = dict(provenance)
         provenance['mess_file'] = destination.name
+        provenance['mess_file_sha256'] = preprocessing.pop(
+            'mess_file_sha256')
+        provenance['mess_preprocessing'] = preprocessing
 
         modes = []
         rotors = []

@@ -175,7 +175,9 @@ echo "driver PID: $(cat ethane_full_verification.pid)"
 ```
 
 The existing production ROTD_py files are inputs to this command. No
-`rotd-*` jobs should be submitted.
+`rotd-*` jobs should be submitted. KinBot leaves those native files unchanged
+and creates a hash-recorded MESS copy with an explicit `0 0` flux origin; a
+positive native value at zero energy is retained at 0.01 cm-1 in that copy.
 
 ## Short monitoring command
 

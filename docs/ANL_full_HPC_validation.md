@@ -538,11 +538,11 @@ cd ethane_profiled_hpc_run_v5
   | tee anl_interface_audit.json
 ```
 
-No Gaussian resubmission is part of this recovery. The parsed result will
-retain Gaussian's VPT2 warnings and set `review_required`; this interface
-validation records that scientific review flag without treating a normally
-terminated job as an execution failure. `reparse` is idempotent: when this
-task is already complete, it verifies and returns the existing record.
+No Gaussian resubmission is part of this recovery. The parsed result retains
+Gaussian's VPT2 warnings as nonblocking ANL provenance. It sets
+`review_required` only for a parser-detected unusable result, rather than for
+native warning text alone. `reparse` is idempotent: when this task is already
+complete, it verifies and returns the existing record.
 
 The v5 Molpro jobs predate the unrestricted-command policy. Its audit must
 therefore report `interface_complete_legacy_recipe_incompatible`, list the
@@ -795,9 +795,12 @@ The graph contains only the published-geometry UHF-CCSDT(Q)/cc-pVDZ job. It
 uses the source-exact 2e-6 hartree tolerance and is not part of recipe
 assembly. Once it passes, do not repeat it for other species.
 
-The completed ethane VPT2 parser recorded native Gaussian warnings. Assembly
-therefore stops until those warnings and the mode table are reviewed. First
-print the warnings and exact native-output hash:
+The completed VPT2 parser retains every native Gaussian warning in the parsed
+record. Native `WARNING:` diagnostics are informational for ANL electronic
+energies, frequencies, and ZPE and do not stop assembly when the job normally
+terminated, the requested route is confirmed, the named ZPE terms are
+internally consistent, and all parsed fundamentals are positive. Inspect them
+with:
 
 ```bash
 base="$PWD/ethane_profiled_hpc_run_v5"
@@ -814,9 +817,9 @@ for warning in record['details']['parsed_result']['warnings']:
 PY
 ```
 
-If the exact output is accepted after inspection, create
-`$base/ethane_vpt2_review.json` with this schema, substituting the printed
-hash, reviewer, and concrete scientific rationale:
+Parser-detected unusable data still stops assembly. A hash-bound review file
+remains available for a future explicitly reviewable condition, with this
+schema:
 
 ```json
 {
@@ -1246,9 +1249,12 @@ all of the following:
 * a native high-pressure CH3 + CH3 rate table within the declared factor-three
   envelope of the independent 1996 experimental global fit.
 
-If Gaussian marked an exact VPT2 output for review, preparation stops before
-MESS and names the missing hash-bound review file. A review file accepts only
-that native output hash; the workflow never accepts warnings automatically.
+Native Gaussian warning lines remain in provenance under the versioned ANL
+warning policy and do not by themselves stop preparation. Parser-detected
+invalid data, including incomplete output, inconsistent ZPE components, or a
+nonpositive anharmonic fundamental, still stops before MESS. Archived parser
+records that marked the same unchanged native warnings for review migrate
+without rerunning Gaussian.
 The terminal result is
 `ethane_profiled_hpc_run_v5/full_verification_report.json`.
 

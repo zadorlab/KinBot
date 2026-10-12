@@ -5425,3 +5425,23 @@ The current executed recipe remains explicitly labeled
 `profiled:ANL0-F12:scaled-triples:B2PLYP-D3BJ`; the report does not relabel it
 as the paper's full ANL1 expression or insert published numbers into computed
 components. Exact ANL1 reproduction remains a separate higher-tier graph.
+
+---
+
+# 113. Gaussian VPT2 warning policy for ANL (2026-10-11)
+
+Native Gaussian `WARNING:` lines are retained verbatim in the parsed VPT2
+record but are informational for ANL electronic energies, mode frequencies,
+and zero-point energies. They no longer create a manual recipe gate. The
+parser independently requires normal termination, the requested method,
+basis, dispersion and anharmonic route, a complete fundamental table,
+internally consistent named ZPE components, and positive harmonic modes.
+Parser-detected unusable anharmonic data, such as a nonpositive fundamental,
+remain blocking.
+
+The result records the complete warning list, the subset treated as
+nonblocking for ANL, any parser-generated blocking warnings, and a versioned
+warning-policy identifier. Completed archives created by the earlier parser
+are accepted only when reparsing the unchanged native output reproduces the
+exact saved warning list and classifies every item as nonblocking. No Gaussian
+calculation or execution record is rewritten during that migration.

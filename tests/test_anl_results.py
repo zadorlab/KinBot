@@ -10,7 +10,7 @@ from kinbot.anl.dispatch import _run_external
 from kinbot.anl.results import (
     parse_cfour_dboc, parse_cfour_energy, parse_gaussian_vpt2,
     parse_molpro_energy, parse_molpro_harmonic, parse_mrcc_energy,
-    parse_result, validate_result_parser,
+    parse_result, parsed_result_extends, validate_result_parser,
 )
 from kinbot.energy import attach_anharmonic_frequencies
 
@@ -691,8 +691,12 @@ def test_gaussian_vpt2_named_zpe_and_warnings():
                                  basis='cc-pVTZ')
     assert result['anharmonic_correction_cm_inverse'] == pytest.approx(-137.32185)
     assert result['optimized_in_job'] is True
-    assert result['review_required'] is True
+    assert result['review_required'] is False
     assert len(result['warnings']) == 1
+    assert result['nonblocking_anl_warnings'] == result['warnings']
+    assert result['blocking_warnings'] == []
+    assert result['warning_policy'] == \
+        'native-gaussian-warnings-informational-for-anl-v1'
     assert len(result['anharmonic_fundamentals_cm_inverse']) == 9
     assert result['harmonic_fundamentals_cm_inverse'][0] == pytest.approx(3153.44)
     assert result['anharmonic_fundamentals_cm_inverse'][1] == pytest.approx(3009.34)
@@ -754,9 +758,11 @@ def test_gaussian_vpt2_fundamentals_are_an_explicit_mess_handoff():
     species.reduced_freqs = [5000.] * 9
     with pytest.raises(ValueError, match='mode match exceeds'):
         attach_anharmonic_frequencies(species, result)
+    blocked = parse_gaussian_vpt2(
+        _GAUSSIAN_VPT2.replace('1311.24', '-1.00'),
+        method='B3LYP', basis='cc-pVTZ')
     with pytest.raises(ValueError, match='quality review'):
-        attach_anharmonic_frequencies(species, parse_gaussian_vpt2(
-            _GAUSSIAN_VPT2, method='B3LYP', basis='cc-pVTZ'))
+        attach_anharmonic_frequencies(species, blocked)
 
 
 def test_gaussian_vpt2_rejects_incomplete_or_flags_nonpositive_fundamentals():
@@ -769,6 +775,30 @@ def test_gaussian_vpt2_rejects_incomplete_or_flags_nonpositive_fundamentals():
         method='B3LYP', basis='cc-pVTZ')
     assert result['review_required'] is True
     assert 'Nonpositive anharmonic fundamental mode(s): 9' in result['warnings']
+    assert result['blocking_warnings'] == [
+        'Nonpositive anharmonic fundamental mode(s): 9']
+    assert result['nonblocking_anl_warnings'] == [
+        'WARNING: Unreliable CUBIC force constant i= 2,j= 1,k= 4']
+
+
+def test_gaussian_vpt2_warning_policy_migrates_archived_parser_result():
+    current = parse_gaussian_vpt2(
+        _GAUSSIAN_VPT2, method='B3LYP', basis='cc-pVTZ')
+    saved = {key: value for key, value in current.items()
+             if key not in ('nonblocking_anl_warnings', 'blocking_warnings',
+                            'warning_policy')}
+    saved['review_required'] = True
+    assert parsed_result_extends(saved, current)
+
+    changed = {**current, 'warnings': ['WARNING: different native warning'],
+               'nonblocking_anl_warnings': [
+                   'WARNING: different native warning']}
+    assert not parsed_result_extends(saved, changed)
+
+    blocked = parse_gaussian_vpt2(
+        _GAUSSIAN_VPT2.replace('1311.24', '-1.00'),
+        method='B3LYP', basis='cc-pVTZ')
+    assert not parsed_result_extends(saved, blocked)
 
 
 def test_gaussian_linear_mode_labels_keep_degenerate_components():

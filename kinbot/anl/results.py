@@ -45,6 +45,8 @@ _MOLPRO_LEGACY_F12B = (r'^\s*ccsd\(t\)-f12b?\b[^\n]*'
 _MOLPRO_RHF = r'^\s*\{?\s*rhf(?:\s*,[^\n]*)?\s*$'
 _MOLPRO_ALL_ELECTRON = r'(?:^|;)\s*core\s*}'
 _MRCC_METHODS = ('CCSDT(Q)', 'CCSDTQ(P)')
+_GAUSSIAN_VPT2_WARNING_POLICY = \
+    'native-gaussian-warnings-informational-for-anl-v1'
 
 
 def parsed_result_extends(saved, current):
@@ -57,6 +59,22 @@ def parsed_result_extends(saved, current):
     if not isinstance(saved, dict) or not saved.get('kind') \
             or not isinstance(current, dict):
         return False
+
+    # Older Gaussian parser records marked every native WARNING line for
+    # manual review.  The ANL policy now retains those diagnostics as
+    # provenance while relying on explicit parser checks for unusable VPT2
+    # data.  Permit only this narrowly defined metadata migration so completed
+    # native outputs do not need to be rerun or rewritten.
+    if (saved.get('kind') == 'gaussian_vpt2'
+            and saved.get('review_required') is True
+            and current.get('review_required') is False
+            and isinstance(saved.get('warnings'), list)
+            and current.get('warnings') == saved['warnings']
+            and current.get('nonblocking_anl_warnings') == saved['warnings']
+            and current.get('blocking_warnings') == []
+            and current.get('warning_policy') ==
+                _GAUSSIAN_VPT2_WARNING_POLICY):
+        saved = {**saved, 'review_required': False}
 
     def preserved(old, new):
         if isinstance(old, dict):
@@ -935,7 +953,14 @@ def _gaussian_fundamental_bands(output):
 
 
 def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
-    """Read VPT2 ZPE and mode fundamentals, surfacing native warnings."""
+    """Read VPT2 ZPE and fundamentals under the ANL warning policy.
+
+    Gaussian's native ``WARNING:`` diagnostics are retained verbatim for
+    provenance.  They do not by themselves invalidate ANL energies,
+    frequencies, or ZPE.  Structural checks performed here still reject
+    incomplete or inconsistent output, and parser-detected unusable data are
+    recorded as blocking warnings.
+    """
     lines = output.strip().splitlines()
     if not lines or not lines[-1].lstrip().startswith('Normal termination of Gaussian'):
         raise ValueError('Gaussian output has no final normal termination.')
@@ -975,15 +1000,19 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
                 + components['watson_coriolis'])
     if abs(expected - components['total_anharmonic']) > 0.02:
         raise ValueError('Gaussian anharmonic ZPE components disagree.')
-    warnings = [line.strip() for line in output.splitlines()
-                if re.match(r'^\s*WARNING:', line, re.IGNORECASE)]
+    native_warnings = [line.strip() for line in output.splitlines()
+                       if re.match(r'^\s*WARNING:', line, re.IGNORECASE)]
+    warnings = list(native_warnings)
+    blocking_warnings = []
     mode_labels, harmonic_modes, anharmonic_modes = \
         _gaussian_fundamental_bands(output)
     invalid_modes = [index for index, value in enumerate(anharmonic_modes, 1)
                      if value <= 0.]
     if invalid_modes:
-        warnings.append('Nonpositive anharmonic fundamental mode(s): ' +
-                        ', '.join(map(str, invalid_modes)))
+        warning = ('Nonpositive anharmonic fundamental mode(s): ' +
+                   ', '.join(map(str, invalid_modes)))
+        warnings.append(warning)
+        blocking_warnings.append(warning)
     correction = components['total_anharmonic'] - components['harmonic']
     return {'kind': 'gaussian_vpt2', 'method': method, 'basis': basis,
             'dispersion': dispersion.upper(),
@@ -996,7 +1025,11 @@ def parse_gaussian_vpt2(output, *, method, basis, dispersion=''):
             'harmonic_fundamentals_cm_inverse': harmonic_modes,
             'anharmonic_fundamentals_cm_inverse': anharmonic_modes,
             'fundamental_mode_labels': mode_labels,
-            'warnings': warnings, 'review_required': bool(warnings)}
+            'warnings': warnings,
+            'nonblocking_anl_warnings': native_warnings,
+            'blocking_warnings': blocking_warnings,
+            'warning_policy': _GAUSSIAN_VPT2_WARNING_POLICY,
+            'review_required': bool(blocking_warnings)}
 
 
 def validate_result_parser(request, *, backend, template, outputs,

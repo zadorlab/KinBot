@@ -342,7 +342,7 @@ def test_verified_vpt2_task_attaches_partition_function_frequencies():
         assert len(source['source_sha256']) == 64
 
 
-def test_flagged_vpt2_frequency_handoff_requires_hash_bound_review():
+def test_native_gaussian_warning_does_not_block_anl_frequency_handoff():
     with TemporaryDirectory() as temporary:
         run_dir, _, _ = _completed_zpe_pair(Path(temporary), kind='vpt2')
         workflow = json.loads((run_dir / 'workflow.json').read_text())
@@ -351,6 +351,36 @@ def test_flagged_vpt2_frequency_handoff_requires_hash_bound_review():
         _complete_task(
             run_dir, task,
             _vpt2_output('cc-pVQZ', -80., warning=True))
+        # Simulate an archived result from the parser version that treated
+        # every native Gaussian warning as a manual-review gate.
+        execution_path = run_dir / 'tasks/vpt2_qz/execution.json'
+        execution = json.loads(execution_path.read_text())
+        archived = execution['details']['parsed_result']
+        for key in ('nonblocking_anl_warnings', 'blocking_warnings',
+                    'warning_policy'):
+            archived.pop(key)
+        archived['review_required'] = True
+        execution_path.write_text(json.dumps(execution))
+        species = type('Species', (), {
+            'reduced_freqs': [1250., 1350., 1400., 1550., 1600.,
+                              3000., 3100., 3150., 3200.],
+            'anl_thermochemistry_frequencies': None,
+            'anl_thermochemistry_frequency_source': None,
+        })()
+        attach_task_vpt2_frequencies(species, run_dir, 'vpt2_qz')
+        assert species.anl_thermochemistry_frequencies[-1] == \
+            pytest.approx(3180.)
+
+
+def test_parser_flagged_vpt2_frequency_handoff_stays_blocked():
+    with TemporaryDirectory() as temporary:
+        run_dir, _, _ = _completed_zpe_pair(Path(temporary), kind='vpt2')
+        workflow = json.loads((run_dir / 'workflow.json').read_text())
+        task = next(item for item in workflow['tasks']
+                    if item['id'] == 'vpt2_qz')
+        output = _vpt2_output('cc-pVQZ', -80., warning=True).replace(
+            '1250.000 1230.000', '1250.000 -1.000')
+        _complete_task(run_dir, task, output)
         species = type('Species', (), {
             'reduced_freqs': [1250., 1350., 1400., 1550., 1600.,
                               3000., 3100., 3150., 3200.],
@@ -359,19 +389,6 @@ def test_flagged_vpt2_frequency_handoff_requires_hash_bound_review():
         })()
         with pytest.raises(ValueError, match='explicit quality review'):
             attach_task_vpt2_frequencies(species, run_dir, 'vpt2_qz')
-        execution = json.loads(
-            (run_dir / 'tasks/vpt2_qz/execution.json').read_text())
-        review = Path(temporary) / 'review.json'
-        review.write_text(json.dumps({
-            'schema': 1, 'task_id': 'vpt2_qz',
-            'native_output_sha256': execution['artifacts']['vpt2_qz.log'],
-            'decision': 'accept', 'reviewer': 'Test reviewer',
-            'rationale': 'Synthetic warning reviewed for handoff test.',
-        }))
-        attach_task_vpt2_frequencies(
-            species, run_dir, 'vpt2_qz', review_file=review)
-        source = species.anl_thermochemistry_frequency_source
-        assert source['quality_review']['reviewer'] == 'Test reviewer'
 
 
 def _completed_zpe_pair(root, *, kind):

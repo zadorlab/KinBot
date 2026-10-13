@@ -42,7 +42,8 @@ from kinbot.anl.validation import (assemble_profiled_anl0,
                                    assemble_profiled_anl0_f12,
                                    automatic_composite_spec)
 from kinbot.anl.workflow import _verified_task_result, task_component
-from kinbot.species_routing import routing_name
+from kinbot.species_routing import (configured_reaction_selection,
+                                    routing_name)
 from kinbot.theory import (DEFAULT_ANL_SIZE_POLICY,
                            automatic_cbh_anl_requested, resolve_profiles,
                            validate_anl_size_policy)
@@ -313,6 +314,40 @@ def build_network_request(root, parameters):
     policy = _validate_policy(parameters.get(
         'anl_size_policy', DEFAULT_SIZE_POLICY))
     l2_theory = _resolved_l2_theory(parameters)
+
+    # An explicit motif selector is a request for those reaction channels,
+    # rather than permission to silently keep whichever subset survived.
+    # Ordinary unconstrained KinBot searches retain their historical behavior.
+    selected = configured_reaction_selection(
+        parameters.get('selected_reactions', {}), root)
+    if selected:
+        accepted = {}
+        statuses = getattr(root, 'reac_ts_done', ())
+        instances = getattr(root, 'reac_inst', ())
+        for index, reaction in enumerate(getattr(root, 'reac_obj', ())):
+            if index >= len(statuses) or statuses[index] != -1:
+                continue
+            family = getattr(reaction, 'family_name', None) or getattr(
+                root, 'reac_type', ['unknown'])[index]
+            motif = getattr(reaction, 'instance', None)
+            if motif is None and index < len(instances):
+                motif = instances[index]
+            if motif is not None:
+                accepted.setdefault(str(family), set()).add(
+                    tuple(map(int, motif)))
+        missing = {
+            family: [list(motif) for motif in map(tuple, motifs)
+                     if motif not in accepted.get(family, set())]
+            for family, motifs in selected.items()
+        }
+        missing = {family: motifs for family, motifs in missing.items()
+                   if motifs}
+        if missing:
+            raise RuntimeError(
+                'Automatic CBH/ANL requires every explicitly selected '
+                'reaction channel to complete before planning; missing '
+                f'channels: {missing}. Existing calculation results were '
+                'preserved for restart.')
 
     stable = {}
     route_to_smiles = {}

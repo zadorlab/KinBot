@@ -102,6 +102,38 @@ def test_tight_transition_state_uses_explicit_reactant_energy_identity():
     assert record['identity_kind'] == 'reactant_connectivity_anchor'
 
 
+def test_selected_reaction_failure_blocks_automatic_network_planning():
+    acetaldehyde = _species(
+        'acetaldehyde', 'CC=O', ['C', 'C', 'O', 'H', 'H', 'H', 'H'],
+        energy=-153.)
+    acetaldehyde.short_name = 'w1'
+    reaction = SimpleNamespace(
+        instance_name='acetaldehyde_h2_elim_4_7',
+        family_name='h2_elim', instance=[3, 0, 1, 6], products=[])
+    acetaldehyde.reac_obj = [reaction]
+    acetaldehyde.reac_inst = [[3, 0, 1, 6]]
+    acetaldehyde.reac_ts_done = [-999]
+    acetaldehyde.reac_type = ['h2_elim']
+    parameters = {
+        'composite_method': 'ANL0-F12',
+        'selected_reactions': {
+            'initial': {'h2_elim': [[3, 0, 1, 6]]}},
+        'anl_size_policy': DEFAULT_SIZE_POLICY,
+        'queue_name': 'day-long-cpu', 'ppn': 8, 'queue_job_limit': 8,
+        'atct_version': '1.220',
+    }
+    with pytest.raises(RuntimeError, match='explicitly selected.*h2_elim'):
+        build_network_request(acetaldehyde, parameters)
+
+    acetaldehyde.reac_ts_done = [-1]
+    reaction.ts = _species(
+        reaction.instance_name, '',
+        ['C', 'C', 'O', 'H', 'H', 'H', 'H'], energy=-152.8)
+    request = build_network_request(acetaldehyde, parameters)
+    assert [item['family'] for item in request['network']['reactions']] == [
+        'h2_elim']
+
+
 def test_size_policy_downgrades_monotonically():
     tier, metrics = highest_tier('CC=O', 0, 1, DEFAULT_SIZE_POLICY)
     assert tier == 'ANL0-F12'

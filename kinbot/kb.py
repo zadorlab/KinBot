@@ -49,6 +49,19 @@ def main():
             raise SystemExit(1) from None
 
 
+def _accepted_homolytic_channels(species):
+    """Return completed public ``hom_sci`` channels eligible for VRC-TST."""
+    statuses = getattr(species, 'reac_ts_done', ())
+    families = getattr(species, 'reac_type', ())
+    selected = []
+    for index, reaction in enumerate(getattr(species, 'reac_obj', ())):
+        if (index < len(statuses) and statuses[index] == -1
+                and index < len(families) and families[index] == 'hom_sci'
+                and len(reaction.products) == 2):
+            selected.append(reaction.instance_name)
+    return selected
+
+
 def _main():
     if sys.version_info.major < 3 or sys.version_info.minor < 8:
         print('KinBot only runs with python 3.8 or higher. You have python '
@@ -243,13 +256,7 @@ def _main():
             rg.generate()
             if (par.get('rotdpy_run') and not par['vrc_tst_scan']
                     and not par['vrc_tst_noscan']):
-                selected_vrc = [
-                    reaction.instance_name
-                    for index, reaction in enumerate(well0.reac_obj)
-                    if well0.reac_ts_done[index] == -1
-                    and (getattr(reaction, 'family_name', None)
-                         or well0.reac_type[index]) == 'hom_sci'
-                    and len(reaction.products) == 2]
+                selected_vrc = _accepted_homolytic_channels(well0)
                 if selected_vrc:
                     par['vrc_tst_scan'] = {
                         routing_name(well0): selected_vrc}
